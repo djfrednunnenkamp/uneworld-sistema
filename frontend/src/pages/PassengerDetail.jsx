@@ -266,9 +266,9 @@ export default function PassengerDetail() {
           <div className="section">
             <div className="section-title">Telefones</div>
             <div className="grid3">
-              <F label="Telefone">{fi('phone1', '+55 (00) 0000-0000')}</F>
-              <F label="Telefone">{fi('phone2', '+55 (00) 0000-0000')}</F>
-              <F label="Celular">{fi('mobile', '+55 (00) 00000-0000')}</F>
+              <F label="Telefone">{fi('phone1', '+55 (00) 00000-0000')}</F>
+              <F label="Contato de emergência 1">{fi('phone2', '+55 (00) 00000-0000')}</F>
+              <F label="Contato de emergência 2">{fi('mobile', '+55 (00) 00000-0000')}</F>
             </div>
           </div>
 
