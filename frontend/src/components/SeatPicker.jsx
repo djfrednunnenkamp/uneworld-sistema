@@ -1,6 +1,38 @@
 import { useState, useRef } from 'react'
 import { Ic } from './Icon'
 
+/* ── Classes de voo ── */
+const FLIGHT_CLASSES = [
+  {
+    id: 'economy',
+    label: 'Classe Econômica',
+    sub: 'Assentos padrão, serviço básico',
+    icon: '🪑',
+    color: '#64748b',
+  },
+  {
+    id: 'premium_economy',
+    label: 'Econômica Premium',
+    sub: 'Mais espaço e conforto que a econômica',
+    icon: '⭐',
+    color: '#b45309',
+  },
+  {
+    id: 'business',
+    label: 'Classe Executiva',
+    sub: 'Business — assento reclinável, serviço premium',
+    icon: '💼',
+    color: '#2e6db4',
+  },
+  {
+    id: 'first',
+    label: 'Primeira Classe',
+    sub: 'Máximo conforto, suite privativa',
+    icon: '👑',
+    color: '#7c3aed',
+  },
+]
+
 /* ── Configuração do avião ── */
 const ROWS        = 30
 const FRONT_END   = 10   // linhas 1-10  = frente
@@ -102,32 +134,37 @@ function ZoneDivider({ label, active }) {
 }
 
 /* ── Main component ── */
-export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChangeSeatPos }) {
-  const [open, setOpen] = useState(false)
-  const [draftType, setDraftType] = useState(seatType || '')
-  const [draftPos,  setDraftPos]  = useState(seatPos  || '')
-  const overlayRef = useRef(null)
+export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSeatType, onChangeSeatPos, onChangeFlightClass }) {
+  const [open,        setOpen]        = useState(false)
+  const [classOpen,   setClassOpen]   = useState(false)
+  const [draftType,   setDraftType]   = useState(seatType    || '')
+  const [draftPos,    setDraftPos]    = useState(seatPos     || '')
+  const [draftClass,  setDraftClass]  = useState(flightClass || '')
+  const overlayRef  = useRef(null)
+  const overlayRef2 = useRef(null)
 
   const openPicker = () => {
-    setDraftType(seatType || '')
-    setDraftPos(seatPos   || '')
+    setDraftType(seatType    || '')
+    setDraftPos(seatPos      || '')
+    setDraftClass(flightClass || '')
     setOpen(true)
   }
 
   const save = () => {
     onChangeSeatType(draftType)
     onChangeSeatPos(draftPos)
+    onChangeFlightClass(draftClass)
     setOpen(false)
   }
 
-  const handleOverlay = (e) => {
-    if (e.target === overlayRef.current) save()
-  }
+  const handleOverlay  = (e) => { if (e.target === overlayRef.current)  save() }
+  const handleOverlay2 = (e) => { if (e.target === overlayRef2.current) setClassOpen(false) }
 
   /* Label do campo */
-  const typeLabel = SEAT_COLS.find((s) => s.id === seatType)?.label ?? ''
-  const posLabel  = POSITIONS.find((p) => p.id  === seatPos)?.label  ?? ''
-  const fieldValue = [typeLabel, posLabel].filter(Boolean).join(' · ') || ''
+  const classLabel = FLIGHT_CLASSES.find((c) => c.id === flightClass)?.label ?? ''
+  const typeLabel  = SEAT_COLS.find((s) => s.id === seatType)?.label ?? ''
+  const posLabel   = POSITIONS.find((p) => p.id === seatPos)?.label  ?? ''
+  const fieldValue = [classLabel, typeLabel, posLabel].filter(Boolean).join(' · ') || ''
 
   const zones = [
     { id: 'frente', label: 'Frente',  rows: Array.from({ length: FRONT_END }, (_, i) => i + 1) },
@@ -173,6 +210,32 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
               <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>
                 Preferência de assento
               </p>
+
+              {/* Classe de voo */}
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 7 }}>
+                Classe de voo
+              </p>
+              <button
+                type="button"
+                onClick={() => setClassOpen(true)}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 8, marginBottom: 14,
+                  border: `1.5px solid ${draftClass ? FLIGHT_CLASSES.find(c => c.id === draftClass)?.color : '#e2e8f0'}`,
+                  background: draftClass ? `${FLIGHT_CLASSES.find(c => c.id === draftClass)?.color}12` : '#fff',
+                  color: draftClass ? FLIGHT_CLASSES.find(c => c.id === draftClass)?.color : '#94a3b8',
+                  fontSize: 13, fontWeight: draftClass ? 600 : 400,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  transition: 'all .12s',
+                }}
+              >
+                <span>
+                  {draftClass
+                    ? `${FLIGHT_CLASSES.find(c => c.id === draftClass)?.icon} ${FLIGHT_CLASSES.find(c => c.id === draftClass)?.label}`
+                    : 'Selecionar classe de voo…'}
+                </span>
+                <span style={{ fontSize: 11, opacity: .6 }}>▼</span>
+              </button>
 
               {/* Posição no avião */}
               <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 7 }}>
@@ -327,6 +390,88 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
                   Salvar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Segundo popup: seleção de classe ── */}
+      {classOpen && (
+        <div
+          ref={overlayRef2}
+          onClick={handleOverlay2}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(15,23,42,.55)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 500, padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 12, width: '100%', maxWidth: 420,
+              boxShadow: '0 24px 64px rgba(0,0,0,.28)',
+              animation: 'mIn .15s ease',
+            }}
+          >
+            {/* Header */}
+            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                Selecionar classe de voo
+              </p>
+            </div>
+
+            {/* Classes */}
+            <div style={{ padding: '8px 0' }}>
+              {FLIGHT_CLASSES.map((c) => {
+                const selected = draftClass === c.id
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => { setDraftClass(c.id); setClassOpen(false) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      padding: '13px 20px', cursor: 'pointer',
+                      background: selected ? `${c.color}10` : 'transparent',
+                      borderLeft: selected ? `3px solid ${c.color}` : '3px solid transparent',
+                      transition: 'all .1s',
+                    }}
+                    onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = '#f8fafc' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = selected ? `${c.color}10` : 'transparent' }}
+                  >
+                    <span style={{ fontSize: 24, flexShrink: 0 }}>{c.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13.5, fontWeight: selected ? 700 : 500, color: selected ? c.color : '#1e293b', margin: 0 }}>
+                        {c.label}
+                      </p>
+                      <p style={{ fontSize: 12, color: '#94a3b8', margin: 0, marginTop: 2 }}>
+                        {c.sub}
+                      </p>
+                    </div>
+                    {selected && (
+                      <span style={{ color: c.color, flexShrink: 0 }}><Ic n="check" s={16} /></span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
+              <button
+                onClick={() => { setDraftClass(''); setClassOpen(false) }}
+                style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Limpar
+              </button>
+              <button
+                onClick={() => setClassOpen(false)}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#2e6db4', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>

@@ -19,7 +19,7 @@ const EMPTY = {
   agencies:[],
   cpf:'',
   phone1:'', phone2:'', mobile:'',
-  seat_preference:'', seat_position:'', diet_type:'', receives_mail:false,
+  flight_class:'', seat_preference:'', seat_position:'', diet_type:'', receives_mail:false,
   cep:'', street:'', number:'', complement:'', neighborhood:'', city:'', state:'', country:'Brasil',
   status:'active', notes:'',
 }
@@ -288,8 +288,10 @@ export default function PassengerDetail() {
                 <SeatPicker
                   seatType={form.seat_preference}
                   seatPos={form.seat_position}
-                  onChangeSeatType={(v) => setForm((f) => ({ ...f, seat_preference: v }))}
-                  onChangeSeatPos={(v)  => setForm((f) => ({ ...f, seat_position: v }))}
+                  flightClass={form.flight_class}
+                  onChangeSeatType={(v)    => setForm((f) => ({ ...f, seat_preference: v }))}
+                  onChangeSeatPos={(v)     => setForm((f) => ({ ...f, seat_position: v }))}
+                  onChangeFlightClass={(v) => setForm((f) => ({ ...f, flight_class: v }))}
                 />
               </F>
               <F label="Tipo de alimentação">

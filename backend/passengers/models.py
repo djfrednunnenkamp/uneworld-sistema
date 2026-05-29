@@ -60,6 +60,13 @@ class Passenger(models.Model):
     mobile  = models.CharField('Celular', max_length=30, blank=True)
 
     # ── Preferências ───────────────────────────────────────────────
+    FLIGHT_CLASS_CHOICES = [
+        ('economy',         'Classe Econômica'),
+        ('premium_economy', 'Econômica Premium'),
+        ('business',        'Classe Executiva (Business)'),
+        ('first',           'Primeira Classe'),
+    ]
+    flight_class    = models.CharField('Classe de voo', max_length=20, choices=FLIGHT_CLASS_CHOICES, blank=True)
     seat_preference = models.CharField('Preferência de assento', max_length=20, choices=SEAT_CHOICES, blank=True)
     seat_position   = models.CharField('Posição no avião', max_length=10,
                           choices=[('frente','Frente'),('meio','Meio'),('fundo','Fundo')], blank=True)
