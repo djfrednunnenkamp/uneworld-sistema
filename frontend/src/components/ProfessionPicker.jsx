@@ -1,34 +1,32 @@
 import { useState, useRef, useEffect } from 'react'
+import axios from 'axios'
 import { Ic } from './Icon'
 
-const PROFESSIONS = [
-  'Acadêmico', 'Açougueiro', 'Administrador', 'Advogado', 'Agente de viagens',
-  'Agrônomo', 'Analista de sistemas', 'Anestesista', 'Antropólogo', 'Aposentado',
-  'Arqueólogo', 'Arquiteto', 'Arquivista', 'Artista plástico', 'Assistente social',
-  'Astronomo', 'Atleta', 'Auditor', 'Auxiliar administrativo', 'Auxiliar de enfermagem',
-  'Biólogo', 'Biomédico', 'Bioquímico', 'Bombeiro', 'Cantor',
-  'Carpinteiro', 'Cirurgião', 'Coach', 'Comerciante', 'Contador',
-  'Corretor de imóveis', 'Corretor de seguros', 'Dentista', 'Designer', 'Designer gráfico',
-  'Diplomata', 'Diretor', 'Economista', 'Eletricista', 'Empresário',
-  'Enfermeiro', 'Engenheiro aeronáutico', 'Engenheiro agrônomo', 'Engenheiro ambiental',
-  'Engenheiro civil', 'Engenheiro de produção', 'Engenheiro de software',
-  'Engenheiro elétrico', 'Engenheiro mecânico', 'Engenheiro químico',
-  'Escritor', 'Estudante', 'Farmacêutico', 'Filósofo', 'Físico',
-  'Fisioterapeuta', 'Fotógrafo', 'Funcionário público', 'Geógrafo', 'Geólogo',
-  'Gerente', 'Historiador', 'Jornalista', 'Juiz', 'Magistrado',
-  'Matemático', 'Médico', 'Médico veterinário', 'Militar', 'Motorista',
-  'Músico', 'Nutricionista', 'Odontólogo', 'Oficial de justiça', 'Operador',
-  'Pedagogo', 'Personal trainer', 'Piloto', 'Policial', 'Professor',
-  'Profissional liberal', 'Programador', 'Promotor de justiça', 'Psicólogo', 'Psiquiatra',
-  'Publicitário', 'Químico', 'Radialista', 'Recepcionista', 'Relações públicas',
-  'Segurança', 'Servidor público', 'Sociólogo', 'Superintendente', 'Técnico',
-  'Técnico de enfermagem', 'Técnico em informática', 'Tecnólogo', 'Terapeuta',
-  'Tradutor', 'Urbanista', 'Vendedor',
-].sort((a, b) => a.localeCompare(b, 'pt'))
+const CBO_URL = 'https://raw.githubusercontent.com/okfn-brasil/datasets-br-cbo/master/data/lista_canonicos.csv'
+let cachedProfessions = null
+
+async function loadProfessions() {
+  if (cachedProfessions) return cachedProfessions
+  const r = await axios.get(CBO_URL)
+  const lines = r.data.split('\n')
+  const professions = lines
+    .slice(1)                                // remove cabeçalho
+    .filter((l) => l.trim())
+    .map((l) => {
+      const comma = l.indexOf(',')           // split apenas na primeira vírgula
+      return l.substring(comma + 1).replace(/\r/g, '').trim()
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'pt'))
+  cachedProfessions = [...new Set(professions)] // remove duplicatas
+  return cachedProfessions
+}
 
 export default function ProfessionPicker({ value, onChange }) {
-  const [open,   setOpen]   = useState(false)
-  const [search, setSearch] = useState('')
+  const [open,        setOpen]        = useState(false)
+  const [professions, setProfessions] = useState([])
+  const [search,      setSearch]      = useState('')
+  const [loading,     setLoading]     = useState(false)
   const overlayRef = useRef(null)
   const searchRef  = useRef(null)
 
@@ -36,6 +34,13 @@ export default function ProfessionPicker({ value, onChange }) {
     if (open) {
       setSearch('')
       setTimeout(() => searchRef.current?.focus(), 80)
+      if (professions.length === 0) {
+        setLoading(true)
+        loadProfessions()
+          .then(setProfessions)
+          .catch(() => {})
+          .finally(() => setLoading(false))
+      }
     }
   }, [open])
 
@@ -48,9 +53,9 @@ export default function ProfessionPicker({ value, onChange }) {
     if (e.target === overlayRef.current) setOpen(false)
   }
 
-  const filtered = PROFESSIONS.filter((p) =>
-    p.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = search.length < 2
+    ? professions.slice(0, 80)   // mostra os primeiros 80 sem busca
+    : professions.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <>
@@ -78,17 +83,24 @@ export default function ProfessionPicker({ value, onChange }) {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#fff', borderRadius: 12, width: '100%', maxWidth: 440,
+              background: '#fff', borderRadius: 12, width: '100%', maxWidth: 480,
               boxShadow: '0 24px 64px rgba(0,0,0,.22)',
               display: 'flex', flexDirection: 'column',
-              maxHeight: '80vh', animation: 'mIn .15s ease',
+              maxHeight: '82vh', animation: 'mIn .15s ease',
             }}
           >
             {/* Header */}
             <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 10 }}>
-                Selecionar profissão
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                  Selecionar profissão
+                </p>
+                {!loading && professions.length > 0 && (
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                    {professions.length.toLocaleString('pt-BR')} ocupações (CBO)
+                  </span>
+                )}
+              </div>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
                   <Ic n="search" s={14} />
@@ -97,7 +109,7 @@ export default function ProfessionPicker({ value, onChange }) {
                   ref={searchRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar profissão…"
+                  placeholder="Digite para buscar entre as ocupações…"
                   style={{
                     width: '100%', padding: '7px 11px 7px 31px',
                     border: '1px solid #e2e8f0', borderRadius: 6,
@@ -107,14 +119,29 @@ export default function ProfessionPicker({ value, onChange }) {
                   onBlur={(e)  => e.target.style.borderColor = '#e2e8f0'}
                 />
               </div>
+              {search.length === 1 && (
+                <p style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 6 }}>
+                  Continue digitando para filtrar…
+                </p>
+              )}
             </div>
 
             {/* Lista */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {filtered.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 8 }}>
-                    Nenhuma profissão encontrada
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '36px 0', color: '#94a3b8' }}>
+                  <div style={{
+                    width: 24, height: 24,
+                    border: '3px solid #e2e8f0', borderTopColor: '#2e6db4',
+                    borderRadius: '50%', animation: 'spin 0.7s linear infinite',
+                    margin: '0 auto 10px',
+                  }} />
+                  <p style={{ fontSize: 13 }}>Carregando ocupações da CBO…</p>
+                </div>
+              ) : filtered.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 18px' }}>
+                  <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 10 }}>
+                    Nenhuma ocupação encontrada para "{search}"
                   </p>
                   <button
                     onClick={() => pick(search)}
@@ -125,21 +152,25 @@ export default function ProfessionPicker({ value, onChange }) {
                       fontFamily: 'inherit',
                     }}
                   >
-                    Usar "{search}"
+                    Usar "{search}" mesmo assim
                   </button>
                 </div>
               ) : (
-                filtered.map((prof) => {
-                  const selected = value === prof
-                  return (
+                <>
+                  {filtered.map((prof) => (
                     <ProfRow
                       key={prof}
                       label={prof}
-                      selected={selected}
+                      selected={value === prof}
                       onClick={() => pick(prof)}
                     />
-                  )
-                })
+                  ))}
+                  {search.length < 2 && professions.length > 80 && (
+                    <p style={{ textAlign: 'center', padding: '10px 0 14px', color: '#94a3b8', fontSize: 12 }}>
+                      Digite para filtrar as {professions.length.toLocaleString('pt-BR')} ocupações
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
@@ -159,6 +190,8 @@ export default function ProfessionPicker({ value, onChange }) {
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   )
 }
@@ -172,7 +205,7 @@ function ProfRow({ label, selected, onClick }) {
       onMouseLeave={() => setHover(false)}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 18px', cursor: 'pointer',
+        padding: '9px 18px', cursor: 'pointer',
         background: selected ? '#f0f6ff' : hover ? '#f8fafc' : 'transparent',
         transition: 'background .1s',
       }}
@@ -180,7 +213,7 @@ function ProfRow({ label, selected, onClick }) {
       <span style={{ fontSize: 13, color: '#1e293b', fontWeight: selected ? 600 : 400 }}>
         {label}
       </span>
-      {selected && <span style={{ color: '#2e6db4' }}><Ic n="check" s={14} /></span>}
+      {selected && <span style={{ color: '#2e6db4', flexShrink: 0 }}><Ic n="check" s={14} /></span>}
     </div>
   )
 }
