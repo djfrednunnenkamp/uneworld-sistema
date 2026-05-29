@@ -91,8 +91,11 @@ export default function PassengerDetail() {
 
   /* CEP lookup via ViaCEP */
   const lookupCep = async () => {
-    const cep = form.cep.replace(/\D/g, '')
-    if (cep.length !== 8) { toast.error('CEP inválido.'); return }
+    const cep = (form.cep ?? '').toString().trim().replace(/\D/g, '')
+    if (cep.length !== 8) {
+      toast.error(`CEP inválido — ${cep.length} dígito${cep.length !== 1 ? 's' : ''} encontrado${cep.length !== 1 ? 's' : ''} (esperado: 8).`)
+      return
+    }
     setCepLoading(true)
     try {
       const { data } = await axios.get(`https://viacep.com.br/ws/${cep}/json/`)
