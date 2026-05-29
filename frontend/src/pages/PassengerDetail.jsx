@@ -6,6 +6,7 @@ import { passengersApi } from '../api'
 import { Ic } from '../components/Icon'
 import AgencyPicker from '../components/AgencyPicker'
 import LocationPicker from '../components/LocationPicker'
+import CountryPicker from '../components/CountryPicker'
 
 /* ── helpers ── */
 const EMPTY = {
@@ -74,6 +75,19 @@ export default function PassengerDetail() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const setB = (k) => (v) => setForm((f) => ({ ...f, [k]: v }))
 
+  /* Auto-preenche nacionalidade a partir do local de nascimento */
+  const setBirthPlace = (v) => {
+    setForm((f) => {
+      const country = v ? v.split(', ').pop() : ''
+      const autoFill = !f.nationality || f.nationality === f._autoNationality
+      return {
+        ...f,
+        birth_place: v,
+        ...(autoFill && country ? { nationality: country, _autoNationality: country } : {}),
+      }
+    })
+  }
+
   /* CEP lookup via ViaCEP */
   const lookupCep = async () => {
     const cep = form.cep.replace(/\D/g, '')
@@ -102,7 +116,7 @@ export default function PassengerDetail() {
     setSaving(true)
     try {
       const genderValue = form.gender === 'O' ? (form.gender_custom?.trim() || 'O') : form.gender
-      const { gender_custom, ...rest } = form
+      const { gender_custom, _autoNationality, ...rest } = form
       const payload = { ...rest, gender: genderValue }
       if (isNew) {
         const r = await passengersApi.create(payload)
@@ -272,10 +286,15 @@ export default function PassengerDetail() {
               <F label="Local de nascimento">
                 <LocationPicker
                   value={form.birth_place}
-                  onChange={(v) => setForm((f) => ({ ...f, birth_place: v }))}
+                  onChange={setBirthPlace}
                 />
               </F>
-              <F label="Nacionalidade">{fi('nationality', 'BRASILEIRA')}</F>
+              <F label="Nacionalidade">
+                <CountryPicker
+                  value={form.nationality}
+                  onChange={(v) => setForm((f) => ({ ...f, nationality: v, _autoNationality: '' }))}
+                />
+              </F>
             </div>
           </div>
 
