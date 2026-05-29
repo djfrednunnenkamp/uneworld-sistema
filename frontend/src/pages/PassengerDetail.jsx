@@ -7,6 +7,7 @@ import { Ic } from '../components/Icon'
 import AgencyPicker from '../components/AgencyPicker'
 import LocationPicker from '../components/LocationPicker'
 import CountryPicker from '../components/CountryPicker'
+import GenderPicker from '../components/GenderPicker'
 
 /* ── helpers ── */
 const EMPTY = {
@@ -228,48 +229,13 @@ export default function PassengerDetail() {
 
               <F label="CPF">{fi('cpf', '000.000.000-00')}</F>
 
-              {/* Gênero — botões pill */}
-              <div>
-                <label className="fl">Gênero</label>
-                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                  {[
-                    { val: 'F', label: 'Feminino'  },
-                    { val: 'M', label: 'Masculino' },
-                    { val: 'O', label: 'Outro'     },
-                  ].map(({ val, label }) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, gender: val, gender_custom: val !== 'O' ? '' : f.gender_custom }))}
-                      style={{
-                        padding: '5px 11px',
-                        borderRadius: 999,
-                        border: `1px solid ${form.gender === val ? '#2e6db4' : '#e2e8f0'}`,
-                        background: form.gender === val ? '#2e6db4' : '#fff',
-                        color: form.gender === val ? '#fff' : '#475569',
-                        fontSize: 12.5,
-                        fontWeight: form.gender === val ? 600 : 400,
-                        cursor: 'pointer',
-                        transition: 'all .12s',
-                        fontFamily: 'inherit',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {form.gender === 'O' && (
-                  <input
-                    className="fi"
-                    style={{ marginTop: 7 }}
-                    value={form.gender_custom ?? ''}
-                    onChange={(e) => setForm((f) => ({ ...f, gender_custom: e.target.value }))}
-                    placeholder="Digite o gênero…"
-                    autoFocus
-                  />
-                )}
-              </div>
+              <F label="Gênero">
+                <GenderPicker
+                  value={form.gender}
+                  customValue={form.gender_custom}
+                  onChange={(val, custom) => setForm((f) => ({ ...f, gender: val, gender_custom: custom }))}
+                />
+              </F>
             </div>
 
             {/* Linha 3: Primeiro nome | Sobrenome | CPF não — nome, sobrenome e data */}
