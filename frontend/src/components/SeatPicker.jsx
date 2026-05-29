@@ -207,35 +207,32 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
           >
             {/* Header */}
             <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>
-                Preferência de assento
-              </p>
 
-              {/* Classe de voo */}
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 7 }}>
-                Classe de voo
-              </p>
-              <button
-                type="button"
-                onClick={() => setClassOpen(true)}
-                style={{
-                  width: '100%', padding: '8px 12px', borderRadius: 8, marginBottom: 14,
-                  border: `1.5px solid ${draftClass ? FLIGHT_CLASSES.find(c => c.id === draftClass)?.color : '#e2e8f0'}`,
-                  background: draftClass ? `${FLIGHT_CLASSES.find(c => c.id === draftClass)?.color}12` : '#fff',
-                  color: draftClass ? FLIGHT_CLASSES.find(c => c.id === draftClass)?.color : '#94a3b8',
-                  fontSize: 13, fontWeight: draftClass ? 600 : 400,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  transition: 'all .12s',
-                }}
-              >
-                <span>
+              {/* Título + botão de classe na mesma linha */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                  Preferência de assento
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setClassOpen(true)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 20,
+                    border: `1.5px solid ${draftClass ? FLIGHT_CLASSES.find(c => c.id === draftClass)?.color : '#e2e8f0'}`,
+                    background: draftClass ? `${FLIGHT_CLASSES.find(c => c.id === draftClass)?.color}15` : '#f8fafc',
+                    color: draftClass ? FLIGHT_CLASSES.find(c => c.id === draftClass)?.color : '#94a3b8',
+                    fontSize: 12.5, fontWeight: draftClass ? 600 : 400,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    transition: 'all .12s', whiteSpace: 'nowrap',
+                  }}
+                >
                   {draftClass
                     ? `${FLIGHT_CLASSES.find(c => c.id === draftClass)?.icon} ${FLIGHT_CLASSES.find(c => c.id === draftClass)?.label}`
-                    : 'Selecionar classe de voo…'}
-                </span>
-                <span style={{ fontSize: 11, opacity: .6 }}>▼</span>
-              </button>
+                    : '✈ Classe de voo'}
+                  <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
+                </button>
+              </div>
 
               {/* Posição no avião */}
               <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 7 }}>
