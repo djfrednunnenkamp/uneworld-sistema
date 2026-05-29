@@ -10,6 +10,7 @@ import CountryPicker from '../components/CountryPicker'
 import GenderPicker from '../components/GenderPicker'
 import ProfessionPicker from '../components/ProfessionPicker'
 import SeatPicker from '../components/SeatPicker'
+import CountryStatePicker from '../components/CountryStatePicker'
 import DietPicker from '../components/DietPicker'
 
 /* ── helpers ── */
@@ -334,15 +335,14 @@ export default function PassengerDetail() {
               <F label="Cidade">{fi('city', '')}</F>
             </div>
             <div className="grid3">
-              <F label="Estado">
-                {fs('state',
-                  <>
-                    <option value="">— UF —</option>
-                    {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </>
-                )}
+              <F label="País / Estado" col={2}>
+                <CountryStatePicker
+                  country={form.country}
+                  state={form.state}
+                  onChangeCountry={(v) => setForm((f) => ({ ...f, country: v }))}
+                  onChangeState={(v)   => setForm((f) => ({ ...f, state: v }))}
+                />
               </F>
-              <F label="País">{fi('country', 'Brasil')}</F>
             </div>
           </div>
 
