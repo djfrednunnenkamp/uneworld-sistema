@@ -186,81 +186,88 @@ export default function PassengerDetail() {
           <div className="section">
             <div className="section-title">Dados do cliente</div>
 
-            {/* Agências (esquerda) + Toggles compactos (direita) */}
-            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', marginBottom: 14 }}>
-              <div style={{ flex: 1 }}>
-                <label className="fl">Agências</label>
-                <select className="fs" value={form.agency ?? ''} onChange={(e) => setForm((f) => ({ ...f, agency: e.target.value || null }))}>
-                  <option value="">— Nenhuma —</option>
-                  {agencies.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: 22, flexShrink: 0, paddingBottom: 6 }}>
-                {[
-                  { key: 'is_foreign',  label: 'Estrangeiro'        },
-                  { key: 'is_verified', label: 'Cad. verificado'    },
-                  { key: 'is_guide',    label: 'Guia acomp.'        },
-                ].map(({ key, label }) => (
-                  <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b', whiteSpace: 'nowrap' }}>{label}</span>
-                    <Toggle checked={form[key]} onChange={setB(key)} />
-                  </div>
+            {/* Linha 1: Agências (largura total) */}
+            <div style={{ marginBottom: 14 }}>
+              <label className="fl">Agências</label>
+              <select className="fs" value={form.agency ?? ''} onChange={(e) => setForm((f) => ({ ...f, agency: e.target.value || null }))}>
+                <option value="">— Nenhuma —</option>
+                {agencies.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
+              </select>
+            </div>
+
+            {/* Linha 2: Toggles (esquerda) | CPF | Gênero */}
+            <div className="grid3" style={{ marginBottom: 14 }}>
+
+              {/* Toggles compactos lado a lado */}
+              <div>
+                <label className="fl">Opções</label>
+                <div style={{ display: 'flex', gap: 18, paddingTop: 5 }}>
+                  {[
+                    { key: 'is_foreign',  label: 'Estrangeiro'     },
+                    { key: 'is_verified', label: 'Verificado'      },
+                    { key: 'is_guide',    label: 'Guia'            },
+                  ].map(({ key, label }) => (
+                    <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{label}</span>
+                      <Toggle checked={form[key]} onChange={setB(key)} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <F label="CPF">{fi('cpf', '000.000.000-00')}</F>
+
+              {/* Gênero — botões pill */}
+              <div>
+                <label className="fl">Gênero</label>
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  {[
+                    { val: 'F', label: 'Feminino'  },
+                    { val: 'M', label: 'Masculino' },
+                    { val: 'O', label: 'Outro'     },
+                  ].map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, gender: val, gender_custom: val !== 'O' ? '' : f.gender_custom }))}
+                      style={{
+                        padding: '5px 11px',
+                        borderRadius: 999,
+                        border: `1px solid ${form.gender === val ? '#2e6db4' : '#e2e8f0'}`,
+                        background: form.gender === val ? '#2e6db4' : '#fff',
+                        color: form.gender === val ? '#fff' : '#475569',
+                        fontSize: 12.5,
+                        fontWeight: form.gender === val ? 600 : 400,
+                        cursor: 'pointer',
+                        transition: 'all .12s',
+                        fontFamily: 'inherit',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {form.gender === 'O' && (
+                  <input
+                    className="fi"
+                    style={{ marginTop: 7 }}
+                    value={form.gender_custom ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, gender_custom: e.target.value }))}
+                    placeholder="Digite o gênero…"
+                    autoFocus
+                  />
+                )}
               </div>
             </div>
 
+            {/* Linha 3: Primeiro nome | Sobrenome | CPF não — nome, sobrenome e data */}
             <div className="grid3">
-              <F label="CPF">{fi('cpf', '000.000.000-00')}</F>
               <F label="Primeiro nome *">{fi('first_name', 'Primeiro nome')}</F>
               <F label="Sobrenome *">{fi('last_name', 'Sobrenome')}</F>
-            </div>
-
-            <div className="grid3">
               <F label="Data de nascimento">{fi('birth_date', '', 'date')}</F>
-            </div>
-
-            {/* Gênero — seletor de botões */}
-            <div style={{ marginBottom: 14 }}>
-              <label className="fl">Gênero</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                {[
-                  { val: 'F', label: 'Feminino' },
-                  { val: 'M', label: 'Masculino' },
-                  { val: 'O', label: 'Outro' },
-                ].map(({ val, label }) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, gender: val, gender_custom: val !== 'O' ? '' : f.gender_custom }))}
-                    style={{
-                      padding: '6px 18px',
-                      borderRadius: 999,
-                      border: `1px solid ${form.gender === val ? '#2e6db4' : '#e2e8f0'}`,
-                      background: form.gender === val ? '#2e6db4' : '#fff',
-                      color: form.gender === val ? '#fff' : '#475569',
-                      fontSize: 13,
-                      fontWeight: form.gender === val ? 600 : 400,
-                      cursor: 'pointer',
-                      transition: 'all .12s',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {form.gender === 'O' && (
-                <input
-                  className="fi"
-                  style={{ marginTop: 8, maxWidth: 280 }}
-                  value={form.gender_custom ?? ''}
-                  onChange={(e) => setForm((f) => ({ ...f, gender_custom: e.target.value }))}
-                  placeholder="Digite o gênero…"
-                  autoFocus
-                />
-              )}
             </div>
 
             <div className="grid3">
