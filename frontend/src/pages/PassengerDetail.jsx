@@ -317,7 +317,7 @@ export default function PassengerDetail() {
                 <div className="cep-wrap">
                   <input
                     className="fi" value={form.cep ?? ''} onChange={set('cep')}
-                    placeholder="00000-000" maxLength={9}
+                    placeholder="00000-000"
                     onKeyDown={(e) => e.key === 'Enter' && lookupCep()}
                   />
                   <button className="cep-btn" onClick={lookupCep} disabled={cepLoading} title="Buscar CEP">
