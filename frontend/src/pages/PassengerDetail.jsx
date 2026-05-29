@@ -5,6 +5,7 @@ import axios from 'axios'
 import { passengersApi } from '../api'
 import { Ic } from '../components/Icon'
 import AgencyPicker from '../components/AgencyPicker'
+import LocationPicker from '../components/LocationPicker'
 
 /* ── helpers ── */
 const EMPTY = {
@@ -268,7 +269,12 @@ export default function PassengerDetail() {
 
             <div className="grid3">
               <F label="E-mail *">{fi('email', 'email@exemplo.com', 'email')}</F>
-              <F label="Local de nascimento">{fi('birth_place', 'Cidade')}</F>
+              <F label="Local de nascimento">
+                <LocationPicker
+                  value={form.birth_place}
+                  onChange={(v) => setForm((f) => ({ ...f, birth_place: v }))}
+                />
+              </F>
               <F label="Nacionalidade">{fi('nationality', 'BRASILEIRA')}</F>
             </div>
           </div>
