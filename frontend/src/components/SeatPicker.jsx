@@ -212,11 +212,23 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
               </div>
             </div>
 
-            {/* Mapa do avião */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px' }}>
+            {/* Mapa do avião — tudo centralizado */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-              {/* Coluna header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 6, marginLeft: 23 }}>
+              {/* Cockpit */}
+              <div style={{ marginBottom: 6 }}>
+                <div style={{
+                  padding: '4px 28px',
+                  background: '#f8fafc', border: '1px solid #e2e8f0',
+                  borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
+                  fontSize: 11, color: '#94a3b8', fontWeight: 600,
+                }}>
+                  ✈ Cockpit
+                </div>
+              </div>
+
+              {/* Letras das colunas */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4, marginLeft: 20 }}>
                 {['A','B','C'].map((l) => (
                   <div key={l} style={{ width: 18, textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>{l}</div>
                 ))}
@@ -226,21 +238,36 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
                 ))}
               </div>
 
-              {/* Cockpit */}
-              <div style={{ textAlign: 'center', marginBottom: 8 }}>
-                <div style={{
-                  display: 'inline-block', padding: '4px 24px',
-                  background: '#f8fafc', border: '1px solid #e2e8f0',
-                  borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
-                  fontSize: 11, color: '#94a3b8', fontWeight: 600,
-                }}>
-                  ✈ Cockpit
-                </div>
+              {/* Botões de tipo — logo abaixo das letras, acima do mapa */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10, marginLeft: 20 }}>
+                {SEAT_COLS.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setDraftType(draftType === s.id ? '' : s.id)}
+                    style={{
+                      width: draftType === s.id ? 'auto' : 18 * (s.cols.length === 2 ? 2 : 2) + 3,
+                      minWidth: 18,
+                      padding: draftType === s.id ? '3px 10px' : '3px 0',
+                      borderRadius: 6,
+                      border: `1.5px solid ${draftType === s.id ? s.color : '#e2e8f0'}`,
+                      background: draftType === s.id ? `${s.color}18` : '#f8fafc',
+                      color: draftType === s.id ? s.color : '#94a3b8',
+                      fontSize: 11, fontWeight: draftType === s.id ? 700 : 400,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      transition: 'all .15s', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {draftType === s.id
+                      ? `${s.id === 'janela' ? '🪟' : s.id === 'meio' ? '↔' : '🚶'} ${s.label}`
+                      : s.label.slice(0, 3)}
+                  </button>
+                ))}
               </div>
 
               {/* Zonas com linhas */}
               {zones.map((zone) => (
-                <div key={zone.id}>
+                <div key={zone.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <ZoneDivider label={zone.label} active={draftPos === zone.id} />
                   {zone.rows.map((rowNum) => (
                     <SeatRow
@@ -255,45 +282,13 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
               ))}
 
               {/* Cauda */}
-              <div style={{ textAlign: 'center', marginTop: 8 }}>
+              <div style={{ marginTop: 8 }}>
                 <div style={{
-                  display: 'inline-block', padding: '4px 20px',
+                  padding: '4px 24px',
                   background: '#f8fafc', border: '1px solid #e2e8f0',
                   borderRadius: '0 0 50% 50% / 0 0 100% 100%',
                   fontSize: 11, color: '#94a3b8',
-                }}>
-                  ▼
-                </div>
-              </div>
-            </div>
-
-            {/* Legenda de tipo */}
-            <div style={{ padding: '12px 20px', borderTop: '1px solid #f1f5f9', flexShrink: 0 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
-                Tipo de assento — clique no mapa ou escolha:
-              </p>
-              <div style={{ display: 'flex', gap: 7 }}>
-                {SEAT_COLS.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setDraftType(draftType === s.id ? '' : s.id)}
-                    style={{
-                      flex: 1, padding: '7px 6px', borderRadius: 8,
-                      border: `1.5px solid ${draftType === s.id ? s.color : '#e2e8f0'}`,
-                      background: draftType === s.id ? `${s.color}15` : '#fff',
-                      color: draftType === s.id ? s.color : '#64748b',
-                      fontSize: 13, fontWeight: draftType === s.id ? 600 : 400,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                      transition: 'all .12s',
-                    }}
-                  >
-                    {s.id === 'janela'   && '🪟 '}
-                    {s.id === 'meio'     && '↔ '}
-                    {s.id === 'corredor' && '🚶 '}
-                    {s.label}
-                  </button>
-                ))}
+                }}>▼</div>
               </div>
             </div>
 
