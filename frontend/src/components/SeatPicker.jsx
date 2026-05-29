@@ -178,7 +178,7 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
               <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 7 }}>
                 Posição no avião
               </p>
-              <div style={{ display: 'flex', gap: 7 }}>
+              <div style={{ display: 'flex', gap: 7, marginBottom: 14 }}>
                 {POSITIONS.map((p) => (
                   <button
                     key={p.id}
@@ -198,17 +198,36 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
                   </button>
                 ))}
                 {draftPos && (
-                  <button
-                    type="button"
-                    onClick={() => setDraftPos('')}
-                    style={{
-                      padding: '7px 10px', borderRadius: 8,
-                      border: '1.5px solid #e2e8f0', background: '#fff',
-                      color: '#94a3b8', fontSize: 12, cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >✕</button>
+                  <button type="button" onClick={() => setDraftPos('')}
+                    style={{ padding: '7px 10px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ✕
+                  </button>
                 )}
+              </div>
+
+              {/* Tipo de assento — logo abaixo da posição */}
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 7 }}>
+                Tipo de assento
+              </p>
+              <div style={{ display: 'flex', gap: 7 }}>
+                {SEAT_COLS.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setDraftType(draftType === s.id ? '' : s.id)}
+                    style={{
+                      flex: 1, padding: '7px 10px', borderRadius: 8,
+                      border: `1.5px solid ${draftType === s.id ? s.color : '#e2e8f0'}`,
+                      background: draftType === s.id ? `${s.color}15` : '#fff',
+                      color: draftType === s.id ? s.color : '#64748b',
+                      fontSize: 13, fontWeight: draftType === s.id ? 600 : 400,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      transition: 'all .12s',
+                    }}
+                  >
+                    {s.id === 'janela' ? '🪟 ' : s.id === 'meio' ? '↔ ' : '🚶 '}{s.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -235,33 +254,6 @@ export default function SeatPicker({ seatType, seatPos, onChangeSeatType, onChan
                 <div style={{ width: 10 }} />
                 {['D','E','F'].map((l) => (
                   <div key={l} style={{ width: 18, textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>{l}</div>
-                ))}
-              </div>
-
-              {/* Botões de tipo — logo abaixo das letras, acima do mapa */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10, marginLeft: 20 }}>
-                {SEAT_COLS.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setDraftType(draftType === s.id ? '' : s.id)}
-                    style={{
-                      width: draftType === s.id ? 'auto' : 18 * (s.cols.length === 2 ? 2 : 2) + 3,
-                      minWidth: 18,
-                      padding: draftType === s.id ? '3px 10px' : '3px 0',
-                      borderRadius: 6,
-                      border: `1.5px solid ${draftType === s.id ? s.color : '#e2e8f0'}`,
-                      background: draftType === s.id ? `${s.color}18` : '#f8fafc',
-                      color: draftType === s.id ? s.color : '#94a3b8',
-                      fontSize: 11, fontWeight: draftType === s.id ? 700 : 400,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                      transition: 'all .15s', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {draftType === s.id
-                      ? `${s.id === 'janela' ? '🪟' : s.id === 'meio' ? '↔' : '🚶'} ${s.label}`
-                      : s.label.slice(0, 3)}
-                  </button>
                 ))}
               </div>
 
