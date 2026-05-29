@@ -280,7 +280,7 @@ export default function PassengerDetail() {
             </div>
 
             <div className="grid3">
-              <F label="Idiomas falados" col={2}>
+              <F label="Idiomas falados">
                 <LanguagePicker
                   nativeLang={form.native_language}
                   otherLangs={form.other_languages}
