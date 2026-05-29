@@ -61,32 +61,15 @@ export default function CountryPicker({ value, onChange }) {
 
   return (
     <>
-      {/* Input editável + botão de busca */}
-      <div style={{ display: 'flex', gap: 6 }}>
-        <input
-          className="fi"
-          style={{ flex: 1 }}
-          value={value ?? ''}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Ex.: BRASILEIRA"
-        />
-        <button
-          type="button"
-          title="Buscar país"
-          onClick={() => setOpen(true)}
-          style={{
-            height: 34, width: 34, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '1px solid #e2e8f0', borderRadius: 6,
-            background: '#fff', color: '#64748b', cursor: 'pointer',
-            transition: 'all .12s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}
-        >
-          <Ic n="globe" s={14} />
-        </button>
-      </div>
+      {/* Campo clicável — abre o popup */}
+      <input
+        className="fi"
+        readOnly
+        value={value ?? ''}
+        placeholder="Clique para selecionar…"
+        onClick={() => setOpen(true)}
+        style={{ cursor: 'pointer', caretColor: 'transparent' }}
+      />
 
       {/* Popup */}
       {open && (
