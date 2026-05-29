@@ -9,6 +9,7 @@ import LocationPicker from '../components/LocationPicker'
 import CountryPicker from '../components/CountryPicker'
 import GenderPicker from '../components/GenderPicker'
 import ProfessionPicker from '../components/ProfessionPicker'
+import SeatPicker from '../components/SeatPicker'
 
 /* ── helpers ── */
 const EMPTY = {
@@ -18,7 +19,7 @@ const EMPTY = {
   agencies:[],
   cpf:'',
   phone1:'', phone2:'', mobile:'',
-  seat_preference:'', diet_type:'', receives_mail:false,
+  seat_preference:'', seat_position:'', diet_type:'', receives_mail:false,
   cep:'', street:'', number:'', complement:'', neighborhood:'', city:'', state:'', country:'Brasil',
   status:'active', notes:'',
 }
@@ -284,14 +285,12 @@ export default function PassengerDetail() {
                 />
               </F>
               <F label="Preferência de assento">
-                {fs('seat_preference',
-                  <>
-                    <option value="">Nada selecionado</option>
-                    <option value="corredor">Corredor</option>
-                    <option value="janela">Janela</option>
-                    <option value="meio">Meio</option>
-                  </>
-                )}
+                <SeatPicker
+                  seatType={form.seat_preference}
+                  seatPos={form.seat_position}
+                  onChangeSeatType={(v) => setForm((f) => ({ ...f, seat_preference: v }))}
+                  onChangeSeatPos={(v)  => setForm((f) => ({ ...f, seat_position: v }))}
+                />
               </F>
               <F label="Tipo de alimentação">
                 {fs('diet_type',

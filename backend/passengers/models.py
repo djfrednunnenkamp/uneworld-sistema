@@ -61,6 +61,8 @@ class Passenger(models.Model):
 
     # ── Preferências ───────────────────────────────────────────────
     seat_preference = models.CharField('Preferência de assento', max_length=20, choices=SEAT_CHOICES, blank=True)
+    seat_position   = models.CharField('Posição no avião', max_length=10,
+                          choices=[('frente','Frente'),('meio','Meio'),('fundo','Fundo')], blank=True)
     diet_type       = models.CharField('Tipo de alimentação', max_length=100, blank=True)
     receives_mail   = models.BooleanField('Receber mala direta impressa', default=False)
 
