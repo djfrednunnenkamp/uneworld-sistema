@@ -124,6 +124,7 @@ function ZoneDivider({ label, active }) {
       display: 'flex', alignItems: 'center', gap: 6,
       margin: '8px 0 4px',
       marginLeft: SEAT_OFFSET, width: SEAT_AREA_W,
+      margin: `4px 0 2px ${SEAT_OFFSET}px`,
     }}>
       <div style={{ flex: 1, height: 1, background: active ? '#bfdbfe' : '#f1f5f9' }} />
       <span style={{
@@ -214,7 +215,7 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
             <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
 
               {/* Título + botão de classe na mesma linha */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
                   Preferência de assento
                 </p>
@@ -299,16 +300,15 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
             {/* Mapa do avião — tudo centralizado */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-              {/* Cabine de Comando — centrada sobre a área dos assentos */}
-              <div style={{ marginLeft: SEAT_OFFSET, width: SEAT_AREA_W, display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
+              {/* Nariz do avião — centrado sobre os assentos */}
+              <div style={{ marginLeft: SEAT_OFFSET, width: SEAT_AREA_W, display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
                 <div style={{
-                  padding: '4px 16px',
-                  background: '#f8fafc', border: '1px solid #e2e8f0',
+                  padding: '5px 22px 3px',
+                  background: '#f1f5f9', border: '1px solid #e2e8f0',
                   borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
-                  fontSize: 10, color: '#94a3b8', fontWeight: 600,
-                  whiteSpace: 'nowrap',
+                  fontSize: 15, lineHeight: 1,
                 }}>
-                  ✈ Cabine de Comando
+                  ✈
                 </div>
               </div>
 
