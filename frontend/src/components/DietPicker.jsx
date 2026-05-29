@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Ic } from './Icon'
 
 const DIET_OPTIONS = [
@@ -18,16 +18,27 @@ const DIET_OPTIONS = [
 ]
 
 export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
-  const [open,      setOpen]      = useState(false)
-  const [draftVal,  setDraftVal]  = useState(value  || '')
-  const [draftNotes,setDraftNotes]= useState(notes  || '')
+  const [open,       setOpen]      = useState(false)
+  const [draftVal,   setDraftVal]  = useState(value || '')
+  const [draftNotes, setDraftNotes]= useState(notes || '')
+  const [search,     setSearch]    = useState('')
   const overlayRef = useRef(null)
   const notesRef   = useRef(null)
+
+  const filtered = useMemo(() =>
+    search.trim()
+      ? DIET_OPTIONS.filter((d) =>
+          d.label.toLowerCase().includes(search.toLowerCase()) ||
+          d.sub.toLowerCase().includes(search.toLowerCase()))
+      : DIET_OPTIONS
+  , [search])
 
   useEffect(() => {
     if (open) {
       setDraftVal(value  || '')
       setDraftNotes(notes || '')
+      setSearch('')
+      setTimeout(() => notesRef.current?.focus(), 80)
     }
   }, [open])
 
@@ -80,14 +91,59 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
           >
             {/* Header */}
             <div style={{ padding: '16px 18px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>
                 Tipo de alimentação
               </p>
+
+              {/* Observações — no topo */}
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
+                Observações alimentares
+              </label>
+              <textarea
+                ref={notesRef}
+                value={draftNotes}
+                onChange={(e) => setDraftNotes(e.target.value)}
+                rows={2}
+                placeholder="Ex.: Alérgico a nozes, não come frutos do mar, sem pimenta…"
+                style={{
+                  width: '100%', padding: '7px 10px',
+                  border: '1px solid #e2e8f0', borderRadius: 6,
+                  fontSize: 13, fontFamily: 'inherit', color: '#1e293b',
+                  outline: 'none', resize: 'none', lineHeight: 1.5,
+                  transition: 'border-color .12s', marginBottom: 12,
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#2e6db4'}
+                onBlur={(e)  => e.target.style.borderColor = '#e2e8f0'}
+              />
+
+              {/* Busca de dieta */}
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
+                  <Ic n="search" s={14} />
+                </span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar tipo de dieta…"
+                  style={{
+                    width: '100%', padding: '7px 11px 7px 31px',
+                    border: '1px solid #e2e8f0', borderRadius: 6,
+                    fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b',
+                    transition: 'border-color .12s',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#2e6db4'}
+                  onBlur={(e)  => e.target.style.borderColor = '#e2e8f0'}
+                />
+              </div>
             </div>
 
             {/* Lista de dietas */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {DIET_OPTIONS.map((opt) => {
+              {filtered.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>
+                  Nenhum tipo encontrado
+                </p>
+              ) : filtered.map((opt) => {
                 const selected = draftVal === opt.id
                 return (
                   <div
@@ -95,7 +151,7 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
                     onClick={() => setDraftVal(draftVal === opt.id ? '' : opt.id)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '11px 18px', cursor: 'pointer',
+                      padding: '10px 18px', cursor: 'pointer',
                       background: selected ? '#f0f6ff' : 'transparent',
                       borderLeft: selected ? '3px solid #2e6db4' : '3px solid transparent',
                       transition: 'all .1s',
@@ -116,29 +172,6 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
                   </div>
                 )
               })}
-            </div>
-
-            {/* Observações alimentares */}
-            <div style={{ borderTop: '1px solid #e2e8f0', padding: '14px 18px', flexShrink: 0 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 7 }}>
-                Observações alimentares
-              </label>
-              <textarea
-                ref={notesRef}
-                value={draftNotes}
-                onChange={(e) => setDraftNotes(e.target.value)}
-                rows={3}
-                placeholder="Ex.: Alérgico a nozes e amendoim. Não consome frutos do mar. Prefere refeições sem pimenta..."
-                style={{
-                  width: '100%', padding: '8px 10px',
-                  border: '1px solid #e2e8f0', borderRadius: 6,
-                  fontSize: 13, fontFamily: 'inherit', color: '#1e293b',
-                  outline: 'none', resize: 'vertical', lineHeight: 1.5,
-                  transition: 'border-color .12s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#2e6db4'}
-                onBlur={(e)  => e.target.style.borderColor = '#e2e8f0'}
-              />
             </div>
 
             {/* Footer */}
