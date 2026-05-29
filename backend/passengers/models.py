@@ -37,9 +37,9 @@ class Passenger(models.Model):
     is_foreign  = models.BooleanField('Estrangeiro', default=False)
     is_verified = models.BooleanField('Cadastro verificado', default=False)
     is_guide    = models.BooleanField('Guia acompanhante', default=False)
-    agency      = models.ForeignKey(
-        'agencies.Agency', on_delete=models.SET_NULL,
-        null=True, blank=True, verbose_name='Agência', related_name='passengers'
+    agencies    = models.ManyToManyField(
+        'agencies.Agency',
+        blank=True, verbose_name='Agências', related_name='passengers'
     )
 
     # ── Documentos ─────────────────────────────────────────────────

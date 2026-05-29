@@ -8,3 +8,4 @@ class PassengerAdmin(admin.ModelAdmin):
     list_filter     = ['status', 'state', 'gender', 'is_foreign', 'is_verified']
     search_fields   = ['full_name', 'email', 'cpf', 'rg', 'passport']
     readonly_fields = ['created_at', 'updated_at']
+    filter_horizontal = ['agencies']

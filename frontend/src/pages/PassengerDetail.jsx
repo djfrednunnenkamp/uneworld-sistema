@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import axios from 'axios'
-import { passengersApi, agenciesApi } from '../api'
+import { passengersApi } from '../api'
 import { Ic } from '../components/Icon'
+import AgencyPicker from '../components/AgencyPicker'
 
 /* ── helpers ── */
 const EMPTY = {
   first_name:'', last_name:'', full_name:'',
   email:'', birth_date:'', birth_place:'', nationality:'BRASILEIRA',
   gender:'', gender_custom:'', profession:'', is_foreign:false, is_verified:false, is_guide:false,
-  agency:null,
+  agencies:[],
   cpf:'',
   phone1:'', phone2:'', mobile:'',
   seat_preference:'', diet_type:'', receives_mail:false,
@@ -53,20 +54,17 @@ export default function PassengerDetail() {
   const navigate = useNavigate()
   const isNew    = id === 'novo'
 
-  const [form,     setForm]     = useState({ ...EMPTY })
-  const [agencies, setAgencies] = useState([])
-  const [loading,  setLoading]  = useState(!isNew)
+  const [form,    setForm]    = useState({ ...EMPTY })
+  const [loading, setLoading] = useState(!isNew)
   const [saving,   setSaving]   = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
   const [tab, setTab] = useState('info')
 
   /* load passenger data */
   useEffect(() => {
-    agenciesApi.list().then((r) => setAgencies(r.data.results ?? r.data)).catch(() => {})
-
     if (!isNew) {
       passengersApi.get(id)
-        .then((r) => setForm({ ...EMPTY, ...r.data }))
+        .then((r) => setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] }))
         .catch(() => { toast.error('Passageiro não encontrado.'); navigate('/passageiros') })
         .finally(() => setLoading(false))
     }
@@ -104,7 +102,7 @@ export default function PassengerDetail() {
     try {
       const genderValue = form.gender === 'O' ? (form.gender_custom?.trim() || 'O') : form.gender
       const { gender_custom, ...rest } = form
-      const payload = { ...rest, gender: genderValue, agency: form.agency || null }
+      const payload = { ...rest, gender: genderValue }
       if (isNew) {
         const r = await passengersApi.create(payload)
         toast.success('Passageiro criado.')
@@ -186,15 +184,13 @@ export default function PassengerDetail() {
           <div className="section">
             <div className="section-title">Dados do cliente</div>
 
-            {/* Linha 1: Agências (largura total) */}
+            {/* Linha 1: Agências (largura total) — picker com múltipla seleção */}
             <div style={{ marginBottom: 14 }}>
               <label className="fl">Agências</label>
-              <select className="fs" value={form.agency ?? ''} onChange={(e) => setForm((f) => ({ ...f, agency: e.target.value || null }))}>
-                <option value="">— Nenhuma —</option>
-                {agencies.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
+              <AgencyPicker
+                selectedIds={form.agencies ?? []}
+                onChange={(ids) => setForm((f) => ({ ...f, agencies: ids }))}
+              />
             </div>
 
             {/* Linha 2: Toggles (esquerda) | CPF | Gênero */}
