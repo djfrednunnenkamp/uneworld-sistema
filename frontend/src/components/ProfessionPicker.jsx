@@ -69,9 +69,9 @@ export default function ProfessionPicker({ value, onChange }) {
     if (e.target === overlayRef.current) setOpen(false)
   }
 
-  const filtered = search.length < 2
-    ? professions.slice(0, 80)   // mostra os primeiros 80 sem busca
-    : professions.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
+  const filtered = search.trim()
+    ? professions.filter((p) => p.toLowerCase().includes(search.toLowerCase()))
+    : professions
 
   return (
     <>
@@ -181,11 +181,6 @@ export default function ProfessionPicker({ value, onChange }) {
                       onClick={() => pick(prof)}
                     />
                   ))}
-                  {search.length < 2 && professions.length > 80 && (
-                    <p style={{ textAlign: 'center', padding: '10px 0 14px', color: '#94a3b8', fontSize: 12 }}>
-                      Digite para filtrar as {professions.length.toLocaleString('pt-BR')} ocupações
-                    </p>
-                  )}
                 </>
               )}
             </div>
