@@ -18,12 +18,15 @@ const DIET_OPTIONS = [
 ]
 
 export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
-  const [open,       setOpen]      = useState(false)
-  const [draftVal,   setDraftVal]  = useState(value || '')
-  const [draftNotes, setDraftNotes]= useState(notes || '')
-  const [search,     setSearch]    = useState('')
-  const overlayRef = useRef(null)
-  const notesRef   = useRef(null)
+  const [open,        setOpen]       = useState(false)
+  const [notesOpen,   setNotesOpen]  = useState(false)
+  const [draftVal,    setDraftVal]   = useState(value || '')
+  const [draftNotes,  setDraftNotes] = useState(notes || '')
+  const [search,      setSearch]     = useState('')
+  const overlayRef  = useRef(null)
+  const overlay2Ref = useRef(null)
+  const notesRef    = useRef(null)
+  const bigNotesRef = useRef(null)
 
   const filtered = useMemo(() =>
     search.trim()
@@ -41,6 +44,10 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
       setTimeout(() => notesRef.current?.focus(), 80)
     }
   }, [open])
+
+  useEffect(() => {
+    if (notesOpen) setTimeout(() => bigNotesRef.current?.focus(), 80)
+  }, [notesOpen])
 
   const save = () => {
     onChange(draftVal)
@@ -96,9 +103,27 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
               </p>
 
               {/* Observações — no topo */}
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
-                Observações alimentares
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                  Observações alimentares
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setNotesOpen(true)}
+                  title="Expandir campo de observações"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '3px 9px', borderRadius: 6,
+                    border: '1px solid #e2e8f0', background: '#f8fafc',
+                    color: '#64748b', fontSize: 11.5, cursor: 'pointer',
+                    fontFamily: 'inherit', transition: 'all .12s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}
+                >
+                  <Ic n="edit" s={12} /> Expandir
+                </button>
+              </div>
               <textarea
                 ref={notesRef}
                 value={draftNotes}
@@ -201,6 +226,78 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
                   Salvar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Segundo popup: observações expandidas ── */}
+      {notesOpen && (
+        <div
+          ref={overlay2Ref}
+          onClick={(e) => { if (e.target === overlay2Ref.current) setNotesOpen(false) }}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(15,23,42,.55)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 500, padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 12, width: '100%', maxWidth: 500,
+              boxShadow: '0 24px 64px rgba(0,0,0,.28)',
+              animation: 'mIn .15s ease',
+            }}
+          >
+            <div style={{ padding: '16px 18px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                Observações alimentares
+              </p>
+              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                Descreva restrições, alergias ou preferências específicas
+              </p>
+            </div>
+
+            <div style={{ padding: '16px 18px' }}>
+              <textarea
+                ref={bigNotesRef}
+                value={draftNotes}
+                onChange={(e) => setDraftNotes(e.target.value)}
+                rows={8}
+                placeholder="Ex.: Alérgico a nozes e amendoim (reação grave). Não consome frutos do mar. Intolerante a lactose. Prefere refeições sem pimenta e sem temperos fortes..."
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  border: '1px solid #e2e8f0', borderRadius: 8,
+                  fontSize: 13, fontFamily: 'inherit', color: '#1e293b',
+                  outline: 'none', resize: 'vertical', lineHeight: 1.6,
+                  transition: 'border-color .12s',
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#2e6db4'}
+                onBlur={(e)  => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 6, textAlign: 'right' }}>
+                {draftNotes.length} caractere{draftNotes.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={() => setNotesOpen(false)}
+                style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => setNotesOpen(false)}
+                style={{ padding: '7px 20px', borderRadius: 6, border: 'none', background: '#2e6db4', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#275fa0'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#2e6db4'}
+              >
+                Confirmar
+              </button>
             </div>
           </div>
         </div>
