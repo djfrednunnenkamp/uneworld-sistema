@@ -8,7 +8,7 @@ export default function Layout() {
       <Sidebar />
       <div className="main">
         <div className="topbar">
-          <span className="topbar-brand">une world</span>
+          <img src="/logo.png" alt="UneWorld" style={{ height: 28, width: 'auto', display: 'block' }} />
           <div className="topbar-r">
             <span className="topbar-role">Administrador</span>
             <div className="topbar-ava">FN</div>

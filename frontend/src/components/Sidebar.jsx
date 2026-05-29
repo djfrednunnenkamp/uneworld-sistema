@@ -17,12 +17,8 @@ export default function Sidebar() {
   return (
     <div className="sidebar">
       {/* Logo */}
-      <div className="sb-logo">
-        <div className="sb-logo-text">
-          <span style={{ color: '#fff', fontWeight: 700, fontSize: 20, letterSpacing: '-.02em' }}>
-            une<span style={{ color: '#6BA3C8' }}> world</span>
-          </span>
-        </div>
+      <div className="sb-logo" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <img src="/logo.png" alt="UneWorld Turismo" style={{ height: 48, width: 'auto', display: 'block' }} />
       </div>
 
       {/* Nav */}

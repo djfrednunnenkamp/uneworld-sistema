@@ -5,12 +5,11 @@ export const dashboardApi = {
 }
 
 export const passengersApi = {
-  list: (params) => api.get('/passengers/', { params }),
-  get: (id) => api.get(`/passengers/${id}/`),
-  create: (data) => api.post('/passengers/', data),
+  list:   (params) => api.get('/passengers/', { params }),
+  get:    (id)     => api.get(`/passengers/${id}/`),
+  create: (data)   => api.post('/passengers/', data),
   update: (id, data) => api.put(`/passengers/${id}/`, data),
-  remove: (id) => api.delete(`/passengers/${id}/`),
-  active: () => api.get('/passengers/active/'),
+  remove: (id)     => api.delete(`/passengers/${id}/`),
 }
 
 export const tripsApi = {
