@@ -155,7 +155,7 @@ export default function PassengerDetail() {
   )
 
   return (
-    <div>
+    <><div>
       {/* ── Header ── */}
       <div className="det-header">
         <div>
@@ -403,6 +403,7 @@ export default function PassengerDetail() {
     </div>
 
     {/* ── Popup de observações do passageiro ── */}
+
     {notesOpen && (
       <div
         onClick={(e) => { if (e.target === e.currentTarget) setNotesOpen(false) }}
@@ -470,5 +471,6 @@ export default function PassengerDetail() {
         </div>
       </div>
     )}
+    </>
   )
 }
