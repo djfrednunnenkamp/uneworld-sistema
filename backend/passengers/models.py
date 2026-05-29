@@ -71,6 +71,7 @@ class Passenger(models.Model):
     seat_position   = models.CharField('Posição no avião', max_length=10,
                           choices=[('frente','Frente'),('meio','Meio'),('fundo','Fundo')], blank=True)
     diet_type       = models.CharField('Tipo de alimentação', max_length=100, blank=True)
+    diet_notes      = models.TextField('Observações alimentares', blank=True)
     receives_mail   = models.BooleanField('Receber mala direta impressa', default=False)
 
     # ── Endereço ───────────────────────────────────────────────────

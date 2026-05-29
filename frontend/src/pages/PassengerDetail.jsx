@@ -10,6 +10,7 @@ import CountryPicker from '../components/CountryPicker'
 import GenderPicker from '../components/GenderPicker'
 import ProfessionPicker from '../components/ProfessionPicker'
 import SeatPicker from '../components/SeatPicker'
+import DietPicker from '../components/DietPicker'
 
 /* ── helpers ── */
 const EMPTY = {
@@ -19,7 +20,7 @@ const EMPTY = {
   agencies:[],
   cpf:'',
   phone1:'', phone2:'', mobile:'',
-  flight_class:'', seat_preference:'', seat_position:'', diet_type:'', receives_mail:false,
+  flight_class:'', seat_preference:'', seat_position:'', diet_type:'', diet_notes:'', receives_mail:false,
   cep:'', street:'', number:'', complement:'', neighborhood:'', city:'', state:'', country:'Brasil',
   status:'active', notes:'',
 }
@@ -295,18 +296,12 @@ export default function PassengerDetail() {
                 />
               </F>
               <F label="Tipo de alimentação">
-                {fs('diet_type',
-                  <>
-                    <option value="">Nada selecionado</option>
-                    <option value="standard">Padrão</option>
-                    <option value="vegetarian">Vegetariano</option>
-                    <option value="vegan">Vegano</option>
-                    <option value="gluten_free">Sem glúten</option>
-                    <option value="lactose_free">Sem lactose</option>
-                    <option value="kosher">Kosher</option>
-                    <option value="halal">Halal</option>
-                  </>
-                )}
+                <DietPicker
+                  value={form.diet_type}
+                  notes={form.diet_notes}
+                  onChange={(v)      => setForm((f) => ({ ...f, diet_type: v }))}
+                  onChangeNotes={(v) => setForm((f) => ({ ...f, diet_notes: v }))}
+                />
               </F>
             </div>
           </div>
