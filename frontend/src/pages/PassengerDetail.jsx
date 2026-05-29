@@ -11,12 +11,15 @@ import GenderPicker from '../components/GenderPicker'
 import ProfessionPicker from '../components/ProfessionPicker'
 import SeatPicker from '../components/SeatPicker'
 import CountryStatePicker from '../components/CountryStatePicker'
+import LanguagePicker from '../components/LanguagePicker'
 import DietPicker from '../components/DietPicker'
 
 /* ── helpers ── */
 const EMPTY = {
   first_name:'', last_name:'', full_name:'',
-  email:'', birth_date:'', birth_place:'', nationality:'BRASILEIRA',
+  email:'', email_emergency1:'', email_emergency2:'',
+  native_language:'', other_languages:'',
+  birth_date:'', birth_place:'', nationality:'BRASILEIRA',
   gender:'', gender_custom:'', profession:'', is_foreign:false, is_verified:false, is_guide:false,
   agencies:[],
   cpf:'',
@@ -277,7 +280,14 @@ export default function PassengerDetail() {
             </div>
 
             <div className="grid3">
-              <F label="E-mail *">{fi('email', 'email@exemplo.com', 'email')}</F>
+              <F label="Idiomas falados" col={2}>
+                <LanguagePicker
+                  nativeLang={form.native_language}
+                  otherLangs={form.other_languages}
+                  onChangeNative={(v) => setForm((f) => ({ ...f, native_language: v }))}
+                  onChangeOthers={(v) => setForm((f) => ({ ...f, other_languages: v }))}
+                />
+              </F>
               <F label="Local de nascimento">
                 <LocationPicker
                   value={form.birth_place}
@@ -290,6 +300,16 @@ export default function PassengerDetail() {
                   onChange={(v) => setForm((f) => ({ ...f, nationality: v, _autoNationality: '' }))}
                 />
               </F>
+            </div>
+          </div>
+
+          {/* ── E-mails ── */}
+          <div className="section">
+            <div className="section-title">E-mails</div>
+            <div className="grid3">
+              <F label="E-mail *">{fi('email', 'email@exemplo.com', 'email')}</F>
+              <F label="E-mail de emergência 1">{fi('email_emergency1', 'email@exemplo.com', 'email')}</F>
+              <F label="E-mail de emergência 2">{fi('email_emergency2', 'email@exemplo.com', 'email')}</F>
             </div>
           </div>
 
