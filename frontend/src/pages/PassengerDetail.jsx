@@ -213,9 +213,10 @@ export default function PassengerDetail() {
                 <label className="fl">Opções</label>
                 <div style={{ display: 'flex', gap: 18, paddingTop: 5 }}>
                   {[
-                    { key: 'is_foreign',  label: 'Estrangeiro'     },
-                    { key: 'is_verified', label: 'Verificado'      },
-                    { key: 'is_guide',    label: 'Guia'            },
+                    { key: 'is_foreign',   label: 'Estrangeiro' },
+                    { key: 'is_verified',  label: 'Verificado'  },
+                    { key: 'is_guide',     label: 'Guia'        },
+                    { key: 'receives_mail',label: 'Mala direta' },
                   ].map(({ key, label }) => (
                     <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                       <span style={{ fontSize: 10.5, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.04em', whiteSpace: 'nowrap' }}>{label}</span>
@@ -371,11 +372,6 @@ export default function PassengerDetail() {
                 )}
               </F>
               <F label="País">{fi('country', 'Brasil')}</F>
-              <F label="Receber mala direta impressa?">
-                <div style={{ marginTop: 6 }}>
-                  <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
-                </div>
-              </F>
             </div>
           </div>
 
