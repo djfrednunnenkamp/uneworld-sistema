@@ -77,15 +77,12 @@ export default function PassengerDetail() {
 
   /* Auto-preenche nacionalidade a partir do local de nascimento */
   const setBirthPlace = (v) => {
-    setForm((f) => {
-      const country = v ? v.split(', ').pop() : ''
-      const autoFill = !f.nationality || f.nationality === f._autoNationality
-      return {
-        ...f,
-        birth_place: v,
-        ...(autoFill && country ? { nationality: country, _autoNationality: country } : {}),
-      }
-    })
+    const country = v ? v.split(', ').pop() : ''
+    setForm((f) => ({
+      ...f,
+      birth_place: v,
+      ...(country ? { nationality: country } : {}),
+    }))
   }
 
   /* CEP lookup via ViaCEP */
@@ -116,7 +113,7 @@ export default function PassengerDetail() {
     setSaving(true)
     try {
       const genderValue = form.gender === 'O' ? (form.gender_custom?.trim() || 'O') : form.gender
-      const { gender_custom, _autoNationality, ...rest } = form
+      const { gender_custom, ...rest } = form
       const payload = { ...rest, gender: genderValue }
       if (isNew) {
         const r = await passengersApi.create(payload)
