@@ -114,17 +114,22 @@ function SeatRow({ rowNum, seatType, seatPos, onSelectType }) {
   )
 }
 
-/* ── Zone divider ── */
+/* ── Zone divider — alinhado com assentos (offset 23px, largura 136px) ── */
+const SEAT_AREA_W  = 136   // 6 assentos × 18px + 5 gaps × 3px + aisle 10px + 2 gaps = 136
+const SEAT_OFFSET  = 23    // row num 20px + gap 3px
+
 function ZoneDivider({ label, active }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
+      display: 'flex', alignItems: 'center', gap: 6,
       margin: '8px 0 4px',
+      marginLeft: SEAT_OFFSET, width: SEAT_AREA_W,
     }}>
       <div style={{ flex: 1, height: 1, background: active ? '#bfdbfe' : '#f1f5f9' }} />
       <span style={{
         fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
         color: active ? '#2e6db4' : '#94a3b8', textTransform: 'uppercase',
+        flexShrink: 0,
       }}>
         {label}
       </span>
@@ -294,20 +299,21 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
             {/* Mapa do avião — tudo centralizado */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-              {/* Cockpit */}
-              <div style={{ marginBottom: 6 }}>
+              {/* Cabine de Comando — centrada sobre a área dos assentos */}
+              <div style={{ marginLeft: SEAT_OFFSET, width: SEAT_AREA_W, display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
                 <div style={{
-                  padding: '4px 28px',
+                  padding: '4px 16px',
                   background: '#f8fafc', border: '1px solid #e2e8f0',
                   borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
-                  fontSize: 11, color: '#94a3b8', fontWeight: 600,
+                  fontSize: 10, color: '#94a3b8', fontWeight: 600,
+                  whiteSpace: 'nowrap',
                 }}>
-                  ✈ Cockpit
+                  ✈ Cabine de Comando
                 </div>
               </div>
 
-              {/* Letras das colunas */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4, marginLeft: 20 }}>
+              {/* Letras das colunas — offset 23px para alinhar com assentos */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4, marginLeft: SEAT_OFFSET }}>
                 {['A','B','C'].map((l) => (
                   <div key={l} style={{ width: 18, textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#94a3b8' }}>{l}</div>
                 ))}
@@ -319,7 +325,7 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
 
               {/* Zonas com linhas */}
               {zones.map((zone) => (
-                <div key={zone.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div key={zone.id} style={{ display: 'flex', flexDirection: 'column' }}>
                   <ZoneDivider label={zone.label} active={draftPos === zone.id} />
                   {zone.rows.map((rowNum) => (
                     <SeatRow
@@ -333,10 +339,10 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
                 </div>
               ))}
 
-              {/* Cauda */}
-              <div style={{ marginTop: 8 }}>
+              {/* Cauda — centrada sobre assentos */}
+              <div style={{ marginLeft: SEAT_OFFSET, width: SEAT_AREA_W, display: 'flex', justifyContent: 'center', marginTop: 6 }}>
                 <div style={{
-                  padding: '4px 24px',
+                  padding: '4px 20px',
                   background: '#f8fafc', border: '1px solid #e2e8f0',
                   borderRadius: '0 0 50% 50% / 0 0 100% 100%',
                   fontSize: 11, color: '#94a3b8',
