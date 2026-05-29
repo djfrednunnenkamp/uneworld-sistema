@@ -61,8 +61,9 @@ export default function PassengerDetail() {
   const navigate = useNavigate()
   const isNew    = id === 'novo'
 
-  const [form,    setForm]    = useState({ ...EMPTY })
-  const [loading, setLoading] = useState(!isNew)
+  const [form,      setForm]      = useState({ ...EMPTY })
+  const [loading,   setLoading]   = useState(!isNew)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [saving,   setSaving]   = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
   const [tab, setTab] = useState('info')
@@ -202,7 +203,30 @@ export default function PassengerDetail() {
 
           {/* ── Dados do cliente ── */}
           <div className="section">
-            <div className="section-title">Dados do cliente</div>
+            <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Dados do cliente</span>
+              <button
+                type="button"
+                onClick={() => setNotesOpen(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '3px 10px', borderRadius: 6,
+                  border: `1px solid ${form.notes?.trim() ? '#2e6db4' : '#e2e8f0'}`,
+                  background: form.notes?.trim() ? '#eff6ff' : '#f8fafc',
+                  color: form.notes?.trim() ? '#2e6db4' : '#94a3b8',
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  transition: 'all .12s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = form.notes?.trim() ? '#2e6db4' : '#e2e8f0'
+                  e.currentTarget.style.color = form.notes?.trim() ? '#2e6db4' : '#94a3b8'
+                }}
+              >
+                <Ic n="edit" s={12} />
+                {form.notes?.trim() ? 'Observações ●' : 'Observações'}
+              </button>
+            </div>
 
             {/* Linha 1: Agências (largura total) — picker com múltipla seleção */}
             <div style={{ marginBottom: 14 }}>
@@ -346,17 +370,6 @@ export default function PassengerDetail() {
             </div>
           </div>
 
-          {/* ── Observações ── */}
-          <div className="section">
-            <div className="section-title">Observações</div>
-            <textarea
-              className="fi" rows={3}
-              style={{ resize: 'vertical', width: '100%' }}
-              value={form.notes ?? ''} onChange={set('notes')}
-              placeholder="Informações adicionais sobre o passageiro…"
-            />
-          </div>
-
         </div>
       )}
 
@@ -388,5 +401,74 @@ export default function PassengerDetail() {
         </div>
       )}
     </div>
+
+    {/* ── Popup de observações do passageiro ── */}
+    {notesOpen && (
+      <div
+        onClick={(e) => { if (e.target === e.currentTarget) setNotesOpen(false) }}
+        style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(15,23,42,.45)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 400, padding: 20,
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: '#fff', borderRadius: 12, width: '100%', maxWidth: 500,
+            boxShadow: '0 24px 64px rgba(0,0,0,.24)',
+            animation: 'mIn .15s ease',
+          }}
+        >
+          <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0' }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+              Observações do passageiro
+            </p>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+              Informações adicionais, preferências gerais ou anotações internas
+            </p>
+          </div>
+          <div style={{ padding: '16px 20px' }}>
+            <textarea
+              autoFocus
+              value={form.notes ?? ''}
+              onChange={set('notes')}
+              rows={7}
+              placeholder="Ex.: Cliente VIP. Prefere janelas à frente. Tem dificuldade de locomoção. Sempre viaja com a família..."
+              style={{
+                width: '100%', padding: '10px 12px',
+                border: '1px solid #e2e8f0', borderRadius: 8,
+                fontSize: 13, fontFamily: 'inherit', color: '#1e293b',
+                outline: 'none', resize: 'vertical', lineHeight: 1.6,
+                transition: 'border-color .12s',
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#2e6db4'}
+              onBlur={(e)  => e.target.style.borderColor = '#e2e8f0'}
+            />
+            <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 5, textAlign: 'right' }}>
+              {(form.notes ?? '').length} caracteres
+            </p>
+          </div>
+          <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
+            <button
+              onClick={() => setForm((f) => ({ ...f, notes: '' }))}
+              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Limpar
+            </button>
+            <button
+              onClick={() => setNotesOpen(false)}
+              style={{ padding: '7px 20px', borderRadius: 6, border: 'none', background: '#2e6db4', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#275fa0'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#2e6db4'}
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   )
 }
