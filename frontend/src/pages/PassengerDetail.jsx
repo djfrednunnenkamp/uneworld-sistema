@@ -8,6 +8,7 @@ import AgencyPicker from '../components/AgencyPicker'
 import LocationPicker from '../components/LocationPicker'
 import CountryPicker from '../components/CountryPicker'
 import GenderPicker from '../components/GenderPicker'
+import ProfessionPicker from '../components/ProfessionPicker'
 
 /* ── helpers ── */
 const EMPTY = {
@@ -276,7 +277,12 @@ export default function PassengerDetail() {
           <div className="section">
             <div className="section-title">Informações adicionais</div>
             <div className="grid3">
-              <F label="Profissão">{fi('profession', 'Ex.: Médico')}</F>
+              <F label="Profissão">
+                <ProfessionPicker
+                  value={form.profession}
+                  onChange={(v) => setForm((f) => ({ ...f, profession: v }))}
+                />
+              </F>
               <F label="Preferência de assento">
                 {fs('seat_preference',
                   <>
