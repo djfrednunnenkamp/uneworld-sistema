@@ -1,0 +1,33 @@
+# Ambiente e credenciais — NUNCA enviar ao repositório
+.env
+.env.*
+!.env.example
+
+# Banco de dados de desenvolvimento
+db.sqlite3
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+.Python
+
+# Django
+staticfiles/
+media/
+*.log
+
+# Migrations (opcional — manter para projetos colaborativos)
+# */migrations/
+
+# Pytest / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
