@@ -241,10 +241,14 @@ export default function PassengerDetail() {
   }, [id])
 
   /* ── Auto-save logic ── */
+  const DATE_FIELDS = ['birth_date','rg_issue_date','passport_issue','passport_expiry','rne_expiry','rne_issue']
+
   const buildPayload = (f) => {
     const genderValue = f.gender === 'O' ? (f.gender_custom?.trim() || 'O') : f.gender
-    // full_name é calculado automaticamente pelo backend (save()); não enviar vazio
+    // full_name é calculado pelo backend; não enviar vazio
     const { gender_custom, full_name, ...rest } = f
+    // Datas vazias → null (Django não aceita string vazia em DateField)
+    DATE_FIELDS.forEach(k => { if (rest[k] === '' || rest[k] === undefined) rest[k] = null })
     return { ...rest, gender: genderValue }
   }
 
