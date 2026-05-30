@@ -376,7 +376,7 @@ export default function PassengerDetail() {
               <F label="Cidade">{fi('city', '')}</F>
             </div>
             <div className="grid3">
-              <F label="País / Estado" col={2}>
+              <F label="País / Estado">
                 <CountryStatePicker
                   country={form.country}
                   state={form.state}
