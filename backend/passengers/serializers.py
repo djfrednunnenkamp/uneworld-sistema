@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from agencies.models import Agency
-from .models import Passenger
+from .models import Passenger, PassengerDocument
+from .validators import validate_document_file
 
 
 class PassengerListSerializer(serializers.ModelSerializer):
@@ -40,3 +41,32 @@ class PassengerSerializer(serializers.ModelSerializer):
         if agencies is not None:
             passenger.agencies.set(agencies)
         return passenger
+
+
+class PassengerDocumentSerializer(serializers.ModelSerializer):
+    download_url  = serializers.SerializerMethodField()
+    doc_type_label = serializers.CharField(source='get_doc_type_display', read_only=True)
+    display_name  = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = PassengerDocument
+        fields = ['id', 'doc_type', 'doc_type_label', 'label', 'display_name',
+                  'original_name', 'file_size', 'mime_type', 'notes',
+                  'uploaded_at', 'download_url']
+        read_only_fields = ['original_name', 'file_size', 'mime_type', 'uploaded_at']
+
+    def get_download_url(self, obj):
+        return f"/api/passengers/documents/{obj.id}/download/"
+
+    def get_display_name(self, obj):
+        return obj.label or obj.get_doc_type_display()
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and request.FILES.get('file'):
+            f = request.FILES['file']
+            validate_document_file(f)
+            attrs['original_name'] = f.name
+            attrs['file_size']     = f.size
+            attrs['mime_type']     = f.content_type or ''
+        return attrs

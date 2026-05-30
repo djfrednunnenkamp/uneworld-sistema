@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import axios from 'axios'
-import { passengersApi } from '../api'
+import { passengersApi, documentsApi } from '../api'
 import { Ic } from '../components/Icon'
 import AgencyPicker from '../components/AgencyPicker'
 import LocationPicker from '../components/LocationPicker'
@@ -13,6 +13,7 @@ import SeatPicker from '../components/SeatPicker'
 import CountryStatePicker from '../components/CountryStatePicker'
 import LanguagePicker from '../components/LanguagePicker'
 import DietPicker from '../components/DietPicker'
+import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
 
 /* ── helpers ── */
 const EMPTY = {
@@ -54,6 +55,149 @@ function F({ label, children, col }) {
     <div style={style}>
       <label className="fl">{label}</label>
       {children}
+    </div>
+  )
+}
+
+/* ── Documents tab ── */
+function DocumentsTab({ passengerId, isNew }) {
+  const [docs,     setDocs]     = useState([])
+  const [loading,  setLoading]  = useState(false)
+  const [deleting, setDeleting] = useState(null)
+
+  const load = () => {
+    if (isNew || !passengerId || passengerId === 'novo') return
+    setLoading(true)
+    documentsApi.list(passengerId)
+      .then(r => setDocs(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [passengerId])
+
+  const handleDelete = async (doc) => {
+    if (!window.confirm(`Remover "${doc.display_name}"?`)) return
+    setDeleting(doc.id)
+    await documentsApi.remove(doc.id).catch(() => toast.error('Erro ao remover.'))
+    toast.success('Documento removido.')
+    setDeleting(null)
+    load()
+  }
+
+  const handleDownload = async (doc) => {
+    try {
+      const r = await documentsApi.download(doc.id)
+      const url = URL.createObjectURL(r.data)
+      const a   = document.createElement('a')
+      a.href = url; a.download = doc.original_name; a.click()
+      URL.revokeObjectURL(url)
+    } catch { toast.error('Erro ao baixar documento.') }
+  }
+
+  const fmt = (d) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+  const fmtSize = (b) => b > 1024*1024 ? `${(b/1024/1024).toFixed(1)} MB` : `${(b/1024).toFixed(0)} KB`
+
+  if (isNew) {
+    return (
+      <div className="det-card">
+        <div className="section">
+          <div className="section-title">Documentos</div>
+          <p style={{ color: '#94a3b8', fontSize: 14 }}>Salve o passageiro primeiro para anexar documentos.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="det-card">
+      <div className="section">
+        <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Documentos</span>
+          <DocTypePicker passengerId={passengerId} onUploaded={load} />
+        </div>
+
+        {loading ? (
+          <p style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>Carregando…</p>
+        ) : docs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
+            <p style={{ fontSize: 14, fontWeight: 500, color: '#475569', margin: 0 }}>Nenhum documento anexado</p>
+            <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+              Clique em "+ Adicionar documento" para enviar o primeiro
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+            {docs.map((doc) => {
+              const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type) ?? DOC_TYPES[DOC_TYPES.length - 1]
+              return (
+                <div
+                  key={doc.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 14px', borderRadius: 8,
+                    border: '1px solid #e2e8f0', background: '#fafafa',
+                    transition: 'background .1s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f0f6ff'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#fafafa'}
+                >
+                  {/* Ícone */}
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{typeInfo.icon}</span>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0, truncate: true }}>
+                      {doc.display_name}
+                    </p>
+                    <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, marginTop: 2 }}>
+                      {doc.original_name} · {fmtSize(doc.file_size)} · {fmt(doc.uploaded_at)}
+                    </p>
+                    {doc.notes && (
+                      <p style={{ fontSize: 11.5, color: '#64748b', margin: 0, marginTop: 2, fontStyle: 'italic' }}>
+                        {doc.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Badge de tipo */}
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 10, fontSize: 11,
+                    fontWeight: 600, background: `${typeInfo.color}15`, color: typeInfo.color,
+                    flexShrink: 0, whiteSpace: 'nowrap',
+                  }}>
+                    {doc.doc_type_label}
+                  </span>
+
+                  {/* Ações */}
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button
+                      onClick={() => handleDownload(doc)}
+                      title="Baixar"
+                      style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', transition: 'all .12s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}
+                    >
+                      <Ic n="dl" s={13} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(doc)}
+                      disabled={deleting === doc.id}
+                      title="Remover"
+                      style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer', transition: 'all .12s', opacity: deleting === doc.id ? .5 : 1 }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fee2e2' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = '#fff' }}
+                    >
+                      <Ic n="trash" s={13} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -394,12 +538,7 @@ export default function PassengerDetail() {
           TAB: Documentos
       ═══════════════════════════════════════════════════════════ */}
       {tab === 'docs' && (
-        <div className="det-card">
-          <div className="section">
-            <div className="section-title">Documentos</div>
-            <p style={{ color: '#94a3b8', fontSize: 14 }}>Upload de documentos em breve.</p>
-          </div>
-        </div>
+        <DocumentsTab passengerId={id} isNew={isNew} />
       )}
 
       {/* ═══════════════════════════════════════════════════════════

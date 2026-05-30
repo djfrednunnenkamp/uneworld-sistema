@@ -39,6 +39,18 @@ export const agenciesApi = {
   remove: (id)     => api.delete(`/agencies/${id}/`),
 }
 
+export const documentsApi = {
+  list:     (passengerId) =>
+    api.get(`/passengers/${passengerId}/documents/`),
+  upload:   (passengerId, formData) =>
+    api.post(`/passengers/${passengerId}/documents/`, formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }),
+  remove:   (docId) =>
+    api.delete(`/passengers/documents/${docId}/`),
+  download: (docId) =>
+    api.get(`/passengers/documents/${docId}/download/`, { responseType: 'blob' }),
+}
+
 export const authApi = {
   login: (username, password) =>
     api.post('/auth/login/', { username, password }),

@@ -1,4 +1,11 @@
+import uuid
+import os
 from django.db import models
+
+
+def secure_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f"passenger_docs/{instance.passenger_id}/{uuid.uuid4().hex}{ext}"
 
 
 class Passenger(models.Model):
@@ -108,3 +115,37 @@ class Passenger(models.Model):
 
     def __str__(self):
         return self.full_name
+
+
+class PassengerDocument(models.Model):
+    DOC_TYPE_CHOICES = [
+        ('passport',    'Passaporte'),
+        ('rg',          'Carteira de Identidade (RG)'),
+        ('cnh',         'Carteira de Motorista (CNH)'),
+        ('visa',        'Visto'),
+        ('birth_cert',  'Certidão de Nascimento'),
+        ('cpf_card',    'Cartão CPF'),
+        ('voter_id',    'Título de Eleitor'),
+        ('work_permit', 'Autorização de Trabalho'),
+        ('residence',   'Comprovante de Residência'),
+        ('other',       'Outro'),
+    ]
+
+    passenger     = models.ForeignKey(Passenger, on_delete=models.CASCADE, related_name='documents')
+    doc_type      = models.CharField('Tipo', max_length=20, choices=DOC_TYPE_CHOICES)
+    label         = models.CharField('Nome personalizado', max_length=200, blank=True)
+    file          = models.FileField('Arquivo', upload_to=secure_upload_path)
+    original_name = models.CharField('Nome original', max_length=255)
+    file_size     = models.PositiveIntegerField('Tamanho (bytes)', default=0)
+    mime_type     = models.CharField('Tipo MIME', max_length=100, blank=True)
+    notes         = models.TextField('Notas', blank=True)
+    uploaded_at   = models.DateTimeField('Enviado em', auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Documento'
+        verbose_name_plural = 'Documentos'
+        ordering            = ['-uploaded_at']
+
+    def __str__(self):
+        label = self.label or self.get_doc_type_display()
+        return f'{label} — {self.passenger}'
