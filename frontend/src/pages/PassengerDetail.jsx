@@ -6,7 +6,7 @@ import { passengersApi } from '../api'
 import { Ic } from '../components/Icon'
 import AgencyPicker from '../components/AgencyPicker'
 import LocationPicker from '../components/LocationPicker'
-import CountryPicker from '../components/CountryPicker'
+import NationalityPicker from '../components/NationalityPicker'
 import GenderPicker from '../components/GenderPicker'
 import ProfessionPicker from '../components/ProfessionPicker'
 import SeatPicker from '../components/SeatPicker'
@@ -19,7 +19,7 @@ const EMPTY = {
   first_name:'', last_name:'', full_name:'',
   email:'', email_emergency1:'', email_emergency2:'',
   native_language:'', other_languages:'',
-  birth_date:'', birth_place:'', nationality:'BRASILEIRA',
+  birth_date:'', birth_place:'', nationality:'', other_nationalities:'',
   gender:'', gender_custom:'', profession:'', is_foreign:false, is_verified:false, is_guide:false,
   agencies:[],
   cpf:'',
@@ -84,13 +84,13 @@ export default function PassengerDetail() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const setB = (k) => (v) => setForm((f) => ({ ...f, [k]: v }))
 
-  /* Auto-preenche nacionalidade a partir do local de nascimento */
+  /* Auto-preenche nacionalidade principal a partir do local de nascimento */
   const setBirthPlace = (v) => {
     const country = v ? v.split(', ').pop() : ''
     setForm((f) => ({
       ...f,
       birth_place: v,
-      ...(country ? { nationality: country } : {}),
+      ...(country && !f.nationality ? { nationality: country } : {}),
     }))
   }
 
@@ -295,9 +295,11 @@ export default function PassengerDetail() {
                 />
               </F>
               <F label="Nacionalidade">
-                <CountryPicker
-                  value={form.nationality}
-                  onChange={(v) => setForm((f) => ({ ...f, nationality: v, _autoNationality: '' }))}
+                <NationalityPicker
+                  primary={form.nationality}
+                  others={form.other_nationalities}
+                  onChangePrimary={(v) => setForm((f) => ({ ...f, nationality: v }))}
+                  onChangeOthers={(v)  => setForm((f) => ({ ...f, other_nationalities: v }))}
                 />
               </F>
             </div>
