@@ -221,6 +221,8 @@ export default function PassengerDetail() {
   const saveTimer    = useRef(null)
   const initialLoad  = useRef(false)
   const formRef      = useRef(form)
+  const isDirtyRef   = useRef(false)      // ref para evitar closure estale
+  const currentIdRef = useRef(isNew ? null : id)
   formRef.current    = form
 
   /* load passenger data */
@@ -249,29 +251,39 @@ export default function PassengerDetail() {
     const f = formRef.current
     const hasName  = f.first_name?.trim() || f.last_name?.trim() || f.full_name?.trim()
     const hasEmail = f.email?.trim()
-    if (!hasName || !hasEmail) return    // campos mínimos não preenchidos — não salva
-    if (!isDirty && !force) return       // sem mudanças
+    if (!hasName || !hasEmail) return
+    if (!isDirtyRef.current && !force) return   // usa ref — sem problema de closure estale
 
     setSaving(true)
     try {
       const payload = buildPayload(f)
-      if (!currentId) {
+      const cid = currentIdRef.current
+      if (!cid) {
         const r = await passengersApi.create(payload)
+        currentIdRef.current = r.data.id
         setCurrentId(r.data.id)
         navigate(`/passageiros/${r.data.id}`, { replace: true })
       } else {
-        await passengersApi.update(currentId, payload)
+        await passengersApi.update(cid, payload)
       }
       setLastSaved(new Date())
+      isDirtyRef.current = false
       setIsDirty(false)
     } catch (e) {
-      const msg = e.response?.data?.email?.[0] ?? 'Erro ao salvar.'
+      const data = e.response?.data
+      const msg  = data?.email?.[0]
+               ?? data?.non_field_errors?.[0]
+               ?? (data && typeof data === 'object'
+                   ? Object.values(data).flat().find(v => typeof v === 'string')
+                   : null)
+               ?? 'Erro ao salvar. Verifique os dados e tente novamente.'
       toast.error(msg)
     } finally { setSaving(false) }
   }
 
   const scheduleSave = () => {
     if (!initialLoad.current) return
+    isDirtyRef.current = true
     setIsDirty(true)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => performSave(), 3000)
