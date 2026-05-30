@@ -34,7 +34,7 @@ class Passenger(models.Model):
     # ── Dados básicos ──────────────────────────────────────────────
     first_name  = models.CharField('Primeiro nome', max_length=100, blank=True)
     last_name   = models.CharField('Sobrenome', max_length=100, blank=True)
-    full_name   = models.CharField('Nome completo', max_length=200)
+    full_name   = models.CharField('Nome completo', max_length=200, blank=True)
     email             = models.EmailField('E-mail', unique=True)
     email_emergency1  = models.EmailField('E-mail contato de emergência 1', blank=True)
     email_emergency2  = models.EmailField('E-mail contato de emergência 2', blank=True)

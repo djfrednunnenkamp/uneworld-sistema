@@ -243,7 +243,8 @@ export default function PassengerDetail() {
   /* ── Auto-save logic ── */
   const buildPayload = (f) => {
     const genderValue = f.gender === 'O' ? (f.gender_custom?.trim() || 'O') : f.gender
-    const { gender_custom, ...rest } = f
+    // full_name é calculado automaticamente pelo backend (save()); não enviar vazio
+    const { gender_custom, full_name, ...rest } = f
     return { ...rest, gender: genderValue }
   }
 
