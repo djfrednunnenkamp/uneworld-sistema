@@ -98,23 +98,21 @@ function DocumentsTab({ passengerId, isNew }) {
   const fmt = (d) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
   const fmtSize = (b) => b > 1024*1024 ? `${(b/1024/1024).toFixed(1)} MB` : `${(b/1024).toFixed(0)} KB`
 
-  if (isNew) {
-    return (
-      <div className="det-card">
-        <div className="section">
-          <div className="section-title">Documentos</div>
-          <p style={{ color: '#94a3b8', fontSize: 14 }}>Salve o passageiro primeiro para anexar documentos.</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="det-card">
       <div className="section">
         <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>Documentos</span>
-          <DocTypePicker passengerId={passengerId} onUploaded={load} />
+          {!isNew && <DocTypePicker passengerId={passengerId} onUploaded={load} />}
+          {isNew && (
+            <span style={{
+              fontSize: 12, color: '#94a3b8', fontWeight: 400,
+              padding: '4px 10px', borderRadius: 6,
+              border: '1px dashed #e2e8f0', background: '#fafafa',
+            }}>
+              Salve o passageiro para habilitar uploads
+            </span>
+          )}
         </div>
 
         {loading ? (
@@ -124,7 +122,9 @@ function DocumentsTab({ passengerId, isNew }) {
             <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
             <p style={{ fontSize: 14, fontWeight: 500, color: '#475569', margin: 0 }}>Nenhum documento anexado</p>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
-              Clique em "+ Adicionar documento" para enviar o primeiro
+              {isNew
+                ? 'Salve o passageiro e volte aqui para anexar documentos'
+                : 'Clique em "+ Adicionar documento" para enviar o primeiro'}
             </p>
           </div>
         ) : (
