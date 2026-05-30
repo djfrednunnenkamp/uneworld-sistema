@@ -303,19 +303,14 @@ export default function PassengerDetail() {
             </div>
           </div>
 
-          {/* ── E-mails ── */}
+          {/* ── E-mail e Telefone ── */}
           <div className="section">
-            <div className="section-title">E-mails</div>
+            <div className="section-title">E-mail e Telefone</div>
             <div className="grid3">
               <F label="E-mail *">{fi('email', 'email@exemplo.com', 'email')}</F>
               <F label="E-mail de emergência 1">{fi('email_emergency1', 'email@exemplo.com', 'email')}</F>
               <F label="E-mail de emergência 2">{fi('email_emergency2', 'email@exemplo.com', 'email')}</F>
             </div>
-          </div>
-
-          {/* ── Telefones ── */}
-          <div className="section">
-            <div className="section-title">Telefones</div>
             <div className="grid3">
               <F label="Telefone">{fi('phone1', '+55 (00) 00000-0000')}</F>
               <F label="Contato de emergência 1">{fi('phone2', '+55 (00) 00000-0000')}</F>
