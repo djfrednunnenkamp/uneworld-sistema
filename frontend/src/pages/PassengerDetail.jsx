@@ -208,22 +208,95 @@ export default function PassengerDetail() {
   const navigate = useNavigate()
   const isNew    = id === 'novo'
 
-  const [form,      setForm]      = useState({ ...EMPTY })
-  const [loading,   setLoading]   = useState(!isNew)
-  const [notesOpen, setNotesOpen] = useState(false)
-  const [saving,   setSaving]   = useState(false)
-  const [cepLoading, setCepLoading] = useState(false)
-  const [tab, setTab] = useState('info')
+  const [form,        setForm]        = useState({ ...EMPTY })
+  const [loading,     setLoading]     = useState(!isNew)
+  const [notesOpen,   setNotesOpen]   = useState(false)
+  const [saving,      setSaving]      = useState(false)
+  const [cepLoading,  setCepLoading]  = useState(false)
+  const [tab,         setTab]         = useState('info')
+  const [lastSaved,   setLastSaved]   = useState(null)   // Date | null
+  const [isDirty,     setIsDirty]     = useState(false)
+  const [currentId,   setCurrentId]   = useState(isNew ? null : id)
+
+  const saveTimer    = useRef(null)
+  const initialLoad  = useRef(false)
+  const formRef      = useRef(form)
+  formRef.current    = form
 
   /* load passenger data */
   useEffect(() => {
     if (!isNew) {
       passengersApi.get(id)
-        .then((r) => setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] }))
+        .then((r) => {
+          setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] })
+          setTimeout(() => { initialLoad.current = true }, 100)
+        })
         .catch(() => { toast.error('Passageiro não encontrado.'); navigate('/passageiros') })
         .finally(() => setLoading(false))
+    } else {
+      setTimeout(() => { initialLoad.current = true }, 100)
     }
   }, [id])
+
+  /* ── Auto-save logic ── */
+  const buildPayload = (f) => {
+    const genderValue = f.gender === 'O' ? (f.gender_custom?.trim() || 'O') : f.gender
+    const { gender_custom, ...rest } = f
+    return { ...rest, gender: genderValue }
+  }
+
+  const performSave = async (force = false) => {
+    const f = formRef.current
+    const hasName  = f.first_name?.trim() || f.last_name?.trim() || f.full_name?.trim()
+    const hasEmail = f.email?.trim()
+    if (!hasName || !hasEmail) return    // campos mínimos não preenchidos — não salva
+    if (!isDirty && !force) return       // sem mudanças
+
+    setSaving(true)
+    try {
+      const payload = buildPayload(f)
+      if (!currentId) {
+        const r = await passengersApi.create(payload)
+        setCurrentId(r.data.id)
+        navigate(`/passageiros/${r.data.id}`, { replace: true })
+      } else {
+        await passengersApi.update(currentId, payload)
+      }
+      setLastSaved(new Date())
+      setIsDirty(false)
+    } catch (e) {
+      const msg = e.response?.data?.email?.[0] ?? 'Erro ao salvar.'
+      toast.error(msg)
+    } finally { setSaving(false) }
+  }
+
+  const scheduleSave = () => {
+    if (!initialLoad.current) return
+    setIsDirty(true)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => performSave(), 3000)
+  }
+
+  /* Avisa ao fechar/recarregar com alterações não salvas */
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
+  }, [isDirty])
+
+  /* Dispara scheduleSave em qualquer mudança de form após carga inicial */
+  useEffect(() => {
+    if (!initialLoad.current) return
+    scheduleSave()
+  }, [form])
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const setB = (k) => (v) => setForm((f) => ({ ...f, [k]: v }))
@@ -262,27 +335,16 @@ export default function PassengerDetail() {
     finally  { setCepLoading(false) }
   }
 
-  /* Save */
-  const save = async () => {
-    if (!form.full_name?.trim()) { toast.error('Nome é obrigatório.'); return }
-    if (!form.email?.trim())     { toast.error('E-mail é obrigatório.'); return }
-    setSaving(true)
-    try {
-      const genderValue = form.gender === 'O' ? (form.gender_custom?.trim() || 'O') : form.gender
-      const { gender_custom, ...rest } = form
-      const payload = { ...rest, gender: genderValue }
-      if (isNew) {
-        const r = await passengersApi.create(payload)
-        toast.success('Passageiro criado.')
-        navigate(`/passageiros/${r.data.id}`)
-      } else {
-        await passengersApi.update(id, payload)
-        toast.success('Passageiro salvo.')
-      }
-    } catch (e) {
-      const msg = e.response?.data?.email?.[0] ?? 'Erro ao salvar.'
-      toast.error(msg)
-    } finally { setSaving(false) }
+  /* Save manual (botão) */
+  const save = () => {
+    if (!form.first_name?.trim() && !form.last_name?.trim()) {
+      toast.error('Preencha o nome do passageiro.'); return
+    }
+    if (!form.email?.trim()) {
+      toast.error('E-mail é obrigatório.'); return
+    }
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    performSave(true)
   }
 
   if (loading) {
@@ -325,6 +387,20 @@ export default function PassengerDetail() {
               <option value="inactive">Inativo</option>
             </select>
           </div>
+          {/* Indicador de auto-save */}
+          {saving ? (
+            <span style={{ fontSize: 12, color: '#2e6db4', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 10, height: 10, border: '2px solid #2e6db4', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
+              Salvando…
+            </span>
+          ) : lastSaved ? (
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>
+              ✓ Salvo às {lastSaved.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          ) : isDirty ? (
+            <span style={{ fontSize: 12, color: '#f59e0b' }}>● Alterações pendentes</span>
+          ) : null}
+
           <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
           <button className="btn btn-outline" onClick={() => navigate('/passageiros')}>
             <Ic n="logout" s={13} />Voltar
