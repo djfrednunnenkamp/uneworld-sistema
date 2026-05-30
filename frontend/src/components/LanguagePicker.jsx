@@ -55,7 +55,12 @@ export default function LanguagePicker({ nativeLang, otherLangs, onChangeNative,
 
   const setNative = (e, lang) => {
     e.stopPropagation()
-    setSelected(prev => prev.map(l => ({ ...l, isNative: l.name === lang })))
+    setSelected(prev => {
+      const updated = prev.map(l => ({ ...l, isNative: l.name === lang }))
+      const nativeItem = updated.find(l => l.isNative)
+      const rest       = updated.filter(l => !l.isNative)
+      return nativeItem ? [nativeItem, ...rest] : updated
+    })
   }
 
   const isSelected = (lang) => !!selected.find(l => l.name === lang)
