@@ -11,6 +11,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
         model  = Passenger
         fields = ['id', 'first_name', 'last_name', 'full_name', 'email',
                   'mobile', 'phone1', 'cpf', 'birth_date', 'diet_type',
+                  'is_foreign', 'nationality', 'gender',
                   'city', 'state', 'status', 'agency_names']
 
     def get_agency_names(self, obj):
