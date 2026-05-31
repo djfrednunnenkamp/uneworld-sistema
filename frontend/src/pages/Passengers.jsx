@@ -66,9 +66,9 @@ const COLS = [
   { key: 'cpf',        label: 'CPF',         render: (v) => <CopyCell value={v} muted /> },
   { key: 'birth_date', label: 'Aniversário', render: (v) => {
     if (!v) return <span style={{ color:'#cbd5e1' }}>—</span>
-    const info = birthdayInfo(v)
-    const age  = calcAge(v)
-    const year = new Date(v + 'T00:00:00').getFullYear()
+    const info    = birthdayInfo(v)
+    const age     = calcAge(v)
+    const fullDate = new Date(v + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
     return (
       <div>
         {info?.badge ? (
@@ -76,10 +76,10 @@ const COLS = [
             {info.badge}
           </span>
         ) : (
-          <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{info?.label}</span>
+          <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{fullDate}</span>
         )}
         <p style={{ fontSize:11, color:'#94a3b8', margin:0, marginTop:1 }}>
-          {year} · {age} ano{age !== 1 ? 's' : ''}
+          {age} ano{age !== 1 ? 's' : ''}
         </p>
       </div>
     )
