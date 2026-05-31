@@ -34,6 +34,14 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
     ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
     : null
 
+  const DIET_LABELS = {
+    standard:'Padrão', vegetarian:'Vegetariano', vegan:'Vegano',
+    gluten_free:'Sem glúten', lactose_free:'Sem lactose',
+    kosher:'Kosher', halal:'Halal', low_sodium:'Baixo teor de sódio',
+    diabetic:'Diabético', seafood_free:'Sem frutos do mar',
+    nut_free:'Sem oleaginosas', low_fat:'Baixo teor de gordura', raw:'Crudívoro',
+  }
+
   const Row = ({ label, value }) => {
     if (!value) return null
     const isCopied = copied === label
@@ -66,7 +74,16 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
             {initials(passenger.full_name)}
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0}}>{passenger.full_name}</p>
+            <p
+              onClick={() => copyToClipboard('Nome', passenger.full_name)}
+              title="Clique para copiar o nome"
+              style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}
+            >
+              {passenger.full_name}
+              <span style={{fontSize:11,fontWeight:600,color: copied==='Nome' ? '#059669' : '#cbd5e1',transition:'color .15s'}}>
+                {copied==='Nome' ? '✓ Copiado!' : 'copiar'}
+              </span>
+            </p>
             <span style={{marginTop:4,display:'inline-block'}}>
               <StatusBadge value={passenger.status} />
             </span>
@@ -89,6 +106,7 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
           <Row label="Telefone"         value={passenger.mobile && passenger.phone1 ? passenger.phone1 : null} />
           <Row label="CPF"              value={passenger.cpf} />
           <Row label="Data nasc."       value={fmtDate(passenger.birth_date)} />
+          <Row label="Alimentação"      value={passenger.diet_type ? DIET_LABELS[passenger.diet_type] ?? passenger.diet_type : null} />
           <Row label="Agências"         value={passenger.agency_names} />
           <Row label="Cidade / UF"      value={passenger.city ? `${passenger.city}${passenger.state ? ` / ${passenger.state}` : ''}` : null} />
         </div>
