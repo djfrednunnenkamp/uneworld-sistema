@@ -25,7 +25,7 @@ export default function ForgotPassword() {
   return (
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#0f1b3d 0%,#1a2d4f 60%,#1e3a5f 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif' }}>
       <div style={{ width:'100%', maxWidth:400 }}>
-        <div style={{ textAlign:'center', marginBottom:32 }}>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom:32 }}>
           <img src="/logo.png" alt="UneWorld" style={{ height:60, width:'auto' }} onError={e=>{e.target.style.display='none'}} />
           <p style={{ color:'rgba(255,255,255,.45)', fontSize:12, fontWeight:600, letterSpacing:'.15em', textTransform:'uppercase', margin:'8px 0 0' }}>Sistema de Gestão</p>
         </div>

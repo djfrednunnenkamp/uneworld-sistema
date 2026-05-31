@@ -31,8 +31,8 @@ export default function Login() {
     }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img src="/logo.png" alt="UneWorld" style={{ height: 60, width: 'auto', display: 'inline-block' }}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32 }}>
+          <img src="/logo.png" alt="UneWorld" style={{ height: 60, width: 'auto', display: 'block' }}
             onError={e => { e.target.style.display='none' }} />
           <p style={{ color: 'rgba(255,255,255,.45)', fontSize: 12, fontWeight: 600, letterSpacing: '.15em', textTransform: 'uppercase', margin: '8px 0 0' }}>
             Sistema de Gestão
