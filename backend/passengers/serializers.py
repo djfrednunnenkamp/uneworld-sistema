@@ -54,10 +54,12 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
             'id', 'doc_type', 'doc_type_label', 'label', 'display_name',
             'doc_number', 'doc_model', 'doc_category',
             'issued_date', 'expiry_date', 'issued_by',
+            'file',                                    # campo do arquivo — obrigatório para salvar
             'original_name', 'file_size', 'mime_type', 'notes',
             'uploaded_at', 'download_url',
         ]
         read_only_fields = ['original_name', 'file_size', 'mime_type', 'uploaded_at']
+        extra_kwargs = {'file': {'write_only': True}}  # não expõe o caminho do arquivo na API
 
     def get_download_url(self, obj):
         return f"/api/passengers/documents/{obj.id}/download/"
