@@ -164,9 +164,10 @@ function DocumentsTab({ passengerId, isNew }) {
   const [editDoc,    setEditDoc]    = useState(null)
   const [editForm,   setEditForm]   = useState({})
   const [editSaving, setEditSaving] = useState(false)
-  const [notesDoc,   setNotesDoc]   = useState(null)   // popup de observações
+  const [notesDoc,   setNotesDoc]   = useState(null)
   const [notesText,  setNotesText]  = useState('')
   const [notesSaving,setNotesSaving]= useState(false)
+  const [viewDoc,    setViewDoc]    = useState(null)   // popup de detalhes do documento
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
@@ -413,9 +414,9 @@ function DocumentsTab({ passengerId, isNew }) {
                   {/* Ações */}
                   <div style={{ display:'flex', gap:3, padding:'9px 10px', flexShrink:0 }}>
                     {[
-                      { fn:()=>openEdit(doc),       title:'Editar',  icon:'edit',  hc:'#7c3aed' },
-                      { fn:()=>handleDownload(doc), title:'Baixar',  icon:'dl',    hc:'#2e6db4' },
-                      { fn:()=>setConfirmDoc(doc),  title:'Remover', icon:'trash', hc:'#dc2626', danger:true, dis:deleting===doc.id },
+                      { fn:()=>setViewDoc(doc),     title:'Ver detalhes', icon:'eye',   hc:'#2e6db4' },
+                      { fn:()=>handleDownload(doc), title:'Baixar',       icon:'dl',    hc:'#059669' },
+                      { fn:()=>setConfirmDoc(doc),  title:'Remover',      icon:'trash', hc:'#dc2626', danger:true, dis:deleting===doc.id },
                     ].map(({fn,title,icon,hc,danger,dis})=>(
                       <button key={title} onClick={fn} disabled={dis} title={title}
                         style={{ width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #e2e8f0',background:'#fff',color:'#94a3b8',cursor:'pointer',transition:'all .12s',opacity:dis?.5:1 }}
@@ -431,6 +432,94 @@ function DocumentsTab({ passengerId, isNew }) {
           </div>
         )}
       </div>
+
+      {/* ── Popup de detalhes do documento ── */}
+      {viewDoc && (() => {
+        const ti  = DOC_TYPES.find(t => t.id === viewDoc.doc_type) ?? DOC_TYPES[DOC_TYPES.length - 1]
+        const exp = viewDoc.expiry_date ? (() => {
+          const today = new Date(); today.setHours(0,0,0,0)
+          const d     = new Date(viewDoc.expiry_date + 'T00:00:00')
+          const days  = Math.round((d - today) / 86400000)
+          if (days < 0)   return { label: 'Vencido',           color: '#dc2626', bg: '#fee2e2' }
+          if (days <= 30) return { label: `Vence em ${days}d`, color: '#d97706', bg: '#fef3c7' }
+          if (days <= 90) return { label: `Vence em ${days}d`, color: '#2563eb', bg: '#dbeafe' }
+          return null
+        })() : null
+
+        const Row = ({ label, value }) => value ? (
+          <div style={{ display:'flex', gap:12, padding:'8px 0', borderBottom:'1px solid #f8fafc' }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:130, flexShrink:0 }}>{label}</span>
+            <span style={{ fontSize:13, color:'#1e293b', flex:1 }}>{value}</span>
+          </div>
+        ) : null
+
+        return (
+          <div onClick={(e)=>{if(e.target===e.currentTarget)setViewDoc(null)}}
+            style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',backdropFilter:'blur(3px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,padding:20}}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:480,boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
+
+              {/* Header */}
+              <div style={{padding:'16px 20px 14px',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:12}}>
+                {viewDoc.preview_url
+                  ? <img src={viewDoc.preview_url} alt="" style={{width:44,height:44,objectFit:'cover',borderRadius:6,border:'1px solid #e2e8f0',flexShrink:0}} />
+                  : <span style={{fontSize:28,flexShrink:0}}>{ti.icon}</span>
+                }
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:15,fontWeight:700,color:'#1e293b',margin:0}}>{viewDoc.display_name}</p>
+                  <span style={{padding:'2px 8px',borderRadius:8,fontSize:11,fontWeight:600,background:`${ti.color}15`,color:ti.color}}>{viewDoc.doc_type_label}</span>
+                </div>
+              </div>
+
+              {/* Corpo — todos os campos */}
+              <div style={{padding:'14px 20px'}}>
+                <Row label="Número do documento" value={viewDoc.doc_number} />
+                {viewDoc.doc_type === 'cnh' && viewDoc.doc_category && (
+                  <div style={{display:'flex',gap:12,padding:'8px 0',borderBottom:'1px solid #f8fafc'}}>
+                    <span style={{fontSize:12,fontWeight:700,color:'#94a3b8',minWidth:130,flexShrink:0}}>Categoria</span>
+                    <span style={{fontSize:13,color:'#1e293b'}}>Categoria {viewDoc.doc_category}</span>
+                  </div>
+                )}
+                <Row label="Data de emissão"     value={fmt(viewDoc.issued_date)} />
+                <div style={{display:'flex',gap:12,padding:'8px 0',borderBottom:'1px solid #f8fafc'}}>
+                  <span style={{fontSize:12,fontWeight:700,color:'#94a3b8',minWidth:130,flexShrink:0}}>Vencimento</span>
+                  <span style={{fontSize:13,color:'#1e293b',display:'flex',alignItems:'center',gap:8}}>
+                    {viewDoc.expiry_date ? fmt(viewDoc.expiry_date) : '—'}
+                    {exp && <span style={{padding:'2px 7px',borderRadius:7,fontSize:11,fontWeight:700,background:exp.bg,color:exp.color}}>{exp.label}</span>}
+                  </span>
+                </div>
+                <Row label="Local / País emissor" value={viewDoc.issued_by} />
+                {viewDoc.notes && (
+                  <div style={{padding:'8px 0'}}>
+                    <span style={{fontSize:12,fontWeight:700,color:'#94a3b8',display:'block',marginBottom:4}}>Observações</span>
+                    <p style={{fontSize:13,color:'#475569',margin:0,lineHeight:1.6,fontStyle:'italic'}}>{viewDoc.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Rodapé — Editar (esq) + OK (dir) */}
+              <div style={{padding:'12px 20px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
+                <button
+                  onClick={() => { setViewDoc(null); openEdit(viewDoc) }}
+                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all .12s'}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor='#7c3aed';e.currentTarget.style.color='#7c3aed'}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#475569'}}
+                >
+                  <Ic n="edit" s={13}/> Editar
+                </button>
+                <button
+                  onClick={() => setViewDoc(null)}
+                  style={{padding:'7px 24px',borderRadius:6,border:'none',background:'#2e6db4',color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#275fa0'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#2e6db4'}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Popup de observações ── */}
       {notesDoc && (
