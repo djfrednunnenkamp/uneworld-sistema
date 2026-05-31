@@ -358,8 +358,8 @@ function DocumentsTab({ passengerId, isNew }) {
                   onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
                   onMouseLeave={e=>e.currentTarget.style.background='#fff'}
                 >
-                  {/* Imagem / ícone + nome + badge */}
-                  <div style={{ display:'flex', alignItems:'center', gap:9, padding:'10px 12px', minWidth:0, width:200, flexShrink:0, borderRight:'1px solid #f1f5f9' }}>
+                  {/* Imagem / ícone + nome + badge — ocupa o espaço à esquerda */}
+                  <div style={{ display:'flex', alignItems:'center', gap:9, padding:'10px 12px', flex:1, minWidth:0, borderRight:'1px solid #f1f5f9' }}>
                     {doc.preview_url
                       ? <img src={doc.preview_url} alt="" style={{ width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0,border:'1px solid #e2e8f0' }} onError={e=>{e.currentTarget.style.display='none';e.currentTarget.nextSibling.style.display='block'}} />
                       : null}
