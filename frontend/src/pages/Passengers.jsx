@@ -6,6 +6,25 @@ import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import { Ic } from '../components/Icon'
 
+/* Calcula info de aniversário */
+function birthdayInfo(birthDate) {
+  if (!birthDate) return null
+  const today = new Date(); today.setHours(0,0,0,0)
+  const b = new Date(birthDate + 'T00:00:00')
+  let next = new Date(today.getFullYear(), b.getMonth(), b.getDate())
+  if (next < today) next = new Date(today.getFullYear() + 1, b.getMonth(), b.getDate())
+  const days = Math.round((next - today) / 86400000)
+  const label = b.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })
+  if (days === 0) return { badge:'🎂 Hoje!',      color:'#dc2626', bg:'#fee2e2', label, detail:'🎂 É o aniversário hoje!' }
+  if (days <= 7)  return { badge:`🎉 Em ${days}d`, color:'#7c3aed', bg:'#ede9fe', label, detail:`🎉 Falta ${days} dia${days>1?'s':''} para o aniversário!` }
+  if (days <= 31) return { badge:`📅 Em ${days}d`, color:'#2563eb', bg:'#dbeafe', label, detail:`📅 Falta ${days} dias para o aniversário` }
+  const months = Math.floor(days/30), rem = days - months*30
+  const detail = months > 0
+    ? `Falta${months>1?'m':''} ${months} mês${months>1?'es':''} e ${rem} dia${rem!==1?'s':''} para o aniversário`
+    : `Falta ${days} dias para o aniversário`
+  return { badge: null, color: null, bg: null, label, detail }
+}
+
 /* Copia texto ao clicar — mantém o texto original, mostra ✓ flutuante */
 function CopyCell({ value, muted, name }) {
   const [ok, setOk] = useState(false)
@@ -31,11 +50,21 @@ function CopyCell({ value, muted, name }) {
 }
 
 const COLS = [
-  { key: 'full_name', label: 'Nome',     render: (v) => <CopyCell value={v} name /> },
-  { key: 'email',     label: 'E-mail',   render: (v) => <CopyCell value={v} muted /> },
-  { key: 'phone1',    label: 'Telefone', render: (v) => <CopyCell value={v} muted /> },
-  { key: 'cpf',       label: 'CPF',      render: (v) => <CopyCell value={v} muted /> },
-  { key: 'status',    label: 'Status',   render: (v) => <StatusBadge value={v} /> },
+  { key: 'full_name',  label: 'Nome',        render: (v) => <CopyCell value={v} name /> },
+  { key: 'email',      label: 'E-mail',      render: (v) => <CopyCell value={v} muted /> },
+  { key: 'phone1',     label: 'Telefone',    render: (v) => <CopyCell value={v} muted /> },
+  { key: 'cpf',        label: 'CPF',         render: (v) => <CopyCell value={v} muted /> },
+  { key: 'birth_date', label: 'Aniversário', render: (v) => {
+    const info = birthdayInfo(v)
+    if (!info) return <span style={{ color:'#cbd5e1' }}>—</span>
+    if (info.badge) return (
+      <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11.5, fontWeight:700, background:info.bg, color:info.color, whiteSpace:'nowrap' }}>
+        {info.badge}
+      </span>
+    )
+    return <span style={{ fontSize:13, color:'#475569' }}>{info.label}</span>
+  }},
+  { key: 'status',     label: 'Status',      render: (v) => <StatusBadge value={v} /> },
 ]
 
 /* ── Popup de visualização rápida ── */
@@ -129,6 +158,16 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
           <Row label="Telefone"         value={passenger.mobile && passenger.phone1 ? passenger.phone1 : null} />
           <Row label="CPF"              value={passenger.cpf} />
           <Row label="Data nasc."       value={fmtDate(passenger.birth_date)} />
+          {passenger.birth_date && (() => {
+            const info = birthdayInfo(passenger.birth_date)
+            if (!info) return null
+            return (
+              <div style={{ padding:'6px 10px', borderRadius:6, margin:'2px 0', borderBottom:'1px solid #f8fafc',
+                background: info.bg ?? '#f8fafc', color: info.color ?? '#64748b', fontSize:12.5, fontWeight:500 }}>
+                {info.detail}
+              </div>
+            )
+          })()}
           <Row label="Alimentação"      value={passenger.diet_type ? DIET_LABELS[passenger.diet_type] ?? passenger.diet_type : null} />
           <Row label="Agências"         value={passenger.agency_names} />
           <Row label="Cidade / UF"      value={passenger.city ? `${passenger.city}${passenger.state ? ` / ${passenger.state}` : ''}` : null} />
