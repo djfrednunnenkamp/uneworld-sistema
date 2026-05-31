@@ -377,16 +377,9 @@ function DocumentsTab({ passengerId, isNew }) {
                     </div>
                   </div>
 
-                  {/* Número (+categoria para CNH) */}
-                  <Cell label="Número" value={doc.doc_number} width={110}
-                    sub={doc.doc_type==='cnh' && doc.doc_category ? `Cat. ${doc.doc_category}` : undefined} />
-
-                  {/* Emissão */}
-                  <Cell label="Emissão"  value={fmt(doc.issued_date)} width={135} />
-
                   {/* Validade — data + badge de alerta */}
                   <div style={{ width:155, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
-                    <p style={lbl}>Validade</p>
+                    <p style={lbl}>Vencimento</p>
                     {doc.expiry_date ? (
                       <div>
                         <p style={{ fontSize:12.5, color:'#1e293b', margin:0, fontWeight:500 }}>
@@ -402,9 +395,6 @@ function DocumentsTab({ passengerId, isNew }) {
                       <p style={{ fontSize:12, color:'#cbd5e1', margin:0 }}>Sem validade</p>
                     )}
                   </div>
-
-                  {/* Emitido em */}
-                  <Cell label="Emitido em" value={doc.issued_by} width={130} />
 
                   {/* Observações — truncada, clicável para ver/editar tudo */}
                   <div
