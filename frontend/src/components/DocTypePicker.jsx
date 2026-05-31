@@ -99,6 +99,13 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const pickType = (type) => {
     setSelType(type)
     setLabel('')
+    setDocMeta({})
+    setNotes('')
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setFile(null)
+    setPreviewUrl(null)
+    setZoom(1)
+    setProgress(0)
     setStep('upload')
   }
 
