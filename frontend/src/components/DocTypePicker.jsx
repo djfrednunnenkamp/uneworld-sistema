@@ -173,8 +173,6 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   }
 
   const submit = async () => {
-    if (!file) { toast.error('Selecione um arquivo.'); return }
-
     // Valida campos obrigatórios do tipo de documento
     const requiredFields = (DOC_FIELDS[typeInfo?.id] ?? [])
       .filter(f => f.required && (!f.modelFilter || f.modelFilter === rgModel))
@@ -182,8 +180,21 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
     requiredFields.forEach(f => {
       if (!docMeta[f.key]?.trim?.() && !docMeta[f.key]) errs[f.key] = true
     })
-    if (Object.keys(errs).length) {
-      setMetaErrors(errs)
+
+    const hasFieldErrors = Object.keys(errs).length > 0
+    const hasFileError   = !file
+
+    if (hasFieldErrors) setMetaErrors(errs)
+
+    if (hasFileError && hasFieldErrors) {
+      toast.error('Selecione um arquivo e preencha os campos obrigatórios.')
+      return
+    }
+    if (hasFileError) {
+      toast.error('Selecione um arquivo para continuar.')
+      return
+    }
+    if (hasFieldErrors) {
       toast.error('Preencha os campos obrigatórios marcados em vermelho.')
       return
     }
@@ -559,8 +570,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                   <button onClick={close} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Cancelar
                   </button>
-                  <button onClick={submit} disabled={!file || uploading}
-                    style={{ padding: '6px 20px', borderRadius: 6, border: 'none', background: file && !uploading ? typeInfo.color : '#e2e8f0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: file && !uploading ? 'pointer' : 'not-allowed', fontFamily: 'inherit', transition: 'background .15s' }}>
+                  <button onClick={submit} disabled={uploading}
+                    style={{ padding: '6px 20px', borderRadius: 6, border: 'none', background: uploading ? '#e2e8f0' : typeInfo.color, color: '#fff', fontSize: 13, fontWeight: 600, cursor: uploading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'background .15s' }}>
                     {uploading ? 'Enviando…' : 'Enviar documento'}
                   </button>
                 </div>
