@@ -122,13 +122,22 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
         value={inputVal}
         onChange={handleChange}
         onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            const iso = displayToIso(inputVal)
+            if (iso) onChange(iso)
+            setOpen(false)
+          } else if (e.key === 'Tab') {
+            setOpen(false)
+          } else if (e.key === 'Escape') {
+            setOpen(false)
+            e.currentTarget.blur()
+          }
+        }}
         placeholder={placeholder}
         className="fi"
-        style={{
-          paddingRight: 32,
-          cursor:'text',
-          ...errStyle,
-        }}
+        style={{ paddingRight:32, cursor:'text', ...errStyle }}
       />
 
       {/* Ícone de calendário */}
