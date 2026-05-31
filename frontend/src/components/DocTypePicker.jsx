@@ -178,6 +178,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
       if (docMeta.issued_date) fd.append('issued_date', docMeta.issued_date)
       if (docMeta.expiry_date) fd.append('expiry_date', docMeta.expiry_date)
       if (docMeta.issued_by)   fd.append('issued_by',   docMeta.issued_by)
+      // Salva o modelo do documento (ex: 'novo' ou 'antigo' para RG)
+      if (typeInfo?.id === 'rg') fd.append('doc_model', rgModel)
       setProgress(40)
       await documentsApi.upload(passengerId, fd)
       setProgress(100)
@@ -456,27 +458,48 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                     )}
 
                     {/* Campos dinâmicos */}
-                    {(DOC_FIELDS[typeInfo.id] ?? [])
-                      .filter(f => !f.modelFilter || f.modelFilter === rgModel)
-                      .map((f) => (
+                    {(() => {
+                      const fields = (DOC_FIELDS[typeInfo.id] ?? [])
+                        .filter(f => !f.modelFilter || f.modelFilter === rgModel)
+
+                      // Para RG modelo novo: agrupa issued_date + expiry_date em grid 2 colunas
+                      const dateKeys = ['issued_date', 'expiry_date']
+                      const isRgNovo = typeInfo.id === 'rg' && rgModel === 'novo'
+                      const dateFields = isRgNovo ? fields.filter(f => dateKeys.includes(f.key)) : []
+                      const otherFields = isRgNovo ? fields.filter(f => !dateKeys.includes(f.key)) : fields
+
+                      const renderField = (f) => (
                         <div key={f.key}>
                           <label className="fl">{f.label}</label>
                           {f.type === 'country' ? (
-                            <CountryPicker
-                              value={docMeta[f.key] ?? ''}
-                              onChange={(v) => setMeta(f.key, v)}
-                            />
+                            <CountryPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                           ) : (
-                            <input
-                              className="fi"
-                              type={f.type}
-                              value={docMeta[f.key] ?? ''}
-                              onChange={(e) => setMeta(f.key, e.target.value)}
-                            />
+                            <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}
+                              onChange={(e) => setMeta(f.key, e.target.value)} />
                           )}
                         </div>
-                      ))
-                    }
+                      )
+
+                      return (
+                        <>
+                          {otherFields.map(renderField)}
+                          {dateFields.length === 2 && (
+                            <div>
+                              <label className="fl" style={{ marginBottom: 4 }}>Datas</label>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fafafa' }}>
+                                {dateFields.map(f => (
+                                  <div key={f.key}>
+                                    <label className="fl">{f.label}</label>
+                                    <input className="fi" type="date" value={docMeta[f.key] ?? ''}
+                                      onChange={(e) => setMeta(f.key, e.target.value)} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
 
                     {/* Notas */}
                     <div style={{ marginTop: 'auto' }}>
