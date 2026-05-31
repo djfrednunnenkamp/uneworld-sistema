@@ -215,6 +215,7 @@ export default function PassengerDetail() {
   const [cepLoading, setCepLoading] = useState(false)
   const [tab,        setTab]        = useState('info')
   const [isDirty,    setIsDirty]    = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})  // { fieldKey: true }
 
   /* load passenger data */
   useEffect(() => {
@@ -236,7 +237,13 @@ export default function PassengerDetail() {
   }, [isDirty])
 
   const markDirty = () => setIsDirty(true)
-  const set  = (k) => (e) => { setForm((f) => ({ ...f, [k]: e.target.value })); markDirty() }
+  const clearError = (k) => setFieldErrors((prev) => { const n = { ...prev }; delete n[k]; return n })
+
+  const set  = (k) => (e) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }))
+    markDirty()
+    clearError(k)
+  }
   const setB = (k) => (v) => { setForm((f) => ({ ...f, [k]: v })); markDirty() }
 
   /* Auto-preenche nacionalidade principal a partir do local de nascimento */
@@ -278,9 +285,19 @@ export default function PassengerDetail() {
   const DATE_FIELDS = ['birth_date','rg_issue_date','passport_issue','passport_expiry','rne_expiry','rne_issue']
 
   const save = async () => {
+    // Validação local — marca campos em vermelho
+    const errs = {}
     const hasName = form.first_name?.trim() || form.last_name?.trim()
-    if (!hasName)             { toast.error('Preencha o nome do passageiro.'); return }
-    if (!form.email?.trim())  { toast.error('E-mail é obrigatório.'); return }
+    if (!hasName) { errs.first_name = true; errs.last_name = true }
+    if (!form.email?.trim()) errs.email = true
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs)
+      // Navega para a aba de informações se não estiver nela
+      setTab('info')
+      toast.error('Preencha os campos obrigatórios marcados em vermelho.')
+      return
+    }
+    setFieldErrors({})
     setSaving(true)
     try {
       const genderValue = form.gender === 'O' ? (form.gender_custom?.trim() || 'O') : form.gender
@@ -300,6 +317,12 @@ export default function PassengerDetail() {
       }
     } catch (e) {
       const data = e.response?.data
+      // Marca campos com erro retornado pela API
+      if (data && typeof data === 'object') {
+        const apiErrs = {}
+        Object.keys(data).forEach(k => { if (Array.isArray(data[k]) && data[k].length) apiErrs[k] = true })
+        if (Object.keys(apiErrs).length) setFieldErrors(apiErrs)
+      }
       const msg  = data?.email?.[0]
                ?? data?.non_field_errors?.[0]
                ?? (data && typeof data === 'object'
@@ -318,12 +341,19 @@ export default function PassengerDetail() {
     )
   }
 
+  const errStyle = { borderColor: '#dc2626', background: '#fef2f2' }
+
   const fi = (k, placeholder, type = 'text') => (
-    <input className="fi" type={type} value={form[k] ?? ''} onChange={set(k)} placeholder={placeholder || ''} />
+    <input className="fi" type={type} value={form[k] ?? ''} onChange={set(k)}
+      placeholder={placeholder || ''}
+      style={fieldErrors[k] ? errStyle : {}} />
   )
 
   const fs = (k, children) => (
-    <select className="fs" value={form[k] ?? ''} onChange={set(k)}>{children}</select>
+    <select className="fs" value={form[k] ?? ''} onChange={set(k)}
+      style={fieldErrors[k] ? errStyle : {}}>
+      {children}
+    </select>
   )
 
   return (
