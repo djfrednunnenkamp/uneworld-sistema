@@ -58,6 +58,7 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
 
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
+        import re
         try:
             doc = PassengerDocument.objects.get(pk=pk)
         except PassengerDocument.DoesNotExist:
@@ -67,10 +68,47 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
         except ValueError:
             raise Http404
         if not os.path.isfile(file_path):
-            from rest_framework.response import Response as DRFResponse
-            return DRFResponse({'error': f'Arquivo não encontrado no servidor: {file_path}'},
-                               status=404)
-        filename = doc.original_name or os.path.basename(file_path)
+            raise Http404
+
+        # Gera nome formatado: NomePassageiro_TipoDocumento_Data.ext
+        ext = os.path.splitext(file_path)[1].lower()
+
+        passenger_name = (
+            doc.passenger.full_name or
+            f"{doc.passenger.first_name} {doc.passenger.last_name}".strip() or
+            'Passageiro'
+        )
+        # Remove caracteres especiais e espaços
+        def slug(s):
+            s = s.strip()
+            s = re.sub(r'[áàãâä]', 'a', s, flags=re.I)
+            s = re.sub(r'[éèêë]',  'e', s, flags=re.I)
+            s = re.sub(r'[íìîï]',  'i', s, flags=re.I)
+            s = re.sub(r'[óòõôö]', 'o', s, flags=re.I)
+            s = re.sub(r'[úùûü]',  'u', s, flags=re.I)
+            s = re.sub(r'[ç]',     'c', s, flags=re.I)
+            s = re.sub(r'[^a-zA-Z0-9\s_-]', '', s)
+            s = re.sub(r'\s+', '_', s)
+            return s
+
+        doc_type_map = {
+            'passport':    'Passaporte',
+            'rg':          'Identidade',
+            'cnh':         'CNH',
+            'visa':        'Visto',
+            'birth_cert':  'Certidao_Nascimento',
+            'residence':   'Comprovante_Residencia',
+            'other':       'Documento',
+        }
+        doc_type_label = doc_type_map.get(doc.doc_type, doc.get_doc_type_display())
+
+        date_part = (
+            str(doc.issued_date) if doc.issued_date else
+            str(doc.uploaded_at.date())
+        )
+
+        filename = f"{slug(passenger_name)}_{slug(doc_type_label)}_{date_part}{ext}"
+
         response = FileResponse(
             open(file_path, 'rb'),
             as_attachment=True,
