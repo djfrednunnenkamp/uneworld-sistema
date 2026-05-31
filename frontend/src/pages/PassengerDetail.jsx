@@ -18,6 +18,7 @@ import DatePicker from '../components/DatePicker'
 import CountryPicker from '../components/CountryPicker'
 import BrazilCityPicker from '../components/BrazilCityPicker'
 import CnhClassPicker from '../components/CnhClassPicker'
+import CpfInput from '../components/CpfInput'
 import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
 
 /* ── helpers ── */
@@ -958,7 +959,12 @@ export default function PassengerDetail() {
                 </div>
               </div>
 
-              <F label="CPF">{fi('cpf', '000.000.000-00')}</F>
+              <F label="CPF">
+                <CpfInput
+                  value={form.cpf}
+                  onChange={(v) => { set('cpf')({ target: { value: v } }) }}
+                />
+              </F>
 
               <F label="Gênero">
                 <GenderPicker
