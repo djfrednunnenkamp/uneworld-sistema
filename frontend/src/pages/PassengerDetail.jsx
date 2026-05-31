@@ -374,7 +374,7 @@ function DocumentsTab({ passengerId, isNew }) {
                   <Cell label="Número"   value={doc.doc_number} width={110} />
 
                   {/* Emissão */}
-                  <Cell label="Emissão"  value={fmt(doc.issued_date)} width={105} />
+                  <Cell label="Emissão"  value={fmt(doc.issued_date)} width={135} />
 
                   {/* Validade */}
                   <div style={{ width:120, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
