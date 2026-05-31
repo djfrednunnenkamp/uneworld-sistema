@@ -19,6 +19,7 @@ import CountryPicker from '../components/CountryPicker'
 import BrazilCityPicker from '../components/BrazilCityPicker'
 import CnhClassPicker from '../components/CnhClassPicker'
 import CpfInput from '../components/CpfInput'
+import PhoneInput from '../components/PhoneInput'
 import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
 
 /* ── helpers ── */
@@ -1017,9 +1018,15 @@ export default function PassengerDetail() {
               <F label="E-mail de emergência 2">{fi('email_emergency2', 'email@exemplo.com', 'email')}</F>
             </div>
             <div className="grid3">
-              <F label="Telefone">{fi('phone1', '+55 (00) 00000-0000')}</F>
-              <F label="Contato de emergência 1">{fi('phone2', '+55 (00) 00000-0000')}</F>
-              <F label="Contato de emergência 2">{fi('mobile', '+55 (00) 00000-0000')}</F>
+              <F label="Telefone">
+                <PhoneInput value={form.phone1} onChange={(v) => set('phone1')({ target: { value: v } })} />
+              </F>
+              <F label="Contato de emergência 1">
+                <PhoneInput value={form.phone2} onChange={(v) => set('phone2')({ target: { value: v } })} />
+              </F>
+              <F label="Contato de emergência 2">
+                <PhoneInput value={form.mobile} onChange={(v) => set('mobile')({ target: { value: v } })} />
+              </F>
             </div>
           </div>
 
