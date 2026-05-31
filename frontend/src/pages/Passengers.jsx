@@ -320,35 +320,36 @@ export default function Passengers() {
     ...Object.entries(DIET_PT).map(([k,v]) => ({ value:k, label:v })),
   ]
 
+  const filterBar = (
+    <>
+      <FDrop label="Status"      value={statusF}   onChange={setStatusF}   options={statusOpts}   active={statusF!=='all'} />
+      <FDrop label="Aniversário" value={birthdayF} onChange={setBirthdayF} options={birthdayOpts}  active={birthdayF!=='all'} />
+      <FDrop label="Origem"      value={foreignF}  onChange={setForeignF}  options={foreignOpts}  active={foreignF!=='all'} />
+      <FDrop label="Gênero"      value={genderF}   onChange={setGenderF}   options={genderOpts}   active={genderF!=='all'} />
+      <FDrop label="Alimentação" value={dietF}     onChange={setDietF}     options={dietOpts}     active={dietF!=='all'} />
+      {activeFilters > 0 && (
+        <button onClick={resetFilters}
+          style={{ padding:'6px 11px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', fontSize:13, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}>
+          ✕ <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:700, borderRadius:10, padding:'0 5px' }}>{activeFilters}</span>
+        </button>
+      )}
+      {activeFilters > 0 && (
+        <span style={{ fontSize:12, color:'#94a3b8', whiteSpace:'nowrap' }}>
+          {filtered.length}/{rows.length}
+        </span>
+      )}
+    </>
+  )
+
   return (
     <>
-      {/* Barra de filtros acima da tabela */}
-      <div style={{ marginBottom:10, display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-        <FDrop label="Status"      value={statusF}   onChange={setStatusF}   options={statusOpts}  active={statusF!=='all'} />
-        <FDrop label="Aniversário" value={birthdayF} onChange={setBirthdayF} options={birthdayOpts} active={birthdayF!=='all'} />
-        <FDrop label="Origem"      value={foreignF}  onChange={setForeignF}  options={foreignOpts} active={foreignF!=='all'} />
-        <FDrop label="Gênero"      value={genderF}   onChange={setGenderF}   options={genderOpts}  active={genderF!=='all'} />
-        <FDrop label="Alimentação" value={dietF}     onChange={setDietF}     options={dietOpts}    active={dietF!=='all'} />
-        {activeFilters > 0 && (
-          <button onClick={resetFilters}
-            style={{ padding:'6px 11px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', fontSize:13, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}>
-            ✕ Limpar filtros
-            <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:700, borderRadius:10, padding:'0 5px' }}>{activeFilters}</span>
-          </button>
-        )}
-        {activeFilters > 0 && (
-          <span style={{ fontSize:12, color:'#94a3b8', marginLeft:4 }}>
-            {filtered.length} de {rows.length} passageiro{rows.length!==1?'s':''}
-          </span>
-        )}
-      </div>
-
       <DataTable
         title="Passageiros"
         addLabel="Adicionar Passageiro"
         data={filtered}
         cols={COLS}
         searchKeys={['full_name','email','cpf','phone1']}
+        extraFilters={filterBar}
         onAdd={() => navigate('/passageiros/novo')}
         onView={(row) => setViewRow(row)}
         onDelete={(row) => setDelRow(row)}

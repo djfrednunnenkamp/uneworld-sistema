@@ -45,6 +45,7 @@ export function StatusBadge({ value }) {
 export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
+  extraFilters,
   onAdd, onEdit, onView, onDelete, loading,
 }) {
   const [q,   setQ]   = useState('')
@@ -92,6 +93,7 @@ export default function DataTable({
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
+        {extraFilters}
         {filterOpts && (
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
             {['Todos', ...filterOpts].map((s) => (
