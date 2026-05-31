@@ -117,6 +117,7 @@ CORS_ALLOWED_ORIGINS = config(
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',

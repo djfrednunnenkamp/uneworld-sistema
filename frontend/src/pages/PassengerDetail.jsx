@@ -91,9 +91,13 @@ function DocumentsTab({ passengerId, isNew }) {
   const handleDownload = async (doc) => {
     try {
       const r = await documentsApi.download(doc.id)
+      // Extrai o nome do header Content-Disposition enviado pelo backend
+      const disposition = r.headers['content-disposition'] ?? ''
+      const match = disposition.match(/filename[^;=\n]*=\s*["']?([^"';\n]+)["']?/)
+      const filename = match?.[1]?.trim() || doc.original_name || 'documento'
       const url = URL.createObjectURL(r.data)
       const a   = document.createElement('a')
-      a.href = url; a.download = doc.original_name; a.click()
+      a.href = url; a.download = filename; a.click()
       URL.revokeObjectURL(url)
     } catch { toast.error('Erro ao baixar documento.') }
   }
