@@ -60,17 +60,17 @@ function CopyCell({ value, muted, name }) {
 }
 
 const COLS = [
-  { key: 'full_name',  label: 'Nome',        render: (v) => <CopyCell value={v} name /> },
-  { key: 'email',      label: 'E-mail',      render: (v) => <CopyCell value={v} muted /> },
-  { key: 'phone1',     label: 'Telefone',    render: (v) => <CopyCell value={v} muted /> },
-  { key: 'cpf',        label: 'CPF',         render: (v) => <CopyCell value={v} muted /> },
-  { key: 'birth_date', label: 'Aniversário', render: (v) => {
+  { key: 'full_name',  label: 'Nome',        align: 'center', render: (v) => <CopyCell value={v} name /> },
+  { key: 'email',      label: 'E-mail',      align: 'center', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'phone1',     label: 'Telefone',    align: 'center', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'cpf',        label: 'CPF',         align: 'center', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'birth_date', label: 'Aniversário', align: 'center', render: (v) => {
     if (!v) return <span style={{ color:'#cbd5e1' }}>—</span>
     const info     = birthdayInfo(v)
     const age      = calcAge(v)
     const fullDate = new Date(v + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
     return (
-      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:2, alignItems:'center' }}>
         {/* Badge chamativo quando próximo */}
         {info?.badge && (
           <span style={{

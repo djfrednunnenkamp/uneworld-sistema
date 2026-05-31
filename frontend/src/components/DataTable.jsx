@@ -116,7 +116,7 @@ export default function DataTable({
                 <th style={{ width: 40 }}>
                   <input type="checkbox" className="chk" checked={allSel} onChange={togAll} />
                 </th>
-                {cols.map((c) => <th key={c.key}>{c.label}</th>)}
+                {cols.map((c) => <th key={c.key} style={c.align ? { textAlign: c.align } : {}}>{c.label}</th>)}
                 <th style={{ width: 108 }}></th>
               </tr>
             </thead>
@@ -134,7 +134,7 @@ export default function DataTable({
                 <tr key={row.id}>
                   <td><input type="checkbox" className="chk" checked={sel.has(row.id)} onChange={() => tog1(row.id)}/></td>
                   {cols.map((c) => (
-                    <td key={c.key}>
+                    <td key={c.key} style={c.align ? { textAlign: c.align } : {}}>
                       {c.render ? c.render(row[c.key], row) : row[c.key]}
                     </td>
                   ))}
