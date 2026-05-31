@@ -6,12 +6,31 @@ import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import { Ic } from '../components/Icon'
 
+/* Copia texto ao clicar na célula */
+function CopyCell({ value, muted, name }) {
+  const [ok, setOk] = useState(false)
+  if (!value) return <span style={{ color: '#cbd5e1' }}>—</span>
+  const copy = async (e) => {
+    e.stopPropagation()
+    try { await navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1600) } catch {}
+  }
+  return (
+    <span
+      onClick={copy}
+      title="Clique para copiar"
+      style={{ cursor: 'pointer', color: ok ? '#059669' : muted ? '#64748b' : '#1e293b', fontWeight: name ? 500 : 400, transition: 'color .15s' }}
+    >
+      {ok ? '✓ Copiado!' : value}
+    </span>
+  )
+}
+
 const COLS = [
-  { key: 'full_name', label: 'Nome',   render: (v) => <span className="t-name">{v}</span> },
-  { key: 'email',     label: 'E-mail', render: (v) => <span className="t-muted">{v}</span> },
-  { key: 'mobile',    label: 'Celular' },
-  { key: 'cpf',       label: 'CPF' },
-  { key: 'status',    label: 'Status', render: (v) => <StatusBadge value={v} /> },
+  { key: 'full_name', label: 'Nome',     render: (v) => <CopyCell value={v} name /> },
+  { key: 'email',     label: 'E-mail',   render: (v) => <CopyCell value={v} muted /> },
+  { key: 'phone1',    label: 'Telefone', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'cpf',       label: 'CPF',      render: (v) => <CopyCell value={v} muted /> },
+  { key: 'status',    label: 'Status',   render: (v) => <StatusBadge value={v} /> },
 ]
 
 /* ── Popup de visualização rápida ── */
