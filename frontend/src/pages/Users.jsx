@@ -156,6 +156,17 @@ export default function Users() {
                   <td>
                     <div className="r-acts">
                       <button className="r-btn edit" title="Editar" onClick={() => setModal(u)}><Ic n="edit" s={13}/></button>
+                      <button className="r-btn view" title="Enviar convite por e-mail"
+                        onClick={async () => {
+                          try {
+                            await usersApi.sendInvite(u.id)
+                            toast.success(`Convite enviado para ${u.email}`)
+                          } catch (e) {
+                            toast.error(e.response?.data?.error ?? 'Erro ao enviar convite.')
+                          }
+                        }}>
+                        <Ic n="ul" s={13}/>
+                      </button>
                       {me?.is_superuser && u.id !== me?.id && (
                         <button className="r-btn del" title="Excluir" onClick={() => setDelUser(u)}><Ic n="trash" s={13}/></button>
                       )}

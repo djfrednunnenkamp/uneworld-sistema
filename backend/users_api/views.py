@@ -1,9 +1,13 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
+from django.conf import settings
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from .models import PasswordResetToken, InviteToken
+from .email_service import send_reset_password, send_invite
 
 
 def serialize_user(u):
@@ -113,6 +117,116 @@ def user_update(request, pk):
     if 'password'   in data and data['password']:
         user.set_password(data['password'])
     user.save()
+    return Response(serialize_user(user))
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password(request):
+    email = request.data.get('email', '').strip()
+    if not email:
+        return Response({'error': 'Informe o e-mail.'}, status=400)
+    try:
+        user = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        # Não revela se o e-mail existe ou não (segurança)
+        return Response({'message': 'Se este e-mail estiver cadastrado, você receberá um link em breve.'})
+
+    token = PasswordResetToken.objects.create(user=user)
+    url   = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
+    send_reset_password(user.email, user.first_name, url)
+    return Response({'message': 'Se este e-mail estiver cadastrado, você receberá um link em breve.'})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    token_str = request.data.get('token', '').strip()
+    password  = request.data.get('password', '')
+    if not token_str or not password:
+        return Response({'error': 'Token e nova senha são obrigatórios.'}, status=400)
+    if len(password) < 8:
+        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
+    try:
+        token = PasswordResetToken.objects.get(token=token_str)
+    except PasswordResetToken.DoesNotExist:
+        return Response({'error': 'Link inválido ou expirado.'}, status=400)
+    if not token.is_valid:
+        return Response({'error': 'Link inválido ou expirado.'}, status=400)
+    token.user.set_password(password)
+    token.user.save()
+    token.used = True
+    token.save()
+    return Response({'message': 'Senha redefinida com sucesso.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_user_invite(request, pk):
+    if not request.user.is_staff:
+        return Response({'error': 'Sem permissão.'}, status=403)
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+
+    invite = InviteToken.objects.create(
+        email=user.email, first_name=user.first_name, last_name=user.last_name,
+        is_staff=user.is_staff, created_by=request.user,
+    )
+    url   = f"{settings.FRONTEND_URL}/aceitar-convite?token={invite.token}"
+    invited_by = request.user.get_full_name() or request.user.username
+    send_invite(user.email, user.first_name, url, invited_by)
+    return Response({'message': f'Convite enviado para {user.email}.'})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def validate_invite(request):
+    token_str = request.query_params.get('token', '')
+    try:
+        invite = InviteToken.objects.get(token=token_str)
+    except InviteToken.DoesNotExist:
+        return Response({'error': 'Convite inválido ou expirado.'}, status=400)
+    if not invite.is_valid:
+        return Response({'error': 'Convite inválido ou expirado.'}, status=400)
+    return Response({'email': invite.email, 'first_name': invite.first_name, 'last_name': invite.last_name})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def accept_invite(request):
+    token_str = request.data.get('token', '').strip()
+    password  = request.data.get('password', '')
+    if not token_str or not password:
+        return Response({'error': 'Token e senha são obrigatórios.'}, status=400)
+    if len(password) < 8:
+        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
+    try:
+        invite = InviteToken.objects.get(token=token_str)
+    except InviteToken.DoesNotExist:
+        return Response({'error': 'Convite inválido ou expirado.'}, status=400)
+    if not invite.is_valid:
+        return Response({'error': 'Convite inválido ou expirado.'}, status=400)
+
+    # Cria ou atualiza o usuário
+    user, created = User.objects.get_or_create(
+        email__iexact=invite.email,
+        defaults={'username': invite.email.lower()}
+    )
+    user.email      = invite.email
+    user.username   = invite.email.lower()
+    user.first_name = invite.first_name
+    user.last_name  = invite.last_name
+    user.is_staff   = invite.is_staff
+    user.is_active  = True
+    user.set_password(password)
+    user.save()
+
+    invite.used = True
+    invite.save()
+
+    login(request, user)
     return Response(serialize_user(user))
 
 

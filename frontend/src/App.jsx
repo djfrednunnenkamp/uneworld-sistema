@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout          from './components/Layout'
 import Login           from './pages/Login'
+import ForgotPassword  from './pages/ForgotPassword'
+import ResetPassword   from './pages/ResetPassword'
+import AcceptInvite    from './pages/AcceptInvite'
 import Dashboard       from './pages/Dashboard'
 import Passengers      from './pages/Passengers'
 import PassengerDetail from './pages/PassengerDetail'
@@ -27,7 +30,10 @@ function AppRoutes() {
   const { user } = useAuth()
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/login"           element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/esqueci-senha"   element={<ForgotPassword />} />
+      <Route path="/redefinir-senha" element={<ResetPassword />} />
+      <Route path="/aceitar-convite" element={<AcceptInvite />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index                      element={<Dashboard       />} />
         <Route path="passageiros"         element={<Passengers      />} />

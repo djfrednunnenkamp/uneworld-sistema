@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -81,9 +81,14 @@ export default function Login() {
             </div>
 
             <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
-                Senha
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                  Senha
+                </label>
+                <Link to="/esqueci-senha" style={{ fontSize: 12, color: '#2e6db4', textDecoration: 'none', fontWeight: 500 }}>
+                  Esqueci minha senha
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}

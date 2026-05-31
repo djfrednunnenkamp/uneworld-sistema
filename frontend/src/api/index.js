@@ -60,8 +60,13 @@ export const authApi = {
 }
 
 export const usersApi = {
-  list:   ()       => api.get('/users/'),
-  create: (data)   => api.post('/users/create/', data),
-  update: (id, d)  => api.patch(`/users/${id}/`, d),
-  remove: (id)     => api.delete(`/users/${id}/delete/`),
+  list:           ()       => api.get('/users/'),
+  create:         (data)   => api.post('/users/create/', data),
+  update:         (id, d)  => api.patch(`/users/${id}/`, d),
+  remove:         (id)     => api.delete(`/users/${id}/delete/`),
+  sendInvite:     (id)     => api.post(`/users/${id}/invite/`),
+  forgotPassword: (email)  => api.post('/users/forgot-password/', { email }),
+  resetPassword:  (token, password) => api.post('/users/reset-password/', { token, password }),
+  validateInvite: (token)  => api.get(`/users/invite/validate/?token=${token}`),
+  acceptInvite:   (token, password) => api.post('/users/invite/accept/', { token, password }),
 }
