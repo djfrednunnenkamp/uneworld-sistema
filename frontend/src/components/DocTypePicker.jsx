@@ -69,6 +69,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const [previewUrl, setPreviewUrl]= useState(null)
   const [lightbox,   setLightbox]  = useState(false)
   const [zoom,       setZoom]      = useState(1)
+  const [origin,     setOrigin]    = useState({ x: 50, y: 50 })  // % do cursor na imagem
+  const imgRef = useRef(null)
   const [dragging,   setDragging]  = useState(false)
   const [progress,   setProgress]  = useState(0)
   const [uploading,  setUploading] = useState(false)
@@ -116,9 +118,20 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
 
   const isImage = file?.type?.startsWith('image/')
 
+  /* Zoom no ponto do cursor */
+  const handleImgMouseMove = (e) => {
+    if (!imgRef.current) return
+    const rect = imgRef.current.getBoundingClientRect()
+    setOrigin({
+      x: ((e.clientX - rect.left) / rect.width)  * 100,
+      y: ((e.clientY - rect.top)  / rect.height) * 100,
+    })
+  }
+
   const handleWheel = (e) => {
     e.preventDefault()
-    setZoom(z => Math.min(5, Math.max(1, z + (e.deltaY < 0 ? 0.2 : -0.2))))
+    const delta = e.deltaY < 0 ? 0.25 : -0.25
+    setZoom(z => Math.min(8, Math.max(1, parseFloat((z + delta).toFixed(2)))))
   }
 
   const onDrop = (e) => {
@@ -417,58 +430,61 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
         </div>
       )}
 
-      {/* ── Lightbox de zoom ── */}
+      {/* ── Lightbox com zoom no cursor ── */}
       {lightbox && previewUrl && (
         <div
-          onClick={() => setLightbox(false)}
+          onClick={() => { setLightbox(false); setZoom(1); setOrigin({ x: 50, y: 50 }) }}
           style={{
             position: 'fixed', inset: 0, zIndex: 600,
-            background: 'rgba(0,0,0,.88)',
+            background: 'rgba(0,0,0,.92)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'zoom-out',
           }}
         >
           {/* Botão fechar */}
           <button
-            onClick={() => setLightbox(false)}
+            onClick={() => { setLightbox(false); setZoom(1); setOrigin({ x: 50, y: 50 }) }}
             style={{
-              position: 'absolute', top: 18, right: 22,
-              background: 'rgba(255,255,255,.15)', border: 'none', borderRadius: 6,
-              color: '#fff', fontSize: 20, width: 36, height: 36, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'absolute', top: 16, right: 20, zIndex: 10,
+              background: 'rgba(255,255,255,.18)', border: 'none', borderRadius: 8,
+              color: '#fff', fontSize: 18, width: 36, height: 36,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >✕</button>
 
-          {/* Controles de zoom */}
+          {/* Indicador de zoom */}
           <div style={{
-            position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-            display: 'flex', alignItems: 'center', gap: 10,
-            background: 'rgba(0,0,0,.5)', borderRadius: 20, padding: '6px 14px',
+            position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,.5)', borderRadius: 12, padding: '4px 12px',
+            color: '#fff', fontSize: 12, userSelect: 'none',
           }}>
-            <button onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(1, z - 0.25)) }}
-              style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>−</button>
-            <span style={{ color: '#fff', fontSize: 13, minWidth: 40, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-            <button onClick={(e) => { e.stopPropagation(); setZoom(z => Math.min(5, z + 0.25)) }}
-              style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>+</button>
-            <button onClick={(e) => { e.stopPropagation(); setZoom(1) }}
-              style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 4 }}>Reset</button>
+            {Math.round(zoom * 100)}% · scroll para zoom
           </div>
 
-          {/* Imagem com zoom */}
+          {/* Área da imagem — intercepta scroll */}
           <div
             onClick={(e) => e.stopPropagation()}
             onWheel={handleWheel}
-            style={{ overflow: 'auto', maxWidth: '90vw', maxHeight: '85vh', cursor: zoom > 1 ? 'grab' : 'default' }}
+            onMouseMove={handleImgMouseMove}
+            style={{
+              overflow: 'hidden',
+              maxWidth: '90vw', maxHeight: '88vh',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: zoom > 1 ? 'crosshair' : 'zoom-in',
+            }}
           >
             <img
+              ref={imgRef}
               src={previewUrl}
               alt="documento"
+              draggable={false}
               style={{
                 display: 'block',
+                maxWidth: '90vw', maxHeight: '88vh',
+                objectFit: 'contain',
                 transform: `scale(${zoom})`,
-                transformOrigin: 'top left',
-                width: `${100 / zoom}%`,
-                transition: 'transform .15s',
+                transformOrigin: `${origin.x}% ${origin.y}%`,
+                transition: zoom === 1 ? 'transform .2s ease' : 'none',
+                userSelect: 'none',
                 borderRadius: 4,
               }}
             />
