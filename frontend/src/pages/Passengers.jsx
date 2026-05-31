@@ -6,6 +6,16 @@ import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import { Ic } from '../components/Icon'
 
+/* Calcula idade atual */
+function calcAge(birthDate) {
+  if (!birthDate) return null
+  const today = new Date()
+  const b     = new Date(birthDate + 'T00:00:00')
+  let age = today.getFullYear() - b.getFullYear()
+  if (today.getMonth() < b.getMonth() || (today.getMonth() === b.getMonth() && today.getDate() < b.getDate())) age--
+  return age
+}
+
 /* Calcula info de aniversário */
 function birthdayInfo(birthDate) {
   if (!birthDate) return null
@@ -55,14 +65,24 @@ const COLS = [
   { key: 'phone1',     label: 'Telefone',    render: (v) => <CopyCell value={v} muted /> },
   { key: 'cpf',        label: 'CPF',         render: (v) => <CopyCell value={v} muted /> },
   { key: 'birth_date', label: 'Aniversário', render: (v) => {
+    if (!v) return <span style={{ color:'#cbd5e1' }}>—</span>
     const info = birthdayInfo(v)
-    if (!info) return <span style={{ color:'#cbd5e1' }}>—</span>
-    if (info.badge) return (
-      <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11.5, fontWeight:700, background:info.bg, color:info.color, whiteSpace:'nowrap' }}>
-        {info.badge}
-      </span>
+    const age  = calcAge(v)
+    const year = new Date(v + 'T00:00:00').getFullYear()
+    return (
+      <div>
+        {info?.badge ? (
+          <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11.5, fontWeight:700, background:info.bg, color:info.color, whiteSpace:'nowrap', display:'inline-block', marginBottom:1 }}>
+            {info.badge}
+          </span>
+        ) : (
+          <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{info?.label}</span>
+        )}
+        <p style={{ fontSize:11, color:'#94a3b8', margin:0, marginTop:1 }}>
+          {year} · {age} ano{age !== 1 ? 's' : ''}
+        </p>
+      </div>
     )
-    return <span style={{ fontSize:13, color:'#475569' }}>{info.label}</span>
   }},
   { key: 'status',     label: 'Status',      render: (v) => <StatusBadge value={v} /> },
 ]
@@ -157,7 +177,9 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
           <Row label="Celular"          value={passenger.mobile || passenger.phone1} />
           <Row label="Telefone"         value={passenger.mobile && passenger.phone1 ? passenger.phone1 : null} />
           <Row label="CPF"              value={passenger.cpf} />
-          <Row label="Data nasc."       value={fmtDate(passenger.birth_date)} />
+          <Row label="Data nasc." value={passenger.birth_date
+            ? `${fmtDate(passenger.birth_date)} — ${calcAge(passenger.birth_date)} anos`
+            : null} />
           {passenger.birth_date && (() => {
             const info = birthdayInfo(passenger.birth_date)
             if (!info) return null
