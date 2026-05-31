@@ -21,44 +21,44 @@ const MAX_SIZE_MB   = 15
 
 /* Campos por tipo de documento */
 const DOC_FIELDS = {
-  passport:   [
-    { key: 'doc_number',  label: 'Número do passaporte', type: 'text' },
-    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
-    { key: 'expiry_date', label: 'Validade',               type: 'date' },
-    { key: 'issued_by',   label: 'País emissor',           type: 'country' },
+  passport: [
+    { key: 'doc_number',  label: 'Número do passaporte', type: 'text',    required: true },
+    { key: 'issued_date', label: 'Data de emissão',       type: 'date',    required: true },
+    { key: 'expiry_date', label: 'Validade',               type: 'date',    required: true },
+    { key: 'issued_by',   label: 'País emissor',           type: 'country', required: true },
   ],
   rg: [
-    { key: 'doc_number',  label: 'Número do RG',       type: 'text',        modelFilter: 'antigo' },
-    { key: 'issued_date', label: 'Data de expedição',   type: 'date' },
-    { key: 'issued_by',   label: 'Local de expedição',  type: 'brazil_city' },
-    { key: 'expiry_date', label: 'Validade',             type: 'date',        modelFilter: 'novo' },
+    { key: 'doc_number',  label: 'Número do RG',       type: 'text',        modelFilter: 'antigo', required: true },
+    { key: 'issued_date', label: 'Data de expedição',   type: 'date',        required: true },
+    { key: 'issued_by',   label: 'Local de expedição',  type: 'brazil_city', required: true },
+    { key: 'expiry_date', label: 'Validade',             type: 'date',        modelFilter: 'novo', required: true },
   ],
   cnh: [
-    { key: 'doc_number',   label: 'Número da CNH',      type: 'text',       required: true },
-    { key: 'doc_category', label: 'Categoria / Classe',  type: 'cnh_class',  required: true },
-    { key: 'issued_date',  label: 'Data de emissão',     type: 'date',       required: true },
-    { key: 'expiry_date',  label: 'Validade',             type: 'date',       required: true },
+    { key: 'doc_number',   label: 'Número da CNH',      type: 'text',        required: true },
+    { key: 'doc_category', label: 'Categoria / Classe',  type: 'cnh_class',   required: true },
+    { key: 'issued_date',  label: 'Data de emissão',     type: 'date',        required: true },
+    { key: 'expiry_date',  label: 'Validade',             type: 'date',        required: true },
     { key: 'issued_by',    label: 'Local de expedição',  type: 'brazil_city', required: true },
   ],
   visa: [
-    { key: 'doc_number',  label: 'Número do visto',       type: 'text' },
-    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
-    { key: 'expiry_date', label: 'Validade',               type: 'date' },
-    { key: 'issued_by',   label: 'País emissor',           type: 'country' },
+    { key: 'doc_number',  label: 'Número do visto', type: 'text',    required: true },
+    { key: 'issued_date', label: 'Data de emissão',  type: 'date',    required: true },
+    { key: 'expiry_date', label: 'Validade',          type: 'date',    required: true },
+    { key: 'issued_by',   label: 'País emissor',      type: 'country', required: true },
   ],
   birth_cert: [
-    { key: 'doc_number',  label: 'Número do documento',   type: 'text' },
-    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
-    { key: 'issued_by',   label: 'Cartório / Órgão',      type: 'text' },
+    { key: 'doc_number',  label: 'Número do documento', type: 'text', required: true },
+    { key: 'issued_date', label: 'Data de emissão',      type: 'date', required: true },
+    { key: 'issued_by',   label: 'Cartório / Órgão',     type: 'text', required: true },
   ],
   residence: [
-    { key: 'issued_date', label: 'Data do comprovante',   type: 'date' },
-    { key: 'issued_by',   label: 'Emissor',               type: 'text' },
+    { key: 'issued_date', label: 'Data do comprovante', type: 'date', required: true },
+    { key: 'issued_by',   label: 'Emissor',              type: 'text', required: true },
   ],
   other: [
-    { key: 'doc_number',  label: 'Número do documento',   type: 'text' },
-    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
-    { key: 'expiry_date', label: 'Validade',               type: 'date' },
+    { key: 'doc_number',  label: 'Número do documento', type: 'text' },
+    { key: 'issued_date', label: 'Data de emissão',      type: 'date' },
+    { key: 'expiry_date', label: 'Validade',              type: 'date' },
   ],
 }
 
