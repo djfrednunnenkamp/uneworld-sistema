@@ -155,9 +155,12 @@ function DocumentsTab({ passengerId, isNew }) {
   const [loading,    setLoading]    = useState(false)
   const [deleting,   setDeleting]   = useState(null)
   const [confirmDoc, setConfirmDoc] = useState(null)
-  const [editDoc,    setEditDoc]    = useState(null)   // documento sendo editado
+  const [editDoc,    setEditDoc]    = useState(null)
   const [editForm,   setEditForm]   = useState({})
   const [editSaving, setEditSaving] = useState(false)
+  const [notesDoc,   setNotesDoc]   = useState(null)   // popup de observações
+  const [notesText,  setNotesText]  = useState('')
+  const [notesSaving,setNotesSaving]= useState(false)
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
@@ -172,6 +175,20 @@ function DocumentsTab({ passengerId, isNew }) {
   }
 
   useEffect(() => { load() }, [passengerId])
+
+  const openNotes = (doc) => { setNotesDoc(doc); setNotesText(doc.notes ?? '') }
+
+  const saveNotes = async () => {
+    if (!notesDoc) return
+    setNotesSaving(true)
+    try {
+      await documentsApi.patch(notesDoc.id, { notes: notesText })
+      toast.success('Observações salvas.')
+      setNotesDoc(null)
+      load()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setNotesSaving(false) }
+  }
 
   const openEdit = (doc) => {
     setEditDoc(doc)
@@ -371,10 +388,16 @@ function DocumentsTab({ passengerId, isNew }) {
                   {/* Emitido em */}
                   <Cell label="Emitido em" value={doc.issued_by} width={130} />
 
-                  {/* Observações */}
-                  <div style={{ flex:1, minWidth:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
+                  {/* Observações — truncada, clicável para ver/editar tudo */}
+                  <div
+                    onClick={() => openNotes(doc)}
+                    title={doc.notes ? 'Clique para ver e editar as observações' : 'Clique para adicionar observações'}
+                    style={{ width:180, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9', cursor:'pointer', transition:'background .1s' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='#eff6ff'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  >
                     <p style={lbl}>Observações</p>
-                    <p style={{ fontSize:12, color: doc.notes ? '#475569' : '#cbd5e1', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontStyle: doc.notes ? 'italic' : 'normal' }}>
+                    <p style={{ fontSize:12, color:doc.notes?'#475569':'#cbd5e1', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontStyle:doc.notes?'italic':'normal' }}>
                       {doc.notes || '—'}
                     </p>
                   </div>
@@ -400,6 +423,46 @@ function DocumentsTab({ passengerId, isNew }) {
           </div>
         )}
       </div>
+
+      {/* ── Popup de observações ── */}
+      {notesDoc && (
+        <div onClick={(e)=>{if(e.target===e.currentTarget)setNotesDoc(null)}}
+          style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',backdropFilter:'blur(3px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,padding:20}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:480,boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
+            <div style={{padding:'16px 20px 14px',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:10}}>
+              <span style={{fontSize:18}}>{DOC_TYPES.find(t=>t.id===notesDoc.doc_type)?.icon ?? '📎'}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}}>Observações</p>
+                <p style={{fontSize:12,color:'#94a3b8',margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{notesDoc.display_name}</p>
+              </div>
+            </div>
+            <div style={{padding:'16px 20px'}}>
+              <textarea
+                autoFocus
+                value={notesText}
+                onChange={e=>setNotesText(e.target.value)}
+                rows={6}
+                placeholder="Ex.: Passaporte com validade próxima. Não pode embarcar para destinos que exigem visto…"
+                style={{width:'100%',padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,fontFamily:'inherit',color:'#1e293b',outline:'none',resize:'vertical',lineHeight:1.6,transition:'border-color .12s'}}
+                onFocus={e=>e.target.style.borderColor='#2e6db4'}
+                onBlur={e=>e.target.style.borderColor='#e2e8f0'}
+              />
+              <p style={{fontSize:11,color:'#94a3b8',marginTop:4,textAlign:'right'}}>{notesText.length} caracteres</p>
+            </div>
+            <div style={{padding:'12px 20px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
+              <button onClick={()=>setNotesDoc(null)}
+                style={{padding:'6px 14px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>
+                Fechar
+              </button>
+              <button onClick={saveNotes} disabled={notesSaving}
+                style={{padding:'6px 20px',borderRadius:6,border:'none',background:'#2e6db4',color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',opacity:notesSaving?.6:1}}>
+                {notesSaving ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal de edição de metadados ── */}
       {editDoc && (
