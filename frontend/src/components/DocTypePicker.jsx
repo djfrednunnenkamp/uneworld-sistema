@@ -112,6 +112,9 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
     setLabel('')
     setDocMeta({})
     setNotes('')
+    setMetaErrors({})
+    setFileError(false)
+    setRgModel('novo')
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setFile(null)
     setPreviewUrl(null)
@@ -353,7 +356,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
               <>
                 {/* Header */}
                 <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button onClick={() => setStep('type')}
+                  <button
+                    onClick={() => { setStep('type'); setMetaErrors({}); setFileError(false) }}
                     style={{ fontSize: 13, color: '#2e6db4', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
                     ← Voltar
                   </button>
