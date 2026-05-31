@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import DelModal from '../components/DelModal'
 import { Ic } from '../components/Icon'
 
-const EMPTY = { username:'', first_name:'', last_name:'', email:'', password:'', is_staff:false, is_active:true }
+const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_staff:false, is_active:true }
 
 function UserModal({ user, onClose, onSaved }) {
   const [form,   setForm]   = useState(user ? { ...user, password:'' } : { ...EMPTY })
@@ -14,7 +14,7 @@ function UserModal({ user, onClose, onSaved }) {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const save = async () => {
-    if (!form.username?.trim()) { toast.error('Nome de usuário obrigatório.'); return }
+    if (!form.email?.trim()) { toast.error('E-mail obrigatório.'); return }
     if (!isEdit && !form.password) { toast.error('Senha obrigatória para novo usuário.'); return }
     setSaving(true)
     try {
@@ -43,8 +43,7 @@ function UserModal({ user, onClose, onSaved }) {
             <div><label style={lbl}>Primeiro nome</label><input style={inp} value={form.first_name} onChange={set('first_name')} placeholder="Ana" /></div>
             <div><label style={lbl}>Sobrenome</label><input style={inp} value={form.last_name} onChange={set('last_name')} placeholder="Silva" /></div>
           </div>
-          <div><label style={lbl}>Nome de usuário *</label><input style={inp} value={form.username} onChange={set('username')} placeholder="ana.silva" /></div>
-          <div><label style={lbl}>E-mail</label><input style={inp} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" /></div>
+          <div><label style={lbl}>E-mail * <span style={{fontWeight:400,textTransform:'none',color:'#94a3b8'}}>(será o login)</span></label><input style={inp} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" /></div>
           <div>
             <label style={lbl}>{isEdit ? 'Nova senha (deixe vazio para manter)' : 'Senha *'}</label>
             <input style={inp} type="password" value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••••' : 'Mínimo 8 caracteres'} />

@@ -25,13 +25,22 @@ def serialize_user(u):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
-    username = request.data.get('username', '').strip()
+    email    = request.data.get('email', '').strip()
     password = request.data.get('password', '')
-    if not username or not password:
-        return Response({'error': 'Preencha usuário e senha.'}, status=400)
-    user = authenticate(request, username=username, password=password)
+    if not email or not password:
+        return Response({'error': 'Preencha e-mail e senha.'}, status=400)
+
+    # Busca usuário pelo e-mail e autentica com o username interno
+    try:
+        user_obj = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        return Response({'error': 'E-mail ou senha inválidos.'}, status=400)
+    except User.MultipleObjectsReturned:
+        return Response({'error': 'E-mail ambíguo. Contate o administrador.'}, status=400)
+
+    user = authenticate(request, username=user_obj.username, password=password)
     if user is None:
-        return Response({'error': 'Usuário ou senha inválidos.'}, status=400)
+        return Response({'error': 'E-mail ou senha inválidos.'}, status=400)
     if not user.is_active:
         return Response({'error': 'Usuário desativado.'}, status=400)
     login(request, user)
@@ -66,20 +75,20 @@ def user_create(request):
     if not request.user.is_staff:
         return Response({'error': 'Sem permissão.'}, status=403)
     data       = request.data
-    username   = data.get('username', '').strip()
+    email      = data.get('email', '').strip().lower()
     password   = data.get('password', '')
-    email      = data.get('email', '').strip()
     first_name = data.get('first_name', '').strip()
     last_name  = data.get('last_name', '').strip()
     is_staff   = bool(data.get('is_staff', False))
 
-    if not username or not password:
-        return Response({'error': 'Usuário e senha são obrigatórios.'}, status=400)
-    if User.objects.filter(username=username).exists():
-        return Response({'error': 'Nome de usuário já existe.'}, status=400)
+    if not email or not password:
+        return Response({'error': 'E-mail e senha são obrigatórios.'}, status=400)
+    if User.objects.filter(email__iexact=email).exists():
+        return Response({'error': 'E-mail já cadastrado.'}, status=400)
 
+    # username = e-mail (identificador interno único)
     user = User.objects.create_user(
-        username=username, password=password, email=email,
+        username=email, password=password, email=email,
         first_name=first_name, last_name=last_name, is_staff=is_staff,
     )
     return Response(serialize_user(user), status=201)

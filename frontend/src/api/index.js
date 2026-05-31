@@ -54,7 +54,7 @@ export const documentsApi = {
 }
 
 export const authApi = {
-  login:  (username, password) => api.post('/users/login/', { username, password }),
+  login:  (email, password) => api.post('/users/login/', { email, password }),
   logout: ()                   => api.post('/users/logout/'),
   me:     ()                   => api.get('/users/me/'),
 }

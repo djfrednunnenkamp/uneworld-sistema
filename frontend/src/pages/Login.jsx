@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
-  const [username, setUsername] = useState('')
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
@@ -12,10 +12,10 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!username.trim() || !password) { setError('Preencha usuário e senha.'); return }
+    if (!email.trim() || !password) { setError('Preencha e-mail e senha.'); return }
     setLoading(true); setError('')
     try {
-      await login(username.trim(), password)
+      await login(email.trim(), password)
       navigate('/', { replace: true })
     } catch (err) {
       setError(err.response?.data?.error ?? 'Erro ao entrar. Verifique suas credenciais.')
@@ -60,14 +60,14 @@ export default function Login() {
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
-                Usuário
+                E-mail
               </label>
               <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="seu.usuario"
-                autoComplete="username"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                autoComplete="email"
                 autoFocus
                 style={{
                   width: '100%', padding: '10px 13px', border: '1.5px solid #e2e8f0',
