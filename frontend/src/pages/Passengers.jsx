@@ -6,21 +6,26 @@ import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import { Ic } from '../components/Icon'
 
-/* Copia texto ao clicar na célula */
+/* Copia texto ao clicar — mantém o texto original, mostra ✓ flutuante */
 function CopyCell({ value, muted, name }) {
   const [ok, setOk] = useState(false)
   if (!value) return <span style={{ color: '#cbd5e1' }}>—</span>
   const copy = async (e) => {
     e.stopPropagation()
-    try { await navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1600) } catch {}
+    try { await navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1400) } catch {}
   }
   return (
-    <span
-      onClick={copy}
-      title="Clique para copiar"
-      style={{ cursor: 'pointer', color: ok ? '#059669' : muted ? '#64748b' : '#1e293b', fontWeight: name ? 500 : 400, transition: 'color .15s' }}
-    >
-      {ok ? '✓ Copiado!' : value}
+    <span onClick={copy} title="Clique para copiar"
+      style={{ cursor: 'pointer', position: 'relative', color: muted ? '#64748b' : '#1e293b', fontWeight: name ? 500 : 400 }}>
+      {value}
+      {ok && (
+        <span style={{
+          position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)',
+          background: '#059669', color: '#fff', fontSize: 10, fontWeight: 700,
+          padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap',
+          pointerEvents: 'none', animation: 'fadeUp .2s ease',
+        }}>✓ Copiado</span>
+      )}
     </span>
   )
 }
@@ -68,15 +73,15 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
       <div
         onClick={() => copyToClipboard(label, value)}
         title="Clique para copiar"
-        style={{ display:'flex', alignItems:'center', gap:12, padding:'8px 10px', borderRadius:6, borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background .1s' }}
+        style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'8px 10px', borderRadius:6, borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background .1s' }}
         onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
       >
         <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
         <span style={{ fontSize:13, color:'#1e293b', flex:1 }}>{value}</span>
-        <span style={{ fontSize:11, fontWeight:600, color: isCopied ? '#059669' : 'transparent', flexShrink:0, transition:'color .15s', minWidth:60, textAlign:'right' }}>
-          {isCopied ? '✓ Copiado!' : 'copiar'}
-        </span>
+        {isCopied && (
+          <span style={{position:'absolute',top:-18,left:'50%',transform:'translateX(-50%)',background:'#059669',color:'#fff',fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,whiteSpace:'nowrap',pointerEvents:'none',animation:'fadeUp .2s ease',zIndex:10}}>✓ Copiado</span>
+        )}
       </div>
     )
   }
@@ -93,18 +98,17 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
             {initials(passenger.full_name)}
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <p
-              onClick={() => copyToClipboard('Nome', passenger.full_name)}
-              title="Clique para copiar o nome"
-              style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer'}}
-            >
-              {passenger.full_name}
-            </p>
+            <span style={{position:'relative',display:'inline-block'}}>
+              <p onClick={() => copyToClipboard('Nome', passenger.full_name)} title="Clique para copiar o nome"
+                style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer'}}>
+                {passenger.full_name}
+              </p>
+              {copied==='Nome' && (
+                <span style={{position:'absolute',top:-18,left:'50%',transform:'translateX(-50%)',background:'#059669',color:'#fff',fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,whiteSpace:'nowrap',pointerEvents:'none',animation:'fadeUp .2s ease'}}>✓ Copiado</span>
+              )}
+            </span>
             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
               <StatusBadge value={passenger.status} />
-              <span style={{fontSize:11,fontWeight:600,color: copied==='Nome' ? '#059669' : '#cbd5e1',transition:'color .15s'}}>
-                {copied==='Nome' ? '✓ Copiado!' : 'copiar nome'}
-              </span>
             </div>
           </div>
           <button onClick={onClose}
