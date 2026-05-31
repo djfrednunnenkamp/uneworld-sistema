@@ -60,6 +60,79 @@ function F({ label, children, col }) {
   )
 }
 
+/* ── FilterDropdown — dropdown estilizado para filtros ── */
+function FilterDropdown({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const active = value !== (options[0]?.value ?? 'all')
+  const label  = options.find(o => o.value === value)?.label ?? placeholder
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px', borderRadius: 6,
+          border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          background: active ? '#eff6ff' : '#fff',
+          color: active ? '#2e6db4' : '#475569',
+          fontSize: 13, fontWeight: active ? 600 : 400,
+          cursor: 'pointer', fontFamily: 'inherit',
+          transition: 'all .12s', whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+        <span style={{ fontSize: 9, opacity: .7, marginLeft: 2 }}>▼</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 200,
+          background: '#fff', borderRadius: 8,
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 8px 24px rgba(0,0,0,.10)',
+          minWidth: 180, overflow: 'hidden',
+          animation: 'mIn .12s ease',
+        }}>
+          {options.map(opt => {
+            const selected = value === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onChange(opt.value); setOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', padding: '9px 14px', gap: 10,
+                  background: selected ? '#eff6ff' : 'transparent',
+                  border: 'none', borderBottom: '1px solid #f8fafc',
+                  color: selected ? '#2e6db4' : '#1e293b',
+                  fontSize: 13, fontWeight: selected ? 600 : 400,
+                  cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f8fafc' }}
+                onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}
+              >
+                <span>{opt.label}</span>
+                {selected && <span style={{ color: '#2e6db4', fontSize: 14 }}>✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Documents tab ── */
 function DocumentsTab({ passengerId, isNew }) {
   const [docs,       setDocs]       = useState([])
@@ -175,21 +248,29 @@ function DocumentsTab({ passengerId, isNew }) {
 
             {/* Filtro por tipo */}
             {presentTypes.length > 1 && (
-              <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#475569', background: '#fff', cursor: 'pointer' }}>
-                <option value="all">Todos os tipos</option>
-                {presentTypes.map(t => <option key={t} value={t}>{typeLabel[t] ?? t}</option>)}
-              </select>
+              <FilterDropdown
+                value={typeFilter}
+                onChange={setTypeFilter}
+                placeholder="Todos os tipos"
+                options={[
+                  { value: 'all', label: 'Todos os tipos' },
+                  ...presentTypes.map(t => ({ value: t, label: typeLabel[t] ?? t })),
+                ]}
+              />
             )}
 
             {/* Filtro por validade */}
-            <select value={expiryFilter} onChange={e => setExpiryFilter(e.target.value)}
-              style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#475569', background: '#fff', cursor: 'pointer' }}>
-              <option value="all">Todas as validades</option>
-              <option value="expired">Vencidos</option>
-              <option value="soon">Vence em até 90 dias</option>
-              <option value="none">Sem data de validade</option>
-            </select>
+            <FilterDropdown
+              value={expiryFilter}
+              onChange={setExpiryFilter}
+              placeholder="Todas as validades"
+              options={[
+                { value: 'all',      label: 'Todas as validades'      },
+                { value: 'expired',  label: 'Vencidos'                },
+                { value: 'soon',     label: 'Vence em até 90 dias'    },
+                { value: 'none',     label: 'Sem data de validade'    },
+              ]}
+            />
           </div>
         )}
 
