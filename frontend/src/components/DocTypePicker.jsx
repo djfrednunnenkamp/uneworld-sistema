@@ -4,6 +4,7 @@ import { documentsApi } from '../api'
 import { Ic } from './Icon'
 import CountryPicker from './CountryPicker'
 import BrazilCityPicker from './BrazilCityPicker'
+import CnhClassPicker from './CnhClassPicker'
 
 export const DOC_TYPES = [
   { id: 'passport',   label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
@@ -33,9 +34,11 @@ const DOC_FIELDS = {
     { key: 'expiry_date', label: 'Validade',             type: 'date',        modelFilter: 'novo' },
   ],
   cnh: [
-    { key: 'doc_number',  label: 'Número da CNH',         type: 'text' },
-    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
-    { key: 'expiry_date', label: 'Validade',               type: 'date' },
+    { key: 'doc_number',   label: 'Número da CNH',      type: 'text' },
+    { key: 'doc_category', label: 'Categoria / Classe',  type: 'cnh_class' },
+    { key: 'issued_date',  label: 'Data de emissão',     type: 'date' },
+    { key: 'expiry_date',  label: 'Validade',             type: 'date' },
+    { key: 'issued_by',    label: 'Local de expedição',  type: 'brazil_city' },
   ],
   visa: [
     { key: 'doc_number',  label: 'Número do visto',       type: 'text' },
@@ -179,8 +182,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
       if (docMeta.issued_date) fd.append('issued_date', docMeta.issued_date)
       if (docMeta.expiry_date) fd.append('expiry_date', docMeta.expiry_date)
       if (docMeta.issued_by)   fd.append('issued_by',   docMeta.issued_by)
-      // Salva o modelo do documento (ex: 'novo' ou 'antigo' para RG)
-      if (typeInfo?.id === 'rg') fd.append('doc_model', rgModel)
+      if (typeInfo?.id === 'rg')         fd.append('doc_model',    rgModel)
+      if (docMeta.doc_category)          fd.append('doc_category', docMeta.doc_category)
       setProgress(40)
       await documentsApi.upload(passengerId, fd)
       setProgress(100)
@@ -476,6 +479,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                             <CountryPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                           ) : f.type === 'brazil_city' ? (
                             <BrazilCityPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                          ) : f.type === 'cnh_class' ? (
+                            <CnhClassPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                           ) : (
                             <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}
                               onChange={(e) => setMeta(f.key, e.target.value)} />
