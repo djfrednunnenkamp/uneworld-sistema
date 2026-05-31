@@ -891,7 +891,6 @@ export default function PassengerDetail() {
       <div className="tabs">
         <button className={`tab-btn${tab === 'info' ? ' active' : ''}`}    onClick={() => setTab('info')}>Informações do cliente</button>
         <button className={`tab-btn${tab === 'docs' ? ' active' : ''}`}    onClick={() => setTab('docs')}>Documentos</button>
-        <button className={`tab-btn${tab === 'trips' ? ' active' : ''}`}   onClick={() => setTab('trips')}>Listas de passageiros</button>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════
@@ -1096,18 +1095,6 @@ export default function PassengerDetail() {
       {/* ═══════════════════════════════════════════════════════════
           TAB: Listas de passageiros
       ═══════════════════════════════════════════════════════════ */}
-      {tab === 'trips' && (
-        <div className="det-card">
-          <div className="section">
-            <div className="section-title">Viagens / listas</div>
-            {isNew ? (
-              <p style={{ color: '#94a3b8', fontSize: 14 }}>Salve o passageiro primeiro para ver as viagens vinculadas.</p>
-            ) : (
-              <p style={{ color: '#94a3b8', fontSize: 14 }}>Histórico de viagens em breve.</p>
-            )}
-          </div>
-        </div>
-      )}
     </div>
 
     {/* ── Popup de observações do passageiro ── */}
