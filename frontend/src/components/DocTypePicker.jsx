@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { documentsApi } from '../api'
 import { Ic } from './Icon'
 import CountryPicker from './CountryPicker'
+import BrazilCityPicker from './BrazilCityPicker'
 
 export const DOC_TYPES = [
   { id: 'passport',   label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
@@ -26,10 +27,10 @@ const DOC_FIELDS = {
     { key: 'issued_by',   label: 'País emissor',           type: 'country' },
   ],
   rg: [
-    { key: 'doc_number',  label: 'Número do RG',    type: 'text' },
-    { key: 'issued_date', label: 'Data de expedição', type: 'date' },
-    { key: 'issued_by',   label: 'Órgão expedidor',  type: 'text' },
-    { key: 'expiry_date', label: 'Validade',          type: 'date', modelFilter: 'novo' },
+    { key: 'doc_number',  label: 'Número do RG',       type: 'text' },
+    { key: 'issued_date', label: 'Data de expedição',   type: 'date' },
+    { key: 'issued_by',   label: 'Local de expedição',  type: 'brazil_city' },
+    { key: 'expiry_date', label: 'Validade',             type: 'date', modelFilter: 'novo' },
   ],
   cnh: [
     { key: 'doc_number',  label: 'Número da CNH',         type: 'text' },
@@ -473,6 +474,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                           <label className="fl">{f.label}</label>
                           {f.type === 'country' ? (
                             <CountryPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                          ) : f.type === 'brazil_city' ? (
+                            <BrazilCityPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                           ) : (
                             <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}
                               onChange={(e) => setMeta(f.key, e.target.value)} />
