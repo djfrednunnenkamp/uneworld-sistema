@@ -4,16 +4,13 @@ import { documentsApi } from '../api'
 import { Ic } from './Icon'
 
 export const DOC_TYPES = [
-  { id: 'passport',    label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
-  { id: 'rg',          label: 'Carteira de Identidade',    icon: '🪪', color: '#7c3aed' },
-  { id: 'cnh',         label: 'Carteira de Motorista',     icon: '🚗', color: '#059669' },
-  { id: 'visa',        label: 'Visto',                     icon: '✈️', color: '#0891b2' },
-  { id: 'birth_cert',  label: 'Certidão de Nascimento',    icon: '📄', color: '#b45309' },
-  { id: 'cpf_card',    label: 'Cartão CPF',                icon: '💳', color: '#6d28d9' },
-  { id: 'voter_id',    label: 'Título de Eleitor',         icon: '🗳️', color: '#be185d' },
-  { id: 'work_permit', label: 'Autorização de Trabalho',   icon: '💼', color: '#0f766e' },
-  { id: 'residence',   label: 'Comprovante de Residência', icon: '🏠', color: '#92400e' },
-  { id: 'other',       label: 'Outro documento',           icon: '📎', color: '#475569' },
+  { id: 'passport',   label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
+  { id: 'rg',         label: 'Carteira de Identidade',    icon: '🪪', color: '#7c3aed' },
+  { id: 'cnh',        label: 'Carteira de Motorista',     icon: '🚗', color: '#059669' },
+  { id: 'visa',       label: 'Visto',                     icon: '✈️', color: '#0891b2' },
+  { id: 'birth_cert', label: 'Certidão de Nascimento',    icon: '📄', color: '#b45309' },
+  { id: 'residence',  label: 'Comprovante de Residência', icon: '🏠', color: '#92400e' },
+  { id: 'other',      label: 'Outro documento',           icon: '📎', color: '#475569' },
 ]
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
