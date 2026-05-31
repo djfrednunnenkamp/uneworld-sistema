@@ -540,12 +540,20 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                           {dateFields.length === 2 && (
                             <div>
                               <label className="fl" style={{ marginBottom: 4 }}>Datas</label>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fafafa' }}>
+                              <div style={{
+                                display: 'flex', flexDirection: 'column', gap: 8,
+                                padding: '10px 12px', borderRadius: 8, background: '#fafafa',
+                                border: `1px solid ${dateFields.some(f => metaErrors[f.key]) ? '#dc2626' : '#e2e8f0'}`,
+                              }}>
                                 {dateFields.map(f => (
                                   <div key={f.key}>
-                                    <label className="fl">{f.label}</label>
+                                    <label className="fl">
+                                      {f.label}
+                                      {f.required && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
+                                    </label>
                                     <input className="fi" type="date" value={docMeta[f.key] ?? ''}
-                                      onChange={(e) => setMeta(f.key, e.target.value)} />
+                                      onChange={(e) => setMeta(f.key, e.target.value)}
+                                      style={metaErrors[f.key] ? errStyle : {}} />
                                   </div>
                                 ))}
                               </div>
