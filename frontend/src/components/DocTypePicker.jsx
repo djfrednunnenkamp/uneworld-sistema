@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { documentsApi } from '../api'
 import { Ic } from './Icon'
@@ -20,6 +20,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const [open,     setOpen]     = useState(false)
   const [step,     setStep]     = useState('type')  // 'type' | 'upload'
   const [selType,  setSelType]  = useState(null)
+  const [search,   setSearch]   = useState('')
+  const searchRef  = useRef(null)
   const [label,    setLabel]    = useState('')
   const [notes,    setNotes]    = useState('')
   const [file,     setFile]     = useState(null)
@@ -31,8 +33,14 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
 
   const reset = () => {
     setStep('type'); setSelType(null); setLabel('')
-    setNotes(''); setFile(null); setProgress(0); setUploading(false)
+    setNotes(''); setFile(null); setProgress(0); setUploading(false); setSearch('')
   }
+
+  // Lista filtrada pela busca (excluindo "Outro" — aparece como botão no header)
+  const DOC_LIST = DOC_TYPES.filter(t => t.id !== 'other')
+  const filtered = useMemo(() =>
+    DOC_LIST.filter(t => t.label.toLowerCase().includes(search.toLowerCase()))
+  , [search])
 
   const close = () => { setOpen(false); reset() }
 
@@ -119,54 +127,87 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
             onClick={(e) => e.stopPropagation()}
             style={{
               background: '#fff', borderRadius: 12, width: '100%',
-              maxWidth: step === 'type' ? 520 : 460,
+              maxWidth: 460,
               boxShadow: '0 24px 64px rgba(0,0,0,.22)',
               animation: 'mIn .15s ease',
             }}
           >
 
-            {/* ── STEP 1: Selecionar tipo ── */}
+            {/* ── STEP 1: Selecionar tipo — lista com busca ── */}
             {step === 'type' && (
               <>
-                <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #e2e8f0' }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-                    Que tipo de documento?
-                  </p>
-                  <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-                    Selecione o tipo para continuar
-                  </p>
+                {/* Header: título + botão Outro */}
+                <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                      Que tipo de documento?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => pickType(DOC_TYPES.find(t => t.id === 'other'))}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '4px 11px', borderRadius: 6,
+                        border: '1px solid #e2e8f0', background: '#f8fafc',
+                        color: '#64748b', fontSize: 12, fontWeight: 500,
+                        cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#475569'; e.currentTarget.style.color = '#1e293b' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}
+                    >
+                      📎 Outro documento
+                    </button>
+                  </div>
+
+                  {/* Busca */}
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
+                      <Ic n="search" s={14} />
+                    </span>
+                    <input
+                      ref={searchRef}
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Buscar tipo de documento…"
+                      autoFocus
+                      style={{
+                        width: '100%', padding: '7px 11px 7px 31px',
+                        border: '1px solid #e2e8f0', borderRadius: 6,
+                        fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b',
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#2e6db4'}
+                      onBlur={(e)  => e.target.style.borderColor = '#e2e8f0'}
+                    />
+                  </div>
                 </div>
 
-                <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                  {DOC_TYPES.map((t) => (
-                    <button
+                {/* Lista */}
+                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                  {filtered.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '24px 0' }}>
+                      Nenhum tipo encontrado
+                    </p>
+                  ) : filtered.map((t) => (
+                    <div
                       key={t.id}
-                      type="button"
                       onClick={() => pickType(t)}
                       style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                        padding: '14px 8px', borderRadius: 10,
-                        border: '1.5px solid #e2e8f0', background: '#fff',
-                        cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '11px 18px', cursor: 'pointer',
+                        borderBottom: '1px solid #f8fafc',
+                        transition: 'background .1s',
                       }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = t.color
-                        e.currentTarget.style.background  = `${t.color}10`
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = '#e2e8f0'
-                        e.currentTarget.style.background  = '#fff'
-                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = `${t.color}0d`}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      <span style={{ fontSize: 28, lineHeight: 1 }}>{t.icon}</span>
-                      <span style={{ fontSize: 11.5, fontWeight: 500, color: '#475569', textAlign: 'center', lineHeight: 1.3 }}>
-                        {t.label}
-                      </span>
-                    </button>
+                      <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{t.icon}</span>
+                      <span style={{ fontSize: 13.5, fontWeight: 500, color: '#1e293b' }}>{t.label}</span>
+                      <span style={{ marginLeft: 'auto', color: '#cbd5e1', fontSize: 14 }}>›</span>
+                    </div>
                   ))}
                 </div>
 
-                <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ padding: '10px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
                   <button onClick={close} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Cancelar
                   </button>
