@@ -116,7 +116,8 @@ export default function Passengers() {
         filterKey="status"
         filterOpts={['active', 'inactive']}
         onAdd={() => navigate('/passageiros/novo')}
-        onEdit={(row) => setViewRow(row)}
+        onEdit={(row) => navigate(`/passageiros/${row.id}`)}
+        onView={(row) => setViewRow(row)}
         onDelete={(row) => setDelRow(row)}
         loading={loading}
       />

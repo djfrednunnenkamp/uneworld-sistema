@@ -38,13 +38,14 @@ export function StatusBadge({ value }) {
  *   filterOpts  – array of raw values for chips
  *   onAdd       – () => void
  *   onEdit      – (row) => void
+ *   onView      – (row) => void  (opcional)
  *   onDelete    – (row) => void
  *   loading     – boolean
  */
 export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
-  onAdd, onEdit, onDelete, loading,
+  onAdd, onEdit, onView, onDelete, loading,
 }) {
   const [q,   setQ]   = useState('')
   const [flt, setFlt] = useState('Todos')
@@ -140,7 +141,7 @@ export default function DataTable({
                   <td>
                     <div className="r-acts">
                       <button className="r-btn edit" title="Editar"      onClick={() => onEdit?.(row)}><Ic n="edit"  s={13}/></button>
-                      <button className="r-btn view" title="Visualizar"                                ><Ic n="eye"   s={13}/></button>
+                      <button className="r-btn view" title="Visualizar"  onClick={() => onView?.(row)}><Ic n="eye"   s={13}/></button>
                       <button className="r-btn del"  title="Excluir"     onClick={() => onDelete?.(row)}><Ic n="trash" s={13}/></button>
                     </div>
                   </td>
