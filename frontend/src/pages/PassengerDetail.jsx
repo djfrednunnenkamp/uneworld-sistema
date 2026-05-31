@@ -15,6 +15,8 @@ import CountryStatePicker from '../components/CountryStatePicker'
 import LanguagePicker from '../components/LanguagePicker'
 import DietPicker from '../components/DietPicker'
 import DatePicker from '../components/DatePicker'
+import CountryPicker from '../components/CountryPicker'
+import BrazilCityPicker from '../components/BrazilCityPicker'
 import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
 
 /* ── helpers ── */
@@ -139,7 +141,10 @@ function DocumentsTab({ passengerId, isNew }) {
   const [docs,       setDocs]       = useState([])
   const [loading,    setLoading]    = useState(false)
   const [deleting,   setDeleting]   = useState(null)
-  const [confirmDoc, setConfirmDoc] = useState(null)  // documento aguardando confirmação de exclusão
+  const [confirmDoc, setConfirmDoc] = useState(null)
+  const [editDoc,    setEditDoc]    = useState(null)   // documento sendo editado
+  const [editForm,   setEditForm]   = useState({})
+  const [editSaving, setEditSaving] = useState(false)
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
@@ -154,6 +159,30 @@ function DocumentsTab({ passengerId, isNew }) {
   }
 
   useEffect(() => { load() }, [passengerId])
+
+  const openEdit = (doc) => {
+    setEditDoc(doc)
+    setEditForm({
+      label:       doc.label        ?? '',
+      doc_number:  doc.doc_number   ?? '',
+      issued_date: doc.issued_date  ?? '',
+      expiry_date: doc.expiry_date  ?? '',
+      issued_by:   doc.issued_by    ?? '',
+      notes:       doc.notes        ?? '',
+    })
+  }
+
+  const saveEdit = async () => {
+    if (!editDoc) return
+    setEditSaving(true)
+    try {
+      await documentsApi.patch(editDoc.id, editForm)
+      toast.success('Documento atualizado.')
+      setEditDoc(null)
+      load()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setEditSaving(false) }
+  }
 
   const handleDelete = async () => {
     if (!confirmDoc) return
@@ -348,6 +377,12 @@ function DocumentsTab({ passengerId, isNew }) {
 
                   {/* Ações */}
                   <div style={{ display: 'flex', gap: 4, padding: '11px 10px', flexShrink: 0 }}>
+                    <button onClick={() => openEdit(doc)} title="Editar"
+                      style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', transition: 'all .12s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.color = '#7c3aed' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}>
+                      <Ic n="edit" s={12} />
+                    </button>
                     <button onClick={() => handleDownload(doc)} title="Baixar"
                       style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', transition: 'all .12s' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
@@ -367,6 +402,78 @@ function DocumentsTab({ passengerId, isNew }) {
           </div>
         )}
       </div>
+
+      {/* ── Modal de edição de metadados ── */}
+      {editDoc && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) setEditDoc(null) }}
+          style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:400, padding:20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:460, boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .15s ease' }}>
+            <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontSize:20 }}>{DOC_TYPES.find(t=>t.id===editDoc.doc_type)?.icon ?? '📎'}</span>
+              <div>
+                <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Editar documento</p>
+                <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>{editDoc.doc_type_label} — apenas metadados (imagem não é alterada)</p>
+              </div>
+            </div>
+
+            <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+              {/* Nome personalizado */}
+              <div>
+                <label className="fl">Nome personalizado <span style={{color:'#94a3b8',fontWeight:400}}>(opcional)</span></label>
+                <input className="fi" value={editForm.label} onChange={e=>setEditForm(f=>({...f,label:e.target.value}))} placeholder="Ex.: Passaporte EUA" />
+              </div>
+
+              {/* Número */}
+              {editDoc.doc_number !== undefined && (
+                <div>
+                  <label className="fl">Número do documento</label>
+                  <input className="fi" value={editForm.doc_number} onChange={e=>setEditForm(f=>({...f,doc_number:e.target.value}))} />
+                </div>
+              )}
+
+              {/* Datas em grid */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div>
+                  <label className="fl">Data de emissão</label>
+                  <DatePicker value={editForm.issued_date} onChange={v=>setEditForm(f=>({...f,issued_date:v}))} />
+                </div>
+                <div>
+                  <label className="fl">Validade</label>
+                  <DatePicker value={editForm.expiry_date} onChange={v=>setEditForm(f=>({...f,expiry_date:v}))} />
+                </div>
+              </div>
+
+              {/* Local emissor */}
+              <div>
+                <label className="fl">Local / País emissor</label>
+                {editDoc.doc_type === 'rg' || editDoc.doc_type === 'cnh' ? (
+                  <BrazilCityPicker value={editForm.issued_by} onChange={v=>setEditForm(f=>({...f,issued_by:v}))} />
+                ) : (
+                  <CountryPicker value={editForm.issued_by} onChange={v=>setEditForm(f=>({...f,issued_by:v}))} />
+                )}
+              </div>
+
+              {/* Notas */}
+              <div>
+                <label className="fl">Notas</label>
+                <textarea className="fi" rows={2} style={{resize:'none'}} value={editForm.notes} onChange={e=>setEditForm(f=>({...f,notes:e.target.value}))} placeholder="Observações adicionais…" />
+              </div>
+            </div>
+
+            <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
+              <button onClick={() => setEditDoc(null)}
+                style={{ padding:'6px 14px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+              <button onClick={saveEdit} disabled={editSaving}
+                style={{ padding:'6px 20px', borderRadius:6, border:'none', background:'#2e6db4', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', opacity:editSaving?.6:1 }}>
+                {editSaving ? 'Salvando…' : 'Salvar alterações'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmDoc && (
         <DelModal

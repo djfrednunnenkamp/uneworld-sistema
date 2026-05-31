@@ -45,6 +45,8 @@ export const documentsApi = {
   upload:   (passengerId, formData) =>
     api.post(`/passengers/${passengerId}/documents/`, formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }),
+  patch:    (docId, data) =>
+    api.patch(`/passengers/documents/${docId}/`, data),
   remove:   (docId) =>
     api.delete(`/passengers/documents/${docId}/`),
   download: (docId) =>

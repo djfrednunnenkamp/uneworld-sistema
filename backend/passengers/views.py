@@ -45,6 +45,20 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
     serializer_class = PassengerDocumentSerializer
     permission_classes = [IsAuthenticated]
 
+    def partial_update(self, request, pk=None):
+        """Atualiza metadados do documento (sem substituir o arquivo)."""
+        try:
+            doc = PassengerDocument.objects.get(pk=pk)
+        except PassengerDocument.DoesNotExist:
+            raise Http404
+        # Remove o campo file do request para não sobrescrever
+        data = {k: v for k, v in request.data.items() if k != 'file'}
+        serializer = PassengerDocumentSerializer(doc, data=data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+
     def destroy(self, request, pk=None):
         try:
             doc = PassengerDocument.objects.get(pk=pk)
