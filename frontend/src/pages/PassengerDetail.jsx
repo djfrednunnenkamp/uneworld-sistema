@@ -336,7 +336,6 @@ function DocumentsTab({ passengerId, isNew }) {
               const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type) ?? DOC_TYPES[DOC_TYPES.length - 1]
               const expSt    = expiryStatus(doc.expiry_date)
               return (
-                {/* ── Card numa linha só ── */}
                 <div key={doc.id}
                   style={{ display:'flex', alignItems:'center', gap:0, borderRadius:8, border:'1px solid #e2e8f0', background:'#fff', overflow:'hidden', transition:'background .1s' }}
                   onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
