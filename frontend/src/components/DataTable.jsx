@@ -76,8 +76,6 @@ export default function DataTable({
       <div className="ph">
         <h1 className="ph-title">{title}</h1>
         <div className="ph-actions">
-          <button className="btn btn-outline"><Ic n="dl" s={13}/>Exportar</button>
-          <button className="btn btn-outline"><Ic n="ul" s={13}/>Importar</button>
           <button className="btn btn-primary" onClick={onAdd}><Ic n="plus" s={13}/>{addLabel}</button>
         </div>
       </div>
