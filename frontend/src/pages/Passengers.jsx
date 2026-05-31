@@ -16,16 +16,43 @@ const COLS = [
 
 /* ── Popup de visualização rápida ── */
 function PassengerPreview({ passenger, onClose, onEdit }) {
+  const [copied, setCopied] = useState(null)
   const initials = (n) => (n || '').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()
   const PALETTE  = ['#2B3A8F','#0369A1','#0D6E6E','#6B3FA0','#B45309','#9B3A2A','#2D6A4F','#1E5799']
   const color    = PALETTE[(passenger.id ?? 0) % PALETTE.length]
 
-  const Row = ({ label, value }) => value ? (
-    <div style={{ display:'flex', gap:12, padding:'7px 0', borderBottom:'1px solid #f8fafc' }}>
-      <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:13, color:'#1e293b' }}>{value}</span>
-    </div>
-  ) : null
+  const copyToClipboard = async (label, value) => {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(label)
+      setTimeout(() => setCopied(null), 1800)
+    } catch { /* silently fail */ }
+  }
+
+  const fmtDate = (d) => d
+    ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
+    : null
+
+  const Row = ({ label, value }) => {
+    if (!value) return null
+    const isCopied = copied === label
+    return (
+      <div
+        onClick={() => copyToClipboard(label, value)}
+        title="Clique para copiar"
+        style={{ display:'flex', alignItems:'center', gap:12, padding:'8px 10px', borderRadius:6, borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background .1s' }}
+        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      >
+        <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
+        <span style={{ fontSize:13, color:'#1e293b', flex:1 }}>{value}</span>
+        <span style={{ fontSize:11, fontWeight:600, color: isCopied ? '#059669' : 'transparent', flexShrink:0, transition:'color .15s', minWidth:60, textAlign:'right' }}>
+          {isCopied ? '✓ Copiado!' : 'copiar'}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div onClick={(e)=>{if(e.target===e.currentTarget)onClose()}}
@@ -52,13 +79,18 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
           </button>
         </div>
 
-        {/* Informações */}
-        <div style={{padding:'12px 22px 16px'}}>
-          <Row label="E-mail"       value={passenger.email} />
-          <Row label="Celular"      value={passenger.mobile || passenger.phone1} />
-          <Row label="CPF"          value={passenger.cpf} />
-          <Row label="Agências"     value={passenger.agency_names} />
-          <Row label="Cidade / UF"  value={passenger.city ? `${passenger.city}${passenger.state ? ` / ${passenger.state}` : ''}` : null} />
+        {/* Informações — clique em qualquer linha para copiar */}
+        <div style={{padding:'8px 12px 12px'}}>
+          <p style={{fontSize:10,fontWeight:700,color:'#cbd5e1',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 10px 4px',paddingTop:4}}>
+            Clique em qualquer linha para copiar
+          </p>
+          <Row label="E-mail"           value={passenger.email} />
+          <Row label="Celular"          value={passenger.mobile || passenger.phone1} />
+          <Row label="Telefone"         value={passenger.mobile && passenger.phone1 ? passenger.phone1 : null} />
+          <Row label="CPF"              value={passenger.cpf} />
+          <Row label="Data nasc."       value={fmtDate(passenger.birth_date)} />
+          <Row label="Agências"         value={passenger.agency_names} />
+          <Row label="Cidade / UF"      value={passenger.city ? `${passenger.city}${passenger.state ? ` / ${passenger.state}` : ''}` : null} />
         </div>
 
         {/* Rodapé — Editar (esq) + Fechar (dir) */}
