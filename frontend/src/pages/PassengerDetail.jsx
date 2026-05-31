@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import axios from 'axios'
 import { passengersApi, documentsApi } from '../api'
 import { Ic } from '../components/Icon'
+import DelModal from '../components/DelModal'
 import AgencyPicker from '../components/AgencyPicker'
 import LocationPicker from '../components/LocationPicker'
 import NationalityPicker from '../components/NationalityPicker'
@@ -64,6 +65,7 @@ function DocumentsTab({ passengerId, isNew }) {
   const [docs,       setDocs]       = useState([])
   const [loading,    setLoading]    = useState(false)
   const [deleting,   setDeleting]   = useState(null)
+  const [confirmDoc, setConfirmDoc] = useState(null)  // documento aguardando confirmação de exclusão
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
@@ -79,10 +81,11 @@ function DocumentsTab({ passengerId, isNew }) {
 
   useEffect(() => { load() }, [passengerId])
 
-  const handleDelete = async (doc) => {
-    if (!window.confirm(`Remover "${doc.display_name}"?`)) return
-    setDeleting(doc.id)
-    await documentsApi.remove(doc.id).catch(() => toast.error('Erro ao remover.'))
+  const handleDelete = async () => {
+    if (!confirmDoc) return
+    setDeleting(confirmDoc.id)
+    setConfirmDoc(null)
+    await documentsApi.remove(confirmDoc.id).catch(() => toast.error('Erro ao remover.'))
     toast.success('Documento removido.')
     setDeleting(null)
     load()
@@ -261,7 +264,7 @@ function DocumentsTab({ passengerId, isNew }) {
                       onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}>
                       <Ic n="dl" s={12} />
                     </button>
-                    <button onClick={() => handleDelete(doc)} disabled={deleting === doc.id} title="Remover"
+                    <button onClick={() => setConfirmDoc(doc)} disabled={deleting === doc.id} title="Remover"
                       style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer', transition: 'all .12s', opacity: deleting === doc.id ? .5 : 1 }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fee2e2' }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = '#fff' }}>
@@ -274,6 +277,14 @@ function DocumentsTab({ passengerId, isNew }) {
           </div>
         )}
       </div>
+
+      {confirmDoc && (
+        <DelModal
+          name={confirmDoc.display_name}
+          onOk={handleDelete}
+          onCancel={() => setConfirmDoc(null)}
+        />
+      )}
     </div>
   )
 }
