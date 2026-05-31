@@ -66,21 +66,31 @@ const COLS = [
   { key: 'cpf',        label: 'CPF',         render: (v) => <CopyCell value={v} muted /> },
   { key: 'birth_date', label: 'Aniversário', render: (v) => {
     if (!v) return <span style={{ color:'#cbd5e1' }}>—</span>
-    const info    = birthdayInfo(v)
-    const age     = calcAge(v)
+    const info     = birthdayInfo(v)
+    const age      = calcAge(v)
     const fullDate = new Date(v + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
     return (
-      <div>
-        {info?.badge ? (
-          <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11.5, fontWeight:700, background:info.bg, color:info.color, whiteSpace:'nowrap', display:'inline-block', marginBottom:1 }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+        {/* Badge chamativo quando próximo */}
+        {info?.badge && (
+          <span style={{
+            display:'inline-flex', alignItems:'center', gap:3,
+            padding:'2px 7px', borderRadius:6,
+            fontSize:11, fontWeight:800, letterSpacing:'.01em',
+            background: info.bg, color: info.color,
+            whiteSpace:'nowrap', width:'fit-content',
+            boxShadow: `0 0 0 1.5px ${info.color}40`,
+          }}>
             {info.badge}
           </span>
-        ) : (
-          <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{fullDate}</span>
         )}
-        <p style={{ fontSize:11, color:'#94a3b8', margin:0, marginTop:1 }}>
+        {/* Data sempre visível */}
+        <span style={{ fontSize:13, color: info?.badge ? info.color : '#1e293b', fontWeight: info?.badge ? 600 : 400 }}>
+          {fullDate}
+        </span>
+        <span style={{ fontSize:11, color:'#94a3b8' }}>
           {age} ano{age !== 1 ? 's' : ''}
-        </p>
+        </span>
       </div>
     )
   }},
