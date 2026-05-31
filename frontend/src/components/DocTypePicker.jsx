@@ -447,12 +447,14 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                       </div>
                     )}
 
-                    {/* Nome personalizado */}
-                    <div>
-                      <label className="fl">Nome personalizado <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opcional)</span></label>
-                      <input className="fi" value={label} onChange={(e) => setLabel(e.target.value)}
-                        placeholder={`Ex.: ${typeInfo.label} EUA`} />
-                    </div>
+                    {/* Título — só para "Outro documento" */}
+                    {typeInfo.id === 'other' && (
+                      <div>
+                        <label className="fl">Título do documento</label>
+                        <input className="fi" value={label} onChange={(e) => setLabel(e.target.value)}
+                          placeholder="Ex.: Cartão de vacinação, Seguro viagem…" />
+                      </div>
+                    )}
                   </div>
 
                   {/* Direita: campos do documento */}

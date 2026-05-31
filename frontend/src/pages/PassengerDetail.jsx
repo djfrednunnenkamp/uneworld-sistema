@@ -418,11 +418,13 @@ function DocumentsTab({ passengerId, isNew }) {
             </div>
 
             <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
-              {/* Nome personalizado */}
-              <div>
-                <label className="fl">Nome personalizado <span style={{color:'#94a3b8',fontWeight:400}}>(opcional)</span></label>
-                <input className="fi" value={editForm.label} onChange={e=>setEditForm(f=>({...f,label:e.target.value}))} placeholder="Ex.: Passaporte EUA" />
-              </div>
+              {/* Título — só para "Outro documento" */}
+              {editDoc.doc_type === 'other' && (
+                <div>
+                  <label className="fl">Título do documento</label>
+                  <input className="fi" value={editForm.label} onChange={e=>setEditForm(f=>({...f,label:e.target.value}))} placeholder="Ex.: Cartão de vacinação, Seguro viagem…" />
+                </div>
+              )}
 
               {/* Número */}
               {editDoc.doc_number !== undefined && (
