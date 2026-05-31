@@ -208,25 +208,36 @@ export default function PassengerDetail() {
   const navigate = useNavigate()
   const isNew    = id === 'novo'
 
-  const [form,      setForm]      = useState({ ...EMPTY })
-  const [loading,   setLoading]   = useState(!isNew)
-  const [notesOpen, setNotesOpen] = useState(false)
-  const [saving,   setSaving]   = useState(false)
+  const [form,       setForm]       = useState({ ...EMPTY })
+  const [loading,    setLoading]    = useState(!isNew)
+  const [notesOpen,  setNotesOpen]  = useState(false)
+  const [saving,     setSaving]     = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
-  const [tab, setTab] = useState('info')
+  const [tab,        setTab]        = useState('info')
+  const [isDirty,    setIsDirty]    = useState(false)
 
   /* load passenger data */
   useEffect(() => {
     if (!isNew) {
       passengersApi.get(id)
-        .then((r) => setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] }))
+        .then((r) => { setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] }); setIsDirty(false) })
         .catch(() => { toast.error('Passageiro não encontrado.'); navigate('/passageiros') })
         .finally(() => setLoading(false))
     }
   }, [id])
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  const setB = (k) => (v) => setForm((f) => ({ ...f, [k]: v }))
+  /* Avisa ao recarregar/fechar com alterações não salvas */
+  useEffect(() => {
+    const handler = (e) => {
+      if (isDirty) { e.preventDefault(); e.returnValue = '' }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  const markDirty = () => setIsDirty(true)
+  const set  = (k) => (e) => { setForm((f) => ({ ...f, [k]: e.target.value })); markDirty() }
+  const setB = (k) => (v) => { setForm((f) => ({ ...f, [k]: v })); markDirty() }
 
   /* Auto-preenche nacionalidade principal a partir do local de nascimento */
   const setBirthPlace = (v) => {
@@ -236,6 +247,7 @@ export default function PassengerDetail() {
       birth_place: v,
       ...(country && !f.nationality ? { nationality: country } : {}),
     }))
+    markDirty()
   }
 
   /* CEP lookup via ViaCEP */
@@ -263,24 +275,37 @@ export default function PassengerDetail() {
   }
 
   /* Save */
+  const DATE_FIELDS = ['birth_date','rg_issue_date','passport_issue','passport_expiry','rne_expiry','rne_issue']
+
   const save = async () => {
-    if (!form.full_name?.trim()) { toast.error('Nome é obrigatório.'); return }
-    if (!form.email?.trim())     { toast.error('E-mail é obrigatório.'); return }
+    const hasName = form.first_name?.trim() || form.last_name?.trim()
+    if (!hasName)             { toast.error('Preencha o nome do passageiro.'); return }
+    if (!form.email?.trim())  { toast.error('E-mail é obrigatório.'); return }
     setSaving(true)
     try {
       const genderValue = form.gender === 'O' ? (form.gender_custom?.trim() || 'O') : form.gender
-      const { gender_custom, ...rest } = form
+      const { gender_custom, full_name, ...rest } = form  // full_name calculado pelo backend
       const payload = { ...rest, gender: genderValue }
+      // Datas vazias → null
+      DATE_FIELDS.forEach(k => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null })
       if (isNew) {
         const r = await passengersApi.create(payload)
         toast.success('Passageiro criado.')
+        setIsDirty(false)
         navigate(`/passageiros/${r.data.id}`)
       } else {
         await passengersApi.update(id, payload)
         toast.success('Passageiro salvo.')
+        setIsDirty(false)
       }
     } catch (e) {
-      const msg = e.response?.data?.email?.[0] ?? 'Erro ao salvar.'
+      const data = e.response?.data
+      const msg  = data?.email?.[0]
+               ?? data?.non_field_errors?.[0]
+               ?? (data && typeof data === 'object'
+                   ? Object.values(data).flat().find(v => typeof v === 'string')
+                   : null)
+               ?? 'Erro ao salvar. Verifique os dados.'
       toast.error(msg)
     } finally { setSaving(false) }
   }
@@ -380,7 +405,7 @@ export default function PassengerDetail() {
               <label className="fl">Agências</label>
               <AgencyPicker
                 selectedIds={form.agencies ?? []}
-                onChange={(ids) => setForm((f) => ({ ...f, agencies: ids }))}
+                onChange={(ids) => { setForm((f) => ({ ...f, agencies: ids })); markDirty() }}
               />
             </div>
 
@@ -411,7 +436,7 @@ export default function PassengerDetail() {
                 <GenderPicker
                   value={form.gender}
                   customValue={form.gender_custom}
-                  onChange={(val, custom) => setForm((f) => ({ ...f, gender: val, gender_custom: custom }))}
+                  onChange={(val, custom) => { setForm((f) => ({ ...f, gender: val, gender_custom: custom })); markDirty() }}
                 />
               </F>
             </div>
@@ -428,8 +453,8 @@ export default function PassengerDetail() {
                 <LanguagePicker
                   nativeLang={form.native_language}
                   otherLangs={form.other_languages}
-                  onChangeNative={(v) => setForm((f) => ({ ...f, native_language: v }))}
-                  onChangeOthers={(v) => setForm((f) => ({ ...f, other_languages: v }))}
+                  onChangeNative={(v) => { setForm((f) => ({ ...f, native_language: v })); markDirty() }}
+                  onChangeOthers={(v) => { setForm((f) => ({ ...f, other_languages: v })); markDirty() }}
                 />
               </F>
               <F label="Local de nascimento">
@@ -442,8 +467,8 @@ export default function PassengerDetail() {
                 <NationalityPicker
                   primary={form.nationality}
                   others={form.other_nationalities}
-                  onChangePrimary={(v) => setForm((f) => ({ ...f, nationality: v }))}
-                  onChangeOthers={(v)  => setForm((f) => ({ ...f, other_nationalities: v }))}
+                  onChangePrimary={(v) => { setForm((f) => ({ ...f, nationality: v })); markDirty() }}
+                  onChangeOthers={(v)  => { setForm((f) => ({ ...f, other_nationalities: v })); markDirty() }}
                 />
               </F>
             </div>
@@ -471,7 +496,7 @@ export default function PassengerDetail() {
               <F label="Profissão">
                 <ProfessionPicker
                   value={form.profession}
-                  onChange={(v) => setForm((f) => ({ ...f, profession: v }))}
+                  onChange={(v) => { setForm((f) => ({ ...f, profession: v })); markDirty() }}
                 />
               </F>
               <F label="Preferência de assento">
@@ -479,17 +504,17 @@ export default function PassengerDetail() {
                   seatType={form.seat_preference}
                   seatPos={form.seat_position}
                   flightClass={form.flight_class}
-                  onChangeSeatType={(v)    => setForm((f) => ({ ...f, seat_preference: v }))}
-                  onChangeSeatPos={(v)     => setForm((f) => ({ ...f, seat_position: v }))}
-                  onChangeFlightClass={(v) => setForm((f) => ({ ...f, flight_class: v }))}
+                  onChangeSeatType={(v)    => { setForm((f) => ({ ...f, seat_preference: v })); markDirty() }}
+                  onChangeSeatPos={(v)     => { setForm((f) => ({ ...f, seat_position: v })); markDirty() }}
+                  onChangeFlightClass={(v) => { setForm((f) => ({ ...f, flight_class: v })); markDirty() }}
                 />
               </F>
               <F label="Tipo de alimentação">
                 <DietPicker
                   value={form.diet_type}
                   notes={form.diet_notes}
-                  onChange={(v)      => setForm((f) => ({ ...f, diet_type: v }))}
-                  onChangeNotes={(v) => setForm((f) => ({ ...f, diet_notes: v }))}
+                  onChange={(v)      => { setForm((f) => ({ ...f, diet_type: v })); markDirty() }}
+                  onChangeNotes={(v) => { setForm((f) => ({ ...f, diet_notes: v })); markDirty() }}
                 />
               </F>
             </div>
@@ -524,8 +549,8 @@ export default function PassengerDetail() {
                 <CountryStatePicker
                   country={form.country}
                   state={form.state}
-                  onChangeCountry={(v) => setForm((f) => ({ ...f, country: v }))}
-                  onChangeState={(v)   => setForm((f) => ({ ...f, state: v }))}
+                  onChangeCountry={(v) => { setForm((f) => ({ ...f, country: v })); markDirty() }}
+                  onChangeState={(v)   => { setForm((f) => ({ ...f, state: v })); markDirty() }}
                 />
               </F>
             </div>
