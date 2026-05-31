@@ -150,16 +150,16 @@ function DocumentsTab({ passengerId, isNew }) {
 
         {/* Busca + filtros */}
         {!isNew && docs.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* Busca */}
-            <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Busca — largura fixa */}
+            <div style={{ position: 'relative', width: 200, flexShrink: 0 }}>
               <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
                 <Ic n="search" s={13} />
               </span>
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar documento…"
+                placeholder="Buscar…"
                 style={{ width: '100%', padding: '6px 10px 6px 29px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b' }}
                 onFocus={e => e.target.style.borderColor = '#2e6db4'}
                 onBlur={e  => e.target.style.borderColor = '#e2e8f0'}
@@ -168,24 +168,16 @@ function DocumentsTab({ passengerId, isNew }) {
 
             {/* Filtro por tipo */}
             {presentTypes.length > 1 && (
-              <select
-                value={typeFilter}
-                onChange={e => setTypeFilter(e.target.value)}
-                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#475569', background: '#fff', cursor: 'pointer' }}
-              >
+              <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#475569', background: '#fff', cursor: 'pointer' }}>
                 <option value="all">Todos os tipos</option>
-                {presentTypes.map(t => (
-                  <option key={t} value={t}>{typeLabel[t] ?? t}</option>
-                ))}
+                {presentTypes.map(t => <option key={t} value={t}>{typeLabel[t] ?? t}</option>)}
               </select>
             )}
 
             {/* Filtro por validade */}
-            <select
-              value={expiryFilter}
-              onChange={e => setExpiryFilter(e.target.value)}
-              style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#475569', background: '#fff', cursor: 'pointer' }}
-            >
+            <select value={expiryFilter} onChange={e => setExpiryFilter(e.target.value)}
+              style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#475569', background: '#fff', cursor: 'pointer' }}>
               <option value="all">Todas as validades</option>
               <option value="expired">Vencidos</option>
               <option value="soon">Vence em até 90 dias</option>
@@ -214,49 +206,62 @@ function DocumentsTab({ passengerId, isNew }) {
               const expSt    = expiryStatus(doc.expiry_date)
               return (
                 <div key={doc.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fafafa', transition: 'background .1s' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 0, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fafafa', overflow: 'hidden', transition: 'background .1s' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#f0f6ff'}
                   onMouseLeave={e => e.currentTarget.style.background = '#fafafa'}
                 >
-                  {/* Ícone */}
-                  <span style={{ fontSize: 22, flexShrink: 0 }}>{typeInfo.icon}</span>
-
-                  {/* Nome + tipo */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>{doc.display_name}</p>
-                    <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, marginTop: 1 }}>
-                      {doc.doc_number ? `Nº ${doc.doc_number} · ` : ''}{fmt(doc.uploaded_at)}
-                    </p>
-                    {doc.notes && <p style={{ fontSize: 11.5, color: '#64748b', margin: 0, marginTop: 1, fontStyle: 'italic' }}>{doc.notes}</p>}
+                  {/* Col 1 — Ícone + nome + badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: '11px 14px', borderRight: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{typeInfo.icon}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.display_name}</p>
+                      <span style={{ padding: '1px 7px', borderRadius: 8, fontSize: 10.5, fontWeight: 600, background: `${typeInfo.color}15`, color: typeInfo.color }}>
+                        {doc.doc_type_label}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Validade */}
-                  {expSt ? (
-                    <span style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11.5, fontWeight: 600, background: expSt.bg, color: expSt.color, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      {expSt.label}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: 11.5, color: '#cbd5e1', flexShrink: 0 }}>Sem validade</span>
-                  )}
+                  {/* Col 2 — Número */}
+                  <div style={{ width: 140, flexShrink: 0, padding: '11px 12px', borderRight: '1px solid #f1f5f9' }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', margin: 0, marginBottom: 2 }}>Número</p>
+                    <p style={{ fontSize: 12.5, color: doc.doc_number ? '#1e293b' : '#cbd5e1', margin: 0, fontWeight: doc.doc_number ? 500 : 400 }}>
+                      {doc.doc_number || '—'}
+                    </p>
+                  </div>
 
-                  {/* Badge tipo */}
-                  <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: `${typeInfo.color}15`, color: typeInfo.color, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                    {doc.doc_type_label}
-                  </span>
+                  {/* Col 3 — Emissão */}
+                  <div style={{ width: 110, flexShrink: 0, padding: '11px 12px', borderRight: '1px solid #f1f5f9' }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', margin: 0, marginBottom: 2 }}>Emissão</p>
+                    <p style={{ fontSize: 12.5, color: doc.issued_date ? '#1e293b' : '#cbd5e1', margin: 0 }}>
+                      {fmt(doc.issued_date)}
+                    </p>
+                  </div>
+
+                  {/* Col 4 — Validade */}
+                  <div style={{ width: 120, flexShrink: 0, padding: '11px 12px', borderRight: '1px solid #f1f5f9' }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', margin: 0, marginBottom: 2 }}>Validade</p>
+                    {expSt ? (
+                      <span style={{ padding: '2px 7px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, background: expSt.bg, color: expSt.color }}>
+                        {expSt.label}
+                      </span>
+                    ) : (
+                      <p style={{ fontSize: 12, color: '#cbd5e1', margin: 0 }}>Sem validade</p>
+                    )}
+                  </div>
 
                   {/* Ações */}
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 4, padding: '11px 10px', flexShrink: 0 }}>
                     <button onClick={() => handleDownload(doc)} title="Baixar"
-                      style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', transition: 'all .12s' }}
+                      style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', transition: 'all .12s' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}>
-                      <Ic n="dl" s={13} />
+                      <Ic n="dl" s={12} />
                     </button>
                     <button onClick={() => handleDelete(doc)} disabled={deleting === doc.id} title="Remover"
-                      style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer', transition: 'all .12s', opacity: deleting === doc.id ? .5 : 1 }}
+                      style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer', transition: 'all .12s', opacity: deleting === doc.id ? .5 : 1 }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fee2e2' }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = '#fff' }}>
-                      <Ic n="trash" s={13} />
+                      <Ic n="trash" s={12} />
                     </button>
                   </div>
                 </div>
