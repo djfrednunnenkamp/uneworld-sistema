@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { documentsApi } from '../api'
 import { Ic } from './Icon'
+import CountryPicker from './CountryPicker'
 
 export const DOC_TYPES = [
   { id: 'passport',   label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
@@ -22,7 +23,7 @@ const DOC_FIELDS = {
     { key: 'doc_number',  label: 'Número do passaporte', type: 'text' },
     { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
     { key: 'expiry_date', label: 'Validade',               type: 'date' },
-    { key: 'issued_by',   label: 'País emissor',           type: 'text' },
+    { key: 'issued_by',   label: 'País emissor',           type: 'country' },
   ],
   rg: [
     { key: 'doc_number',  label: 'Número do RG',          type: 'text' },
@@ -38,7 +39,7 @@ const DOC_FIELDS = {
     { key: 'doc_number',  label: 'Número do visto',       type: 'text' },
     { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
     { key: 'expiry_date', label: 'Validade',               type: 'date' },
-    { key: 'issued_by',   label: 'País emissor',           type: 'text' },
+    { key: 'issued_by',   label: 'País emissor',           type: 'country' },
   ],
   birth_cert: [
     { key: 'doc_number',  label: 'Número do documento',   type: 'text' },
@@ -402,12 +403,19 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                     {(DOC_FIELDS[typeInfo.id] ?? []).map((f) => (
                       <div key={f.key}>
                         <label className="fl">{f.label}</label>
-                        <input
-                          className="fi"
-                          type={f.type}
-                          value={docMeta[f.key] ?? ''}
-                          onChange={(e) => setDocMeta((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                        />
+                        {f.type === 'country' ? (
+                          <CountryPicker
+                            value={docMeta[f.key] ?? ''}
+                            onChange={(v) => setDocMeta((prev) => ({ ...prev, [f.key]: v }))}
+                          />
+                        ) : (
+                          <input
+                            className="fi"
+                            type={f.type}
+                            value={docMeta[f.key] ?? ''}
+                            onChange={(e) => setDocMeta((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                          />
+                        )}
                       </div>
                     ))}
 
