@@ -14,7 +14,7 @@ const NAV_BASE = [
 export default function Sidebar() {
   const { pathname } = useLocation()
   const navigate     = useNavigate()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   let lastGroup      = null
 
   const NAV = NAV_BASE.filter(item => !item.adminOnly || user?.is_staff)
@@ -50,21 +50,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User */}
-      <div className="sb-foot">
-        <div className="user-row" onClick={logout} title="Sair" style={{ cursor:'pointer' }}>
-          <div className="ava">
-            {user ? `${user.first_name?.[0]??''}${user.last_name?.[0]??''}`.toUpperCase() || user.username?.[0]?.toUpperCase() : '?'}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="u-name">{user?.full_name || user?.username || 'Usuário'}</div>
-            <div className="u-role">{user?.is_superuser ? 'Superusuário' : user?.is_staff ? 'Administrador' : 'Usuário'}</div>
-          </div>
-          <div style={{ color: 'rgba(255,255,255,.3)' }}>
-            <Ic n="logout" s={14} />
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

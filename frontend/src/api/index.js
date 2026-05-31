@@ -54,9 +54,12 @@ export const documentsApi = {
 }
 
 export const authApi = {
-  login:  (email, password) => api.post('/users/login/', { email, password }),
-  logout: ()                   => api.post('/users/logout/'),
-  me:     ()                   => api.get('/users/me/'),
+  login:          (email, password) => api.post('/users/login/', { email, password }),
+  logout:         ()                => api.post('/users/logout/'),
+  me:             ()                => api.get('/users/me/'),
+  updateMe:       (data)            => api.patch('/users/me/', data),
+  changePassword: (current_password, new_password) =>
+    api.post('/users/me/change-password/', { current_password, new_password }),
 }
 
 export const usersApi = {

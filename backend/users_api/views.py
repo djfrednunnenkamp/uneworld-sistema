@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.utils import timezone
@@ -58,10 +58,42 @@ def logout_view(request):
     return Response({'message': 'Logout realizado com sucesso.'})
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def me_view(request):
-    return Response(serialize_user(request.user))
+    user = request.user
+    if request.method == 'PATCH':
+        data = request.data
+        if 'first_name' in data:
+            user.first_name = data['first_name'].strip()
+        if 'last_name' in data:
+            user.last_name = data['last_name'].strip()
+        if 'email' in data:
+            new_email = data['email'].strip().lower()
+            if new_email != user.email:
+                if User.objects.filter(email__iexact=new_email).exclude(pk=user.pk).exists():
+                    return Response({'error': 'E-mail já está em uso por outra conta.'}, status=400)
+                user.email    = new_email
+                user.username = new_email
+        user.save()
+    return Response(serialize_user(user))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    current = request.data.get('current_password', '')
+    new_pw  = request.data.get('new_password', '')
+    if not current or not new_pw:
+        return Response({'error': 'Preencha todos os campos.'}, status=400)
+    if len(new_pw) < 8:
+        return Response({'error': 'A nova senha deve ter pelo menos 8 caracteres.'}, status=400)
+    if not request.user.check_password(current):
+        return Response({'error': 'Senha atual incorreta.'}, status=400)
+    request.user.set_password(new_pw)
+    request.user.save()
+    update_session_auth_hash(request, request.user)
+    return Response({'ok': True})
 
 
 @api_view(['GET'])
