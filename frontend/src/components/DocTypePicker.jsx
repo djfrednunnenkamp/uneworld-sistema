@@ -16,24 +16,65 @@ export const DOC_TYPES = [
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
 const MAX_SIZE_MB   = 15
 
+/* Campos por tipo de documento */
+const DOC_FIELDS = {
+  passport:   [
+    { key: 'doc_number',  label: 'Número do passaporte', type: 'text' },
+    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
+    { key: 'expiry_date', label: 'Validade',               type: 'date' },
+    { key: 'issued_by',   label: 'País emissor',           type: 'text' },
+  ],
+  rg: [
+    { key: 'doc_number',  label: 'Número do RG',          type: 'text' },
+    { key: 'issued_date', label: 'Data de expedição',     type: 'date' },
+    { key: 'issued_by',   label: 'Órgão expedidor',       type: 'text' },
+  ],
+  cnh: [
+    { key: 'doc_number',  label: 'Número da CNH',         type: 'text' },
+    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
+    { key: 'expiry_date', label: 'Validade',               type: 'date' },
+  ],
+  visa: [
+    { key: 'doc_number',  label: 'Número do visto',       type: 'text' },
+    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
+    { key: 'expiry_date', label: 'Validade',               type: 'date' },
+    { key: 'issued_by',   label: 'País emissor',           type: 'text' },
+  ],
+  birth_cert: [
+    { key: 'doc_number',  label: 'Número do documento',   type: 'text' },
+    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
+    { key: 'issued_by',   label: 'Cartório / Órgão',      type: 'text' },
+  ],
+  residence: [
+    { key: 'issued_date', label: 'Data do comprovante',   type: 'date' },
+    { key: 'issued_by',   label: 'Emissor',               type: 'text' },
+  ],
+  other: [
+    { key: 'doc_number',  label: 'Número do documento',   type: 'text' },
+    { key: 'issued_date', label: 'Data de emissão',       type: 'date' },
+    { key: 'expiry_date', label: 'Validade',               type: 'date' },
+  ],
+}
+
 export default function DocTypePicker({ passengerId, onUploaded }) {
-  const [open,     setOpen]     = useState(false)
-  const [step,     setStep]     = useState('type')  // 'type' | 'upload'
-  const [selType,  setSelType]  = useState(null)
-  const [search,   setSearch]   = useState('')
-  const searchRef  = useRef(null)
-  const [label,    setLabel]    = useState('')
-  const [notes,    setNotes]    = useState('')
-  const [file,     setFile]     = useState(null)
-  const [dragging, setDragging] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [uploading,setUploading]= useState(false)
+  const [open,      setOpen]     = useState(false)
+  const [step,      setStep]     = useState('type')
+  const [selType,   setSelType]  = useState(null)
+  const [search,    setSearch]   = useState('')
+  const searchRef   = useRef(null)
+  const [label,     setLabel]    = useState('')
+  const [notes,     setNotes]    = useState('')
+  const [docMeta,   setDocMeta]  = useState({})  // doc_number, issued_date, expiry_date, issued_by
+  const [file,      setFile]     = useState(null)
+  const [dragging,  setDragging] = useState(false)
+  const [progress,  setProgress] = useState(0)
+  const [uploading, setUploading]= useState(false)
   const fileRef   = useRef(null)
   const overlayRef= useRef(null)
 
   const reset = () => {
     setStep('type'); setSelType(null); setLabel('')
-    setNotes(''); setFile(null); setProgress(0); setUploading(false); setSearch('')
+    setNotes(''); setDocMeta({}); setFile(null); setProgress(0); setUploading(false); setSearch('')
   }
 
   // Lista filtrada pela busca (excluindo "Outro" — aparece como botão no header)
@@ -75,6 +116,11 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
       fd.append('label',    label)
       fd.append('notes',    notes)
       fd.append('file',     file)
+      // Campos de metadado do documento
+      if (docMeta.doc_number)  fd.append('doc_number',  docMeta.doc_number)
+      if (docMeta.issued_date) fd.append('issued_date', docMeta.issued_date)
+      if (docMeta.expiry_date) fd.append('expiry_date', docMeta.expiry_date)
+      if (docMeta.issued_by)   fd.append('issued_by',   docMeta.issued_by)
       setProgress(40)
       await documentsApi.upload(passengerId, fd)
       setProgress(100)
@@ -127,7 +173,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
             onClick={(e) => e.stopPropagation()}
             style={{
               background: '#fff', borderRadius: 12, width: '100%',
-              maxWidth: 460,
+              maxWidth: step === 'upload' ? 680 : 460,
               boxShadow: '0 24px 64px rgba(0,0,0,.22)',
               animation: 'mIn .15s ease',
             }}
@@ -215,111 +261,104 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
               </>
             )}
 
-            {/* ── STEP 2: Upload ── */}
+            {/* ── STEP 2: Upload — layout dois lados ── */}
             {step === 'upload' && typeInfo && (
               <>
-                <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    onClick={() => setStep('type')}
-                    style={{ fontSize: 13, color: '#2e6db4', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                  >← Voltar</button>
+                {/* Header */}
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={() => setStep('type')}
+                    style={{ fontSize: 13, color: '#2e6db4', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
+                    ← Voltar
+                  </button>
                   <span style={{ color: '#cbd5e1' }}>·</span>
                   <span style={{ fontSize: 18 }}>{typeInfo.icon}</span>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-                    {typeInfo.label}
-                  </p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>{typeInfo.label}</p>
                 </div>
 
-                <div style={{ padding: '16px 20px' }}>
-                  {/* Nome personalizado */}
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
-                      Nome personalizado <span style={{ fontWeight: 400, textTransform: 'none' }}>(opcional)</span>
-                    </label>
-                    <input
-                      className="fi"
-                      value={label}
-                      onChange={(e) => setLabel(e.target.value)}
-                      placeholder={`Ex.: ${typeInfo.label} EUA`}
-                    />
-                  </div>
+                {/* Corpo dois lados */}
+                <div style={{ display: 'flex', gap: 0 }}>
 
-                  {/* Área de drop */}
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-                    onDragLeave={() => setDragging(false)}
-                    onDrop={onDrop}
-                    onClick={() => fileRef.current?.click()}
-                    style={{
-                      border: `2px dashed ${dragging ? typeInfo.color : file ? typeInfo.color : '#e2e8f0'}`,
-                      borderRadius: 10, padding: '28px 20px', textAlign: 'center',
-                      background: dragging ? `${typeInfo.color}08` : file ? `${typeInfo.color}06` : '#fafafa',
-                      cursor: 'pointer', transition: 'all .15s', marginBottom: 14,
-                    }}
-                  >
-                    <input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }}
-                      onChange={(e) => handleFile(e.target.files[0])} />
-                    {file ? (
-                      <>
-                        <div style={{ fontSize: 28, marginBottom: 6 }}>
-                          {file.type === 'application/pdf' ? '📄' : '🖼️'}
-                        </div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: typeInfo.color, margin: 0 }}>{file.name}</p>
-                        <p style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 3 }}>
-                          {(file.size / 1024).toFixed(0)} KB — clique para trocar
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
-                        <p style={{ fontSize: 13, fontWeight: 500, color: '#475569', margin: 0 }}>
-                          Arraste o arquivo aqui ou <span style={{ color: typeInfo.color }}>clique para selecionar</span>
-                        </p>
-                        <p style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4 }}>
-                          JPEG, PNG ou PDF • Máximo 15 MB
-                        </p>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Barra de progresso */}
-                  {uploading && (
-                    <div style={{ height: 4, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden', marginBottom: 14 }}>
-                      <div style={{ height: '100%', background: typeInfo.color, width: `${progress}%`, transition: 'width .3s', borderRadius: 4 }} />
+                  {/* Esquerda: upload */}
+                  <div style={{ flex: 1, padding: '16px 16px 16px 18px', borderRight: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Área de drop */}
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={onDrop}
+                      onClick={() => fileRef.current?.click()}
+                      style={{
+                        border: `2px dashed ${dragging ? typeInfo.color : file ? typeInfo.color : '#e2e8f0'}`,
+                        borderRadius: 10, padding: '24px 14px', textAlign: 'center',
+                        background: dragging ? `${typeInfo.color}08` : file ? `${typeInfo.color}06` : '#fafafa',
+                        cursor: 'pointer', transition: 'all .15s', flex: 1,
+                      }}
+                    >
+                      <input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }}
+                        onChange={(e) => handleFile(e.target.files[0])} />
+                      {file ? (
+                        <>
+                          <div style={{ fontSize: 26, marginBottom: 6 }}>{file.type === 'application/pdf' ? '📄' : '🖼️'}</div>
+                          <p style={{ fontSize: 12.5, fontWeight: 600, color: typeInfo.color, margin: 0, wordBreak: 'break-all' }}>{file.name}</p>
+                          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{(file.size / 1024).toFixed(0)} KB · clique para trocar</p>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 30, marginBottom: 8 }}>📁</div>
+                          <p style={{ fontSize: 12.5, fontWeight: 500, color: '#475569', margin: 0 }}>
+                            Arraste aqui ou{' '}
+                            <span style={{ color: typeInfo.color }}>clique para selecionar</span>
+                          </p>
+                          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>JPEG, PNG ou PDF • Máx. 15 MB</p>
+                        </>
+                      )}
                     </div>
-                  )}
 
-                  {/* Notas */}
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
-                      Notas <span style={{ fontWeight: 400, textTransform: 'none' }}>(opcional)</span>
-                    </label>
-                    <textarea
-                      className="fi"
-                      rows={2}
-                      style={{ resize: 'none' }}
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Ex.: Válido até 10/2027, emitido nos EUA"
-                    />
+                    {/* Barra de progresso */}
+                    {uploading && (
+                      <div style={{ height: 3, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', background: typeInfo.color, width: `${progress}%`, transition: 'width .3s', borderRadius: 4 }} />
+                      </div>
+                    )}
+
+                    {/* Nome personalizado */}
+                    <div>
+                      <label className="fl">Nome personalizado <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opcional)</span></label>
+                      <input className="fi" value={label} onChange={(e) => setLabel(e.target.value)}
+                        placeholder={`Ex.: ${typeInfo.label} EUA`} />
+                    </div>
+                  </div>
+
+                  {/* Direita: campos do documento */}
+                  <div style={{ flex: 1, padding: '16px 18px 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {(DOC_FIELDS[typeInfo.id] ?? []).map((f) => (
+                      <div key={f.key}>
+                        <label className="fl">{f.label}</label>
+                        <input
+                          className="fi"
+                          type={f.type}
+                          value={docMeta[f.key] ?? ''}
+                          onChange={(e) => setDocMeta((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                        />
+                      </div>
+                    ))}
+
+                    {/* Notas */}
+                    <div style={{ marginTop: 'auto' }}>
+                      <label className="fl">Notas <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opcional)</span></label>
+                      <textarea className="fi" rows={3} style={{ resize: 'none' }}
+                        value={notes} onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Observações adicionais…" />
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
+                {/* Footer */}
+                <div style={{ padding: '12px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between' }}>
                   <button onClick={close} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Cancelar
                   </button>
-                  <button
-                    onClick={submit}
-                    disabled={!file || uploading}
-                    style={{
-                      padding: '6px 20px', borderRadius: 6, border: 'none',
-                      background: file && !uploading ? typeInfo.color : '#e2e8f0',
-                      color: '#fff', fontSize: 13, fontWeight: 600,
-                      cursor: file && !uploading ? 'pointer' : 'not-allowed',
-                      fontFamily: 'inherit', transition: 'background .15s',
-                    }}
-                  >
+                  <button onClick={submit} disabled={!file || uploading}
+                    style={{ padding: '6px 20px', borderRadius: 6, border: 'none', background: file && !uploading ? typeInfo.color : '#e2e8f0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: file && !uploading ? 'pointer' : 'not-allowed', fontFamily: 'inherit', transition: 'background .15s' }}>
                     {uploading ? 'Enviando…' : 'Enviar documento'}
                   </button>
                 </div>

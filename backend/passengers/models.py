@@ -138,6 +138,10 @@ class PassengerDocument(models.Model):
     original_name = models.CharField('Nome original', max_length=255)
     file_size     = models.PositiveIntegerField('Tamanho (bytes)', default=0)
     mime_type     = models.CharField('Tipo MIME', max_length=100, blank=True)
+    doc_number    = models.CharField('Número do documento', max_length=100, blank=True)
+    issued_date   = models.DateField('Data de emissão', null=True, blank=True)
+    expiry_date   = models.DateField('Validade', null=True, blank=True)
+    issued_by     = models.CharField('Emissor / Órgão', max_length=200, blank=True)
     notes         = models.TextField('Notas', blank=True)
     uploaded_at   = models.DateTimeField('Enviado em', auto_now_add=True)
 
