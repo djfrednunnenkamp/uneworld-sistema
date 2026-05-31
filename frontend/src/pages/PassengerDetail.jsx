@@ -14,6 +14,7 @@ import SeatPicker from '../components/SeatPicker'
 import CountryStatePicker from '../components/CountryStatePicker'
 import LanguagePicker from '../components/LanguagePicker'
 import DietPicker from '../components/DietPicker'
+import DatePicker from '../components/DatePicker'
 import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
 
 /* ── helpers ── */
@@ -519,11 +520,22 @@ export default function PassengerDetail() {
 
   const errStyle = { borderColor: '#dc2626', background: '#fef2f2' }
 
-  const fi = (k, placeholder, type = 'text') => (
-    <input className="fi" type={type} value={form[k] ?? ''} onChange={set(k)}
-      placeholder={placeholder || ''}
-      style={fieldErrors[k] ? errStyle : {}} />
-  )
+  const fi = (k, placeholder, type = 'text') => {
+    if (type === 'date') {
+      return (
+        <DatePicker
+          value={form[k] ?? ''}
+          onChange={(v) => { set(k)({ target: { value: v } }) }}
+          errStyle={fieldErrors[k] ? errStyle : undefined}
+        />
+      )
+    }
+    return (
+      <input className="fi" type={type} value={form[k] ?? ''} onChange={set(k)}
+        placeholder={placeholder || ''}
+        style={fieldErrors[k] ? errStyle : {}} />
+    )
+  }
 
   const fs = (k, children) => (
     <select className="fs" value={form[k] ?? ''} onChange={set(k)}

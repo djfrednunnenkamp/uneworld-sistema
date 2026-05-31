@@ -5,6 +5,7 @@ import { Ic } from './Icon'
 import CountryPicker from './CountryPicker'
 import BrazilCityPicker from './BrazilCityPicker'
 import CnhClassPicker from './CnhClassPicker'
+import DatePicker from './DatePicker'
 
 export const DOC_TYPES = [
   { id: 'passport',   label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
@@ -529,6 +530,10 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626', background: '#fef2f2' } : {}}>
                                 <CnhClassPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                               </div>
+                            ) : f.type === 'date' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                <DatePicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
                             ) : (
                               <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}
                                 onChange={(e) => setMeta(f.key, e.target.value)}
@@ -555,9 +560,9 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                                       {f.label}
                                       {f.required && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
                                     </label>
-                                    <input className="fi" type="date" value={docMeta[f.key] ?? ''}
-                                      onChange={(e) => setMeta(f.key, e.target.value)}
-                                      style={metaErrors[f.key] ? errStyle : {}} />
+                                    <div style={metaErrors[f.key] ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                      <DatePicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                                    </div>
                                   </div>
                                 ))}
                               </div>
