@@ -62,12 +62,19 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
             doc = PassengerDocument.objects.get(pk=pk)
         except PassengerDocument.DoesNotExist:
             raise Http404
-        if not doc.file or not os.path.isfile(doc.file.path):
+        try:
+            file_path = doc.file.path
+        except ValueError:
             raise Http404
+        if not os.path.isfile(file_path):
+            from rest_framework.response import Response as DRFResponse
+            return DRFResponse({'error': f'Arquivo não encontrado no servidor: {file_path}'},
+                               status=404)
+        filename = doc.original_name or os.path.basename(file_path)
         response = FileResponse(
-            open(doc.file.path, 'rb'),
+            open(file_path, 'rb'),
             as_attachment=True,
-            filename=doc.original_name,
+            filename=filename,
         )
         if doc.mime_type:
             response['Content-Type'] = doc.mime_type

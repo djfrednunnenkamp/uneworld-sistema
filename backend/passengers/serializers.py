@@ -50,9 +50,13 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = PassengerDocument
-        fields = ['id', 'doc_type', 'doc_type_label', 'label', 'display_name',
-                  'original_name', 'file_size', 'mime_type', 'notes',
-                  'uploaded_at', 'download_url']
+        fields = [
+            'id', 'doc_type', 'doc_type_label', 'label', 'display_name',
+            'doc_number', 'doc_model', 'doc_category',
+            'issued_date', 'expiry_date', 'issued_by',
+            'original_name', 'file_size', 'mime_type', 'notes',
+            'uploaded_at', 'download_url',
+        ]
         read_only_fields = ['original_name', 'file_size', 'mime_type', 'uploaded_at']
 
     def get_download_url(self, obj):
