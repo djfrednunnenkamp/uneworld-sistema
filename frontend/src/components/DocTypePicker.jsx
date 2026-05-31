@@ -27,10 +27,10 @@ const DOC_FIELDS = {
     { key: 'issued_by',   label: 'País emissor',           type: 'country' },
   ],
   rg: [
-    { key: 'doc_number',  label: 'Número do RG',       type: 'text' },
+    { key: 'doc_number',  label: 'Número do RG',       type: 'text',        modelFilter: 'antigo' },
     { key: 'issued_date', label: 'Data de expedição',   type: 'date' },
     { key: 'issued_by',   label: 'Local de expedição',  type: 'brazil_city' },
-    { key: 'expiry_date', label: 'Validade',             type: 'date', modelFilter: 'novo' },
+    { key: 'expiry_date', label: 'Validade',             type: 'date',        modelFilter: 'novo' },
   ],
   cnh: [
     { key: 'doc_number',  label: 'Número da CNH',         type: 'text' },
