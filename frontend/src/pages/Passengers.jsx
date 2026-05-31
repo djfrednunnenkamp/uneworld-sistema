@@ -77,16 +77,16 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
             <p
               onClick={() => copyToClipboard('Nome', passenger.full_name)}
               title="Clique para copiar o nome"
-              style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}
+              style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer'}}
             >
               {passenger.full_name}
-              <span style={{fontSize:11,fontWeight:600,color: copied==='Nome' ? '#059669' : '#cbd5e1',transition:'color .15s'}}>
-                {copied==='Nome' ? '✓ Copiado!' : 'copiar'}
-              </span>
             </p>
-            <span style={{marginTop:4,display:'inline-block'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
               <StatusBadge value={passenger.status} />
-            </span>
+              <span style={{fontSize:11,fontWeight:600,color: copied==='Nome' ? '#059669' : '#cbd5e1',transition:'color .15s'}}>
+                {copied==='Nome' ? '✓ Copiado!' : 'copiar nome'}
+              </span>
+            </div>
           </div>
           <button onClick={onClose}
             style={{width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',color:'#94a3b8',cursor:'pointer',flexShrink:0}}
