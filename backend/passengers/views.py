@@ -57,6 +57,24 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        """Serve o arquivo inline para exibição no navegador (thumbnail/preview)."""
+        try:
+            doc = PassengerDocument.objects.get(pk=pk)
+        except PassengerDocument.DoesNotExist:
+            raise Http404
+        try:
+            file_path = doc.file.path
+        except ValueError:
+            raise Http404
+        if not os.path.isfile(file_path):
+            raise Http404
+        response = FileResponse(open(file_path, 'rb'))
+        if doc.mime_type:
+            response['Content-Type'] = doc.mime_type
+        return response
+
+    @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
         import re
         try:

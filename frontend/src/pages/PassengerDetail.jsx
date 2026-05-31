@@ -298,9 +298,17 @@ function DocumentsTab({ passengerId, isNew }) {
                   onMouseEnter={e => e.currentTarget.style.background = '#f0f6ff'}
                   onMouseLeave={e => e.currentTarget.style.background = '#fafafa'}
                 >
-                  {/* Col 1 — Ícone + nome + badge */}
+                  {/* Col 1 — Thumbnail/ícone + nome + badge */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: '11px 14px', borderRight: '1px solid #f1f5f9' }}>
-                    <span style={{ fontSize: 20, flexShrink: 0 }}>{typeInfo.icon}</span>
+                    {doc.preview_url ? (
+                      <img
+                        src={doc.preview_url}
+                        alt={doc.display_name}
+                        style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 5, flexShrink: 0, border: '1px solid #e2e8f0' }}
+                        onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'block' }}
+                      />
+                    ) : null}
+                    <span style={{ fontSize: 20, flexShrink: 0, display: doc.preview_url ? 'none' : 'block' }}>{typeInfo.icon}</span>
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.display_name}</p>
                       <span style={{ padding: '1px 7px', borderRadius: 8, fontSize: 10.5, fontWeight: 600, background: `${typeInfo.color}15`, color: typeInfo.color }}>

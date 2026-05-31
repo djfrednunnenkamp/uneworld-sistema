@@ -45,6 +45,7 @@ class PassengerSerializer(serializers.ModelSerializer):
 
 class PassengerDocumentSerializer(serializers.ModelSerializer):
     download_url  = serializers.SerializerMethodField()
+    preview_url   = serializers.SerializerMethodField()
     doc_type_label = serializers.CharField(source='get_doc_type_display', read_only=True)
     display_name  = serializers.SerializerMethodField()
 
@@ -54,15 +55,20 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
             'id', 'doc_type', 'doc_type_label', 'label', 'display_name',
             'doc_number', 'doc_model', 'doc_category',
             'issued_date', 'expiry_date', 'issued_by',
-            'file',                                    # campo do arquivo — obrigatório para salvar
+            'file',
             'original_name', 'file_size', 'mime_type', 'notes',
-            'uploaded_at', 'download_url',
+            'uploaded_at', 'download_url', 'preview_url',
         ]
         read_only_fields = ['original_name', 'file_size', 'mime_type', 'uploaded_at']
         extra_kwargs = {'file': {'write_only': True}}  # não expõe o caminho do arquivo na API
 
     def get_download_url(self, obj):
         return f"/api/passengers/documents/{obj.id}/download/"
+
+    def get_preview_url(self, obj):
+        if obj.mime_type and obj.mime_type.startswith('image/'):
+            return f"/api/passengers/documents/{obj.id}/preview/"
+        return None
 
     def get_display_name(self, obj):
         return obj.label or obj.get_doc_type_display()
