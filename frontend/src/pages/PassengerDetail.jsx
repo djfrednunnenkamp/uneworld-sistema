@@ -63,6 +63,19 @@ function F({ label, children, col }) {
   )
 }
 
+/* ── Helpers para o card de documento ── */
+const lbl = { fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', margin:0, marginBottom:2 }
+function Cell({ label, value, width=100 }) {
+  return (
+    <div style={{ width, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
+      <p style={lbl}>{label}</p>
+      <p style={{ fontSize:12, color:value?'#1e293b':'#cbd5e1', margin:0, fontWeight:value?500:400, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+        {value || '—'}
+      </p>
+    </div>
+  )
+}
+
 /* ── FilterDropdown — dropdown estilizado para filtros ── */
 function FilterDropdown({ value, onChange, options, placeholder }) {
   const [open, setOpen] = useState(false)
@@ -323,64 +336,64 @@ function DocumentsTab({ passengerId, isNew }) {
               const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type) ?? DOC_TYPES[DOC_TYPES.length - 1]
               const expSt    = expiryStatus(doc.expiry_date)
               return (
-                <div key={doc.id} style={{ borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', overflow: 'hidden' }}>
-                  {/* ── Linha 1: imagem/ícone + nome + badge + ações ── */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid #f1f5f9' }}>
-                    {doc.preview_url ? (
-                      <img src={doc.preview_url} alt={doc.display_name}
-                        style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0, border: '1px solid #e2e8f0' }}
-                        onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='block' }} />
-                    ) : null}
-                    <span style={{ fontSize: 18, flexShrink: 0, display: doc.preview_url ? 'none' : 'block' }}>{typeInfo.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>{doc.display_name}</p>
-                    </div>
-                    <span style={{ padding: '2px 8px', borderRadius: 8, fontSize: 10.5, fontWeight: 600, background: `${typeInfo.color}15`, color: typeInfo.color, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      {doc.doc_type_label}
-                    </span>
-                    <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                      {[
-                        { fn: () => openEdit(doc),        title: 'Editar',  icon: 'edit',  hc: '#7c3aed' },
-                        { fn: () => handleDownload(doc),  title: 'Baixar',  icon: 'dl',    hc: '#2e6db4' },
-                        { fn: () => setConfirmDoc(doc),   title: 'Remover', icon: 'trash', hc: '#dc2626', danger: true, dis: deleting===doc.id },
-                      ].map(({fn,title,icon,hc,danger,dis}) => (
-                        <button key={title} onClick={fn} disabled={dis} title={title}
-                          style={{ width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer', transition:'all .12s', opacity:dis?.5:1 }}
-                          onMouseEnter={e=>{e.currentTarget.style.borderColor=hc;e.currentTarget.style.color=hc;if(danger)e.currentTarget.style.background='#fee2e2'}}
-                          onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#94a3b8';if(danger)e.currentTarget.style.background='#fff'}}>
-                          <Ic n={icon} s={11} />
-                        </button>
-                      ))}
+                {/* ── Card numa linha só ── */}
+                <div key={doc.id}
+                  style={{ display:'flex', alignItems:'center', gap:0, borderRadius:8, border:'1px solid #e2e8f0', background:'#fff', overflow:'hidden', transition:'background .1s' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}
+                >
+                  {/* Imagem / ícone + nome + badge */}
+                  <div style={{ display:'flex', alignItems:'center', gap:9, padding:'10px 12px', minWidth:0, width:200, flexShrink:0, borderRight:'1px solid #f1f5f9' }}>
+                    {doc.preview_url
+                      ? <img src={doc.preview_url} alt="" style={{ width:28,height:28,objectFit:'cover',borderRadius:4,flexShrink:0,border:'1px solid #e2e8f0' }} onError={e=>{e.currentTarget.style.display='none';e.currentTarget.nextSibling.style.display='block'}} />
+                      : null}
+                    <span style={{ fontSize:17, flexShrink:0, display:doc.preview_url?'none':'block' }}>{typeInfo.icon}</span>
+                    <div style={{ minWidth:0, flex:1 }}>
+                      <p style={{ fontSize:12.5, fontWeight:600, color:'#1e293b', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.display_name}</p>
+                      <span style={{ fontSize:10, fontWeight:700, color:typeInfo.color, opacity:.8 }}>{doc.doc_type_label}</span>
                     </div>
                   </div>
 
-                  {/* ── Linha 2: todas as informações em grid ── */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
-                    {[
-                      { label: 'Número',   value: doc.doc_number  || null },
-                      { label: 'Emissão',  value: fmt(doc.issued_date)  !== '—' ? fmt(doc.issued_date) : null },
-                      { label: 'Validade', value: expSt, isExpiry: true },
-                      { label: 'Emitido em', value: doc.issued_by || null },
-                    ].filter(f => f.isExpiry ? true : f.value).map(({ label, value, isExpiry }) => (
-                      <div key={label} style={{ padding: '7px 14px', borderRight: '1px solid #f8fafc', minWidth: 100 }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', margin: 0, marginBottom: 2 }}>{label}</p>
-                        {isExpiry ? (
-                          expSt
-                            ? <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11.5, fontWeight:600, background:expSt.bg, color:expSt.color }}>{expSt.label}</span>
-                            : <p style={{ fontSize:12, color:'#cbd5e1', margin:0 }}>Sem validade</p>
-                        ) : (
-                          <p style={{ fontSize:12.5, color:'#1e293b', margin:0, fontWeight:500 }}>{value}</p>
-                        )}
-                      </div>
-                    ))}
+                  {/* Número */}
+                  <Cell label="Número"   value={doc.doc_number} width={110} />
 
-                    {/* Observações — linha separada se houver */}
-                    {doc.notes && (
-                      <div style={{ padding: '7px 14px', width: '100%', borderTop: '1px solid #f8fafc' }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em', margin: 0, marginBottom: 2 }}>Observações</p>
-                        <p style={{ fontSize: 12.5, color: '#475569', margin: 0, fontStyle: 'italic' }}>{doc.notes}</p>
-                      </div>
-                    )}
+                  {/* Emissão */}
+                  <Cell label="Emissão"  value={fmt(doc.issued_date)} width={105} />
+
+                  {/* Validade */}
+                  <div style={{ width:120, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
+                    <p style={lbl}>Validade</p>
+                    {expSt
+                      ? <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11, fontWeight:700, background:expSt.bg, color:expSt.color }}>{expSt.label}</span>
+                      : <p style={{ fontSize:12, color:'#cbd5e1', margin:0 }}>—</p>
+                    }
+                  </div>
+
+                  {/* Emitido em */}
+                  <Cell label="Emitido em" value={doc.issued_by} width={130} />
+
+                  {/* Observações */}
+                  <div style={{ flex:1, minWidth:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
+                    <p style={lbl}>Observações</p>
+                    <p style={{ fontSize:12, color: doc.notes ? '#475569' : '#cbd5e1', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontStyle: doc.notes ? 'italic' : 'normal' }}>
+                      {doc.notes || '—'}
+                    </p>
+                  </div>
+
+                  {/* Ações */}
+                  <div style={{ display:'flex', gap:3, padding:'9px 10px', flexShrink:0 }}>
+                    {[
+                      { fn:()=>openEdit(doc),       title:'Editar',  icon:'edit',  hc:'#7c3aed' },
+                      { fn:()=>handleDownload(doc), title:'Baixar',  icon:'dl',    hc:'#2e6db4' },
+                      { fn:()=>setConfirmDoc(doc),  title:'Remover', icon:'trash', hc:'#dc2626', danger:true, dis:deleting===doc.id },
+                    ].map(({fn,title,icon,hc,danger,dis})=>(
+                      <button key={title} onClick={fn} disabled={dis} title={title}
+                        style={{ width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #e2e8f0',background:'#fff',color:'#94a3b8',cursor:'pointer',transition:'all .12s',opacity:dis?.5:1 }}
+                        onMouseEnter={e=>{e.currentTarget.style.borderColor=hc;e.currentTarget.style.color=hc;if(danger)e.currentTarget.style.background='#fee2e2'}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#94a3b8';if(danger)e.currentTarget.style.background='#fff'}}>
+                        <Ic n={icon} s={11}/>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )
