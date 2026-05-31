@@ -34,7 +34,7 @@ class Passenger(models.Model):
     # ── Dados básicos ──────────────────────────────────────────────
     first_name  = models.CharField('Primeiro nome', max_length=100, blank=True)
     last_name   = models.CharField('Sobrenome', max_length=100, blank=True)
-    full_name   = models.CharField('Nome completo', max_length=200)
+    full_name   = models.CharField('Nome completo', max_length=200, blank=True)
     email             = models.EmailField('E-mail', unique=True)
     email_emergency1  = models.EmailField('E-mail contato de emergência 1', blank=True)
     email_emergency2  = models.EmailField('E-mail contato de emergência 2', blank=True)
@@ -42,7 +42,7 @@ class Passenger(models.Model):
     other_languages   = models.TextField('Outras línguas', blank=True)
     birth_date  = models.DateField('Data de nascimento', null=True, blank=True)
     birth_place = models.CharField('Local de nascimento', max_length=200, blank=True)
-    nationality        = models.CharField('Nacionalidade principal', max_length=100, default='BRASILEIRA')
+    nationality        = models.CharField('Nacionalidade principal', max_length=100, default='BRASILEIRA', blank=True)
     other_nationalities= models.TextField('Outras nacionalidades', blank=True)
     gender      = models.CharField('Gênero', max_length=1, choices=GENDER_CHOICES, blank=True)
     profession  = models.CharField('Profissão', max_length=200, blank=True)
@@ -94,7 +94,7 @@ class Passenger(models.Model):
     neighborhood = models.CharField('Bairro', max_length=100, blank=True)
     city         = models.CharField('Cidade', max_length=100, blank=True)
     state        = models.CharField('Estado', max_length=2, choices=STATE_CHOICES, blank=True)
-    country      = models.CharField('País', max_length=100, default='Brasil')
+    country      = models.CharField('País', max_length=100, default='Brasil', blank=True)
 
     # ── Sistema ────────────────────────────────────────────────────
     status     = models.CharField('Status', max_length=10, choices=STATUS_CHOICES, default='active')
