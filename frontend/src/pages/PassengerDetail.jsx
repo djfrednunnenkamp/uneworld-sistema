@@ -17,6 +17,7 @@ import DietPicker from '../components/DietPicker'
 import DatePicker from '../components/DatePicker'
 import CountryPicker from '../components/CountryPicker'
 import BrazilCityPicker from '../components/BrazilCityPicker'
+import CnhClassPicker from '../components/CnhClassPicker'
 import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
 
 /* ── helpers ── */
@@ -65,13 +66,18 @@ function F({ label, children, col }) {
 
 /* ── Helpers para o card de documento ── */
 const lbl = { fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', margin:0, marginBottom:2 }
-function Cell({ label, value, width=100 }) {
+function Cell({ label, value, width=100, sub, subColor }) {
   return (
     <div style={{ width, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
       <p style={lbl}>{label}</p>
       <p style={{ fontSize:12, color:value?'#1e293b':'#cbd5e1', margin:0, fontWeight:value?500:400, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
         {value || '—'}
       </p>
+      {sub && (
+        <span style={{ display:'inline-block', marginTop:2, padding:'1px 6px', borderRadius:5, fontSize:10.5, fontWeight:700, background:'#eff6ff', color: subColor || '#2e6db4' }}>
+          {sub}
+        </span>
+      )}
     </div>
   )
 }
@@ -193,12 +199,13 @@ function DocumentsTab({ passengerId, isNew }) {
   const openEdit = (doc) => {
     setEditDoc(doc)
     setEditForm({
-      label:       doc.label        ?? '',
-      doc_number:  doc.doc_number   ?? '',
-      issued_date: doc.issued_date  ?? '',
-      expiry_date: doc.expiry_date  ?? '',
-      issued_by:   doc.issued_by    ?? '',
-      notes:       doc.notes        ?? '',
+      label:        doc.label        ?? '',
+      doc_number:   doc.doc_number   ?? '',
+      doc_category: doc.doc_category ?? '',
+      issued_date:  doc.issued_date  ?? '',
+      expiry_date:  doc.expiry_date  ?? '',
+      issued_by:    doc.issued_by    ?? '',
+      notes:        doc.notes        ?? '',
     })
   }
 
@@ -370,8 +377,9 @@ function DocumentsTab({ passengerId, isNew }) {
                     </div>
                   </div>
 
-                  {/* Número */}
-                  <Cell label="Número"   value={doc.doc_number} width={110} />
+                  {/* Número (+categoria para CNH) */}
+                  <Cell label="Número" value={doc.doc_number} width={110}
+                    sub={doc.doc_type==='cnh' && doc.doc_category ? `Cat. ${doc.doc_category}` : undefined} />
 
                   {/* Emissão */}
                   <Cell label="Emissão"  value={fmt(doc.issued_date)} width={135} />
@@ -502,6 +510,14 @@ function DocumentsTab({ passengerId, isNew }) {
                 <div>
                   <label className="fl">Número do documento</label>
                   <input className="fi" value={editForm.doc_number} onChange={e=>setEditForm(f=>({...f,doc_number:e.target.value}))} />
+                </div>
+              )}
+
+              {/* Categoria — só para CNH */}
+              {editDoc.doc_type === 'cnh' && (
+                <div>
+                  <label className="fl">Categoria / Classe</label>
+                  <CnhClassPicker value={editForm.doc_category} onChange={v=>setEditForm(f=>({...f,doc_category:v}))} />
                 </div>
               )}
 
