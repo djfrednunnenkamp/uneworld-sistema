@@ -73,6 +73,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const [docMeta,   setDocMeta]  = useState({})
   const [rgModel,   setRgModel]  = useState('novo')
   const [metaErrors, setMetaErrors] = useState({})
+  const [fileError,  setFileError]  = useState(false)
   const [file,       setFile]      = useState(null)
   const [previewUrl, setPreviewUrl]= useState(null)
   const [lightbox,   setLightbox]  = useState(false)
@@ -92,7 +93,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
 
   const reset = () => {
     setStep('type'); setSelType(null); setLabel('')
-    setNotes(''); setDocMeta({}); setRgModel('novo'); setMetaErrors({});
+    setNotes(''); setDocMeta({}); setRgModel('novo'); setMetaErrors({}); setFileError(false);
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setFile(null); setPreviewUrl(null)
     setLightbox(false); setZoom(1); setProgress(0); setUploading(false); setSearch('')
@@ -129,6 +130,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
     }
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setFile(f)
+    setFileError(false)
     setZoom(1)
     setPreviewUrl(f.type.startsWith('image/') ? URL.createObjectURL(f) : null)
   }
@@ -185,16 +187,9 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
     const hasFileError   = !file
 
     if (hasFieldErrors) setMetaErrors(errs)
+    if (hasFileError)   setFileError(true)
 
-    if (hasFileError && hasFieldErrors) {
-      toast.error('Selecione um arquivo e preencha os campos obrigatórios.')
-      return
-    }
-    if (hasFileError) {
-      toast.error('Selecione um arquivo para continuar.')
-      return
-    }
-    if (hasFieldErrors) {
+    if (hasFileError || hasFieldErrors) {
       toast.error('Preencha os campos obrigatórios marcados em vermelho.')
       return
     }
@@ -379,9 +374,14 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                       onDrop={onDrop}
                       onClick={() => fileRef.current?.click()}
                       style={{
-                        border: `2px dashed ${dragging ? typeInfo.color : file ? typeInfo.color : '#e2e8f0'}`,
+                        border: `2px dashed ${
+                          dragging ? typeInfo.color
+                          : file    ? typeInfo.color
+                          : fileError ? '#dc2626'
+                          : '#e2e8f0'
+                        }`,
                         borderRadius: 10, padding: '24px 14px', textAlign: 'center',
-                        background: dragging ? `${typeInfo.color}08` : file ? `${typeInfo.color}06` : '#fafafa',
+                        background: dragging ? `${typeInfo.color}08` : file ? `${typeInfo.color}06` : fileError ? '#fef2f2' : '#fafafa',
                         cursor: 'pointer', transition: 'all .15s', flex: 1,
                       }}
                     >
