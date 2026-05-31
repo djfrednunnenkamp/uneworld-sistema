@@ -23,6 +23,8 @@ import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
 /* ── helpers ── */
 const EMPTY = {
   first_name:'', last_name:'', full_name:'',
+  parent1_first_name:'', parent1_last_name:'', parent1_birth_date:'',
+  parent2_first_name:'', parent2_last_name:'', parent2_birth_date:'',
   email:'', email_emergency1:'', email_emergency2:'',
   native_language:'', other_languages:'',
   birth_date:'', birth_place:'', nationality:'', other_nationalities:'',
@@ -768,7 +770,7 @@ export default function PassengerDetail() {
   }
 
   /* Save */
-  const DATE_FIELDS = ['birth_date','rg_issue_date','passport_issue','passport_expiry','rne_expiry','rne_issue']
+  const DATE_FIELDS = ['birth_date','rg_issue_date','passport_issue','passport_expiry','rne_expiry','rne_issue','parent1_birth_date','parent2_birth_date']
 
   const save = async () => {
     // Validação local — marca campos em vermelho
@@ -1012,6 +1014,41 @@ export default function PassengerDetail() {
               <F label="Telefone">{fi('phone1', '+55 (00) 00000-0000')}</F>
               <F label="Contato de emergência 1">{fi('phone2', '+55 (00) 00000-0000')}</F>
               <F label="Contato de emergência 2">{fi('mobile', '+55 (00) 00000-0000')}</F>
+            </div>
+          </div>
+
+          {/* ── Pais / Responsáveis ── */}
+          <div className="section">
+            <div className="section-title">Pais / Responsáveis</div>
+
+            {/* Pai/Mãe 1 */}
+            <div style={{ marginBottom: 10 }}>
+              <p className="fl" style={{ fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Pai / Mãe 1</p>
+              <div className="grid3">
+                <F label="Primeiro nome">{fi('parent1_first_name', 'Primeiro nome')}</F>
+                <F label="Sobrenome">{fi('parent1_last_name', 'Sobrenome')}</F>
+                <F label="Data de nascimento">
+                  <DatePicker
+                    value={form.parent1_birth_date}
+                    onChange={(v) => { set('parent1_birth_date')({ target: { value: v } }) }}
+                  />
+                </F>
+              </div>
+            </div>
+
+            {/* Pai/Mãe 2 */}
+            <div>
+              <p className="fl" style={{ fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Pai / Mãe 2</p>
+              <div className="grid3">
+                <F label="Primeiro nome">{fi('parent2_first_name', 'Primeiro nome')}</F>
+                <F label="Sobrenome">{fi('parent2_last_name', 'Sobrenome')}</F>
+                <F label="Data de nascimento">
+                  <DatePicker
+                    value={form.parent2_birth_date}
+                    onChange={(v) => { set('parent2_birth_date')({ target: { value: v } }) }}
+                  />
+                </F>
+              </div>
             </div>
           </div>
 
