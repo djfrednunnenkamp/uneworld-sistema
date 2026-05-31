@@ -167,7 +167,8 @@ function DocumentsTab({ passengerId, isNew }) {
   const [notesDoc,   setNotesDoc]   = useState(null)
   const [notesText,  setNotesText]  = useState('')
   const [notesSaving,setNotesSaving]= useState(false)
-  const [viewDoc,    setViewDoc]    = useState(null)   // popup de detalhes do documento
+  const [viewDoc,    setViewDoc]    = useState(null)
+  const [docTab,     setDocTab]     = useState('current')  // 'current' | 'expired'
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
@@ -262,16 +263,24 @@ function DocumentsTab({ passengerId, isNew }) {
     return null  // válido por mais de 90 dias — só mostra a data, sem badge
   }
 
-  /* Filtros */
-  const filtered = docs.filter(doc => {
+  /* Separa documentos atuais dos vencidos */
+  const today = new Date(); today.setHours(0,0,0,0)
+  const isExpired = (doc) => doc.expiry_date && new Date(doc.expiry_date + 'T00:00:00') < today
+
+  const currentDocs = docs.filter(d => !isExpired(d))
+  const expiredDocs = docs.filter(d =>  isExpired(d))
+  const activeDocs  = docTab === 'expired' ? expiredDocs : currentDocs
+
+  /* Filtros dentro da aba ativa */
+  const filtered = activeDocs.filter(doc => {
     const matchSearch = !search ||
       doc.display_name?.toLowerCase().includes(search.toLowerCase()) ||
       doc.doc_type_label?.toLowerCase().includes(search.toLowerCase())
     const matchType = typeFilter === 'all' || doc.doc_type === typeFilter
     const status    = expiryStatus(doc.expiry_date)
     const matchExpiry = expiryFilter === 'all'
-      || (expiryFilter === 'expired'  && doc.expiry_date && new Date(doc.expiry_date+'T00:00:00') < new Date())
-      || (expiryFilter === 'soon'     && status && status.label !== 'Vencido' && doc.expiry_date && Math.round((new Date(doc.expiry_date + 'T00:00:00') - new Date()) / 86400000) <= 90)
+      || (expiryFilter === 'expired'  && isExpired(doc))
+      || (expiryFilter === 'soon'     && status && doc.expiry_date && Math.round((new Date(doc.expiry_date + 'T00:00:00') - today) / 86400000) <= 90)
       || (expiryFilter === 'none'     && !doc.expiry_date)
     return matchSearch && matchType && matchExpiry
   })
@@ -286,8 +295,33 @@ function DocumentsTab({ passengerId, isNew }) {
       <div className="section">
 
         {/* Header */}
-        <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <span>Documentos {docs.length > 0 && <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>({docs.length})</span>}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { id: 'current', label: 'Documentos atuais',  count: currentDocs.length },
+              { id: 'expired', label: 'Vencidos',           count: expiredDocs.length },
+            ].map(t => (
+              <button key={t.id} type="button" onClick={() => { setDocTab(t.id); setSearch(''); setTypeFilter('all'); setExpiryFilter('all') }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 12px', borderRadius: 6, border: 'none',
+                  background: docTab === t.id ? (t.id === 'expired' ? '#fee2e2' : '#eff6ff') : 'transparent',
+                  color: docTab === t.id ? (t.id === 'expired' ? '#dc2626' : '#2e6db4') : '#64748b',
+                  fontSize: 13, fontWeight: docTab === t.id ? 600 : 400,
+                  cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s',
+                }}
+              >
+                {t.label}
+                {t.count > 0 && (
+                  <span style={{
+                    padding: '1px 6px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    background: docTab === t.id ? (t.id === 'expired' ? '#dc2626' : '#2e6db4') : '#e2e8f0',
+                    color: docTab === t.id ? '#fff' : '#64748b',
+                  }}>{t.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
           {!isNew && <DocTypePicker passengerId={passengerId} onUploaded={load} />}
           {isNew && (
             <span style={{ fontSize: 12, color: '#94a3b8', padding: '4px 10px', borderRadius: 6, border: '1px dashed #e2e8f0', background: '#fafafa' }}>
