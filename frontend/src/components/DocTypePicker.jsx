@@ -26,9 +26,10 @@ const DOC_FIELDS = {
     { key: 'issued_by',   label: 'País emissor',           type: 'country' },
   ],
   rg: [
-    { key: 'doc_number',  label: 'Número do RG',          type: 'text' },
-    { key: 'issued_date', label: 'Data de expedição',     type: 'date' },
-    { key: 'issued_by',   label: 'Órgão expedidor',       type: 'text' },
+    { key: 'doc_number',  label: 'Número do RG',    type: 'text' },
+    { key: 'issued_date', label: 'Data de expedição', type: 'date' },
+    { key: 'issued_by',   label: 'Órgão expedidor',  type: 'text' },
+    { key: 'expiry_date', label: 'Validade',          type: 'date', modelFilter: 'novo' },
   ],
   cnh: [
     { key: 'doc_number',  label: 'Número da CNH',         type: 'text' },
@@ -65,7 +66,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const searchRef   = useRef(null)
   const [label,     setLabel]    = useState('')
   const [notes,     setNotes]    = useState('')
-  const [docMeta,   setDocMeta]  = useState({})  // doc_number, issued_date, expiry_date, issued_by
+  const [docMeta,   setDocMeta]  = useState({})
+  const [rgModel,   setRgModel]  = useState('novo')  // 'novo' | 'antigo'
   const [file,       setFile]      = useState(null)
   const [previewUrl, setPreviewUrl]= useState(null)
   const [lightbox,   setLightbox]  = useState(false)
@@ -85,7 +87,9 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
 
   const reset = () => {
     setStep('type'); setSelType(null); setLabel('')
-    setNotes(''); setDocMeta({}); setFile(null); setPreviewUrl(null)
+    setNotes(''); setDocMeta({}); setRgModel('novo');
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setFile(null); setPreviewUrl(null)
     setLightbox(false); setZoom(1); setProgress(0); setUploading(false); setSearch('')
   }
 
@@ -125,6 +129,19 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   }
 
   const isImage = file?.type?.startsWith('image/')
+
+  /* Atualiza docMeta; auto-preenche validade do RG antigo (+10 anos) */
+  const setMeta = (key, value) => {
+    setDocMeta((prev) => {
+      const next = { ...prev, [key]: value }
+      if (typeInfo?.id === 'rg' && rgModel === 'antigo' && key === 'issued_date' && value) {
+        const d = new Date(value)
+        d.setFullYear(d.getFullYear() + 10)
+        next.expiry_date = d.toISOString().split('T')[0]
+      }
+      return next
+    })
+  }
 
   /* Zoom no ponto do cursor */
   const handleImgMouseMove = (e) => {
@@ -400,24 +417,66 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
 
                   {/* Direita: campos do documento */}
                   <div style={{ flex: 1, padding: '16px 18px 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {(DOC_FIELDS[typeInfo.id] ?? []).map((f) => (
-                      <div key={f.key}>
-                        <label className="fl">{f.label}</label>
-                        {f.type === 'country' ? (
-                          <CountryPicker
-                            value={docMeta[f.key] ?? ''}
-                            onChange={(v) => setDocMeta((prev) => ({ ...prev, [f.key]: v }))}
-                          />
-                        ) : (
-                          <input
-                            className="fi"
-                            type={f.type}
-                            value={docMeta[f.key] ?? ''}
-                            onChange={(e) => setDocMeta((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                          />
+                    {/* Seletor modelo novo/antigo — só para RG */}
+                    {typeInfo.id === 'rg' && (
+                      <div style={{ marginBottom: 4 }}>
+                        <label className="fl">Modelo do documento</label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {[
+                            { val: 'novo',   label: 'Modelo novo' },
+                            { val: 'antigo', label: 'Modelo antigo' },
+                          ].map(({ val, label }) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => {
+                                setRgModel(val)
+                                // limpa validade ao trocar de modelo
+                                setDocMeta(prev => ({ ...prev, expiry_date: '' }))
+                              }}
+                              style={{
+                                flex: 1, padding: '6px 10px', borderRadius: 6,
+                                border: `1.5px solid ${rgModel === val ? '#2e6db4' : '#e2e8f0'}`,
+                                background: rgModel === val ? '#eff6ff' : '#fff',
+                                color: rgModel === val ? '#2e6db4' : '#475569',
+                                fontSize: 12.5, fontWeight: rgModel === val ? 600 : 400,
+                                cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s',
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {rgModel === 'antigo' && (
+                          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>
+                            Validade calculada automaticamente (10 anos da emissão)
+                          </p>
                         )}
                       </div>
-                    ))}
+                    )}
+
+                    {/* Campos dinâmicos */}
+                    {(DOC_FIELDS[typeInfo.id] ?? [])
+                      .filter(f => !f.modelFilter || f.modelFilter === rgModel)
+                      .map((f) => (
+                        <div key={f.key}>
+                          <label className="fl">{f.label}</label>
+                          {f.type === 'country' ? (
+                            <CountryPicker
+                              value={docMeta[f.key] ?? ''}
+                              onChange={(v) => setMeta(f.key, v)}
+                            />
+                          ) : (
+                            <input
+                              className="fi"
+                              type={f.type}
+                              value={docMeta[f.key] ?? ''}
+                              onChange={(e) => setMeta(f.key, e.target.value)}
+                            />
+                          )}
+                        </div>
+                      ))
+                    }
 
                     {/* Notas */}
                     <div style={{ marginTop: 'auto' }}>
