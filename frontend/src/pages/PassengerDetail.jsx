@@ -242,7 +242,7 @@ function DocumentsTab({ passengerId, isNew }) {
     ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—'
 
-  /* Calcula status de validade */
+  /* Calcula badge de alerta de validade (só retorna badge, não a data em si) */
   const expiryStatus = (expiryDate) => {
     if (!expiryDate) return null
     const today = new Date(); today.setHours(0,0,0,0)
@@ -251,7 +251,7 @@ function DocumentsTab({ passengerId, isNew }) {
     if (days < 0)   return { label: 'Vencido',           color: '#dc2626', bg: '#fee2e2' }
     if (days <= 30) return { label: `Vence em ${days}d`, color: '#d97706', bg: '#fef3c7' }
     if (days <= 90) return { label: `Vence em ${days}d`, color: '#2563eb', bg: '#dbeafe' }
-    return { label: fmt(expiryDate), color: '#64748b', bg: '#f1f5f9' }
+    return null  // válido por mais de 90 dias — só mostra a data, sem badge
   }
 
   /* Filtros */
@@ -262,7 +262,7 @@ function DocumentsTab({ passengerId, isNew }) {
     const matchType = typeFilter === 'all' || doc.doc_type === typeFilter
     const status    = expiryStatus(doc.expiry_date)
     const matchExpiry = expiryFilter === 'all'
-      || (expiryFilter === 'expired'  && status?.label === 'Vencido')
+      || (expiryFilter === 'expired'  && doc.expiry_date && new Date(doc.expiry_date+'T00:00:00') < new Date())
       || (expiryFilter === 'soon'     && status && status.label !== 'Vencido' && doc.expiry_date && Math.round((new Date(doc.expiry_date + 'T00:00:00') - new Date()) / 86400000) <= 90)
       || (expiryFilter === 'none'     && !doc.expiry_date)
     return matchSearch && matchType && matchExpiry
@@ -376,13 +376,23 @@ function DocumentsTab({ passengerId, isNew }) {
                   {/* Emissão */}
                   <Cell label="Emissão"  value={fmt(doc.issued_date)} width={135} />
 
-                  {/* Validade */}
-                  <div style={{ width:120, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
+                  {/* Validade — data + badge de alerta */}
+                  <div style={{ width:155, flexShrink:0, padding:'9px 10px', borderRight:'1px solid #f1f5f9' }}>
                     <p style={lbl}>Validade</p>
-                    {expSt
-                      ? <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11, fontWeight:700, background:expSt.bg, color:expSt.color }}>{expSt.label}</span>
-                      : <p style={{ fontSize:12, color:'#cbd5e1', margin:0 }}>—</p>
-                    }
+                    {doc.expiry_date ? (
+                      <div>
+                        <p style={{ fontSize:12.5, color:'#1e293b', margin:0, fontWeight:500 }}>
+                          {fmt(doc.expiry_date)}
+                        </p>
+                        {expSt && (
+                          <span style={{ display:'inline-block', marginTop:2, padding:'1px 6px', borderRadius:6, fontSize:10.5, fontWeight:700, background:expSt.bg, color:expSt.color }}>
+                            {expSt.label}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize:12, color:'#cbd5e1', margin:0 }}>Sem validade</p>
+                    )}
                   </div>
 
                   {/* Emitido em */}
