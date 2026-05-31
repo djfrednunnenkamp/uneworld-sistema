@@ -861,7 +861,7 @@ export default function PassengerDetail() {
       <div className="det-header">
         <div>
           <h1 className="det-title">
-            {isNew ? 'Novo Passageiro' : (form.first_name || form.last_name ? `${form.first_name} ${form.last_name}`.trim() : form.full_name || 'Passageiro')}
+            {`${form.first_name} ${form.last_name}`.trim() || (isNew ? 'Novo Passageiro' : form.full_name || 'Passageiro')}
           </h1>
           {!isNew && <p className="det-subtitle">editar</p>}
         </div>
