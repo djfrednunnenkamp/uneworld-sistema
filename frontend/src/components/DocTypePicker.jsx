@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { documentsApi } from '../api'
 import { Ic } from './Icon'
@@ -65,16 +65,25 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const [label,     setLabel]    = useState('')
   const [notes,     setNotes]    = useState('')
   const [docMeta,   setDocMeta]  = useState({})  // doc_number, issued_date, expiry_date, issued_by
-  const [file,      setFile]     = useState(null)
-  const [dragging,  setDragging] = useState(false)
-  const [progress,  setProgress] = useState(0)
-  const [uploading, setUploading]= useState(false)
+  const [file,       setFile]      = useState(null)
+  const [previewUrl, setPreviewUrl]= useState(null)
+  const [lightbox,   setLightbox]  = useState(false)
+  const [zoom,       setZoom]      = useState(1)
+  const [dragging,   setDragging]  = useState(false)
+  const [progress,   setProgress]  = useState(0)
+  const [uploading,  setUploading] = useState(false)
+
+  /* Libera URL de preview ao trocar arquivo ou fechar */
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }
+  }, [previewUrl])
   const fileRef   = useRef(null)
   const overlayRef= useRef(null)
 
   const reset = () => {
     setStep('type'); setSelType(null); setLabel('')
-    setNotes(''); setDocMeta({}); setFile(null); setProgress(0); setUploading(false); setSearch('')
+    setNotes(''); setDocMeta({}); setFile(null); setPreviewUrl(null)
+    setLightbox(false); setZoom(1); setProgress(0); setUploading(false); setSearch('')
   }
 
   // Lista filtrada pela busca (excluindo "Outro" — aparece como botão no header)
@@ -99,7 +108,17 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
     if (f.size > MAX_SIZE_MB * 1024 * 1024) {
       toast.error(`Arquivo muito grande (máx. ${MAX_SIZE_MB} MB).`); return
     }
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
     setFile(f)
+    setZoom(1)
+    setPreviewUrl(f.type.startsWith('image/') ? URL.createObjectURL(f) : null)
+  }
+
+  const isImage = file?.type?.startsWith('image/')
+
+  const handleWheel = (e) => {
+    e.preventDefault()
+    setZoom(z => Math.min(5, Math.max(1, z + (e.deltaY < 0 ? 0.2 : -0.2))))
   }
 
   const onDrop = (e) => {
@@ -295,9 +314,39 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                     >
                       <input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }}
                         onChange={(e) => handleFile(e.target.files[0])} />
-                      {file ? (
+                      {file && isImage && previewUrl ? (
+                        /* Preview da imagem — clica para abrir lightbox */
+                        <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 140 }}>
+                          <img
+                            src={previewUrl}
+                            alt="preview"
+                            onClick={(e) => { e.stopPropagation(); setLightbox(true) }}
+                            style={{
+                              width: '100%', height: '100%', minHeight: 140,
+                              objectFit: 'contain', borderRadius: 6,
+                              cursor: 'zoom-in', display: 'block',
+                            }}
+                          />
+                          <div style={{
+                            position: 'absolute', bottom: 4, right: 4,
+                            background: 'rgba(0,0,0,.45)', borderRadius: 4,
+                            padding: '2px 7px', fontSize: 11, color: '#fff',
+                          }}>
+                            🔍 clique para ampliar
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
+                            style={{
+                              position: 'absolute', top: 4, right: 4,
+                              background: 'rgba(0,0,0,.45)', border: 'none', borderRadius: 4,
+                              color: '#fff', fontSize: 11, padding: '2px 7px', cursor: 'pointer',
+                            }}
+                          >↺ trocar</button>
+                        </div>
+                      ) : file ? (
+                        /* PDF ou arquivo sem preview */
                         <>
-                          <div style={{ fontSize: 26, marginBottom: 6 }}>{file.type === 'application/pdf' ? '📄' : '🖼️'}</div>
+                          <div style={{ fontSize: 26, marginBottom: 6 }}>📄</div>
                           <p style={{ fontSize: 12.5, fontWeight: 600, color: typeInfo.color, margin: 0, wordBreak: 'break-all' }}>{file.name}</p>
                           <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{(file.size / 1024).toFixed(0)} KB · clique para trocar</p>
                         </>
@@ -364,6 +413,65 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Lightbox de zoom ── */}
+      {lightbox && previewUrl && (
+        <div
+          onClick={() => setLightbox(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 600,
+            background: 'rgba(0,0,0,.88)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out',
+          }}
+        >
+          {/* Botão fechar */}
+          <button
+            onClick={() => setLightbox(false)}
+            style={{
+              position: 'absolute', top: 18, right: 22,
+              background: 'rgba(255,255,255,.15)', border: 'none', borderRadius: 6,
+              color: '#fff', fontSize: 20, width: 36, height: 36, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >✕</button>
+
+          {/* Controles de zoom */}
+          <div style={{
+            position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'rgba(0,0,0,.5)', borderRadius: 20, padding: '6px 14px',
+          }}>
+            <button onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(1, z - 0.25)) }}
+              style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>−</button>
+            <span style={{ color: '#fff', fontSize: 13, minWidth: 40, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+            <button onClick={(e) => { e.stopPropagation(); setZoom(z => Math.min(5, z + 0.25)) }}
+              style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>+</button>
+            <button onClick={(e) => { e.stopPropagation(); setZoom(1) }}
+              style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 4 }}>Reset</button>
+          </div>
+
+          {/* Imagem com zoom */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onWheel={handleWheel}
+            style={{ overflow: 'auto', maxWidth: '90vw', maxHeight: '85vh', cursor: zoom > 1 ? 'grab' : 'default' }}
+          >
+            <img
+              src={previewUrl}
+              alt="documento"
+              style={{
+                display: 'block',
+                transform: `scale(${zoom})`,
+                transformOrigin: 'top left',
+                width: `${100 / zoom}%`,
+                transition: 'transform .15s',
+                borderRadius: 4,
+              }}
+            />
           </div>
         </div>
       )}
