@@ -71,7 +71,14 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
         return None
 
     def get_display_name(self, obj):
-        return obj.label or obj.get_doc_type_display()
+        # Nome personalizado tem prioridade
+        if obj.label:
+            return obj.label
+        base = obj.get_doc_type_display()
+        # Para tipos com emissor/país, adiciona " — {issued_by}"
+        if obj.issued_by:
+            return f"{base} — {obj.issued_by}"
+        return base
 
     def validate(self, attrs):
         request = self.context.get('request')
