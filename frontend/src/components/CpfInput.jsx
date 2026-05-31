@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 /* Aplica máscara XXX.XXX.XXX-XX */
 function mask(raw) {
@@ -26,19 +26,35 @@ function validateCpf(cpf) {
  * CpfInput — campo CPF com máscara e validação
  * Props: value (string), onChange (v: string) => void
  */
+function cursorPosForDigits(masked, digitCount) {
+  let count = 0
+  for (let i = 0; i < masked.length; i++) {
+    if (count >= digitCount) return i
+    if (/\d/.test(masked[i])) count++
+  }
+  return masked.length
+}
+
 export default function CpfInput({ value, onChange }) {
-  const [status, setStatus] = useState('idle')  // 'idle' | 'valid' | 'invalid'
+  const [status, setStatus] = useState('idle')
+  const inputRef = useRef(null)
 
   const handleChange = (e) => {
-    const masked = mask(e.target.value)
+    const el = e.target
+    const digitsBefore = el.value.slice(0, el.selectionStart).replace(/\D/g, '').length
+
+    const masked = mask(el.value)
     onChange(masked)
-    // Valida em tempo real quando completo
+
     const digits = masked.replace(/\D/g, '')
-    if (digits.length === 11) {
-      setStatus(validateCpf(masked) ? 'valid' : 'invalid')
-    } else {
-      setStatus('idle')
-    }
+    setStatus(digits.length === 11 ? (validateCpf(masked) ? 'valid' : 'invalid') : 'idle')
+
+    requestAnimationFrame(() => {
+      const inp = inputRef.current
+      if (!inp) return
+      const pos = cursorPosForDigits(masked, digitsBefore)
+      inp.setSelectionRange(pos, pos)
+    })
   }
 
   const handleBlur = () => {
@@ -65,7 +81,8 @@ export default function CpfInput({ value, onChange }) {
         onBlur={handleBlur}
         placeholder="000.000.000-00"
         maxLength={14}
-        style={{ borderColor, background: bg, paddingRight: status !== 'idle' ? 28 : undefined }}
+        ref={inputRef}
+      style={{ borderColor, background: bg, paddingRight: status !== 'idle' ? 28 : undefined }}
       />
       {/* Ícone de feedback */}
       {status !== 'idle' && (
