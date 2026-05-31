@@ -34,11 +34,11 @@ const DOC_FIELDS = {
     { key: 'expiry_date', label: 'Validade',             type: 'date',        modelFilter: 'novo' },
   ],
   cnh: [
-    { key: 'doc_number',   label: 'Número da CNH',      type: 'text' },
-    { key: 'doc_category', label: 'Categoria / Classe',  type: 'cnh_class' },
-    { key: 'issued_date',  label: 'Data de emissão',     type: 'date' },
-    { key: 'expiry_date',  label: 'Validade',             type: 'date' },
-    { key: 'issued_by',    label: 'Local de expedição',  type: 'brazil_city' },
+    { key: 'doc_number',   label: 'Número da CNH',      type: 'text',       required: true },
+    { key: 'doc_category', label: 'Categoria / Classe',  type: 'cnh_class',  required: true },
+    { key: 'issued_date',  label: 'Data de emissão',     type: 'date',       required: true },
+    { key: 'expiry_date',  label: 'Validade',             type: 'date',       required: true },
+    { key: 'issued_by',    label: 'Local de expedição',  type: 'brazil_city', required: true },
   ],
   visa: [
     { key: 'doc_number',  label: 'Número do visto',       type: 'text' },
@@ -71,7 +71,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const [label,     setLabel]    = useState('')
   const [notes,     setNotes]    = useState('')
   const [docMeta,   setDocMeta]  = useState({})
-  const [rgModel,   setRgModel]  = useState('novo')  // 'novo' | 'antigo'
+  const [rgModel,   setRgModel]  = useState('novo')
+  const [metaErrors, setMetaErrors] = useState({})
   const [file,       setFile]      = useState(null)
   const [previewUrl, setPreviewUrl]= useState(null)
   const [lightbox,   setLightbox]  = useState(false)
@@ -91,7 +92,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
 
   const reset = () => {
     setStep('type'); setSelType(null); setLabel('')
-    setNotes(''); setDocMeta({}); setRgModel('novo');
+    setNotes(''); setDocMeta({}); setRgModel('novo'); setMetaErrors({});
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setFile(null); setPreviewUrl(null)
     setLightbox(false); setZoom(1); setProgress(0); setUploading(false); setSearch('')
@@ -145,7 +146,10 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
       }
       return next
     })
+    if (metaErrors[key]) setMetaErrors(prev => { const n = {...prev}; delete n[key]; return n })
   }
+
+  const errStyle = { borderColor: '#dc2626', background: '#fef2f2' }
 
   /* Zoom no ponto do cursor */
   const handleImgMouseMove = (e) => {
@@ -170,6 +174,20 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
 
   const submit = async () => {
     if (!file) { toast.error('Selecione um arquivo.'); return }
+
+    // Valida campos obrigatórios do tipo de documento
+    const requiredFields = (DOC_FIELDS[typeInfo?.id] ?? [])
+      .filter(f => f.required && (!f.modelFilter || f.modelFilter === rgModel))
+    const errs = {}
+    requiredFields.forEach(f => {
+      if (!docMeta[f.key]?.trim?.() && !docMeta[f.key]) errs[f.key] = true
+    })
+    if (Object.keys(errs).length) {
+      setMetaErrors(errs)
+      toast.error('Preencha os campos obrigatórios marcados em vermelho.')
+      return
+    }
+    setMetaErrors({})
     setUploading(true); setProgress(10)
     try {
       const fd = new FormData()
@@ -472,21 +490,38 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                       const dateFields = isRgNovo ? fields.filter(f => dateKeys.includes(f.key)) : []
                       const otherFields = isRgNovo ? fields.filter(f => !dateKeys.includes(f.key)) : fields
 
-                      const renderField = (f) => (
-                        <div key={f.key}>
-                          <label className="fl">{f.label}</label>
-                          {f.type === 'country' ? (
-                            <CountryPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
-                          ) : f.type === 'brazil_city' ? (
-                            <BrazilCityPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
-                          ) : f.type === 'cnh_class' ? (
-                            <CnhClassPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
-                          ) : (
-                            <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}
-                              onChange={(e) => setMeta(f.key, e.target.value)} />
-                          )}
-                        </div>
-                      )
+                      const renderField = (f) => {
+                        const hasErr = !!metaErrors[f.key]
+                        const redStyle = hasErr ? errStyle : {}
+                        const lbl = (
+                          <label className="fl">
+                            {f.label}
+                            {f.required && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
+                          </label>
+                        )
+                        return (
+                          <div key={f.key}>
+                            {lbl}
+                            {f.type === 'country' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626', background: '#fef2f2' } : {}}>
+                                <CountryPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : f.type === 'brazil_city' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626', background: '#fef2f2' } : {}}>
+                                <BrazilCityPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : f.type === 'cnh_class' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626', background: '#fef2f2' } : {}}>
+                                <CnhClassPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : (
+                              <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}
+                                onChange={(e) => setMeta(f.key, e.target.value)}
+                                style={redStyle} />
+                            )}
+                          </div>
+                        )
+                      }
 
                       return (
                         <>
