@@ -11,6 +11,8 @@ router.register('cities',       views.CityViewSet,       basename='city')
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('geo/export/', views.geo_export, name='geo-export'),
-    path('geo/import/', views.geo_import, name='geo-import'),
+    path('geo/export/',  views.geo_export,        name='geo-export'),
+    path('geo/import/',  views.geo_import,         name='geo-import'),
+    path('geo/analyze/', views.geo_analyze,        name='geo-analyze'),
+    path('geo/action/',  views.geo_import_action,  name='geo-action'),
 ]

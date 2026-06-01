@@ -13,6 +13,168 @@ from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def geo_analyze(request):
+    """
+    Analisa linhas do CSV sem gravar nada.
+    Input:  { rows: [{pais, estado, cidade}, ...] }
+    Output: { rows: [{...row, status: 'new'|'exists'|'error', msg?}, ...] }
+    """
+    rows = request.data.get('rows', [])
+    if not rows:
+        return Response({'rows': []})
+
+    # Carrega sets de existentes para comparação rápida
+    existing_countries = set(ConfigCountry.objects.values_list('name', flat=True))
+
+    # Para estados: {(country_name, state_name)}
+    existing_states = set(
+        ConfigState.objects.select_related('country')
+        .values_list('country__name', 'name')
+    )
+
+    # Para cidades: {(state__country__name, state__name, city__name)}
+    existing_cities = set(
+        ConfigCity.objects.select_related('state__country')
+        .values_list('state__country__name', 'state__name', 'name')
+    )
+
+    result = []
+    for row in rows:
+        pais   = (row.get('pais')   or '').strip()
+        estado = (row.get('estado') or '').strip()
+        cidade = (row.get('cidade') or '').strip()
+
+        if not pais:
+            result.append({**row, 'status': 'error', 'msg': 'País em branco'})
+            continue
+
+        if cidade:
+            if not estado:
+                result.append({**row, 'status': 'error', 'msg': 'Cidade sem estado'})
+            elif (pais, estado, cidade) in existing_cities:
+                result.append({**row, 'status': 'exists'})
+            else:
+                result.append({**row, 'status': 'new'})
+        elif estado:
+            if (pais, estado) in existing_states:
+                result.append({**row, 'status': 'exists'})
+            else:
+                result.append({**row, 'status': 'new'})
+        else:
+            if pais in existing_countries:
+                result.append({**row, 'status': 'exists'})
+            else:
+                result.append({**row, 'status': 'new'})
+
+    return Response({'rows': result})
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def geo_import_action(request):
+    """
+    Executa a importação com um modo específico.
+    mode=merge   → adiciona novos, mantém existentes
+    mode=replace → adiciona novos + apaga do banco o que NÃO está no CSV
+    mode=delete  → apaga do banco tudo que está no CSV
+    Input: { mode, rows: [{pais, estado, cidade}, ...] }
+    """
+    mode = request.data.get('mode', 'merge')
+    rows = request.data.get('rows', [])
+
+    counts  = {'countries': 0, 'states': 0, 'cities': 0}
+    deleted = {'countries': 0, 'states': 0, 'cities': 0}
+
+    country_cache = {}
+    state_cache   = {}
+
+    # Conjuntos das linhas do CSV (para mode=replace)
+    csv_countries = set()
+    csv_states    = set()
+    csv_cities    = set()
+
+    for row in rows:
+        pais   = (row.get('pais')   or '').strip()
+        estado = (row.get('estado') or '').strip()
+        cidade = (row.get('cidade') or '').strip()
+        if not pais:
+            continue
+
+        csv_countries.add(pais)
+        if estado:
+            csv_states.add((pais, estado))
+        if estado and cidade:
+            csv_cities.add((pais, estado, cidade))
+
+        if mode == 'delete':
+            continue  # só mapeia, apaga depois
+
+        # País
+        if pais not in country_cache:
+            obj, created = ConfigCountry.objects.get_or_create(name=pais)
+            if created:
+                counts['countries'] += 1
+            country_cache[pais] = obj
+
+        if not estado:
+            continue
+
+        country = country_cache[pais]
+        state_key = (pais, estado)
+        if state_key not in state_cache:
+            obj, created = ConfigState.objects.get_or_create(country=country, name=estado)
+            if created:
+                counts['states'] += 1
+            state_cache[state_key] = obj
+
+        if not cidade:
+            continue
+
+        state = state_cache[state_key]
+        _, created = ConfigCity.objects.get_or_create(state=state, name=cidade)
+        if created:
+            counts['cities'] += 1
+
+    # ── Apagar ──────────────────────────────────────────
+    if mode == 'delete':
+        for (pais, estado, cidade) in csv_cities:
+            try:
+                country = ConfigCountry.objects.get(name=pais)
+                state   = ConfigState.objects.get(country=country, name=estado)
+                deleted['cities'] += ConfigCity.objects.filter(state=state, name=cidade).delete()[0]
+            except Exception:
+                pass
+        for (pais, estado) in csv_states - {(p, s) for p, s, _ in csv_cities}:
+            try:
+                country = ConfigCountry.objects.get(name=pais)
+                deleted['states'] += ConfigState.objects.filter(country=country, name=estado).delete()[0]
+            except Exception:
+                pass
+
+    elif mode == 'replace':
+        # Apaga cidades não presentes no CSV
+        for city in ConfigCity.objects.select_related('state__country').all():
+            key = (city.state.country.name, city.state.name, city.name)
+            if key not in csv_cities:
+                city.delete()
+                deleted['cities'] += 1
+        # Apaga estados não presentes no CSV
+        for state in ConfigState.objects.select_related('country').all():
+            key = (state.country.name, state.name)
+            if key not in csv_states:
+                state.delete()
+                deleted['states'] += 1
+        # Apaga países não presentes no CSV
+        for country in ConfigCountry.objects.all():
+            if country.name not in csv_countries:
+                country.delete()
+                deleted['countries'] += 1
+
+    return Response({'created': counts, 'deleted': deleted})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def geo_export(request):

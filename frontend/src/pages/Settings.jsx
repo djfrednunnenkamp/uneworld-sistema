@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 
@@ -188,23 +189,14 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename }) {
 }
 
 /* ── Barra de CSV global da aba Países & Estados ── */
-function GeoCsvBar({ onDone }) {
-  const fileRef = useRef(null)
-  const [importing, setImporting] = useState(false)
+function GeoCsvBar() {
+  const navigate   = useNavigate()
   const [exporting, setExporting] = useState(false)
 
   const doExport = async () => {
     setExporting(true)
     await handleGeoExport()
     setExporting(false)
-  }
-
-  const doImport = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return
-    e.target.value = ''
-    setImporting(true)
-    await handleGeoImport(file, onDone)
-    setImporting(false)
   }
 
   return (
@@ -216,12 +208,10 @@ function GeoCsvBar({ onDone }) {
         style={{ ...btnCsv('#059669'), opacity: exporting ? .6 : 1 }}>
         ⬇ {exporting ? 'Exportando…' : 'Exportar tudo'}
       </button>
-      <button onClick={() => fileRef.current?.click()} disabled={importing}
-        style={{ ...btnCsv('#2e6db4'), opacity: importing ? .6 : 1 }}>
-        ⬆ {importing ? 'Importando…' : 'Importar CSV'}
+      <button onClick={() => navigate('/configuracoes/geo-import')}
+        style={btnCsv('#2e6db4')}>
+        ⬆ Importar CSV
       </button>
-      <input ref={fileRef} type="file" accept=".csv,text/csv"
-        style={{ display: 'none' }} onChange={doImport} />
     </div>
   )
 }
@@ -339,7 +329,7 @@ function CountriesTab() {
 
   return (
     <>
-    <GeoCsvBar onDone={loadCountries} />
+    <GeoCsvBar />
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
       {/* ── Países ── */}
       <Col title="Países" count={countries.length}

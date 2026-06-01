@@ -89,8 +89,10 @@ export const configApi = {
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),
   // CSV global (países + estados + cidades)
-  geoExport: () => api.get('/config/geo/export/', { responseType: 'blob' }),
-  geoImport: (formData) => api.post('/config/geo/import/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  geoExport:  () => api.get('/config/geo/export/', { responseType: 'blob' }),
+  geoImport:  (formData) => api.post('/config/geo/import/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  geoAnalyze: (rows) => api.post('/config/geo/analyze/', { rows }),
+  geoAction:  (mode, rows) => api.post('/config/geo/action/', { mode, rows }),
 }
 
 export const usersApi = {
