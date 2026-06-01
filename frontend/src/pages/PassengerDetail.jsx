@@ -792,8 +792,12 @@ export default function PassengerDetail() {
     if (!form.gender)          errs.gender     = true
     if (!form.birth_date)      errs.birth_date = true
     if (!form.phone1?.trim())  errs.phone1     = true
-    if (!form.street?.trim())  errs.street     = true
-    if (!form.city?.trim())    errs.city       = true
+    if (!form.street?.trim())        errs.street       = true
+    if (!form.city?.trim())          errs.city         = true
+    if (!form.cep?.replace(/\D/g,'')) errs.cep         = true
+    if (!form.number?.trim())        errs.number       = true
+    if (!form.neighborhood?.trim())  errs.neighborhood = true
+    if (!form.country?.trim())       errs.country      = true
     if (Object.keys(errs).length) {
       setFieldErrors(errs)
       // Navega para a aba de informações se não estiver nela
@@ -1125,11 +1129,12 @@ export default function PassengerDetail() {
           <div className="section">
             <div className="section-title">Endereço</div>
             <div className="grid3">
-              <F label="CEP">
+              <F label="CEP *">
                 <div className="cep-wrap">
                   <input
                     className="fi" value={form.cep ?? ''} onChange={set('cep')}
                     placeholder="00000-000"
+                    style={fieldErrors.cep ? errStyle : {}}
                     onKeyDown={(e) => e.key === 'Enter' && lookupCep()}
                   />
                   <button className="cep-btn" onClick={lookupCep} disabled={cepLoading} title="Buscar CEP">
@@ -1138,21 +1143,24 @@ export default function PassengerDetail() {
                 </div>
               </F>
               <F label="Endereço *">{fi('street', 'Rua, Av…')}</F>
-              <F label="Número">{fi('number', '0')}</F>
+              <F label="Número *">{fi('number', '0')}</F>
             </div>
             <div className="grid3">
               <F label="Complemento">{fi('complement', 'Apto, Sala…')}</F>
-              <F label="Bairro">{fi('neighborhood', '')}</F>
+              <F label="Bairro *">{fi('neighborhood', '')}</F>
               <F label="Cidade *">{fi('city', '')}</F>
             </div>
             <div className="grid3">
-              <F label="País / Estado">
-                <CountryStatePicker
-                  country={form.country}
-                  state={form.state}
-                  onChangeCountry={(v) => { setForm((f) => ({ ...f, country: v })); markDirty() }}
-                  onChangeState={(v)   => { setForm((f) => ({ ...f, state: v })); markDirty() }}
-                />
+              <F label="País / Estado *">
+                <div style={fieldErrors.country ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
+                  <CountryStatePicker
+                    country={form.country}
+                    state={form.state}
+                    onChangeCountry={(v) => { setForm((f) => ({ ...f, country: v })); markDirty() }}
+                    onChangeState={(v)   => { setForm((f) => ({ ...f, state: v })); markDirty() }}
+                  />
+                </div>
+                {fieldErrors.country && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>País obrigatório</p>}
               </F>
             </div>
           </div>
