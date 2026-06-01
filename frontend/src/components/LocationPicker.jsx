@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import axios from 'axios'
 import { configApi } from '../api'
-
-const IBGE = 'https://servicodados.ibge.gov.br/api/v1/localidades'
-const CNOW = 'https://countriesnow.space/api/v0.1/countries'
 
 const cache = {}
 async function cached(key, fetcher) {
@@ -68,7 +64,7 @@ export default function LocationPicker({ value, onChange }) {
     try {
       const data = await cached(`states_loc_${country.id}`, async () => {
         const r = await configApi.states(country.id)
-        return r.data.map(s => ({ name: s.name, code: s.code }))
+        return r.data.map(s => ({ id: s.id, name: s.name, code: s.code }))
       })
       setStates(data)
       if (data.length === 0) {
@@ -82,19 +78,10 @@ export default function LocationPicker({ value, onChange }) {
     setSelState(state)
     setSearch(''); setStep('city'); setLoading(true)
     try {
-      let data
-      if (selCountry.code === 'BR') {
-        const stateCode = state.code || state.name
-        data = await cached(`BR_cities_${stateCode}`, () =>
-          axios.get(`${IBGE}/estados/${stateCode}/municipios?orderBy=nome`)
-            .then((r) => r.data.map((c) => c.nome))
-        )
-      } else {
-        data = await cached(`cities_${selCountry.name_en}_${state.name}`, () =>
-          axios.post(`${CNOW}/state/cities`, { country: selCountry.name_en, state: state.name })
-            .then((r) => (r.data.data ?? []).sort())
-        )
-      }
+      const data = await cached(`cities_${state.id}`, async () => {
+        const r = await configApi.cities(state.id)
+        return r.data.map(c => c.name)
+      })
       setCities(data)
       if (data.length === 0) {
         onChange([state.name, selCountry.name_pt].join(', '))

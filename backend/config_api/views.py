@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import serializers
-from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState
+from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState, ConfigCity
 
 
 class ProfessionSerializer(serializers.ModelSerializer):
@@ -130,6 +130,24 @@ class CountryViewSet(viewsets.ModelViewSet):
             if was_created:
                 created += 1
         return Response({'total': ConfigCountry.objects.count(), 'created': created})
+
+
+class CitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigCity
+        fields = ['id', 'name']
+
+
+class CityViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = CitySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        state_id = self.request.query_params.get('state_id')
+        if state_id:
+            return ConfigCity.objects.filter(state_id=state_id)
+        return ConfigCity.objects.none()
 
 
 class StateViewSet(viewsets.ModelViewSet):

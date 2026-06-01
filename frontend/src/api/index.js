@@ -84,6 +84,8 @@ export const configApi = {
   addState:          (country_id, name, code) => api.post('/config/states/', { country_id, name, code }),
   delState:          (id)   => api.delete(`/config/states/${id}/`),
   importStates:      (country_id) => api.post('/config/states/import/', { country_id }),
+  // Cidades
+  cities:            (state_id) => api.get('/config/cities/', { params: { state_id } }),
 }
 
 export const usersApi = {

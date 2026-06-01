@@ -47,3 +47,16 @@ class ConfigState(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.country.name})'
+
+
+class ConfigCity(models.Model):
+    state = models.ForeignKey(ConfigState, on_delete=models.CASCADE, related_name='cities')
+    name  = models.CharField('Nome', max_length=150)
+
+    class Meta:
+        ordering = ['name']
+        unique_together = [('state', 'name')]
+        verbose_name = 'Cidade'
+
+    def __str__(self):
+        return f'{self.name} ({self.state.name})'

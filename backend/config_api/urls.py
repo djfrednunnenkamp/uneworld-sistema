@@ -7,5 +7,6 @@ router.register('professions',  views.ProfessionViewSet, basename='profession')
 router.register('languages',    views.LanguageViewSet,   basename='language')
 router.register('countries',    views.CountryViewSet,    basename='country')
 router.register('states',       views.StateViewSet,      basename='state')
+router.register('cities',       views.CityViewSet,       basename='city')
 
 urlpatterns = [path('', include(router.urls))]
