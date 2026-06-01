@@ -54,6 +54,7 @@ export default function GenderPicker({ value, customValue, onChange }) {
   const handleChange = (e) => { setQuery(e.target.value); setOpen(true) }
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') { setOpen(false); inputRef.current?.blur() }
+    if (e.key === 'Enter' && filtered.length > 0) { e.preventDefault(); select(filtered[0].val) }
   }
 
   return (
