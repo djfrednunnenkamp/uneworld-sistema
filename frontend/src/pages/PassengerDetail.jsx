@@ -171,6 +171,36 @@ function FilterDropdown({ value, onChange, options, placeholder }) {
   )
 }
 
+/* ── CopyRow — linha clicável para copiar no popup de documento ── */
+function CopyRow({ label, value, extra }) {
+  const [copied, setCopied] = useState(false)
+  if (!value && !extra) return null
+  const copy = () => {
+    if (!value) return
+    navigator.clipboard.writeText(String(value)).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div style={{ display:'flex', gap:12, padding:'8px 0', borderBottom:'1px solid #f8fafc' }}>
+      <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:130, flexShrink:0 }}>{label}</span>
+      <span
+        onClick={copy}
+        title={value ? 'Clique para copiar' : undefined}
+        style={{ fontSize:13, color:'#1e293b', flex:1, cursor:value?'pointer':'default', display:'inline-flex', alignItems:'center', gap:8, flexWrap:'wrap' }}
+      >
+        {value ?? '—'}
+        {extra}
+        {copied && (
+          <span style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#d1fae5', padding:'1px 7px', borderRadius:20, flexShrink:0 }}>
+            ✓ Copiado
+          </span>
+        )}
+      </span>
+    </div>
+  )
+}
+
 /* ── Documents tab ── */
 function DocumentsTab({ passengerId, isNew }) {
   const [docs,       setDocs]       = useState([])
@@ -505,31 +535,7 @@ function DocumentsTab({ passengerId, isNew }) {
           return null
         })() : null
 
-        const Row = ({ label, value }) => {
-          const [copied, setCopied] = useState(false)
-          if (!value) return null
-          const copy = () => {
-            navigator.clipboard.writeText(String(value)).catch(() => {})
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-          }
-          return (
-            <div style={{ display:'flex', gap:12, padding:'8px 0', borderBottom:'1px solid #f8fafc' }}>
-              <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:130, flexShrink:0 }}>{label}</span>
-              <span
-                onClick={copy}
-                title="Clique para copiar"
-                style={{ fontSize:13, color:'#1e293b', flex:1, cursor:'pointer', position:'relative', display:'inline-flex', alignItems:'center', gap:8 }}
-              >
-                {value}
-                {copied
-                  ? <span style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#d1fae5', padding:'1px 7px', borderRadius:20, flexShrink:0 }}>✓ Copiado</span>
-                  : <span style={{ fontSize:11, color:'#cbd5e1', opacity:0, transition:'opacity .12s' }} className="copy-hint">📋</span>
-                }
-              </span>
-            </div>
-          )
-        }
+        // CopyRow definido fora do componente para respeitar regras dos hooks
 
         return (
           <div onClick={(e)=>{if(e.target===e.currentTarget)setViewDoc(null)}}
@@ -551,31 +557,17 @@ function DocumentsTab({ passengerId, isNew }) {
 
               {/* Corpo — todos os campos */}
               <div style={{padding:'14px 20px'}}>
-                <Row label="Número do documento" value={viewDoc.doc_number} />
+                <CopyRow label="Número do documento" value={viewDoc.doc_number} />
                 {viewDoc.doc_type === 'cnh' && viewDoc.doc_category && (
-                  <div style={{display:'flex',gap:12,padding:'8px 0',borderBottom:'1px solid #f8fafc'}}>
-                    <span style={{fontSize:12,fontWeight:700,color:'#94a3b8',minWidth:130,flexShrink:0}}>Categoria</span>
-                    <span style={{fontSize:13,color:'#1e293b'}}>Categoria {viewDoc.doc_category}</span>
-                  </div>
+                  <CopyRow label="Categoria" value={`Categoria ${viewDoc.doc_category}`} />
                 )}
-                <Row label="Data de emissão"     value={fmt(viewDoc.issued_date)} />
-                {(() => {
-                  const [copiedExp, setCopiedExp] = useState(false)
-                  const expVal = viewDoc.expiry_date ? fmt(viewDoc.expiry_date) : null
-                  return (
-                    <div style={{display:'flex',gap:12,padding:'8px 0',borderBottom:'1px solid #f8fafc'}}>
-                      <span style={{fontSize:12,fontWeight:700,color:'#94a3b8',minWidth:130,flexShrink:0}}>Vencimento</span>
-                      <span
-                        onClick={() => { if (expVal) { navigator.clipboard.writeText(expVal).catch(()=>{}); setCopiedExp(true); setTimeout(()=>setCopiedExp(false),1500) } }}
-                        style={{fontSize:13,color:'#1e293b',display:'flex',alignItems:'center',gap:8,cursor:expVal?'pointer':'default'}}>
-                        {expVal ?? '—'}
-                        {exp && <span style={{padding:'2px 7px',borderRadius:7,fontSize:11,fontWeight:700,background:exp.bg,color:exp.color}}>{exp.label}</span>}
-                        {copiedExp && <span style={{fontSize:11,fontWeight:700,color:'#059669',background:'#d1fae5',padding:'1px 7px',borderRadius:20,flexShrink:0}}>✓ Copiado</span>}
-                      </span>
-                    </div>
-                  )
-                })()}
-                <Row label="Local / País emissor" value={viewDoc.issued_by} />
+                <CopyRow label="Data de emissão"     value={fmt(viewDoc.issued_date)} />
+                <CopyRow
+                  label="Vencimento"
+                  value={viewDoc.expiry_date ? fmt(viewDoc.expiry_date) : null}
+                  extra={exp && <span style={{padding:'2px 7px',borderRadius:7,fontSize:11,fontWeight:700,background:exp.bg,color:exp.color}}>{exp.label}</span>}
+                />
+                <CopyRow label="Local / País emissor" value={viewDoc.issued_by} />
                 {viewDoc.notes && (
                   <div style={{padding:'8px 0'}}>
                     <span style={{fontSize:12,fontWeight:700,color:'#94a3b8',display:'block',marginBottom:4}}>Observações</span>
