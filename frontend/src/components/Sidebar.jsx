@@ -10,6 +10,7 @@ const NAV_BASE = [
   { id: '/reunioes',   icon: 'calendar', label: 'Reuniões',    group: 'GESTÃO', adminOnly: false },
   { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA',adminOnly: true  },
   { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA',adminOnly: true  },
+  { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA',adminOnly: true  },
 ]
 
 export default function Sidebar() {

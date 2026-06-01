@@ -63,6 +63,10 @@ export const authApi = {
     api.post('/users/me/change-password/', { current_password, new_password }),
 }
 
+export const auditApi = {
+  list: (params) => api.get('/audit/logs/', { params }),
+}
+
 export const configApi = {
   // Profissões
   professions:       ()     => api.get('/config/professions/'),

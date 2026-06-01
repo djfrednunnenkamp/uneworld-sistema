@@ -14,6 +14,7 @@ import Meetings        from './pages/Meetings'
 import Users           from './pages/Users'
 import Settings        from './pages/Settings'
 import GeoImport       from './pages/GeoImport'
+import AuditLog        from './pages/AuditLog'
 import FlatImport      from './pages/FlatImport'
 
 /* Protege rotas — redireciona para /login se não autenticado */
@@ -47,6 +48,7 @@ function AppRoutes() {
         <Route path="usuarios"            element={<Users           />} />
         <Route path="configuracoes"        element={<Settings        />} />
         <Route path="configuracoes/geo-import"   element={<GeoImport   />} />
+        <Route path="log"                        element={<AuditLog    />} />
         <Route path="configuracoes/import"      element={<FlatImport  />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
