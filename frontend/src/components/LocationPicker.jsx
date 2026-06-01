@@ -152,6 +152,12 @@ export default function LocationPicker({ value, onChange }) {
           onKeyDown={(e) => {
             if (e.key === 'Escape') { setOpen(false) }
             if (e.key === 'Backspace' && !search && step !== 'country') back()
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              if (step === 'country' && listCountries.length > 0) pickCountry(listCountries[0])
+              else if (step === 'state'   && listStates.length   > 0) pickState(listStates[0])
+              else if (step === 'city'    && listCities.length   > 0) pickCity(listCities[0])
+            }
           }}
           placeholder="Digite para buscar…"
           style={{ paddingRight: value && !open ? 28 : undefined }}

@@ -59,7 +59,10 @@ function LangCombo({ value, exclude, placeholder, onSelect, onClear }) {
           value={open ? query : (value || '')}
           onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => { setQuery(''); setOpen(true) }}
-          onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setOpen(false)
+            if (e.key === 'Enter' && filtered.length > 0) { e.preventDefault(); select(filtered[0]) }
+          }}
           placeholder={placeholder}
           style={{ paddingRight: value ? 28 : undefined }}
         />
