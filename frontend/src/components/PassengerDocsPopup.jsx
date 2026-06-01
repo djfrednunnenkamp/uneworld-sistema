@@ -1,4 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+
+/* ── Campo clicável para copiar ── */
+function CopyField({ label, value, badge }) {
+  const [copied, setCopied] = useState(false)
+  if (!value && !badge) return null
+  const copy = () => {
+    if (!value) return
+    navigator.clipboard.writeText(String(value)).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div style={{ display:'flex', gap:12, padding:'7px 0', borderBottom:'1px solid #f8fafc' }}>
+      <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:120, flexShrink:0 }}>{label}</span>
+      <span
+        onClick={copy}
+        title={value ? 'Clique para copiar' : undefined}
+        style={{ fontSize:13, color:'#1e293b', display:'inline-flex', alignItems:'center', gap:8, cursor:value?'pointer':'default', flex:1, flexWrap:'wrap' }}
+      >
+        {value ?? '—'}
+        {badge && <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11, fontWeight:700, background:badge.bg, color:badge.color }}>{badge.label}</span>}
+        {copied && <span style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#d1fae5', padding:'1px 7px', borderRadius:20, flexShrink:0 }}>✓ Copiado</span>}
+      </span>
+    </div>
+  )
+}
 import { documentsApi, configApi } from '../api'
 
 const DOC_FALLBACK = [
@@ -31,14 +57,6 @@ function expBadge(dateStr) {
 /* ── Popup de detalhe de um documento ── */
 function DocDetail({ doc, typeInfo, onClose, onDownload, downloading }) {
   const exp = expBadge(doc.expiry_date)
-  const fields = [
-    { label: 'Número',          value: doc.doc_number },
-    { label: 'Data de emissão', value: fmt(doc.issued_date) },
-    { label: 'Vencimento',      value: fmt(doc.expiry_date), badge: exp },
-    { label: 'Emissor / Local', value: doc.issued_by },
-    { label: 'Notas',           value: doc.notes },
-  ].filter(f => f.value)
-
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.35)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -55,21 +73,13 @@ function DocDetail({ doc, typeInfo, onClose, onDownload, downloading }) {
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:20, lineHeight:1 }}>×</button>
         </div>
 
-        {/* Campos */}
+        {/* Campos — clicáveis para copiar */}
         <div style={{ padding:'12px 18px' }}>
-          {fields.map(f => (
-            <div key={f.label} style={{ display:'flex', gap:12, padding:'7px 0', borderBottom:'1px solid #f8fafc' }}>
-              <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:120, flexShrink:0 }}>{f.label}</span>
-              <span style={{ fontSize:13, color:'#1e293b', display:'flex', alignItems:'center', gap:8 }}>
-                {f.value}
-                {f.badge && (
-                  <span style={{ padding:'2px 7px', borderRadius:7, fontSize:11, fontWeight:700, background:f.badge.bg, color:f.badge.color }}>
-                    {f.badge.label}
-                  </span>
-                )}
-              </span>
-            </div>
-          ))}
+          <CopyField label="Número"          value={doc.doc_number} />
+          <CopyField label="Data de emissão" value={fmt(doc.issued_date)} />
+          <CopyField label="Vencimento"      value={fmt(doc.expiry_date)} badge={exp} />
+          <CopyField label="Emissor / Local" value={doc.issued_by} />
+          <CopyField label="Notas"           value={doc.notes} />
         </div>
 
         {/* Rodapé */}
