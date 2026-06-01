@@ -63,6 +63,29 @@ export const authApi = {
     api.post('/users/me/change-password/', { current_password, new_password }),
 }
 
+export const configApi = {
+  // Profissões
+  professions:       ()     => api.get('/config/professions/'),
+  addProfession:     (name) => api.post('/config/professions/', { name }),
+  delProfession:     (id)   => api.delete(`/config/professions/${id}/`),
+  importProfessions: ()     => api.post('/config/professions/import/'),
+  // Idiomas
+  languages:         ()     => api.get('/config/languages/'),
+  addLanguage:       (name) => api.post('/config/languages/', { name }),
+  delLanguage:       (id)   => api.delete(`/config/languages/${id}/`),
+  importLanguages:   ()     => api.post('/config/languages/import/'),
+  // Países
+  countries:         ()     => api.get('/config/countries/'),
+  addCountry:        (name, code) => api.post('/config/countries/', { name, code }),
+  delCountry:        (id)   => api.delete(`/config/countries/${id}/`),
+  importCountries:   ()     => api.post('/config/countries/import/'),
+  // Estados
+  states:            (country_id) => api.get('/config/states/', { params: { country_id } }),
+  addState:          (country_id, name, code) => api.post('/config/states/', { country_id, name, code }),
+  delState:          (id)   => api.delete(`/config/states/${id}/`),
+  importStates:      (country_id) => api.post('/config/states/import/', { country_id }),
+}
+
 export const usersApi = {
   list:           ()       => api.get('/users/'),
   create:         (data)   => api.post('/users/create/', data),

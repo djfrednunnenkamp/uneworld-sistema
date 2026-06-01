@@ -12,6 +12,7 @@ import Agencies        from './pages/Agencies'
 import Trips           from './pages/Trips'
 import Meetings        from './pages/Meetings'
 import Users           from './pages/Users'
+import Settings        from './pages/Settings'
 
 /* Protege rotas — redireciona para /login se não autenticado */
 function ProtectedRoute({ children }) {
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="viagens"             element={<Trips           />} />
         <Route path="reunioes"            element={<Meetings        />} />
         <Route path="usuarios"            element={<Users           />} />
+        <Route path="configuracoes"       element={<Settings        />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

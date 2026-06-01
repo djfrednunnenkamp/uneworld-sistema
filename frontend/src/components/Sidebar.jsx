@@ -8,7 +8,8 @@ const NAV_BASE = [
   { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', adminOnly: false },
   { id: '/viagens',    icon: 'plane',    label: 'Viagens',     group: 'GESTÃO', adminOnly: false },
   { id: '/reunioes',   icon: 'calendar', label: 'Reuniões',    group: 'GESTÃO', adminOnly: false },
-  { id: '/usuarios',   icon: 'users',    label: 'Usuários',    group: 'SISTEMA',adminOnly: true  },
+  { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA',adminOnly: true  },
+  { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA',adminOnly: true  },
 ]
 
 export default function Sidebar() {

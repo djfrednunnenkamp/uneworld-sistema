@@ -1,20 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { configApi } from '../api'
 
-const LANGUAGES = [
-  'Afrikaans','Albanês','Alemão','Amárico','Árabe','Aramaico','Armênio',
-  'Azerbaijano','Basco','Bengalês','Bielorrusso','Birmanês','Bósnio',
-  'Búlgaro','Catalão','Cazaque','Chinês (Cantonês)','Chinês (Mandarim)',
-  'Cingalês','Coreano','Croata','Curdo','Dinamarquês','Eslovaco','Esloveno',
-  'Espanhol','Estoniano','Filipino','Finlandês','Francês','Galego',
-  'Georgiano','Grego','Gujarati','Hausa','Hebraico','Hindi','Holandês',
-  'Húngaro','Igbo','Indonésio','Inglês','Islandês','Italiano','Japonês',
-  'Javanês','Khmer','Laociano','Letão','Lituano','Macedônio','Malaio',
-  'Malaiala','Maltês','Maori','Marata','Mongol','Nepalês','Norueguês',
-  'Persa','Polonês','Português','Português (Portugal)','Romeno','Russo',
-  'Sérvio','Somali','Sueco','Suaíli','Tagalo','Tailandês','Tâmil',
-  'Tcheco','Télugu','Turco','Ucraniano','Urdu','Uzbeque','Vietnamita',
-  'Xhosa','Iorubá','Zulu',
-].sort((a, b) => a.localeCompare(b, 'pt'))
+let cachedLanguages = null
 
 const drop = {
   position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0,
@@ -23,7 +10,7 @@ const drop = {
   maxHeight: 200, overflowY: 'auto',
 }
 
-function LangCombo({ value, exclude, placeholder, onSelect, onClear }) {
+function LangCombo({ value, exclude, placeholder, onSelect, onClear, languages }) {
   const [query,       setQuery]       = useState('')
   const [open,        setOpen]        = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
@@ -46,11 +33,11 @@ function LangCombo({ value, exclude, placeholder, onSelect, onClear }) {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
-    return LANGUAGES.filter(l =>
+    return languages.filter(l =>
       !exclude.includes(l) &&
       (!q || l.toLowerCase().includes(q))
     ).slice(0, 60)
-  }, [query, exclude])
+  }, [query, exclude, languages])
 
   const select = (lang) => {
     onSelect(lang)
@@ -122,6 +109,16 @@ function LangCombo({ value, exclude, placeholder, onSelect, onClear }) {
 }
 
 export default function LanguagePicker({ nativeLang, otherLangs, onChangeNative, onChangeOthers }) {
+  const [languages, setLanguages] = useState(cachedLanguages ?? [])
+
+  useEffect(() => {
+    if (cachedLanguages) return
+    configApi.languages().then(r => {
+      cachedLanguages = r.data.map(l => l.name)
+      setLanguages(cachedLanguages)
+    }).catch(() => {})
+  }, [])
+
   const others = useMemo(
     () => otherLangs ? otherLangs.split(',').map(s => s.trim()).filter(Boolean) : [],
     [otherLangs]
@@ -145,6 +142,7 @@ export default function LanguagePicker({ nativeLang, otherLangs, onChangeNative,
         placeholder="Idioma nativo…"
         onSelect={onChangeNative}
         onClear={() => onChangeNative('')}
+        languages={languages}
       />
 
       {/* Outros idiomas — tags + combobox */}
@@ -173,6 +171,7 @@ export default function LanguagePicker({ nativeLang, otherLangs, onChangeNative,
           placeholder="Adicionar outro idioma…"
           onSelect={addOther}
           onClear={() => {}}
+          languages={languages}
         />
       </div>
     </div>

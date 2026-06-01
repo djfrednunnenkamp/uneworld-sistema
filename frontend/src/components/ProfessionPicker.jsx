@@ -1,28 +1,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import axios from 'axios'
+import { configApi } from '../api'
 
-const URL_CSV  = 'https://raw.githubusercontent.com/okfn-brasil/datasets-br-cbo/master/data/lista_canonicos.csv'
-const URL_JSON = 'https://raw.githubusercontent.com/lucassmacedo/cbo-brasil/master/json/CBO2002%20-%20Ocupacao.json'
 let cachedProfessions = null
 
 async function loadProfessions() {
   if (cachedProfessions) return cachedProfessions
-  const [csvRes, jsonRes] = await Promise.allSettled([
-    axios.get(URL_CSV),
-    axios.get(URL_JSON),
-  ])
-  const names = new Set()
-  if (csvRes.status === 'fulfilled') {
-    csvRes.value.data.split('\n').slice(1).forEach((l) => {
-      l = l.trim(); if (!l) return
-      const name = l.substring(l.indexOf(',') + 1).replace(/\r/g, '').trim()
-      if (name) names.add(name)
-    })
-  }
-  if (jsonRes.status === 'fulfilled') {
-    jsonRes.value.data.forEach((item) => { if (item.name) names.add(item.name.trim()) })
-  }
-  cachedProfessions = [...names].sort((a, b) => a.localeCompare(b, 'pt'))
+  const r = await configApi.professions()
+  cachedProfessions = r.data.map(p => p.name)
   return cachedProfessions
 }
 

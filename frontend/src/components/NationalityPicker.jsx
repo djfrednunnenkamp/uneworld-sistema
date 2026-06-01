@@ -1,15 +1,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import axios from 'axios'
+import { configApi } from '../api'
 
-const RCOUNTRIES = 'https://restcountries.com/v3.1/all?fields=name,cca2,translations'
 let cachedCountries = null
 
 async function getCountries() {
   if (cachedCountries) return cachedCountries
-  const r = await axios.get(RCOUNTRIES)
-  cachedCountries = r.data
-    .map((c) => ({ name: c.translations?.por?.common || c.name.common, code: c.cca2 }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'pt'))
+  const r = await configApi.countries()
+  cachedCountries = r.data.map(c => ({ name: c.name, code: c.code }))
   return cachedCountries
 }
 

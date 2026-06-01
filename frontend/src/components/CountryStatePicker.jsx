@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import axios from 'axios'
-
-const RCOUNTRIES = 'https://restcountries.com/v3.1/all?fields=name,cca2,translations'
-const IBGE       = 'https://servicodados.ibge.gov.br/api/v1/localidades'
-const CNOW       = 'https://countriesnow.space/api/v0.1/countries'
+import { configApi } from '../api'
 
 const cache = {}
 async function cached(key, fetcher) {
@@ -49,14 +45,8 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
     setLoading(true)
     try {
       const data = await cached('countries_csp', async () => {
-        const r = await axios.get(RCOUNTRIES)
-        return r.data
-          .map((c) => ({
-            name_pt: c.translations?.por?.common || c.name.common,
-            name_en: c.name.common,
-            code: c.cca2,
-          }))
-          .sort((a, b) => a.name_pt.localeCompare(b.name_pt, 'pt'))
+        const r = await configApi.countries()
+        return r.data.map(c => ({ id: c.id, name_pt: c.name, name_en: c.name, code: c.code }))
       })
       setCountries(data)
     } finally { setLoading(false) }
@@ -66,23 +56,12 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
     setSelCountry(c)
     setSearch(''); setStep('state'); setLoading(true)
     try {
-      let data
-      if (c.code === 'BR') {
-        data = await cached('BR_states_csp', () =>
-          axios.get(`${IBGE}/estados?orderBy=nome`)
-            .then((r) => r.data.map((s) => ({ name: s.nome, code: s.sigla })))
-        )
-      } else {
-        data = await cached(`states_csp_${c.name_en}`, () =>
-          axios.post(`${CNOW}/states`, { country: c.name_en })
-            .then((r) => (r.data.data?.states ?? [])
-              .map((s) => ({ name: s.name, code: s.state_code || '' }))
-              .sort((a, b) => a.name.localeCompare(b.name)))
-        )
-      }
+      const data = await cached(`states_csp_${c.id}`, async () => {
+        const r = await configApi.states(c.id)
+        return r.data.map(s => ({ name: s.name, code: s.code }))
+      })
       setStates(data)
       if (data.length === 0) {
-        /* país sem estados → finaliza só com o país */
         onChangeCountry(c.name_pt); onChangeState('')
         setOpen(false); setStep('country')
       }
@@ -91,7 +70,7 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
 
   const pickState = (s) => {
     onChangeCountry(selCountry.name_pt)
-    onChangeState(selCountry.code === 'BR' ? s.code : s.name)
+    onChangeState(s.code || s.name)
     setOpen(false); setStep('country')
   }
 

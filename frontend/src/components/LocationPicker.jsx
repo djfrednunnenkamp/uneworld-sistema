@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import axios from 'axios'
+import { configApi } from '../api'
 
-const IBGE      = 'https://servicodados.ibge.gov.br/api/v1/localidades'
-const CNOW      = 'https://countriesnow.space/api/v0.1/countries'
-const RCOUNTRIES = 'https://restcountries.com/v3.1/all?fields=name,cca2,translations'
+const IBGE = 'https://servicodados.ibge.gov.br/api/v1/localidades'
+const CNOW = 'https://countriesnow.space/api/v0.1/countries'
 
 const cache = {}
 async function cached(key, fetcher) {
@@ -54,15 +54,9 @@ export default function LocationPicker({ value, onChange }) {
   const loadCountries = async () => {
     setLoading(true)
     try {
-      const data = await cached('countries', async () => {
-        const r = await axios.get(RCOUNTRIES)
-        return r.data
-          .map((c) => ({
-            name_en: c.name.common,
-            name_pt: c.translations?.por?.common || c.name.common,
-            code: c.cca2,
-          }))
-          .sort((a, b) => a.name_pt.localeCompare(b.name_pt, 'pt'))
+      const data = await cached('countries_loc', async () => {
+        const r = await configApi.countries()
+        return r.data.map(c => ({ id: c.id, name_pt: c.name, name_en: c.name, code: c.code }))
       })
       setCountries(data)
     } finally { setLoading(false) }
@@ -72,23 +66,12 @@ export default function LocationPicker({ value, onChange }) {
     setSelCountry(country); setSelState(null)
     setSearch(''); setStep('state'); setLoading(true)
     try {
-      let data
-      if (country.code === 'BR') {
-        data = await cached('BR_states', () =>
-          axios.get(`${IBGE}/estados?orderBy=nome`)
-            .then((r) => r.data.map((s) => ({ name: s.nome, code: s.sigla })))
-        )
-      } else {
-        data = await cached(`states_${country.name_en}`, () =>
-          axios.post(`${CNOW}/states`, { country: country.name_en })
-            .then((r) => (r.data.data?.states ?? [])
-              .map((s) => ({ name: s.name, code: s.state_code }))
-              .sort((a, b) => a.name.localeCompare(b.name)))
-        )
-      }
+      const data = await cached(`states_loc_${country.id}`, async () => {
+        const r = await configApi.states(country.id)
+        return r.data.map(s => ({ name: s.name, code: s.code }))
+      })
       setStates(data)
       if (data.length === 0) {
-        /* país sem estados conhecidos → finaliza só com país */
         onChange(country.name_pt)
         setOpen(false); reset()
       }
@@ -101,8 +84,9 @@ export default function LocationPicker({ value, onChange }) {
     try {
       let data
       if (selCountry.code === 'BR') {
-        data = await cached(`BR_cities_${state.code}`, () =>
-          axios.get(`${IBGE}/estados/${state.code}/municipios?orderBy=nome`)
+        const stateCode = state.code || state.name
+        data = await cached(`BR_cities_${stateCode}`, () =>
+          axios.get(`${IBGE}/estados/${stateCode}/municipios?orderBy=nome`)
             .then((r) => r.data.map((c) => c.nome))
         )
       } else {

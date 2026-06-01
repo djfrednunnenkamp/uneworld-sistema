@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'trips',
     'meetings',
     'dashboard',
+    'config_api',
 ]
 
 MIDDLEWARE = [
