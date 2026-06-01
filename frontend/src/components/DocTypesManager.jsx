@@ -1,233 +1,250 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 
-const FIELD_TYPE_LABELS = {
-  text:    'Texto livre',
-  date:    'Data',
-  list:    'Lista suspensa',
-  country: 'País / Estado / Cidade',
-}
-const FIELD_TYPE_COLORS = {
-  text:    { bg:'#f1f5f9', color:'#475569' },
-  date:    { bg:'#eff6ff', color:'#2e6db4' },
-  list:    { bg:'#f0fdf4', color:'#16a34a' },
-  country: { bg:'#fef9c3', color:'#ca8a04' },
-}
+const FIELD_TYPES = [
+  { value: 'text',    label: 'Texto livre' },
+  { value: 'date',    label: 'Data' },
+  { value: 'list',    label: 'Lista suspensa' },
+  { value: 'country', label: 'País / Estado / Cidade' },
+]
+const TYPE_COLORS = ['#2e6db4','#7c3aed','#059669','#0891b2','#b45309','#92400e','#0f766e','#dc2626','#475569','#ca8a04']
 
-const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#0f172a', background:'#fff', transition:'border-color .15s' }
-const btn = (bg='#1a2d4f', color='#fff') => ({ padding:'7px 14px', borderRadius:7, border:'none', background:bg, color, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' })
+/* ── Modal de criação / edição ── */
+function DocTypeModal({ docType, onSave, onClose }) {
+  const isEdit = !!docType
 
-/* ── Linha de campo ── */
-function FieldRow({ field, onUpdate, onDelete, onAddOption, onDelOption }) {
-  const [editing, setEditing] = useState(false)
-  const [form,    setForm]    = useState({ label: field.label, field_type: field.field_type, required: field.required })
-  const [newOpt,  setNewOpt]  = useState('')
-  const [confirm, setConfirm] = useState(null)
+  const [name,    setName]    = useState(docType?.label ?? '')
+  const [icon,    setIcon]    = useState(docType?.icon  ?? '📄')
+  const [color,   setColor]   = useState(docType?.color ?? '#475569')
+  const [fields,  setFields]  = useState(
+    (docType?.fields ?? []).map(f => ({ ...f, _id: f.id, options: f.options ?? [] }))
+  )
+  const [saving,  setSaving]  = useState(false)
+  const [delField, setDelField] = useState(null) // {index, label}
 
-  const save = async () => {
-    try { await onUpdate(field.id, form); setEditing(false) }
-    catch { toast.error('Erro ao salvar campo.') }
+  const addField = () => {
+    setFields(prev => [...prev, {
+      _id: null, key: '', label: '', field_type: 'text', required: false, order: prev.length, options: [], _new: true
+    }])
+  }
+
+  const updateField = (idx, patch) =>
+    setFields(prev => prev.map((f, i) => i === idx ? { ...f, ...patch } : f))
+
+  const removeField = (idx) =>
+    setFields(prev => prev.filter((_, i) => i !== idx))
+
+  const addOption = (idx, value) => {
+    if (!value.trim()) return
+    setFields(prev => prev.map((f, i) =>
+      i === idx ? { ...f, options: [...f.options, { value: value.trim(), _new: true }] } : f
+    ))
+  }
+
+  const removeOption = (fieldIdx, optIdx) =>
+    setFields(prev => prev.map((f, i) =>
+      i === fieldIdx ? { ...f, options: f.options.filter((_, j) => j !== optIdx) } : f
+    ))
+
+  const handleSave = async () => {
+    if (!name.trim()) { toast.error('Informe o nome do tipo.'); return }
+    setSaving(true)
+    try {
+      await onSave({ name: name.trim(), icon, color, fields })
+      onClose()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
   }
 
   return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:8, marginBottom:8, background:'#fff', overflow:'hidden' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px' }}>
-        {/* tipo badge */}
-        <span style={{ padding:'2px 8px', borderRadius:20, fontSize:11, fontWeight:600, ...FIELD_TYPE_COLORS[field.field_type] }}>
-          {FIELD_TYPE_LABELS[field.field_type]}
-        </span>
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,.5)', backdropFilter:'blur(3px)',
+      display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20,
+    }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{
+        background:'#fff', borderRadius:14, width:'100%', maxWidth:580,
+        maxHeight:'90vh', display:'flex', flexDirection:'column',
+        boxShadow:'0 32px 80px rgba(0,0,0,.25)',
+      }}>
 
-        {editing ? (
-          <>
-            <input value={form.label} onChange={e => setForm(f=>({...f,label:e.target.value}))}
-              style={{ ...inp, flex:1 }}
-              onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-            <select value={form.field_type} onChange={e => setForm(f=>({...f,field_type:e.target.value}))}
-              style={{ ...inp, width:160 }}>
-              {Object.entries(FIELD_TYPE_LABELS).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-            <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:13, color:'#475569', cursor:'pointer', whiteSpace:'nowrap' }}>
-              <input type="checkbox" checked={form.required} onChange={e=>setForm(f=>({...f,required:e.target.checked}))} />
-              Obrigatório
-            </label>
-            <button onClick={save} style={btn()}>Salvar</button>
-            <button onClick={() => setEditing(false)} style={btn('#e2e8f0','#475569')}>Cancelar</button>
-          </>
-        ) : (
-          <>
-            <span style={{ flex:1, fontSize:13, color:'#0f172a', fontWeight:500 }}>{field.label}</span>
-            {field.required && <span style={{ fontSize:11, color:'#dc2626', fontWeight:600 }}>Obrigatório</span>}
-            <button onClick={() => setEditing(true)} style={btn('#f8fafc','#475569')}>✏ Editar</button>
-            <button onClick={() => setConfirm(true)} style={btn('#fef2f2','#dc2626')}>✕</button>
-          </>
-        )}
-      </div>
+        {/* Header */}
+        <div style={{ padding:'18px 24px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <h2 style={{ fontSize:16, fontWeight:700, color:'#0f172a', margin:0 }}>
+            {isEdit ? `Editar: ${docType.label}` : 'Novo tipo de documento'}
+          </h2>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
 
-      {/* Opções para campos do tipo lista */}
-      {field.field_type === 'list' && (
-        <div style={{ padding:'8px 14px', borderTop:'1px solid #f1f5f9', background:'#fafafa' }}>
-          <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', margin:'0 0 8px' }}>
-            Opções da lista
-          </p>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
-            {field.options?.map(opt => (
-              <span key={opt.id} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 9px', borderRadius:20, background:'#f0f6ff', border:'1px solid #bfdbfe', fontSize:12, color:'#2e6db4' }}>
-                {opt.value}
-                <button onMouseDown={e => { e.preventDefault(); onDelOption(opt.id) }}
-                  style={{ background:'none', border:'none', cursor:'pointer', color:'#93c5fd', fontSize:13, lineHeight:1, padding:0 }}>×</button>
-              </span>
-            ))}
-            {(!field.options || field.options.length === 0) && (
-              <span style={{ fontSize:12, color:'#94a3b8' }}>Nenhuma opção ainda.</span>
-            )}
+        {/* Corpo scrollável */}
+        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:18 }}>
+
+          {/* Identidade */}
+          <div>
+            <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 10px' }}>
+              Identificação
+            </p>
+            <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+              {/* Ícone */}
+              <div>
+                <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:4 }}>Ícone</label>
+                <input value={icon} onChange={e=>setIcon(e.target.value)} maxLength={4}
+                  style={{ width:60, padding:'8px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:24, textAlign:'center', outline:'none', fontFamily:'inherit' }}
+                  onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+              </div>
+              {/* Nome */}
+              <div style={{ flex:1 }}>
+                <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:4 }}>Nome do tipo *</label>
+                <input value={name} onChange={e=>setName(e.target.value)}
+                  placeholder="ex: Seguro de Viagem, Passaporte…"
+                  style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }}
+                  onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+              </div>
+            </div>
+            {/* Paleta de cores */}
+            <div style={{ marginTop:10 }}>
+              <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:6 }}>Cor</label>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {TYPE_COLORS.map(c => (
+                  <button key={c} onMouseDown={e=>{e.preventDefault();setColor(c)}}
+                    style={{
+                      width:28, height:28, borderRadius:6, background:c, cursor:'pointer',
+                      border: color===c ? '3px solid #0f172a' : '2px solid transparent',
+                      outline: color===c ? '2px solid #fff' : 'none', outlineOffset:'-4px',
+                      transition:'all .1s',
+                    }} />
+                ))}
+                <input type="color" value={color} onChange={e=>setColor(e.target.value)}
+                  title="Cor personalizada"
+                  style={{ width:28, height:28, border:'1.5px solid #e2e8f0', borderRadius:6, cursor:'pointer', padding:1 }} />
+              </div>
+            </div>
           </div>
-          <div style={{ display:'flex', gap:6 }}>
-            <input value={newOpt} onChange={e => setNewOpt(e.target.value)}
-              onKeyDown={e => { if (e.key==='Enter' && newOpt.trim()) { onAddOption(field.id, newOpt.trim()); setNewOpt('') } }}
-              placeholder="Nova opção… (Enter para adicionar)"
-              style={{ ...inp, flex:1, fontSize:12 }}
-              onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-            <button onClick={() => { if (newOpt.trim()) { onAddOption(field.id, newOpt.trim()); setNewOpt('') } }}
-              style={btn()}>+</button>
+
+          {/* Campos */}
+          <div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+              <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', margin:0 }}>
+                Campos ({fields.length})
+              </p>
+              <button onClick={addField}
+                style={{ padding:'5px 12px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                + Adicionar campo
+              </button>
+            </div>
+
+            {fields.length === 0 ? (
+              <p style={{ fontSize:13, color:'#94a3b8', textAlign:'center', padding:'20px 0', background:'#f8fafc', borderRadius:8, border:'1px dashed #e2e8f0' }}>
+                Nenhum campo. Clique em "Adicionar campo" para começar.
+              </p>
+            ) : fields.map((f, idx) => (
+              <FieldEditor key={idx} field={f} index={idx}
+                onUpdate={(p) => updateField(idx, p)}
+                onDelete={() => {
+                  if (f.label) setDelField({ index:idx, label:f.label })
+                  else removeField(idx)
+                }}
+                onAddOption={(v) => addOption(idx, v)}
+                onRemoveOption={(oi) => removeOption(idx, oi)}
+              />
+            ))}
           </div>
         </div>
-      )}
 
-      {confirm && (
+        {/* Footer */}
+        <div style={{ padding:'14px 24px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:28 }}>{icon}</span>
+            <span style={{ fontSize:13, fontWeight:600, color: name ? '#0f172a' : '#94a3b8' }}>
+              {name || 'Nome do tipo…'}
+            </span>
+            <span style={{ width:14, height:14, borderRadius:3, background:color, display:'inline-block' }} />
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={onClose}
+              style={{ padding:'9px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              Cancelar
+            </button>
+            <button onClick={handleSave} disabled={saving || !name.trim()}
+              style={{ padding:'9px 20px', borderRadius:8, border:'none', background: saving||!name.trim()?'#94a3b8':'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving||!name.trim()?'default':'pointer', fontFamily:'inherit' }}>
+              {saving ? 'Salvando…' : isEdit ? '✓ Salvar alterações' : '✓ Criar tipo'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {delField && (
         <ConfirmModal
-          message={`Remover o campo "${field.label}"?`}
-          detail="Isso remove o campo de todos os documentos que usam este tipo."
+          message={`Remover o campo "${delField.label}"?`}
           okLabel="Remover"
-          onOk={() => { onDelete(field.id); setConfirm(null) }}
-          onCancel={() => setConfirm(null)}
+          onOk={() => { removeField(delField.index); setDelField(null) }}
+          onCancel={() => setDelField(null)}
         />
       )}
     </div>
   )
 }
 
-/* ── Card de tipo de documento ── */
-function DocTypeCard({ docType, onUpdated, onDeleted }) {
-  const [expanded, setExpanded]   = useState(false)
-  const [editHeader, setEditHeader] = useState(false)
-  const [form, setForm]           = useState({ label: docType.label, icon: docType.icon, color: docType.color })
-  const [types, setTypes]         = useState(docType)
-  const [newField, setNewField]   = useState({ label:'', field_type:'text', required:false })
-  const [confirm, setConfirm]     = useState(null)
-  const [data, setData]           = useState(docType)
-
-  const refresh = async () => {
-    try {
-      const r = await configApi.docTypes()
-      const t = r.data.find(d => d.id === docType.id)
-      if (t) setData(t)
-    } catch {}
-  }
-
-  const saveHeader = async () => {
-    try { await configApi.updateDocType(data.id, form); setEditHeader(false); onUpdated() }
-    catch { toast.error('Erro ao salvar.') }
-  }
-
-  const addField = async () => {
-    if (!newField.label.trim()) return
-    try {
-      await configApi.addDocField({ ...newField, doc_type_id: data.id })
-      setNewField({ label:'', field_type:'text', required:false })
-      refresh()
-    } catch { toast.error('Erro ao adicionar campo.') }
-  }
-
-  const updateField = async (id, form) => {
-    await configApi.updateDocField(id, form); refresh()
-  }
-  const deleteField = async (id) => {
-    try { await configApi.delDocField(id); refresh() } catch { toast.error('Erro ao remover campo.') }
-  }
-  const addOption = async (fieldId, value) => {
-    try { await configApi.addDocOption({ field_id: fieldId, value }); refresh() } catch { toast.error('Erro ao adicionar opção.') }
-  }
-  const delOption = async (id) => {
-    try { await configApi.delDocOption(id); refresh() } catch { toast.error('Erro ao remover opção.') }
-  }
+/* ── Editor de um campo dentro do modal ── */
+function FieldEditor({ field, index, onUpdate, onDelete, onAddOption, onRemoveOption }) {
+  const [newOpt, setNewOpt] = useState('')
+  const inp = { padding:'6px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', background:'#fff', transition:'border-color .12s' }
 
   return (
-    <div style={{ border:'1.5px solid #e2e8f0', borderRadius:10, marginBottom:10, background:'#fff', overflow:'hidden' }}>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer' }}
-        onClick={() => !editHeader && setExpanded(e => !e)}>
-        <span style={{ fontSize:22 }}>{data.icon}</span>
-        {editHeader ? (
-          <>
-            <input value={form.label} onChange={e=>setForm(f=>({...f,label:e.target.value}))}
-              style={{ ...inp, flex:1 }} onClick={e=>e.stopPropagation()}
-              onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-            <input value={form.icon} onChange={e=>setForm(f=>({...f,icon:e.target.value}))}
-              style={{ ...inp, width:60, textAlign:'center', fontSize:20 }} onClick={e=>e.stopPropagation()} maxLength={4} />
-            <input type="color" value={form.color} onChange={e=>setForm(f=>({...f,color:e.target.value}))}
-              style={{ width:36, height:34, border:'1px solid #e2e8f0', borderRadius:6, cursor:'pointer', padding:2 }} onClick={e=>e.stopPropagation()} />
-            <button onClick={e=>{e.stopPropagation();saveHeader()}} style={btn()}>Salvar</button>
-            <button onClick={e=>{e.stopPropagation();setEditHeader(false)}} style={btn('#e2e8f0','#475569')}>Cancelar</button>
-          </>
-        ) : (
-          <>
-            <span style={{ flex:1, fontSize:14, fontWeight:700, color:'#0f172a' }}>{data.label}</span>
-            <span style={{ fontSize:12, color:'#94a3b8' }}>{data.fields?.length ?? 0} campos</span>
-            <div style={{ display:'flex', gap:2, marginLeft:8 }}
-              onClick={e => e.stopPropagation()}>
-              <button onClick={() => setEditHeader(true)} style={btn('#f8fafc','#475569')}>✏ Editar</button>
-              <button onClick={() => setConfirm(true)} style={btn('#fef2f2','#dc2626')}>✕</button>
-            </div>
-            <span style={{ fontSize:18, color:'#94a3b8', marginLeft:4 }}>{expanded ? '▲' : '▼'}</span>
-          </>
-        )}
+    <div style={{ border:'1px solid #e2e8f0', borderRadius:8, marginBottom:8, background:'#fafafa', overflow:'hidden' }}>
+      <div style={{ display:'flex', gap:8, alignItems:'center', padding:'10px 12px' }}>
+        {/* Ordem */}
+        <span style={{ fontSize:11, color:'#94a3b8', width:18, textAlign:'center', flexShrink:0 }}>{index+1}</span>
+
+        {/* Label */}
+        <input value={field.label} onChange={e=>onUpdate({label:e.target.value})}
+          placeholder="Nome do campo…"
+          style={{ ...inp, flex:1 }}
+          onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+
+        {/* Tipo */}
+        <select value={field.field_type} onChange={e=>onUpdate({field_type:e.target.value})}
+          style={{ ...inp, width:160 }}>
+          {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+
+        {/* Obrigatório */}
+        <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#475569', cursor:'pointer', whiteSpace:'nowrap', userSelect:'none' }}>
+          <input type="checkbox" checked={field.required} onChange={e=>onUpdate({required:e.target.checked})} />
+          Obrigatório
+        </label>
+
+        {/* Apagar */}
+        <button onClick={onDelete}
+          style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', color:'#dc2626', fontSize:13, padding:'4px 8px', fontFamily:'inherit', flexShrink:0 }}
+          title="Remover campo">✕</button>
       </div>
 
-      {/* Campos */}
-      {expanded && (
-        <div style={{ borderTop:'1px solid #f1f5f9', padding:'14px 16px', background:'#f8fafc' }}>
-          {data.fields?.length === 0 && (
-            <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 12px' }}>Nenhum campo ainda.</p>
-          )}
-          {data.fields?.map(f => (
-            <FieldRow key={f.id} field={f}
-              onUpdate={updateField} onDelete={deleteField}
-              onAddOption={addOption} onDelOption={delOption} />
-          ))}
-
-          {/* Adicionar campo */}
-          <div style={{ background:'#fff', border:'1px dashed #e2e8f0', borderRadius:8, padding:'10px 14px', marginTop:8 }}>
-            <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', margin:'0 0 8px' }}>Novo campo</p>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-              <input value={newField.label} onChange={e=>setNewField(f=>({...f,label:e.target.value}))}
-                onKeyDown={e=>e.key==='Enter'&&addField()}
-                placeholder="Nome do campo…"
-                style={{ ...inp, flex:1, minWidth:140 }}
-                onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-              <select value={newField.field_type} onChange={e=>setNewField(f=>({...f,field_type:e.target.value}))}
-                style={{ ...inp, width:170 }}>
-                {Object.entries(FIELD_TYPE_LABELS).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-              <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:13, color:'#475569', cursor:'pointer' }}>
-                <input type="checkbox" checked={newField.required} onChange={e=>setNewField(f=>({...f,required:e.target.checked}))} />
-                Obrigatório
-              </label>
-              <button onClick={addField} disabled={!newField.label.trim()} style={btn()}>+ Adicionar campo</button>
-            </div>
+      {/* Opções para campo do tipo lista */}
+      {field.field_type === 'list' && (
+        <div style={{ padding:'8px 12px 10px 38px', borderTop:'1px solid #f1f5f9', background:'#fff' }}>
+          <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 6px' }}>Opções da lista:</p>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:7 }}>
+            {field.options.map((opt, oi) => (
+              <span key={oi} style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'2px 8px', borderRadius:20, background:'#f0f6ff', border:'1px solid #bfdbfe', fontSize:12, color:'#2e6db4' }}>
+                {opt.value}
+                <button onMouseDown={e=>{e.preventDefault();onRemoveOption(oi)}}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'#93c5fd', fontSize:14, lineHeight:1, padding:0 }}>×</button>
+              </span>
+            ))}
+            {field.options.length===0 && <span style={{ fontSize:12, color:'#94a3b8' }}>Nenhuma opção ainda.</span>}
+          </div>
+          <div style={{ display:'flex', gap:6 }}>
+            <input value={newOpt} onChange={e=>setNewOpt(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter'&&newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
+              placeholder="Nova opção… (Enter para adicionar)"
+              style={{ ...inp, flex:1, fontSize:12 }}
+              onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+            <button onClick={()=>{ if(newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
+              style={{ padding:'6px 12px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>+</button>
           </div>
         </div>
-      )}
-
-      {confirm && (
-        <ConfirmModal
-          message={`Remover o tipo "${data.label}"?`}
-          detail="Todos os campos configurados para este tipo serão apagados."
-          okLabel="Remover"
-          onOk={() => { onDeleted(data.id); setConfirm(null) }}
-          onCancel={() => setConfirm(null)}
-        />
       )}
     </div>
   )
@@ -235,11 +252,10 @@ function DocTypeCard({ docType, onUpdated, onDeleted }) {
 
 /* ── Componente principal ── */
 export default function DocTypesManager() {
-  const [docTypes,  setDocTypes]  = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [newType,   setNewType]   = useState({ label:'', icon:'📄', color:'#475569' })
-  const [seeding,   setSeeding]   = useState(false)
-  const [showNew,   setShowNew]   = useState(false)
+  const [docTypes, setDocTypes] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [modal,    setModal]    = useState(null) // null | { docType?: obj }
+  const [confirm,  setConfirm]  = useState(null) // { id, name }
 
   const load = () => {
     setLoading(true)
@@ -248,78 +264,168 @@ export default function DocTypesManager() {
 
   useEffect(() => { load() }, [])
 
-  const addType = async () => {
-    if (!newType.label.trim()) return
-    const key = newType.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
-    try {
-      await configApi.addDocType({ ...newType, key, order: docTypes.length + 1 })
-      setNewType({ label:'', icon:'📄', color:'#475569' })
-      setShowNew(false)
-      load()
-    } catch { toast.error('Erro ao criar tipo.') }
+  /* Salva criação ou edição */
+  const handleSave = async ({ name, icon, color, fields }) => {
+    const docType = modal?.docType
+    let savedType
+
+    if (docType) {
+      // Editar tipo existente
+      await configApi.updateDocType(docType.id, { label: name, icon, color })
+      savedType = docType
+
+      // Sincronizar campos:
+      // 1. Remover campos apagados
+      const keepIds = new Set(fields.filter(f => f._id).map(f => f._id))
+      for (const f of docType.fields ?? []) {
+        if (!keepIds.has(f.id)) await configApi.delDocField(f.id).catch(() => {})
+      }
+    } else {
+      // Criar novo tipo
+      const key = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+      const r = await configApi.addDocType({ key, label: name, icon, color, order: docTypes.length + 1 })
+      savedType = r.data
+    }
+
+    // Salvar campos
+    for (let i = 0; i < fields.length; i++) {
+      const f = fields[i]
+      const key = f.key?.trim() || f.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || `field_${i}`
+      if (f._id) {
+        // Atualizar campo existente
+        await configApi.updateDocField(f._id, { label: f.label, field_type: f.field_type, required: f.required, order: i }).catch(() => {})
+        // Sincronizar opções
+        const keepOptIds = new Set(f.options.filter(o => o.id).map(o => o.id))
+        const existing = (docType?.fields?.find(df => df.id === f._id)?.options ?? [])
+        for (const o of existing) {
+          if (!keepOptIds.has(o.id)) await configApi.delDocOption(o.id).catch(() => {})
+        }
+        for (const o of f.options.filter(o => !o.id)) {
+          await configApi.addDocOption({ field_id: f._id, value: o.value, order: 0 }).catch(() => {})
+        }
+      } else {
+        // Criar campo novo
+        const r = await configApi.addDocField({ doc_type_id: savedType.id, key, label: f.label, field_type: f.field_type, required: f.required, order: i }).catch(() => null)
+        if (r?.data && f.field_type === 'list') {
+          for (const o of f.options) {
+            await configApi.addDocOption({ field_id: r.data.id, value: o.value, order: 0 }).catch(() => {})
+          }
+        }
+      }
+    }
+
+    toast.success(docType ? 'Tipo atualizado!' : 'Tipo criado!')
+    // Invalida cache do DocTypePicker
+    const mod = await import('./DocTypePicker').catch(() => null)
+    if (mod) { try { mod.cachedDocTypes = null } catch {} }
+    load()
   }
 
   const delType = async (id) => {
-    try { await configApi.delDocType(id); load() }
+    try { await configApi.delDocType(id); setConfirm(null); load() }
     catch { toast.error('Erro ao remover tipo.') }
   }
 
   const seed = async () => {
-    setSeeding(true)
     try {
       const r = await configApi.seedDocTypes()
-      toast.success(`${r.data.created_types} tipos padrão criados.`)
+      toast.success(`${r.data.created_types} tipo(s) padrão criados.`)
       load()
-    } catch { toast.error('Erro ao restaurar tipos padrão.') }
-    finally { setSeeding(false) }
+    } catch { toast.error('Erro ao restaurar.') }
   }
 
   return (
     <div>
       {/* Toolbar */}
-      <div style={{ display:'flex', gap:10, marginBottom:16, alignItems:'center', flexWrap:'wrap' }}>
-        <button onClick={() => setShowNew(s=>!s)}
-          style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+      <div style={{ display:'flex', gap:10, marginBottom:18, alignItems:'center' }}>
+        <button onClick={() => setModal({})}
+          style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
           + Novo tipo de documento
         </button>
-        <button onClick={seed} disabled={seeding}
-          style={{ padding:'8px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', opacity:seeding?.6:1 }}>
-          {seeding ? 'Restaurando…' : '↺ Restaurar tipos padrão'}
+        <button onClick={seed}
+          style={{ padding:'9px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+          ↺ Restaurar padrão
         </button>
-        <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>{docTypes.length} tipo{docTypes.length!==1?'s':''}</span>
+        <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>
+          {docTypes.length} tipo{docTypes.length!==1?'s':''}
+        </span>
       </div>
-
-      {/* Formulário novo tipo */}
-      {showNew && (
-        <div style={{ border:'1.5px solid #2e6db4', borderRadius:10, padding:'14px 16px', marginBottom:14, background:'#f0f6ff' }}>
-          <p style={{ fontSize:13, fontWeight:700, color:'#1a2d4f', margin:'0 0 10px' }}>Novo tipo de documento</p>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-            <input value={newType.label} onChange={e=>setNewType(f=>({...f,label:e.target.value}))}
-              onKeyDown={e=>e.key==='Enter'&&addType()}
-              placeholder="Nome do tipo… ex: Seguro de Viagem"
-              style={{ ...inp, flex:1, minWidth:200 }}
-              onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-            <input value={newType.icon} onChange={e=>setNewType(f=>({...f,icon:e.target.value}))}
-              style={{ ...inp, width:60, textAlign:'center', fontSize:20 }} maxLength={4} placeholder="📄" />
-            <input type="color" value={newType.color} onChange={e=>setNewType(f=>({...f,color:e.target.value}))}
-              style={{ width:40, height:34, border:'1px solid #e2e8f0', borderRadius:6, cursor:'pointer', padding:2 }} />
-            <button onClick={addType} disabled={!newType.label.trim()} style={btn()}>Criar</button>
-            <button onClick={() => setShowNew(false)} style={btn('#e2e8f0','#475569')}>Cancelar</button>
-          </div>
-        </div>
-      )}
 
       {/* Lista de tipos */}
       {loading ? (
         <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
       ) : docTypes.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'32px 0' }}>
-          <p style={{ color:'#94a3b8', fontSize:13, marginBottom:12 }}>Nenhum tipo cadastrado.</p>
-          <button onClick={seed} style={btn()}>↺ Restaurar tipos padrão</button>
+        <div style={{ textAlign:'center', padding:'40px 0', background:'#f8fafc', borderRadius:10, border:'1px dashed #e2e8f0' }}>
+          <p style={{ color:'#94a3b8', fontSize:13, margin:'0 0 12px' }}>Nenhum tipo cadastrado.</p>
+          <button onClick={seed}
+            style={{ padding:'8px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            ↺ Restaurar tipos padrão
+          </button>
         </div>
-      ) : docTypes.map(dt => (
-        <DocTypeCard key={dt.id} docType={dt} onUpdated={load} onDeleted={delType} />
-      ))}
+      ) : (
+        <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden', background:'#fff' }}>
+          {docTypes.map((dt, idx) => (
+            <div key={dt.id} style={{
+              display:'flex', alignItems:'center', gap:14, padding:'13px 18px',
+              borderBottom: idx < docTypes.length-1 ? '1px solid #f1f5f9' : 'none',
+            }}
+              onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
+              onMouseLeave={e=>e.currentTarget.style.background='#fff'}
+            >
+              {/* Cor */}
+              <div style={{ width:4, height:36, borderRadius:2, background:dt.color, flexShrink:0 }} />
+              {/* Ícone + Nome */}
+              <span style={{ fontSize:22, lineHeight:1, flexShrink:0 }}>{dt.icon}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontSize:14, fontWeight:600, color:'#0f172a', margin:'0 0 2px' }}>{dt.label}</p>
+                <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>
+                  {dt.fields?.length ?? 0} campo{(dt.fields?.length??0)!==1?'s':''}
+                  {dt.fields?.length > 0 && (
+                    <span style={{ marginLeft:6 }}>
+                      · {dt.fields.map(f => f.label).join(', ')}
+                    </span>
+                  )}
+                </p>
+              </div>
+              {/* Badge ativo */}
+              {!dt.is_active && (
+                <span style={{ padding:'2px 8px', borderRadius:20, background:'#fee2e2', color:'#dc2626', fontSize:11, fontWeight:600 }}>Inativo</span>
+              )}
+              {/* Ações */}
+              <div style={{ display:'flex', gap:6 }}>
+                <button onClick={() => setModal({ docType: dt })}
+                  style={{ padding:'6px 14px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  ✏ Editar
+                </button>
+                <button onClick={() => setConfirm({ id:dt.id, name:dt.label })}
+                  style={{ padding:'6px 10px', borderRadius:7, border:'1px solid #fecaca', background:'#fef2f2', color:'#dc2626', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Popup criar / editar */}
+      {modal !== null && (
+        <DocTypeModal
+          docType={modal.docType ?? null}
+          onSave={handleSave}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {/* Confirmação de exclusão */}
+      {confirm && (
+        <ConfirmModal
+          message={`Remover o tipo "${confirm.name}"?`}
+          detail="Todos os campos deste tipo serão apagados."
+          okLabel="Remover"
+          onOk={() => delType(confirm.id)}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   )
 }
