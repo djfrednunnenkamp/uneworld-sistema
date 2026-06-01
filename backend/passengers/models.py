@@ -128,6 +128,7 @@ class PassengerDocument(models.Model):
         ('voter_id',    'Título de Eleitor'),
         ('work_permit', 'Autorização de Trabalho'),
         ('residence',   'Comprovante de Residência'),
+        ('vaccine',     'Vacina'),
         ('other',       'Outro'),
     ]
 

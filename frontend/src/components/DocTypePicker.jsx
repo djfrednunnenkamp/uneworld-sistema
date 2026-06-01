@@ -14,6 +14,7 @@ export const DOC_TYPES = [
   { id: 'visa',       label: 'Visto',                     icon: '✈️', color: '#0891b2' },
   { id: 'birth_cert', label: 'Certidão de Nascimento',    icon: '📄', color: '#b45309' },
   { id: 'residence',  label: 'Comprovante de Residência', icon: '🏠', color: '#92400e' },
+  { id: 'vaccine',    label: 'Vacina',                    icon: '💉', color: '#0f766e' },
   { id: 'other',      label: 'Outro documento',           icon: '📎', color: '#475569' },
 ]
 
@@ -55,6 +56,11 @@ const DOC_FIELDS = {
   residence: [
     { key: 'issued_date', label: 'Data do comprovante', type: 'date', required: true },
     { key: 'issued_by',   label: 'Emissor',              type: 'text', required: true },
+  ],
+  vaccine: [
+    { key: 'doc_number',  label: 'Nome da vacina',      type: 'text', required: true },
+    { key: 'issued_date', label: 'Data da vacinação',   type: 'date', required: true },
+    { key: 'expiry_date', label: 'Data de validade',    type: 'date', required: false },
   ],
   other: [
     { key: 'doc_number',  label: 'Número do documento', type: 'text' },
