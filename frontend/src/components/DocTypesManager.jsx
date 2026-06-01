@@ -18,24 +18,41 @@ const COUNTRY_LEVELS = [
 
 const TYPE_COLORS = ['#2e6db4','#7c3aed','#059669','#0891b2','#b45309','#92400e','#0f766e','#dc2626','#475569','#ca8a04']
 
-/* ── Dropdown estilizado com ícones ── */
+/* ── Dropdown estilizado com ícones ──
+   Usa position:fixed para escapar do overflow:hidden do modal */
 function IconSelect({ options, value, onChange, placeholder = 'Selecione…', compact = false }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const selected = options.find(o => o.value === value)
+  const [open,    setOpen]    = useState(false)
+  const [pos,     setPos]     = useState({ top: 0, left: 0, width: 0 })
+  const triggerRef = useRef(null)
+  const selected   = options.find(o => o.value === value)
 
+  /* Fecha ao clicar fora */
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    if (!open) return
+    const h = (e) => {
+      if (triggerRef.current && !triggerRef.current.closest('[data-iconselect]')?.contains(e.target)) {
+        setOpen(false)
+      }
+    }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
-  }, [])
+  }, [open])
+
+  const openDrop = (e) => {
+    e.preventDefault()
+    if (open) { setOpen(false); return }
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (rect) setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    setOpen(true)
+  }
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div data-iconselect="1" style={{ position: 'relative' }}>
       {/* Trigger */}
       <button
         type="button"
-        onMouseDown={e => { e.preventDefault(); setOpen(o => !o) }}
+        ref={triggerRef}
+        onMouseDown={openDrop}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, width: '100%',
           padding: compact ? '6px 8px' : '7px 10px',
@@ -51,17 +68,20 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…', co
             {!compact && <span style={{ fontSize: 11, color: '#94a3b8' }}>{selected.desc}</span>}
           </>
         ) : (
-          <span style={{ fontSize: 13, color: '#94a3b8' }}>{placeholder}</span>
+          <span style={{ fontSize: 13, color: '#94a3b8', flex: 1, textAlign: 'left' }}>{placeholder}</span>
         )}
         <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: compact ? 2 : 4 }}>{open ? '▲' : '▼'}</span>
       </button>
 
-      {/* Lista */}
+      {/* Lista — renderizada com position:fixed para não ser cortada pelo modal */}
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0,
+          position: 'fixed',
+          top:   pos.top,
+          left:  pos.left,
+          width: Math.max(pos.width, 220),
           background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 8,
-          boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 400, overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,.18)', zIndex: 9999, overflow: 'hidden',
         }}>
           {options.map(opt => {
             const isActive = opt.value === value
@@ -73,17 +93,16 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…', co
                   cursor: 'pointer', background: isActive ? '#f0f4ff' : '#fff',
                   borderBottom: '1px solid #f8fafc',
                   borderLeft: isActive ? '3px solid #1a2d4f' : '3px solid transparent',
-                  transition: 'background .1s',
                 }}
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f8fafc' }}
                 onMouseLeave={e => { e.currentTarget.style.background = isActive ? '#f0f4ff' : '#fff' }}
               >
                 <span style={{ fontSize: 18, flexShrink: 0 }}>{opt.icon}</span>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? '#1a2d4f' : '#0f172a' }}>{opt.label}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{opt.desc}</div>
                 </div>
-                {isActive && <span style={{ marginLeft: 'auto', color: '#1a2d4f', fontSize: 14 }}>✓</span>}
+                {isActive && <span style={{ color: '#1a2d4f', fontSize: 14, fontWeight: 700 }}>✓</span>}
               </div>
             )
           })}
@@ -275,7 +294,7 @@ function FieldEditor({ field, index, onUpdate, onDelete, onAddOption, onRemoveOp
   const selSubtype = field.subtype || 'country_state_city'
 
   return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, marginBottom:8, background:'#fff', overflow:'hidden' }}>
+    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, marginBottom:8, background:'#fff' }}>
 
       {/* Linha única: número | nome | tipo (compacto) | obrigatório | apagar */}
       <div style={{ display:'flex', gap:8, alignItems:'center', padding:'9px 12px' }}>
