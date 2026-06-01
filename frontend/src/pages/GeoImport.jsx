@@ -74,9 +74,10 @@ export default function GeoImport() {
 
   const [rows,   setRows]   = useState([])
   const [mode,   setMode]   = useState('merge')
-  const [phase,  setPhase]  = useState('upload')  // upload | analyzing | review | importing | done
+  const [phase,  setPhase]  = useState('upload')
   const [result, setResult] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
 
   /* Carrega CSV do state do router ou mostra zona de upload */
   useEffect(() => {
@@ -117,12 +118,20 @@ export default function GeoImport() {
   }), [rows])
 
   const filtered = useMemo(() => {
-    if (filter==='all')       return rows
-    if (filter==='valid')     return rows.filter(r=>r.status==='new')
-    if (filter==='duplicate') return rows.filter(r=>r.status==='exists')
-    if (filter==='error')     return rows.filter(r=>r.status==='error')
-    return rows
-  }, [rows, filter])
+    let list = rows
+    if (filter==='valid')     list = list.filter(r=>r.status==='new')
+    else if (filter==='duplicate') list = list.filter(r=>r.status==='exists')
+    else if (filter==='error')     list = list.filter(r=>r.status==='error')
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter(r =>
+        r.pais.toLowerCase().includes(q) ||
+        r.estado.toLowerCase().includes(q) ||
+        r.cidade.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [rows, filter, search])
 
   const doConfirm = async () => {
     const toProcess = rows.filter(r=>r.status!=='error')
@@ -186,10 +195,10 @@ export default function GeoImport() {
 
   /* ── Review / Analyzing ── */
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f8fafc' }}>
+    <div style={{ margin:'-26px -28px', background:'#f8fafc' }}>
 
       {/* Header */}
-      <div style={{ background:'#fff', borderBottom:'1px solid #e2e8f0', padding:'11px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+      <div style={{ background:'#fff', borderBottom:'1px solid #e2e8f0', padding:'11px 28px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
           <button onClick={()=>navigate('/configuracoes')}
             style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:7, padding:'6px 12px', cursor:'pointer', color:'#475569', fontSize:13, fontFamily:'inherit' }}>
@@ -207,7 +216,7 @@ export default function GeoImport() {
         </div>
       </div>
 
-      <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:16 }}>
+      <div style={{ padding:'20px 28px', display:'flex', flexDirection:'column', gap:14 }}>
 
         {/* Info */}
         <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'10px 16px', display:'flex', gap:10 }}>
@@ -232,8 +241,13 @@ export default function GeoImport() {
           </div>
         </div>
 
-        {/* Filtros */}
-        <div style={{ display:'flex', gap:8 }}>
+        {/* Busca + Filtros */}
+        <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+          <input value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder={`Buscar entre ${rows.length} linhas…`}
+            style={{ padding:'7px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', width:260 }}
+            onFocus={e=>e.target.style.borderColor='#1a2d4f'}
+            onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
           {[
             {key:'all',       label:`Todos (${rows.length})`},
             {key:'valid',     label:`Novos (${stats.valid})`},
@@ -241,7 +255,7 @@ export default function GeoImport() {
             {key:'error',     label:`Com erro (${stats.error})`},
           ].map(f => (
             <button key={f.key} onClick={()=>setFilter(f.key)}
-              style={{ padding:'5px 14px', borderRadius:20, border:'1.5px solid', fontFamily:'inherit',
+              style={{ padding:'6px 13px', borderRadius:20, border:'1.5px solid', fontFamily:'inherit',
                 borderColor: filter===f.key?'#1a2d4f':'#e2e8f0',
                 background:  filter===f.key?'#1a2d4f':'#fff',
                 color:       filter===f.key?'#fff':'#475569',
@@ -251,8 +265,9 @@ export default function GeoImport() {
           ))}
         </div>
 
-        {/* Tabela */}
+        {/* Tabela com scroll */}
         <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', overflow:'hidden' }}>
+          <div style={{ overflowY:'auto', maxHeight:'calc(100vh - 520px)', minHeight:200 }}>
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead>
               <tr>
@@ -291,21 +306,26 @@ export default function GeoImport() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
-      </div>
 
-      {/* Footer */}
-      <div style={{background:'#fff',borderTop:'1px solid #e2e8f0',padding:'12px 24px',display:'flex',justifyContent:'flex-end',gap:12,flexShrink:0}}>
-        <button onClick={()=>navigate('/configuracoes')}
-          style={{padding:'9px 20px',borderRadius:8,border:'1.5px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          Cancelar
-        </button>
-        <button onClick={doConfirm}
-          disabled={phase==='importing'||phase==='analyzing'||rows.filter(r=>r.status!=='error').length===0}
-          style={{padding:'9px 22px',borderRadius:8,border:'none',background:'#1a2d4f',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:8,
-            opacity: phase==='analyzing'||rows.filter(r=>r.status!=='error').length===0 ? .5 : 1}}>
-          {phase==='importing' ? <><Spin/> Importando…</> : <>✓ Confirmar Importação</>}
-        </button>
+        {/* Footer */}
+        <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:12,color:'#94a3b8'}}>{filtered.length} de {rows.length} linha{rows.length!==1?'s':''} exibidas</span>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={()=>navigate('/configuracoes')}
+              style={{padding:'9px 20px',borderRadius:8,border:'1.5px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+              Cancelar
+            </button>
+            <button onClick={doConfirm}
+              disabled={phase==='importing'||phase==='analyzing'||rows.filter(r=>r.status!=='error').length===0}
+              style={{padding:'9px 22px',borderRadius:8,border:'none',background:'#1a2d4f',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:8,
+                opacity: phase==='analyzing'||rows.filter(r=>r.status!=='error').length===0?.5:1}}>
+              {phase==='importing' ? <><Spin/> Importando…</> : <>✓ Confirmar Importação</>}
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   )
