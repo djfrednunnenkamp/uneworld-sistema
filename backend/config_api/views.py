@@ -34,6 +34,7 @@ class CountrySerializer(serializers.ModelSerializer):
 class ProfessionViewSet(viewsets.ModelViewSet):
     queryset = ConfigProfession.objects.all()
     serializer_class = ProfessionSerializer
+    pagination_class = None
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
@@ -75,6 +76,7 @@ class ProfessionViewSet(viewsets.ModelViewSet):
 class LanguageViewSet(viewsets.ModelViewSet):
     queryset = ConfigLanguage.objects.all()
     serializer_class = LanguageSerializer
+    pagination_class = None
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
@@ -105,6 +107,7 @@ class LanguageViewSet(viewsets.ModelViewSet):
 class CountryViewSet(viewsets.ModelViewSet):
     queryset = ConfigCountry.objects.all()
     serializer_class = CountrySerializer
+    pagination_class = None
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
@@ -131,6 +134,7 @@ class CountryViewSet(viewsets.ModelViewSet):
 
 class StateViewSet(viewsets.ModelViewSet):
     serializer_class = StateSerializer
+    pagination_class = None
 
     def get_queryset(self):
         country_id = self.request.query_params.get('country_id')
