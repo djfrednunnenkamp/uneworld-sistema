@@ -15,6 +15,7 @@ const DIET_OPTIONS = [
   { id: 'nut_free',       icon: '🥜',  label: 'Sem oleaginosas',      sub: 'Alergia a nozes, amendoim, castanhas' },
   { id: 'low_fat',        icon: '🥦',  label: 'Baixo teor de gordura',sub: 'Dieta com restrição de gordura' },
   { id: 'raw',            icon: '🥬',  label: 'Crudívoro',            sub: 'Alimentação crua, sem processamento' },
+  { id: 'box_meal',       icon: '📦',  label: 'Prato kit',            sub: 'Prefere refeições em formato de marmita/kit' },
 ]
 
 export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
