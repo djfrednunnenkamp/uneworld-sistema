@@ -92,13 +92,11 @@ export default function NewPassengerModal({ onClose }) {
             </span>
           </div>
 
-          {/* CPF input — só aparece se não for estrangeiro */}
-          {!isForeign && (
-            <div style={{ marginTop:20, marginBottom:4 }}>
-              <label style={lbl}>CPF</label>
-              <CpfInput value={cpf} onChange={v => { setCpf(v); reset() }} />
-            </div>
-          )}
+          {/* CPF input — sempre visível, desabilitado quando estrangeiro */}
+          <div style={{ marginTop:20, marginBottom:4, opacity: isForeign ? 0.35 : 1, pointerEvents: isForeign ? 'none' : 'auto', transition:'opacity .2s' }}>
+            <label style={lbl}>CPF</label>
+            <CpfInput value={cpf} onChange={v => { setCpf(v); reset() }} />
+          </div>
 
           {/* Mensagem de erro */}
           {error && (

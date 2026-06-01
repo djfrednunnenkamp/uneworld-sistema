@@ -788,6 +788,7 @@ export default function PassengerDetail() {
     const hasName = form.first_name?.trim() || form.last_name?.trim()
     if (!hasName) { errs.first_name = true; errs.last_name = true }
     if (!form.email?.trim()) errs.email = true
+    if (!form.is_foreign && !form.cpf?.replace(/\D/g, '')) errs.cpf = true
     if (Object.keys(errs).length) {
       setFieldErrors(errs)
       // Navega para a aba de informações se não estiver nela
@@ -969,10 +970,15 @@ export default function PassengerDetail() {
               </div>
 
               <F label="CPF">
-                <CpfInput
-                  value={form.cpf}
-                  onChange={(v) => { set('cpf')({ target: { value: v } }) }}
-                />
+                <div style={{ opacity: form.is_foreign ? 0.4 : 1, pointerEvents: form.is_foreign ? 'none' : 'auto', borderRadius: 8, boxShadow: fieldErrors.cpf && !form.is_foreign ? '0 0 0 2px #dc2626' : 'none' }}>
+                  <CpfInput
+                    value={form.cpf}
+                    onChange={(v) => { set('cpf')({ target: { value: v } }) }}
+                  />
+                </div>
+                {fieldErrors.cpf && !form.is_foreign && (
+                  <p style={{ fontSize: 11, color: '#dc2626', margin: '3px 0 0', fontWeight: 500 }}>CPF obrigatório</p>
+                )}
               </F>
 
               <F label="Gênero">
