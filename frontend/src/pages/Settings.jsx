@@ -228,6 +228,45 @@ function GeoCsvBar() {
   )
 }
 
+/* ── Estilos de coluna (módulo-level para não recriar a cada render) ── */
+const colDelBtn = { background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 14, lineHeight: 1, padding: '1px 3px', flexShrink: 0 }
+const colAddInp = { ...inp, flex: 1, fontSize: 12, padding: '7px 10px' }
+const colAddBtn = { ...btnPri, fontSize: 12, padding: '7px 10px' }
+const colBox    = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 380, overflowY: 'auto' }
+
+/* Col é um componente de módulo (nunca redefinido dentro de CountriesTab) */
+function Col({ title, count, search, onSearch, newVal, onNew, onAdd, loading, children, placeholder }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0, whiteSpace: 'nowrap' }}>
+          {title}
+          {count != null && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400, marginLeft: 5 }}>({count})</span>}
+        </h3>
+      </div>
+      <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+        <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Buscar…"
+          style={{ ...colAddInp }}
+          onFocus={e => e.target.style.borderColor = '#1a2d4f'}
+          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+      </div>
+      <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+        <input value={newVal} onChange={e => onNew(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onAdd(newVal)}
+          placeholder={placeholder} style={colAddInp}
+          onFocus={e => e.target.style.borderColor = '#1a2d4f'}
+          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+        <button onClick={() => onAdd(newVal)} disabled={!newVal.trim()} style={colAddBtn}>+</button>
+      </div>
+      <div style={colBox}>
+        {loading
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Carregando…</p>
+          : children}
+      </div>
+    </div>
+  )
+}
+
 /* ── CountriesTab ── */
 function CountriesTab() {
   const [countries,  setCountries]  = useState([])
@@ -307,38 +346,7 @@ function CountriesTab() {
     background: sel ? '#f0f6ff' : '#fff',
     borderLeft: sel ? '3px solid #2e6db4' : '3px solid transparent',
   })
-  const delBtn = { background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 14, lineHeight: 1, padding: '1px 3px', flexShrink: 0 }
-  const addInp = { ...inp, flex: 1, fontSize: 12, padding: '7px 10px' }
-  const addBtn = { ...btnPri, fontSize: 12, padding: '7px 10px' }
-
-  const Col = ({ title, count, search, onSearch, newVal, onNew, onAdd, loading, children, placeholder, csvItems, csvFilename }) => (
-    <div style={{ minWidth: 0 }}>
-      {/* Header: título + CSV */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0, whiteSpace: 'nowrap' }}>
-          {title}
-          {count != null && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400, marginLeft: 5 }}>({count})</span>}
-        </h3>
-        {csvItems && <CsvButtons items={csvItems} filename={csvFilename} onAdd={onAdd} />}
-      </div>
-      <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-        <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Buscar…"
-          style={{ ...addInp }} onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-      </div>
-      <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-        <input value={newVal} onChange={e => onNew(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && onAdd(newVal)}
-          placeholder={placeholder} style={addInp}
-          onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-        <button onClick={() => onAdd(newVal)} disabled={!newVal.trim()} style={addBtn}>+</button>
-      </div>
-      <div style={colStyle}>
-        {loading
-          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Carregando…</p>
-          : children}
-      </div>
-    </div>
-  )
+  const delBtn = colDelBtn
 
   return (
     <>
@@ -349,7 +357,7 @@ function CountriesTab() {
         search={searchC} onSearch={setSearchC}
         newVal={newCountry} onNew={setNewCountry} onAdd={addCountry}
         loading={loadingC} placeholder="Novo país…"
-        csvItems={null} csvFilename={null}
+        
       >
         {filteredC.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
@@ -376,7 +384,7 @@ function CountriesTab() {
         search={searchS} onSearch={setSearchS}
         newVal={newState} onNew={setNewState} onAdd={addState}
         loading={loadingS} placeholder="Novo estado…"
-        csvItems={null} csvFilename={null}
+        
       >
         {!selCountry
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um país</p>
@@ -406,7 +414,7 @@ function CountriesTab() {
         search={searchCi} onSearch={setSearchCi}
         newVal={newCity} onNew={setNewCity} onAdd={addCity}
         loading={loadingCi} placeholder="Nova cidade…"
-        csvItems={null} csvFilename={null}
+        
       >
         {!selState
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um estado</p>
