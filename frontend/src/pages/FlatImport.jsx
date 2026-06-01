@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { configApi } from '../api'
+import ConfirmModal from '../components/ConfirmModal'
 
 function parseCsvNames(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
@@ -28,7 +29,7 @@ const pill = (bg, color) => ({
   background:bg, color, display:'inline-block', whiteSpace:'nowrap',
 })
 const th = {
-  padding:'9px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#64748b',
+  padding:'9px 12px', textAlign:'left', fontSize:11, fontWeight:700, color:'#64748b',
   textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1.5px solid #e2e8f0',
   background:'#f8fafc', whiteSpace:'nowrap', position:'sticky', top:0, zIndex:1,
 }
@@ -46,7 +47,7 @@ function Editable({ value, onChange }) {
   )
   return (
     <span onClick={() => { setVal(value); setEditing(true) }}
-      style={{ cursor:'text', display:'block', minWidth:80, color: value ? '#0f172a' : '#94a3b8' }}
+      style={{ cursor:'text', display:'block', minWidth:80 }}
       title="Clique para editar">
       {value || <em style={{ color:'#cbd5e1' }}>—</em>}
     </span>
@@ -69,32 +70,37 @@ export default function FlatImport() {
   const apiDef   = API_MAP[type] || API_MAP.professions
   const backPath = '/configuracoes'
 
-  const [rows,   setRows]   = useState([])
-  const [mode,   setMode]   = useState('new')
-  const [phase,  setPhase]  = useState('review')
-  const [result, setResult] = useState(null)
-  const [filter, setFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const [rows,       setRows]       = useState([])
+  const [mode,       setMode]       = useState('new')
+  const [phase,      setPhase]      = useState('review')
+  const [result,     setResult]     = useState(null)
+  const [filter,     setFilter]     = useState('all')
+  const [search,     setSearch]     = useState('')
+  const [selected,   setSelected]   = useState(new Set())
+  const [confirm,    setConfirm]    = useState(null) // { type:'bulk'|'single', id?, count? }
 
   useEffect(() => {
     if (!csvText) { navigate(backPath); return }
     const names    = parseCsvNames(csvText)
     const existing = new Set(existingNames.map(n => n.toLowerCase()))
     setRows(names.map((name, i) => ({
-      id:     i + 1,
-      name,
+      id: i + 1, name,
       status: !name.trim() ? 'error' : existing.has(name.toLowerCase()) ? 'duplicate' : 'valid',
     })))
   }, [])
 
-  const editRow   = (id, name) => {
-    const existing = new Set(existingNames.map(n => n.toLowerCase()))
-    setRows(prev => prev.map(r => r.id === id
-      ? { ...r, name, status: !name.trim() ? 'error' : existing.has(name.toLowerCase()) ? 'duplicate' : 'valid' }
-      : r
-    ))
+  const existingSet = useMemo(() => new Set(existingNames.map(n => n.toLowerCase())), [existingNames])
+
+  const editRow   = (id, name) => setRows(prev => prev.map(r => r.id === id
+    ? { ...r, name, status: !name.trim() ? 'error' : existingSet.has(name.toLowerCase()) ? 'duplicate' : 'valid' }
+    : r
+  ))
+
+  const removeRows = (ids) => {
+    setRows(prev => prev.filter(r => !ids.has(r.id)))
+    setSelected(new Set())
+    setConfirm(null)
   }
-  const removeRow = (id) => setRows(prev => prev.filter(r => r.id !== id))
 
   const stats = useMemo(() => ({
     valid:     rows.filter(r => r.status === 'valid').length,
@@ -112,6 +118,14 @@ export default function FlatImport() {
     return list
   }, [rows, filter, search])
 
+  /* seleção */
+  const allFilteredSelected = filtered.length > 0 && filtered.every(r => selected.has(r.id))
+  const toggleAll  = () => {
+    if (allFilteredSelected) setSelected(p => { const n = new Set(p); filtered.forEach(r => n.delete(r.id)); return n })
+    else                     setSelected(p => { const n = new Set(p); filtered.forEach(r => n.add(r.id));    return n })
+  }
+  const toggleRow  = (id) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
+
   const doConfirm = async () => {
     let toProcess = rows.filter(r => r.status !== 'error')
     if (mode === 'new') toProcess = toProcess.filter(r => r.status === 'valid')
@@ -121,11 +135,10 @@ export default function FlatImport() {
     for (const row of toProcess) {
       try { await apiDef.add(row.name); added++ } catch { skipped++ }
     }
-    setResult({ added, skipped, total: toProcess.length })
+    setResult({ added, skipped })
     setPhase('done')
   }
 
-  /* ── Resultado ── */
   if (phase === 'done' && result) return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:24, padding:48 }}>
       <div style={{ fontSize:56 }}>✅</div>
@@ -149,7 +162,6 @@ export default function FlatImport() {
     </div>
   )
 
-  /* ── Review ── */
   return (
     <div style={{ margin:'-26px -28px', background:'#f8fafc' }}>
 
@@ -177,7 +189,7 @@ export default function FlatImport() {
         <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'10px 16px', display:'flex', gap:10 }}>
           <span style={{ fontSize:16 }}>ℹ️</span>
           <p style={{ fontSize:13, color:'#1e40af', margin:0 }}>
-            Somente novos itens serão inseridos por padrão. Mude o modo abaixo para outras opções.
+            Revise os itens antes de confirmar. Clique em qualquer nome para editar. Selecione e apague linhas indesejadas antes de importar.
           </p>
         </div>
 
@@ -196,11 +208,11 @@ export default function FlatImport() {
           </div>
         </div>
 
-        {/* Busca + Filtros */}
+        {/* Toolbar: busca + filtros + seleção */}
         <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder={`Buscar entre ${rows.length} itens…`}
-            style={{ padding:'7px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', width:240 }}
+            style={{ padding:'7px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', width:230 }}
             onFocus={e => e.target.style.borderColor='#1a2d4f'}
             onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
           {[
@@ -218,14 +230,28 @@ export default function FlatImport() {
               {f.label}
             </button>
           ))}
+          {selected.size > 0 && (
+            <button
+              onClick={() => setConfirm({ type:'bulk', count: selected.size })}
+              style={{ marginLeft:'auto', padding:'6px 14px', borderRadius:8, border:'1px solid #fecaca', background:'#fef2f2', color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              Apagar {selected.size} selecionado{selected.size!==1?'s':''}
+            </button>
+          )}
         </div>
 
-        {/* Tabela com scroll */}
+        {/* Tabela */}
         <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', overflow:'hidden' }}>
-          <div style={{ overflowY:'auto', maxHeight:'calc(100vh - 500px)', minHeight:200 }}>
+          <div style={{ overflowY:'auto', maxHeight:'calc(100vh - 520px)', minHeight:200 }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
               <thead>
                 <tr>
+                  <th style={{ ...th, width:44, textAlign:'center' }}>
+                    <input type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={toggleAll}
+                      title={allFilteredSelected ? 'Desmarcar todos' : 'Selecionar todos visíveis'}
+                    />
+                  </th>
                   <th style={{...th, width:60}}>Linha</th>
                   <th style={{...th, width:130}}>Status</th>
                   <th style={th}>Nome</th>
@@ -234,27 +260,34 @@ export default function FlatImport() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={4} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
+                  <tr><td colSpan={5} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
                     {search ? 'Nenhum resultado para a busca.' : 'Nenhum item nesta categoria.'}
                   </td></tr>
-                ) : filtered.map((row, idx) => (
-                  <tr key={row.id} style={{ borderTop:'1px solid #f1f5f9', background:idx%2===0?'#fff':'#fafafa' }}>
-                    <td style={{padding:'9px 14px', color:'#94a3b8', fontSize:12}}>{row.id}</td>
-                    <td style={{padding:'9px 14px'}}>
-                      {row.status==='valid'     && <span style={pill('#dcfce7','#16a34a')}>Válido</span>}
-                      {row.status==='duplicate' && <span style={pill('#fef9c3','#ca8a04')}>Duplicado</span>}
-                      {row.status==='error'     && <span style={pill('#fee2e2','#dc2626')}>Inválido</span>}
-                    </td>
-                    <td style={{padding:'9px 14px'}}>
-                      <Editable value={row.name} onChange={v => editRow(row.id, v)} />
-                    </td>
-                    <td style={{padding:'9px 14px', textAlign:'center'}}>
-                      <button onClick={() => removeRow(row.id)}
-                        style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,cursor:'pointer',color:'#dc2626',fontSize:13,padding:'4px 9px',fontFamily:'inherit'}}
-                        title="Remover linha">✕</button>
-                    </td>
-                  </tr>
-                ))}
+                ) : filtered.map((row, idx) => {
+                  const isSel = selected.has(row.id)
+                  return (
+                    <tr key={row.id} style={{ borderTop:'1px solid #f1f5f9', background: isSel ? '#f0f6ff' : idx%2===0 ? '#fff' : '#fafafa' }}>
+                      <td style={{padding:'9px 12px', textAlign:'center'}}>
+                        <input type="checkbox" checked={isSel} onChange={() => toggleRow(row.id)} />
+                      </td>
+                      <td style={{padding:'9px 12px', color:'#94a3b8', fontSize:12}}>{row.id}</td>
+                      <td style={{padding:'9px 12px'}}>
+                        {row.status==='valid'     && <span style={pill('#dcfce7','#16a34a')}>Válido</span>}
+                        {row.status==='duplicate' && <span style={pill('#fef9c3','#ca8a04')}>Duplicado</span>}
+                        {row.status==='error'     && <span style={pill('#fee2e2','#dc2626')}>Inválido</span>}
+                      </td>
+                      <td style={{padding:'9px 12px'}}>
+                        <Editable value={row.name} onChange={v => editRow(row.id, v)} />
+                      </td>
+                      <td style={{padding:'9px 12px', textAlign:'center'}}>
+                        <button
+                          onClick={() => setConfirm({ type:'single', id: row.id, name: row.name })}
+                          style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,cursor:'pointer',color:'#dc2626',fontSize:13,padding:'4px 9px',fontFamily:'inherit'}}
+                          title="Remover linha">✕</button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -263,7 +296,7 @@ export default function FlatImport() {
         {/* Footer */}
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontSize:12, color:'#94a3b8' }}>
-            {filtered.length} de {rows.length} item{rows.length!==1?'s':''} exibidos
+            {filtered.length} de {rows.length} item{rows.length!==1?'s':''} · {selected.size > 0 && `${selected.size} selecionado${selected.size!==1?'s':''}`}
           </span>
           <div style={{ display:'flex', gap:10 }}>
             <button onClick={() => navigate(backPath)}
@@ -280,6 +313,26 @@ export default function FlatImport() {
         </div>
 
       </div>
+
+      {/* Modal de confirmação */}
+      {confirm?.type === 'bulk' && (
+        <ConfirmModal
+          message={`Remover ${confirm.count} linha${confirm.count!==1?'s':''} selecionada${confirm.count!==1?'s':''}?`}
+          detail="As linhas serão removidas apenas desta lista de importação, não do banco de dados."
+          okLabel="Remover"
+          onOk={() => removeRows(selected)}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === 'single' && (
+        <ConfirmModal
+          message={`Remover a linha "${confirm.name}"?`}
+          detail="Será removida apenas desta lista de importação."
+          okLabel="Remover"
+          onOk={() => removeRows(new Set([confirm.id]))}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   )
 }

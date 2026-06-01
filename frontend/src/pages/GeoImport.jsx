@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { configApi } from '../api'
+import ConfirmModal from '../components/ConfirmModal'
 
 /* ── CSV parsing ── */
 function parseCsv(text) {
@@ -72,12 +73,14 @@ export default function GeoImport() {
   const location = useLocation()
   const { csvText, filename } = location.state || {}
 
-  const [rows,   setRows]   = useState([])
-  const [mode,   setMode]   = useState('merge')
-  const [phase,  setPhase]  = useState('upload')
-  const [result, setResult] = useState(null)
-  const [filter, setFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const [rows,     setRows]     = useState([])
+  const [mode,     setMode]     = useState('merge')
+  const [phase,    setPhase]    = useState('upload')
+  const [result,   setResult]   = useState(null)
+  const [filter,   setFilter]   = useState('all')
+  const [search,   setSearch]   = useState('')
+  const [selected, setSelected] = useState(new Set())
+  const [confirm,  setConfirm]  = useState(null)
 
   /* Carrega CSV do state do router ou mostra zona de upload */
   useEffect(() => {
@@ -106,9 +109,11 @@ export default function GeoImport() {
     setPhase('review')
   }
 
-  const editRow   = (id, field, val) =>
+  const editRow    = (id, field, val) =>
     setRows(prev => prev.map(r => r.id===id ? {...r, [field]:val, status:'pending', msg:''} : r))
-  const removeRow = (id) => setRows(prev => prev.filter(r => r.id!==id))
+
+  const removeRows = (ids) => { setRows(prev => prev.filter(r => !ids.has(r.id))); setSelected(new Set()); setConfirm(null) }
+  const toggleRow  = (id) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const stats = useMemo(() => ({
     valid:     rows.filter(r=>r.status==='new').length,
@@ -132,6 +137,12 @@ export default function GeoImport() {
     }
     return list
   }, [rows, filter, search])
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every(r => selected.has(r.id))
+  const toggleAll = () => {
+    if (allFilteredSelected) setSelected(p => { const n = new Set(p); filtered.forEach(r => n.delete(r.id)); return n })
+    else                     setSelected(p => { const n = new Set(p); filtered.forEach(r => n.add(r.id));    return n })
+  }
 
   const doConfirm = async () => {
     const toProcess = rows.filter(r=>r.status!=='error')
@@ -241,7 +252,7 @@ export default function GeoImport() {
           </div>
         </div>
 
-        {/* Busca + Filtros */}
+        {/* Toolbar */}
         <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
           <input value={search} onChange={e=>setSearch(e.target.value)}
             placeholder={`Buscar entre ${rows.length} linhas…`}
@@ -263,6 +274,12 @@ export default function GeoImport() {
               {f.label}
             </button>
           ))}
+          {selected.size > 0 && (
+            <button onClick={() => setConfirm({ type:'bulk', count: selected.size })}
+              style={{ marginLeft:'auto', padding:'6px 14px', borderRadius:8, border:'1px solid #fecaca', background:'#fef2f2', color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              Apagar {selected.size} selecionada{selected.size!==1?'s':''}
+            </button>
+          )}
         </div>
 
         {/* Tabela com scroll */}
@@ -271,6 +288,9 @@ export default function GeoImport() {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead>
               <tr>
+                <th style={{...th, width:44, textAlign:'center'}}>
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleAll} title="Selecionar todos visíveis" />
+                </th>
                 <th style={{...th, width:60}}>Linha</th>
                 <th style={{...th, width:120}}>Status</th>
                 <th style={th}>País</th>
@@ -281,29 +301,37 @@ export default function GeoImport() {
             </thead>
             <tbody>
               {phase==='analyzing' && filtered.length===0 ? (
-                <tr><td colSpan={6} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>Analisando…</td></tr>
+                <tr><td colSpan={7} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>Analisando…</td></tr>
               ) : filtered.length===0 ? (
-                <tr><td colSpan={6} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>Nenhuma linha.</td></tr>
-              ) : filtered.map((row, idx) => (
-                <tr key={row.id} style={{ borderTop:'1px solid #f1f5f9', background: idx%2===0?'#fff':'#fafafa' }}>
-                  <td style={{padding:'8px 14px', color:'#94a3b8', fontSize:12}}>{row.id}</td>
-                  <td style={{padding:'8px 14px'}}>
+                <tr><td colSpan={7} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
+                  {search ? 'Nenhum resultado para a busca.' : 'Nenhuma linha.'}
+                </td></tr>
+              ) : filtered.map((row, idx) => {
+                const isSel = selected.has(row.id)
+                return (
+                <tr key={row.id} style={{ borderTop:'1px solid #f1f5f9', background: isSel?'#f0f6ff':idx%2===0?'#fff':'#fafafa' }}>
+                  <td style={{padding:'8px 12px', textAlign:'center'}}>
+                    <input type="checkbox" checked={isSel} onChange={() => toggleRow(row.id)} />
+                  </td>
+                  <td style={{padding:'8px 12px', color:'#94a3b8', fontSize:12}}>{row.id}</td>
+                  <td style={{padding:'8px 12px'}}>
                     {row.status==='new'     && <span style={pill('#dcfce7','#16a34a')}>Novo</span>}
                     {row.status==='exists'  && <span style={pill('#fef9c3','#ca8a04')}>Duplicado</span>}
                     {row.status==='error'   && <span style={pill('#fee2e2','#dc2626')}>Erro</span>}
                     {row.status==='pending' && <span style={pill('#f1f5f9','#94a3b8')}>…</span>}
                     {row.msg && <span style={{fontSize:11,color:'#dc2626',marginLeft:6}}>{row.msg}</span>}
                   </td>
-                  <td style={{padding:'8px 14px'}}><Editable value={row.pais}   onChange={v=>editRow(row.id,'pais',v)}   placeholder="país" /></td>
-                  <td style={{padding:'8px 14px'}}><Editable value={row.estado} onChange={v=>editRow(row.id,'estado',v)} placeholder="estado" /></td>
-                  <td style={{padding:'8px 14px'}}><Editable value={row.cidade} onChange={v=>editRow(row.id,'cidade',v)} placeholder="cidade" /></td>
-                  <td style={{padding:'8px 14px', textAlign:'center'}}>
-                    <button onClick={()=>removeRow(row.id)}
+                  <td style={{padding:'8px 12px'}}><Editable value={row.pais}   onChange={v=>editRow(row.id,'pais',v)}   placeholder="país" /></td>
+                  <td style={{padding:'8px 12px'}}><Editable value={row.estado} onChange={v=>editRow(row.id,'estado',v)} placeholder="estado" /></td>
+                  <td style={{padding:'8px 12px'}}><Editable value={row.cidade} onChange={v=>editRow(row.id,'cidade',v)} placeholder="cidade" /></td>
+                  <td style={{padding:'8px 12px', textAlign:'center'}}>
+                    <button onClick={() => setConfirm({ type:'single', id: row.id, label: [row.pais, row.estado, row.cidade].filter(Boolean).join(' › ') })}
                       style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,cursor:'pointer',color:'#dc2626',fontSize:13,padding:'4px 8px',fontFamily:'inherit'}}
                       title="Remover linha">✕</button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
           </div>
@@ -327,6 +355,25 @@ export default function GeoImport() {
         </div>
 
       </div>
+
+      {confirm?.type==='bulk' && (
+        <ConfirmModal
+          message={`Remover ${confirm.count} linha${confirm.count!==1?'s':''} selecionada${confirm.count!==1?'s':''}?`}
+          detail="Serão removidas apenas desta lista de revisão, não do banco de dados."
+          okLabel="Remover"
+          onOk={() => removeRows(selected)}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type==='single' && (
+        <ConfirmModal
+          message={`Remover a linha "${confirm.label}"?`}
+          detail="Será removida apenas desta lista de revisão."
+          okLabel="Remover"
+          onOk={() => removeRows(new Set([confirm.id]))}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   )
 }

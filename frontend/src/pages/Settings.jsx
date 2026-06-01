@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
-// type: 'professions' | 'languages'
+import ConfirmModal from '../components/ConfirmModal'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -106,9 +106,10 @@ function CsvButtons({ items, filename, type }) {
 
 /* ── ItemList (Profissões / Idiomas) ── */
 function ItemList({ items, loading, onDelete, onAdd, placeholder, filename, type }) {
-  const [search, setSearch] = useState('')
-  const [newVal, setNewVal] = useState('')
-  const [adding, setAdding] = useState(false)
+  const [search,  setSearch]  = useState('')
+  const [newVal,  setNewVal]  = useState('')
+  const [adding,  setAdding]  = useState(false)
+  const [confirm, setConfirm] = useState(null) // {id, name}
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -123,6 +124,7 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename, type
   }
 
   return (
+    <>
     <div>
       {/* Toolbar: busca + CSV */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -166,7 +168,7 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename, type
             onMouseLeave={e => e.currentTarget.style.background = '#fff'}
           >
             <span>{item.name}</span>
-            <button onClick={() => onDelete(item.id)}
+            <button onClick={() => setConfirm({ id: item.id, name: item.name })}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 16, lineHeight: 1, padding: '2px 4px', borderRadius: 4 }}
               onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
               onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}
@@ -175,6 +177,14 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename, type
         ))}
       </div>
     </div>
+    {confirm && (
+      <ConfirmModal
+        message={`Remover "${confirm.name}"?`}
+        onOk={() => { onDelete(confirm.id); setConfirm(null) }}
+        onCancel={() => setConfirm(null)}
+      />
+    )}
+  </>
   )
 }
 
@@ -231,6 +241,7 @@ function CountriesTab() {
   const [searchC,    setSearchC]    = useState('')
   const [searchS,    setSearchS]    = useState('')
   const [searchCi,   setSearchCi]   = useState('')
+  const [confirm,    setConfirm]    = useState(null) // {action, id, name}
   const [newCountry, setNewCountry] = useState('')
   const [newState,   setNewState]   = useState('')
   const [newCity,    setNewCity]    = useState('')
@@ -351,7 +362,7 @@ function CountriesTab() {
                 {c.name}
                 {c.state_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 5 }}>{c.state_count}</span>}
               </span>
-              <button onClick={e => { e.stopPropagation(); delCountry(c.id) }} style={delBtn}
+              <button onClick={e => { e.stopPropagation(); setConfirm({ action:'country', id:c.id, name:c.name }) }} style={delBtn}
                 onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
                 onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
             </div>
@@ -381,7 +392,7 @@ function CountriesTab() {
                 {s.code && <span style={{ color: '#94a3b8', marginLeft: 4 }}>{s.code}</span>}
                 {s.city_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 4 }}>{s.city_count}</span>}
               </span>
-              <button onClick={e => { e.stopPropagation(); delState(s.id) }} style={delBtn}
+              <button onClick={e => { e.stopPropagation(); setConfirm({ action:'state', id:s.id, name:s.name }) }} style={delBtn}
                 onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
                 onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
             </div>
@@ -407,7 +418,7 @@ function CountriesTab() {
               onMouseLeave={e => e.currentTarget.style.background = '#fff'}
             >
               <span>{c.name}</span>
-              <button onClick={() => delCity(c.id)} style={delBtn}
+              <button onClick={() => setConfirm({ action:'city', id:c.id, name:c.name })} style={delBtn}
                 onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
                 onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
             </div>
@@ -415,6 +426,18 @@ function CountriesTab() {
         }
       </Col>
     </div>
+    {confirm && (
+      <ConfirmModal
+        message={`Remover "${confirm.name}"?`}
+        onOk={() => {
+          if (confirm.action === 'country') delCountry(confirm.id)
+          if (confirm.action === 'state')   delState(confirm.id)
+          if (confirm.action === 'city')    delCity(confirm.id)
+          setConfirm(null)
+        }}
+        onCancel={() => setConfirm(null)}
+      />
+    )}
     </>
   )
 }
