@@ -66,14 +66,6 @@ class Passenger(models.Model):
     rne_expiry       = models.DateField('Validade do RNE', null=True, blank=True)
     rne_issue        = models.DateField('Data de emissão do RNE', null=True, blank=True)
 
-    # ── Pais / Responsáveis ────────────────────────────────────────
-    parent1_first_name  = models.CharField('Pai/Mãe 1 — Primeiro nome', max_length=100, blank=True)
-    parent1_last_name   = models.CharField('Pai/Mãe 1 — Sobrenome',     max_length=100, blank=True)
-    parent1_birth_date  = models.DateField('Pai/Mãe 1 — Data de nascimento', null=True, blank=True)
-    parent2_first_name  = models.CharField('Pai/Mãe 2 — Primeiro nome', max_length=100, blank=True)
-    parent2_last_name   = models.CharField('Pai/Mãe 2 — Sobrenome',     max_length=100, blank=True)
-    parent2_birth_date  = models.DateField('Pai/Mãe 2 — Data de nascimento', null=True, blank=True)
-
     # ── Telefones ──────────────────────────────────────────────────
     phone1  = models.CharField('Telefone 1', max_length=30, blank=True)
     phone2  = models.CharField('Telefone 2', max_length=30, blank=True)
