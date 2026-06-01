@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
+import DocTypesManager from '../components/DocTypesManager'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -451,10 +452,14 @@ function CountriesTab() {
 }
 
 /* ── Página principal ── */
-const TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Países & Estados']
+/* Seção principal */
+const SECTIONS = ['Listas', 'Tipos de Documento']
+/* Sub-tabs da seção Listas */
+const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Países & Estados']
 
 export default function Settings() {
-  const [tab, setTab] = useState(0)
+  const [section, setSection] = useState(0)  // 0=Listas, 1=Tipos de Doc
+  const [tab,     setTab]     = useState(0)  // sub-tab das Listas
   const [professions, setProfessions] = useState([])
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])
@@ -512,30 +517,55 @@ export default function Settings() {
     catch { toast.error('Erro ao remover gênero.') }
   }
 
+  const tabStyle = (active) => ({
+    padding: '10px 16px', border: 'none', background: 'none',
+    fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
+    color: active ? '#1a2d4f' : '#64748b', fontFamily: 'inherit',
+    borderBottom: active ? '2px solid #1a2d4f' : '2px solid transparent',
+  })
+
   return (
     <div>
       <div className="ph">
         <h1 className="ph-title">Configurações</h1>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, padding: '0 24px', borderBottom: '1px solid #e2e8f0', marginBottom: 24 }}>
-        {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)} style={{
-            padding: '10px 16px', border: 'none', background: 'none',
-            fontSize: 13, fontWeight: tab === i ? 700 : 500, cursor: 'pointer',
-            color: tab === i ? '#1a2d4f' : '#64748b', fontFamily: 'inherit',
-            borderBottom: tab === i ? '2px solid #1a2d4f' : '2px solid transparent',
-          }}>{t}</button>
+      {/* Seções principais */}
+      <div style={{ display:'flex', gap:2, padding:'0 24px', borderBottom:'2px solid #e2e8f0', marginBottom:0 }}>
+        {SECTIONS.map((s, i) => (
+          <button key={s} onClick={() => setSection(i)} style={{
+            padding:'10px 20px', border:'none', background:'none', cursor:'pointer',
+            fontSize:14, fontWeight:section===i?700:500, fontFamily:'inherit',
+            color:section===i?'#1a2d4f':'#64748b',
+            borderBottom:section===i?'3px solid #1a2d4f':'3px solid transparent',
+          }}>{s}</button>
         ))}
       </div>
 
-      <div style={{ padding: '0 24px 40px' }}>
-        {tab === 0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" type="professions" />}
-        {tab === 1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv"   type="languages" />}
-        {tab === 2 && <ItemList items={vaccines}    loading={loadingV} onAdd={addVaccine}    onDelete={delVaccine}    placeholder="Nova vacina…"    filename="vacinas.csv"   type="vaccines" />}
-        {tab === 3 && <ItemList items={genders}     loading={loadingG} onAdd={addGender}     onDelete={delGender}     placeholder="Novo gênero…"   filename="generos.csv"   type="genders" />}
-        {tab === 4 && <CountriesTab />}
-      </div>
+      {/* ── Seção: Listas ── */}
+      {section === 0 && (
+        <>
+          <div style={{ display:'flex', gap:4, padding:'0 24px', borderBottom:'1px solid #e2e8f0', marginBottom:24, background:'#f8fafc' }}>
+            {LIST_TABS.map((t, i) => (
+              <button key={t} onClick={() => setTab(i)} style={tabStyle(tab===i)}>{t}</button>
+            ))}
+          </div>
+          <div style={{ padding:'0 24px 40px' }}>
+            {tab===0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" type="professions" />}
+            {tab===1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv"   type="languages" />}
+            {tab===2 && <ItemList items={vaccines}    loading={loadingV} onAdd={addVaccine}    onDelete={delVaccine}    placeholder="Nova vacina…"    filename="vacinas.csv"   type="vaccines" />}
+            {tab===3 && <ItemList items={genders}     loading={loadingG} onAdd={addGender}     onDelete={delGender}     placeholder="Novo gênero…"    filename="generos.csv"   type="genders" />}
+            {tab===4 && <CountriesTab />}
+          </div>
+        </>
+      )}
+
+      {/* ── Seção: Tipos de Documento ── */}
+      {section === 1 && (
+        <div style={{ padding:'24px' }}>
+          <DocTypesManager />
+        </div>
+      )}
     </div>
   )
 }

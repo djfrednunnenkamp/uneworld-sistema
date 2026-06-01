@@ -8,7 +8,9 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser
-from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState, ConfigCity, ConfigVaccine, ConfigGender
+from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
+                     ConfigCity, ConfigVaccine, ConfigGender,
+                     CustomDocType, CustomDocField, CustomDocFieldOption)
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -404,6 +406,139 @@ class CountryViewSet(viewsets.ModelViewSet):
             if was_created:
                 created += 1
         return Response({'total': ConfigCountry.objects.count(), 'created': created})
+
+
+# ── Tipos de Documento ────────────────────────────────────────────────────
+
+class DocFieldOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomDocFieldOption
+        fields = ['id', 'value', 'order']
+
+class DocFieldSerializer(serializers.ModelSerializer):
+    options = DocFieldOptionSerializer(many=True, read_only=True)
+    class Meta:
+        model = CustomDocField
+        fields = ['id', 'key', 'label', 'field_type', 'required', 'order', 'options']
+
+class DocTypeSerializer(serializers.ModelSerializer):
+    fields = DocFieldSerializer(many=True, read_only=True)
+    class Meta:
+        model = CustomDocType
+        fields = ['id', 'key', 'label', 'icon', 'color', 'order', 'is_active', 'fields']
+
+
+class DocTypeViewSet(viewsets.ModelViewSet):
+    queryset = CustomDocType.objects.prefetch_related('fields__options').all()
+    serializer_class = DocTypeSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'seed']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    @action(detail=False, methods=['post'], url_path='seed')
+    def seed(self, request):
+        """Popula com os tipos de documento padrão do sistema."""
+        DEFAULTS = [
+            {'key':'passport',   'label':'Passaporte',                'icon':'🛂','color':'#2e6db4','order':1,
+             'fields':[
+               {'key':'doc_number','label':'Número do passaporte','field_type':'text','required':True,'order':1},
+               {'key':'issued_date','label':'Data de emissão','field_type':'date','required':True,'order':2},
+               {'key':'expiry_date','label':'Validade','field_type':'date','required':True,'order':3},
+               {'key':'issued_by','label':'País emissor','field_type':'country','required':True,'order':4},
+             ]},
+            {'key':'rg',         'label':'Carteira de Identidade (RG)','icon':'🪪','color':'#7c3aed','order':2,
+             'fields':[
+               {'key':'doc_number','label':'Número do RG','field_type':'text','required':True,'order':1},
+               {'key':'issued_date','label':'Data de expedição','field_type':'date','required':True,'order':2},
+               {'key':'expiry_date','label':'Validade','field_type':'date','required':False,'order':3},
+             ]},
+            {'key':'cnh',        'label':'Carteira de Motorista (CNH)','icon':'🚗','color':'#059669','order':3,
+             'fields':[
+               {'key':'doc_number','label':'Número da CNH','field_type':'text','required':True,'order':1},
+               {'key':'issued_date','label':'Data de emissão','field_type':'date','required':True,'order':2},
+               {'key':'expiry_date','label':'Validade','field_type':'date','required':True,'order':3},
+             ]},
+            {'key':'visa',       'label':'Visto',                     'icon':'✈️','color':'#0891b2','order':4,
+             'fields':[
+               {'key':'doc_number','label':'Número do visto','field_type':'text','required':True,'order':1},
+               {'key':'issued_date','label':'Data de emissão','field_type':'date','required':True,'order':2},
+               {'key':'expiry_date','label':'Validade','field_type':'date','required':True,'order':3},
+               {'key':'issued_by','label':'País emissor','field_type':'country','required':True,'order':4},
+             ]},
+            {'key':'birth_cert', 'label':'Certidão de Nascimento',    'icon':'📄','color':'#b45309','order':5,
+             'fields':[
+               {'key':'doc_number','label':'Número do documento','field_type':'text','required':True,'order':1},
+               {'key':'issued_date','label':'Data de emissão','field_type':'date','required':True,'order':2},
+               {'key':'issued_by','label':'Cartório / Órgão','field_type':'text','required':True,'order':3},
+             ]},
+            {'key':'residence',  'label':'Comprovante de Residência', 'icon':'🏠','color':'#92400e','order':6,
+             'fields':[
+               {'key':'issued_date','label':'Data do comprovante','field_type':'date','required':True,'order':1},
+               {'key':'issued_by','label':'Emissor','field_type':'text','required':True,'order':2},
+             ]},
+            {'key':'vaccine',    'label':'Vacina',                    'icon':'💉','color':'#0f766e','order':7,
+             'fields':[
+               {'key':'doc_number','label':'Nome da vacina','field_type':'text','required':True,'order':1},
+               {'key':'issued_date','label':'Data da vacinação','field_type':'date','required':False,'order':2},
+               {'key':'expiry_date','label':'Data de validade','field_type':'date','required':False,'order':3},
+             ]},
+            {'key':'other',      'label':'Outro documento',           'icon':'📎','color':'#475569','order':99,
+             'fields':[
+               {'key':'doc_number','label':'Número do documento','field_type':'text','required':False,'order':1},
+               {'key':'issued_date','label':'Data de emissão','field_type':'date','required':False,'order':2},
+               {'key':'expiry_date','label':'Validade','field_type':'date','required':False,'order':3},
+             ]},
+        ]
+        created_types = 0
+        for dt in DEFAULTS:
+            fields_data = dt.pop('fields', [])
+            obj, created = CustomDocType.objects.get_or_create(key=dt['key'], defaults=dt)
+            if created:
+                created_types += 1
+            for fd in fields_data:
+                CustomDocField.objects.get_or_create(doc_type=obj, key=fd['key'], defaults=fd)
+        return Response({'created_types': created_types, 'total': CustomDocType.objects.count()})
+
+
+class DocFieldViewSet(viewsets.ModelViewSet):
+    serializer_class = DocFieldSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        doc_type_id = self.request.query_params.get('doc_type_id')
+        qs = CustomDocField.objects.prefetch_related('options').all()
+        if doc_type_id:
+            qs = qs.filter(doc_type_id=doc_type_id)
+        return qs
+
+    def get_permissions(self):
+        return [IsAdminUser()]
+
+    def perform_create(self, serializer):
+        doc_type = CustomDocType.objects.get(pk=self.request.data['doc_type_id'])
+        serializer.save(doc_type=doc_type)
+
+
+class DocFieldOptionViewSet(viewsets.ModelViewSet):
+    serializer_class = DocFieldOptionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        field_id = self.request.query_params.get('field_id')
+        qs = CustomDocFieldOption.objects.all()
+        if field_id:
+            qs = qs.filter(field_id=field_id)
+        return qs
+
+    def get_permissions(self):
+        return [IsAdminUser()]
+
+    def perform_create(self, serializer):
+        field = CustomDocField.objects.get(pk=self.request.data['field_id'])
+        serializer.save(field=field)
 
 
 class GenderSerializer(serializers.ModelSerializer):

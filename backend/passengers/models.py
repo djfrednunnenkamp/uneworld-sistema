@@ -133,7 +133,7 @@ class PassengerDocument(models.Model):
     ]
 
     passenger     = models.ForeignKey(Passenger, on_delete=models.CASCADE, related_name='documents')
-    doc_type      = models.CharField('Tipo', max_length=20, choices=DOC_TYPE_CHOICES)
+    doc_type      = models.CharField('Tipo', max_length=50)  # sem choices para suportar tipos customizados
     label         = models.CharField('Nome personalizado', max_length=200, blank=True)
     file          = models.FileField('Arquivo', upload_to=secure_upload_path)
     original_name = models.CharField('Nome original', max_length=255)

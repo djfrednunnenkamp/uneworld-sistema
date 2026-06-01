@@ -88,6 +88,19 @@ export const configApi = {
   cities:    (state_id) => api.get('/config/cities/', { params: { state_id } }),
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),
+  // Tipos de documento
+  docTypes:       ()       => api.get('/config/doc-types/'),
+  addDocType:     (data)   => api.post('/config/doc-types/', data),
+  updateDocType:  (id, d)  => api.patch(`/config/doc-types/${id}/`, d),
+  delDocType:     (id)     => api.delete(`/config/doc-types/${id}/`),
+  seedDocTypes:   ()       => api.post('/config/doc-types/seed/'),
+  // Campos de documento
+  addDocField:    (data)   => api.post('/config/doc-fields/', data),
+  updateDocField: (id, d)  => api.patch(`/config/doc-fields/${id}/`, d),
+  delDocField:    (id)     => api.delete(`/config/doc-fields/${id}/`),
+  // Opções de campo
+  addDocOption:   (data)   => api.post('/config/doc-options/', data),
+  delDocOption:   (id)     => api.delete(`/config/doc-options/${id}/`),
   // Gêneros
   genders:    () => api.get('/config/genders/'),
   addGender:  (name) => api.post('/config/genders/', { name }),

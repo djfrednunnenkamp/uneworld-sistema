@@ -71,6 +71,61 @@ class ConfigVaccine(models.Model):
         return self.name
 
 
+class CustomDocType(models.Model):
+    """Tipo de documento gerenciável pelo painel."""
+    key       = models.SlugField('Chave', max_length=50, unique=True)
+    label     = models.CharField('Nome', max_length=100)
+    icon      = models.CharField('Ícone (emoji)', max_length=10, default='📄')
+    color     = models.CharField('Cor', max_length=20, default='#475569')
+    order     = models.PositiveIntegerField('Ordem', default=0)
+    is_active = models.BooleanField('Ativo', default=True)
+
+    class Meta:
+        ordering = ['order', 'label']
+        verbose_name = 'Tipo de documento'
+
+    def __str__(self):
+        return self.label
+
+
+class CustomDocField(models.Model):
+    """Campo de um tipo de documento."""
+    FIELD_TYPES = [
+        ('text',    'Texto livre'),
+        ('date',    'Data'),
+        ('list',    'Lista suspensa'),
+        ('country', 'País / Estado / Cidade'),
+    ]
+    doc_type   = models.ForeignKey(CustomDocType, on_delete=models.CASCADE, related_name='fields')
+    key        = models.SlugField('Chave', max_length=50)
+    label      = models.CharField('Label', max_length=100)
+    field_type = models.CharField('Tipo', max_length=20, choices=FIELD_TYPES, default='text')
+    required   = models.BooleanField('Obrigatório', default=False)
+    order      = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order']
+        unique_together = [('doc_type', 'key')]
+        verbose_name = 'Campo de documento'
+
+    def __str__(self):
+        return f'{self.doc_type.label} / {self.label}'
+
+
+class CustomDocFieldOption(models.Model):
+    """Opção de um campo do tipo 'list'."""
+    field = models.ForeignKey(CustomDocField, on_delete=models.CASCADE, related_name='options')
+    value = models.CharField('Valor', max_length=200)
+    order = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'value']
+        verbose_name = 'Opção de campo'
+
+    def __str__(self):
+        return self.value
+
+
 class ConfigCity(models.Model):
     state = models.ForeignKey(ConfigState, on_delete=models.CASCADE, related_name='cities')
     name  = models.CharField('Nome', max_length=150)
