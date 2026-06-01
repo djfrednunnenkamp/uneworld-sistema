@@ -457,9 +457,16 @@ const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
 const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Países & Estados']
 
+const KEY_SEC = 'settings_section'
+const KEY_TAB = 'settings_tab'
+const readInt = (key, def = 0) => { try { const v = parseInt(localStorage.getItem(key), 10); return isNaN(v) ? def : v } catch { return def } }
+
 export default function Settings() {
-  const [section, setSection] = useState(0)  // 0=Listas, 1=Tipos de Doc
-  const [tab,     setTab]     = useState(0)  // sub-tab das Listas
+  const [section, _setSection] = useState(() => readInt(KEY_SEC, 0))
+  const [tab,     _setTab]     = useState(() => readInt(KEY_TAB, 0))
+
+  const setSection = (i) => { _setSection(i); localStorage.setItem(KEY_SEC, i) }
+  const setTab     = (i) => { _setTab(i);     localStorage.setItem(KEY_TAB, i) }
   const [professions, setProfessions] = useState([])
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])
