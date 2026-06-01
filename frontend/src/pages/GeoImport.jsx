@@ -1,467 +1,312 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import { configApi } from '../api'
 
 /* ── CSV parsing ── */
 function parseCsv(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  if (lines.length === 0) return []
-
-  // Detecta colunas do cabeçalho
-  const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["""]/g, ''))
-  const iCol = (names) => header.findIndex(h => names.includes(h))
-  const cPais   = iCol(['pais', 'país', 'country'])
-  const cEstado = iCol(['estado', 'state'])
-  const cCidade = iCol(['cidade', 'city'])
-
-  const parseCell = (v = '') => v.trim().replace(/^[""]|[""]$/g, '').replace(/""/g, '"').replace(/[""]/g, '"')
+  if (!lines.length) return []
+  const header   = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["""]/g, ''))
+  const iCol     = (names) => header.findIndex(h => names.includes(h))
+  const cPais    = iCol(['pais','país','country'])
+  const cEstado  = iCol(['estado','state'])
+  const cCidade  = iCol(['cidade','city'])
+  const parseCell = (v='') => v.trim().replace(/^[""""]|[""""]$/g,'').replace(/""/g,'"').trim()
 
   const rows = []
   for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (!line) continue
-    // split respeitando aspas
-    const cells = []
-    let cur = '', inQ = false
+    const line = lines[i].trim(); if (!line) continue
+    const cells = []; let cur='', inQ=false
     for (const ch of line) {
-      if (ch === '"' || ch === '“' || ch === '”') { inQ = !inQ }
-      else if (ch === ',' && !inQ) { cells.push(cur); cur = '' }
-      else cur += ch
+      if (ch==='"'||ch==='"'||ch==='"') inQ=!inQ
+      else if (ch===','&&!inQ) { cells.push(cur); cur='' }
+      else cur+=ch
     }
     cells.push(cur)
     rows.push({
       id:     i,
-      pais:   cPais   >= 0 ? parseCell(cells[cPais])   : '',
-      estado: cEstado >= 0 ? parseCell(cells[cEstado]) : '',
-      cidade: cCidade >= 0 ? parseCell(cells[cCidade]) : '',
-      status: 'pending',
-      msg:    '',
+      pais:   cPais  >=0 ? parseCell(cells[cPais])  : '',
+      estado: cEstado>=0 ? parseCell(cells[cEstado]) : '',
+      cidade: cCidade>=0 ? parseCell(cells[cCidade]) : '',
     })
   }
   return rows
 }
 
-/* ── Badge ── */
-const BADGE = {
-  pending: { bg: '#f1f5f9', color: '#64748b', label: 'Verificando…' },
-  new:     { bg: '#dcfce7', color: '#16a34a', label: '✓ Novo'       },
-  exists:  { bg: '#fef9c3', color: '#ca8a04', label: '⚠ Já existe'  },
-  error:   { bg: '#fee2e2', color: '#dc2626', label: '✗ Erro'       },
-}
-function Badge({ status }) {
-  const s = BADGE[status] || BADGE.pending
-  return (
-    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>
-      {s.label}
-    </span>
-  )
-}
+const MODES = [
+  { key:'merge',   label:'Somente adicionar',   desc:'Mantém os existentes, insere apenas os novos.' },
+  { key:'replace', label:'Substituir lista',     desc:'Apaga quem não está no arquivo e insere os novos.' },
+  { key:'delete',  label:'Apagar os importados', desc:'Apaga exatamente os registros listados no arquivo.' },
+]
 
-/* ── Célula editável ── */
-function EditCell({ value, onChange, placeholder }) {
+const pill = (bg,color) => ({ padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:600, background:bg, color, display:'inline-block', whiteSpace:'nowrap' })
+const th   = { padding:'9px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1.5px solid #e2e8f0', background:'#f8fafc', whiteSpace:'nowrap' }
+
+function Editable({ value, onChange, placeholder }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value)
-  const commit = () => { setEditing(false); if (val !== value) onChange(val) }
-  if (editing) {
-    return (
-      <input autoFocus value={val}
-        onChange={e => setVal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setVal(value); setEditing(false) } }}
-        style={{ width: '100%', padding: '2px 6px', border: '1.5px solid #2e6db4', borderRadius: 4, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
-      />
-    )
-  }
+  const commit = () => { setEditing(false); if (val!==value) onChange(val.trim()) }
+  if (editing) return (
+    <input autoFocus value={val} onChange={e=>setVal(e.target.value)}
+      onBlur={commit} onKeyDown={e=>{ if(e.key==='Enter') commit(); if(e.key==='Escape'){setVal(value);setEditing(false)} }}
+      style={{ width:'100%', padding:'4px 8px', border:'1.5px solid #2e6db4', borderRadius:6, fontSize:13, outline:'none', fontFamily:'inherit' }}
+    />
+  )
   return (
-    <span
-      onClick={() => { setVal(value); setEditing(true) }}
-      title="Clique para editar"
-      style={{ cursor: 'text', display: 'block', padding: '2px 4px', borderRadius: 4, minWidth: 40, color: value ? '#0f172a' : '#94a3b8' }}
-    >
-      {value || <em style={{ color: '#cbd5e1' }}>{placeholder}</em>}
+    <span onClick={()=>{setVal(value);setEditing(true)}}
+      style={{ cursor:'text', display:'block', minWidth:60, color: value?'#0f172a':'#94a3b8' }}
+      title="Clique para editar">
+      {value||<em style={{color:'#cbd5e1'}}>{placeholder||'—'}</em>}
     </span>
   )
 }
 
-/* ── Página principal ── */
+function Spin() {
+  return <span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin .7s linear infinite'}}>
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  </span>
+}
+
 export default function GeoImport() {
-  const navigate   = useNavigate()
-  const location   = useLocation()
-  const dropRef    = useRef(null)
-  const fileRef    = useRef(null)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { csvText, filename } = location.state || {}
 
-  const [phase,    setPhase]    = useState('upload')   // upload | analyzing | review | acting | done
-  const [rows,     setRows]     = useState([])
-  const [filter,   setFilter]   = useState('all')      // all | new | exists | error
-  const [search,   setSearch]   = useState('')
-  const [selected, setSelected] = useState(new Set())  // ids selecionados
-  const [result,   setResult]   = useState(null)
-  const [dragging, setDragging] = useState(false)
+  const [rows,   setRows]   = useState([])
+  const [mode,   setMode]   = useState('merge')
+  const [phase,  setPhase]  = useState('upload')  // upload | analyzing | review | importing | done
+  const [result, setResult] = useState(null)
+  const [filter, setFilter] = useState('all')
 
-  /* ── Se veio do Settings com CSV já selecionado, analisa automaticamente ── */
+  /* Carrega CSV do state do router ou mostra zona de upload */
   useEffect(() => {
-    const { csvText, filename } = location.state || {}
-    if (csvText) {
-      const file = new File([csvText], filename || 'import.csv', { type: 'text/csv' })
-      loadFile(file)
-      // Limpa o state para não re-analisar ao voltar para a página
-      window.history.replaceState({}, '')
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (csvText) startAnalysis(csvText)
   }, [])
 
-  /* ── Carregar arquivo ── */
-  const loadFile = useCallback(async (file) => {
-    if (!file) return
-    const text = await file.text()
+  const startAnalysis = async (text) => {
     const parsed = parseCsv(text)
-    if (parsed.length === 0) { toast.error('CSV vazio ou sem linhas válidas.'); return }
-    setRows(parsed)
+    if (!parsed.length) return
+    const annotated = parsed.map(r => ({ ...r, status:'pending', msg:'' }))
+    setRows(annotated)
     setPhase('analyzing')
-    setSelected(new Set())
-    setFilter('all')
-    setSearch('')
 
-    // Analisa em lotes de 500 para não sobrecarregar a API
-    const BATCH = 500
-    const annotated = [...parsed]
+    const BATCH = 300
+    const result = [...annotated]
     for (let i = 0; i < parsed.length; i += BATCH) {
-      const batch = parsed.slice(i, i + BATCH)
+      const batch = parsed.slice(i, i+BATCH).map(({pais,estado,cidade})=>({pais,estado,cidade}))
       try {
-        const r = await configApi.geoAnalyze(batch.map(({ pais, estado, cidade }) => ({ pais, estado, cidade })))
+        const r = await configApi.geoAnalyze(batch)
         r.data.rows.forEach((res, j) => {
-          annotated[i + j] = { ...annotated[i + j], status: res.status, msg: res.msg || '' }
+          result[i+j] = { ...result[i+j], status: res.status, msg: res.msg||'' }
         })
-        setRows([...annotated])
-      } catch { /* continua */ }
+        setRows([...result])
+      } catch {}
     }
     setPhase('review')
-  }, [])
-
-  /* ── Drag & drop ── */
-  const onDrop = (e) => {
-    e.preventDefault(); setDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) loadFile(file)
   }
 
-  /* ── Editar célula ── */
-  const editRow = (id, field, value) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value, status: 'pending', msg: '' } : r))
-    // Re-analisa a linha editada
-    configApi.geoAnalyze([{ pais: '', estado: '', cidade: '' }]).catch(() => {})
-    const row = rows.find(r => r.id === id)
-    if (row) {
-      const updated = { ...row, [field]: value }
-      configApi.geoAnalyze([{ pais: updated.pais, estado: updated.estado, cidade: updated.cidade }])
-        .then(r => {
-          const res = r.data.rows[0]
-          setRows(prev => prev.map(row => row.id === id ? { ...row, status: res.status, msg: res.msg || '' } : row))
-        }).catch(() => {})
-    }
-  }
+  const editRow   = (id, field, val) =>
+    setRows(prev => prev.map(r => r.id===id ? {...r, [field]:val, status:'pending', msg:''} : r))
+  const removeRow = (id) => setRows(prev => prev.filter(r => r.id!==id))
 
-  /* ── Seleção ── */
-  const toggleAll = (filtered) => {
-    if (filtered.every(r => selected.has(r.id))) {
-      setSelected(prev => { const n = new Set(prev); filtered.forEach(r => n.delete(r.id)); return n })
-    } else {
-      setSelected(prev => { const n = new Set(prev); filtered.forEach(r => n.add(r.id)); return n })
-    }
-  }
-  const toggle = (id) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  const removeSelected = () => {
-    setRows(prev => prev.filter(r => !selected.has(r.id)))
-    setSelected(new Set())
-  }
-
-  /* ── Ação ── */
-  const act = async (mode) => {
-    const activeRows = rows.filter(r => !selected.has(r.id) && r.status !== 'error')
-    if (activeRows.length === 0) { toast.error('Nenhuma linha válida para importar.'); return }
-    setPhase('acting')
-    try {
-      const r = await configApi.geoAction(mode, activeRows.map(({ pais, estado, cidade }) => ({ pais, estado, cidade })))
-      setResult({ mode, ...r.data })
-      setPhase('done')
-    } catch { toast.error('Erro ao executar.'); setPhase('review') }
-  }
-
-  /* ── Filtro ── */
-  const filtered = useMemo(() => {
-    let list = rows
-    if (filter !== 'all') list = list.filter(r => r.status === filter)
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(r =>
-        r.pais.toLowerCase().includes(q) ||
-        r.estado.toLowerCase().includes(q) ||
-        r.cidade.toLowerCase().includes(q)
-      )
-    }
-    return list
-  }, [rows, filter, search])
-
-  /* ── Stats ── */
   const stats = useMemo(() => ({
-    total:  rows.length,
-    neww:   rows.filter(r => r.status === 'new').length,
-    exists: rows.filter(r => r.status === 'exists').length,
-    errors: rows.filter(r => r.status === 'error').length,
-    paises: new Set(rows.map(r => r.pais).filter(Boolean)).size,
+    valid:     rows.filter(r=>r.status==='new').length,
+    duplicate: rows.filter(r=>r.status==='exists').length,
+    error:     rows.filter(r=>r.status==='error').length,
+    pending:   rows.filter(r=>r.status==='pending').length,
   }), [rows])
 
-  /* ── Styles ── */
-  const MODE_LABELS = {
-    merge:   'Importar tudo',
-    replace: 'Importar e apagar outros',
-    delete:  'Apagar do banco',
+  const filtered = useMemo(() => {
+    if (filter==='all')       return rows
+    if (filter==='valid')     return rows.filter(r=>r.status==='new')
+    if (filter==='duplicate') return rows.filter(r=>r.status==='exists')
+    if (filter==='error')     return rows.filter(r=>r.status==='error')
+    return rows
+  }, [rows, filter])
+
+  const doConfirm = async () => {
+    const toProcess = rows.filter(r=>r.status!=='error')
+    if (!toProcess.length) return
+    setPhase('importing')
+    try {
+      const r = await configApi.geoAction(mode, toProcess.map(({pais,estado,cidade})=>({pais,estado,cidade})))
+      setResult({ mode, ...r.data })
+      setPhase('done')
+    } catch { setPhase('review') }
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-
-      {/* ── Header ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 16,
-        padding: '14px 24px', borderBottom: '1px solid #e2e8f0',
-        background: '#fff', flexShrink: 0,
-      }}>
-        <button onClick={() => navigate('/configuracoes')}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
-          ← Voltar
+  /* ── Zona de upload (sem arquivo no state) ── */
+  if (phase==='upload') return (
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:48, background:'#f8fafc' }}>
+      <div style={{ textAlign:'center', maxWidth:420 }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>📂</div>
+        <h2 style={{ fontSize:18, fontWeight:700, color:'#1e293b', margin:'0 0 8px' }}>Selecione um arquivo CSV</h2>
+        <p style={{ fontSize:13, color:'#64748b', margin:'0 0 24px' }}>Use o botão "Importar CSV" na página de Configurações para selecionar o arquivo.</p>
+        <button onClick={()=>navigate('/configuracoes')}
+          style={{ padding:'10px 24px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          ← Voltar para Configurações
         </button>
-        <div style={{ width: 1, height: 18, background: '#e2e8f0' }} />
-        <h1 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-          Importação CSV — Países, Estados e Cidades
-        </h1>
-        {phase === 'review' && (
-          <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>
-            {stats.total.toLocaleString('pt-BR')} linhas · {stats.paises} países
-          </span>
-        )}
+      </div>
+    </div>
+  )
+
+  /* ── Resultado ── */
+  if (phase==='done' && result) return (
+    <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:24, padding:48, background:'#f8fafc' }}>
+      <div style={{ fontSize:56 }}>✅</div>
+      <h2 style={{ fontSize:22, fontWeight:700, color:'#0f172a', margin:0 }}>Importação concluída!</h2>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center' }}>
+        {['countries','states','cities'].map((k,i) => {
+          const val = (result.created||{})[k]||0
+          return val > 0 ? (
+            <div key={k} style={{ textAlign:'center', padding:'16px 24px', background:'#dcfce7', borderRadius:12, border:'1px solid #bbf7d0' }}>
+              <div style={{ fontSize:32, fontWeight:700, color:'#16a34a' }}>{val}</div>
+              <div style={{ fontSize:12, color:'#15803d', marginTop:4 }}>{['países','estados','cidades'][i]} criados</div>
+            </div>
+          ) : null
+        })}
+        {result.mode!=='merge' && ['countries','states','cities'].map((k,i) => {
+          const val = (result.deleted||{})[k]||0
+          return val > 0 ? (
+            <div key={`d${k}`} style={{ textAlign:'center', padding:'16px 24px', background:'#fee2e2', borderRadius:12, border:'1px solid #fecaca' }}>
+              <div style={{ fontSize:32, fontWeight:700, color:'#dc2626' }}>{val}</div>
+              <div style={{ fontSize:12, color:'#b91c1c', marginTop:4 }}>{['países','estados','cidades'][i]} apagados</div>
+            </div>
+          ) : null
+        })}
+      </div>
+      <div style={{ display:'flex', gap:12 }}>
+        <button onClick={()=>navigate('/configuracoes')}
+          style={{ padding:'10px 24px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          ← Voltar para Configurações
+        </button>
+      </div>
+    </div>
+  )
+
+  /* ── Review / Analyzing ── */
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f8fafc' }}>
+
+      {/* Header */}
+      <div style={{ background:'#fff', borderBottom:'1px solid #e2e8f0', padding:'11px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          <button onClick={()=>navigate('/configuracoes')}
+            style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:7, padding:'6px 12px', cursor:'pointer', color:'#475569', fontSize:13, fontFamily:'inherit' }}>
+            ← Cancelar
+          </button>
+          <h1 style={{ fontSize:16, fontWeight:700, color:'#0f172a', margin:0 }}>
+            Revisão de Importação — Países, Estados e Cidades
+          </h1>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <span style={pill('#dcfce7','#16a34a')}>{stats.valid} novo{stats.valid!==1?'s':''}</span>
+          <span style={pill('#fef9c3','#ca8a04')}>{stats.duplicate} duplicado{stats.duplicate!==1?'s':''}</span>
+          <span style={pill('#fee2e2','#dc2626')}>{stats.error} com erro</span>
+          {stats.pending>0 && <span style={pill('#f1f5f9','#64748b')}>{stats.pending} verificando…</span>}
+        </div>
       </div>
 
-      {/* ── Upload ── */}
-      {phase === 'upload' && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-          <div
-            ref={dropRef}
-            onDragOver={e => { e.preventDefault(); setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-            onClick={() => fileRef.current?.click()}
-            style={{
-              width: '100%', maxWidth: 480, padding: '48px 32px',
-              border: `2px dashed ${dragging ? '#2e6db4' : '#e2e8f0'}`,
-              borderRadius: 16, textAlign: 'center', cursor: 'pointer',
-              background: dragging ? '#f0f6ff' : '#fafafa',
-              transition: 'all .15s',
-            }}
-          >
-            <div style={{ fontSize: 40, marginBottom: 16 }}>📂</div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: '#1e293b', margin: '0 0 8px' }}>
-              Arraste o arquivo CSV aqui
-            </p>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 20px' }}>
-              ou clique para selecionar
-            </p>
-            <div style={{ background: '#1a2d4f', color: '#fff', padding: '9px 20px', borderRadius: 8, display: 'inline-block', fontSize: 13, fontWeight: 600 }}>
-              Selecionar arquivo
-            </div>
-            <p style={{ fontSize: 11, color: '#cbd5e1', marginTop: 20 }}>
-              Colunas esperadas: <strong>pais, estado, cidade</strong>
-            </p>
-          </div>
-          <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) loadFile(f); e.target.value = '' }} />
-        </div>
-      )}
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:16 }}>
 
-      {/* ── Analyzing ── */}
-      {phase === 'analyzing' && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <div style={{ width: 40, height: 40, border: '4px solid #e2e8f0', borderTopColor: '#2e6db4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <p style={{ fontSize: 14, color: '#64748b', fontWeight: 500 }}>
-            Verificando {rows.filter(r => r.status !== 'pending').length} de {rows.length} linhas…
+        {/* Info */}
+        <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'10px 16px', display:'flex', gap:10 }}>
+          <span style={{ fontSize:16 }}>ℹ️</span>
+          <p style={{ fontSize:13, color:'#1e40af', margin:0 }}>
+            Revise as linhas antes de confirmar. Você pode editar qualquer célula clicando nela.
           </p>
-          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
-      )}
 
-      {/* ── Done ── */}
-      {phase === 'done' && result && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: 40 }}>
-          <div style={{ fontSize: 56 }}>✅</div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-            {MODE_LABELS[result.mode]} concluído
-          </h2>
-          <div style={{ display: 'flex', gap: 16 }}>
-            {['countries', 'states', 'cities'].map((k, i) => (
-              <div key={k} style={{ textAlign: 'center', padding: '16px 24px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#1a2d4f' }}>
-                  {((result.created || {})[k] || 0).toLocaleString('pt-BR')}
-                </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                  {['países', 'estados', 'cidades'][i]} criados
-                </div>
-              </div>
-            ))}
-            {result.mode !== 'merge' && (
-              ['countries', 'states', 'cities'].map((k, i) => (
-                <div key={`d${k}`} style={{ textAlign: 'center', padding: '16px 24px', background: '#fef2f2', borderRadius: 10, border: '1px solid #fecaca' }}>
-                  <div style={{ fontSize: 28, fontWeight: 700, color: '#dc2626' }}>
-                    {((result.deleted || {})[k] || 0).toLocaleString('pt-BR')}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                    {['países', 'estados', 'cidades'][i]} apagados
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button onClick={() => { setPhase('upload'); setRows([]); setResult(null) }}
-              style={{ padding: '10px 20px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Nova importação
-            </button>
-            <button onClick={() => navigate('/configuracoes')}
-              style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Ir para Configurações
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Review ── */}
-      {(phase === 'review' || phase === 'acting') && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-          {/* Barra de stats */}
-          <div style={{ display: 'flex', gap: 12, padding: '10px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-            {[
-              { label: 'Total', val: stats.total, color: '#475569' },
-              { label: '✓ Novos', val: stats.neww, color: '#16a34a' },
-              { label: '⚠ Já existem', val: stats.exists, color: '#ca8a04' },
-              { label: '✗ Erros', val: stats.errors, color: '#dc2626' },
-            ].map(s => (
-              <div key={s.label} style={{ fontSize: 13, color: s.color, fontWeight: 600 }}>
-                {s.val.toLocaleString('pt-BR')} <span style={{ fontWeight: 400, color: '#94a3b8' }}>{s.label}</span>
+        {/* Modo */}
+        <div>
+          <p style={{ fontSize:13, fontWeight:700, color:'#475569', margin:'0 0 10px', textTransform:'uppercase', letterSpacing:'.05em' }}>Modo de Importação:</p>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+            {MODES.map(m => (
+              <div key={m.key} onClick={()=>setMode(m.key)}
+                style={{ border:`2px solid ${mode===m.key?'#2e6db4':'#e2e8f0'}`, borderRadius:10, padding:'14px 16px', cursor:'pointer',
+                  background: mode===m.key?'#f0f6ff':'#fff', transition:'all .12s' }}>
+                <p style={{ fontSize:14, fontWeight:700, color: mode===m.key?'#1a2d4f':'#1e293b', margin:'0 0 4px' }}>{m.label}</p>
+                <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{m.desc}</p>
               </div>
             ))}
           </div>
+        </div>
 
-          {/* Botões de ação */}
-          <div style={{ display: 'flex', gap: 10, padding: '12px 24px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => act('merge')} disabled={phase === 'acting'}
-              style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: phase === 'acting' ? .6 : 1 }}>
-              ⬆ Importar tudo
+        {/* Filtros */}
+        <div style={{ display:'flex', gap:8 }}>
+          {[
+            {key:'all',       label:`Todos (${rows.length})`},
+            {key:'valid',     label:`Novos (${stats.valid})`},
+            {key:'duplicate', label:`Duplicados (${stats.duplicate})`},
+            {key:'error',     label:`Com erro (${stats.error})`},
+          ].map(f => (
+            <button key={f.key} onClick={()=>setFilter(f.key)}
+              style={{ padding:'5px 14px', borderRadius:20, border:'1.5px solid', fontFamily:'inherit',
+                borderColor: filter===f.key?'#1a2d4f':'#e2e8f0',
+                background:  filter===f.key?'#1a2d4f':'#fff',
+                color:       filter===f.key?'#fff':'#475569',
+                fontSize:12, fontWeight:500, cursor:'pointer' }}>
+              {f.label}
             </button>
-            <button onClick={() => act('replace')} disabled={phase === 'acting'}
-              style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #f59e0b', background: '#fffbeb', color: '#92400e', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: phase === 'acting' ? .6 : 1 }}>
-              🔄 Importar e apagar outros
-            </button>
-            <button onClick={() => act('delete')} disabled={phase === 'acting'}
-              style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: phase === 'acting' ? .6 : 1 }}>
-              🗑 Apagar do banco
-            </button>
-            {selected.size > 0 && (
-              <>
-                <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 4px' }} />
-                <button onClick={removeSelected}
-                  style={{ padding: '9px 14px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Remover {selected.size} selecionado{selected.size !== 1 ? 's' : ''}
-                </button>
-              </>
-            )}
-            {phase === 'acting' && (
-              <span style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid #e2e8f0', borderTopColor: '#2e6db4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                Processando…
-              </span>
-            )}
-          </div>
+          ))}
+        </div>
 
-          {/* Filtros */}
-          <div style={{ display: 'flex', gap: 8, padding: '10px 24px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, alignItems: 'center' }}>
-            {[
-              { key: 'all',    label: `Todos (${stats.total})` },
-              { key: 'new',    label: `Novos (${stats.neww})` },
-              { key: 'exists', label: `Já existem (${stats.exists})` },
-              { key: 'error',  label: `Erros (${stats.errors})` },
-            ].map(f => (
-              <button key={f.key} onClick={() => setFilter(f.key)}
-                style={{
-                  padding: '5px 12px', borderRadius: 20, border: '1.5px solid',
-                  borderColor: filter === f.key ? '#1a2d4f' : '#e2e8f0',
-                  background: filter === f.key ? '#1a2d4f' : '#fff',
-                  color: filter === f.key ? '#fff' : '#475569',
-                  fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                {f.label}
-              </button>
-            ))}
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
-              style={{ marginLeft: 'auto', padding: '6px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', width: 200 }}
-              onFocus={e => e.target.style.borderColor = '#1a2d4f'}
-              onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-          </div>
-
-          {/* Tabela */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>
-                  <th style={{ width: 36, padding: '9px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                    <input type="checkbox"
-                      checked={filtered.length > 0 && filtered.every(r => selected.has(r.id))}
-                      onChange={() => toggleAll(filtered)}
-                    />
-                  </th>
-                  {['País', 'Estado', 'Cidade', 'Status'].map(h => (
-                    <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', borderBottom: '1px solid #e2e8f0' }}>
-                      {h}
-                    </th>
-                  ))}
+        {/* Tabela */}
+        <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', overflow:'hidden' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr>
+                <th style={{...th, width:60}}>Linha</th>
+                <th style={{...th, width:120}}>Status</th>
+                <th style={th}>País</th>
+                <th style={th}>Estado</th>
+                <th style={th}>Cidade</th>
+                <th style={{...th, width:70, textAlign:'center'}}>Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {phase==='analyzing' && filtered.length===0 ? (
+                <tr><td colSpan={6} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>Analisando…</td></tr>
+              ) : filtered.length===0 ? (
+                <tr><td colSpan={6} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>Nenhuma linha.</td></tr>
+              ) : filtered.map((row, idx) => (
+                <tr key={row.id} style={{ borderTop:'1px solid #f1f5f9', background: idx%2===0?'#fff':'#fafafa' }}>
+                  <td style={{padding:'8px 14px', color:'#94a3b8', fontSize:12}}>{row.id}</td>
+                  <td style={{padding:'8px 14px'}}>
+                    {row.status==='new'     && <span style={pill('#dcfce7','#16a34a')}>Novo</span>}
+                    {row.status==='exists'  && <span style={pill('#fef9c3','#ca8a04')}>Duplicado</span>}
+                    {row.status==='error'   && <span style={pill('#fee2e2','#dc2626')}>Erro</span>}
+                    {row.status==='pending' && <span style={pill('#f1f5f9','#94a3b8')}>…</span>}
+                    {row.msg && <span style={{fontSize:11,color:'#dc2626',marginLeft:6}}>{row.msg}</span>}
+                  </td>
+                  <td style={{padding:'8px 14px'}}><Editable value={row.pais}   onChange={v=>editRow(row.id,'pais',v)}   placeholder="país" /></td>
+                  <td style={{padding:'8px 14px'}}><Editable value={row.estado} onChange={v=>editRow(row.id,'estado',v)} placeholder="estado" /></td>
+                  <td style={{padding:'8px 14px'}}><Editable value={row.cidade} onChange={v=>editRow(row.id,'cidade',v)} placeholder="cidade" /></td>
+                  <td style={{padding:'8px 14px', textAlign:'center'}}>
+                    <button onClick={()=>removeRow(row.id)}
+                      style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,cursor:'pointer',color:'#dc2626',fontSize:13,padding:'4px 8px',fontFamily:'inherit'}}
+                      title="Remover linha">✕</button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8', fontSize: 13 }}>Nenhuma linha encontrada.</td></tr>
-                ) : filtered.map(row => (
-                  <tr key={row.id}
-                    style={{
-                      background: selected.has(row.id) ? '#f0f6ff' : row.status === 'error' ? '#fef2f2' : '#fff',
-                      borderBottom: '1px solid #f1f5f9',
-                    }}
-                    onMouseEnter={e => { if (!selected.has(row.id) && row.status !== 'error') e.currentTarget.style.background = '#fafafa' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = selected.has(row.id) ? '#f0f6ff' : row.status === 'error' ? '#fef2f2' : '#fff' }}
-                  >
-                    <td style={{ padding: '6px 12px', textAlign: 'center' }}>
-                      <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
-                    </td>
-                    <td style={{ padding: '6px 8px', minWidth: 120 }}>
-                      <EditCell value={row.pais}   onChange={v => editRow(row.id, 'pais',   v)} placeholder="país" />
-                    </td>
-                    <td style={{ padding: '6px 8px', minWidth: 120 }}>
-                      <EditCell value={row.estado} onChange={v => editRow(row.id, 'estado', v)} placeholder="estado" />
-                    </td>
-                    <td style={{ padding: '6px 8px', minWidth: 140 }}>
-                      <EditCell value={row.cidade} onChange={v => editRow(row.id, 'cidade', v)} placeholder="cidade" />
-                    </td>
-                    <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
-                      <Badge status={row.status} />
-                      {row.msg && <span style={{ fontSize: 11, color: '#dc2626', marginLeft: 6 }}>{row.msg}</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
+
+      {/* Footer */}
+      <div style={{background:'#fff',borderTop:'1px solid #e2e8f0',padding:'12px 24px',display:'flex',justifyContent:'flex-end',gap:12,flexShrink:0}}>
+        <button onClick={()=>navigate('/configuracoes')}
+          style={{padding:'9px 20px',borderRadius:8,border:'1.5px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+          Cancelar
+        </button>
+        <button onClick={doConfirm}
+          disabled={phase==='importing'||phase==='analyzing'||rows.filter(r=>r.status!=='error').length===0}
+          style={{padding:'9px 22px',borderRadius:8,border:'none',background:'#1a2d4f',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:8,
+            opacity: phase==='analyzing'||rows.filter(r=>r.status!=='error').length===0 ? .5 : 1}}>
+          {phase==='importing' ? <><Spin/> Importando…</> : <>✓ Confirmar Importação</>}
+        </button>
+      </div>
     </div>
   )
 }
