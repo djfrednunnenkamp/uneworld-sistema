@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import usePersistedTab from '../hooks/usePersistedTab'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
@@ -457,16 +458,9 @@ const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
 const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Países & Estados']
 
-const KEY_SEC = 'settings_section'
-const KEY_TAB = 'settings_tab'
-const readInt = (key, def = 0) => { try { const v = parseInt(localStorage.getItem(key), 10); return isNaN(v) ? def : v } catch { return def } }
-
 export default function Settings() {
-  const [section, _setSection] = useState(() => readInt(KEY_SEC, 0))
-  const [tab,     _setTab]     = useState(() => readInt(KEY_TAB, 0))
-
-  const setSection = (i) => { _setSection(i); localStorage.setItem(KEY_SEC, i) }
-  const setTab     = (i) => { _setTab(i);     localStorage.setItem(KEY_TAB, i) }
+  const [section, setSection] = usePersistedTab('tab_settings_section', 0)
+  const [tab,     setTab]     = usePersistedTab('tab_settings_list', 0)
   const [professions, setProfessions] = useState([])
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])

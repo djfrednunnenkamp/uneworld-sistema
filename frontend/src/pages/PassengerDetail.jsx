@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import usePersistedTab from '../hooks/usePersistedTab'
 import toast from 'react-hot-toast'
 import axios from 'axios'
 import { passengersApi, documentsApi } from '../api'
@@ -752,7 +753,7 @@ export default function PassengerDetail() {
   const [notesOpen,  setNotesOpen]  = useState(false)
   const [saving,     setSaving]     = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
-  const [tab,        setTab]        = useState('info')
+  const [tab,        setTab]        = usePersistedTab('tab_passenger_detail', 'info')
   const [isDirty,    setIsDirty]    = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})  // { fieldKey: true }
 
