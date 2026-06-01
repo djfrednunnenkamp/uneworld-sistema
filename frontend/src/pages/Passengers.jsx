@@ -5,6 +5,7 @@ import { passengersApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import NewPassengerModal from '../components/NewPassengerModal'
+import PassengerDocsPopup from '../components/PassengerDocsPopup'
 import { Ic } from '../components/Icon'
 
 /* ── Helpers ── */
@@ -234,6 +235,7 @@ export default function Passengers() {
   const [delRow,    setDelRow]    = useState(null)
   const [viewRow,   setViewRow]   = useState(null)
   const [showNew,   setShowNew]   = useState(false)
+  const [docsRow,   setDocsRow]   = useState(null)
   const navigate                  = useNavigate()
 
   // Filtros
@@ -353,6 +355,7 @@ export default function Passengers() {
         searchKeys={['full_name','email','cpf','phone1']}
         extraFilters={filterBar}
         onAdd={() => setShowNew(true)}
+        onDocs={(row) => setDocsRow(row)}
         onView={(row) => setViewRow(row)}
         onDelete={(row) => setDelRow(row)}
         loading={loading}
@@ -369,6 +372,7 @@ export default function Passengers() {
         <DelModal name={delRow.full_name} onOk={handleDelete} onCancel={() => setDelRow(null)} />
       )}
       {showNew && <NewPassengerModal onClose={() => setShowNew(false)} />}
+      {docsRow && <PassengerDocsPopup passenger={docsRow} onClose={() => setDocsRow(null)} />}
     </>
   )
 }
