@@ -19,7 +19,7 @@ const COUNTRY_LEVELS = [
 const TYPE_COLORS = ['#2e6db4','#7c3aed','#059669','#0891b2','#b45309','#92400e','#0f766e','#dc2626','#475569','#ca8a04']
 
 /* ── Dropdown estilizado com ícones ── */
-function IconSelect({ options, value, onChange, placeholder = 'Selecione…' }) {
+function IconSelect({ options, value, onChange, placeholder = 'Selecione…', compact = false }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const selected = options.find(o => o.value === value)
@@ -37,22 +37,23 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…' }) 
         type="button"
         onMouseDown={e => { e.preventDefault(); setOpen(o => !o) }}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-          padding: '7px 10px', border: `1.5px solid ${open ? '#1a2d4f' : '#e2e8f0'}`,
+          display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+          padding: compact ? '6px 8px' : '7px 10px',
+          border: `1.5px solid ${open ? '#1a2d4f' : '#e2e8f0'}`,
           borderRadius: 8, background: '#fff', cursor: 'pointer', fontFamily: 'inherit',
-          transition: 'border-color .12s',
+          transition: 'border-color .12s', whiteSpace: 'nowrap',
         }}
       >
         {selected ? (
           <>
-            <span style={{ fontSize: 16 }}>{selected.icon}</span>
-            <span style={{ fontSize: 13, color: '#0f172a', fontWeight: 500, flex: 1, textAlign: 'left' }}>{selected.label}</span>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>{selected.desc}</span>
+            <span style={{ fontSize: compact ? 14 : 16, flexShrink: 0 }}>{selected.icon}</span>
+            <span style={{ fontSize: 13, color: '#0f172a', fontWeight: 500, flex: compact ? undefined : 1, textAlign: 'left' }}>{selected.label}</span>
+            {!compact && <span style={{ fontSize: 11, color: '#94a3b8' }}>{selected.desc}</span>}
           </>
         ) : (
-          <span style={{ fontSize: 13, color: '#94a3b8', flex: 1, textAlign: 'left' }}>{placeholder}</span>
+          <span style={{ fontSize: 13, color: '#94a3b8' }}>{placeholder}</span>
         )}
-        <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 4 }}>{open ? '▲' : '▼'}</span>
+        <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: compact ? 2 : 4 }}>{open ? '▲' : '▼'}</span>
       </button>
 
       {/* Lista */}
@@ -159,7 +160,7 @@ function DocTypeModal({ docType, onSave, onClose }) {
         </div>
 
         {/* Corpo scrollável */}
-        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:18 }}>
+        <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:18 }}>
 
           {/* Identidade */}
           <div>
@@ -274,76 +275,77 @@ function FieldEditor({ field, index, onUpdate, onDelete, onAddOption, onRemoveOp
   const selSubtype = field.subtype || 'country_state_city'
 
   return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, marginBottom:10, background:'#fff', overflow:'hidden' }}>
+    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, marginBottom:8, background:'#fff', overflow:'hidden' }}>
 
-      {/* Linha principal: ordem + label + required + apagar */}
-      <div style={{ display:'flex', gap:8, alignItems:'center', padding:'10px 12px' }}>
-        <span style={{ fontSize:11, color:'#94a3b8', width:18, textAlign:'center', flexShrink:0, fontWeight:600 }}>{index+1}</span>
+      {/* Linha única: número | nome | tipo (compacto) | obrigatório | apagar */}
+      <div style={{ display:'flex', gap:8, alignItems:'center', padding:'9px 12px' }}>
+        <span style={{ fontSize:11, color:'#94a3b8', width:16, textAlign:'center', flexShrink:0, fontWeight:600 }}>{index+1}</span>
+
         <input value={field.label} onChange={e=>onUpdate({label:e.target.value})}
           placeholder="Nome do campo…"
-          style={{ ...inp, flex:1 }}
+          style={{ ...inp, flex:1, minWidth:0 }}
           onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-        <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#475569', cursor:'pointer', whiteSpace:'nowrap', userSelect:'none', flexShrink:0 }}>
-          <input type="checkbox" checked={field.required} onChange={e=>onUpdate({required:e.target.checked})} />
-          Obrigatório
-        </label>
-        <button onClick={onDelete}
-          style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', color:'#dc2626', fontSize:13, padding:'4px 8px', fontFamily:'inherit', flexShrink:0 }}
-          title="Remover campo">✕</button>
-      </div>
 
-      {/* Seletor de tipo — cards visuais */}
-      <div style={{ padding:'0 12px 12px 38px' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 5px' }}>Tipo de campo</p>
-            <IconSelect
-              options={FIELD_TYPES}
-              value={field.field_type}
-              onChange={v => onUpdate({ field_type: v, subtype: '' })}
-            />
-          </div>
-
-          {/* Nível de detalhe — só aparece quando tipo = País */}
-          {field.field_type === 'country' && (
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 5px' }}>Nível de detalhe</p>
-              <IconSelect
-                options={COUNTRY_LEVELS}
-                value={selSubtype}
-                onChange={v => onUpdate({ subtype: v })}
-                placeholder="Escolha o nível…"
-              />
-            </div>
-          )}
+        {/* Tipo compacto — ícone + nome + seta */}
+        <div style={{ flexShrink:0, width:170 }}>
+          <IconSelect
+            options={FIELD_TYPES}
+            value={field.field_type}
+            onChange={v => onUpdate({ field_type: v, subtype: '' })}
+            compact
+          />
         </div>
 
-        {/* Opções para campo do tipo lista */}
-        {field.field_type === 'list' && (
-          <div style={{ marginTop:10 }}>
-            <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 7px' }}>Opções da lista</p>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:8 }}>
-              {field.options.map((opt, oi) => (
-                <span key={oi} style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'3px 9px', borderRadius:20, background:'#f0f6ff', border:'1px solid #bfdbfe', fontSize:12, color:'#2e6db4' }}>
-                  {opt.value}
-                  <button onMouseDown={e=>{e.preventDefault();onRemoveOption(oi)}}
-                    style={{ background:'none', border:'none', cursor:'pointer', color:'#93c5fd', fontSize:14, lineHeight:1, padding:0 }}>×</button>
-                </span>
-              ))}
-              {field.options.length===0 && <span style={{ fontSize:12, color:'#94a3b8' }}>Nenhuma opção ainda.</span>}
-            </div>
-            <div style={{ display:'flex', gap:6 }}>
-              <input value={newOpt} onChange={e=>setNewOpt(e.target.value)}
-                onKeyDown={e=>{ if(e.key==='Enter'&&newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
-                placeholder="Nova opção… (Enter para adicionar)"
-                style={{ ...inp, flex:1, fontSize:12 }}
-                onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-              <button onClick={()=>{ if(newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
-                style={{ padding:'6px 12px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>+</button>
-            </div>
-          </div>
-        )}
+        <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#475569', cursor:'pointer', whiteSpace:'nowrap', userSelect:'none', flexShrink:0 }}>
+          <input type="checkbox" checked={field.required} onChange={e=>onUpdate({required:e.target.checked})} />
+          Obrig.
+        </label>
+
+        <button onClick={onDelete}
+          style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', color:'#dc2626', fontSize:13, padding:'4px 8px', fontFamily:'inherit', flexShrink:0 }}>✕</button>
       </div>
+
+      {/* Nível de detalhe — só quando tipo = País */}
+      {field.field_type === 'country' && (
+        <div style={{ padding:'0 12px 10px 36px', display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:11, color:'#94a3b8', flexShrink:0 }}>Nível:</span>
+          <div style={{ flex:1, maxWidth:320 }}>
+            <IconSelect
+              options={COUNTRY_LEVELS}
+              value={selSubtype}
+              onChange={v => onUpdate({ subtype: v })}
+              placeholder="Escolha o nível…"
+              compact
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Opções para campo do tipo lista */}
+      {field.field_type === 'list' && (
+        <div style={{ padding:'0 12px 10px 36px', borderTop:'1px solid #f8fafc' }}>
+          <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', margin:'8px 0 6px' }}>Opções</p>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:7 }}>
+            {field.options.map((opt, oi) => (
+              <span key={oi} style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'2px 8px', borderRadius:20, background:'#f0f6ff', border:'1px solid #bfdbfe', fontSize:12, color:'#2e6db4' }}>
+                {opt.value}
+                <button onMouseDown={e=>{e.preventDefault();onRemoveOption(oi)}}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'#93c5fd', fontSize:14, lineHeight:1, padding:0 }}>×</button>
+              </span>
+            ))}
+            {field.options.length===0 && <span style={{ fontSize:12, color:'#94a3b8' }}>Sem opções ainda.</span>}
+          </div>
+          <div style={{ display:'flex', gap:6 }}>
+            <input value={newOpt} onChange={e=>setNewOpt(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter'&&newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
+              placeholder="Nova opção… (Enter para adicionar)"
+              style={{ ...inp, flex:1, fontSize:12 }}
+              onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+            <button onClick={()=>{ if(newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
+              style={{ padding:'5px 10px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>+</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
