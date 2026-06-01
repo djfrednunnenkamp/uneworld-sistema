@@ -49,6 +49,17 @@ class ConfigState(models.Model):
         return f'{self.name} ({self.country.name})'
 
 
+class ConfigGender(models.Model):
+    name = models.CharField('Nome', max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Gênero'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigVaccine(models.Model):
     name = models.CharField('Nome', max_length=200, unique=True)
 

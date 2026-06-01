@@ -9,6 +9,7 @@ router.register('countries',    views.CountryViewSet,    basename='country')
 router.register('states',       views.StateViewSet,      basename='state')
 router.register('cities',       views.CityViewSet,       basename='city')
 router.register('vaccines',     views.VaccineViewSet,    basename='vaccine')
+router.register('genders',      views.GenderViewSet,     basename='gender')
 
 urlpatterns = [
     path('', include(router.urls)),

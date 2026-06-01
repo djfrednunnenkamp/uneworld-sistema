@@ -88,6 +88,10 @@ export const configApi = {
   cities:    (state_id) => api.get('/config/cities/', { params: { state_id } }),
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),
+  // Gêneros
+  genders:    () => api.get('/config/genders/'),
+  addGender:  (name) => api.post('/config/genders/', { name }),
+  delGender:  (id)   => api.delete(`/config/genders/${id}/`),
   // Vacinas
   vaccines:       () => api.get('/config/vaccines/'),
   addVaccine:     (name) => api.post('/config/vaccines/', { name }),

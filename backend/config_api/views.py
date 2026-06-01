@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser
-from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState, ConfigCity, ConfigVaccine
+from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState, ConfigCity, ConfigVaccine, ConfigGender
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -404,6 +404,23 @@ class CountryViewSet(viewsets.ModelViewSet):
             if was_created:
                 created += 1
         return Response({'total': ConfigCountry.objects.count(), 'created': created})
+
+
+class GenderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigGender
+        fields = ['id', 'name']
+
+
+class GenderViewSet(viewsets.ModelViewSet):
+    queryset = ConfigGender.objects.all()
+    serializer_class = GenderSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
 
 
 class VaccineSerializer(serializers.ModelSerializer):
