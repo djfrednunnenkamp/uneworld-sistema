@@ -789,6 +789,11 @@ export default function PassengerDetail() {
     if (!hasName) { errs.first_name = true; errs.last_name = true }
     if (!form.email?.trim()) errs.email = true
     if (!form.is_foreign && !form.cpf?.replace(/\D/g, '')) errs.cpf = true
+    if (!form.gender)          errs.gender     = true
+    if (!form.birth_date)      errs.birth_date = true
+    if (!form.phone1?.trim())  errs.phone1     = true
+    if (!form.street?.trim())  errs.street     = true
+    if (!form.city?.trim())    errs.city       = true
     if (Object.keys(errs).length) {
       setFieldErrors(errs)
       // Navega para a aba de informações se não estiver nela
@@ -981,12 +986,15 @@ export default function PassengerDetail() {
                 )}
               </F>
 
-              <F label="Gênero">
-                <GenderPicker
-                  value={form.gender}
-                  customValue={form.gender_custom}
-                  onChange={(val, custom) => { setForm((f) => ({ ...f, gender: val, gender_custom: custom })); markDirty() }}
-                />
+              <F label="Gênero *">
+                <div style={fieldErrors.gender ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
+                  <GenderPicker
+                    value={form.gender}
+                    customValue={form.gender_custom}
+                    onChange={(val, custom) => { setForm((f) => ({ ...f, gender: val, gender_custom: custom })); markDirty() }}
+                  />
+                </div>
+                {fieldErrors.gender && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Gênero obrigatório</p>}
               </F>
             </div>
 
@@ -994,7 +1002,7 @@ export default function PassengerDetail() {
             <div className="grid3">
               <F label="Primeiro nome *">{fi('first_name', 'Primeiro nome')}</F>
               <F label="Sobrenome *">{fi('last_name', 'Sobrenome')}</F>
-              <F label="Data de nascimento">{fi('birth_date', '', 'date')}</F>
+              <F label="Data de nascimento *">{fi('birth_date', '', 'date')}</F>
             </div>
 
             <div className="grid3">
@@ -1032,8 +1040,11 @@ export default function PassengerDetail() {
               <F label="E-mail de emergência 2">{fi('email_emergency2', 'email@exemplo.com', 'email')}</F>
             </div>
             <div className="grid3">
-              <F label="Telefone">
-                <PhoneInput value={form.phone1} onChange={(v) => set('phone1')({ target: { value: v } })} />
+              <F label="Telefone *">
+                <div style={fieldErrors.phone1 ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
+                  <PhoneInput value={form.phone1} onChange={(v) => set('phone1')({ target: { value: v } })} />
+                </div>
+                {fieldErrors.phone1 && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Telefone obrigatório</p>}
               </F>
               <F label="Contato de emergência 1">
                 <PhoneInput value={form.phone2} onChange={(v) => set('phone2')({ target: { value: v } })} />
@@ -1126,13 +1137,13 @@ export default function PassengerDetail() {
                   </button>
                 </div>
               </F>
-              <F label="Endereço">{fi('street', 'Rua, Av…')}</F>
+              <F label="Endereço *">{fi('street', 'Rua, Av…')}</F>
               <F label="Número">{fi('number', '0')}</F>
             </div>
             <div className="grid3">
               <F label="Complemento">{fi('complement', 'Apto, Sala…')}</F>
               <F label="Bairro">{fi('neighborhood', '')}</F>
-              <F label="Cidade">{fi('city', '')}</F>
+              <F label="Cidade *">{fi('city', '')}</F>
             </div>
             <div className="grid3">
               <F label="País / Estado">
