@@ -3,6 +3,9 @@
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# IP local da máquina (para exibir o endereço de rede)
+LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
 echo "=== UneWorld Sistema ==="
 echo ""
 
@@ -10,7 +13,7 @@ echo ""
 echo "[Backend] Iniciando Django na porta 8000..."
 cd "$PROJECT_DIR/backend"
 source "$PROJECT_DIR/venv/bin/activate"
-python manage.py runserver 8000 &
+python manage.py runserver 0.0.0.0:8000 &
 BACKEND_PID=$!
 
 # Aguarda o backend subir
@@ -26,9 +29,10 @@ FRONTEND_PID=$!
 
 echo ""
 echo "Sistema rodando:"
-echo "  Backend:  http://localhost:8000"
-echo "  Frontend: http://localhost:5173"
-echo "  Admin:    http://localhost:8000/admin  (admin / uneworld2026)"
+echo "  Local:    http://localhost:5173"
+if [ -n "$LOCAL_IP" ]; then
+  echo "  Rede:     http://$LOCAL_IP:5173"
+fi
 echo ""
 echo "Pressione Ctrl+C para parar tudo."
 
