@@ -85,7 +85,9 @@ export const configApi = {
   delState:          (id)   => api.delete(`/config/states/${id}/`),
   importStates:      (country_id) => api.post('/config/states/import/', { country_id }),
   // Cidades
-  cities:            (state_id) => api.get('/config/cities/', { params: { state_id } }),
+  cities:    (state_id) => api.get('/config/cities/', { params: { state_id } }),
+  addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
+  delCity:   (id) => api.delete(`/config/cities/${id}/`),
 }
 
 export const usersApi = {

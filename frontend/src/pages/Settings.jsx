@@ -85,20 +85,30 @@ function CountriesTab() {
   const [countries,  setCountries]  = useState([])
   const [selCountry, setSelCountry] = useState(null)
   const [states,     setStates]     = useState([])
+  const [selState,   setSelState]   = useState(null)
+  const [cities,     setCities]     = useState([])
   const [loadingC,   setLoadingC]   = useState(true)
   const [loadingS,   setLoadingS]   = useState(false)
+  const [loadingCi,  setLoadingCi]  = useState(false)
   const [searchC,    setSearchC]    = useState('')
   const [searchS,    setSearchS]    = useState('')
+  const [searchCi,   setSearchCi]   = useState('')
   const [newCountry, setNewCountry] = useState('')
   const [newState,   setNewState]   = useState('')
+  const [newCity,    setNewCity]    = useState('')
 
   const loadCountries = () => {
     setLoadingC(true)
     configApi.countries().then(r => setCountries(r.data)).catch(() => {}).finally(() => setLoadingC(false))
   }
   const loadStates = (country) => {
-    setSelCountry(country); setStates([]); setLoadingS(true)
+    setSelCountry(country); setSelState(null); setCities([])
+    setStates([]); setLoadingS(true)
     configApi.states(country.id).then(r => setStates(r.data)).catch(() => {}).finally(() => setLoadingS(false))
+  }
+  const loadCities = (state) => {
+    setSelState(state); setCities([]); setLoadingCi(true)
+    configApi.cities(state.id).then(r => setCities(r.data)).catch(() => {}).finally(() => setLoadingCi(false))
   }
 
   useEffect(() => { loadCountries() }, [])
@@ -109,8 +119,11 @@ function CountriesTab() {
     catch { toast.error('Erro ao adicionar país.') }
   }
   const delCountry = async (id) => {
-    try { await configApi.delCountry(id); if (selCountry?.id === id) { setSelCountry(null); setStates([]) }; loadCountries() }
-    catch { toast.error('Erro ao remover país.') }
+    try {
+      await configApi.delCountry(id)
+      if (selCountry?.id === id) { setSelCountry(null); setStates([]); setSelState(null); setCities([]) }
+      loadCountries()
+    } catch { toast.error('Erro ao remover país.') }
   }
   const addState = async () => {
     const name = newState.trim(); if (!name || !selCountry) return
@@ -118,119 +131,143 @@ function CountriesTab() {
     catch { toast.error('Erro ao adicionar estado.') }
   }
   const delState = async (id) => {
-    try { await configApi.delState(id); setStates(s => s.filter(x => x.id !== id)) }
-    catch { toast.error('Erro ao remover estado.') }
+    try {
+      await configApi.delState(id)
+      if (selState?.id === id) { setSelState(null); setCities([]) }
+      setStates(s => s.filter(x => x.id !== id))
+    } catch { toast.error('Erro ao remover estado.') }
+  }
+  const addCity = async () => {
+    const name = newCity.trim(); if (!name || !selState) return
+    try { await configApi.addCity(selState.id, name); setNewCity(''); loadCities(selState) }
+    catch { toast.error('Erro ao adicionar cidade.') }
+  }
+  const delCity = async (id) => {
+    try { await configApi.delCity(id); setCities(c => c.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover cidade.') }
   }
 
-  const filteredC = useMemo(() => {
-    const q = searchC.toLowerCase()
-    return countries.filter(c => c.name.toLowerCase().includes(q))
-  }, [countries, searchC])
+  const filteredC  = useMemo(() => { const q = searchC.toLowerCase();  return countries.filter(c => c.name.toLowerCase().includes(q)) }, [countries, searchC])
+  const filteredS  = useMemo(() => { const q = searchS.toLowerCase();  return states.filter(s => s.name.toLowerCase().includes(q)) }, [states, searchS])
+  const filteredCi = useMemo(() => { const q = searchCi.toLowerCase(); return cities.filter(c => c.name.toLowerCase().includes(q)) }, [cities, searchCi])
 
-  const filteredS = useMemo(() => {
-    const q = searchS.toLowerCase()
-    return states.filter(s => s.name.toLowerCase().includes(q))
-  }, [states, searchS])
-
-  const colStyle = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 440, overflowY: 'auto' }
-  const rowStyle = (sel) => ({
+  const colStyle = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }
+  const selRow = (sel) => ({
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '8px 12px', fontSize: 13, cursor: 'pointer',
+    padding: '7px 10px', fontSize: 12, cursor: 'pointer',
     borderBottom: '1px solid #f1f5f9',
     background: sel ? '#f0f6ff' : '#fff',
     borderLeft: sel ? '3px solid #2e6db4' : '3px solid transparent',
   })
+  const delBtn = { background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 14, lineHeight: 1, padding: '1px 3px', flexShrink: 0 }
+  const addInp = { ...inp, flex: 1, fontSize: 12, padding: '7px 10px' }
+  const addBtn = { ...btnPri, fontSize: 12, padding: '7px 10px' }
+
+  const Col = ({ title, count, search, onSearch, newVal, onNew, onAdd, loading, children, placeholder }) => (
+    <div style={{ minWidth: 0 }}>
+      <h3 style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: '0 0 8px' }}>
+        {title}
+        {count != null && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400, marginLeft: 5 }}>({count})</span>}
+      </h3>
+      <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+        <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Buscar…"
+          style={{ ...addInp }} onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+      </div>
+      <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+        <input value={newVal} onChange={e => onNew(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onAdd()}
+          placeholder={placeholder} style={addInp}
+          onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+        <button onClick={onAdd} disabled={!newVal.trim()} style={addBtn}>+</button>
+      </div>
+      <div style={colStyle}>
+        {loading
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Carregando…</p>
+          : children}
+      </div>
+    </div>
+  )
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-      {/* Países */}
-      <div>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 10px' }}>
-          Países <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>({countries.length})</span>
-        </h3>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-          <input value={searchC} onChange={e => setSearchC(e.target.value)} placeholder="Buscar país…"
-            style={{ ...inp, flex: 1, fontSize: 12 }}
-            onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-        </div>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-          <input value={newCountry} onChange={e => setNewCountry(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addCountry()}
-            placeholder="Nome do país…" style={{ ...inp, flex: 1, fontSize: 12 }}
-            onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-          <button onClick={addCountry} disabled={!newCountry.trim()}
-            style={{ ...btnPri, fontSize: 12, padding: '7px 12px' }}>+</button>
-        </div>
-        <div style={colStyle}>
-          {loadingC ? (
-            <p style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
-          ) : filteredC.length === 0 ? (
-            <p style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
-          ) : filteredC.map(c => (
-            <div key={c.id} onClick={() => loadStates(c)} style={rowStyle(selCountry?.id === c.id)}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+      {/* ── Países ── */}
+      <Col title="Países" count={countries.length}
+        search={searchC} onSearch={setSearchC}
+        newVal={newCountry} onNew={setNewCountry} onAdd={addCountry}
+        loading={loadingC} placeholder="Novo país…"
+      >
+        {filteredC.length === 0
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
+          : filteredC.map(c => (
+            <div key={c.id} onClick={() => loadStates(c)} style={selRow(selCountry?.id === c.id)}
               onMouseEnter={e => { if (selCountry?.id !== c.id) e.currentTarget.style.background = '#f8fafc' }}
               onMouseLeave={e => { e.currentTarget.style.background = selCountry?.id === c.id ? '#f0f6ff' : '#fff' }}
             >
-              <span style={{ fontWeight: selCountry?.id === c.id ? 600 : 400, color: selCountry?.id === c.id ? '#2e6db4' : '#0f172a' }}>
+              <span style={{ fontWeight: selCountry?.id === c.id ? 600 : 400, color: selCountry?.id === c.id ? '#2e6db4' : '#0f172a', fontSize: 12 }}>
                 {c.name}
-                {c.state_count > 0 && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>{c.state_count} estados</span>}
+                {c.state_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 5, fontWeight: 400 }}>{c.state_count}</span>}
               </span>
-              <button onClick={e => { e.stopPropagation(); delCountry(c.id) }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 15, lineHeight: 1, padding: '2px 4px' }}
+              <button onClick={e => { e.stopPropagation(); delCountry(c.id) }} style={delBtn}
                 onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
                 onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
             </div>
-          ))}
-        </div>
-      </div>
+          ))
+        }
+      </Col>
 
-      {/* Estados */}
-      <div>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 10px' }}>
-          {selCountry
-            ? <>{' '}<span style={{ color: '#2e6db4' }}>{selCountry.name}</span> — Estados <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>({states.length})</span></>
-            : 'Estados'}
-        </h3>
-        {!selCountry ? (
-          <div style={{ ...colStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ fontSize: 13, color: '#94a3b8' }}>← Selecione um país</p>
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-              <input value={searchS} onChange={e => setSearchS(e.target.value)} placeholder="Buscar estado…"
-                style={{ ...inp, flex: 1, fontSize: 12 }}
-                onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+      {/* ── Estados ── */}
+      <Col title={selCountry ? `${selCountry.name} — Estados` : 'Estados'}
+        count={selCountry ? states.length : null}
+        search={searchS} onSearch={setSearchS}
+        newVal={newState} onNew={setNewState} onAdd={addState}
+        loading={loadingS} placeholder="Novo estado…"
+      >
+        {!selCountry
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um país</p>
+          : filteredS.length === 0
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum estado.</p>
+          : filteredS.map(s => (
+            <div key={s.id} onClick={() => loadCities(s)} style={selRow(selState?.id === s.id)}
+              onMouseEnter={e => { if (selState?.id !== s.id) e.currentTarget.style.background = '#f8fafc' }}
+              onMouseLeave={e => { e.currentTarget.style.background = selState?.id === s.id ? '#f0f6ff' : '#fff' }}
+            >
+              <span style={{ fontWeight: selState?.id === s.id ? 600 : 400, color: selState?.id === s.id ? '#2e6db4' : '#0f172a', fontSize: 12 }}>
+                {s.name}
+                {s.code && <span style={{ color: '#94a3b8', marginLeft: 4, fontWeight: 400 }}>{s.code}</span>}
+                {s.city_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 4 }}>{s.city_count}</span>}
+              </span>
+              <button onClick={e => { e.stopPropagation(); delState(s.id) }} style={delBtn}
+                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
             </div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-              <input value={newState} onChange={e => setNewState(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addState()}
-                placeholder="Nome do estado…" style={{ ...inp, flex: 1, fontSize: 12 }}
-                onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-              <button onClick={addState} disabled={!newState.trim()}
-                style={{ ...btnPri, fontSize: 12, padding: '7px 12px' }}>+</button>
+          ))
+        }
+      </Col>
+
+      {/* ── Cidades ── */}
+      <Col title={selState ? `${selState.name} — Cidades` : 'Cidades'}
+        count={selState ? cities.length : null}
+        search={searchCi} onSearch={setSearchCi}
+        newVal={newCity} onNew={setNewCity} onAdd={addCity}
+        loading={loadingCi} placeholder="Nova cidade…"
+      >
+        {!selState
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um estado</p>
+          : filteredCi.length === 0
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhuma cidade.</p>
+          : filteredCi.map(c => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', fontSize: 12, color: '#0f172a', borderBottom: '1px solid #f1f5f9', background: '#fff' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+            >
+              <span>{c.name}</span>
+              <button onClick={() => delCity(c.id)} style={delBtn}
+                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
             </div>
-            <div style={colStyle}>
-              {loadingS ? (
-                <p style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
-              ) : filteredS.length === 0 ? (
-                <p style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum estado.</p>
-              ) : filteredS.map(s => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', fontSize: 13, color: '#0f172a', borderBottom: '1px solid #f1f5f9', background: '#fff' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                >
-                  <span>{s.name}{s.code && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>{s.code}</span>}</span>
-                  <button onClick={() => delState(s.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 15, lineHeight: 1, padding: '2px 4px' }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+          ))
+        }
+      </Col>
     </div>
   )
 }

@@ -18,9 +18,12 @@ class LanguageSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class StateSerializer(serializers.ModelSerializer):
+    city_count = serializers.SerializerMethodField()
     class Meta:
         model = ConfigState
-        fields = ['id', 'name', 'code']
+        fields = ['id', 'name', 'code', 'city_count']
+    def get_city_count(self, obj):
+        return obj.cities.count()
 
 class CountrySerializer(serializers.ModelSerializer):
     state_count = serializers.SerializerMethodField()
@@ -138,9 +141,8 @@ class CitySerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
-class CityViewSet(viewsets.ReadOnlyModelViewSet):
+class CityViewSet(viewsets.ModelViewSet):
     serializer_class = CitySerializer
-    permission_classes = [IsAuthenticated]
     pagination_class = None
 
     def get_queryset(self):
@@ -148,6 +150,15 @@ class CityViewSet(viewsets.ReadOnlyModelViewSet):
         if state_id:
             return ConfigCity.objects.filter(state_id=state_id)
         return ConfigCity.objects.none()
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        state = ConfigState.objects.get(pk=self.request.data['state_id'])
+        serializer.save(state=state)
 
 
 class StateViewSet(viewsets.ModelViewSet):
