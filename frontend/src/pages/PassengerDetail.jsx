@@ -842,9 +842,33 @@ export default function PassengerDetail() {
     if (!form.country?.trim())       errs.country      = true
     if (Object.keys(errs).length) {
       setFieldErrors(errs)
-      // Navega para a aba de informações se não estiver nela
       setTab('info')
-      toast.error('Preencha os campos obrigatórios marcados em vermelho.')
+
+      // Rótulos legíveis dos campos obrigatórios em falta
+      const LABELS = {
+        first_name:   'Primeiro nome',
+        last_name:    'Sobrenome',
+        email:        'E-mail',
+        cpf:          'CPF',
+        gender:       'Gênero',
+        birth_date:   'Data de nascimento',
+        phone1:       'Telefone',
+        street:       'Endereço',
+        city:         'Cidade',
+        cep:          'CEP',
+        number:       'Número',
+        neighborhood: 'Bairro',
+        country:      'País',
+      }
+      const missing = Object.keys(errs).map(k => LABELS[k] || k).join(', ')
+      toast.error(`Campos obrigatórios em branco: ${missing}`, { duration: 5000 })
+
+      // Rola até o primeiro campo com erro após a re-renderização
+      setTimeout(() => {
+        const first = document.querySelector('.fi[style*="dc2626"], [style*="2px solid #dc2626"], [style*="0 0 0 2px #dc2626"]')
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 150)
+
       return
     }
     setFieldErrors({})
