@@ -2,6 +2,28 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 
+/* ── CSV global: Países → Estados → Cidades ── */
+async function handleGeoExport() {
+  try {
+    const r = await configApi.geoExport()
+    const url = URL.createObjectURL(r.data)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'paises_estados_cidades.csv'; a.click()
+    URL.revokeObjectURL(url)
+  } catch { toast.error('Erro ao exportar.') }
+}
+
+async function handleGeoImport(file, onDone) {
+  const fd = new FormData()
+  fd.append('file', file)
+  try {
+    const r = await configApi.geoImport(fd)
+    const { countries, states, cities, rows } = r.data
+    toast.success(`${rows} linhas lidas — ${countries} países, ${states} estados, ${cities} cidades criados.`)
+    onDone()
+  } catch { toast.error('Erro ao importar CSV.') }
+}
+
 /* ── CSV helpers ── */
 function exportCsv(items, filename) {
   const rows = ['nome', ...items.map(i => `"${i.name.replace(/"/g, '""')}"`)]
@@ -165,6 +187,45 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename }) {
   )
 }
 
+/* ── Barra de CSV global da aba Países & Estados ── */
+function GeoCsvBar({ onDone }) {
+  const fileRef = useRef(null)
+  const [importing, setImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  const doExport = async () => {
+    setExporting(true)
+    await handleGeoExport()
+    setExporting(false)
+  }
+
+  const doImport = async (e) => {
+    const file = e.target.files?.[0]; if (!file) return
+    e.target.value = ''
+    setImporting(true)
+    await handleGeoImport(file, onDone)
+    setImporting(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+      <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, flex: 1 }}>
+        CSV unificado — <span style={{ fontWeight: 400, color: '#94a3b8' }}>colunas: pais, estado, cidade</span>
+      </span>
+      <button onClick={doExport} disabled={exporting}
+        style={{ ...btnCsv('#059669'), opacity: exporting ? .6 : 1 }}>
+        ⬇ {exporting ? 'Exportando…' : 'Exportar tudo'}
+      </button>
+      <button onClick={() => fileRef.current?.click()} disabled={importing}
+        style={{ ...btnCsv('#2e6db4'), opacity: importing ? .6 : 1 }}>
+        ⬆ {importing ? 'Importando…' : 'Importar CSV'}
+      </button>
+      <input ref={fileRef} type="file" accept=".csv,text/csv"
+        style={{ display: 'none' }} onChange={doImport} />
+    </div>
+  )
+}
+
 /* ── CountriesTab ── */
 function CountriesTab() {
   const [countries,  setCountries]  = useState([])
@@ -277,13 +338,15 @@ function CountriesTab() {
   )
 
   return (
+    <>
+    <GeoCsvBar onDone={loadCountries} />
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
       {/* ── Países ── */}
       <Col title="Países" count={countries.length}
         search={searchC} onSearch={setSearchC}
         newVal={newCountry} onNew={setNewCountry} onAdd={addCountry}
         loading={loadingC} placeholder="Novo país…"
-        csvItems={countries} csvFilename="paises.csv"
+        csvItems={null} csvFilename={null}
       >
         {filteredC.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
@@ -310,8 +373,7 @@ function CountriesTab() {
         search={searchS} onSearch={setSearchS}
         newVal={newState} onNew={setNewState} onAdd={addState}
         loading={loadingS} placeholder="Novo estado…"
-        csvItems={selCountry ? states : null}
-        csvFilename={selCountry ? `estados_${selCountry.name.replace(/\s/g,'_')}.csv` : 'estados.csv'}
+        csvItems={null} csvFilename={null}
       >
         {!selCountry
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um país</p>
@@ -341,8 +403,7 @@ function CountriesTab() {
         search={searchCi} onSearch={setSearchCi}
         newVal={newCity} onNew={setNewCity} onAdd={addCity}
         loading={loadingCi} placeholder="Nova cidade…"
-        csvItems={selState ? cities : null}
-        csvFilename={selState ? `cidades_${selState.name.replace(/\s/g,'_')}.csv` : 'cidades.csv'}
+        csvItems={null} csvFilename={null}
       >
         {!selState
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um estado</p>
@@ -362,6 +423,7 @@ function CountriesTab() {
         }
       </Col>
     </div>
+    </>
   )
 }
 

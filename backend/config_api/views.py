@@ -1,10 +1,119 @@
+import csv
+import io
 import requests
+from django.http import StreamingHttpResponse, HttpResponse
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import serializers
+from rest_framework.parsers import MultiPartParser
 from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState, ConfigCity
+
+
+# ── Exportação/Importação global de Países → Estados → Cidades ────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def geo_export(request):
+    """
+    Exporta todos os países, estados e cidades em um único CSV:
+    pais,estado,cidade
+    """
+    def rows():
+        yield 'pais,estado,cidade\n'
+        for country in ConfigCountry.objects.prefetch_related('states__cities').order_by('name'):
+            states = list(country.states.all())
+            if not states:
+                yield f'"{_esc(country.name)}",,\n'
+                continue
+            for state in states:
+                cities = list(state.cities.all())
+                if not cities:
+                    yield f'"{_esc(country.name)}","{_esc(state.name)}",\n'
+                    continue
+                for city in cities:
+                    yield f'"{_esc(country.name)}","{_esc(state.name)}","{_esc(city.name)}"\n'
+
+    response = StreamingHttpResponse(rows(), content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="paises_estados_cidades.csv"'
+    return response
+
+
+def _esc(s):
+    return (s or '').replace('"', '""')
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def geo_import(request):
+    """
+    Importa CSV com colunas: pais,estado,cidade
+    Cria países/estados/cidades que não existem ainda.
+    """
+    f = request.FILES.get('file')
+    if not f:
+        return Response({'error': 'Arquivo não enviado.'}, status=400)
+
+    content   = f.read().decode('utf-8-sig')
+    reader    = csv.DictReader(io.StringIO(content))
+
+    # aceita variações de cabeçalho
+    fieldnames = [n.lower().strip() for n in (reader.fieldnames or [])]
+    col_country = next((n for n in reader.fieldnames or [] if n.lower().strip() in ('pais', 'país', 'country')), None)
+    col_state   = next((n for n in reader.fieldnames or [] if n.lower().strip() in ('estado', 'state')), None)
+    col_city    = next((n for n in reader.fieldnames or [] if n.lower().strip() in ('cidade', 'city')), None)
+
+    if not col_country:
+        return Response({'error': 'Coluna "pais" não encontrada.'}, status=400)
+
+    counts = {'countries': 0, 'states': 0, 'cities': 0, 'rows': 0}
+    country_cache = {}
+    state_cache   = {}
+
+    for row in reader:
+        counts['rows'] += 1
+        c_name = (row.get(col_country) or '').strip()
+        s_name = (row.get(col_state)   or '').strip() if col_state else ''
+        ci_name= (row.get(col_city)    or '').strip() if col_city  else ''
+
+        if not c_name:
+            continue
+
+        # País
+        if c_name not in country_cache:
+            obj, created = ConfigCountry.objects.get_or_create(name=c_name)
+            if created:
+                counts['countries'] += 1
+            country_cache[c_name] = obj
+        country = country_cache[c_name]
+
+        if not s_name:
+            continue
+
+        # Estado
+        state_key = (c_name, s_name)
+        if state_key not in state_cache:
+            obj, created = ConfigState.objects.get_or_create(country=country, name=s_name)
+            if created:
+                counts['states'] += 1
+            state_cache[state_key] = obj
+        state = state_cache[state_key]
+
+        if not ci_name:
+            continue
+
+        # Cidade
+        _, created = ConfigCity.objects.get_or_create(state=state, name=ci_name)
+        if created:
+            counts['cities'] += 1
+
+    return Response({
+        'rows':      counts['rows'],
+        'countries': counts['countries'],
+        'states':    counts['states'],
+        'cities':    counts['cities'],
+    })
 
 
 class ProfessionSerializer(serializers.ModelSerializer):

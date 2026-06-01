@@ -9,4 +9,8 @@ router.register('countries',    views.CountryViewSet,    basename='country')
 router.register('states',       views.StateViewSet,      basename='state')
 router.register('cities',       views.CityViewSet,       basename='city')
 
-urlpatterns = [path('', include(router.urls))]
+urlpatterns = [
+    path('', include(router.urls)),
+    path('geo/export/', views.geo_export, name='geo-export'),
+    path('geo/import/', views.geo_import, name='geo-import'),
+]
