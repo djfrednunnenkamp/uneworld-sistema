@@ -60,7 +60,7 @@ const DOC_FIELDS = {
   vaccine: [
     { key: 'doc_number',  label: 'Nome da vacina',      type: 'text', required: true },
     { key: 'issued_date', label: 'Data da vacinação',   type: 'date', required: true },
-    { key: 'expiry_date', label: 'Data de validade',    type: 'date', required: false },
+    { key: 'expiry_date', label: 'Data de validade',    type: 'date', required: true },
   ],
   other: [
     { key: 'doc_number',  label: 'Número do documento', type: 'text' },
