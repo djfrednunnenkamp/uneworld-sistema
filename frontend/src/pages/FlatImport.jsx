@@ -16,6 +16,7 @@ function parseCsvNames(text) {
 const API_MAP = {
   professions: { add: (name) => configApi.addProfession(name), label: 'Profissões' },
   languages:   { add: (name) => configApi.addLanguage(name),   label: 'Idiomas'    },
+  vaccines:    { add: (name) => configApi.addVaccine(name),    label: 'Vacinas'    },
 }
 
 const MODES = [

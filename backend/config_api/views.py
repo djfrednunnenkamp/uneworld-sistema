@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser
-from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState, ConfigCity
+from .models import ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState, ConfigCity, ConfigVaccine
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -404,6 +404,79 @@ class CountryViewSet(viewsets.ModelViewSet):
             if was_created:
                 created += 1
         return Response({'total': ConfigCountry.objects.count(), 'created': created})
+
+
+class VaccineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigVaccine
+        fields = ['id', 'name']
+
+
+class VaccineViewSet(viewsets.ModelViewSet):
+    queryset = ConfigVaccine.objects.all()
+    serializer_class = VaccineSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_default(self, request):
+        DEFAULT = [
+            # Vacinas do calendário básico
+            'BCG (Tuberculose)',
+            'DTP (Difteria, Tétano e Coqueluche)',
+            'dT (Dupla Adulto — Difteria e Tétano)',
+            'dTpa (Tríplice Bacteriana Adulto)',
+            'Hib (Haemophilus influenzae tipo b)',
+            'Poliomielite (VIP/VOP)',
+            'Rotavírus',
+            'Pneumocócica 10-valente (PCV10)',
+            'Pneumocócica 13-valente (PCV13)',
+            'Pneumocócica 23-valente (PPSV23)',
+            'Meningocócica C',
+            'Meningocócica ACWY',
+            'Meningocócica B',
+            'Tríplice Viral (Sarampo, Caxumba e Rubéola)',
+            'Varicela (Catapora)',
+            'Hepatite A',
+            'Hepatite B',
+            'Hepatite A+B (Twinrix)',
+            'HPV Bivalente (Cervarix)',
+            'HPV Quadrivalente (Gardasil)',
+            'HPV Nonavalente (Gardasil 9)',
+            'Influenza (Gripe)',
+            'Herpes Zóster (Zostavax)',
+            'Herpes Zóster Recombinante (Shingrix)',
+            # Vacinas de viagem / tropicais
+            'Febre Amarela',
+            'Febre Tifoide (oral Ty21a)',
+            'Febre Tifoide (injetável Vi)',
+            'Cólera / Diarreia do Viajante (Dukoral)',
+            'Raiva (pré-exposição)',
+            'Encefalite Japonesa (Ixiaro)',
+            'Encefalite por Carrapato (FSME-Immun / Ticovac)',
+            'Dengue (Dengvaxia)',
+            'Dengue (Qdenga)',
+            # COVID-19
+            'COVID-19 Pfizer-BioNTech (Comirnaty)',
+            'COVID-19 Moderna (Spikevax)',
+            'COVID-19 AstraZeneca (Vaxzevria)',
+            'COVID-19 Janssen (Ad26.COV2.S)',
+            'COVID-19 Coronavac (Sinovac)',
+            'COVID-19 Covaxin (Bharat Biotech)',
+            'COVID-19 Novavax (Nuvaxovid)',
+            # Outras
+            'Antimeningocócica Polissacarídica',
+            'Anti-rábica (pós-exposição)',
+            'Varicela-Zóster Imunoglobulina',
+            'Imunoglobulina Hepatite A',
+            'Imunoglobulina Hepatite B',
+        ]
+        created = sum(1 for n in DEFAULT if ConfigVaccine.objects.get_or_create(name=n)[1])
+        return Response({'total': ConfigVaccine.objects.count(), 'created': created})
 
 
 class CitySerializer(serializers.ModelSerializer):

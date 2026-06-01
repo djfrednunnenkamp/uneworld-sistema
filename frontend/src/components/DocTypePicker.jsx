@@ -6,6 +6,7 @@ import CountryPicker from './CountryPicker'
 import BrazilCityPicker from './BrazilCityPicker'
 import CnhClassPicker from './CnhClassPicker'
 import DatePicker from './DatePicker'
+import VaccinePicker from './VaccinePicker'
 
 export const DOC_TYPES = [
   { id: 'passport',   label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
@@ -58,7 +59,7 @@ const DOC_FIELDS = {
     { key: 'issued_by',   label: 'Emissor',              type: 'text', required: true },
   ],
   vaccine: [
-    { key: 'doc_number',  label: 'Nome da vacina',    type: 'text', required: true  },
+    { key: 'doc_number',  label: 'Nome da vacina',    type: 'vaccine_name', required: true  },
     { key: 'issued_date', label: 'Data da vacinação', type: 'date', required: false },
     { key: 'expiry_date', label: 'Data de validade',  type: 'date', required: false },
   ],
@@ -541,6 +542,10 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                             ) : f.type === 'date' ? (
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
                                 <DatePicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : f.type === 'vaccine_name' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                <VaccinePicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                               </div>
                             ) : (
                               <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}

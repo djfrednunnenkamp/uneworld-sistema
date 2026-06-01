@@ -49,6 +49,17 @@ class ConfigState(models.Model):
         return f'{self.name} ({self.country.name})'
 
 
+class ConfigVaccine(models.Model):
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Vacina'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigCity(models.Model):
     state = models.ForeignKey(ConfigState, on_delete=models.CASCADE, related_name='cities')
     name  = models.CharField('Nome', max_length=150)

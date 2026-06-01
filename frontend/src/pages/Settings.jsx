@@ -451,18 +451,21 @@ function CountriesTab() {
 }
 
 /* ── Página principal ── */
-const TABS = ['Profissões', 'Idiomas', 'Países & Estados']
+const TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Países & Estados']
 
 export default function Settings() {
   const [tab, setTab] = useState(0)
   const [professions, setProfessions] = useState([])
   const [languages,   setLanguages]   = useState([])
+  const [vaccines,    setVaccines]    = useState([])
   const [loadingP,    setLoadingP]    = useState(true)
   const [loadingL,    setLoadingL]    = useState(true)
+  const [loadingV,    setLoadingV]    = useState(true)
 
   useEffect(() => {
     configApi.professions().then(r => setProfessions(r.data)).catch(() => {}).finally(() => setLoadingP(false))
     configApi.languages().then(r => setLanguages(r.data)).catch(() => {}).finally(() => setLoadingL(false))
+    configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {}).finally(() => setLoadingV(false))
   }, [])
 
   const addProfession = async (name) => {
@@ -485,6 +488,16 @@ export default function Settings() {
     try { await configApi.delLanguage(id); setLanguages(l => l.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover idioma.') }
   }
+  const addVaccine = async (name) => {
+    try {
+      const r = await configApi.addVaccine(name)
+      setVaccines(v => [...v, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar vacina.') }
+  }
+  const delVaccine = async (id) => {
+    try { await configApi.delVaccine(id); setVaccines(v => v.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover vacina.') }
+  }
 
   return (
     <div>
@@ -506,7 +519,8 @@ export default function Settings() {
       <div style={{ padding: '0 24px 40px' }}>
         {tab === 0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" type="professions" />}
         {tab === 1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv"   type="languages" />}
-        {tab === 2 && <CountriesTab />}
+        {tab === 2 && <ItemList items={vaccines}    loading={loadingV} onAdd={addVaccine}    onDelete={delVaccine}    placeholder="Nova vacina…"    filename="vacinas.csv"   type="vaccines" />}
+        {tab === 3 && <CountriesTab />}
       </div>
     </div>
   )

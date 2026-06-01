@@ -88,6 +88,11 @@ export const configApi = {
   cities:    (state_id) => api.get('/config/cities/', { params: { state_id } }),
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),
+  // Vacinas
+  vaccines:       () => api.get('/config/vaccines/'),
+  addVaccine:     (name) => api.post('/config/vaccines/', { name }),
+  delVaccine:     (id)   => api.delete(`/config/vaccines/${id}/`),
+  importVaccines: ()     => api.post('/config/vaccines/import/'),
   // CSV global (países + estados + cidades)
   geoExport:  () => api.get('/config/geo/export/', { responseType: 'blob' }),
   geoImport:  (formData) => api.post('/config/geo/import/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
