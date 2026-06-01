@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 
@@ -87,6 +87,7 @@ function EditCell({ value, onChange, placeholder }) {
 /* ── Página principal ── */
 export default function GeoImport() {
   const navigate   = useNavigate()
+  const location   = useLocation()
   const dropRef    = useRef(null)
   const fileRef    = useRef(null)
 
@@ -97,6 +98,18 @@ export default function GeoImport() {
   const [selected, setSelected] = useState(new Set())  // ids selecionados
   const [result,   setResult]   = useState(null)
   const [dragging, setDragging] = useState(false)
+
+  /* ── Se veio do Settings com CSV já selecionado, analisa automaticamente ── */
+  useEffect(() => {
+    const { csvText, filename } = location.state || {}
+    if (csvText) {
+      const file = new File([csvText], filename || 'import.csv', { type: 'text/csv' })
+      loadFile(file)
+      // Limpa o state para não re-analisar ao voltar para a página
+      window.history.replaceState({}, '')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /* ── Carregar arquivo ── */
   const loadFile = useCallback(async (file) => {

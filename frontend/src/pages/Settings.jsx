@@ -191,12 +191,22 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename }) {
 /* ── Barra de CSV global da aba Países & Estados ── */
 function GeoCsvBar() {
   const navigate   = useNavigate()
+  const fileRef    = useRef(null)
   const [exporting, setExporting] = useState(false)
 
   const doExport = async () => {
     setExporting(true)
     await handleGeoExport()
     setExporting(false)
+  }
+
+  const handleFileChosen = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const csvText = await file.text()
+    // Navega para a página de revisão passando o conteúdo do CSV
+    navigate('/configuracoes/geo-import', { state: { csvText, filename: file.name } })
   }
 
   return (
@@ -208,10 +218,12 @@ function GeoCsvBar() {
         style={{ ...btnCsv('#059669'), opacity: exporting ? .6 : 1 }}>
         ⬇ {exporting ? 'Exportando…' : 'Exportar tudo'}
       </button>
-      <button onClick={() => navigate('/configuracoes/geo-import')}
+      <button onClick={() => fileRef.current?.click()}
         style={btnCsv('#2e6db4')}>
         ⬆ Importar CSV
       </button>
+      <input ref={fileRef} type="file" accept=".csv,text/csv"
+        style={{ display: 'none' }} onChange={handleFileChosen} />
     </div>
   )
 }
