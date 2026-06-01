@@ -20,7 +20,20 @@ import BrazilCityPicker from '../components/BrazilCityPicker'
 import CnhClassPicker from '../components/CnhClassPicker'
 import CpfInput from '../components/CpfInput'
 import PhoneInput from '../components/PhoneInput'
-import DocTypePicker, { DOC_TYPES } from '../components/DocTypePicker'
+import DocTypePicker from '../components/DocTypePicker'
+import { configApi } from '../api'
+
+// Fallback estático para quando a API ainda não carregou
+const DOC_TYPES_FALLBACK = [
+  { key:'passport',   label:'Passaporte',                icon:'🛂', color:'#2e6db4' },
+  { key:'rg',         label:'Carteira de Identidade',    icon:'🪪', color:'#7c3aed' },
+  { key:'cnh',        label:'Carteira de Motorista',     icon:'🚗', color:'#059669' },
+  { key:'visa',       label:'Visto',                     icon:'✈️', color:'#0891b2' },
+  { key:'birth_cert', label:'Certidão de Nascimento',    icon:'📄', color:'#b45309' },
+  { key:'residence',  label:'Comprovante de Residência', icon:'🏠', color:'#92400e' },
+  { key:'vaccine',    label:'Vacina',                    icon:'💉', color:'#0f766e' },
+  { key:'other',      label:'Outro documento',           icon:'📎', color:'#475569' },
+]
 
 /* ── helpers ── */
 const EMPTY = {
@@ -161,6 +174,7 @@ function FilterDropdown({ value, onChange, options, placeholder }) {
 /* ── Documents tab ── */
 function DocumentsTab({ passengerId, isNew }) {
   const [docs,       setDocs]       = useState([])
+  const [docTypes,   setDocTypes]   = useState(DOC_TYPES_FALLBACK)
   const [loading,    setLoading]    = useState(false)
   const [deleting,   setDeleting]   = useState(null)
   const [confirmDoc, setConfirmDoc] = useState(null)
@@ -186,6 +200,13 @@ function DocumentsTab({ passengerId, isNew }) {
   }
 
   useEffect(() => { load() }, [passengerId])
+
+  // Carrega tipos do banco para exibir ícone/cor corretamente
+  useEffect(() => {
+    configApi.docTypes().then(r => {
+      if (r.data?.length) setDocTypes(r.data)
+    }).catch(() => {})
+  }, [])
 
   const openNotes = (doc) => { setNotesDoc(doc); setNotesText(doc.notes ?? '') }
 
@@ -291,7 +312,8 @@ function DocumentsTab({ passengerId, isNew }) {
   /* Tipos únicos presentes nos documentos */
   const presentTypes = [...new Set(docs.map(d => d.doc_type))]
 
-  const typeLabel = { passport:'Passaporte', rg:'Identidade', cnh:'CNH', visa:'Visto', birth_cert:'Certidão', residence:'Residência', other:'Outro' }
+  // Usa docTypes carregados do banco para rótulos
+  const typeLabel = Object.fromEntries(docTypes.map(t => [t.key, t.label]))
 
   return (
     <div className="det-card">
@@ -395,7 +417,7 @@ function DocumentsTab({ passengerId, isNew }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {filtered.map((doc) => {
-              const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type) ?? DOC_TYPES[DOC_TYPES.length - 1]
+              const typeInfo = docTypes.find(t => t.key === doc.doc_type) ?? docTypes[docTypes.length - 1] ?? DOC_TYPES_FALLBACK[DOC_TYPES_FALLBACK.length - 1]
               const expSt    = expiryStatus(doc.expiry_date)
               return (
                 <div key={doc.id}
@@ -472,7 +494,7 @@ function DocumentsTab({ passengerId, isNew }) {
 
       {/* ── Popup de detalhes do documento ── */}
       {viewDoc && (() => {
-        const ti  = DOC_TYPES.find(t => t.id === viewDoc.doc_type) ?? DOC_TYPES[DOC_TYPES.length - 1]
+        const ti  = docTypes.find(t => t.key === viewDoc.doc_type) ?? docTypes[docTypes.length - 1] ?? DOC_TYPES_FALLBACK[DOC_TYPES_FALLBACK.length - 1]
         const exp = viewDoc.expiry_date ? (() => {
           const today = new Date(); today.setHours(0,0,0,0)
           const d     = new Date(viewDoc.expiry_date + 'T00:00:00')
@@ -565,7 +587,7 @@ function DocumentsTab({ passengerId, isNew }) {
           <div onClick={e=>e.stopPropagation()}
             style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:480,boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
             <div style={{padding:'16px 20px 14px',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontSize:18}}>{DOC_TYPES.find(t=>t.id===notesDoc.doc_type)?.icon ?? '📎'}</span>
+              <span style={{fontSize:18}}>{docTypes.find(t=>t.key===notesDoc.doc_type)?.icon ?? '📎'}</span>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}}>Observações</p>
                 <p style={{fontSize:12,color:'#94a3b8',margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{notesDoc.display_name}</p>
@@ -605,7 +627,7 @@ function DocumentsTab({ passengerId, isNew }) {
           <div onClick={e => e.stopPropagation()}
             style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:460, boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .15s ease' }}>
             <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:10 }}>
-              <span style={{ fontSize:20 }}>{DOC_TYPES.find(t=>t.id===editDoc.doc_type)?.icon ?? '📎'}</span>
+              <span style={{ fontSize:20 }}>{docTypes.find(t=>t.key===editDoc.doc_type)?.icon ?? '📎'}</span>
               <div>
                 <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Editar documento</p>
                 <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>{editDoc.doc_type_label} — apenas metadados (imagem não é alterada)</p>
