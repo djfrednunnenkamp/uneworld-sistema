@@ -46,7 +46,7 @@ export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
   extraFilters,
-  onAdd, onEdit, onView, onDelete, loading,
+  onAdd, onEdit, onView, onDelete, onDocs, loading,
 }) {
   const [q,   setQ]   = useState('')
   const [flt, setFlt] = useState('Todos')
