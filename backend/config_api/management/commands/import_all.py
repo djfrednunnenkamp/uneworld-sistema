@@ -1,13 +1,6 @@
 """
-Importa países, estados e cidades de todos os países cadastrados no banco.
+Importa estados e cidades de todos os países cadastrados no banco.
 Uso: python manage.py import_all [--skip-cities] [--country BR]
-
-Fontes:
-  - Países: já devem estar no banco (importados via painel)
-  - Estados BR: IBGE
-  - Estados outros: CountriesNow
-  - Cidades BR: IBGE
-  - Cidades outros: CountriesNow
 """
 import time
 import requests
@@ -18,28 +11,37 @@ IBGE = 'https://servicodados.ibge.gov.br/api/v1/localidades'
 CNOW = 'https://countriesnow.space/api/v0.1/countries'
 
 
-def get(url, **kwargs):
+def get_json(url, timeout=20):
     for attempt in range(3):
         try:
-            r = requests.get(url, timeout=20, **kwargs)
+            r = requests.get(url, timeout=timeout)
             r.raise_for_status()
             return r.json()
-        except Exception as e:
+        except Exception:
             if attempt == 2:
                 raise
             time.sleep(2 ** attempt)
 
 
-def post(url, payload):
+def post_json(url, payload, timeout=20):
     for attempt in range(3):
         try:
-            r = requests.post(url, json=payload, timeout=20)
+            r = requests.post(url, json=payload, timeout=timeout)
             r.raise_for_status()
             return r.json()
-        except Exception as e:
+        except Exception:
             if attempt == 2:
                 raise
             time.sleep(2 ** attempt)
+
+
+def build_en_name_map():
+    """Retorna dict {iso_code: english_name} usando restcountries."""
+    try:
+        data = get_json('https://restcountries.com/v3.1/all?fields=name,cca2', timeout=30)
+        return {c['cca2']: c['name']['common'] for c in data if c.get('cca2')}
+    except Exception:
+        return {}
 
 
 class Command(BaseCommand):
@@ -49,7 +51,7 @@ class Command(BaseCommand):
         parser.add_argument('--skip-cities', action='store_true',
                             help='Importa só estados, pula cidades')
         parser.add_argument('--country', type=str, default=None,
-                            help='Importa só para o código ISO informado (ex: BR)')
+                            help='Código ISO do país (ex: BR)')
 
     def handle(self, *args, **options):
         skip_cities = options['skip_cities']
@@ -59,27 +61,30 @@ class Command(BaseCommand):
         if only_code:
             countries = countries.filter(code__iexact=only_code)
 
-        total_c = countries.count()
-        if total_c == 0:
-            self.stdout.write(self.style.WARNING('Nenhum país encontrado. Importe os países pelo painel primeiro.'))
+        total = countries.count()
+        if total == 0:
+            self.stdout.write(self.style.WARNING('Nenhum país. Importe os países pelo painel primeiro.'))
             return
 
-        self.stdout.write(f'\n📦 Iniciando importação para {total_c} país(es)...\n')
+        # Busca nomes em inglês para usar na API CountriesNow
+        self.stdout.write('🌐 Carregando mapeamento de nomes (EN)...')
+        en_map = build_en_name_map()
+        self.stdout.write(f'   {len(en_map)} países mapeados.\n')
+        self.stdout.write(f'📦 Iniciando importação para {total} país(es)...\n')
 
         total_states = 0
         total_cities = 0
         errors = []
 
         for idx, country in enumerate(countries, 1):
-            prefix = f'[{idx}/{total_c}] {country.name}'
+            prefix   = f'[{idx}/{total}] {country.name}'
+            en_name  = en_map.get(country.code, country.name)
 
             # ── Estados ────────────────────────────────────────────────
-            existing_states = country.states.count()
             new_states = 0
-
             try:
                 if country.code == 'BR':
-                    data = get(f'{IBGE}/estados?orderBy=nome')
+                    data = get_json(f'{IBGE}/estados?orderBy=nome')
                     for s in data:
                         _, created = ConfigState.objects.get_or_create(
                             country=country, name=s['nome'],
@@ -88,9 +93,8 @@ class Command(BaseCommand):
                         if created:
                             new_states += 1
                 else:
-                    result = post(f'{CNOW}/states', {'country': country.name})
-                    states_data = result.get('data', {}).get('states', [])
-                    for s in states_data:
+                    result = post_json(f'{CNOW}/states', {'country': en_name})
+                    for s in result.get('data', {}).get('states', []):
                         _, created = ConfigState.objects.get_or_create(
                             country=country, name=s['name'],
                             defaults={'code': s.get('state_code', '')}
@@ -99,11 +103,11 @@ class Command(BaseCommand):
                             new_states += 1
 
                 total_states += new_states
-                state_count = country.states.count()
-                self.stdout.write(f'{prefix} → {state_count} estados ({new_states} novos)')
+                count = country.states.count()
+                self.stdout.write(f'{prefix} → {count} estados ({new_states} novos)')
 
             except Exception as e:
-                errors.append(f'{country.name}: erro estados — {e}')
+                errors.append(f'{country.name}: estados — {e}')
                 self.stdout.write(self.style.WARNING(f'{prefix} → ERRO estados: {e}'))
                 continue
 
@@ -111,45 +115,36 @@ class Command(BaseCommand):
                 continue
 
             # ── Cidades ────────────────────────────────────────────────
-            states = country.states.all()
-            country_cities = 0
-
-            for state in states:
+            country_new_cities = 0
+            for state in country.states.all():
                 if state.cities.exists():
-                    continue  # já importado
+                    continue
 
                 try:
                     if country.code == 'BR':
-                        state_code = state.code or state.name
-                        data = get(f'{IBGE}/estados/{state_code}/municipios?orderBy=nome')
-                        cities = [c['nome'] for c in data]
+                        code = state.code or state.name
+                        data = get_json(f'{IBGE}/estados/{code}/municipios?orderBy=nome')
+                        names = [c['nome'] for c in data]
                     else:
-                        result = post(f'{CNOW}/state/cities', {
-                            'country': country.name,
+                        result = post_json(f'{CNOW}/state/cities', {
+                            'country': en_name,
                             'state':   state.name,
                         })
-                        cities = result.get('data', [])
+                        names = result.get('data', [])
 
-                    objs = [
-                        ConfigCity(state=state, name=city)
-                        for city in cities
-                        if city and not ConfigCity.objects.filter(state=state, name=city).exists()
-                    ]
-                    ConfigCity.objects.bulk_create(objs, ignore_conflicts=True)
-                    country_cities += len(objs)
-                    total_cities   += len(objs)
+                    if names:
+                        objs = [ConfigCity(state=state, name=n) for n in names if n]
+                        ConfigCity.objects.bulk_create(objs, ignore_conflicts=True)
+                        country_new_cities += len(objs)
+                        total_cities       += len(objs)
 
-                    # pausa para não sobrecarregar a API
-                    time.sleep(0.3)
+                    time.sleep(0.25)
 
                 except Exception as e:
-                    errors.append(f'{country.name}/{state.name}: erro cidades — {e}')
-                    self.stdout.write(self.style.WARNING(
-                        f'  ⚠ {state.name}: erro cidades — {e}'
-                    ))
+                    errors.append(f'{country.name}/{state.name}: cidades — {e}')
 
-            if country_cities:
-                self.stdout.write(f'  ↳ {country_cities} cidades importadas')
+            if country_new_cities:
+                self.stdout.write(f'  ↳ {country_new_cities} cidades')
 
         # ── Resumo ─────────────────────────────────────────────────────
         self.stdout.write('\n' + '─' * 50)
@@ -157,6 +152,6 @@ class Command(BaseCommand):
             f'✓ Concluído: {total_states} estados e {total_cities} cidades importados.'
         ))
         if errors:
-            self.stdout.write(self.style.WARNING(f'\n{len(errors)} erro(s):'))
-            for e in errors[:10]:
+            self.stdout.write(self.style.WARNING(f'\n{len(errors)} aviso(s):'))
+            for e in errors[:20]:
                 self.stdout.write(f'  • {e}')
