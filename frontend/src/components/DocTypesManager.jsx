@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
@@ -17,6 +17,80 @@ const COUNTRY_LEVELS = [
 ]
 
 const TYPE_COLORS = ['#2e6db4','#7c3aed','#059669','#0891b2','#b45309','#92400e','#0f766e','#dc2626','#475569','#ca8a04']
+
+/* ── Dropdown estilizado com ícones ── */
+function IconSelect({ options, value, onChange, placeholder = 'Selecione…' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const selected = options.find(o => o.value === value)
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onMouseDown={e => { e.preventDefault(); setOpen(o => !o) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+          padding: '7px 10px', border: `1.5px solid ${open ? '#1a2d4f' : '#e2e8f0'}`,
+          borderRadius: 8, background: '#fff', cursor: 'pointer', fontFamily: 'inherit',
+          transition: 'border-color .12s',
+        }}
+      >
+        {selected ? (
+          <>
+            <span style={{ fontSize: 16 }}>{selected.icon}</span>
+            <span style={{ fontSize: 13, color: '#0f172a', fontWeight: 500, flex: 1, textAlign: 'left' }}>{selected.label}</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>{selected.desc}</span>
+          </>
+        ) : (
+          <span style={{ fontSize: 13, color: '#94a3b8', flex: 1, textAlign: 'left' }}>{placeholder}</span>
+        )}
+        <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 4 }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Lista */}
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0,
+          background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 400, overflow: 'hidden',
+        }}>
+          {options.map(opt => {
+            const isActive = opt.value === value
+            return (
+              <div key={opt.value}
+                onMouseDown={e => { e.preventDefault(); onChange(opt.value); setOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                  cursor: 'pointer', background: isActive ? '#f0f4ff' : '#fff',
+                  borderBottom: '1px solid #f8fafc',
+                  borderLeft: isActive ? '3px solid #1a2d4f' : '3px solid transparent',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f8fafc' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isActive ? '#f0f4ff' : '#fff' }}
+              >
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{opt.icon}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? '#1a2d4f' : '#0f172a' }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{opt.desc}</div>
+                </div>
+                {isActive && <span style={{ marginLeft: 'auto', color: '#1a2d4f', fontSize: 14 }}>✓</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 /* ── Modal de criação / edição ── */
 function DocTypeModal({ docType, onSave, onClose }) {
@@ -220,64 +294,29 @@ function FieldEditor({ field, index, onUpdate, onDelete, onAddOption, onRemoveOp
 
       {/* Seletor de tipo — cards visuais */}
       <div style={{ padding:'0 12px 12px 38px' }}>
-        <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 7px' }}>Tipo de campo</p>
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {FIELD_TYPES.map(t => {
-            const active = field.field_type === t.value
-            return (
-              <button key={t.value}
-                onMouseDown={e => { e.preventDefault(); onUpdate({ field_type: t.value, subtype: '' }) }}
-                style={{
-                  display:'flex', alignItems:'center', gap:6,
-                  padding:'7px 13px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
-                  border: active ? '2px solid #1a2d4f' : '1.5px solid #e2e8f0',
-                  background: active ? '#f0f4ff' : '#fafafa',
-                  color: active ? '#1a2d4f' : '#64748b',
-                  fontWeight: active ? 700 : 500,
-                  fontSize: 13,
-                  transition: 'all .12s',
-                }}>
-                <span style={{ fontSize:16 }}>{t.icon}</span>
-                <div style={{ textAlign:'left' }}>
-                  <div style={{ fontSize:12, fontWeight: active ? 700 : 500 }}>{t.label}</div>
-                  <div style={{ fontSize:10, color: active ? '#64748b' : '#94a3b8', fontWeight:400 }}>{t.desc}</div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Sub-seletor para tipo País */}
-        {field.field_type === 'country' && (
-          <div style={{ marginTop:10, padding:'10px 12px', background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0' }}>
-            <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 7px' }}>Nível de detalhe</p>
-            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-              {COUNTRY_LEVELS.map(lv => {
-                const active = selSubtype === lv.value
-                return (
-                  <button key={lv.value}
-                    onMouseDown={e => { e.preventDefault(); onUpdate({ subtype: lv.value }) }}
-                    style={{
-                      display:'flex', alignItems:'center', gap:6,
-                      padding:'6px 12px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
-                      border: active ? '2px solid #2e6db4' : '1.5px solid #e2e8f0',
-                      background: active ? '#eff6ff' : '#fff',
-                      color: active ? '#1e40af' : '#64748b',
-                      fontWeight: active ? 700 : 500,
-                      fontSize: 12,
-                      transition: 'all .12s',
-                    }}>
-                    <span style={{ fontSize:16 }}>{lv.icon}</span>
-                    <div>
-                      <div style={{ fontSize:12 }}>{lv.label}</div>
-                      <div style={{ fontSize:10, color: active ? '#3b82f6' : '#94a3b8', fontWeight:400 }}>{lv.desc}</div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 5px' }}>Tipo de campo</p>
+            <IconSelect
+              options={FIELD_TYPES}
+              value={field.field_type}
+              onChange={v => onUpdate({ field_type: v, subtype: '' })}
+            />
           </div>
-        )}
+
+          {/* Nível de detalhe — só aparece quando tipo = País */}
+          {field.field_type === 'country' && (
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 5px' }}>Nível de detalhe</p>
+              <IconSelect
+                options={COUNTRY_LEVELS}
+                value={selSubtype}
+                onChange={v => onUpdate({ subtype: v })}
+                placeholder="Escolha o nível…"
+              />
+            </div>
+          )}
+        </div>
 
         {/* Opções para campo do tipo lista */}
         {field.field_type === 'list' && (
