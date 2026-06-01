@@ -14,6 +14,7 @@ import Meetings        from './pages/Meetings'
 import Users           from './pages/Users'
 import Settings        from './pages/Settings'
 import GeoImport       from './pages/GeoImport'
+import FlatImport      from './pages/FlatImport'
 
 /* Protege rotas — redireciona para /login se não autenticado */
 function ProtectedRoute({ children }) {
@@ -45,7 +46,8 @@ function AppRoutes() {
         <Route path="reunioes"            element={<Meetings        />} />
         <Route path="usuarios"            element={<Users           />} />
         <Route path="configuracoes"        element={<Settings        />} />
-        <Route path="configuracoes/geo-import" element={<GeoImport   />} />
+        <Route path="configuracoes/geo-import"   element={<GeoImport   />} />
+        <Route path="configuracoes/import"      element={<FlatImport  />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

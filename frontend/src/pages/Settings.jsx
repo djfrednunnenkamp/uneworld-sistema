@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
+// type: 'professions' | 'languages'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -69,53 +70,42 @@ const btnCsv = (color) => ({
   cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
 })
 
-/* ── CsvButtons — reutilizável ── */
-function CsvButtons({ items, filename, onAdd }) {
-  const fileRef = useRef(null)
-  const [importing, setImporting] = useState(false)
+/* ── CsvButtons — abre página de revisão antes de importar ── */
+function CsvButtons({ items, filename, type }) {
+  const navigate = useNavigate()
+  const fileRef  = useRef(null)
 
-  const handleImport = async (e) => {
+  const handleFileChosen = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-    setImporting(true)
-    try {
-      const names = await readCsv(file)
-      if (names.length === 0) { toast.error('CSV vazio ou inválido.'); return }
-      let added = 0
-      for (const name of names) {
-        try { await onAdd(name); added++ } catch {}
+    const csvText = await file.text()
+    navigate('/configuracoes/import', {
+      state: {
+        csvText,
+        filename:      file.name,
+        type,
+        existingNames: items.map(i => i.name),
       }
-      toast.success(`${added} de ${names.length} item(s) importado(s).`)
-    } catch { toast.error('Erro ao ler o arquivo.') }
-    finally { setImporting(false) }
+    })
   }
 
   return (
     <div style={{ display: 'flex', gap: 6 }}>
-      <button
-        style={btnCsv('#059669')}
-        onClick={() => exportCsv(items, filename)}
-        title="Exportar lista como CSV"
-      >
+      <button style={btnCsv('#059669')} onClick={() => exportCsv(items, filename)} title="Exportar como CSV">
         ⬇ Exportar
       </button>
-      <button
-        style={btnCsv(importing ? '#94a3b8' : '#2e6db4')}
-        onClick={() => fileRef.current?.click()}
-        disabled={importing}
-        title="Importar itens de um CSV"
-      >
-        ⬆ {importing ? 'Importando…' : 'Importar'}
+      <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">
+        ⬆ Importar
       </button>
       <input ref={fileRef} type="file" accept=".csv,text/csv"
-        style={{ display: 'none' }} onChange={handleImport} />
+        style={{ display: 'none' }} onChange={handleFileChosen} />
     </div>
   )
 }
 
 /* ── ItemList (Profissões / Idiomas) ── */
-function ItemList({ items, loading, onDelete, onAdd, placeholder, filename }) {
+function ItemList({ items, loading, onDelete, onAdd, placeholder, filename, type }) {
   const [search, setSearch] = useState('')
   const [newVal, setNewVal] = useState('')
   const [adding, setAdding] = useState(false)
@@ -140,7 +130,7 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename }) {
           style={{ ...inp, flex: 1, minWidth: 160 }}
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-        <CsvButtons items={items} filename={filename} onAdd={onAdd} />
+        <CsvButtons items={items} filename={filename} type={type} />
       </div>
 
       {/* Adicionar */}
@@ -483,8 +473,8 @@ export default function Settings() {
       </div>
 
       <div style={{ padding: '0 24px 40px' }}>
-        {tab === 0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" />}
-        {tab === 1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv" />}
+        {tab === 0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" type="professions" />}
+        {tab === 1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv"   type="languages" />}
         {tab === 2 && <CountriesTab />}
       </div>
     </div>
