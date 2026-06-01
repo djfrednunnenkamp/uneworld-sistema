@@ -48,8 +48,8 @@ class PassengerSerializer(serializers.ModelSerializer):
 class PassengerDocumentSerializer(serializers.ModelSerializer):
     download_url  = serializers.SerializerMethodField()
     preview_url   = serializers.SerializerMethodField()
-    doc_type_label = serializers.CharField(source='get_doc_type_display', read_only=True)
-    display_name  = serializers.SerializerMethodField()
+    doc_type_label = serializers.SerializerMethodField()
+    display_name   = serializers.SerializerMethodField()
 
     class Meta:
         model  = PassengerDocument
@@ -64,6 +64,25 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
         read_only_fields = ['original_name', 'file_size', 'mime_type', 'uploaded_at']
         extra_kwargs = {'file': {'write_only': True}}  # não expõe o caminho do arquivo na API
 
+    # Mapa de fallback para tipos hardcoded (caso CustomDocType ainda não esteja populado)
+    _LABEL_FALLBACK = {
+        'passport':   'Passaporte',
+        'rg':         'Carteira de Identidade (RG)',
+        'cnh':        'Carteira de Motorista (CNH)',
+        'visa':       'Visto',
+        'birth_cert': 'Certidão de Nascimento',
+        'residence':  'Comprovante de Residência',
+        'vaccine':    'Vacina',
+        'other':      'Outro documento',
+    }
+
+    def get_doc_type_label(self, obj):
+        from config_api.models import CustomDocType
+        try:
+            return CustomDocType.objects.get(key=obj.doc_type).label
+        except Exception:
+            return self._LABEL_FALLBACK.get(obj.doc_type, obj.doc_type)
+
     def get_download_url(self, obj):
         return f"/api/passengers/documents/{obj.id}/download/"
 
@@ -73,11 +92,9 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
         return None
 
     def get_display_name(self, obj):
-        # Nome personalizado tem prioridade
         if obj.label:
             return obj.label
-        base = obj.get_doc_type_display()
-        # Para tipos com emissor/país, adiciona " — {issued_by}"
+        base = self.get_doc_type_label(obj)
         if obj.issued_by:
             return f"{base} — {obj.issued_by}"
         return base
