@@ -16,11 +16,13 @@ const drop = {
 }
 
 export default function GenderPicker({ value, customValue, onChange }) {
-  const [query,  setQuery]  = useState('')
-  const [open,   setOpen]   = useState(false)
-  const [custom, setCustom] = useState(customValue || '')
-  const wrapRef  = useRef(null)
-  const inputRef = useRef(null)
+  const [query,       setQuery]       = useState('')
+  const [open,        setOpen]        = useState(false)
+  const [custom,      setCustom]      = useState(customValue || '')
+  const [highlighted, setHighlighted] = useState(-1)
+  const wrapRef   = useRef(null)
+  const inputRef  = useRef(null)
+  const listRef   = useRef(null)
 
   /* fecha ao clicar fora */
   useEffect(() => {
@@ -31,6 +33,16 @@ export default function GenderPicker({ value, customValue, onChange }) {
 
   /* sincroniza custom quando prop muda */
   useEffect(() => { setCustom(customValue || '') }, [customValue])
+
+  /* reset highlight ao mudar query */
+  useEffect(() => { setHighlighted(-1) }, [query])
+
+  /* scroll automático do item destacado */
+  useEffect(() => {
+    if (listRef.current && highlighted >= 0) {
+      listRef.current.children[highlighted]?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlighted])
 
   const displayLabel = value === 'O'
     ? (customValue?.trim() || 'Outro')
@@ -54,7 +66,12 @@ export default function GenderPicker({ value, customValue, onChange }) {
   const handleChange = (e) => { setQuery(e.target.value); setOpen(true) }
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') { setOpen(false); inputRef.current?.blur() }
-    if (e.key === 'Enter' && filtered.length > 0) { e.preventDefault(); select(filtered[0].val) }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, filtered.length - 1)) }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, -1)) }
+    if (e.key === 'Enter' && filtered.length > 0) {
+      e.preventDefault()
+      select(highlighted >= 0 ? filtered[highlighted].val : filtered[0].val)
+    }
   }
 
   return (
@@ -73,23 +90,27 @@ export default function GenderPicker({ value, customValue, onChange }) {
         <div style={drop}>
           {filtered.length === 0 ? (
             <p style={{ padding: '10px 14px', fontSize: 13, color: '#94a3b8', margin: 0 }}>Nenhum resultado</p>
-          ) : filtered.map(opt => (
-            <div
-              key={opt.val}
-              onMouseDown={(e) => { e.preventDefault(); select(opt.val) }}
-              style={{
-                padding: '9px 14px', cursor: 'pointer', fontSize: 13,
-                color: value === opt.val ? '#2e6db4' : '#1e293b',
-                background: value === opt.val ? '#f0f6ff' : 'transparent',
-                fontWeight: value === opt.val ? 600 : 400,
-                borderLeft: value === opt.val ? '3px solid #2e6db4' : '3px solid transparent',
-              }}
-              onMouseEnter={(e) => { if (value !== opt.val) e.currentTarget.style.background = '#f8fafc' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = value === opt.val ? '#f0f6ff' : 'transparent' }}
-            >
-              {opt.label}
-            </div>
-          ))}
+          ) : <div ref={listRef}>{filtered.map((opt, idx) => {
+            const isHl  = idx === highlighted
+            const isSel = value === opt.val
+            return (
+              <div
+                key={opt.val}
+                onMouseDown={(e) => { e.preventDefault(); select(opt.val) }}
+                onMouseEnter={() => setHighlighted(idx)}
+                onMouseLeave={() => setHighlighted(-1)}
+                style={{
+                  padding: '9px 14px', cursor: 'pointer', fontSize: 13,
+                  color: isSel ? '#2e6db4' : '#1e293b',
+                  background: isHl ? '#e8f0fe' : isSel ? '#f0f6ff' : 'transparent',
+                  fontWeight: isSel ? 600 : 400,
+                  borderLeft: isSel ? '3px solid #2e6db4' : '3px solid transparent',
+                }}
+              >
+                {opt.label}
+              </div>
+            )
+          })}</div>}
 
           {/* Campo livre quando Outro está selecionado */}
           {value === 'O' && (

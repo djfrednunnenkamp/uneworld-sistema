@@ -24,16 +24,25 @@ const drop = {
 }
 
 function LangCombo({ value, exclude, placeholder, onSelect, onClear }) {
-  const [query, setQuery]   = useState('')
-  const [open,  setOpen]    = useState(false)
+  const [query,       setQuery]       = useState('')
+  const [open,        setOpen]        = useState(false)
+  const [highlighted, setHighlighted] = useState(-1)
   const wrapRef  = useRef(null)
   const inputRef = useRef(null)
+  const listRef  = useRef(null)
 
   useEffect(() => {
     const h = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  useEffect(() => { setHighlighted(-1) }, [query])
+  useEffect(() => {
+    if (listRef.current && highlighted >= 0) {
+      listRef.current.children[highlighted]?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlighted])
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
@@ -61,7 +70,12 @@ function LangCombo({ value, exclude, placeholder, onSelect, onClear }) {
           onFocus={() => { setQuery(''); setOpen(true) }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setOpen(false)
-            if (e.key === 'Enter' && filtered.length > 0) { e.preventDefault(); select(filtered[0]) }
+            if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, filtered.length - 1)) }
+            if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, -1)) }
+            if (e.key === 'Enter' && filtered.length > 0) {
+              e.preventDefault()
+              select(highlighted >= 0 ? filtered[highlighted] : filtered[0])
+            }
           }}
           placeholder={placeholder}
           style={{ paddingRight: value ? 28 : undefined }}
@@ -81,22 +95,26 @@ function LangCombo({ value, exclude, placeholder, onSelect, onClear }) {
         <div style={drop}>
           {filtered.length === 0 ? (
             <p style={{ padding: '10px 14px', fontSize: 13, color: '#94a3b8', margin: 0 }}>Nenhum idioma encontrado</p>
-          ) : filtered.map(lang => (
-            <div
-              key={lang}
-              onMouseDown={(e) => { e.preventDefault(); select(lang) }}
-              style={{
-                padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b',
-                borderLeft: lang === value ? '3px solid #2e6db4' : '3px solid transparent',
-                background: lang === value ? '#f0f6ff' : 'transparent',
-                fontWeight: lang === value ? 600 : 400,
-              }}
-              onMouseEnter={(e) => { if (lang !== value) e.currentTarget.style.background = '#f8fafc' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = lang === value ? '#f0f6ff' : 'transparent' }}
-            >
-              {lang}
-            </div>
-          ))}
+          ) : <div ref={listRef}>{filtered.map((lang, idx) => {
+            const isHl  = idx === highlighted
+            const isSel = lang === value
+            return (
+              <div
+                key={lang}
+                onMouseDown={(e) => { e.preventDefault(); select(lang) }}
+                onMouseEnter={() => setHighlighted(idx)}
+                onMouseLeave={() => setHighlighted(-1)}
+                style={{
+                  padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: isSel ? '#2e6db4' : '#1e293b',
+                  borderLeft: isSel ? '3px solid #2e6db4' : '3px solid transparent',
+                  background: isHl ? '#e8f0fe' : isSel ? '#f0f6ff' : 'transparent',
+                  fontWeight: isSel ? 600 : 400,
+                }}
+              >
+                {lang}
+              </div>
+            )
+          })}</div>}
         </div>
       )}
     </div>

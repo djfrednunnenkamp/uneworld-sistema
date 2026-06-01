@@ -24,8 +24,10 @@ export default function LocationPicker({ value, onChange }) {
   const [selCountry, setSelCountry] = useState(null)
   const [selState,   setSelState]   = useState(null)
 
-  const wrapRef  = useRef(null)
-  const inputRef = useRef(null)
+  const [highlighted, setHighlighted] = useState(-1)
+  const wrapRef   = useRef(null)
+  const inputRef  = useRef(null)
+  const listRef   = useRef(null)
 
   /* fecha ao clicar fora */
   useEffect(() => {
@@ -46,6 +48,7 @@ export default function LocationPicker({ value, onChange }) {
   const reset = () => {
     setStep('country'); setSearch('')
     setSelCountry(null); setSelState(null)
+    setHighlighted(-1)
   }
 
   const loadCountries = async () => {
@@ -137,7 +140,16 @@ export default function LocationPicker({ value, onChange }) {
   const STEP_LABEL = { country: 'País', state: 'Estado / Região', city: 'Cidade' }
 
   const handleFocus = () => { setOpen(true); setSearch('') }
-  const handleChange = (e) => { setOpen(true); setSearch(e.target.value) }
+  const handleChange = (e) => { setOpen(true); setSearch(e.target.value); setHighlighted(-1) }
+
+  const activeList = step === 'country' ? listCountries : step === 'state' ? listStates : listCities
+
+  useEffect(() => { setHighlighted(-1) }, [search, step])
+  useEffect(() => {
+    if (listRef.current && highlighted >= 0) {
+      listRef.current.children[highlighted]?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlighted])
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
@@ -152,11 +164,14 @@ export default function LocationPicker({ value, onChange }) {
           onKeyDown={(e) => {
             if (e.key === 'Escape') { setOpen(false) }
             if (e.key === 'Backspace' && !search && step !== 'country') back()
-            if (e.key === 'Enter') {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, activeList.length - 1)) }
+            if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, -1)) }
+            if (e.key === 'Enter' && activeList.length > 0) {
               e.preventDefault()
-              if (step === 'country' && listCountries.length > 0) pickCountry(listCountries[0])
-              else if (step === 'state'   && listStates.length   > 0) pickState(listStates[0])
-              else if (step === 'city'    && listCities.length   > 0) pickCity(listCities[0])
+              const idx  = highlighted >= 0 ? highlighted : 0
+              if (step === 'country') pickCountry(listCountries[idx])
+              else if (step === 'state') pickState(listStates[idx])
+              else if (step === 'city')  pickCity(listCities[idx])
             }
           }}
           placeholder="Digite para buscar…"
@@ -218,18 +233,18 @@ export default function LocationPicker({ value, onChange }) {
           </div>
 
           {/* Lista */}
-          <div style={{ overflowY: 'auto', flex: 1 }}>
+          <div ref={listRef} style={{ overflowY: 'auto', flex: 1 }}>
             {loading ? (
               <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13, margin: 0 }}>Carregando…</p>
             ) : step === 'country' ? (
               listCountries.length === 0
                 ? <p style={{ padding: '12px 14px', fontSize: 13, color: '#94a3b8', margin: 0 }}>Nenhum país encontrado</p>
-                : listCountries.map((c) => (
+                : listCountries.map((c, idx) => (
                   <div key={c.code}
                     onMouseDown={(e) => { e.preventDefault(); pickCountry(c) }}
-                    style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={() => setHighlighted(idx)}
+                    onMouseLeave={() => setHighlighted(-1)}
+                    style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b', background: idx === highlighted ? '#e8f0fe' : 'transparent' }}
                   >
                     {c.name_pt}
                     {c.name_en !== c.name_pt && <span style={{ color: '#94a3b8', fontSize: 11.5, marginLeft: 6 }}>{c.name_en}</span>}
@@ -238,12 +253,12 @@ export default function LocationPicker({ value, onChange }) {
             ) : step === 'state' ? (
               listStates.length === 0
                 ? <p style={{ padding: '12px 14px', fontSize: 13, color: '#94a3b8', margin: 0 }}>Nenhum estado encontrado</p>
-                : listStates.map((s) => (
+                : listStates.map((s, idx) => (
                   <div key={s.code || s.name}
                     onMouseDown={(e) => { e.preventDefault(); pickState(s) }}
-                    style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={() => setHighlighted(idx)}
+                    onMouseLeave={() => setHighlighted(-1)}
+                    style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b', background: idx === highlighted ? '#e8f0fe' : 'transparent' }}
                   >
                     {s.name}
                     {s.code && <span style={{ color: '#94a3b8', fontSize: 11.5, marginLeft: 6 }}>{s.code}</span>}
@@ -252,12 +267,12 @@ export default function LocationPicker({ value, onChange }) {
             ) : (
               listCities.length === 0
                 ? <p style={{ padding: '12px 14px', fontSize: 13, color: '#94a3b8', margin: 0 }}>Nenhuma cidade encontrada</p>
-                : listCities.map((city) => (
+                : listCities.map((city, idx) => (
                   <div key={city}
                     onMouseDown={(e) => { e.preventDefault(); pickCity(city) }}
-                    style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={() => setHighlighted(idx)}
+                    onMouseLeave={() => setHighlighted(-1)}
+                    style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b', background: idx === highlighted ? '#e8f0fe' : 'transparent' }}
                   >
                     {city}
                   </div>
