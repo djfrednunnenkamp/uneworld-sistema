@@ -1,7 +1,35 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 
+/* ── CSV helpers ── */
+function exportCsv(items, filename) {
+  const rows = ['nome', ...items.map(i => `"${i.name.replace(/"/g, '""')}"`)]
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function readCsv(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = reject
+    reader.onload = (e) => {
+      const lines = e.target.result.split(/\r?\n/)
+      // pula a primeira linha se for cabeçalho "nome"
+      const start = lines[0]?.trim().toLowerCase() === 'nome' ? 1 : 0
+      const names = lines.slice(start)
+        .map(l => l.trim().replace(/^"|"$/g, '').replace(/""/g, '"'))
+        .filter(Boolean)
+      resolve(names)
+    }
+    reader.readAsText(file, 'utf-8')
+  })
+}
+
+/* ── Shared styles ── */
 const inp = {
   padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8,
   fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#0f172a',
@@ -12,8 +40,59 @@ const btnPri = {
   background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600,
   cursor: 'pointer', fontFamily: 'inherit',
 }
+const btnCsv = (color) => ({
+  padding: '6px 11px', borderRadius: 7, border: `1.5px solid ${color}20`,
+  background: `${color}10`, color, fontSize: 12, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
+})
 
-function ItemList({ items, loading, onDelete, onAdd, placeholder }) {
+/* ── CsvButtons — reutilizável ── */
+function CsvButtons({ items, filename, onAdd }) {
+  const fileRef = useRef(null)
+  const [importing, setImporting] = useState(false)
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setImporting(true)
+    try {
+      const names = await readCsv(file)
+      if (names.length === 0) { toast.error('CSV vazio ou inválido.'); return }
+      let added = 0
+      for (const name of names) {
+        try { await onAdd(name); added++ } catch {}
+      }
+      toast.success(`${added} de ${names.length} item(s) importado(s).`)
+    } catch { toast.error('Erro ao ler o arquivo.') }
+    finally { setImporting(false) }
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button
+        style={btnCsv('#059669')}
+        onClick={() => exportCsv(items, filename)}
+        title="Exportar lista como CSV"
+      >
+        ⬇ Exportar
+      </button>
+      <button
+        style={btnCsv(importing ? '#94a3b8' : '#2e6db4')}
+        onClick={() => fileRef.current?.click()}
+        disabled={importing}
+        title="Importar itens de um CSV"
+      >
+        ⬆ {importing ? 'Importando…' : 'Importar'}
+      </button>
+      <input ref={fileRef} type="file" accept=".csv,text/csv"
+        style={{ display: 'none' }} onChange={handleImport} />
+    </div>
+  )
+}
+
+/* ── ItemList (Profissões / Idiomas) ── */
+function ItemList({ items, loading, onDelete, onAdd, placeholder, filename }) {
   const [search, setSearch] = useState('')
   const [newVal, setNewVal] = useState('')
   const [adding, setAdding] = useState(false)
@@ -24,8 +103,7 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder }) {
   }, [items, search])
 
   const handleAdd = async () => {
-    const v = newVal.trim()
-    if (!v) return
+    const v = newVal.trim(); if (!v) return
     setAdding(true)
     try { await onAdd(v); setNewVal('') }
     finally { setAdding(false) }
@@ -33,12 +111,16 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+      {/* Toolbar: busca + CSV */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
-          style={{ ...inp, flex: 1 }}
+          style={{ ...inp, flex: 1, minWidth: 160 }}
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+        <CsvButtons items={items} filename={filename} onAdd={onAdd} />
       </div>
+
+      {/* Adicionar */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <input value={newVal} onChange={e => setNewVal(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
@@ -49,9 +131,11 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder }) {
           + Adicionar
         </button>
       </div>
+
       <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
         {loading ? 'Carregando…' : `${filtered.length} de ${items.length} ${items.length !== 1 ? 'itens' : 'item'}`}
       </p>
+
       <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 460, overflowY: 'auto' }}>
         {loading ? (
           <p style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
@@ -81,6 +165,7 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder }) {
   )
 }
 
+/* ── CountriesTab ── */
 function CountriesTab() {
   const [countries,  setCountries]  = useState([])
   const [selCountry, setSelCountry] = useState(null)
@@ -113,8 +198,7 @@ function CountriesTab() {
 
   useEffect(() => { loadCountries() }, [])
 
-  const addCountry = async () => {
-    const name = newCountry.trim(); if (!name) return
+  const addCountry = async (name) => {
     try { await configApi.addCountry(name, ''); setNewCountry(''); loadCountries() }
     catch { toast.error('Erro ao adicionar país.') }
   }
@@ -125,8 +209,8 @@ function CountriesTab() {
       loadCountries()
     } catch { toast.error('Erro ao remover país.') }
   }
-  const addState = async () => {
-    const name = newState.trim(); if (!name || !selCountry) return
+  const addState = async (name) => {
+    if (!selCountry) return
     try { await configApi.addState(selCountry.id, name, ''); setNewState(''); loadStates(selCountry) }
     catch { toast.error('Erro ao adicionar estado.') }
   }
@@ -137,8 +221,8 @@ function CountriesTab() {
       setStates(s => s.filter(x => x.id !== id))
     } catch { toast.error('Erro ao remover estado.') }
   }
-  const addCity = async () => {
-    const name = newCity.trim(); if (!name || !selState) return
+  const addCity = async (name) => {
+    if (!selState) return
     try { await configApi.addCity(selState.id, name); setNewCity(''); loadCities(selState) }
     catch { toast.error('Erro ao adicionar cidade.') }
   }
@@ -151,7 +235,7 @@ function CountriesTab() {
   const filteredS  = useMemo(() => { const q = searchS.toLowerCase();  return states.filter(s => s.name.toLowerCase().includes(q)) }, [states, searchS])
   const filteredCi = useMemo(() => { const q = searchCi.toLowerCase(); return cities.filter(c => c.name.toLowerCase().includes(q)) }, [cities, searchCi])
 
-  const colStyle = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }
+  const colStyle = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 380, overflowY: 'auto' }
   const selRow = (sel) => ({
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '7px 10px', fontSize: 12, cursor: 'pointer',
@@ -163,22 +247,26 @@ function CountriesTab() {
   const addInp = { ...inp, flex: 1, fontSize: 12, padding: '7px 10px' }
   const addBtn = { ...btnPri, fontSize: 12, padding: '7px 10px' }
 
-  const Col = ({ title, count, search, onSearch, newVal, onNew, onAdd, loading, children, placeholder }) => (
+  const Col = ({ title, count, search, onSearch, newVal, onNew, onAdd, loading, children, placeholder, csvItems, csvFilename }) => (
     <div style={{ minWidth: 0 }}>
-      <h3 style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: '0 0 8px' }}>
-        {title}
-        {count != null && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400, marginLeft: 5 }}>({count})</span>}
-      </h3>
+      {/* Header: título + CSV */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0, whiteSpace: 'nowrap' }}>
+          {title}
+          {count != null && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400, marginLeft: 5 }}>({count})</span>}
+        </h3>
+        {csvItems && <CsvButtons items={csvItems} filename={csvFilename} onAdd={onAdd} />}
+      </div>
       <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
         <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Buscar…"
           style={{ ...addInp }} onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
       </div>
       <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
         <input value={newVal} onChange={e => onNew(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && onAdd()}
+          onKeyDown={e => e.key === 'Enter' && onAdd(newVal)}
           placeholder={placeholder} style={addInp}
           onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-        <button onClick={onAdd} disabled={!newVal.trim()} style={addBtn}>+</button>
+        <button onClick={() => onAdd(newVal)} disabled={!newVal.trim()} style={addBtn}>+</button>
       </div>
       <div style={colStyle}>
         {loading
@@ -195,6 +283,7 @@ function CountriesTab() {
         search={searchC} onSearch={setSearchC}
         newVal={newCountry} onNew={setNewCountry} onAdd={addCountry}
         loading={loadingC} placeholder="Novo país…"
+        csvItems={countries} csvFilename="paises.csv"
       >
         {filteredC.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
@@ -205,7 +294,7 @@ function CountriesTab() {
             >
               <span style={{ fontWeight: selCountry?.id === c.id ? 600 : 400, color: selCountry?.id === c.id ? '#2e6db4' : '#0f172a', fontSize: 12 }}>
                 {c.name}
-                {c.state_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 5, fontWeight: 400 }}>{c.state_count}</span>}
+                {c.state_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 5 }}>{c.state_count}</span>}
               </span>
               <button onClick={e => { e.stopPropagation(); delCountry(c.id) }} style={delBtn}
                 onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
@@ -221,6 +310,8 @@ function CountriesTab() {
         search={searchS} onSearch={setSearchS}
         newVal={newState} onNew={setNewState} onAdd={addState}
         loading={loadingS} placeholder="Novo estado…"
+        csvItems={selCountry ? states : null}
+        csvFilename={selCountry ? `estados_${selCountry.name.replace(/\s/g,'_')}.csv` : 'estados.csv'}
       >
         {!selCountry
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um país</p>
@@ -233,7 +324,7 @@ function CountriesTab() {
             >
               <span style={{ fontWeight: selState?.id === s.id ? 600 : 400, color: selState?.id === s.id ? '#2e6db4' : '#0f172a', fontSize: 12 }}>
                 {s.name}
-                {s.code && <span style={{ color: '#94a3b8', marginLeft: 4, fontWeight: 400 }}>{s.code}</span>}
+                {s.code && <span style={{ color: '#94a3b8', marginLeft: 4 }}>{s.code}</span>}
                 {s.city_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 4 }}>{s.city_count}</span>}
               </span>
               <button onClick={e => { e.stopPropagation(); delState(s.id) }} style={delBtn}
@@ -250,6 +341,8 @@ function CountriesTab() {
         search={searchCi} onSearch={setSearchCi}
         newVal={newCity} onNew={setNewCity} onAdd={addCity}
         loading={loadingCi} placeholder="Nova cidade…"
+        csvItems={selState ? cities : null}
+        csvFilename={selState ? `cidades_${selState.name.replace(/\s/g,'_')}.csv` : 'cidades.csv'}
       >
         {!selState
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um estado</p>
@@ -272,6 +365,7 @@ function CountriesTab() {
   )
 }
 
+/* ── Página principal ── */
 const TABS = ['Profissões', 'Idiomas', 'Países & Estados']
 
 export default function Settings() {
@@ -325,8 +419,8 @@ export default function Settings() {
       </div>
 
       <div style={{ padding: '0 24px 40px' }}>
-        {tab === 0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" />}
-        {tab === 1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…" />}
+        {tab === 0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" />}
+        {tab === 1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv" />}
         {tab === 2 && <CountriesTab />}
       </div>
     </div>
