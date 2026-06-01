@@ -102,6 +102,8 @@ class CustomDocField(models.Model):
     field_type = models.CharField('Tipo', max_length=20, choices=FIELD_TYPES, default='text')
     required   = models.BooleanField('Obrigatório', default=False)
     order      = models.PositiveIntegerField('Ordem', default=0)
+    # Para campo tipo 'country': 'country_only' | 'country_state' | 'country_state_city'
+    subtype    = models.CharField('Subtipo', max_length=30, blank=True, default='')
 
     class Meta:
         ordering = ['order']

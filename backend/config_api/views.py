@@ -419,7 +419,7 @@ class DocFieldSerializer(serializers.ModelSerializer):
     options = DocFieldOptionSerializer(many=True, read_only=True)
     class Meta:
         model = CustomDocField
-        fields = ['id', 'key', 'label', 'field_type', 'required', 'order', 'options']
+        fields = ['id', 'key', 'label', 'field_type', 'subtype', 'required', 'order', 'options']
 
 class DocTypeSerializer(serializers.ModelSerializer):
     fields = DocFieldSerializer(many=True, read_only=True)

@@ -7,6 +7,8 @@ import BrazilCityPicker from './BrazilCityPicker'
 import CnhClassPicker from './CnhClassPicker'
 import DatePicker from './DatePicker'
 import VaccinePicker from './VaccinePicker'
+import CountryStatePicker from './CountryStatePicker'
+import LocationPicker from './LocationPicker'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
 const MAX_SIZE_MB   = 15
@@ -19,7 +21,6 @@ export let DOC_TYPES = cachedDocTypes ?? []
 
 // Converte campo do banco para o formato usado no picker
 function dbFieldToPickerField(f) {
-  // RG tem campos especiais legados que não estão no banco
   return {
     key:         f.key,
     label:       f.label,
@@ -28,6 +29,7 @@ function dbFieldToPickerField(f) {
                : f.field_type === 'list'    ? 'list'
                : f.key === 'doc_number' && f.doc_type_key === 'vaccine' ? 'vaccine_name'
                : 'text',
+    subtype:     f.subtype || 'country_state_city',
     required:    f.required,
     options:     f.options ?? [],
   }
@@ -502,9 +504,23 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                         return (
                           <div key={f.key}>
                             {lbl}
-                            {f.type === 'country' ? (
+                            {f.type === 'country' && f.subtype === 'country_only' ? (
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626', background: '#fef2f2' } : {}}>
                                 <CountryPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : f.type === 'country' && f.subtype === 'country_state' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                <CountryStatePicker
+                                  country={docMeta[`${f.key}_country`] ?? ''}
+                                  state={docMeta[`${f.key}_state`] ?? ''}
+                                  onChangeCountry={(v) => setMeta(`${f.key}_country`, v)}
+                                  onChangeState={(v)   => { setMeta(`${f.key}_state`, v); setMeta(f.key, [docMeta[`${f.key}_country`] || '', v].filter(Boolean).join(' · ')) }}
+                                />
+                              </div>
+                            ) : f.type === 'country' ? (
+                              // country_state_city ou padrão
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                <LocationPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                               </div>
                             ) : f.type === 'brazil_city' ? (
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626', background: '#fef2f2' } : {}}>

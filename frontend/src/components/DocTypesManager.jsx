@@ -4,11 +4,18 @@ import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 
 const FIELD_TYPES = [
-  { value: 'text',    label: 'Texto livre' },
-  { value: 'date',    label: 'Data' },
-  { value: 'list',    label: 'Lista suspensa' },
-  { value: 'country', label: 'País / Estado / Cidade' },
+  { value: 'text',    label: 'Texto livre',            icon: '📝', desc: 'Input de texto' },
+  { value: 'date',    label: 'Data',                   icon: '📅', desc: 'Calendário com máscara' },
+  { value: 'list',    label: 'Lista suspensa',         icon: '📋', desc: 'Dropdown com opções' },
+  { value: 'country', label: 'País / Estado / Cidade', icon: '🌍', desc: 'Seletor geográfico' },
 ]
+
+const COUNTRY_LEVELS = [
+  { value: 'country_only',       label: 'Só o País',                icon: '🌍', desc: 'ex: Brasil' },
+  { value: 'country_state',      label: 'País + Estado',            icon: '🗺️', desc: 'ex: Brasil · SP' },
+  { value: 'country_state_city', label: 'País + Estado + Cidade',   icon: '📍', desc: 'ex: Brasil · SP · Campinas' },
+]
+
 const TYPE_COLORS = ['#2e6db4','#7c3aed','#059669','#0891b2','#b45309','#92400e','#0f766e','#dc2626','#475569','#ca8a04']
 
 /* ── Modal de criação / edição ── */
@@ -26,7 +33,7 @@ function DocTypeModal({ docType, onSave, onClose }) {
 
   const addField = () => {
     setFields(prev => [...prev, {
-      _id: null, key: '', label: '', field_type: 'text', required: false, order: prev.length, options: [], _new: true
+      _id: null, key: '', label: '', field_type: 'text', subtype: '', required: false, order: prev.length, options: [], _new: true
     }])
   }
 
@@ -190,62 +197,114 @@ function DocTypeModal({ docType, onSave, onClose }) {
 function FieldEditor({ field, index, onUpdate, onDelete, onAddOption, onRemoveOption }) {
   const [newOpt, setNewOpt] = useState('')
   const inp = { padding:'6px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', background:'#fff', transition:'border-color .12s' }
+  const selSubtype = field.subtype || 'country_state_city'
 
   return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:8, marginBottom:8, background:'#fafafa', overflow:'hidden' }}>
-      <div style={{ display:'flex', gap:8, alignItems:'center', padding:'10px 12px' }}>
-        {/* Ordem */}
-        <span style={{ fontSize:11, color:'#94a3b8', width:18, textAlign:'center', flexShrink:0 }}>{index+1}</span>
+    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, marginBottom:10, background:'#fff', overflow:'hidden' }}>
 
-        {/* Label */}
+      {/* Linha principal: ordem + label + required + apagar */}
+      <div style={{ display:'flex', gap:8, alignItems:'center', padding:'10px 12px' }}>
+        <span style={{ fontSize:11, color:'#94a3b8', width:18, textAlign:'center', flexShrink:0, fontWeight:600 }}>{index+1}</span>
         <input value={field.label} onChange={e=>onUpdate({label:e.target.value})}
           placeholder="Nome do campo…"
           style={{ ...inp, flex:1 }}
           onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-
-        {/* Tipo */}
-        <select value={field.field_type} onChange={e=>onUpdate({field_type:e.target.value})}
-          style={{ ...inp, width:160 }}>
-          {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-
-        {/* Obrigatório */}
-        <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#475569', cursor:'pointer', whiteSpace:'nowrap', userSelect:'none' }}>
+        <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#475569', cursor:'pointer', whiteSpace:'nowrap', userSelect:'none', flexShrink:0 }}>
           <input type="checkbox" checked={field.required} onChange={e=>onUpdate({required:e.target.checked})} />
           Obrigatório
         </label>
-
-        {/* Apagar */}
         <button onClick={onDelete}
           style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', color:'#dc2626', fontSize:13, padding:'4px 8px', fontFamily:'inherit', flexShrink:0 }}
           title="Remover campo">✕</button>
       </div>
 
-      {/* Opções para campo do tipo lista */}
-      {field.field_type === 'list' && (
-        <div style={{ padding:'8px 12px 10px 38px', borderTop:'1px solid #f1f5f9', background:'#fff' }}>
-          <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 6px' }}>Opções da lista:</p>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:7 }}>
-            {field.options.map((opt, oi) => (
-              <span key={oi} style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'2px 8px', borderRadius:20, background:'#f0f6ff', border:'1px solid #bfdbfe', fontSize:12, color:'#2e6db4' }}>
-                {opt.value}
-                <button onMouseDown={e=>{e.preventDefault();onRemoveOption(oi)}}
-                  style={{ background:'none', border:'none', cursor:'pointer', color:'#93c5fd', fontSize:14, lineHeight:1, padding:0 }}>×</button>
-              </span>
-            ))}
-            {field.options.length===0 && <span style={{ fontSize:12, color:'#94a3b8' }}>Nenhuma opção ainda.</span>}
-          </div>
-          <div style={{ display:'flex', gap:6 }}>
-            <input value={newOpt} onChange={e=>setNewOpt(e.target.value)}
-              onKeyDown={e=>{ if(e.key==='Enter'&&newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
-              placeholder="Nova opção… (Enter para adicionar)"
-              style={{ ...inp, flex:1, fontSize:12 }}
-              onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
-            <button onClick={()=>{ if(newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
-              style={{ padding:'6px 12px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>+</button>
-          </div>
+      {/* Seletor de tipo — cards visuais */}
+      <div style={{ padding:'0 12px 12px 38px' }}>
+        <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 7px' }}>Tipo de campo</p>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {FIELD_TYPES.map(t => {
+            const active = field.field_type === t.value
+            return (
+              <button key={t.value}
+                onMouseDown={e => { e.preventDefault(); onUpdate({ field_type: t.value, subtype: '' }) }}
+                style={{
+                  display:'flex', alignItems:'center', gap:6,
+                  padding:'7px 13px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
+                  border: active ? '2px solid #1a2d4f' : '1.5px solid #e2e8f0',
+                  background: active ? '#f0f4ff' : '#fafafa',
+                  color: active ? '#1a2d4f' : '#64748b',
+                  fontWeight: active ? 700 : 500,
+                  fontSize: 13,
+                  transition: 'all .12s',
+                }}>
+                <span style={{ fontSize:16 }}>{t.icon}</span>
+                <div style={{ textAlign:'left' }}>
+                  <div style={{ fontSize:12, fontWeight: active ? 700 : 500 }}>{t.label}</div>
+                  <div style={{ fontSize:10, color: active ? '#64748b' : '#94a3b8', fontWeight:400 }}>{t.desc}</div>
+                </div>
+              </button>
+            )
+          })}
         </div>
-      )}
+
+        {/* Sub-seletor para tipo País */}
+        {field.field_type === 'country' && (
+          <div style={{ marginTop:10, padding:'10px 12px', background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0' }}>
+            <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 7px' }}>Nível de detalhe</p>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {COUNTRY_LEVELS.map(lv => {
+                const active = selSubtype === lv.value
+                return (
+                  <button key={lv.value}
+                    onMouseDown={e => { e.preventDefault(); onUpdate({ subtype: lv.value }) }}
+                    style={{
+                      display:'flex', alignItems:'center', gap:6,
+                      padding:'6px 12px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
+                      border: active ? '2px solid #2e6db4' : '1.5px solid #e2e8f0',
+                      background: active ? '#eff6ff' : '#fff',
+                      color: active ? '#1e40af' : '#64748b',
+                      fontWeight: active ? 700 : 500,
+                      fontSize: 12,
+                      transition: 'all .12s',
+                    }}>
+                    <span style={{ fontSize:16 }}>{lv.icon}</span>
+                    <div>
+                      <div style={{ fontSize:12 }}>{lv.label}</div>
+                      <div style={{ fontSize:10, color: active ? '#3b82f6' : '#94a3b8', fontWeight:400 }}>{lv.desc}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Opções para campo do tipo lista */}
+        {field.field_type === 'list' && (
+          <div style={{ marginTop:10 }}>
+            <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 7px' }}>Opções da lista</p>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:8 }}>
+              {field.options.map((opt, oi) => (
+                <span key={oi} style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'3px 9px', borderRadius:20, background:'#f0f6ff', border:'1px solid #bfdbfe', fontSize:12, color:'#2e6db4' }}>
+                  {opt.value}
+                  <button onMouseDown={e=>{e.preventDefault();onRemoveOption(oi)}}
+                    style={{ background:'none', border:'none', cursor:'pointer', color:'#93c5fd', fontSize:14, lineHeight:1, padding:0 }}>×</button>
+                </span>
+              ))}
+              {field.options.length===0 && <span style={{ fontSize:12, color:'#94a3b8' }}>Nenhuma opção ainda.</span>}
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              <input value={newOpt} onChange={e=>setNewOpt(e.target.value)}
+                onKeyDown={e=>{ if(e.key==='Enter'&&newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
+                placeholder="Nova opção… (Enter para adicionar)"
+                style={{ ...inp, flex:1, fontSize:12 }}
+                onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+              <button onClick={()=>{ if(newOpt.trim()){ onAddOption(newOpt.trim()); setNewOpt('') } }}
+                style={{ padding:'6px 12px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>+</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -293,7 +352,7 @@ export default function DocTypesManager() {
       const key = f.key?.trim() || f.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || `field_${i}`
       if (f._id) {
         // Atualizar campo existente
-        await configApi.updateDocField(f._id, { label: f.label, field_type: f.field_type, required: f.required, order: i }).catch(() => {})
+        await configApi.updateDocField(f._id, { label: f.label, field_type: f.field_type, subtype: f.subtype || '', required: f.required, order: i }).catch(() => {})
         // Sincronizar opções
         const keepOptIds = new Set(f.options.filter(o => o.id).map(o => o.id))
         const existing = (docType?.fields?.find(df => df.id === f._id)?.options ?? [])
@@ -305,7 +364,7 @@ export default function DocTypesManager() {
         }
       } else {
         // Criar campo novo
-        const r = await configApi.addDocField({ doc_type_id: savedType.id, key, label: f.label, field_type: f.field_type, required: f.required, order: i }).catch(() => null)
+        const r = await configApi.addDocField({ doc_type_id: savedType.id, key, label: f.label, field_type: f.field_type, subtype: f.subtype || '', required: f.required, order: i }).catch(() => null)
         if (r?.data && f.field_type === 'list') {
           for (const o of f.options) {
             await configApi.addDocOption({ field_id: r.data.id, value: o.value, order: 0 }).catch(() => {})
