@@ -149,6 +149,20 @@ function DocTypeModal({ docType, onSave, onClose }) {
       i === fieldIdx ? { ...f, options: f.options.filter((_, j) => j !== optIdx) } : f
     ))
 
+  // Drag-and-drop de reordenação
+  const [dragIdx, setDragIdx] = useState(null)
+  const [overIdx, setOverIdx] = useState(null)
+
+  const moveField = (from, to) => {
+    if (from === to || to < 0 || to >= fields.length) return
+    setFields(prev => {
+      const arr = [...prev]
+      const [item] = arr.splice(from, 1)
+      arr.splice(to, 0, item)
+      return arr
+    })
+  }
+
   const handleSave = async () => {
     if (!name.trim()) { toast.error('Informe o nome do tipo.'); return }
     setSaving(true)
@@ -240,7 +254,7 @@ function DocTypeModal({ docType, onSave, onClose }) {
                 Nenhum campo. Clique em "Adicionar campo" para começar.
               </p>
             ) : fields.map((f, idx) => (
-              <FieldEditor key={idx} field={f} index={idx}
+              <FieldEditor key={f._id ?? `new_${idx}`} field={f} index={idx} total={fields.length}
                 onUpdate={(p) => updateField(idx, p)}
                 onDelete={() => {
                   if (f.label) setDelField({ index:idx, label:f.label })
@@ -248,6 +262,14 @@ function DocTypeModal({ docType, onSave, onClose }) {
                 }}
                 onAddOption={(v) => addOption(idx, v)}
                 onRemoveOption={(oi) => removeOption(idx, oi)}
+                isDragging={dragIdx === idx}
+                isOver={overIdx === idx && dragIdx !== idx}
+                onDragStart={() => setDragIdx(idx)}
+                onDragOver={(e) => { e.preventDefault(); setOverIdx(idx) }}
+                onDrop={() => { moveField(dragIdx, overIdx); setDragIdx(null); setOverIdx(null) }}
+                onDragEnd={() => { setDragIdx(null); setOverIdx(null) }}
+                onMoveUp={() => moveField(idx, idx - 1)}
+                onMoveDown={() => moveField(idx, idx + 1)}
               />
             ))}
           </div>
@@ -288,17 +310,48 @@ function DocTypeModal({ docType, onSave, onClose }) {
 }
 
 /* ── Editor de um campo dentro do modal ── */
-function FieldEditor({ field, index, onUpdate, onDelete, onAddOption, onRemoveOption }) {
+function FieldEditor({ field, index, total, onUpdate, onDelete, onAddOption, onRemoveOption,
+                       isDragging, isOver, onDragStart, onDragOver, onDrop, onDragEnd,
+                       onMoveUp, onMoveDown }) {
   const [newOpt, setNewOpt] = useState('')
   const inp = { padding:'6px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', background:'#fff', transition:'border-color .12s' }
   const selSubtype = field.subtype || 'country_state_city'
 
   return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, marginBottom:8, background:'#fff' }}>
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      style={{
+        border: isOver ? '2px dashed #2e6db4' : '1px solid #e2e8f0',
+        borderRadius:10, marginBottom:8,
+        background: isDragging ? '#f0f6ff' : isOver ? '#f8fbff' : '#fff',
+        opacity: isDragging ? 0.5 : 1,
+        transition: 'background .1s, border-color .1s',
+      }}
+    >
 
-      {/* Linha única: número | nome | tipo (compacto) | obrigatório | apagar */}
+      {/* Linha única: alça | número | nome | tipo (compacto) | obrigatório | apagar */}
       <div style={{ display:'flex', gap:8, alignItems:'center', padding:'9px 12px' }}>
-        <span style={{ fontSize:11, color:'#94a3b8', width:16, textAlign:'center', flexShrink:0, fontWeight:600 }}>{index+1}</span>
+        {/* Alça de drag */}
+        <span
+          title="Arraste para reordenar"
+          style={{ fontSize:14, color:'#cbd5e1', cursor:'grab', flexShrink:0, lineHeight:1, userSelect:'none', padding:'0 2px' }}
+        >⠿</span>
+
+        {/* Botões ↑↓ */}
+        <div style={{ display:'flex', flexDirection:'column', gap:1, flexShrink:0 }}>
+          <button onClick={onMoveUp} disabled={index === 0}
+            style={{ background:'none', border:'none', cursor: index===0 ? 'default':'pointer', color: index===0 ? '#e2e8f0':'#94a3b8', fontSize:10, lineHeight:1, padding:'1px 2px' }}
+            title="Mover para cima">▲</button>
+          <button onClick={onMoveDown} disabled={index === total - 1}
+            style={{ background:'none', border:'none', cursor: index===total-1 ? 'default':'pointer', color: index===total-1 ? '#e2e8f0':'#94a3b8', fontSize:10, lineHeight:1, padding:'1px 2px' }}
+            title="Mover para baixo">▼</button>
+        </div>
+
+        <span style={{ fontSize:11, color:'#94a3b8', width:14, textAlign:'center', flexShrink:0, fontWeight:600 }}>{index+1}</span>
 
         <input value={field.label} onChange={e=>onUpdate({label:e.target.value})}
           placeholder="Nome do campo…"
