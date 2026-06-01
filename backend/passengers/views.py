@@ -1,5 +1,7 @@
 import os
+import re
 from django.http import FileResponse, Http404
+from django.db.models import Q
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -19,6 +21,22 @@ class PassengerViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return PassengerListSerializer
         return PassengerSerializer
+
+    @action(detail=False, methods=['get'], url_path='check-cpf')
+    def check_cpf(self, request):
+        cpf = request.query_params.get('cpf', '').strip()
+        if not cpf:
+            return Response({'error': 'CPF não informado.'}, status=400)
+        digits = re.sub(r'\D', '', cpf)
+        passenger = Passenger.objects.filter(
+            Q(cpf=cpf) | Q(cpf=digits)
+        ).exclude(cpf='').first()
+        if passenger:
+            name = (passenger.full_name or
+                    f"{passenger.first_name} {passenger.last_name}".strip() or
+                    'Passageiro')
+            return Response({'exists': True, 'id': passenger.id, 'name': name})
+        return Response({'exists': False})
 
     @action(detail=False, methods=['get'])
     def active(self, request):

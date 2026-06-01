@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { passengersApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
+import NewPassengerModal from '../components/NewPassengerModal'
 import { Ic } from '../components/Icon'
 
 /* ── Helpers ── */
@@ -228,11 +229,12 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
 
 /* ── Página principal ── */
 export default function Passengers() {
-  const [rows,    setRows]    = useState([])
-  const [loading, setLoading] = useState(true)
-  const [delRow,  setDelRow]  = useState(null)
-  const [viewRow, setViewRow] = useState(null)
-  const navigate              = useNavigate()
+  const [rows,      setRows]      = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [delRow,    setDelRow]    = useState(null)
+  const [viewRow,   setViewRow]   = useState(null)
+  const [showNew,   setShowNew]   = useState(false)
+  const navigate                  = useNavigate()
 
   // Filtros
   const [statusF,   setStatusF]   = useState('all')
@@ -350,7 +352,7 @@ export default function Passengers() {
         cols={COLS}
         searchKeys={['full_name','email','cpf','phone1']}
         extraFilters={filterBar}
-        onAdd={() => navigate('/passageiros/novo')}
+        onAdd={() => setShowNew(true)}
         onView={(row) => setViewRow(row)}
         onDelete={(row) => setDelRow(row)}
         loading={loading}
@@ -366,6 +368,7 @@ export default function Passengers() {
       {delRow && (
         <DelModal name={delRow.full_name} onOk={handleDelete} onCancel={() => setDelRow(null)} />
       )}
+      {showNew && <NewPassengerModal onClose={() => setShowNew(false)} />}
     </>
   )
 }

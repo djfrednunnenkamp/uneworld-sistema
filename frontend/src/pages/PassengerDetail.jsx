@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import axios from 'axios'
 import { passengersApi, documentsApi } from '../api'
@@ -694,11 +694,19 @@ function DocumentsTab({ passengerId, isNew }) {
 
 /* ── Main component ── */
 export default function PassengerDetail() {
-  const { id }   = useParams()
-  const navigate = useNavigate()
-  const isNew    = id === 'novo'
+  const { id }         = useParams()
+  const navigate       = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isNew          = id === 'novo'
 
-  const [form,       setForm]       = useState({ ...EMPTY })
+  const [form,       setForm]       = useState(() => {
+    if (isNew) {
+      const cpf       = searchParams.get('cpf') || ''
+      const isForeign = searchParams.get('estrangeiro') === 'true'
+      return { ...EMPTY, cpf, is_foreign: isForeign }
+    }
+    return { ...EMPTY }
+  })
   const [loading,    setLoading]    = useState(!isNew)
   const [notesOpen,  setNotesOpen]  = useState(false)
   const [saving,     setSaving]     = useState(false)
