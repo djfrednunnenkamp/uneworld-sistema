@@ -58,15 +58,19 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const [progress,   setProgress]  = useState(0)
   const [uploading,  setUploading] = useState(false)
 
-  /* Carrega tipos do banco na primeira abertura */
+  /* Carrega tipos toda vez que o picker abre — garante dados frescos */
   useEffect(() => {
-    if (cachedDocTypes) return
+    if (!open) return
     configApi.docTypes().then(r => {
-      cachedDocTypes = r.data.filter(t => t.is_active)
-      DOC_TYPES = cachedDocTypes
-      setDocTypes(cachedDocTypes)
-    }).catch(() => {})
-  }, [])
+      const types = r.data.filter(t => t.is_active)
+      cachedDocTypes = types
+      DOC_TYPES = types
+      setDocTypes(types)
+    }).catch(() => {
+      // fallback: usa cache se a requisição falhar
+      if (cachedDocTypes) setDocTypes(cachedDocTypes)
+    })
+  }, [open])
 
   /* Libera URL de preview ao trocar arquivo ou fechar */
   useEffect(() => {

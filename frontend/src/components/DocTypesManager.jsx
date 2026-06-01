@@ -477,19 +477,23 @@ export default function DocTypesManager() {
         }
       } else {
         // Criar campo novo
-        const r = await configApi.addDocField({ doc_type_id: savedType.id, key, label: f.label, field_type: f.field_type, subtype: f.subtype || '', required: f.required, order: i }).catch(() => null)
-        if (r?.data && f.field_type === 'list') {
+        let fieldId = null
+        try {
+          const r = await configApi.addDocField({ doc_type_id: savedType.id, key, label: f.label, field_type: f.field_type, subtype: f.subtype || '', required: f.required, order: i })
+          fieldId = r.data?.id
+        } catch (err) {
+          const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message
+          toast.error(`Erro ao salvar campo "${f.label}": ${msg}`)
+        }
+        if (fieldId && f.field_type === 'list') {
           for (const o of f.options) {
-            await configApi.addDocOption({ field_id: r.data.id, value: o.value, order: 0 }).catch(() => {})
+            await configApi.addDocOption({ field_id: fieldId, value: o.value, order: 0 }).catch(() => {})
           }
         }
       }
     }
 
     toast.success(docType ? 'Tipo atualizado!' : 'Tipo criado!')
-    // Invalida cache do DocTypePicker
-    const mod = await import('./DocTypePicker').catch(() => null)
-    if (mod) { try { mod.cachedDocTypes = null } catch {} }
     load()
   }
 
