@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { documentsApi } from '../api'
+import { documentsApi, configApi } from '../api'
 import { Ic } from './Icon'
 import CountryPicker from './CountryPicker'
 import BrazilCityPicker from './BrazilCityPicker'
@@ -8,69 +8,33 @@ import CnhClassPicker from './CnhClassPicker'
 import DatePicker from './DatePicker'
 import VaccinePicker from './VaccinePicker'
 
-export const DOC_TYPES = [
-  { id: 'passport',   label: 'Passaporte',                icon: '🛂', color: '#2e6db4' },
-  { id: 'rg',         label: 'Carteira de Identidade',    icon: '🪪', color: '#7c3aed' },
-  { id: 'cnh',        label: 'Carteira de Motorista',     icon: '🚗', color: '#059669' },
-  { id: 'visa',       label: 'Visto',                     icon: '✈️', color: '#0891b2' },
-  { id: 'birth_cert', label: 'Certidão de Nascimento',    icon: '📄', color: '#b45309' },
-  { id: 'residence',  label: 'Comprovante de Residência', icon: '🏠', color: '#92400e' },
-  { id: 'vaccine',    label: 'Vacina',                    icon: '💉', color: '#0f766e' },
-  { id: 'other',      label: 'Outro documento',           icon: '📎', color: '#475569' },
-]
-
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
 const MAX_SIZE_MB   = 15
 
-/* Campos por tipo de documento */
-const DOC_FIELDS = {
-  passport: [
-    { key: 'doc_number',  label: 'Número do passaporte', type: 'text',    required: true },
-    { key: 'issued_date', label: 'Data de emissão',       type: 'date',    required: true },
-    { key: 'expiry_date', label: 'Validade',               type: 'date',    required: true },
-    { key: 'issued_by',   label: 'País emissor',           type: 'country', required: true },
-  ],
-  rg: [
-    { key: 'doc_number',  label: 'Número do RG',       type: 'text',        modelFilter: 'antigo', required: true },
-    { key: 'issued_date', label: 'Data de expedição',   type: 'date',        required: true },
-    { key: 'issued_by',   label: 'Local de expedição',  type: 'brazil_city', required: true },
-    { key: 'expiry_date', label: 'Validade',             type: 'date',        modelFilter: 'novo', required: true },
-  ],
-  cnh: [
-    { key: 'doc_number',   label: 'Número da CNH',      type: 'text',        required: true },
-    { key: 'doc_category', label: 'Categoria / Classe',  type: 'cnh_class',   required: true },
-    { key: 'issued_date',  label: 'Data de emissão',     type: 'date',        required: true },
-    { key: 'expiry_date',  label: 'Validade',             type: 'date',        required: true },
-    { key: 'issued_by',    label: 'Local de expedição',  type: 'brazil_city', required: true },
-  ],
-  visa: [
-    { key: 'doc_number',  label: 'Número do visto', type: 'text',    required: true },
-    { key: 'issued_date', label: 'Data de emissão',  type: 'date',    required: true },
-    { key: 'expiry_date', label: 'Validade',          type: 'date',    required: true },
-    { key: 'issued_by',   label: 'País emissor',      type: 'country', required: true },
-  ],
-  birth_cert: [
-    { key: 'doc_number',  label: 'Número do documento', type: 'text', required: true },
-    { key: 'issued_date', label: 'Data de emissão',      type: 'date', required: true },
-    { key: 'issued_by',   label: 'Cartório / Órgão',     type: 'text', required: true },
-  ],
-  residence: [
-    { key: 'issued_date', label: 'Data do comprovante', type: 'date', required: true },
-    { key: 'issued_by',   label: 'Emissor',              type: 'text', required: true },
-  ],
-  vaccine: [
-    { key: 'doc_number',  label: 'Nome da vacina',    type: 'vaccine_name', required: true  },
-    { key: 'issued_date', label: 'Data da vacinação', type: 'date', required: false },
-    { key: 'expiry_date', label: 'Data de validade',  type: 'date', required: false },
-  ],
-  other: [
-    { key: 'doc_number',  label: 'Número do documento', type: 'text' },
-    { key: 'issued_date', label: 'Data de emissão',      type: 'date' },
-    { key: 'expiry_date', label: 'Validade',              type: 'date' },
-  ],
+// Cache de tipos do banco
+let cachedDocTypes = null
+
+// Exporta lista para outros componentes (ex: lista de documentos)
+export let DOC_TYPES = cachedDocTypes ?? []
+
+// Converte campo do banco para o formato usado no picker
+function dbFieldToPickerField(f) {
+  // RG tem campos especiais legados que não estão no banco
+  return {
+    key:         f.key,
+    label:       f.label,
+    type:        f.field_type === 'country' ? 'country'
+               : f.field_type === 'date'    ? 'date'
+               : f.field_type === 'list'    ? 'list'
+               : f.key === 'doc_number' && f.doc_type_key === 'vaccine' ? 'vaccine_name'
+               : 'text',
+    required:    f.required,
+    options:     f.options ?? [],
+  }
 }
 
 export default function DocTypePicker({ passengerId, onUploaded }) {
+  const [docTypes,  setDocTypes]  = useState(cachedDocTypes ?? [])
   const [open,      setOpen]     = useState(false)
   const [step,      setStep]     = useState('type')
   const [selType,   setSelType]  = useState(null)
@@ -92,6 +56,16 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const [progress,   setProgress]  = useState(0)
   const [uploading,  setUploading] = useState(false)
 
+  /* Carrega tipos do banco na primeira abertura */
+  useEffect(() => {
+    if (cachedDocTypes) return
+    configApi.docTypes().then(r => {
+      cachedDocTypes = r.data.filter(t => t.is_active)
+      DOC_TYPES = cachedDocTypes
+      setDocTypes(cachedDocTypes)
+    }).catch(() => {})
+  }, [])
+
   /* Libera URL de preview ao trocar arquivo ou fechar */
   useEffect(() => {
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }
@@ -108,10 +82,9 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   }
 
   // Lista filtrada pela busca (excluindo "Outro" — aparece como botão no header)
-  const DOC_LIST = DOC_TYPES.filter(t => t.id !== 'other')
   const filtered = useMemo(() =>
-    DOC_LIST.filter(t => t.label.toLowerCase().includes(search.toLowerCase()))
-  , [search])
+    docTypes.filter(t => t.key !== 'other' && t.label.toLowerCase().includes(search.toLowerCase()))
+  , [search, docTypes])
 
   const close = () => { setOpen(false); reset() }
 
@@ -152,7 +125,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   const setMeta = (key, value) => {
     setDocMeta((prev) => {
       const next = { ...prev, [key]: value }
-      if (typeInfo?.id === 'rg' && rgModel === 'antigo' && key === 'issued_date' && value) {
+      if (typeInfo?.key === 'rg' && rgModel === 'antigo' && key === 'issued_date' && value) {
         const d = new Date(value)
         d.setFullYear(d.getFullYear() + 10)
         next.expiry_date = d.toISOString().split('T')[0]
@@ -186,9 +159,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
   }
 
   const submit = async () => {
-    // Valida campos obrigatórios do tipo de documento
-    const requiredFields = (DOC_FIELDS[typeInfo?.id] ?? [])
-      .filter(f => f.required && (!f.modelFilter || f.modelFilter === rgModel))
+    // Valida campos obrigatórios usando typeFields do banco
+    const requiredFields = typeFields.filter(f => f.required && (!f.modelFilter || f.modelFilter === rgModel))
     const errs = {}
     requiredFields.forEach(f => {
       if (!docMeta[f.key]?.trim?.() && !docMeta[f.key]) errs[f.key] = true
@@ -208,17 +180,16 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
     setUploading(true); setProgress(10)
     try {
       const fd = new FormData()
-      fd.append('doc_type', selType.id)
+      fd.append('doc_type', selType.key)
       fd.append('label',    label)
       fd.append('notes',    notes)
       fd.append('file',     file)
-      // Campos de metadado do documento
-      if (docMeta.doc_number)  fd.append('doc_number',  docMeta.doc_number)
-      if (docMeta.issued_date) fd.append('issued_date', docMeta.issued_date)
-      if (docMeta.expiry_date) fd.append('expiry_date', docMeta.expiry_date)
-      if (docMeta.issued_by)   fd.append('issued_by',   docMeta.issued_by)
-      if (typeInfo?.id === 'rg')         fd.append('doc_model',    rgModel)
-      if (docMeta.doc_category)          fd.append('doc_category', docMeta.doc_category)
+      // Campos de metadado do documento (mapeados para colunas do banco)
+      const KNOWN_KEYS = ['doc_number', 'issued_date', 'expiry_date', 'issued_by', 'doc_category']
+      typeFields.forEach(f => {
+        if (KNOWN_KEYS.includes(f.key) && docMeta[f.key]) fd.append(f.key, docMeta[f.key])
+      })
+      if (typeInfo?.key === 'rg') fd.append('doc_model', rgModel)
       setProgress(40)
       await documentsApi.upload(passengerId, fd)
       setProgress(100)
@@ -233,7 +204,12 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
     } finally { setUploading(false) }
   }
 
-  const typeInfo = selType ? DOC_TYPES.find(d => d.id === selType.id) : null
+  // typeInfo é o próprio selType (que já vem com fields do banco)
+  const typeInfo = selType ?? null
+  // campos do tipo — com fallback para tipos legados sem dados no banco
+  const typeFields = useMemo(() =>
+    (typeInfo?.fields ?? []).map(f => dbFieldToPickerField({ ...f, doc_type_key: typeInfo?.key }))
+  , [typeInfo])
 
   return (
     <>
@@ -288,7 +264,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                     </p>
                     <button
                       type="button"
-                      onClick={() => pickType(DOC_TYPES.find(t => t.id === 'other'))}
+                      onClick={() => pickType(docTypes.find(t => t.key === 'other') ?? { key:'other', label:'Outro documento', icon:'📎', color:'#475569', fields:[] })}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 5,
                         padding: '4px 11px', borderRadius: 6,
@@ -333,7 +309,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                     </p>
                   ) : filtered.map((t) => (
                     <div
-                      key={t.id}
+                      key={t.key}
                       onClick={() => pickType(t)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 12,
@@ -504,14 +480,13 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                       </div>
                     )}
 
-                    {/* Campos dinâmicos */}
+                    {/* Campos dinâmicos — lidos do banco via typeFields */}
                     {(() => {
-                      const fields = (DOC_FIELDS[typeInfo.id] ?? [])
-                        .filter(f => !f.modelFilter || f.modelFilter === rgModel)
+                      const fields = typeFields.filter(f => !f.modelFilter || f.modelFilter === rgModel)
 
                       // Para RG modelo novo: agrupa issued_date + expiry_date em grid 2 colunas
                       const dateKeys = ['issued_date', 'expiry_date']
-                      const isRgNovo = typeInfo.id === 'rg' && rgModel === 'novo'
+                      const isRgNovo = typeInfo.key === 'rg' && rgModel === 'novo'
                       const dateFields = isRgNovo ? fields.filter(f => dateKeys.includes(f.key)) : []
                       const otherFields = isRgNovo ? fields.filter(f => !dateKeys.includes(f.key)) : fields
 
@@ -547,8 +522,17 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
                                 <VaccinePicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                               </div>
+                            ) : f.type === 'list' ? (
+                              <select className="fi" value={docMeta[f.key] ?? ''}
+                                onChange={(e) => setMeta(f.key, e.target.value)}
+                                style={{ ...redStyle, cursor:'pointer' }}>
+                                <option value="">Selecione…</option>
+                                {(f.options ?? []).map(opt => (
+                                  <option key={opt.id} value={opt.value}>{opt.value}</option>
+                                ))}
+                              </select>
                             ) : (
-                              <input className="fi" type={f.type} value={docMeta[f.key] ?? ''}
+                              <input className="fi" type="text" value={docMeta[f.key] ?? ''}
                                 onChange={(e) => setMeta(f.key, e.target.value)}
                                 style={redStyle} />
                             )}
