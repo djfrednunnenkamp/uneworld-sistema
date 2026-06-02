@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { listsApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
+import ListModal from '../components/ListModal'
 
 const fmt = (d) => {
   if (!d) return ''
@@ -112,6 +113,7 @@ export default function Trips() {
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
+  const [showNew, setShowNew] = useState(false)
   const [statusF, setStatusF] = useState('all')
 
   const load = () => {
@@ -130,6 +132,12 @@ export default function Trips() {
     load()
   }
 
+  // Após salvar no modal → navega para a página completa da lista
+  const handleSaved = (data) => {
+    setShowNew(false)
+    navigate(`/viagens/${data.id}`)
+  }
+
   const filtered = statusF === 'all' ? rows : rows.filter(r => r.status === statusF)
 
   const filterBar = (
@@ -145,12 +153,15 @@ export default function Trips() {
         cols={COLS}
         searchKeys={['name']}
         extraFilters={filterBar}
-        onAdd={() => navigate('/viagens/nova')}
+        onAdd={() => setShowNew(true)}
         onView={(row) => navigate(`/viagens/${row.id}`)}
         onDelete={(row) => setDelRow(row)}
         loading={loading}
       />
 
+      {showNew && (
+        <ListModal onClose={() => setShowNew(false)} onSaved={handleSaved} />
+      )}
       {delRow && (
         <DelModal name={delRow.name} onOk={handleDelete} onCancel={() => setDelRow(null)} />
       )}
