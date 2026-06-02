@@ -7,7 +7,33 @@ import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import CnpjInput from '../components/CnpjInput'
 import CountryStatePicker from '../components/CountryStatePicker'
+import FormSelect from '../components/FormSelect'
 import usePersistedTab from '../hooks/usePersistedTab'
+
+const AGENCY_TYPE_OPTS = [
+  { value: 'agencia',       label: 'Agência'        },
+  { value: 'representante', label: 'Representante'  },
+  { value: 'operadora',     label: 'Operadora'      },
+  { value: 'parceiro',      label: 'Parceiro'       },
+  { value: 'outro',         label: 'Outro'          },
+]
+const PERSON_TYPE_OPTS = [
+  { value: 'juridica', label: 'Jurídica' },
+  { value: 'fisica',   label: 'Física'   },
+]
+const STATUS_OPTS = [
+  { value: 'active',   label: '● Ativa'    },
+  { value: 'pending',  label: '○ Pendente' },
+  { value: 'inactive', label: '✕ Inativa'  },
+]
+const PIX_TYPE_OPTS = [
+  { value: '',          label: 'Selecione o tipo…' },
+  { value: 'cpf',       label: 'CPF'               },
+  { value: 'cnpj',      label: 'CNPJ'              },
+  { value: 'email',     label: 'E-mail'            },
+  { value: 'telefone',  label: 'Telefone'          },
+  { value: 'aleatorio', label: 'Chave aleatória'   },
+]
 
 const EMPTY = {
   agency_type: 'agencia', person_type: 'juridica', status: 'active',
@@ -181,11 +207,13 @@ export default function AgencyDetail() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 13, color: '#64748b' }}>Status:</span>
-            <select className="fs" value={form.status} onChange={set('status')} style={{ width: 120 }}>
-              <option value="active">Ativa</option>
-              <option value="pending">Pendente</option>
-              <option value="inactive">Inativa</option>
-            </select>
+            <div style={{ width: 140 }}>
+              <FormSelect
+                value={form.status}
+                onChange={v => { setForm(f => ({ ...f, status: v })); setIsDirty(true) }}
+                options={STATUS_OPTS}
+              />
+            </div>
           </div>
           <button className="btn btn-outline" onClick={() => navigate('/agencias')}>
             <Ic n="logout" s={13} style={{ transform: 'rotate(180deg)' }} /> Voltar
@@ -236,24 +264,11 @@ export default function AgencyDetail() {
           </div>
           {/* Col 2 */}
           <F label="Tipo de cadastro">
-            {fs('agency_type',
-              <>
-                <option value="agencia">Agência</option>
-                <option value="representante">Representante</option>
-                <option value="operadora">Operadora</option>
-                <option value="parceiro">Parceiro</option>
-                <option value="outro">Outro</option>
-              </>
-            )}
+            <FormSelect value={form.agency_type} onChange={v => { setForm(f => ({...f, agency_type: v})); setIsDirty(true) }} options={AGENCY_TYPE_OPTS} />
           </F>
           {/* Col 3 */}
           <F label="Tipo de pessoa">
-            {fs('person_type',
-              <>
-                <option value="juridica">Jurídica</option>
-                <option value="fisica">Física</option>
-              </>
-            )}
+            <FormSelect value={form.person_type} onChange={v => { setForm(f => ({...f, person_type: v})); setIsDirty(true) }} options={PERSON_TYPE_OPTS} />
           </F>
         </div>
 
@@ -337,17 +352,8 @@ export default function AgencyDetail() {
       <div className="section">
         <div className="section-title">Dados PIX</div>
         <div className="grid3">
-          <F label="Tipo de chave">
-            {fs('pix_key_type',
-              <>
-                <option value="">Selecione…</option>
-                <option value="cpf">CPF</option>
-                <option value="cnpj">CNPJ</option>
-                <option value="email">E-mail</option>
-                <option value="telefone">Telefone</option>
-                <option value="aleatorio">Chave aleatória</option>
-              </>
-            )}
+          <F label="Tipo de chave PIX">
+            <FormSelect value={form.pix_key_type} onChange={v => { setForm(f => ({...f, pix_key_type: v})); setIsDirty(true) }} options={PIX_TYPE_OPTS} />
           </F>
           <F label="Chave PIX" col={2}>{fi('pix_key')}</F>
         </div>
