@@ -364,9 +364,18 @@ export default function AgencyDetail() {
         </div>
 
         <div className="grid3">
-          <F label="Comissão %">
-            <input className="fi" type="number" min="0" max="100" step="0.01"
-              value={form.commission_rate ?? ''} onChange={set('commission_rate')} placeholder="0,00" />
+          <F label="Comissão">
+            <div style={{ position: 'relative' }}>
+              <input className="fi" type="number" min="0" max="100" step="0.01"
+                value={form.commission_rate ?? ''} onChange={set('commission_rate')}
+                placeholder="0,00"
+                style={{ paddingRight: 28 }} />
+              <span style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                fontSize: 13, fontWeight: 600, color: form.commission_rate ? '#2e6db4' : '#94a3b8',
+                pointerEvents: 'none', userSelect: 'none',
+              }}>%</span>
+            </div>
           </F>
           <F label="Website" col={2}>{fi('website', 'https://www.exemplo.com.br')}</F>
         </div>
