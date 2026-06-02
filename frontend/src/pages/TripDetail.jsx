@@ -1034,61 +1034,74 @@ function PassengersTab({ listId, listType }) {
       {/* Popup mover passageiro entre quartos */}
       {moveEnrollment && (() => {
         const allRooms = [...new Set(enrolled.map(e => e.accommodation).filter(Boolean))].sort()
-        const accomTypes2 = accomTypes // captura do closure
+        const moveToRoom = async (room) => {
+          if (!room) return
+          await listsApi.updatePassenger(listId, moveEnrollment.id, { accommodation: room })
+          toast.success(`Movido para ${room}.`)
+          setMoveEnrollment(null); load()
+        }
         return (
           <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
             onMouseDown={ev => { if (ev.target === ev.currentTarget) setMoveEnrollment(null) }}>
-            <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:460, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
-              <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:460, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden', display:'flex', flexDirection:'column', maxHeight:'85vh' }}>
+
+              {/* Header */}
+              <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
                 <div>
-                  <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Mover passageiro</p>
+                  <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Mover para quarto</p>
                   <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{moveEnrollment.name}</p>
                 </div>
                 <button onClick={() => setMoveEnrollment(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
               </div>
-              <div style={{ padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:10 }}>
-                <p style={{ margin:0, fontSize:12, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>
-                  Quartos disponíveis
-                </p>
+
+              {/* Picker (topo) */}
+              <div style={{ padding:'14px 22px 12px', borderBottom:'1px solid #f1f5f9', flexShrink:0 }}>
+                <AccomPicker value={''} onChange={moveToRoom} existingRooms={allRooms} />
+              </div>
+
+              {/* Lista de quartos existentes */}
+              <div style={{ flex:1, overflowY:'auto', padding:'8px 22px 16px' }}>
                 {allRooms.length === 0 ? (
-                  <p style={{ fontSize:13, color:'#94a3b8', margin:0 }}>Nenhum quarto criado ainda.</p>
-                ) : allRooms.map(room => {
-                  const isCurrent = room === moveEnrollment.currentAccom
-                  const type = accomTypes2.find(t => room === t.name || room.startsWith(t.name + ' '))
-                  const count = enrolled.filter(e => e.accommodation === room).length
-                  const cap   = type?.capacity
-                  const over  = cap && count >= cap
-                  return (
-                    <button key={room} type="button"
-                      disabled={isCurrent}
-                      onClick={async () => {
-                        await listsApi.updatePassenger(listId, moveEnrollment.id, { accommodation: room })
-                        toast.success(`Movido para ${room}.`)
-                        setMoveEnrollment(null); load()
-                      }}
-                      style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:8, border:`1.5px solid ${isCurrent ? '#1a2d4f' : '#e2e8f0'}`, background: isCurrent ? '#f0f4ff' : '#fff', cursor: isCurrent ? 'default' : 'pointer', fontFamily:'inherit', transition:'all .12s' }}
-                      onMouseEnter={ev => { if (!isCurrent) ev.currentTarget.style.borderColor='#1a2d4f' }}
-                      onMouseLeave={ev => { if (!isCurrent) ev.currentTarget.style.borderColor='#e2e8f0' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <span style={{ fontSize:13, fontWeight:600, color: isCurrent ? '#1a2d4f' : '#1e293b' }}>{room}</span>
-                        {isCurrent && <span style={{ fontSize:11, color:'#2e6db4', background:'#eff6ff', padding:'1px 7px', borderRadius:10 }}>atual</span>}
-                      </div>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        {cap && <span style={{ fontSize:11, color: over ? '#dc2626' : '#64748b', background: over ? '#fee2e2' : '#f1f5f9', padding:'1px 7px', borderRadius:20 }}>{count}/{cap}</span>}
-                        {over && !isCurrent && <span style={{ fontSize:11, color:'#dc2626' }}>⚠ lotado</span>}
-                      </div>
-                    </button>
-                  )
-                })}
-                <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:10, marginTop:4 }}>
-                  <p style={{ margin:'0 0 8px', fontSize:12, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>Novo quarto</p>
-                  <AccomPicker value={''} onChange={async (v) => {
-                    if (!v) return
-                    await listsApi.updatePassenger(listId, moveEnrollment.id, { accommodation: v })
-                    toast.success(`Movido para ${v}.`)
-                    setMoveEnrollment(null); load()
-                  }} existingRooms={allRooms} />
-                </div>
+                  <p style={{ textAlign:'center', color:'#94a3b8', fontSize:13, padding:'20px 0', margin:0 }}>
+                    Nenhum quarto criado ainda. Use o campo acima.
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ margin:'8px 0 8px', fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>
+                      Quartos na lista
+                    </p>
+                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                      {allRooms.map(room => {
+                        const isCurrent = room === moveEnrollment.currentAccom
+                        const type = accomTypes.find(t => room === t.name || room.startsWith(t.name + ' '))
+                        const count = enrolled.filter(e => e.accommodation === room).length
+                        const cap   = type?.capacity
+                        const over  = cap && count >= cap
+                        return (
+                          <button key={room} type="button" disabled={isCurrent}
+                            onClick={() => moveToRoom(room)}
+                            style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:8, border:`1.5px solid ${isCurrent ? '#1a2d4f' : '#e2e8f0'}`, background: isCurrent ? '#f0f4ff' : '#fff', cursor: isCurrent ? 'default' : 'pointer', fontFamily:'inherit', transition:'all .12s', textAlign:'left' }}
+                            onMouseEnter={ev => { if (!isCurrent) ev.currentTarget.style.borderColor='#1a2d4f' }}
+                            onMouseLeave={ev => { if (!isCurrent) ev.currentTarget.style.borderColor='#e2e8f0' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <span style={{ fontSize:13, fontWeight:600, color: isCurrent ? '#1a2d4f' : '#1e293b' }}>{room}</span>
+                              {isCurrent && <span style={{ fontSize:11, color:'#2e6db4', background:'#eff6ff', padding:'1px 7px', borderRadius:10, fontWeight:600 }}>atual</span>}
+                              {type?.is_couple && <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:10 }}>casal</span>}
+                            </div>
+                            <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                              {cap
+                                ? <span style={{ fontSize:11, fontWeight:600, color: over ? '#dc2626' : '#16a34a', background: over ? '#fee2e2' : '#dcfce7', padding:'1px 8px', borderRadius:20 }}>
+                                    {count}/{cap} {over ? '⚠' : '✓'}
+                                  </span>
+                                : <span style={{ fontSize:11, color:'#94a3b8' }}>{count}p</span>
+                              }
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
