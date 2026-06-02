@@ -94,13 +94,25 @@ class PassengerListSerializer(serializers.ModelSerializer):
 
 
 class ListEnrollmentSerializer(serializers.ModelSerializer):
-    passenger_name = serializers.CharField(source='passenger.full_name', read_only=True)
-    passenger_cpf  = serializers.CharField(source='passenger.cpf', read_only=True)
-    passenger_email= serializers.CharField(source='passenger.email', read_only=True)
-    passenger_phone= serializers.CharField(source='passenger.phone1', read_only=True)
+    passenger_name       = serializers.CharField(source='passenger.full_name',   read_only=True)
+    passenger_cpf        = serializers.CharField(source='passenger.cpf',          read_only=True)
+    passenger_email      = serializers.CharField(source='passenger.email',        read_only=True)
+    passenger_phone      = serializers.CharField(source='passenger.phone1',       read_only=True)
+    passenger_birth_date = serializers.DateField(source='passenger.birth_date',   read_only=True)
+    passenger_nationality= serializers.CharField(source='passenger.nationality',  read_only=True)
+    passenger_gender     = serializers.CharField(source='passenger.gender',       read_only=True)
+    passenger_passport   = serializers.CharField(source='passenger.passport',     read_only=True)
+    passenger_rg         = serializers.CharField(source='passenger.rg',           read_only=True)
+    passenger_status     = serializers.CharField(source='passenger.status',       read_only=True)
 
     class Meta:
         model  = ListEnrollment
-        fields = ['id', 'passenger', 'passenger_name', 'passenger_cpf',
-                  'passenger_email', 'passenger_phone', 'enrolled_at', 'notes']
+        fields = [
+            'id', 'passenger',
+            'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
+            'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
+            'passenger_passport', 'passenger_rg', 'passenger_status',
+            'accommodation', 'enrollment_status', 'order_in_list',
+            'enrolled_at', 'notes',
+        ]
         read_only_fields = ['enrolled_at']

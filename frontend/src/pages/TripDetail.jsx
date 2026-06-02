@@ -30,15 +30,135 @@ function Chip({ label, value }) {
   )
 }
 
+/* ── Status dot ── */
+const STATUS_DOT = {
+  confirmado: { bg:'#16a34a', title:'Confirmado' },
+  pendente:   { bg:'#f59e0b', title:'Pendente'   },
+  cancelado:  { bg:'#dc2626', title:'Cancelado'  },
+}
+
+/* ── Popup de adicionar passageiro com acomodação ── */
+function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
+  const [search,       setSearch]       = useState('')
+  const [results,      setResults]      = useState([])
+  const [searching,    setSearching]    = useState(false)
+  const [selected,     setSelected]     = useState(null)
+  const [accommodation,setAccommodation]= useState('')
+  const [estatus,      setEstatus]      = useState('pendente')
+  const [saving,       setSaving]       = useState(false)
+  const debRef = useRef(null)
+
+  const handleSearch = (q) => {
+    setSearch(q); setSelected(null)
+    clearTimeout(debRef.current)
+    if (!q.trim()) { setResults([]); return }
+    debRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const r = await passengersApi.list({ search: q, page_size: 15 })
+        setResults(r.data.results ?? r.data)
+      } catch {} finally { setSearching(false) }
+    }, 300)
+  }
+
+  const handleAdd = async () => {
+    if (!selected) return
+    if (enrolled.some(e => e.passenger === selected.id)) {
+      toast.error('Passageiro já está nesta lista.'); return
+    }
+    setSaving(true)
+    try {
+      await listsApi.addPassenger(listId, { passenger: selected.id, accommodation, enrollment_status: estatus, notes: '' })
+      toast.success(`${selected.full_name} adicionado.`)
+      onAdded()
+      onClose()
+    } catch (err) { toast.error(err.response?.data?.error ?? 'Erro ao adicionar.') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:480, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Adicionar passageiro</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+        <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Busca */}
+          <div>
+            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Passageiro</label>
+            <div style={{ position:'relative' }}>
+              <input value={search} onChange={e => handleSearch(e.target.value)}
+                placeholder="Nome, CPF ou e-mail…"
+                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+                onFocus={e => e.target.style.borderColor='#1a2d4f'}
+                onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+              {(results.length > 0 || searching) && (
+                <div style={{ position:'absolute', top:'calc(100%+4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.12)', overflow:'hidden', maxHeight:200, overflowY:'auto' }}>
+                  {searching
+                    ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Buscando…</p>
+                    : results.map(p => (
+                      <div key={p.id}
+                        style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#eff6ff' : 'transparent' }}
+                        onClick={() => { setSelected(p); setSearch(p.full_name); setResults([]) }}
+                        onMouseEnter={e => { if (selected?.id!==p.id) e.currentTarget.style.background='#f8fafc' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = selected?.id===p.id ? '#eff6ff' : 'transparent' }}>
+                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
+                        <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Acomodação */}
+          <div>
+            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Acomodação</label>
+            <input value={accommodation} onChange={e => setAccommodation(e.target.value)}
+              placeholder="Ex: Apto. Duplo Twin, Apto. Single…"
+              style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+              onFocus={e => e.target.style.borderColor='#1a2d4f'}
+              onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+          </div>
+          {/* Status */}
+          <div>
+            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Status</label>
+            <div style={{ display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1.5px solid #e2e8f0', width:'fit-content' }}>
+              {[{v:'confirmado',l:'Confirmado'},{v:'pendente',l:'Pendente'},{v:'cancelado',l:'Cancelado'}].map(opt => (
+                <button key={opt.v} type="button" onClick={() => setEstatus(opt.v)}
+                  style={{ padding:'7px 14px', border:'none', fontFamily:'inherit', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .12s',
+                    background: estatus===opt.v ? (opt.v==='confirmado'?'#16a34a':opt.v==='cancelado'?'#dc2626':'#f59e0b') : '#fff',
+                    color: estatus===opt.v ? '#fff' : '#64748b',
+                  }}>
+                  {opt.l}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleAdd} disabled={!selected || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !selected||saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !selected||saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Adicionando…' : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId }) {
+function PassengersTab({ listId, listType }) {
   const [enrolled,  setEnrolled]  = useState([])
   const [loading,   setLoading]   = useState(true)
-  const [search,    setSearch]    = useState('')
-  const [results,   setResults]   = useState([])
-  const [searching, setSearching] = useState(false)
+  const [showAdd,   setShowAdd]   = useState(false)
   const [confirm,   setConfirm]   = useState(null)
-  const debRef = useRef(null)
+  const [editAccom, setEditAccom] = useState(null) // {id, accommodation}
 
   const load = useCallback(() => {
     setLoading(true)
@@ -50,114 +170,204 @@ function PassengersTab({ listId }) {
 
   useEffect(() => { load() }, [load])
 
-  const handleSearch = (q) => {
-    setSearch(q)
-    clearTimeout(debRef.current)
-    if (!q.trim()) { setResults([]); return }
-    debRef.current = setTimeout(async () => {
-      setSearching(true)
-      try {
-        const r = await passengersApi.list({ search: q, page_size: 20 })
-        setResults(r.data.results ?? r.data)
-      } catch {} finally { setSearching(false) }
-    }, 300)
-  }
-
-  const add = async (p) => {
-    if (enrolled.some(e => e.passenger === p.id)) {
-      toast.error('Passageiro já está nesta lista.')
-      return
-    }
-    try {
-      await listsApi.addPassenger(listId, p.id, '')
-      toast.success(`${p.full_name} adicionado.`)
-      setSearch(''); setResults([])
-      load()
-    } catch (err) {
-      toast.error(err.response?.data?.error ?? 'Erro ao adicionar.')
-    }
-  }
-
   const remove = async (eid, name) => {
     await listsApi.removePassenger(listId, eid).catch(() => toast.error('Erro ao remover.'))
     setConfirm(null)
-    toast.success(`${name} removido da lista.`)
+    toast.success(`${name} removido.`)
     load()
   }
 
+  const saveAccom = async () => {
+    await listsApi.updatePassenger(listId, editAccom.id, { accommodation: editAccom.accommodation })
+    setEditAccom(null); load()
+  }
+
+  const toggleStatus = async (e) => {
+    const next = e.enrollment_status === 'confirmado' ? 'pendente' : 'confirmado'
+    await listsApi.updatePassenger(listId, e.id, { enrollment_status: next }).catch(() => {})
+    load()
+  }
+
+  // Agrupar por acomodação
+  const groups = []
+  const seen   = {}
+  enrolled.forEach(e => {
+    const key = e.accommodation || '(sem acomodação)'
+    if (!seen[key]) { seen[key] = []; groups.push({ key, rows: seen[key] }) }
+    seen[key].push(e)
+  })
+
+  // Número sequencial global
+  let seq = 0
+  const seqMap = {}
+  enrolled.forEach(e => { seq++; seqMap[e.id] = seq })
+
+  const isAereo = listType === 'aereo'
+
   return (
-    <div className="det-card">
-      <div className="section">
-        <div className="section-title" style={{ marginBottom:16 }}>
-          Passageiros na lista
-          <span style={{ fontSize:12, fontWeight:400, color:'#94a3b8', marginLeft:8 }}>
-            {enrolled.length} passageiro{enrolled.length !== 1 ? 's' : ''}
-          </span>
-        </div>
+    <div>
+      {/* Toolbar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <span style={{ fontSize:14, fontWeight:600, color:'#1e293b' }}>
+          {enrolled.length} passageiro{enrolled.length !== 1 ? 's' : ''}
+        </span>
+        <button type="button" onClick={() => setShowAdd(true)}
+          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+          + Adicionar passageiro
+        </button>
+      </div>
 
-        {/* Busca autocomplete */}
-        <div style={{ position:'relative', marginBottom:16 }}>
-          <input
-            value={search} onChange={e => handleSearch(e.target.value)}
-            placeholder="Buscar passageiro pelo nome, CPF ou e-mail…"
-            style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
-            onFocus={e => e.target.style.borderColor='#1a2d4f'}
-            onBlur={e => e.target.style.borderColor='#e2e8f0'}
-          />
-          {(results.length > 0 || searching) && (
-            <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:400, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.12)', overflow:'hidden' }}>
-              {searching
-                ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
-                : results.map(p => (
-                  <div key={p.id}
-                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
-                    onClick={() => add(p)}
-                    onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
-                    onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                    <div>
-                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
-                      <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
-                    </div>
-                    <span style={{ fontSize:11, color:'#2e6db4', fontWeight:700 }}>+ Adicionar</span>
-                  </div>
-                ))}
-            </div>
-          )}
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'48px 0', color:'#94a3b8' }}>Carregando…</div>
+      ) : enrolled.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px 0' }}>
+          <p style={{ fontSize:36, marginBottom:8 }}>👥</p>
+          <p style={{ color:'#94a3b8', fontSize:14, fontWeight:500 }}>Nenhum passageiro na lista.</p>
+          <p style={{ color:'#cbd5e1', fontSize:12 }}>Clique em "+ Adicionar passageiro" para começar.</p>
         </div>
-
-        {/* Tabela de inscritos */}
-        {loading ? (
-          <p style={{ textAlign:'center', color:'#94a3b8', fontSize:13, padding:'24px 0' }}>Carregando…</p>
-        ) : enrolled.length === 0 ? (
-          <div style={{ textAlign:'center', padding:'40px 0' }}>
-            <p style={{ fontSize:36, marginBottom:8 }}>👥</p>
-            <p style={{ color:'#94a3b8', fontSize:14, fontWeight:500 }}>Nenhum passageiro na lista.</p>
-            <p style={{ color:'#cbd5e1', fontSize:12 }}>Use a busca acima para adicionar.</p>
-          </div>
-        ) : (
-          <div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 150px 200px 130px 48px', gap:0, padding:'8px 12px', background:'#f8fafc', borderRadius:'8px 8px 0 0', borderBottom:'2px solid #e2e8f0' }}>
-              {['Nome', 'CPF', 'E-mail', 'Telefone', ''].map((h, i) => (
-                <span key={i} style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>{h}</span>
-              ))}
-            </div>
-            {enrolled.map((e, idx) => (
-              <div key={e.id} style={{ display:'grid', gridTemplateColumns:'1fr 150px 200px 130px 48px', gap:0, padding:'10px 12px', borderBottom:'1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafbfc', alignItems:'center' }}>
-                <span style={{ fontSize:13, fontWeight:600, color:'#1e293b' }}>{e.passenger_name}</span>
-                <span style={{ fontSize:12, color:'#64748b' }}>{e.passenger_cpf || '—'}</span>
-                <span style={{ fontSize:12, color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.passenger_email || '—'}</span>
-                <span style={{ fontSize:12, color:'#64748b' }}>{e.passenger_phone || '—'}</span>
-                <button type="button" onClick={() => setConfirm({ id:e.id, name:e.passenger_name })}
-                  style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
-                  onMouseEnter={e => { e.currentTarget.style.background='#fee2e2'; e.currentTarget.style.color='#dc2626'; e.currentTarget.style.borderColor='#fecaca' }}
-                  onMouseLeave={e => { e.currentTarget.style.background='#fff'; e.currentTarget.style.color='#94a3b8'; e.currentTarget.style.borderColor='#e2e8f0' }}>
-                  ✕
-                </button>
-              </div>
+      ) : (
+        <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
+          {/* Cabeçalho da tabela */}
+          <div style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 140px 140px 90px', gap:0, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+            {['Nº', '●', isAereo?'✈':'', 'Passageiro', 'Nasc.', 'Nac.', 'Gên.', 'Pass / RG', 'CPF', 'Ações'].map((h, i) => (
+              <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: i===0?'center':'left' }}>{h}</span>
             ))}
           </div>
-        )}
-      </div>
+
+          {/* Grupos por acomodação */}
+          {groups.map(({ key, rows }) => (
+            <div key={key}>
+              {/* Header do grupo */}
+              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 14px', background:'#f1f5f9', borderBottom:'1px solid #e2e8f0', borderTop:'1px solid #e2e8f0' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:'#475569', letterSpacing:'.03em' }}>{key}</span>
+                <span style={{ fontSize:11, color:'#94a3b8' }}>({rows.length} pax)</span>
+                <button type="button"
+                  onClick={() => setEditAccom({ id: rows[0].id, accommodation: rows[0].accommodation || '', bulkKey: key })}
+                  title="Renomear acomodação"
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:13, padding:0, lineHeight:1 }}
+                  onMouseEnter={e => e.currentTarget.style.color='#1a2d4f'}
+                  onMouseLeave={e => e.currentTarget.style.color='#94a3b8'}>
+                  ✎
+                </button>
+              </div>
+
+              {/* Linhas dos passageiros */}
+              {rows.map((e, ri) => {
+                const dot = STATUS_DOT[e.enrollment_status] || STATUS_DOT.pendente
+                const nat = (e.passenger_nationality || '').slice(0,3).toUpperCase() || '—'
+                const gen = e.passenger_gender ? e.passenger_gender[0].toUpperCase() : '—'
+                const doc = e.passenger_passport || e.passenger_rg || '—'
+                const cpf = e.passenger_cpf || '—'
+                const birth = e.passenger_birth_date ? fmt(e.passenger_birth_date) : '—'
+
+                return (
+                  <div key={e.id}
+                    style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 140px 140px 90px', gap:0, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
+                    onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
+
+                    {/* Nº */}
+                    <span style={{ textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8' }}>{seqMap[e.id]}</span>
+
+                    {/* Status dot */}
+                    <div title={dot.title} onClick={() => toggleStatus(e)} style={{ cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <div style={{ width:10, height:10, borderRadius:'50%', background:dot.bg, boxShadow:`0 0 0 2px ${dot.bg}30` }} />
+                    </div>
+
+                    {/* ✈ (modo de transporte) */}
+                    {isAereo
+                      ? <span style={{ fontSize:14, textAlign:'center' }}>✈</span>
+                      : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
+                    }
+
+                    {/* Nome */}
+                    <div style={{ minWidth:0 }}>
+                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {e.passenger_name}
+                      </p>
+                    </div>
+
+                    {/* Nasc. */}
+                    <span style={{ fontSize:12, color:'#64748b' }}>{birth}</span>
+
+                    {/* Nac. */}
+                    <span style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4, display:'inline-block' }}>{nat}</span>
+
+                    {/* Gênero */}
+                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center' }}>{gen}</span>
+
+                    {/* Pass/RG */}
+                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{doc}</span>
+
+                    {/* CPF */}
+                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{cpf}</span>
+
+                    {/* Ações */}
+                    <div style={{ display:'flex', gap:4 }}>
+                      <button type="button"
+                        onClick={() => setEditAccom({ id: e.id, accommodation: e.accommodation || '' })}
+                        title="Editar acomodação"
+                        style={{ padding:'4px 7px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
+                        onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
+                        🛏
+                      </button>
+                      <button type="button"
+                        onClick={() => setConfirm({ id:e.id, name:e.passenger_name })}
+                        title="Remover"
+                        style={{ padding:'4px 7px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
+                        onMouseEnter={ev => { ev.currentTarget.style.background='#fee2e2'; ev.currentTarget.style.color='#dc2626'; ev.currentTarget.style.borderColor='#fecaca' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.background='#fff'; ev.currentTarget.style.color='#94a3b8'; ev.currentTarget.style.borderColor='#e2e8f0' }}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Popup adicionar */}
+      {showAdd && (
+        <AddPassengerPopup
+          listId={listId}
+          enrolled={enrolled}
+          onAdded={load}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
+
+      {/* Popup editar acomodação */}
+      {editAccom && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
+          onMouseDown={e => { if (e.target === e.currentTarget) setEditAccom(null) }}>
+          <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:380, boxShadow:'0 24px 60px rgba(0,0,0,.2)', overflow:'hidden' }}>
+            <div style={{ padding:'16px 20px 12px', borderBottom:'1px solid #e2e8f0' }}>
+              <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Acomodação</span>
+            </div>
+            <div style={{ padding:'16px 20px' }}>
+              <input value={editAccom.accommodation}
+                onChange={e => setEditAccom(ea => ({ ...ea, accommodation: e.target.value }))}
+                onKeyDown={e => { if (e.key==='Enter') saveAccom(); if (e.key==='Escape') setEditAccom(null) }}
+                placeholder="Ex: Apto. Duplo Twin, Apto. Single…"
+                autoFocus
+                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #1a2d4f', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }} />
+            </div>
+            <div style={{ padding:'0 20px 16px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button type="button" onClick={() => setEditAccom(null)}
+                style={{ padding:'7px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={saveAccom}
+                style={{ padding:'7px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirm && (
         <ConfirmModal
@@ -268,7 +478,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} />}
 
       {tab === 'roteiro' && (
         <div className="det-card">

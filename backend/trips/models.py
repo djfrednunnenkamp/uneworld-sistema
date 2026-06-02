@@ -146,15 +146,24 @@ class PassengerList(models.Model):
 
 
 class ListEnrollment(models.Model):
-    passenger_list = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Lista')
-    passenger      = models.ForeignKey(Passenger,     on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Passageiro')
-    enrolled_at    = models.DateTimeField('Adicionado em', auto_now_add=True)
-    notes          = models.TextField('Observações', blank=True)
+    STATUS_CHOICES = [
+        ('confirmado', 'Confirmado'),
+        ('pendente',   'Pendente'),
+        ('cancelado',  'Cancelado'),
+    ]
+
+    passenger_list   = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Lista')
+    passenger        = models.ForeignKey(Passenger,     on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Passageiro')
+    accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
+    enrollment_status= models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente')
+    order_in_list    = models.PositiveIntegerField('Ordem', default=0)
+    enrolled_at      = models.DateTimeField('Adicionado em', auto_now_add=True)
+    notes            = models.TextField('Observações', blank=True)
 
     class Meta:
         unique_together     = ['passenger_list', 'passenger']
         verbose_name        = 'Passageiro na lista'
         verbose_name_plural = 'Passageiros na lista'
-        ordering            = ['enrolled_at']
+        ordering            = ['order_in_list', 'enrolled_at']
 
     def __str__(self): return f'{self.passenger} → {self.passenger_list}'

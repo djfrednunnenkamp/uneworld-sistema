@@ -97,6 +97,20 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         e = ListEnrollment.objects.create(passenger_list=pl, passenger=p, notes=notes)
         return Response(ListEnrollmentSerializer(e).data, status=201)
 
+    @action(detail=True, methods=['patch'], url_path=r'passageiros/(?P<enrollment_id>\d+)',
+            permission_classes=[IsAuthenticated])
+    def update_passenger(self, request, pk=None, enrollment_id=None):
+        pl = self.get_object()
+        try:
+            e = pl.list_enrollments.get(id=enrollment_id)
+            for field in ('accommodation', 'enrollment_status', 'order_in_list', 'notes'):
+                if field in request.data:
+                    setattr(e, field, request.data[field])
+            e.save()
+            return Response(ListEnrollmentSerializer(e).data)
+        except ListEnrollment.DoesNotExist:
+            return Response({'error': 'Inscrição não encontrada.'}, status=404)
+
     @action(detail=True, methods=['delete'], url_path=r'passageiros/(?P<enrollment_id>\d+)',
             permission_classes=[IsAuthenticated])
     def remove_passenger(self, request, pk=None, enrollment_id=None):

@@ -32,7 +32,8 @@ export const listsApi = {
   remove: (id)     => api.delete(`/trips/lists/${id}/`),
   // Passageiros na lista
   listPassengers:   (id)          => api.get(`/trips/lists/${id}/passageiros/`),
-  addPassenger:     (id, pid, notes) => api.post(`/trips/lists/${id}/passageiros/`, { passenger: pid, notes }),
+  addPassenger:     (id, data)     => api.post(`/trips/lists/${id}/passageiros/`, data),
+  updatePassenger:  (id, eid, d)  => api.patch(`/trips/lists/${id}/passageiros/${eid}/`, d),
   removePassenger:  (id, eid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/`),
   // Fornecedores e Adicionais
   suppliers:        ()            => api.get('/trips/suppliers/'),
