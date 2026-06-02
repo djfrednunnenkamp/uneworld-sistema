@@ -140,8 +140,10 @@ function DocTypeModal({ docType, onSave, onClose }) {
   const [fields,  setFields]  = useState(
     (docType?.fields ?? []).map(f => ({ ...f, _id: f.id, options: f.options ?? [] }))
   )
-  const [saving,  setSaving]  = useState(false)
-  const [delField, setDelField] = useState(null) // {index, label}
+  const [saving,    setSaving]    = useState(false)
+  const [delField,  setDelField]  = useState(null)
+  const [nameError, setNameError] = useState(false)       // nome do tipo em vermelho
+  const [fieldErrs, setFieldErrs] = useState(new Set())   // índices de campos sem nome
 
   const addField = () => {
     setFields(prev => [...prev, {
@@ -182,7 +184,15 @@ function DocTypeModal({ docType, onSave, onClose }) {
   }
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error('Informe o nome do tipo.'); return }
+    // Valida nome e campos — marca em vermelho sem bloquear com toast
+    let hasErr = false
+    if (!name.trim()) { setNameError(true); hasErr = true }
+    const emptyFields = new Set(
+      fields.map((f, i) => f.label.trim() ? null : i).filter(i => i !== null)
+    )
+    if (emptyFields.size) { setFieldErrs(emptyFields); hasErr = true }
+    if (hasErr) return   // fica na tela com campos vermelhos
+
     setSaving(true)
     try {
       await onSave({ name: name.trim(), icon, color, fields })
@@ -228,11 +238,13 @@ function DocTypeModal({ docType, onSave, onClose }) {
               </div>
               {/* Nome */}
               <div style={{ flex:1 }}>
-                <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:4 }}>Nome do tipo *</label>
-                <input value={name} onChange={e=>setName(e.target.value)}
+                <label style={{ display:'block', fontSize:11, color: nameError ? '#dc2626' : '#94a3b8', marginBottom:4 }}>Nome do tipo *</label>
+                <input value={name} onChange={e => { setName(e.target.value); if (nameError && e.target.value.trim()) setNameError(false) }}
                   placeholder="ex: Seguro de Viagem, Passaporte…"
-                  style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }}
-                  onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+                  style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${nameError ? '#dc2626' : '#e2e8f0'}`, borderRadius:8, fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', background: nameError ? '#fef2f2' : '#fff' }}
+                  onFocus={e => e.target.style.borderColor = nameError ? '#dc2626' : '#1a2d4f'}
+                  onBlur={e  => e.target.style.borderColor = nameError ? '#dc2626' : '#e2e8f0'} />
+                {nameError && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Informe o nome do tipo</p>}
               </div>
             </div>
             {/* Paleta de cores */}
@@ -288,6 +300,8 @@ function DocTypeModal({ docType, onSave, onClose }) {
                 onDragEnd={() => { setDragIdx(null); setOverIdx(null) }}
                 onMoveUp={() => moveField(idx, idx - 1)}
                 onMoveDown={() => moveField(idx, idx + 1)}
+                hasError={fieldErrs.has(idx)}
+                onClearError={() => setFieldErrs(prev => { const n = new Set(prev); n.delete(idx); return n })}
               />
             ))}
           </div>
@@ -328,7 +342,7 @@ function DocTypeModal({ docType, onSave, onClose }) {
 }
 
 /* ── Editor de um campo dentro do modal ── */
-function FieldEditor({ field, index, total, onUpdate, onDelete, onAddOption, onRemoveOption,
+function FieldEditor({ field, index, total, hasError, onClearError, onUpdate, onDelete, onAddOption, onRemoveOption,
                        isDragging, isOver, onDragStart, onDragOver, onDrop, onDragEnd,
                        onMoveUp, onMoveDown }) {
   const [newOpt, setNewOpt] = useState('')
@@ -371,10 +385,15 @@ function FieldEditor({ field, index, total, onUpdate, onDelete, onAddOption, onR
 
         <span style={{ fontSize:11, color:'#94a3b8', width:14, textAlign:'center', flexShrink:0, fontWeight:600 }}>{index+1}</span>
 
-        <input value={field.label} onChange={e=>onUpdate({label:e.target.value})}
-          placeholder="Nome do campo…"
-          style={{ ...inp, flex:1, minWidth:0 }}
-          onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+        <div style={{ flex:1, minWidth:0 }}>
+          <input value={field.label}
+            onChange={e => { onUpdate({label:e.target.value}); if (hasError && e.target.value.trim()) onClearError?.() }}
+            placeholder="Nome do campo…"
+            style={{ ...inp, width:'100%', border:`1.5px solid ${hasError ? '#dc2626' : '#e2e8f0'}`, background: hasError ? '#fef2f2' : '#fff' }}
+            onFocus={e => e.target.style.borderColor = hasError ? '#dc2626' : '#1a2d4f'}
+            onBlur={e  => e.target.style.borderColor = hasError ? '#dc2626' : '#e2e8f0'} />
+          {hasError && <p style={{ fontSize:10, color:'#dc2626', margin:'2px 0 0', fontWeight:500 }}>Nome obrigatório</p>}
+        </div>
 
         {/* Tipo compacto — ícone + nome + seta */}
         <div style={{ flexShrink:0, width:170 }}>
