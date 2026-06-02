@@ -22,6 +22,7 @@ import CnhClassPicker from '../components/CnhClassPicker'
 import CpfInput from '../components/CpfInput'
 import PhoneInput from '../components/PhoneInput'
 import DocTypePicker from '../components/DocTypePicker'
+import FormSelect from '../components/FormSelect'
 import { configApi } from '../api'
 
 // Fallback estático para quando a API ainda não carregou
@@ -955,15 +956,16 @@ export default function PassengerDetail() {
           {/* Status do cadastro no header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <label style={{ fontSize: 12, color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>Status:</label>
-            <select
-              className="fs"
-              style={{ width: 'auto', padding: '5px 10px', fontSize: 13 }}
-              value={form.status}
-              onChange={set('status')}
-            >
-              <option value="active">Ativo</option>
-              <option value="inactive">Inativo</option>
-            </select>
+            <div style={{ width: 130 }}>
+              <FormSelect
+                value={form.status}
+                onChange={v => set('status')({ target: { value: v } })}
+                options={[
+                  { value: 'active',   label: '● Ativo'    },
+                  { value: 'inactive', label: '✕ Inativo'  },
+                ]}
+              />
+            </div>
           </div>
           <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
           <button className="btn btn-outline" onClick={() => navigate('/passageiros')}>

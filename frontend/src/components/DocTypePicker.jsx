@@ -9,6 +9,7 @@ import DatePicker from './DatePicker'
 import VaccinePicker from './VaccinePicker'
 import CountryStatePicker from './CountryStatePicker'
 import LocationPicker from './LocationPicker'
+import FormSelect from './FormSelect'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
 const MAX_SIZE_MB   = 15
@@ -543,14 +544,16 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                                 <VaccinePicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                               </div>
                             ) : f.type === 'list' ? (
-                              <select className="fi" value={docMeta[f.key] ?? ''}
-                                onChange={(e) => setMeta(f.key, e.target.value)}
-                                style={{ ...redStyle, cursor:'pointer' }}>
-                                <option value="">Selecione…</option>
-                                {(f.options ?? []).map(opt => (
-                                  <option key={opt.id} value={opt.value}>{opt.value}</option>
-                                ))}
-                              </select>
+                              <div style={hasErr ? { borderRadius: 8, outline: '1.5px solid #dc2626' } : {}}>
+                                <FormSelect
+                                  value={docMeta[f.key] ?? ''}
+                                  onChange={(v) => setMeta(f.key, v)}
+                                  options={[
+                                    { value: '', label: 'Selecione…' },
+                                    ...(f.options ?? []).map(opt => ({ value: opt.value, label: opt.value }))
+                                  ]}
+                                />
+                              </div>
                             ) : (
                               <input className="fi" type="text" value={docMeta[f.key] ?? ''}
                                 onChange={(e) => setMeta(f.key, e.target.value)}
