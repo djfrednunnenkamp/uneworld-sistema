@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { auditApi } from '../api'
+import DatePicker from '../components/DatePicker'
 
 /* ── Estilos de ação ── */
 const ACTION_STYLE = {
@@ -293,16 +294,22 @@ export default function AuditLog() {
         <FDrop label="Ação"  value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS} />
         <FDrop label="Tipo"  value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS} />
 
-        {/* Datas */}
-        <input type="date" value={filters.date_from} onChange={e => setFilter('date_from', e.target.value)}
-          title="Data inicial"
-          style={{ padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: filters.date_from ? '#1e293b' : '#94a3b8', cursor: 'pointer' }}
-          onFocus={e => e.target.style.borderColor = '#2e6db4'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+        {/* Datas — usa o DatePicker customizado (DD/MM/AAAA com calendário) */}
+        <div style={{ width: 150 }}>
+          <DatePicker
+            value={filters.date_from}
+            onChange={v => setFilter('date_from', v)}
+            placeholder="De: DD/MM/AAAA"
+          />
+        </div>
         <span style={{ fontSize: 12, color: '#94a3b8' }}>até</span>
-        <input type="date" value={filters.date_to} onChange={e => setFilter('date_to', e.target.value)}
-          title="Data final"
-          style={{ padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: filters.date_to ? '#1e293b' : '#94a3b8', cursor: 'pointer' }}
-          onFocus={e => e.target.style.borderColor = '#2e6db4'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+        <div style={{ width: 150 }}>
+          <DatePicker
+            value={filters.date_to}
+            onChange={v => setFilter('date_to', v)}
+            placeholder="Até: DD/MM/AAAA"
+          />
+        </div>
 
         {hasFilter && (
           <button onClick={() => { const c = { action:'',model:'',search:'',date_from:'',date_to:'' }; setFilters(c); load(1,c) }}
