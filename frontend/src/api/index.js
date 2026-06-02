@@ -33,12 +33,17 @@ export const meetingsApi = {
 }
 
 export const agenciesApi = {
-  list:      (params) => api.get('/agencies/', { params }),
-  get:       (id)     => api.get(`/agencies/${id}/`),
-  create:    (data)   => api.post('/agencies/', data),
-  update:    (id, data) => api.put(`/agencies/${id}/`, data),
-  remove:    (id)     => api.delete(`/agencies/${id}/`),
-  checkCnpj: (cnpj)  => api.get('/agencies/check-cnpj/', { params: { cnpj } }),
+  list:          (params) => api.get('/agencies/', { params }),
+  get:           (id)     => api.get(`/agencies/${id}/`),
+  create:        (data)   => api.post('/agencies/', data),
+  update:        (id, data) => api.put(`/agencies/${id}/`, data),
+  remove:        (id)     => api.delete(`/agencies/${id}/`),
+  checkCnpj:     (cnpj)  => api.get('/agencies/check-cnpj/', { params: { cnpj } }),
+  // Membros
+  listMembers:   (id)              => api.get(`/agencies/${id}/members/`),
+  addMember:     (id, email, role) => api.post(`/agencies/${id}/members/`, { email, role }),
+  updateMember:  (id, mid, role)   => api.patch(`/agencies/${id}/members/${mid}/`, { role }),
+  removeMember:  (id, mid)         => api.delete(`/agencies/${id}/members/${mid}/`),
 }
 
 export const documentsApi = {

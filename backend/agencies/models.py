@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class Agency(models.Model):
@@ -82,3 +83,22 @@ class Agency(models.Model):
 
     def __str__(self):
         return self.company_name or self.name or f'Agência #{self.pk}'
+
+
+class AgencyMember(models.Model):
+    ROLE_CHOICES = [
+        ('admin',    'Administrador'),
+        ('operator', 'Operador'),
+        ('viewer',   'Visualizador'),
+    ]
+    agency   = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name='members')
+    user     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='agency_memberships')
+    role     = models.CharField('Função', max_length=20, choices=ROLE_CHOICES, default='operator')
+    added_at = models.DateTimeField('Adicionado em', auto_now_add=True)
+
+    class Meta:
+        unique_together = [('agency', 'user')]
+        verbose_name = 'Membro da agência'
+
+    def __str__(self):
+        return f'{self.user.email} → {self.agency}'

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import toast from 'react-hot-toast'
@@ -10,6 +10,7 @@ import CpfInput from '../components/CpfInput'
 import CountryStatePicker from '../components/CountryStatePicker'
 import FormSelect from '../components/FormSelect'
 import usePersistedTab from '../hooks/usePersistedTab'
+import ConfirmModal from '../components/ConfirmModal'
 
 const AGENCY_TYPE_OPTS = [
   { value: 'agencia',       label: 'Agência'        },
@@ -72,6 +73,128 @@ function F({ label, children, col }) {
   )
 }
 
+const ROLE_OPTS = [
+  { value: 'admin',    label: 'Administrador' },
+  { value: 'operator', label: 'Operador'       },
+  { value: 'viewer',   label: 'Visualizador'   },
+]
+
+function AgencyUsersTab({ agencyId }) {
+  const [members,  setMembers]  = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [email,    setEmail]    = useState('')
+  const [role,     setRole]     = useState('operator')
+  const [adding,   setAdding]   = useState(false)
+  const [confirm,  setConfirm]  = useState(null)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    agenciesApi.listMembers(agencyId)
+      .then(r => setMembers(r.data)).catch(() => {})
+      .finally(() => setLoading(false))
+  }, [agencyId])
+
+  useEffect(() => { load() }, [load])
+
+  const add = async () => {
+    if (!email.trim()) return
+    setAdding(true)
+    try {
+      await agenciesApi.addMember(agencyId, email.trim(), role)
+      setEmail(''); load()
+      toast.success('Usuário adicionado.')
+    } catch (err) {
+      toast.error(err.response?.data?.error ?? 'Erro ao adicionar.')
+    } finally { setAdding(false) }
+  }
+
+  const remove = async (mid) => {
+    await agenciesApi.removeMember(agencyId, mid).catch(() => toast.error('Erro ao remover.'))
+    setConfirm(null); load()
+    toast.success('Usuário removido da agência.')
+  }
+
+  const pill = (bg, color, text) => (
+    <span style={{ padding:'2px 8px', borderRadius:20, fontSize:11, fontWeight:600, background:bg, color }}>{text}</span>
+  )
+
+  return (
+    <div className="det-card">
+      <div className="section">
+        <div className="section-title">Usuários da agência</div>
+
+        {/* Adicionar usuário */}
+        <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+          <input value={email} onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && add()}
+            placeholder="E-mail do usuário…"
+            style={{ flex:1, minWidth:200, padding:'8px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit' }}
+            onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+          <FormSelect value={role} onChange={setRole} options={ROLE_OPTS} />
+          <button onClick={add} disabled={adding || !email.trim()}
+            style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', opacity: !email.trim() ? .5 : 1 }}>
+            + Adicionar
+          </button>
+        </div>
+        <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 12px' }}>
+          O usuário já precisa estar cadastrado no sistema. Para convidar alguém novo, use a página <a href="/usuarios" style={{ color:'#2e6db4' }}>Usuários</a>.
+        </p>
+
+        {/* Lista */}
+        {loading ? (
+          <p style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8' }}>Carregando…</p>
+        ) : members.length === 0 ? (
+          <p style={{ textAlign:'center', padding:'24px 0', color:'#94a3b8' }}>Nenhum usuário vinculado a esta agência.</p>
+        ) : (
+          <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
+            {members.map((m, idx) => (
+              <div key={m.id} style={{
+                display:'flex', alignItems:'center', gap:14, padding:'12px 16px',
+                borderBottom: idx < members.length-1 ? '1px solid #f1f5f9' : 'none',
+                background:'#fff',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background='#fff'}
+              >
+                {/* Avatar */}
+                <div style={{ width:36, height:36, borderRadius:'50%', background:'#2e6db4', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:13, fontWeight:700, flexShrink:0 }}>
+                  {(m.full_name?.[0] || m.email?.[0] || '?').toUpperCase()}
+                </div>
+                {/* Info */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{m.full_name || m.email}</p>
+                  <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{m.email}</p>
+                </div>
+                {/* Badges */}
+                <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                  {m.is_staff && pill('#eff6ff','#2563eb','Admin')}
+                  {!m.is_active && pill('#fee2e2','#dc2626','Inativo')}
+                  {pill('#f0fdf4','#16a34a', ROLE_OPTS.find(r => r.value === m.role)?.label || m.role)}
+                </div>
+                {/* Remover */}
+                <button onClick={() => setConfirm({ id: m.id, name: m.full_name || m.email })}
+                  style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', color:'#dc2626', fontSize:12, padding:'4px 10px', fontFamily:'inherit', flexShrink:0 }}>
+                  Remover
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {confirm && (
+        <ConfirmModal
+          message={`Remover "${confirm.name}" desta agência?`}
+          detail="O usuário não perderá a conta, apenas o vínculo com esta agência."
+          okLabel="Remover"
+          onOk={() => remove(confirm.id)}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function AgencyDetail() {
   const { id }         = useParams()
   const navigate       = useNavigate()
@@ -92,6 +215,7 @@ export default function AgencyDetail() {
   const [isDirty,     setIsDirty]    = useState(false)
   const [notesOpen,   setNotesOpen]  = useState(false)
   const [fieldErrors, setFieldErrors]= useState({})
+  const [tab, setTab] = usePersistedTab('tab_agency_detail', 'info')
 
   useEffect(() => {
     if (!isNew) {
@@ -326,6 +450,21 @@ export default function AgencyDetail() {
         </div>
       </div>
 
+      {/* ── Tabs — só mostra para agências já salvas ── */}
+      {!isNew && (
+        <div className="tabs">
+          <button className={`tab-btn${tab === 'info'  ? ' active' : ''}`} onClick={() => setTab('info')}>Dados do agente</button>
+          <button className={`tab-btn${tab === 'users' ? ' active' : ''}`} onClick={() => setTab('users')}>Usuários</button>
+        </div>
+      )}
+
+      {/* ── Aba Usuários ── */}
+      {tab === 'users' && !isNew && (
+        <AgencyUsersTab agencyId={id} />
+      )}
+
+      {/* ── Aba Dados (padrão) ── */}
+      {(tab === 'info' || isNew) && (
       <div className="det-card">
       {/* ── Dados do agente ── */}
       <div className="section">
@@ -555,7 +694,8 @@ export default function AgencyDetail() {
           </F>
         </div>
       </div>
-      </div>{/* fim det-card */}
+      </div>
+      )}
 
     {/* ── Popup de Observações ── */}
       {notesOpen && (
