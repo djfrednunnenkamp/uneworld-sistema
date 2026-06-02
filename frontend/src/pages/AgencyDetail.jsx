@@ -539,7 +539,20 @@ export default function AgencyDetail() {
               options={PIX_TYPE_OPTS}
             />
           </F>
-          <F label="Chave PIX" col={2}>{fi('pix_key')}</F>
+          <F label="Chave PIX" col={2}>
+            {form.pix_key_type === 'cpf' ? (
+              <CpfInput value={form.pix_key}
+                onChange={v => { setForm(f => ({ ...f, pix_key: v })); setIsDirty(true) }} />
+            ) : form.pix_key_type === 'cnpj' ? (
+              <CnpjInput value={form.pix_key}
+                onChange={v => { setForm(f => ({ ...f, pix_key: v })); setIsDirty(true) }} />
+            ) : form.pix_key_type === 'telefone' ? (
+              <PhoneInput value={form.pix_key}
+                onChange={v => { setForm(f => ({ ...f, pix_key: v })); setIsDirty(true) }} />
+            ) : (
+              fi('pix_key')
+            )}
+          </F>
         </div>
       </div>
       </div>{/* fim det-card */}
