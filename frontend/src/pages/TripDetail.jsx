@@ -11,7 +11,7 @@ const TYPE_LABEL = {
   aereo:'Via Aéreo', onibus:'Via Ônibus', maritimo:'Via Marítimo',
 }
 const CAT_LABEL  = { internacional:'Internacional', nacional:'Nacional' }
-const DOC_LABEL  = { passaporte:'Passaporte', rg:'RG', carteira_identidade:'Carteira de Identidade', cnh:'CNH' }
+const DOC_LABEL  = { passaporte:'Passaporte', carteira_identidade:'Carteira de Identidade', cnh:'CNH' }
 
 const fmt = (d) => {
   if (!d) return '—'

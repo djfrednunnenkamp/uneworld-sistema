@@ -15,10 +15,9 @@ const CAT_OPTS = [
   { value: 'nacional',      label: 'Nacional'      },
 ]
 const DOC_OPTS = [
-  { value: 'passaporte',          label: 'Passaporte'          },
-  { value: 'rg',                  label: 'RG'                  },
+  { value: 'passaporte',          label: 'Passaporte'             },
   { value: 'carteira_identidade', label: 'Carteira de Identidade' },
-  { value: 'cnh',                 label: 'CNH'                 },
+  { value: 'cnh',                 label: 'CNH'                    },
 ]
 
 const EMPTY = {
