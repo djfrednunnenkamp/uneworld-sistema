@@ -345,7 +345,7 @@ export default function AgencyDetail() {
               <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
             </div>
             <div>
-              <label className="fl">Dados bancários Andes</label>
+              <label className="fl">Dados bancários Uneworld</label>
               <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
             </div>
           </div>
