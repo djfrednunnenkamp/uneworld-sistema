@@ -72,17 +72,21 @@ class PassengerListViewSet(viewsets.ModelViewSet):
 
     # ── Passageiros na lista ─────────────────────────────────────────────────
 
-    @action(detail=True, methods=['get'], url_path='passageiros',
+    @action(detail=True, methods=['get', 'post'], url_path='passageiros',
             permission_classes=[IsAuthenticated])
-    def list_passengers(self, request, pk=None):
-        pl      = self.get_object()
-        entries = pl.list_enrollments.select_related('passenger').all()
-        return Response(ListEnrollmentSerializer(entries, many=True).data)
+    def passageiros(self, request, pk=None):
+        """GET: lista passageiros. POST: adiciona passageiro ou bloqueio."""
+        pl = self.get_object()
 
-    @action(detail=True, methods=['post'], url_path='passageiros',
-            permission_classes=[IsAuthenticated])
-    def add_passenger(self, request, pk=None):
-        pl            = self.get_object()
+        if request.method == 'GET':
+            entries = pl.list_enrollments.select_related(
+                'passenger', 'agency', 'responsible_user'
+            ).all()
+            return Response(ListEnrollmentSerializer(entries, many=True).data)
+
+        return self._add_passenger(request, pl)
+
+    def _add_passenger(self, request, pl):
         is_block          = request.data.get('is_block', False)
         accommodation     = request.data.get('accommodation', '')
         estatus           = request.data.get('enrollment_status', 'pendente')
