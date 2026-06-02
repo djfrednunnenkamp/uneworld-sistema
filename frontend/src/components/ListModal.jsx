@@ -6,9 +6,8 @@ import DatePicker from './DatePicker'
 
 /* ── Opções ── */
 const TYPE_OPTS = [
-  { value: 'aereo',    label: 'Via Aéreo'   },
-  { value: 'onibus',   label: 'Via Ônibus'  },
-  { value: 'maritimo', label: 'Via Marítimo' },
+  { value: 'aereo',     label: 'Via Aéreo'     },
+  { value: 'terrestre', label: 'Via Terrestre'  },
 ]
 const CAT_OPTS = [
   { value: 'internacional', label: 'Internacional' },

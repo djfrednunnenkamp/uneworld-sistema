@@ -93,9 +93,8 @@ class ListAdditional(models.Model):
 
 class PassengerList(models.Model):
     TYPE_CHOICES = [
-        ('aereo',    'Via Aéreo'),
-        ('onibus',   'Via Ônibus'),
-        ('maritimo', 'Via Marítimo'),
+        ('aereo',     'Via Aéreo'),
+        ('terrestre', 'Via Terrestre'),
     ]
     CATEGORY_CHOICES = [
         ('internacional', 'Internacional'),

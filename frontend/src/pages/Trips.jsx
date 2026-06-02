@@ -13,7 +13,7 @@ const fmt = (d) => {
 }
 
 const TYPE_LABEL = {
-  aereo: 'Via Aéreo', onibus: 'Via Ônibus', maritimo: 'Via Marítimo',
+  aereo: 'Via Aéreo', terrestre: 'Via Terrestre',
 }
 const CAT_LABEL = { internacional: 'Internacional', nacional: 'Nacional' }
 
