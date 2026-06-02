@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { listsApi } from '../api'
 import FormSelect from './FormSelect'
+import DatePicker from './DatePicker'
 
 /* ── Opções ── */
 const TYPE_OPTS = [
@@ -31,31 +32,6 @@ const EMPTY = {
   required_document: '', status: 'aberta', notes: '',
 }
 
-/* ── DateInput DD/MM/AAAA ── */
-function DateInput({ value, onChange, placeholder = 'DD/MM/AAAA' }) {
-  const toDisplay = (iso) => {
-    if (!iso) return ''
-    const [y, m, d] = iso.split('-')
-    return `${d}/${m}/${y}`
-  }
-  const [display, setDisplay] = useState(() => toDisplay(value))
-  useEffect(() => { setDisplay(toDisplay(value)) }, [value])
-
-  const handleChange = (e) => {
-    let v = e.target.value.replace(/\D/g, '').slice(0, 8)
-    if (v.length > 4) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4)
-    else if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2)
-    setDisplay(v)
-    if (v.length === 10) {
-      const [dd, mm, yyyy] = v.split('/')
-      onChange(`${yyyy}-${mm}-${dd}`)
-    } else if (v.length === 0) onChange('')
-  }
-  return (
-    <input value={display} onChange={handleChange} placeholder={placeholder}
-      style={inp} />
-  )
-}
 
 /* ── MultiPicker compacto ── */
 function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete }) {
@@ -264,11 +240,11 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
             <div style={row2}>
               <div>
                 <label style={lbl}>Data de início</label>
-                <DateInput value={form.start_date} onChange={v => setV('start_date', v)} />
+                <DatePicker fixed value={form.start_date} onChange={v => setV('start_date', v)} />
               </div>
               <div>
                 <label style={lbl}>Data de término</label>
-                <DateInput value={form.end_date} onChange={v => setV('end_date', v)} />
+                <DatePicker fixed value={form.end_date} onChange={v => setV('end_date', v)} />
               </div>
             </div>
 

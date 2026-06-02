@@ -29,12 +29,13 @@ const displayToIso = (str) => {
   return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`
 }
 
-export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA', errStyle }) {
+export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA', errStyle, fixed = false }) {
   const [open,        setOpen]        = useState(false)
   const [inputVal,    setInputVal]    = useState(isoToDisplay(value))
   const [view,        setView]        = useState(null)
   const [mode,        setMode]        = useState('days')
   const [decadeStart, setDecadeStart] = useState(null)
+  const [popupPos,    setPopupPos]    = useState({})
   const ref    = useRef(null)
   const inpRef = useRef(null)
 
@@ -44,13 +45,17 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
   /* Sync inputVal quando value muda externamente */
   useEffect(() => { setInputVal(isoToDisplay(value)) }, [value])
 
-  /* Inicializa view ao abrir */
+  /* Inicializa view ao abrir e calcula posição fixed se necessário */
   useEffect(() => {
     if (open) {
       const d = selected || today
       setView({ year: d.getFullYear(), month: d.getMonth() })
       setDecadeStart(Math.floor(d.getFullYear() / 10) * 10)
       setMode('days')
+      if (fixed && ref.current) {
+        const rect = ref.current.getBoundingClientRect()
+        setPopupPos({ top: rect.bottom + 6, left: rect.left })
+      }
     }
   }, [open])
 
@@ -161,7 +166,10 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
         <div
           onClick={e=>e.stopPropagation()}
           style={{
-            position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:350,
+            position: fixed ? 'fixed' : 'absolute',
+            top:  fixed ? popupPos.top  : 'calc(100% + 6px)',
+            left: fixed ? popupPos.left : 0,
+            zIndex:600,
             background:'#fff', borderRadius:10, border:'1px solid #e2e8f0',
             boxShadow:'0 10px 32px rgba(0,0,0,.13)', width:272,
             overflow:'hidden', animation:'mIn .12s ease',
