@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { auditApi } from '../api'
 import DatePicker from '../components/DatePicker'
 
@@ -249,14 +250,24 @@ const TH = ({ children }) => (
   </th>
 )
 
+// Mapeia model_name → rótulo e rota de volta
+const MODEL_CONTEXT = {
+  Passenger: { label: 'Passageiros', back: '/passageiros' },
+  Agency:    { label: 'Agências',    back: '/agencias'    },
+}
+
 /* ── Página principal ── */
 export default function AuditLog() {
+  const navigate       = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initModel      = searchParams.get('model') || ''
+
   const [logs,     setLogs]     = useState([])
   const [loading,  setLoading]  = useState(true)
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
   const [selected, setSelected] = useState(null)
-  const [filters,  setFilters]  = useState({ action: '', model: '', search: '', date_from: '', date_to: '' })
+  const [filters,  setFilters]  = useState({ action: '', model: initModel, search: '', date_from: '', date_to: '' })
 
   const load = useCallback(async (p = 1, f = filters) => {
     setLoading(true)
@@ -286,12 +297,24 @@ export default function AuditLog() {
   const hasFilter = filters.action || filters.model || filters.search || filters.date_from || filters.date_to
   const totalPages = Math.ceil(count / 50)
 
+  const ctx = MODEL_CONTEXT[filters.model] || null
+
   return (
     <div>
       {/* Header */}
       <div className="ph" style={{ marginBottom: 20 }}>
         <div>
-          <h1 className="ph-title">Log do Sistema</h1>
+          {ctx && (
+            <button onClick={() => navigate(ctx.back)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+              ← Voltar para {ctx.label}
+            </button>
+          )}
+          <h1 className="ph-title">
+            {ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
+          </h1>
           <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
             {count.toLocaleString('pt-BR')} evento{count !== 1 ? 's' : ''} registrado{count !== 1 ? 's' : ''}
           </p>

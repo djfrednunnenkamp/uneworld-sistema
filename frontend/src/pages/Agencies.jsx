@@ -247,6 +247,7 @@ export default function Agencies() {
         searchKeys={['name', 'company_name', 'email', 'cnpj', 'city', 'phone']}
         extraFilters={filterBar}
         onAdd={() => setShowNew(true)}
+        onLog={() => navigate('/log?model=Agency')}
         onView={(row) => setViewRow(row)}
         onDelete={(row) => setDelRow(row)}
         loading={loading}

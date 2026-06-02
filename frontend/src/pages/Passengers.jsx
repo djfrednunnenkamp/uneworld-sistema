@@ -355,6 +355,7 @@ export default function Passengers() {
         searchKeys={['full_name','email','cpf','phone1']}
         extraFilters={filterBar}
         onAdd={() => setShowNew(true)}
+        onLog={() => navigate('/log?model=Passenger')}
         onDocs={(row) => setDocsRow(row)}
         onView={(row) => setViewRow(row)}
         onDelete={(row) => setDelRow(row)}

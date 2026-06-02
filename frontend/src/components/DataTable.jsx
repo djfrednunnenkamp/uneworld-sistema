@@ -45,7 +45,7 @@ export function StatusBadge({ value }) {
 export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
-  extraFilters,
+  extraFilters, onLog,
   onAdd, onEdit, onView, onDelete, onDocs, loading,
 }) {
   const [q,   setQ]   = useState('')
@@ -100,6 +100,25 @@ export default function DataTable({
               </button>
             ))}
           </div>
+        )}
+        {onLog && (
+          <button
+            type="button"
+            onClick={onLog}
+            title="Ver log de atividades"
+            style={{
+              marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 14px', borderRadius: 7,
+              border: '1.5px solid #e2e8f0', background: '#fff',
+              color: '#475569', fontSize: 13, fontWeight: 500,
+              cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'all .12s', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#1a2d4f'; e.currentTarget.style.color = '#1a2d4f' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}
+          >
+            <Ic n="list" s={13} /> Log
+          </button>
         )}
       </div>
 
