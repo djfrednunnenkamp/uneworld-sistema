@@ -311,14 +311,6 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
               </div>
             </div>
 
-            {/* Fornecedores */}
-            <div>
-              <label style={lbl}>Fornecedores</label>
-              <MultiPicker label="Fornecedor" selected={form.suppliers} options={suppliers}
-                onToggle={id => toggleItem('suppliers', id)}
-                onCreate={handleAddSupplier} onDelete={handleDelSupplier} />
-            </div>
-
             {/* Adicionais */}
             <div>
               <label style={lbl}>Adicionais</label>
@@ -327,32 +319,16 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
                 onCreate={handleAddAdditional} onDelete={handleDelAdditional} />
             </div>
 
-            {/* Documento requerido + Status */}
-            <div style={row2}>
-              <div>
-                <label style={lbl}>Documentos requeridos</label>
-                <DocMultiSelect
-                  selected={form.required_documents || []}
-                  onToggle={v => {
-                    const list = form.required_documents || []
-                    setV('required_documents', list.includes(v) ? list.filter(x => x !== v) : [...list, v])
-                  }}
-                />
-              </div>
-              <div>
-                <label style={lbl}>Status da lista</label>
-                <div style={{ display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1.5px solid #e2e8f0', width:'fit-content' }}>
-                  {[{ v:'aberta', l:'Aberta' }, { v:'fechada', l:'Fechada' }].map(opt => (
-                    <button key={opt.v} type="button" onClick={() => setV('status', opt.v)}
-                      style={{ padding:'7px 18px', border:'none', fontFamily:'inherit', fontSize:13, fontWeight:600, cursor:'pointer', transition:'all .12s',
-                        background: form.status === opt.v ? (opt.v === 'aberta' ? '#1a2d4f' : '#64748b') : '#fff',
-                        color:      form.status === opt.v ? '#fff' : '#64748b',
-                      }}>
-                      {opt.l}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {/* Documento requerido */}
+            <div>
+              <label style={lbl}>Documentos requeridos</label>
+              <DocMultiSelect
+                selected={form.required_documents || []}
+                onToggle={v => {
+                  const list = form.required_documents || []
+                  setV('required_documents', list.includes(v) ? list.filter(x => x !== v) : [...list, v])
+                }}
+              />
             </div>
 
           </div>
