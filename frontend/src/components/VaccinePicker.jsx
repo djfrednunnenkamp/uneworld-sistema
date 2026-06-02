@@ -81,6 +81,16 @@ export default function VaccinePicker({ value, onChange }) {
           value={open ? query : (value || '')}
           onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => { setQuery(''); setOpen(true) }}
+          onBlur={() => {
+            if (query.trim()) {
+              const exact = vaccines.find(v => v.toLowerCase() === query.toLowerCase().trim())
+              if (exact) { select(exact); return }
+              if (filtered.length === 1) { select(filtered[0]); return }
+              // Vacina: aceita texto livre — salva o que foi digitado
+              onChange(query.trim()); setOpen(false); setQuery(''); return
+            }
+            setOpen(false); setQuery('')
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Digite ou selecione a vacina…"
           style={{ paddingRight: value && !open ? 28 : undefined }}

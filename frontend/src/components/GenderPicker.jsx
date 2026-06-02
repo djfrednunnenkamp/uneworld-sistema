@@ -86,6 +86,16 @@ export default function GenderPicker({ value, customValue, onChange }) {
           value={open ? query : displayValue}
           onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => { setQuery(''); setOpen(true) }}
+          onBlur={() => {
+            // Se o que foi digitado bate exatamente com uma opção → auto-seleciona
+            if (query.trim()) {
+              const exact = genders.find(g => g.toLowerCase() === query.toLowerCase().trim())
+              if (exact) { select(exact); return }
+              // Se há apenas uma opção filtrada → auto-seleciona
+              if (filtered.length === 1) { select(filtered[0]); return }
+            }
+            setOpen(false); setQuery('')
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Digite para buscar…"
           style={{ paddingRight: value && !open ? 28 : undefined }}

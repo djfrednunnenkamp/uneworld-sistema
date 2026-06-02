@@ -81,6 +81,15 @@ export default function ProfCardPicker({ value, onChange }) {
           value={open ? query : (value || '')}
           onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => { setQuery(''); setOpen(true) }}
+          onBlur={() => {
+            if (query.trim()) {
+              const exact = profCards.find(v => v.toLowerCase() === query.toLowerCase().trim())
+              if (exact) { select(exact); return }
+              if (filtered.length === 1) { select(filtered[0]); return }
+              onChange(query.trim()); setOpen(false); setQuery(''); return
+            }
+            setOpen(false); setQuery('')
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Digite ou selecione a carteira…"
           style={{ paddingRight: value && !open ? 28 : undefined }}
