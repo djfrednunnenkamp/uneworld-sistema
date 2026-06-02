@@ -184,8 +184,18 @@ export default function AgencyDetail() {
       {/* ── Dados do agente ── */}
       <div className="section">
         <div className="section-title">Dados do agente</div>
-        <div className="grid3">
-          <F label="Tipo de cadastro">
+        {/* Linha: toggles à esquerda lado a lado + tipos à direita */}
+        <div style={{ display: 'flex', gap: 28, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
+          <div>
+            <label className="fl">Mala direta impressa</label>
+            <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
+          </div>
+          <div>
+            <label className="fl">Dados bancários Andes</label>
+            <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <label className="fl">Tipo de cadastro</label>
             {fs('agency_type',
               <>
                 <option value="agencia">Agência</option>
@@ -195,25 +205,15 @@ export default function AgencyDetail() {
                 <option value="outro">Outro</option>
               </>
             )}
-          </F>
-          <F label="Tipo de pessoa">
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <label className="fl">Tipo de pessoa</label>
             {fs('person_type',
               <>
                 <option value="juridica">Jurídica</option>
                 <option value="fisica">Física</option>
               </>
             )}
-          </F>
-          {/* Toggles na terceira coluna, mesma linha dos tipos */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'flex-end', paddingBottom: 2 }}>
-            <div>
-              <label className="fl">Mala direta impressa</label>
-              <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
-            </div>
-            <div>
-              <label className="fl">Dados bancários Andes</label>
-              <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
-            </div>
           </div>
         </div>
 
