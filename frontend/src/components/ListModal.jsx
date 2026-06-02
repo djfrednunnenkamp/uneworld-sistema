@@ -33,7 +33,9 @@ const EMPTY = {
 /* ── DocMultiSelect: dropdown de opções fixas com checkbox ── */
 function DocMultiSelect({ selected, onToggle }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const [pos,  setPos]  = useState({})
+  const ref    = useRef(null)
+  const btnRef = useRef(null)
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -41,13 +43,21 @@ function DocMultiSelect({ selected, onToggle }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    setOpen(o => !o)
+  }
+
   const displayVal = selected.length === 0
     ? 'Nada selecionado'
     : DOC_OPTS.filter(o => selected.includes(o.value)).map(o => o.label).join(', ')
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
+    <div ref={ref}>
+      <button ref={btnRef} type="button" onClick={toggle}
         style={{ ...inp, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', textAlign:'left', width:'100%' }}>
         <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color: selected.length ? '#1e293b' : '#94a3b8', fontSize:13 }}>
           {displayVal}
@@ -55,7 +65,7 @@ function DocMultiSelect({ selected, onToggle }) {
         <span style={{ fontSize:10, color:'#94a3b8', marginLeft:8 }}>▼</span>
       </button>
       {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:600, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
+        <div style={{ position:'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
           {DOC_OPTS.map(opt => {
             const checked = selected.includes(opt.value)
             return (
@@ -81,13 +91,23 @@ function DocMultiSelect({ selected, onToggle }) {
 function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete }) {
   const [open,  setOpen]  = useState(false)
   const [input, setInput] = useState('')
-  const ref = useRef(null)
+  const [pos,   setPos]   = useState({})
+  const ref    = useRef(null)
+  const btnRef = useRef(null)
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    setOpen(o => !o)
+  }
 
   const displayVal = selected.length === 0
     ? 'Nada selecionado'
@@ -101,15 +121,15 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)} style={{ ...inp, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', textAlign:'left', width:'100%' }}>
+    <div ref={ref}>
+      <button ref={btnRef} type="button" onClick={toggle} style={{ ...inp, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', textAlign:'left', width:'100%' }}>
         <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color: selected.length ? '#1e293b' : '#94a3b8', fontSize:13 }}>
           {displayVal}
         </span>
         <span style={{ fontSize:10, color:'#94a3b8', marginLeft:8 }}>▼</span>
       </button>
       {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:600, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
+        <div style={{ position:'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
           <div style={{ padding:'8px 10px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:6 }}>
             <input value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
