@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { listsApi, passengersApi, agenciesApi } from '../api'
+import DatePicker from '../components/DatePicker'
 import ListModal from '../components/ListModal'
 import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
@@ -370,10 +371,7 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <div>
                   <label style={LBL}>Pendente até</label>
-                  <input type="date" value={pendingUntil} onChange={e => setPendingUntil(e.target.value)}
-                    style={{ ...INP, colorScheme:'light' }}
-                    onFocus={e => e.target.style.borderColor='#f59e0b'}
-                    onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+                  <DatePicker fixed value={pendingUntil} onChange={setPendingUntil} />
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
                   {pendingUntil && (() => {
