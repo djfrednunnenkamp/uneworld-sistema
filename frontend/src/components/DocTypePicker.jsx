@@ -12,6 +12,7 @@ import LocationPicker from './LocationPicker'
 import FormSelect from './FormSelect'
 import ProfessionPicker from './ProfessionPicker'
 import LanguageSelectPicker from './LanguageSelectPicker'
+import ProfCardPicker from './ProfCardPicker'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
 const MAX_SIZE_MB   = 15
@@ -32,6 +33,7 @@ function dbFieldToPickerField(f) {
                : f.field_type === 'list'       ? 'list'
                : f.field_type === 'language'   ? 'language'
                : f.field_type === 'profession' ? 'profession'
+               : f.field_type === 'prof_card'  ? 'prof_card'
                : f.key === 'doc_number' && f.doc_type_key === 'vaccine' ? 'vaccine_name'
                : 'text',
     subtype:     f.subtype || 'country_state_city',
@@ -550,6 +552,10 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                             ) : f.type === 'profession' ? (
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
                                 <ProfessionPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : f.type === 'prof_card' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                <ProfCardPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                               </div>
                             ) : f.type === 'vaccine_name' ? (
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>

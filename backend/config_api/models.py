@@ -97,6 +97,7 @@ class CustomDocField(models.Model):
         ('country',    'País / Estado / Cidade'),
         ('language',   'Idioma'),
         ('profession', 'Profissão'),
+        ('prof_card',  'Carteira profissional'),
     ]
     doc_type   = models.ForeignKey(CustomDocType, on_delete=models.CASCADE, related_name='fields')
     key        = models.SlugField('Chave', max_length=50)
@@ -128,6 +129,17 @@ class CustomDocFieldOption(models.Model):
 
     def __str__(self):
         return self.value
+
+
+class ConfigProfCard(models.Model):
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Carteira profissional'
+
+    def __str__(self):
+        return self.name
 
 
 class ConfigCity(models.Model):

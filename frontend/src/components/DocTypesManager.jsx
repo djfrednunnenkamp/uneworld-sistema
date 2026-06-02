@@ -10,6 +10,7 @@ const FIELD_TYPES = [
   { value: 'country',    label: 'País / Estado / Cidade', icon: '🌍', desc: 'Seletor geográfico' },
   { value: 'language',   label: 'Idioma',                 icon: '🌐', desc: 'Lista de idiomas cadastrados' },
   { value: 'profession', label: 'Profissão',              icon: '💼', desc: 'Lista de profissões (CBO)' },
+  { value: 'prof_card',  label: 'Carteira profissional',  icon: '🪪', desc: 'OAB, CRM, CREA, CTPS…'   },
 ]
 
 const COUNTRY_LEVELS = [

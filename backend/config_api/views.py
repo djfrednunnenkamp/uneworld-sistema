@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser
 from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
-                     ConfigCity, ConfigVaccine, ConfigGender,
+                     ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption)
 
 
@@ -539,6 +539,53 @@ class DocFieldOptionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         field = CustomDocField.objects.get(pk=self.request.data['field_id'])
         serializer.save(field=field)
+
+
+class ProfCardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigProfCard
+        fields = ['id', 'name']
+
+
+class ProfCardViewSet(viewsets.ModelViewSet):
+    queryset = ConfigProfCard.objects.all()
+    serializer_class = ProfCardSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_default(self, request):
+        DEFAULT = [
+            'CAU — Conselho de Arquitetura e Urbanismo',
+            'CFM — Conselho Federal de Medicina',
+            'CFO — Conselho Federal de Odontologia',
+            'CFP — Conselho Federal de Psicologia',
+            'COFECI — Conselho Federal de Corretores de Imóveis',
+            'CONFEF — Conselho Federal de Educação Física',
+            'COREN — Conselho Regional de Enfermagem',
+            'CRBIO — Conselho Regional de Biologia',
+            'CRBM — Conselho Regional de Biomedicina',
+            'CRC — Conselho Regional de Contabilidade',
+            'CRECI — Conselho Regional de Corretores de Imóveis',
+            'CREF — Conselho Regional de Educação Física',
+            'CREFITO — Conselho Regional de Fisioterapia e Terapia Ocupacional',
+            'CREFONO — Conselho Regional de Fonoaudiologia',
+            'CREA — Conselho Regional de Engenharia e Agronomia',
+            'CRF — Conselho Regional de Farmácia',
+            'CRM — Conselho Regional de Medicina',
+            'CRN — Conselho Regional de Nutricionistas',
+            'CRO — Conselho Regional de Odontologia',
+            'CRP — Conselho Regional de Psicologia',
+            'CTPS — Carteira de Trabalho e Previdência Social',
+            'OAB — Ordem dos Advogados do Brasil',
+            'Registro de Classe (geral)',
+        ]
+        created = sum(1 for n in DEFAULT if ConfigProfCard.objects.get_or_create(name=n)[1])
+        return Response({'total': ConfigProfCard.objects.count(), 'created': created})
 
 
 class GenderSerializer(serializers.ModelSerializer):

@@ -456,7 +456,7 @@ function CountriesTab() {
 /* Seção principal */
 const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
-const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Países & Estados']
+const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Países & Estados']
 
 export default function Settings() {
   const [section, setSection] = usePersistedTab('tab_settings_section', 0)
@@ -464,17 +464,20 @@ export default function Settings() {
   const [professions, setProfessions] = useState([])
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])
-  const [genders,     setGenders]     = useState([])
-  const [loadingP,    setLoadingP]    = useState(true)
-  const [loadingL,    setLoadingL]    = useState(true)
-  const [loadingV,    setLoadingV]    = useState(true)
-  const [loadingG,    setLoadingG]    = useState(true)
+  const [genders,    setGenders]    = useState([])
+  const [profCards,  setProfCards]  = useState([])
+  const [loadingP,   setLoadingP]   = useState(true)
+  const [loadingL,   setLoadingL]   = useState(true)
+  const [loadingV,   setLoadingV]   = useState(true)
+  const [loadingG,   setLoadingG]   = useState(true)
+  const [loadingPC,  setLoadingPC]  = useState(true)
 
   useEffect(() => {
     configApi.professions().then(r => setProfessions(r.data)).catch(() => {}).finally(() => setLoadingP(false))
     configApi.languages().then(r => setLanguages(r.data)).catch(() => {}).finally(() => setLoadingL(false))
     configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {}).finally(() => setLoadingV(false))
     configApi.genders().then(r => setGenders(r.data)).catch(() => {}).finally(() => setLoadingG(false))
+    configApi.profCards().then(r => setProfCards(r.data)).catch(() => {}).finally(() => setLoadingPC(false))
   }, [])
 
   const addProfession = async (name) => {
@@ -517,6 +520,16 @@ export default function Settings() {
     try { await configApi.delGender(id); setGenders(g => g.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover gênero.') }
   }
+  const addProfCard = async (name) => {
+    try {
+      const r = await configApi.addProfCard(name)
+      setProfCards(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar carteira.') }
+  }
+  const delProfCard = async (id) => {
+    try { await configApi.delProfCard(id); setProfCards(p => p.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover carteira.') }
+  }
 
   const tabStyle = (active) => ({
     padding: '10px 16px', border: 'none', background: 'none',
@@ -555,8 +568,9 @@ export default function Settings() {
             {tab===0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" type="professions" />}
             {tab===1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv"   type="languages" />}
             {tab===2 && <ItemList items={vaccines}    loading={loadingV} onAdd={addVaccine}    onDelete={delVaccine}    placeholder="Nova vacina…"    filename="vacinas.csv"   type="vaccines" />}
-            {tab===3 && <ItemList items={genders}     loading={loadingG} onAdd={addGender}     onDelete={delGender}     placeholder="Novo gênero…"    filename="generos.csv"   type="genders" />}
-            {tab===4 && <CountriesTab />}
+            {tab===3 && <ItemList items={genders}    loading={loadingG}  onAdd={addGender}   onDelete={delGender}   placeholder="Novo gênero…"   filename="generos.csv"   type="genders" />}
+            {tab===4 && <ItemList items={profCards}  loading={loadingPC} onAdd={addProfCard} onDelete={delProfCard} placeholder="Nova carteira…" filename="carteiras.csv" type="prof_cards" />}
+            {tab===5 && <CountriesTab />}
           </div>
         </>
       )}

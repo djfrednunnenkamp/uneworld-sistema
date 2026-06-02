@@ -106,6 +106,11 @@ export const configApi = {
   // Opções de campo
   addDocOption:   (data)   => api.post('/config/doc-options/', data),
   delDocOption:   (id)     => api.delete(`/config/doc-options/${id}/`),
+  // Carteiras profissionais
+  profCards:       () => api.get('/config/prof-cards/'),
+  addProfCard:     (name) => api.post('/config/prof-cards/', { name }),
+  delProfCard:     (id)   => api.delete(`/config/prof-cards/${id}/`),
+  importProfCards: ()     => api.post('/config/prof-cards/import/'),
   // Gêneros
   genders:    () => api.get('/config/genders/'),
   addGender:  (name) => api.post('/config/genders/', { name }),
