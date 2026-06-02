@@ -38,89 +38,123 @@ const STATUS_DOT = {
   cancelado:  { bg:'#dc2626', title:'Cancelado'  },
 }
 
-/* ── Combobox de acomodação com autocomplete e navegação por teclado ── */
-function AccomPicker({ value, onChange }) {
-  const [types,    setTypes]    = useState([])
-  const [open,     setOpen]     = useState(false)
-  const [cursor,   setCursor]   = useState(-1)
-  const [dropPos,  setDropPos]  = useState({})
+/* ── Picker de acomodação com quartos individuais ── */
+function AccomPicker({ value, onChange, existingRooms = [] }) {
+  const [types,       setTypes]       = useState([])
+  const [selType,     setSelType]     = useState(null) // tipo escolhido
+  const [open,        setOpen]        = useState(false)
+  const [dropPos,     setDropPos]     = useState({})
+  const [cursor,      setCursor]      = useState(-1)
   const inputRef = useRef(null)
 
   useEffect(() => {
     configApi.accommodations().then(r => setTypes(r.data.results ?? r.data)).catch(() => {})
   }, [])
 
-  const filtered = types.filter(t =>
-    !value || t.name.toLowerCase().includes(value.toLowerCase())
-  )
+  // Quartos existentes do tipo selecionado
+  const roomsOfType = selType
+    ? [...new Set(existingRooms.filter(r => r.startsWith(selType.name)))].sort()
+    : []
+
+  // Próximo número disponível para o tipo
+  const nextRoom = selType ? (() => {
+    const existing = existingRooms.filter(r => r.startsWith(selType.name + ' ') || r === selType.name)
+    for (let n = 1; n <= 99; n++) {
+      const candidate = `${selType.name} ${n}`
+      if (!existing.includes(candidate)) return candidate
+    }
+    return `${selType.name} X`
+  })() : ''
+
+  // Opções do dropdown de quartos
+  const roomOpts = selType ? [
+    ...roomsOfType.map(r => ({ label: r, sub: null, isNew: false })),
+    { label: `+ Novo quarto ${selType.name}`, sub: nextRoom, isNew: true },
+  ] : []
 
   const openDrop = () => {
     if (inputRef.current) {
       const r = inputRef.current.getBoundingClientRect()
       setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
     }
-    setOpen(true)
-    setCursor(-1)
+    setOpen(true); setCursor(-1)
   }
 
-  const pick = (name) => {
-    onChange(name)
-    setOpen(false)
-    setCursor(-1)
+  const pick = (roomName) => {
+    onChange(roomName)
+    setOpen(false); setSelType(null); setCursor(-1)
   }
 
   const handleKey = (e) => {
-    if (!open) { if (e.key === 'ArrowDown' || e.key === 'Enter') openDrop(); return }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setCursor(c => Math.min(c + 1, filtered.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setCursor(c => Math.max(c - 1, -1))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (cursor >= 0 && filtered[cursor]) pick(filtered[cursor].name)
-      else setOpen(false)
-    } else if (e.key === 'Escape') {
-      setOpen(false)
+    if (!open || !selType) {
+      if (e.key === 'ArrowDown') { openDrop(); return }
+      return
     }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setCursor(c => Math.min(c+1, roomOpts.length-1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor(c => Math.max(c-1, -1)) }
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (cursor >= 0 && roomOpts[cursor]) pick(roomOpts[cursor].isNew ? roomOpts[cursor].sub : roomOpts[cursor].label)
+      else setOpen(false)
+    } else if (e.key === 'Escape') { setOpen(false); setSelType(null) }
   }
 
   return (
-    <div style={{ position:'relative' }}>
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={e => { onChange(e.target.value); setCursor(-1) }}
-        onFocus={() => { openDrop() }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={handleKey}
-        autoComplete="new-password"
-        placeholder="Tipo de acomodação…"
-        style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
-        onFocus2={e => e.target.style.borderColor='#1a2d4f'}
-      />
-      {open && (
-        <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:240, overflowY:'auto' }}>
-          {filtered.length === 0 ? (
-            <p style={{ margin:0, padding:'10px 14px', fontSize:13, color:'#94a3b8' }}>
-              {value ? `Usar "${value}" como acomodação` : 'Nenhuma opção cadastrada'}
-            </p>
-          ) : filtered.map((t, i) => (
-            <div key={t.id}
-              onMouseDown={() => pick(t.name)}
-              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: i === cursor ? '#eff6ff' : 'transparent' }}
-              onMouseEnter={() => setCursor(i)}
-              onMouseLeave={() => setCursor(-1)}>
-              <span style={{ fontSize:13, fontWeight: i===cursor ? 600 : 400, color: i===cursor ? '#1a2d4f' : '#1e293b' }}>{t.name}</span>
-              <span style={{ fontSize:11, color:'#94a3b8', display:'flex', gap:6 }}>
-                <span style={{ background:'#f1f5f9', padding:'1px 7px', borderRadius:20 }}>{t.capacity}p</span>
-                {t.is_couple && <span style={{ background:'#ede9fe', color:'#7c3aed', padding:'1px 7px', borderRadius:20, fontWeight:600 }}>casal</span>}
-              </span>
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {/* Chips de tipos */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+        {types.map(t => {
+          const active = selType?.id === t.id
+          const count  = existingRooms.filter(r => r.startsWith(t.name + ' ') || r === t.name).length
+          return (
+            <button key={t.id} type="button"
+              onClick={() => { setSelType(active ? null : t); setOpen(true); setCursor(-1)
+                if (inputRef.current) { const r = inputRef.current.getBoundingClientRect(); setDropPos({ top: r.bottom + 4, left: r.left, width: r.width }) }
+              }}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:20, border:`1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`, background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#475569', fontSize:12, fontWeight: active ? 700 : 400, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}>
+              {t.name}
+              <span style={{ fontSize:10, opacity:.75 }}>{t.capacity}p{t.is_couple ? '·♥' : ''}</span>
+              {count > 0 && <span style={{ fontSize:10, background: active ? 'rgba(255,255,255,.25)' : '#eff6ff', color: active ? '#fff' : '#2563eb', padding:'0 5px', borderRadius:10 }}>{count}</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Input de texto */}
+      <div style={{ position:'relative' }}>
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={e => { onChange(e.target.value); setCursor(-1) }}
+          onFocus={openDrop}
+          onBlur={() => setTimeout(() => { setOpen(false); setSelType(null) }, 150)}
+          onKeyDown={handleKey}
+          autoComplete="new-password"
+          placeholder={selType ? `Selecione ou crie um quarto ${selType.name}…` : 'Escolha um tipo acima ou escreva…'}
+          style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:`1.5px solid ${selType ? '#1a2d4f' : '#e2e8f0'}`, borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+        />
+        {open && selType && (
+          <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden' }}>
+            {/* Header do tipo */}
+            <div style={{ padding:'8px 14px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f' }}>{selType.name}</span>
+              <span style={{ fontSize:11, color:'#94a3b8' }}>{selType.capacity} pessoa{selType.capacity!==1?'s':''}{selType.is_couple?' · casal':''}</span>
             </div>
-          ))}
-        </div>
-      )}
+            {/* Quartos existentes + novo */}
+            {roomOpts.map((opt, i) => (
+              <div key={i}
+                onMouseDown={() => pick(opt.isNew ? opt.sub : opt.label)}
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: i===cursor ? '#eff6ff' : 'transparent' }}
+                onMouseEnter={() => setCursor(i)} onMouseLeave={() => setCursor(-1)}>
+                <span style={{ fontSize:13, color: opt.isNew ? '#2e6db4' : i===cursor ? '#1a2d4f' : '#1e293b', fontWeight: opt.isNew ? 600 : i===cursor ? 600 : 400 }}>
+                  {opt.label}
+                </span>
+                {opt.isNew && <span style={{ fontSize:11, color:'#94a3b8' }}>{opt.sub}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -779,8 +813,10 @@ function PassengersTab({ listId, listType }) {
           {/* Grupos por acomodação */}
           {groups.map(({ key, rows }) => {
             const isUnassigned = key === '(sem acomodação)'
-            // Validação de capacidade
-            const accomType = !isUnassigned ? accomTypes.find(t => t.name === key) : null
+            // Validação de capacidade — detecta tipo pelo prefixo (ex: "Duplo 2" → tipo "Duplo")
+            const accomType = !isUnassigned
+              ? accomTypes.find(t => key === t.name || key.startsWith(t.name + ' '))
+              : null
             const paxCount  = rows.length
             const capacity  = accomType?.capacity
             const capStatus = !accomType ? null
@@ -980,7 +1016,8 @@ function PassengersTab({ listId, listType }) {
             </div>
             <div style={{ padding:'18px 22px' }}>
               <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Acomodação</label>
-              <AccomPicker value={bulkAccom} onChange={setBulkAccom} />
+              <AccomPicker value={bulkAccom} onChange={setBulkAccom}
+                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)} />
             </div>
             <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button onClick={() => setShowBulkRoom(false)} style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
@@ -1023,7 +1060,8 @@ function PassengersTab({ listId, listType }) {
               <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Acomodação</span>
             </div>
             <div style={{ padding:'16px 20px' }}>
-              <AccomPicker value={editAccom.accommodation} onChange={v => setEditAccom(ea => ({ ...ea, accommodation: v }))} />
+              <AccomPicker value={editAccom.accommodation} onChange={v => setEditAccom(ea => ({ ...ea, accommodation: v }))}
+                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)} />
             </div>
             <div style={{ padding:'0 20px 16px', display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button type="button" onClick={() => setEditAccom(null)}
