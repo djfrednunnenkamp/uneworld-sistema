@@ -22,7 +22,7 @@ const EMPTY = {
   name: '', list_type: 'aereo', category: 'internacional',
   block_capacity: 0, total_accommodations: 0,
   start_date: '', end_date: '',
-  suppliers: [], additionals: [],
+  suppliers: [], additionals: [], roteiros: [],
   required_documents: [], status: 'aberta', notes: '',
 }
 
@@ -251,15 +251,18 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     ...EMPTY, ...initial,
     suppliers:          (initial.suppliers   || []).map(s => typeof s === 'object' ? s.id : s),
     additionals:        (initial.additionals || []).map(a => typeof a === 'object' ? a.id : a),
+    roteiros:           (initial.roteiros    || []).map(r => typeof r === 'object' ? r.id : r),
     required_documents: Array.isArray(initial.required_documents) ? initial.required_documents : [],
   } : { ...EMPTY })
   const [saving,      setSaving]      = useState(false)
   const [suppliers,   setSuppliers]   = useState([])
   const [additionals, setAdditionals] = useState([])
+  const [roteiros,    setRoteiros]    = useState([])
 
   useEffect(() => {
     listsApi.suppliers().then(r => setSuppliers(r.data.results ?? r.data)).catch(() => {})
     listsApi.listAdditionals().then(r => setAdditionals(r.data.results ?? r.data)).catch(() => {})
+    listsApi.roteiros().then(r => setRoteiros(r.data.results ?? r.data)).catch(() => {})
   }, [])
 
   const set  = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -289,6 +292,16 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     await listsApi.removeAdditional(aid)
     setAdditionals(prev => prev.filter(a => a.id !== aid))
     setForm(f => ({ ...f, additionals: f.additionals.filter(x => x !== aid) }))
+  }
+  const handleAddRoteiro = async (name) => {
+    const r = await listsApi.addRoteiro(name)
+    setRoteiros(prev => [...prev, r.data].sort((a,b) => a.name.localeCompare(b.name)))
+    return r.data.id
+  }
+  const handleDelRoteiro = async (rid) => {
+    await listsApi.removeRoteiro(rid)
+    setRoteiros(prev => prev.filter(r => r.id !== rid))
+    setForm(f => ({ ...f, roteiros: f.roteiros.filter(x => x !== rid) }))
   }
 
   const handleSave = async () => {
@@ -379,6 +392,14 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
               <MultiPicker label="Adicional" selected={form.additionals} options={additionals}
                 onToggle={id => toggleItem('additionals', id)}
                 onCreate={handleAddAdditional} onDelete={handleDelAdditional} />
+            </div>
+
+            {/* Roteiros */}
+            <div>
+              <label style={lbl}>Roteiros</label>
+              <MultiPicker label="Roteiro" selected={form.roteiros} options={roteiros}
+                onToggle={id => toggleItem('roteiros', id)}
+                onCreate={handleAddRoteiro} onDelete={handleDelRoteiro} />
             </div>
 
             {/* Documento requerido */}

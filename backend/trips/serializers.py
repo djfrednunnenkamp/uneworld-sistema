@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, PassengerList, ListEnrollment
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -54,11 +54,19 @@ class ListAdditionalSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
+class RoteiroSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Roteiro
+        fields = ['id', 'name']
+
+
 class PassengerListSerializer(serializers.ModelSerializer):
-    suppliers_data   = SupplierSerializer(source='suppliers',   many=True, read_only=True)
+    suppliers_data   = SupplierSerializer(source='suppliers',         many=True, read_only=True)
     additionals_data = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
-    suppliers        = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(), many=True, required=False)
+    roteiros_data    = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
+    suppliers        = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
     additionals      = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
+    roteiros         = serializers.PrimaryKeyRelatedField(queryset=Roteiro.objects.all(),        many=True, required=False)
     enrolled_count   = serializers.IntegerField(read_only=True)
     start_date_br    = serializers.SerializerMethodField()
     end_date_br      = serializers.SerializerMethodField()
@@ -71,7 +79,8 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'start_date_br', 'end_date_br',
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
-            'required_documents', 'status', 'roteiro', 'notes',
+            'roteiros', 'roteiros_data',
+            'required_documents', 'status', 'notes',
             'enrolled_count', 'created_at', 'updated_at',
         ]
 

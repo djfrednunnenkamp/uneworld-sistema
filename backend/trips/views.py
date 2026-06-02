@@ -2,10 +2,10 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, PassengerList, ListEnrollment
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
-    SupplierSerializer, ListAdditionalSerializer, PassengerListSerializer, ListEnrollmentSerializer,
+    SupplierSerializer, ListAdditionalSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
 )
 
 
@@ -45,6 +45,13 @@ class SupplierViewSet(viewsets.ModelViewSet):
 class ListAdditionalViewSet(viewsets.ModelViewSet):
     queryset         = ListAdditional.objects.all()
     serializer_class = ListAdditionalSerializer
+    filter_backends  = [filters.SearchFilter]
+    search_fields    = ['name']
+
+
+class RoteiroViewSet(viewsets.ModelViewSet):
+    queryset         = Roteiro.objects.all()
+    serializer_class = RoteiroSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name']
 

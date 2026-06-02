@@ -41,6 +41,10 @@ export const listsApi = {
   listAdditionals:  ()            => api.get('/trips/list-additionals/'),
   addAdditional:    (name)        => api.post('/trips/list-additionals/', { name }),
   removeAdditional: (id)          => api.delete(`/trips/list-additionals/${id}/`),
+  // Roteiros
+  roteiros:         ()            => api.get('/trips/roteiros/'),
+  addRoteiro:       (name)        => api.post('/trips/roteiros/', { name }),
+  removeRoteiro:    (id)          => api.delete(`/trips/roteiros/${id}/`),
 }
 
 export const meetingsApi = {

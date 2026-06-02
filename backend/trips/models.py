@@ -91,6 +91,17 @@ class ListAdditional(models.Model):
     def __str__(self): return self.name
 
 
+class Roteiro(models.Model):
+    name = models.CharField('Nome', max_length=300)
+
+    class Meta:
+        verbose_name        = 'Roteiro'
+        verbose_name_plural = 'Roteiros'
+        ordering            = ['name']
+
+    def __str__(self): return self.name
+
+
 class PassengerList(models.Model):
     TYPE_CHOICES = [
         ('aereo',     'Via Aéreo'),
@@ -115,9 +126,9 @@ class PassengerList(models.Model):
     end_date             = models.DateField('Data de término', null=True, blank=True)
     suppliers            = models.ManyToManyField(Supplier,       blank=True, related_name='passenger_lists', verbose_name='Fornecedores')
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
+    roteiros             = models.ManyToManyField(Roteiro,        blank=True, related_name='passenger_lists', verbose_name='Roteiros')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     status               = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta')
-    roteiro              = models.TextField('Roteiro', blank=True)
     notes                = models.TextField('Observações', blank=True)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at           = models.DateTimeField('Atualizado em', auto_now=True)
