@@ -422,7 +422,7 @@ function PassengersTab({ listId, listType }) {
     setLoading(true)
     listsApi.listPassengers(listId)
       .then(r => setEnrolled(r.data))
-      .catch(() => {})
+      .catch(() => toast.error('Erro ao carregar passageiros.'))
       .finally(() => setLoading(false))
   }, [listId])
 

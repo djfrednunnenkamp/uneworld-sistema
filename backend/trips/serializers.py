@@ -94,16 +94,30 @@ class PassengerListSerializer(serializers.ModelSerializer):
 
 
 class ListEnrollmentSerializer(serializers.ModelSerializer):
-    passenger_name       = serializers.CharField(source='passenger.full_name',   read_only=True)
-    passenger_cpf        = serializers.CharField(source='passenger.cpf',          read_only=True)
-    passenger_email      = serializers.CharField(source='passenger.email',        read_only=True)
-    passenger_phone      = serializers.CharField(source='passenger.phone1',       read_only=True)
-    passenger_birth_date = serializers.DateField(source='passenger.birth_date',   read_only=True)
-    passenger_nationality= serializers.CharField(source='passenger.nationality',  read_only=True)
-    passenger_gender     = serializers.CharField(source='passenger.gender',       read_only=True)
-    passenger_passport   = serializers.CharField(source='passenger.passport',     read_only=True)
-    passenger_rg         = serializers.CharField(source='passenger.rg',           read_only=True)
-    passenger_status     = serializers.CharField(source='passenger.status',       read_only=True)
+    # Campos do passageiro — retornam None quando is_block=True (passenger=null)
+    passenger_name       = serializers.SerializerMethodField()
+    passenger_cpf        = serializers.SerializerMethodField()
+    passenger_email      = serializers.SerializerMethodField()
+    passenger_phone      = serializers.SerializerMethodField()
+    passenger_birth_date = serializers.SerializerMethodField()
+    passenger_nationality= serializers.SerializerMethodField()
+    passenger_gender     = serializers.SerializerMethodField()
+    passenger_passport   = serializers.SerializerMethodField()
+    passenger_rg         = serializers.SerializerMethodField()
+    passenger_status     = serializers.SerializerMethodField()
+
+    def _p(self, obj): return obj.passenger  # helper
+
+    def get_passenger_name(self, obj):       return obj.passenger.full_name   if obj.passenger else ''
+    def get_passenger_cpf(self, obj):        return obj.passenger.cpf         if obj.passenger else ''
+    def get_passenger_email(self, obj):      return obj.passenger.email       if obj.passenger else ''
+    def get_passenger_phone(self, obj):      return obj.passenger.phone1      if obj.passenger else ''
+    def get_passenger_birth_date(self, obj): return obj.passenger.birth_date  if obj.passenger else None
+    def get_passenger_nationality(self, obj):return obj.passenger.nationality if obj.passenger else ''
+    def get_passenger_gender(self, obj):     return obj.passenger.gender      if obj.passenger else ''
+    def get_passenger_passport(self, obj):   return obj.passenger.passport    if obj.passenger else ''
+    def get_passenger_rg(self, obj):         return obj.passenger.rg          if obj.passenger else ''
+    def get_passenger_status(self, obj):     return obj.passenger.status      if obj.passenger else ''
 
     agency_name           = serializers.SerializerMethodField()
     responsible_user_name = serializers.SerializerMethodField()
