@@ -116,8 +116,12 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   const [pendingUntil,  setPendingUntil] = useState('')
   const [pendingReason, setPendingReason]= useState('')
   const [saving,        setSaving]       = useState(false)
-  const debRef  = useRef(null)
-  const debAg   = useRef(null)
+  const debRef     = useRef(null)
+  const debAg      = useRef(null)
+  const paxInputRef = useRef(null)
+  const agInputRef  = useRef(null)
+  const [paxDropPos, setPaxDropPos] = useState({})
+  const [agDropPos,  setAgDropPos]  = useState({})
 
   // Passageiro: busca ao digitar OU ao focar (mostra todos se vazio)
   const handleSearch = (q) => {
@@ -133,6 +137,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   }
 
   const handlePaxFocus = () => {
+    if (paxInputRef.current) {
+      const r = paxInputRef.current.getBoundingClientRect()
+      setPaxDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
     setPaxOpen(true)
     if (!results.length && !searching) handleSearch(search)
   }
@@ -151,6 +159,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   }
 
   const handleAgFocus = () => {
+    if (agInputRef.current) {
+      const r = agInputRef.current.getBoundingClientRect()
+      setAgDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
     setAgOpen(true)
     if (!agResults.length && !agSearching) handleAgSearch(blockAgency)
   }
@@ -223,14 +235,14 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
             <div>
               <label style={LBL}>Passageiro</label>
               <div style={{ position:'relative' }}>
-                <input value={search} onChange={e => handleSearch(e.target.value)}
+                <input ref={paxInputRef} value={search} onChange={e => handleSearch(e.target.value)}
                   onFocus={handlePaxFocus}
                   onBlur={() => setTimeout(() => setPaxOpen(false), 200)}
                   placeholder="Buscar por nome, CPF ou e-mail…"
                   autoComplete="new-password"
                   style={{ ...INP, borderColor: selected ? '#16a34a' : '#e2e8f0' }} />
                 {paxOpen && (
-                  <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+                  <div style={{ position:'fixed', top: paxDropPos.top, left: paxDropPos.left, width: paxDropPos.width, zIndex:800, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
                     {searching
                       ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
                       : results.length === 0
@@ -304,13 +316,13 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
               <div>
                 <label style={LBL}>Agência</label>
                 <div style={{ position:'relative' }}>
-                  <input value={blockAgency} onChange={e => handleAgSearch(e.target.value)}
+                  <input ref={agInputRef} value={blockAgency} onChange={e => handleAgSearch(e.target.value)}
                     onFocus={handleAgFocus}
                     onBlur={() => setTimeout(() => setAgOpen(false), 200)}
                     placeholder="Buscar agência…"
                     style={{ ...INP, borderColor: selAgency ? '#16a34a' : '#e2e8f0' }} />
                   {agOpen && (
-                    <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+                    <div style={{ position:'fixed', top: agDropPos.top, left: agDropPos.left, width: agDropPos.width, zIndex:800, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
                       {agSearching
                         ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
                         : agResults.length === 0
