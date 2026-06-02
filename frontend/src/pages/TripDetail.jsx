@@ -37,12 +37,38 @@ const STATUS_DOT = {
   cancelado:  { bg:'#dc2626', title:'Cancelado'  },
 }
 
-/* ── Popup de adicionar passageiro com acomodação ── */
+const LBL = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
+const INP = { width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
+
+/* ── Status toggle reutilizável ── */
+function StatusToggle({ value, onChange }) {
+  return (
+    <div style={{ display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1.5px solid #e2e8f0', width:'fit-content' }}>
+      {[{v:'confirmado',l:'Confirmado'},{v:'pendente',l:'Pendente'},{v:'cancelado',l:'Cancelado'}].map(opt => (
+        <button key={opt.v} type="button" onClick={() => onChange(opt.v)}
+          style={{ padding:'7px 14px', border:'none', fontFamily:'inherit', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .12s',
+            background: value===opt.v ? (opt.v==='confirmado'?'#16a34a':opt.v==='cancelado'?'#dc2626':'#f59e0b') : '#fff',
+            color: value===opt.v ? '#fff' : '#64748b',
+          }}>
+          {opt.l}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ── Popup de adicionar passageiro / bloqueio ── */
 function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
+  const [mode,         setMode]         = useState('passenger') // 'passenger' | 'block'
+  // Modo passageiro
   const [search,       setSearch]       = useState('')
   const [results,      setResults]      = useState([])
   const [searching,    setSearching]    = useState(false)
   const [selected,     setSelected]     = useState(null)
+  // Modo bloqueio
+  const [blockAgency,  setBlockAgency]  = useState('')
+  const [blockQty,     setBlockQty]     = useState(1)
+  // Campos comuns
   const [accommodation,setAccommodation]= useState('')
   const [estatus,      setEstatus]      = useState('pendente')
   const [saving,       setSaving]       = useState(false)
@@ -62,89 +88,132 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   }
 
   const handleAdd = async () => {
-    if (!selected) return
-    if (enrolled.some(e => e.passenger === selected.id)) {
-      toast.error('Passageiro já está nesta lista.'); return
-    }
     setSaving(true)
     try {
-      await listsApi.addPassenger(listId, { passenger: selected.id, accommodation, enrollment_status: estatus, notes: '' })
-      toast.success(`${selected.full_name} adicionado.`)
-      onAdded()
-      onClose()
+      if (mode === 'block') {
+        if (!blockAgency.trim()) { toast.error('Informe o nome da agência.'); return }
+        await listsApi.addPassenger(listId, {
+          is_block: true, block_agency: blockAgency.trim(),
+          block_quantity: blockQty, accommodation, enrollment_status: estatus, notes: '',
+        })
+        toast.success(`${blockQty} vaga${blockQty>1?'s':''} de ${blockAgency} adicionada${blockQty>1?'s':''}.`)
+      } else {
+        if (!selected) { toast.error('Selecione um passageiro.'); return }
+        if (enrolled.some(e => e.passenger === selected.id)) {
+          toast.error('Passageiro já está nesta lista.'); return
+        }
+        await listsApi.addPassenger(listId, {
+          passenger: selected.id, accommodation, enrollment_status: estatus, notes: '',
+        })
+        toast.success(`${selected.full_name} adicionado.`)
+      }
+      onAdded(); onClose()
     } catch (err) { toast.error(err.response?.data?.error ?? 'Erro ao adicionar.') }
     finally { setSaving(false) }
   }
 
+  const canSubmit = mode === 'block' ? blockAgency.trim() : !!selected
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:480, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:500, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+
+        {/* Header */}
         <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Adicionar passageiro</span>
+          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Adicionar à lista</span>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
         </div>
+
+        {/* Toggle modo */}
+        <div style={{ padding:'14px 22px 0', display:'flex', gap:0, borderBottom:'1px solid #e2e8f0' }}>
+          {[{v:'passenger',l:'Passageiro'},{v:'block',l:'Bloqueio de agência'}].map(opt => (
+            <button key={opt.v} type="button" onClick={() => { setMode(opt.v); setResults([]); setSearch(''); setSelected(null) }}
+              style={{ padding:'9px 18px', background:'none', border:'none', borderBottom: mode===opt.v ? '2px solid #1a2d4f' : '2px solid transparent', marginBottom:-1, color: mode===opt.v ? '#1a2d4f' : '#64748b', fontSize:13, fontWeight: mode===opt.v ? 700 : 500, cursor:'pointer', fontFamily:'inherit', transition:'color .12s' }}>
+              {opt.l}
+            </button>
+          ))}
+        </div>
+
         <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
-          {/* Busca */}
-          <div>
-            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Passageiro</label>
-            <div style={{ position:'relative' }}>
-              <input value={search} onChange={e => handleSearch(e.target.value)}
-                placeholder="Nome, CPF ou e-mail…"
-                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
-                onFocus={e => e.target.style.borderColor='#1a2d4f'}
-                onBlur={e => e.target.style.borderColor='#e2e8f0'} />
-              {(results.length > 0 || searching) && (
-                <div style={{ position:'absolute', top:'calc(100%+4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.12)', overflow:'hidden', maxHeight:200, overflowY:'auto' }}>
-                  {searching
-                    ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Buscando…</p>
-                    : results.map(p => (
-                      <div key={p.id}
-                        style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#eff6ff' : 'transparent' }}
-                        onClick={() => { setSelected(p); setSearch(p.full_name); setResults([]) }}
-                        onMouseEnter={e => { if (selected?.id!==p.id) e.currentTarget.style.background='#f8fafc' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = selected?.id===p.id ? '#eff6ff' : 'transparent' }}>
-                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
-                        <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
-                      </div>
-                    ))}
-                </div>
-              )}
+
+          {/* ── Modo passageiro ── */}
+          {mode === 'passenger' && (
+            <div>
+              <label style={LBL}>Passageiro</label>
+              <div style={{ position:'relative' }}>
+                <input value={search} onChange={e => handleSearch(e.target.value)}
+                  placeholder="Buscar por nome, CPF ou e-mail…"
+                  style={INP}
+                  onFocus={e => e.target.style.borderColor='#1a2d4f'}
+                  onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+                {(results.length > 0 || searching) && (
+                  <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.12)', overflow:'hidden', maxHeight:200, overflowY:'auto' }}>
+                    {searching
+                      ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Buscando…</p>
+                      : results.map(p => (
+                        <div key={p.id}
+                          style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#eff6ff' : 'transparent' }}
+                          onClick={() => { setSelected(p); setSearch(p.full_name); setResults([]) }}
+                          onMouseEnter={ev => { if (selected?.id!==p.id) ev.currentTarget.style.background='#f8fafc' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#eff6ff' : 'transparent' }}>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
+                          <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          {/* Acomodação */}
+          )}
+
+          {/* ── Modo bloqueio ── */}
+          {mode === 'block' && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:12 }}>
+              <div>
+                <label style={LBL}>Agência</label>
+                <input value={blockAgency} onChange={e => setBlockAgency(e.target.value)}
+                  placeholder="Nome da agência…"
+                  style={INP}
+                  onFocus={e => e.target.style.borderColor='#1a2d4f'}
+                  onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+              </div>
+              <div>
+                <label style={LBL}>Vagas</label>
+                <input type="number" min="1" max="100" value={blockQty}
+                  onChange={e => setBlockQty(Math.max(1, parseInt(e.target.value)||1))}
+                  style={INP}
+                  onFocus={e => e.target.style.borderColor='#1a2d4f'}
+                  onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+              </div>
+            </div>
+          )}
+
+          {/* Acomodação (comum) */}
           <div>
-            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Acomodação</label>
+            <label style={LBL}>Acomodação</label>
             <input value={accommodation} onChange={e => setAccommodation(e.target.value)}
               placeholder="Ex: Apto. Duplo Twin, Apto. Single…"
-              style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+              style={INP}
               onFocus={e => e.target.style.borderColor='#1a2d4f'}
               onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
-          {/* Status */}
+
+          {/* Status (comum) */}
           <div>
-            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Status</label>
-            <div style={{ display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1.5px solid #e2e8f0', width:'fit-content' }}>
-              {[{v:'confirmado',l:'Confirmado'},{v:'pendente',l:'Pendente'},{v:'cancelado',l:'Cancelado'}].map(opt => (
-                <button key={opt.v} type="button" onClick={() => setEstatus(opt.v)}
-                  style={{ padding:'7px 14px', border:'none', fontFamily:'inherit', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .12s',
-                    background: estatus===opt.v ? (opt.v==='confirmado'?'#16a34a':opt.v==='cancelado'?'#dc2626':'#f59e0b') : '#fff',
-                    color: estatus===opt.v ? '#fff' : '#64748b',
-                  }}>
-                  {opt.l}
-                </button>
-              ))}
-            </div>
+            <label style={LBL}>Status</label>
+            <StatusToggle value={estatus} onChange={setEstatus} />
           </div>
         </div>
+
         <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
           <button type="button" onClick={onClose}
             style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             Cancelar
           </button>
-          <button type="button" onClick={handleAdd} disabled={!selected || saving}
-            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !selected||saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !selected||saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
-            {saving ? 'Adicionando…' : 'Adicionar'}
+          <button type="button" onClick={handleAdd} disabled={!canSubmit || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !canSubmit||saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !canSubmit||saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Adicionando…' : mode==='block' ? `Reservar ${blockQty} vaga${blockQty>1?'s':''}` : 'Adicionar'}
           </button>
         </div>
       </div>
@@ -280,27 +349,37 @@ function PassengersTab({ listId, listType }) {
                       : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
                     }
 
-                    {/* Nome */}
+                    {/* Nome / Bloqueio */}
                     <div style={{ minWidth:0 }}>
-                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {e.passenger_name}
-                      </p>
+                      {e.is_block ? (
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4 }}>BLOQUEIO</span>
+                          <span style={{ fontSize:13, fontWeight:600, color:'#78350f' }}>{e.block_agency}</span>
+                        </div>
+                      ) : (
+                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          {e.passenger_name}
+                        </p>
+                      )}
                     </div>
 
                     {/* Nasc. */}
-                    <span style={{ fontSize:12, color:'#64748b' }}>{birth}</span>
+                    <span style={{ fontSize:12, color:'#64748b' }}>{e.is_block ? '—' : birth}</span>
 
                     {/* Nac. */}
-                    <span style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4, display:'inline-block' }}>{nat}</span>
+                    {e.is_block
+                      ? <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
+                      : <span style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4, display:'inline-block' }}>{nat}</span>
+                    }
 
                     {/* Gênero */}
-                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center' }}>{gen}</span>
+                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center' }}>{e.is_block ? '—' : gen}</span>
 
                     {/* Pass/RG */}
-                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{doc}</span>
+                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{e.is_block ? '—' : doc}</span>
 
                     {/* CPF */}
-                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{cpf}</span>
+                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{e.is_block ? '—' : cpf}</span>
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:4 }}>

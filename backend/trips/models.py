@@ -153,7 +153,10 @@ class ListEnrollment(models.Model):
     ]
 
     passenger_list   = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Lista')
-    passenger        = models.ForeignKey(Passenger,     on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Passageiro')
+    passenger        = models.ForeignKey(Passenger, null=True, blank=True, on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Passageiro')
+    # Bloqueio de agência (sem passageiro definido)
+    is_block         = models.BooleanField('É bloqueio', default=False)
+    block_agency     = models.CharField('Agência (bloqueio)', max_length=200, blank=True)
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
     enrollment_status= models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente')
     order_in_list    = models.PositiveIntegerField('Ordem', default=0)

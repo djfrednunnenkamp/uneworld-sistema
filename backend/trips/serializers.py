@@ -108,7 +108,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ListEnrollment
         fields = [
-            'id', 'passenger',
+            'id', 'passenger', 'is_block', 'block_agency',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_rg', 'passenger_status',

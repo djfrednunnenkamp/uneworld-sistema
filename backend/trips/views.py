@@ -82,9 +82,32 @@ class PassengerListViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='passageiros',
             permission_classes=[IsAuthenticated])
     def add_passenger(self, request, pk=None):
-        pl           = self.get_object()
+        pl            = self.get_object()
+        is_block      = request.data.get('is_block', False)
+        accommodation = request.data.get('accommodation', '')
+        estatus       = request.data.get('enrollment_status', 'pendente')
+        notes         = request.data.get('notes', '')
+
+        if is_block:
+            # Bloqueio de agência — cria N vagas sem passageiro
+            agency_name = request.data.get('block_agency', '').strip()
+            quantity    = int(request.data.get('block_quantity', 1))
+            if not agency_name:
+                return Response({'error': 'Nome da agência é obrigatório.'}, status=400)
+            if quantity < 1 or quantity > 100:
+                return Response({'error': 'Quantidade inválida (1–100).'}, status=400)
+            created = []
+            for _ in range(quantity):
+                e = ListEnrollment.objects.create(
+                    passenger_list=pl, passenger=None,
+                    is_block=True, block_agency=agency_name,
+                    accommodation=accommodation, enrollment_status=estatus, notes=notes,
+                )
+                created.append(ListEnrollmentSerializer(e).data)
+            return Response(created, status=201)
+
+        # Passageiro individual
         passenger_id = request.data.get('passenger')
-        notes        = request.data.get('notes', '')
         if not passenger_id:
             return Response({'error': 'passenger é obrigatório.'}, status=400)
         from passengers.models import Passenger as PassengerModel
@@ -94,7 +117,10 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Passageiro não encontrado.'}, status=404)
         if pl.list_enrollments.filter(passenger=p).exists():
             return Response({'error': 'Passageiro já está nesta lista.'}, status=400)
-        e = ListEnrollment.objects.create(passenger_list=pl, passenger=p, notes=notes)
+        e = ListEnrollment.objects.create(
+            passenger_list=pl, passenger=p,
+            accommodation=accommodation, enrollment_status=estatus, notes=notes,
+        )
         return Response(ListEnrollmentSerializer(e).data, status=201)
 
     @action(detail=True, methods=['patch'], url_path=r'passageiros/(?P<enrollment_id>\d+)',
