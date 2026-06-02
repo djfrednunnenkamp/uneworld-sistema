@@ -520,7 +520,23 @@ export default function AgencyDetail() {
         <div className="section-title">Dados PIX</div>
         <div className="grid3">
           <F label="Tipo de chave PIX">
-            <FormSelect value={form.pix_key_type} onChange={v => { setForm(f => ({...f, pix_key_type: v})); setIsDirty(true) }} options={PIX_TYPE_OPTS} />
+            <FormSelect
+              value={form.pix_key_type}
+              onChange={v => {
+                // Auto-preenche a chave com o valor já cadastrado conforme o tipo
+                const autoFill = {
+                  cpf:       form.cpf?.replace(/\D/g, '').length === 11 ? form.cpf : '',
+                  cnpj:      form.cnpj?.replace(/\D/g, '').length === 14 ? form.cnpj : '',
+                  email:     form.email || '',
+                  telefone:  form.phone || form.mobile || '',
+                  aleatorio: '',
+                }
+                const key = autoFill[v] ?? ''
+                setForm(f => ({ ...f, pix_key_type: v, pix_key: key || f.pix_key }))
+                setIsDirty(true)
+              }}
+              options={PIX_TYPE_OPTS}
+            />
           </F>
           <F label="Chave PIX" col={2}>{fi('pix_key')}</F>
         </div>
