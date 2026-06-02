@@ -371,7 +371,7 @@ export default function AgencyDetail() {
         </div>
 
         <div className="grid3">
-          <F label="CNPJ *">
+          <F label={isFisica ? 'CPF *' : 'CNPJ *'}>
             <div data-err={fieldErrors.cnpj ? 'true' : undefined}>
             {isFisica ? (
               /* Pessoa Física: CPF */
