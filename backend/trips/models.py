@@ -155,6 +155,7 @@ class ListEnrollment(models.Model):
     passenger_list   = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Lista')
     passenger        = models.ForeignKey(Passenger, null=True, blank=True, on_delete=models.CASCADE, related_name='list_enrollments', verbose_name='Passageiro')
     agency           = models.ForeignKey('agencies.Agency', null=True, blank=True, on_delete=models.SET_NULL, related_name='list_enrollments', verbose_name='Agência')
+    responsible_user = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='responsible_enrollments', verbose_name='Responsável')
     # Bloqueio de agência (sem passageiro definido)
     is_block         = models.BooleanField('É bloqueio', default=False)
     block_agency     = models.CharField('Agência (bloqueio)', max_length=200, blank=True)

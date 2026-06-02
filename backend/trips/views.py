@@ -83,10 +83,12 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             permission_classes=[IsAuthenticated])
     def add_passenger(self, request, pk=None):
         pl            = self.get_object()
-        is_block      = request.data.get('is_block', False)
-        accommodation = request.data.get('accommodation', '')
-        estatus       = request.data.get('enrollment_status', 'pendente')
-        notes         = request.data.get('notes', '')
+        is_block          = request.data.get('is_block', False)
+        accommodation     = request.data.get('accommodation', '')
+        estatus           = request.data.get('enrollment_status', 'pendente')
+        notes             = request.data.get('notes', '')
+        agency_id         = request.data.get('agency')
+        responsible_uid   = request.data.get('responsible_user')
 
         if is_block:
             # Bloqueio de agência — cria N vagas sem passageiro
@@ -97,10 +99,15 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             if quantity < 1 or quantity > 100:
                 return Response({'error': 'Quantidade inválida (1–100).'}, status=400)
             created = []
+            from django.contrib.auth.models import User as DjUser
+            resp_user = DjUser.objects.filter(pk=responsible_uid).first() if responsible_uid else None
+            from agencies.models import Agency as AgencyModel
+            agency_obj = AgencyModel.objects.filter(pk=agency_id).first() if agency_id else None
             for _ in range(quantity):
                 e = ListEnrollment.objects.create(
                     passenger_list=pl, passenger=None,
                     is_block=True, block_agency=agency_name,
+                    agency=agency_obj, responsible_user=resp_user,
                     accommodation=accommodation, enrollment_status=estatus, notes=notes,
                 )
                 created.append(ListEnrollmentSerializer(e).data)
@@ -117,8 +124,13 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Passageiro não encontrado.'}, status=404)
         if pl.list_enrollments.filter(passenger=p).exists():
             return Response({'error': 'Passageiro já está nesta lista.'}, status=400)
+        from django.contrib.auth.models import User as DjUser
+        resp_user = DjUser.objects.filter(pk=responsible_uid).first() if responsible_uid else None
+        from agencies.models import Agency as AgencyModel
+        agency_obj = AgencyModel.objects.filter(pk=agency_id).first() if agency_id else None
         e = ListEnrollment.objects.create(
             passenger_list=pl, passenger=p,
+            agency=agency_obj, responsible_user=resp_user,
             accommodation=accommodation, enrollment_status=estatus, notes=notes,
         )
         return Response(ListEnrollmentSerializer(e).data, status=201)

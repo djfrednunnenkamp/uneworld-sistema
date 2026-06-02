@@ -105,17 +105,26 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_rg         = serializers.CharField(source='passenger.rg',           read_only=True)
     passenger_status     = serializers.CharField(source='passenger.status',       read_only=True)
 
-    agency_name = serializers.SerializerMethodField()
+    agency_name           = serializers.SerializerMethodField()
+    responsible_user_name = serializers.SerializerMethodField()
 
     def get_agency_name(self, obj):
         if obj.agency:
             return obj.agency.company_name or obj.agency.name or ''
         return obj.block_agency or ''
 
+    def get_responsible_user_name(self, obj):
+        if obj.responsible_user:
+            name = f'{obj.responsible_user.first_name} {obj.responsible_user.last_name}'.strip()
+            return name or obj.responsible_user.email
+        return ''
+
     class Meta:
         model  = ListEnrollment
         fields = [
-            'id', 'passenger', 'agency', 'agency_name', 'is_block', 'block_agency',
+            'id', 'passenger', 'agency', 'agency_name',
+            'responsible_user', 'responsible_user_name',
+            'is_block', 'block_agency',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_rg', 'passenger_status',

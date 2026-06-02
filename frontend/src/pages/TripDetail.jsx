@@ -40,6 +40,36 @@ const STATUS_DOT = {
 const LBL = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
 const INP = { width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 
+/* ── Seletor de responsável (membros da agência) ── */
+function ResponsibleSelect({ members, selected, onChange }) {
+  if (members.length === 0) return (
+    <p style={{ margin:0, fontSize:12, color:'#94a3b8', fontStyle:'italic' }}>
+      Nenhum usuário vinculado a esta agência.
+    </p>
+  )
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+      {members.map(m => {
+        const isSel = selected?.id === m.id
+        const label = m.full_name || m.email
+        return (
+          <label key={m.id}
+            style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1.5px solid ${isSel ? '#1a2d4f' : '#e2e8f0'}`, background: isSel ? '#f0f4ff' : '#fff', cursor:'pointer', transition:'all .12s', userSelect:'none' }}
+            onClick={() => onChange(isSel ? null : m)}>
+            <div style={{ width:16, height:16, borderRadius:'50%', border:`2px solid ${isSel ? '#1a2d4f' : '#d1d5db'}`, background: isSel ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              {isSel && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
+            </div>
+            <div>
+              <p style={{ margin:0, fontSize:13, color: isSel ? '#1a2d4f' : '#1e293b', fontWeight: isSel ? 600 : 400 }}>{label}</p>
+              {m.full_name && <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{m.email}</p>}
+            </div>
+          </label>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ── Status toggle reutilizável ── */
 function StatusToggle({ value, onChange }) {
   return (
@@ -68,6 +98,8 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   const [paxOpen,      setPaxOpen]      = useState(false)
   const [paxAgencies,  setPaxAgencies]  = useState([])
   const [selPaxAgency, setSelPaxAgency] = useState(null)
+  const [paxAgMembers, setPaxAgMembers] = useState([])
+  const [selPaxResp,   setSelPaxResp]   = useState(null)
   // Modo bloqueio — agência
   const [blockAgency,  setBlockAgency]  = useState('')
   const [blockQty,     setBlockQty]     = useState(1)
@@ -75,6 +107,8 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   const [agSearching,  setAgSearching]  = useState(false)
   const [agOpen,       setAgOpen]       = useState(false)
   const [selAgency,    setSelAgency]    = useState(null)
+  const [blkMembers,   setBlkMembers]   = useState([])
+  const [selBlkResp,   setSelBlkResp]   = useState(null)
   // Campos comuns
   const [accommodation,setAccommodation]= useState('')
   const [estatus,      setEstatus]      = useState('pendente')
@@ -126,7 +160,9 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
         if (!agName) { toast.error('Selecione ou informe a agência.'); setSaving(false); return }
         await listsApi.addPassenger(listId, {
           is_block: true, block_agency: agName,
-          block_quantity: blockQty, accommodation, enrollment_status: estatus, notes: '',
+          agency: selAgency?.id || null,
+          responsible_user: selBlkResp?.user_id || null,
+          block_quantity: blockQty, enrollment_status: estatus, notes: '',
         })
         toast.success(`${blockQty} vaga${blockQty>1?'s':''} de ${agName} adicionada${blockQty>1?'s':''}.`)
       } else {
@@ -135,7 +171,9 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
           toast.error('Passageiro já está nesta lista.'); setSaving(false); return
         }
         await listsApi.addPassenger(listId, {
-          passenger: selected.id, agency: selPaxAgency?.id || null,
+          passenger: selected.id,
+          agency: selPaxAgency?.id || null,
+          responsible_user: selPaxResp?.user_id || null,
           enrollment_status: estatus, notes: '',
         })
         toast.success(`${selected.full_name} adicionado.`)
@@ -192,10 +230,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                         <div key={p.id}
                           style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#f0fdf4' : 'transparent' }}
                           onMouseDown={() => {
-                          setSelected(p); setSearch(p.full_name); setPaxOpen(false)
-                          setSelPaxAgency(null); setPaxAgencies([])
-                          passengersApi.agencies(p.id).then(r => setPaxAgencies(r.data)).catch(() => {})
-                        }}
+                            setSelected(p); setSearch(p.full_name); setPaxOpen(false)
+                            setSelPaxAgency(null); setPaxAgencies([]); setSelPaxResp(null); setPaxAgMembers([])
+                            passengersApi.agencies(p.id).then(r => setPaxAgencies(r.data)).catch(() => {})
+                          }}
                           onMouseEnter={ev => { if (selected?.id!==p.id) ev.currentTarget.style.background='#f8fafc' }}
                           onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#f0fdf4' : 'transparent' }}>
                           <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
@@ -226,7 +264,11 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                     return (
                       <label key={ag.id}
                         style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1.5px solid ${isSel ? '#1a2d4f' : '#e2e8f0'}`, background: isSel ? '#f0f4ff' : '#fff', cursor:'pointer', transition:'all .12s', userSelect:'none' }}
-                        onClick={() => setSelPaxAgency(isSel ? null : ag)}>
+                        onClick={() => {
+                          const next = isSel ? null : ag
+                          setSelPaxAgency(next); setSelPaxResp(null); setPaxAgMembers([])
+                          if (next) agenciesApi.listMembers(next.id).then(r => setPaxAgMembers(r.data)).catch(() => {})
+                        }}>
                         <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isSel ? '#1a2d4f' : '#d1d5db'}`, background: isSel ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                           {isSel && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
                         </div>
@@ -236,6 +278,14 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Responsável — aparece após selecionar agência (modo passageiro) */}
+          {mode === 'passenger' && selPaxAgency && (
+            <div>
+              <label style={LBL}>Responsável da agência <span style={{ fontWeight:400, color:'#94a3b8', textTransform:'none', letterSpacing:0 }}>(opcional)</span></label>
+              <ResponsibleSelect members={paxAgMembers} selected={selPaxResp} onChange={setSelPaxResp} />
             </div>
           )}
 
@@ -262,7 +312,11 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                             return (
                               <div key={ag.id}
                                 style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: isSel ? '#f0fdf4' : 'transparent' }}
-                                onMouseDown={() => { setSelAgency(ag); setBlockAgency(label); setAgOpen(false) }}
+                                onMouseDown={() => {
+                                  setSelAgency(ag); setBlockAgency(label); setAgOpen(false)
+                                  setSelBlkResp(null); setBlkMembers([])
+                                  agenciesApi.listMembers(ag.id).then(r => setBlkMembers(r.data)).catch(() => {})
+                                }}
                                 onMouseEnter={ev => { if (!isSel) ev.currentTarget.style.background='#f8fafc' }}
                                 onMouseLeave={ev => { ev.currentTarget.style.background = isSel ? '#f0fdf4' : 'transparent' }}>
                                 <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{label}</p>
@@ -285,6 +339,14 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                   onFocus={e => e.target.style.borderColor='#1a2d4f'}
                   onBlur={e => e.target.style.borderColor='#e2e8f0'} />
               </div>
+            </div>
+          )}
+
+          {/* Responsável — aparece após selecionar agência (modo bloqueio) */}
+          {mode === 'block' && selAgency && (
+            <div>
+              <label style={LBL}>Responsável da agência <span style={{ fontWeight:400, color:'#94a3b8', textTransform:'none', letterSpacing:0 }}>(opcional)</span></label>
+              <ResponsibleSelect members={blkMembers} selected={selBlkResp} onChange={setSelBlkResp} />
             </div>
           )}
 
