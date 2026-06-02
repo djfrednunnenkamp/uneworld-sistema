@@ -601,7 +601,7 @@ function PassengersTab({ listId, listType }) {
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 96px 48px 36px 120px 120px 110px 64px', gap:0, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {[
               {h:'Nº',        align:'center'},
               {h:'●',         align:'center'},
@@ -667,7 +667,7 @@ function PassengersTab({ listId, listType }) {
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 96px 48px 36px 120px 120px 110px 64px', gap:0, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
