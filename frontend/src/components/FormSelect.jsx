@@ -15,7 +15,8 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
   const [open,        setOpen]        = useState(false)
   const [query,       setQuery]       = useState('')
   const [highlighted, setHighlighted] = useState(-1)
-  const [pos,         setPos]         = useState({ top: 0, left: 0, width: 0, openUp: false })
+  // top XOR bottom — quando abre pra cima usa bottom para grudar no input
+  const [pos, setPos] = useState({ top: 'auto', bottom: 'auto', left: 0, width: 0 })
   const wrapRef  = useRef(null)
   const inputRef = useRef(null)
   const listRef  = useRef(null)
@@ -47,13 +48,15 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
     if (open) return
     const rect = inputRef.current?.getBoundingClientRect()
     if (rect) {
-      // Usa maxHeight fixo (280) para decisão estável — posição não muda ao digitar
-      const MAX_H      = 280
       const spaceBelow = window.innerHeight - rect.bottom - 8
-      const top = spaceBelow >= MAX_H
-        ? rect.bottom + 4                              // cabe abaixo → abre pra baixo
-        : Math.max(8, rect.top - MAX_H - 4)           // abre pra cima
-      setPos({ top, left: rect.left, width: rect.width })
+      if (spaceBelow >= 180) {
+        // Espaço suficiente abaixo → top do dropdown cola na parte inferior do input
+        setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
+      } else {
+        // Sem espaço abaixo → bottom do dropdown cola na parte superior do input
+        // Independente do tamanho da lista, fica sempre grudado no input
+        setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
+      }
     }
     setQuery('')
     setHighlighted(-1)
@@ -107,7 +110,7 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
       {/* Lista — position:fixed para escapar de overflow do modal */}
       {open && (
         <div style={{
-          position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 180),
+          position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 180),
           background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 8,
           boxShadow: '0 8px 28px rgba(0,0,0,.12)', zIndex: 9999,
           maxHeight: 280, overflowY: 'auto',
