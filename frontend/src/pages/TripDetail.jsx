@@ -252,16 +252,6 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
             </div>
           )}
 
-          {/* Acomodação (comum) */}
-          <div>
-            <label style={LBL}>Acomodação</label>
-            <input value={accommodation} onChange={e => setAccommodation(e.target.value)}
-              placeholder="Ex: Apto. Duplo Twin, Apto. Single…"
-              style={INP}
-              onFocus={e => e.target.style.borderColor='#1a2d4f'}
-              onBlur={e => e.target.style.borderColor='#e2e8f0'} />
-          </div>
-
           {/* Status (comum) */}
           <div>
             <label style={LBL}>Status</label>
