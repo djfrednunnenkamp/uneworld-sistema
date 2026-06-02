@@ -97,6 +97,18 @@ export default function AgencyDetail() {
     finally  { setCepLoading(false) }
   }
 
+  /* Aplica máscara de telefone nos dígitos retornados pela API */
+  const maskPhone = (digits) => {
+    const d = (digits || '').replace(/\D/g, '')
+    if (d.length === 8)  return `${d.slice(0,4)}-${d.slice(4)}`
+    if (d.length === 9)  return `${d.slice(0,5)}-${d.slice(5)}`
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+    if (d.length === 12) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,8)}-${d.slice(8)}`
+    if (d.length === 13) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`
+    return d
+  }
+
   /* Busca CNPJ via BrasilAPI */
   const lookupCnpj = async () => {
     const cnpj = form.cnpj.replace(/\D/g, '')
@@ -105,19 +117,21 @@ export default function AgencyDetail() {
     try {
       const r = await axios.get(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`)
       const d = r.data
+      // BrasilAPI retorna ddd_telefone_1 com os dígitos todos juntos (ex: "5133674033")
+      const rawPhone = d.ddd_telefone_1 || d.telefone || ''
       setForm(f => ({
         ...f,
-        company_name: d.razao_social     || f.company_name,
-        name:         d.nome_fantasia    || f.name,
-        email:        d.email            || f.email,
-        phone:        d.ddd_telefone_1   ? `(${d.ddd_telefone_1}) ${d.telefone_1}` : f.phone,
-        cep:          d.cep?.replace(/\D/g,'') || f.cep,
-        street:       d.logradouro       || f.street,
-        number:       d.numero           || f.number,
-        complement:   d.complemento      || f.complement,
-        neighborhood: d.bairro           || f.neighborhood,
-        city:         d.municipio        || f.city,
-        state:        d.uf               || f.state,
+        company_name: d.razao_social           || f.company_name,
+        name:         d.nome_fantasia           || f.name,
+        email:        d.email                   || f.email,
+        phone:        rawPhone ? maskPhone(rawPhone) : f.phone,
+        cep:          d.cep?.replace(/\D/g,'')  || f.cep,
+        street:       d.logradouro              || f.street,
+        number:       d.numero                  || f.number,
+        complement:   d.complemento             || f.complement,
+        neighborhood: d.bairro                  || f.neighborhood,
+        city:         d.municipio               || f.city,
+        state:        d.uf                      || f.state,
         country:      'Brasil',
       }))
       setIsDirty(true)
