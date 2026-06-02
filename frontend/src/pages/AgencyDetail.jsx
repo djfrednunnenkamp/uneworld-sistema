@@ -103,11 +103,11 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
         is_staff:   false,
       })
       const userId = r.data.id
-      // Vincula à agência
-      await agenciesApi.addMember(agencyId, form.email.trim().toLowerCase(), 'operator')
-      // Envia convite por e-mail
-      await usersApi.sendInvite(userId).catch(() => {})
-      toast.success(`${form.first_name || form.email} adicionado e convite enviado.`)
+      // Vincula à agência pelo ID (mais confiável que busca por e-mail)
+      await agenciesApi.addMemberById(agencyId, userId, 'operator')
+      // Envia convite por e-mail (não bloqueia se falhar)
+      usersApi.sendInvite(userId).catch(() => {})
+      toast.success(`${form.first_name || form.email} adicionado com sucesso.`)
       onSaved()
       onClose()
     } catch (err) {

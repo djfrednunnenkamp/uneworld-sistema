@@ -52,17 +52,23 @@ class AgencyViewSet(viewsets.ModelViewSet):
         } for m in members])
 
     @action(detail=True, methods=['post'], url_path='members',
-            permission_classes=[IsAdminUser])
+            permission_classes=[IsAuthenticated])
     def add_member(self, request, pk=None):
-        """Adiciona usuário existente à agência pelo e-mail."""
-        agency = self.get_object()
-        email  = request.data.get('email', '').strip().lower()
-        role   = request.data.get('role', 'operator')
-        if not email:
-            return Response({'error': 'E-mail obrigatório.'}, status=400)
-        user = User.objects.filter(email__iexact=email).first()
+        """Adiciona usuário existente à agência pelo e-mail ou user_id."""
+        agency  = self.get_object()
+        role    = request.data.get('role', 'operator')
+        user_id = request.data.get('user_id')
+        email   = request.data.get('email', '').strip().lower()
+
+        if user_id:
+            user = User.objects.filter(pk=user_id).first()
+        elif email:
+            user = User.objects.filter(email__iexact=email).first()
+        else:
+            return Response({'error': 'Informe user_id ou email.'}, status=400)
+
         if not user:
-            return Response({'error': 'Usuário não encontrado. Convide-o primeiro pela página de Usuários.'}, status=404)
+            return Response({'error': 'Usuário não encontrado.'}, status=404)
         if agency.members.filter(user=user).exists():
             return Response({'error': 'Usuário já pertence a esta agência.'}, status=400)
         m = AgencyMember.objects.create(agency=agency, user=user, role=role)
