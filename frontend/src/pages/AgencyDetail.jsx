@@ -212,19 +212,20 @@ export default function AgencyDetail() {
   }
 
   const REQUIRED_LABELS = {
-    name:         'Nome fantasia',
-    company_name: 'Razão social',
-    phone:        'Telefone',
-    email:        'E-mail',
+    cnpj:            'CNPJ',
+    company_name:    'Razão social',
+    email:           'E-mail',
+    phone:           'Telefone',
+    commission_rate: 'Comissão',
   }
 
   const save = async () => {
     const errs = {}
-    if (!form.name?.trim() && !form.company_name?.trim()) {
-      errs.name = true; errs.company_name = true
-    }
-    // Campos obrigatórios individuais
-    if (!form.phone?.replace(/\D/g,'')) errs.phone = true
+    if (!form.cnpj?.replace(/\D/g,''))      errs.cnpj            = true
+    if (!form.company_name?.trim())          errs.company_name    = true
+    if (!form.email?.trim())                 errs.email           = true
+    if (!form.phone?.replace(/\D/g,''))      errs.phone           = true
+    if (!form.commission_rate && form.commission_rate !== 0) errs.commission_rate = true
 
     if (Object.keys(errs).length) {
       setFieldErrors(errs)
@@ -360,17 +361,20 @@ export default function AgencyDetail() {
         </div>
 
         <div className="grid3">
-          <F label="CNPJ">
+          <F label="CNPJ *">
+            <div data-err={fieldErrors.cnpj ? 'true' : undefined}>
             <div style={{ display: 'flex', gap: 6 }}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, ...(fieldErrors.cnpj ? { outline: '2px solid #dc2626', borderRadius: 8 } : {}) }}>
                 <CnpjInput value={form.cnpj} onChange={v => { setForm(f => ({ ...f, cnpj: v })); setIsDirty(true) }} />
               </div>
               <button className="cep-btn" onClick={() => lookupCnpj()} disabled={cnpjLoading} title="Buscar dados pelo CNPJ" style={{ flexShrink: 0 }}>
                 <Ic n="search" s={13}/>
               </button>
             </div>
+            {fieldErrors.cnpj && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
+            </div>
           </F>
-          <F label="Razão social">{fi('company_name')}</F>
+          <F label="Razão social *">{fi('company_name')}</F>
           <F label="Nome fantasia">{fi('name')}</F>
         </div>
 
@@ -392,16 +396,16 @@ export default function AgencyDetail() {
           <F label="Celular">
             <PhoneInput value={form.mobile} onChange={v => { setForm(f => ({ ...f, mobile: v })); setIsDirty(true) }} />
           </F>
-          <F label="E-mail">{fi('email', 'email@exemplo.com')}</F>
+          <F label="E-mail *">{fi('email', 'email@exemplo.com')}</F>
         </div>
 
         <div className="grid3">
-          <F label="Comissão">
-            <div style={{ position: 'relative' }}>
+          <F label="Comissão *">
+            <div style={{ position: 'relative' }} data-err={fieldErrors.commission_rate ? 'true' : undefined}>
               <input className="fi" type="number" min="0" max="100" step="0.01"
                 value={form.commission_rate ?? ''} onChange={set('commission_rate')}
                 placeholder="0,00"
-                style={{ paddingRight: 28 }} />
+                style={{ paddingRight: 28, ...(fieldErrors.commission_rate ? errStyle : {}) }} />
               <span style={{
                 position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
                 fontSize: 13, fontWeight: 600, color: form.commission_rate ? '#2e6db4' : '#94a3b8',
