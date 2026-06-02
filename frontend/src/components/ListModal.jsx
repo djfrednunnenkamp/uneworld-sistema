@@ -87,9 +87,10 @@ function DocMultiSelect({ selected, onToggle }) {
 
 /* ── MultiPicker compacto ── */
 function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete }) {
-  const [open,  setOpen]  = useState(false)
-  const [input, setInput] = useState('')
-  const [pos,   setPos]   = useState({})
+  const [open,   setOpen]   = useState(false)
+  const [search, setSearch] = useState('')
+  const [newVal, setNewVal] = useState('')
+  const [pos,    setPos]    = useState({})
   const ref    = useRef(null)
   const btnRef = useRef(null)
 
@@ -105,17 +106,21 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
       setPos({ top: r.bottom + 4, left: r.left, width: r.width })
     }
     setOpen(o => !o)
+    setSearch('')
   }
+
+  const filtered = options.filter(o => o.name.toLowerCase().includes(search.toLowerCase()))
 
   const displayVal = selected.length === 0
     ? 'Nada selecionado'
     : options.filter(o => selected.includes(o.id)).map(o => o.name).join(', ')
 
   const handleCreate = async () => {
-    const name = input.trim()
+    const name = newVal.trim()
     if (!name) return
     await onCreate(name)
-    setInput('')
+    setNewVal('')
+    setSearch('')
   }
 
   return (
@@ -128,8 +133,17 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
       </button>
       {open && (
         <div style={{ position:'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
-          <div style={{ padding:'8px 10px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:6 }}>
-            <input value={input} onChange={e => setInput(e.target.value)}
+          {/* Busca */}
+          <div style={{ padding:'8px 10px', borderBottom:'1px solid #f1f5f9' }}>
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Pesquisar…"
+              style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', border:'1.5px solid #e2e8f0', borderRadius:6, fontSize:12, outline:'none', fontFamily:'inherit' }}
+              onFocus={e => e.target.style.borderColor='#1a2d4f'}
+              onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+          </div>
+          {/* Adicionar novo */}
+          <div style={{ padding:'6px 10px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:6 }}>
+            <input value={newVal} onChange={e => setNewVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
               placeholder={`Novo ${label.toLowerCase()}…`}
               style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e2e8f0', borderRadius:6, fontSize:12, outline:'none', fontFamily:'inherit' }}
@@ -140,10 +154,12 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
               +
             </button>
           </div>
-          <div style={{ maxHeight:160, overflowY:'auto' }}>
+          <div style={{ maxHeight:180, overflowY:'auto' }}>
             {options.length === 0
               ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Nenhum cadastrado</p>
-              : options.map(opt => {
+              : filtered.length === 0
+              ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Nenhum resultado</p>
+              : filtered.map(opt => {
                   const checked = selected.includes(opt.id)
                   return (
                     <div key={opt.id}
