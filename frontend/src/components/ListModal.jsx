@@ -86,7 +86,7 @@ function DocMultiSelect({ selected, onToggle }) {
 }
 
 /* ── Popup inline para adicionar novo item ── */
-function AddItemPopup({ label, onConfirm, onClose }) {
+function AddItemPopup({ label, onConfirm, onSelect, onClose }) {
   const [val, setVal] = useState('')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef(null)
@@ -97,7 +97,11 @@ function AddItemPopup({ label, onConfirm, onClose }) {
     const name = val.trim()
     if (!name) return
     setSaving(true)
-    try { await onConfirm(name); onClose() }
+    try {
+      const newId = await onConfirm(name)  // retorna o id do novo item
+      if (newId) onSelect(newId)           // auto-seleciona
+      onClose()                            // fecha só o popup; dropdown continua aberto
+    }
     finally { setSaving(false) }
   }
 
@@ -221,6 +225,7 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
       <AddItemPopup
         label={label}
         onConfirm={onCreate}
+        onSelect={onToggle}
         onClose={() => setShowAdd(false)}
       />
     )}
@@ -269,6 +274,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   const handleAddSupplier = async (name) => {
     const r = await listsApi.addSupplier(name)
     setSuppliers(prev => [...prev, r.data].sort((a,b) => a.name.localeCompare(b.name)))
+    return r.data.id
   }
   const handleDelSupplier = async (sid) => {
     await listsApi.removeSupplier(sid)
@@ -278,6 +284,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   const handleAddAdditional = async (name) => {
     const r = await listsApi.addAdditional(name)
     setAdditionals(prev => [...prev, r.data].sort((a,b) => a.name.localeCompare(b.name)))
+    return r.data.id
   }
   const handleDelAdditional = async (aid) => {
     await listsApi.removeAdditional(aid)
