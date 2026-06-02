@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { listsApi, passengersApi } from '../api'
+import { listsApi, passengersApi, agenciesApi } from '../api'
 import ListModal from '../components/ListModal'
 import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
@@ -65,42 +65,72 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   const [results,      setResults]      = useState([])
   const [searching,    setSearching]    = useState(false)
   const [selected,     setSelected]     = useState(null)
-  // Modo bloqueio
+  const [paxOpen,      setPaxOpen]      = useState(false)
+  // Modo bloqueio — agência
   const [blockAgency,  setBlockAgency]  = useState('')
   const [blockQty,     setBlockQty]     = useState(1)
+  const [agResults,    setAgResults]    = useState([])
+  const [agSearching,  setAgSearching]  = useState(false)
+  const [agOpen,       setAgOpen]       = useState(false)
+  const [selAgency,    setSelAgency]    = useState(null)
   // Campos comuns
   const [accommodation,setAccommodation]= useState('')
   const [estatus,      setEstatus]      = useState('pendente')
   const [saving,       setSaving]       = useState(false)
-  const debRef = useRef(null)
+  const debRef  = useRef(null)
+  const debAg   = useRef(null)
 
+  // Passageiro: busca ao digitar OU ao focar (mostra todos se vazio)
   const handleSearch = (q) => {
-    setSearch(q); setSelected(null)
+    setSearch(q); setSelected(null); setPaxOpen(true)
     clearTimeout(debRef.current)
-    if (!q.trim()) { setResults([]); return }
     debRef.current = setTimeout(async () => {
       setSearching(true)
       try {
-        const r = await passengersApi.list({ search: q, page_size: 15 })
+        const r = await passengersApi.list({ search: q, page_size: 20 })
         setResults(r.data.results ?? r.data)
       } catch {} finally { setSearching(false) }
-    }, 300)
+    }, 200)
+  }
+
+  const handlePaxFocus = () => {
+    setPaxOpen(true)
+    if (!results.length && !searching) handleSearch(search)
+  }
+
+  // Agência: busca ao digitar OU ao focar
+  const handleAgSearch = (q) => {
+    setBlockAgency(q); setSelAgency(null); setAgOpen(true)
+    clearTimeout(debAg.current)
+    debAg.current = setTimeout(async () => {
+      setAgSearching(true)
+      try {
+        const r = await agenciesApi.list({ search: q, page_size: 20 })
+        setAgResults(r.data.results ?? r.data)
+      } catch {} finally { setAgSearching(false) }
+    }, 200)
+  }
+
+  const handleAgFocus = () => {
+    setAgOpen(true)
+    if (!agResults.length && !agSearching) handleAgSearch(blockAgency)
   }
 
   const handleAdd = async () => {
     setSaving(true)
     try {
       if (mode === 'block') {
-        if (!blockAgency.trim()) { toast.error('Informe o nome da agência.'); return }
+        const agName = selAgency ? (selAgency.company_name || selAgency.name) : blockAgency.trim()
+        if (!agName) { toast.error('Selecione ou informe a agência.'); setSaving(false); return }
         await listsApi.addPassenger(listId, {
-          is_block: true, block_agency: blockAgency.trim(),
+          is_block: true, block_agency: agName,
           block_quantity: blockQty, accommodation, enrollment_status: estatus, notes: '',
         })
-        toast.success(`${blockQty} vaga${blockQty>1?'s':''} de ${blockAgency} adicionada${blockQty>1?'s':''}.`)
+        toast.success(`${blockQty} vaga${blockQty>1?'s':''} de ${agName} adicionada${blockQty>1?'s':''}.`)
       } else {
-        if (!selected) { toast.error('Selecione um passageiro.'); return }
+        if (!selected) { toast.error('Selecione um passageiro.'); setSaving(false); return }
         if (enrolled.some(e => e.passenger === selected.id)) {
-          toast.error('Passageiro já está nesta lista.'); return
+          toast.error('Passageiro já está nesta lista.'); setSaving(false); return
         }
         await listsApi.addPassenger(listId, {
           passenger: selected.id, accommodation, enrollment_status: estatus, notes: '',
@@ -112,7 +142,8 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
     finally { setSaving(false) }
   }
 
-  const canSubmit = mode === 'block' ? blockAgency.trim() : !!selected
+  const agName   = selAgency ? (selAgency.company_name || selAgency.name) : blockAgency.trim()
+  const canSubmit = mode === 'block' ? !!agName : !!selected
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
@@ -143,20 +174,22 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
               <label style={LBL}>Passageiro</label>
               <div style={{ position:'relative' }}>
                 <input value={search} onChange={e => handleSearch(e.target.value)}
+                  onFocus={handlePaxFocus}
+                  onBlur={() => setTimeout(() => setPaxOpen(false), 200)}
                   placeholder="Buscar por nome, CPF ou e-mail…"
-                  style={INP}
-                  onFocus={e => e.target.style.borderColor='#1a2d4f'}
-                  onBlur={e => e.target.style.borderColor='#e2e8f0'} />
-                {(results.length > 0 || searching) && (
-                  <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.12)', overflow:'hidden', maxHeight:200, overflowY:'auto' }}>
+                  style={{ ...INP, borderColor: selected ? '#16a34a' : '#e2e8f0' }} />
+                {paxOpen && (
+                  <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
                     {searching
-                      ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Buscando…</p>
+                      ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
+                      : results.length === 0
+                      ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Nenhum passageiro encontrado.</p>
                       : results.map(p => (
                         <div key={p.id}
-                          style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#eff6ff' : 'transparent' }}
-                          onClick={() => { setSelected(p); setSearch(p.full_name); setResults([]) }}
+                          style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#f0fdf4' : 'transparent' }}
+                          onMouseDown={() => { setSelected(p); setSearch(p.full_name); setPaxOpen(false) }}
                           onMouseEnter={ev => { if (selected?.id!==p.id) ev.currentTarget.style.background='#f8fafc' }}
-                          onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#eff6ff' : 'transparent' }}>
+                          onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#f0fdf4' : 'transparent' }}>
                           <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
                           <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
                         </div>
@@ -164,19 +197,49 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                   </div>
                 )}
               </div>
+              {selected && (
+                <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selected.full_name} selecionado</p>
+              )}
             </div>
           )}
 
           {/* ── Modo bloqueio ── */}
           {mode === 'block' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 110px', gap:12 }}>
               <div>
                 <label style={LBL}>Agência</label>
-                <input value={blockAgency} onChange={e => setBlockAgency(e.target.value)}
-                  placeholder="Nome da agência…"
-                  style={INP}
-                  onFocus={e => e.target.style.borderColor='#1a2d4f'}
-                  onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+                <div style={{ position:'relative' }}>
+                  <input value={blockAgency} onChange={e => handleAgSearch(e.target.value)}
+                    onFocus={handleAgFocus}
+                    onBlur={() => setTimeout(() => setAgOpen(false), 200)}
+                    placeholder="Buscar agência…"
+                    style={{ ...INP, borderColor: selAgency ? '#16a34a' : '#e2e8f0' }} />
+                  {agOpen && (
+                    <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+                      {agSearching
+                        ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
+                        : agResults.length === 0
+                        ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Nenhuma agência encontrada.</p>
+                        : agResults.map(ag => {
+                            const label = ag.company_name || ag.name
+                            const isSel = selAgency?.id === ag.id
+                            return (
+                              <div key={ag.id}
+                                style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: isSel ? '#f0fdf4' : 'transparent' }}
+                                onMouseDown={() => { setSelAgency(ag); setBlockAgency(label); setAgOpen(false) }}
+                                onMouseEnter={ev => { if (!isSel) ev.currentTarget.style.background='#f8fafc' }}
+                                onMouseLeave={ev => { ev.currentTarget.style.background = isSel ? '#f0fdf4' : 'transparent' }}>
+                                <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{label}</p>
+                                <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{ag.cnpj || ag.cpf || ag.email || '—'}</p>
+                              </div>
+                            )
+                          })}
+                    </div>
+                  )}
+                </div>
+                {selAgency && (
+                  <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selAgency.company_name || selAgency.name}</p>
+                )}
               </div>
               <div>
                 <label style={LBL}>Vagas</label>
