@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { agenciesApi } from '../api'
@@ -72,11 +72,18 @@ function F({ label, children, col }) {
 }
 
 export default function AgencyDetail() {
-  const { id }    = useParams()
-  const navigate  = useNavigate()
-  const isNew     = id === 'nova'
+  const { id }         = useParams()
+  const navigate       = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isNew          = id === 'nova'
 
-  const [form,       setForm]       = useState({ ...EMPTY })
+  const [form,       setForm]       = useState(() => {
+    if (isNew) {
+      const cnpj = searchParams.get('cnpj') || ''
+      return { ...EMPTY, cnpj }
+    }
+    return { ...EMPTY }
+  })
   const [loading,    setLoading]    = useState(!isNew)
   const [saving,     setSaving]     = useState(false)
   const [cepLoading, setCepLoading] = useState(false)

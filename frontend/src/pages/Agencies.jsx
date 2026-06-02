@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { agenciesApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
+import NewAgencyModal from '../components/NewAgencyModal'
 
 const COLS = [
   { key: 'company_name', label: 'Razão Social',  render: (v, row) => v || row.name || '—' },
@@ -20,6 +21,7 @@ export default function Agencies() {
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
+  const [showNew, setShowNew] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -48,12 +50,13 @@ export default function Agencies() {
         searchKeys={['name', 'company_name', 'email', 'cnpj', 'city']}
         filterKey="status"
         filterOpts={['active', 'pending', 'inactive']}
-        onAdd={() => navigate('/agencias/nova')}
+        onAdd={() => setShowNew(true)}
         onEdit={(row) => navigate(`/agencias/${row.id}`)}
         onDelete={(row) => setDelRow(row)}
         loading={loading}
       />
 
+      {showNew && <NewAgencyModal onClose={() => setShowNew(false)} />}
       {delRow && (
         <DelModal
           name={delRow.company_name || delRow.name}

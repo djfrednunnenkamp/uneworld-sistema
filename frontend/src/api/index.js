@@ -33,11 +33,12 @@ export const meetingsApi = {
 }
 
 export const agenciesApi = {
-  list:   (params) => api.get('/agencies/', { params }),
-  get:    (id)     => api.get(`/agencies/${id}/`),
-  create: (data)   => api.post('/agencies/', data),
-  update: (id, data) => api.put(`/agencies/${id}/`, data),
-  remove: (id)     => api.delete(`/agencies/${id}/`),
+  list:      (params) => api.get('/agencies/', { params }),
+  get:       (id)     => api.get(`/agencies/${id}/`),
+  create:    (data)   => api.post('/agencies/', data),
+  update:    (id, data) => api.put(`/agencies/${id}/`, data),
+  remove:    (id)     => api.delete(`/agencies/${id}/`),
+  checkCnpj: (cnpj)  => api.get('/agencies/check-cnpj/', { params: { cnpj } }),
 }
 
 export const documentsApi = {
