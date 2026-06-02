@@ -144,9 +144,10 @@ export const configApi = {
   delProfCard:     (id)   => api.delete(`/config/prof-cards/${id}/`),
   importProfCards: ()     => api.post('/config/prof-cards/import/'),
   // Tipos de Acomodação
-  accommodations:    () => api.get('/config/accommodations/'),
-  addAccommodation:  (name) => api.post('/config/accommodations/', { name }),
-  delAccommodation:  (id)   => api.delete(`/config/accommodations/${id}/`),
+  accommodations:       ()            => api.get('/config/accommodations/'),
+  addAccommodation:     (data)        => api.post('/config/accommodations/', data),
+  updateAccommodation:  (id, data)    => api.patch(`/config/accommodations/${id}/`, data),
+  delAccommodation:     (id)          => api.delete(`/config/accommodations/${id}/`),
   // Gêneros
   genders:    () => api.get('/config/genders/'),
   addGender:  (name) => api.post('/config/genders/', { name }),

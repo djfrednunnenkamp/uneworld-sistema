@@ -52,8 +52,11 @@ function AccomPicker({ value, onChange }) {
             const active = value === t.name
             return (
               <button key={t.id} type="button" onClick={() => onChange(active ? '' : t.name)}
-                style={{ padding:'5px 14px', borderRadius:20, border:`1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`, background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#475569', fontSize:13, fontWeight: active ? 600 : 400, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}>
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:20, border:`1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`, background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#475569', fontSize:13, fontWeight: active ? 600 : 400, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}>
                 {t.name}
+                <span style={{ fontSize:11, opacity:.75 }}>
+                  {t.capacity}p{t.is_couple ? ' · casal' : ''}
+                </span>
               </button>
             )
           })}

@@ -156,7 +156,9 @@ class ConfigCity(models.Model):
 
 
 class ConfigAccommodation(models.Model):
-    name = models.CharField('Nome', max_length=200, unique=True)
+    name      = models.CharField('Nome', max_length=200, unique=True)
+    capacity  = models.PositiveIntegerField('Capacidade (pessoas)', default=1)
+    is_couple = models.BooleanField('É para casal', default=False)
 
     class Meta:
         ordering = ['name']

@@ -764,7 +764,7 @@ class StateViewSet(viewsets.ModelViewSet):
 class AccommodationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigAccommodation
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'capacity', 'is_couple']
 
 
 class AccommodationViewSet(viewsets.ModelViewSet):

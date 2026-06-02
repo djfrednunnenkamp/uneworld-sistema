@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import DocTypesManager from '../components/DocTypesManager'
+import AccommodationManager from '../components/AccommodationManager'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -599,7 +600,10 @@ export default function Settings() {
             {tab===3 && <ItemList items={genders}    loading={loadingG}  onAdd={addGender}   onDelete={delGender}   placeholder="Novo gênero…"   filename="generos.csv"   type="genders" />}
             {tab===4 && <ItemList items={profCards}    loading={loadingPC} onAdd={addProfCard}  onDelete={delProfCard}  placeholder="Nova carteira…"  filename="carteiras.csv"  type="prof_cards" />}
             {tab===5 && <ItemList items={listAddits}   loading={loadingLA} onAdd={addListAddit} onDelete={delListAddit} placeholder="Novo adicional…"     filename="adicionais.csv"   type="list_addits" />}
-            {tab===6 && <ItemList items={accoms}       loading={loadingAc} onAdd={addAccom}     onDelete={delAccom}     placeholder="Nova acomodação…"   filename="acomodacoes.csv"  type="accommodations" />}
+            {tab===6 && <AccommodationManager items={accoms} loading={loadingAc} onRefresh={() => {
+              setLoadingAc(true)
+              configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
+            }} />}
             {tab===7 && <CountriesTab />}
           </div>
         </>
