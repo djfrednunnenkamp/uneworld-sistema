@@ -139,34 +139,33 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         )
         return Response(ListEnrollmentSerializer(e).data, status=201)
 
-    @action(detail=True, methods=['patch'], url_path=r'passageiros/(?P<enrollment_id>\d+)',
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'passageiros/(?P<enrollment_id>\d+)',
             permission_classes=[IsAuthenticated])
-    def update_passenger(self, request, pk=None, enrollment_id=None):
+    def manage_passenger(self, request, pk=None, enrollment_id=None):
+        """PATCH: atualiza enrollment. DELETE: remove enrollment."""
         pl = self.get_object()
         try:
             e = pl.list_enrollments.get(id=enrollment_id)
-            for field in ('accommodation', 'enrollment_status', 'order_in_list', 'notes',
-                          'pending_until', 'pending_reason'):
-                if field in request.data:
-                    setattr(e, field, request.data[field] or None if field == 'pending_until' else request.data[field])
-            # Atribuir passageiro a um bloco
-            if 'passenger' in request.data and request.data['passenger']:
-                from passengers.models import Passenger as PassengerModel
-                p = PassengerModel.objects.filter(pk=request.data['passenger']).first()
-                if p:
-                    e.passenger = p
-                    e.is_block  = False
-            e.save()
-            return Response(ListEnrollmentSerializer(e).data)
         except ListEnrollment.DoesNotExist:
             return Response({'error': 'Inscrição não encontrada.'}, status=404)
 
-    @action(detail=True, methods=['delete'], url_path=r'passageiros/(?P<enrollment_id>\d+)',
-            permission_classes=[IsAuthenticated])
-    def remove_passenger(self, request, pk=None, enrollment_id=None):
-        pl = self.get_object()
-        try:
-            pl.list_enrollments.get(id=enrollment_id).delete()
+        if request.method == 'DELETE':
+            e.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except ListEnrollment.DoesNotExist:
-            return Response({'error': 'Inscrição não encontrada.'}, status=404)
+
+        # PATCH
+        for field in ('accommodation', 'enrollment_status', 'order_in_list', 'notes',
+                      'pending_until', 'pending_reason'):
+            if field in request.data:
+                val = request.data[field]
+                setattr(e, field, (val or None) if field == 'pending_until' else val)
+        # Atribuir passageiro a um bloco
+        if 'passenger' in request.data and request.data['passenger']:
+            from passengers.models import Passenger as PassengerModel
+            p = PassengerModel.objects.filter(pk=request.data['passenger']).first()
+            if p:
+                e.passenger = p
+                e.is_block  = False
+        e.save()
+        return Response(ListEnrollmentSerializer(e).data)
+
