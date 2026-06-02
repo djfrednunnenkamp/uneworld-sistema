@@ -38,35 +38,89 @@ const STATUS_DOT = {
   cancelado:  { bg:'#dc2626', title:'Cancelado'  },
 }
 
-/* ── Picker de acomodação com chips + campo livre ── */
+/* ── Combobox de acomodação com autocomplete e navegação por teclado ── */
 function AccomPicker({ value, onChange }) {
-  const [types, setTypes] = useState([])
+  const [types,    setTypes]    = useState([])
+  const [open,     setOpen]     = useState(false)
+  const [cursor,   setCursor]   = useState(-1)
+  const [dropPos,  setDropPos]  = useState({})
+  const inputRef = useRef(null)
+
   useEffect(() => {
     configApi.accommodations().then(r => setTypes(r.data.results ?? r.data)).catch(() => {})
   }, [])
+
+  const filtered = types.filter(t =>
+    !value || t.name.toLowerCase().includes(value.toLowerCase())
+  )
+
+  const openDrop = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect()
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    setOpen(true)
+    setCursor(-1)
+  }
+
+  const pick = (name) => {
+    onChange(name)
+    setOpen(false)
+    setCursor(-1)
+  }
+
+  const handleKey = (e) => {
+    if (!open) { if (e.key === 'ArrowDown' || e.key === 'Enter') openDrop(); return }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setCursor(c => Math.min(c + 1, filtered.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setCursor(c => Math.max(c - 1, -1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (cursor >= 0 && filtered[cursor]) pick(filtered[cursor].name)
+      else setOpen(false)
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+    }
+  }
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-      {types.length > 0 && (
-        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-          {types.map(t => {
-            const active = value === t.name
-            return (
-              <button key={t.id} type="button" onClick={() => onChange(active ? '' : t.name)}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:20, border:`1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`, background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#475569', fontSize:13, fontWeight: active ? 600 : 400, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}>
-                {t.name}
-                <span style={{ fontSize:11, opacity:.75 }}>
-                  {t.capacity}p{t.is_couple ? ' · casal' : ''}
-                </span>
-              </button>
-            )
-          })}
+    <div style={{ position:'relative' }}>
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={e => { onChange(e.target.value); setCursor(-1) }}
+        onFocus={() => { openDrop() }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={handleKey}
+        autoComplete="new-password"
+        placeholder="Tipo de acomodação…"
+        style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+        onFocus2={e => e.target.style.borderColor='#1a2d4f'}
+      />
+      {open && (
+        <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:240, overflowY:'auto' }}>
+          {filtered.length === 0 ? (
+            <p style={{ margin:0, padding:'10px 14px', fontSize:13, color:'#94a3b8' }}>
+              {value ? `Usar "${value}" como acomodação` : 'Nenhuma opção cadastrada'}
+            </p>
+          ) : filtered.map((t, i) => (
+            <div key={t.id}
+              onMouseDown={() => pick(t.name)}
+              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: i === cursor ? '#eff6ff' : 'transparent' }}
+              onMouseEnter={() => setCursor(i)}
+              onMouseLeave={() => setCursor(-1)}>
+              <span style={{ fontSize:13, fontWeight: i===cursor ? 600 : 400, color: i===cursor ? '#1a2d4f' : '#1e293b' }}>{t.name}</span>
+              <span style={{ fontSize:11, color:'#94a3b8', display:'flex', gap:6 }}>
+                <span style={{ background:'#f1f5f9', padding:'1px 7px', borderRadius:20 }}>{t.capacity}p</span>
+                {t.is_couple && <span style={{ background:'#ede9fe', color:'#7c3aed', padding:'1px 7px', borderRadius:20, fontWeight:600 }}>casal</span>}
+              </span>
+            </div>
+          ))}
         </div>
       )}
-      <input value={value} onChange={e => onChange(e.target.value)}
-        placeholder="Ou escreva o nome (ex: Apto. Duplo Twin)…"
-        style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
-        onFocus={e => e.target.style.borderColor='#1a2d4f'}
-        onBlur={e => e.target.style.borderColor='#e2e8f0'} />
     </div>
   )
 }
