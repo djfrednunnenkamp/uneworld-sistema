@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import toast from 'react-hot-toast'
-import { agenciesApi } from '../api'
+import { agenciesApi, usersApi } from '../api'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import CnpjInput from '../components/CnpjInput'
@@ -79,12 +79,94 @@ const ROLE_OPTS = [
   { value: 'viewer',   label: 'Visualizador'   },
 ]
 
+/* ── Popup de novo usuário da agência ── */
+function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
+  const [form,   setForm]   = useState({ email:'', first_name:'', last_name:'', role:'operator' })
+  const [saving, setSaving] = useState(false)
+
+  const lbl = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
+  const inp = { width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    if (!form.email.trim()) { toast.error('E-mail é obrigatório.'); return }
+    setSaving(true)
+    try {
+      // Cria o usuário no sistema
+      const r = await usersApi.create({
+        email:      form.email.trim().toLowerCase(),
+        first_name: form.first_name.trim(),
+        last_name:  form.last_name.trim(),
+        is_staff:   false,
+      })
+      const userId = r.data.id
+      // Vincula à agência
+      await agenciesApi.addMember(agencyId, form.email.trim().toLowerCase(), form.role)
+      // Envia convite por e-mail
+      await usersApi.sendInvite(userId).catch(() => {})
+      toast.success(`${form.first_name || form.email} adicionado e convite enviado.`)
+      onSaved()
+      onClose()
+    } catch (err) {
+      toast.error(err.response?.data?.error ?? err.response?.data?.email?.[0] ?? 'Erro ao criar usuário.')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:440, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Novo usuário da agência</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={lbl}>E-mail</label>
+            <input value={form.email} onChange={set('email')} placeholder="email@exemplo.com"
+              style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div>
+              <label style={lbl}>Nome</label>
+              <input value={form.first_name} onChange={set('first_name')} placeholder="Nome"
+                style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            </div>
+            <div>
+              <label style={lbl}>Sobrenome</label>
+              <input value={form.last_name} onChange={set('last_name')} placeholder="Sobrenome"
+                style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Função</label>
+            <FormSelect value={form.role} onChange={v => setForm(f => ({ ...f, role: v }))} options={ROLE_OPTS} />
+          </div>
+          <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>
+            Um e-mail de convite será enviado automaticamente para o usuário definir sua senha.
+          </p>
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving || !form.email.trim()}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving || !form.email.trim() ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving || !form.email.trim() ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Criando…' : 'Criar e convidar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AgencyUsersTab({ agencyId }) {
   const [members,  setMembers]  = useState([])
   const [loading,  setLoading]  = useState(true)
-  const [email,    setEmail]    = useState('')
-  const [role,     setRole]     = useState('operator')
-  const [adding,   setAdding]   = useState(false)
+  const [showNew,  setShowNew]  = useState(false)
   const [confirm,  setConfirm]  = useState(null)
 
   const load = useCallback(() => {
@@ -95,18 +177,6 @@ function AgencyUsersTab({ agencyId }) {
   }, [agencyId])
 
   useEffect(() => { load() }, [load])
-
-  const add = async () => {
-    if (!email.trim()) return
-    setAdding(true)
-    try {
-      await agenciesApi.addMember(agencyId, email.trim(), role)
-      setEmail(''); load()
-      toast.success('Usuário adicionado.')
-    } catch (err) {
-      toast.error(err.response?.data?.error ?? 'Erro ao adicionar.')
-    } finally { setAdding(false) }
-  }
 
   const remove = async (mid) => {
     await agenciesApi.removeMember(agencyId, mid).catch(() => toast.error('Erro ao remover.'))
@@ -121,24 +191,13 @@ function AgencyUsersTab({ agencyId }) {
   return (
     <div className="det-card">
       <div className="section">
-        <div className="section-title">Usuários da agência</div>
-
-        {/* Adicionar usuário */}
-        <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
-          <input value={email} onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && add()}
-            placeholder="E-mail do usuário…"
-            style={{ flex:1, minWidth:200, padding:'8px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit' }}
-            onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
-          <FormSelect value={role} onChange={setRole} options={ROLE_OPTS} />
-          <button onClick={add} disabled={adding || !email.trim()}
-            style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', opacity: !email.trim() ? .5 : 1 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+          <div className="section-title" style={{ margin:0 }}>Usuários da agência</div>
+          <button onClick={() => setShowNew(true)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             + Adicionar
           </button>
         </div>
-        <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 12px' }}>
-          O usuário já precisa estar cadastrado no sistema. Para convidar alguém novo, use a página <a href="/usuarios" style={{ color:'#2e6db4' }}>Usuários</a>.
-        </p>
 
         {/* Lista */}
         {loading ? (
@@ -189,6 +248,14 @@ function AgencyUsersTab({ agencyId }) {
           okLabel="Remover"
           onOk={() => remove(confirm.id)}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {showNew && (
+        <NewAgencyUserPopup
+          agencyId={agencyId}
+          onSaved={load}
+          onClose={() => setShowNew(false)}
         />
       )}
     </div>
