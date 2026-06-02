@@ -6,6 +6,7 @@ import { agenciesApi } from '../api'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import CnpjInput from '../components/CnpjInput'
+import CountryStatePicker from '../components/CountryStatePicker'
 import usePersistedTab from '../hooks/usePersistedTab'
 
 const EMPTY = {
@@ -19,10 +20,6 @@ const EMPTY = {
 }
 
 const IBGE = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome'
-const STATES_BR = [
-  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS',
-  'MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
-]
 
 /* ── Toggle ── */
 function Toggle({ checked, onChange }) {
@@ -131,8 +128,9 @@ export default function AgencyDetail() {
         complement:   d.complemento             || f.complement,
         neighborhood: d.bairro                  || f.neighborhood,
         city:         d.municipio               || f.city,
+        // CountryStatePicker armazena estado como código UF (ex: 'RS') e país por nome
         state:        d.uf                      || f.state,
-        country:      'Brasil',
+        country:      d.uf ? 'Brasil'           : f.country,
       }))
       setIsDirty(true)
       toast.success('Dados preenchidos via CNPJ.')
@@ -323,13 +321,14 @@ export default function AgencyDetail() {
         </div>
 
         <div className="grid3">
-          <F label="Estado">
-            {fs('state',
-              <><option value="">Selecione…</option>
-              {STATES_BR.map(s => <option key={s} value={s}>{s}</option>)}</>
-            )}
+          <F label="País / Estado">
+            <CountryStatePicker
+              country={form.country}
+              state={form.state}
+              onChangeCountry={v => { setForm(f => ({ ...f, country: v })); setIsDirty(true) }}
+              onChangeState={v   => { setForm(f => ({ ...f, state: v }));   setIsDirty(true) }}
+            />
           </F>
-          <F label="País">{fi('country')}</F>
         </div>
 
       </div>
