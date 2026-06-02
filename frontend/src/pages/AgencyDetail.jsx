@@ -6,6 +6,7 @@ import { agenciesApi } from '../api'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import CnpjInput from '../components/CnpjInput'
+import CpfInput from '../components/CpfInput'
 import CountryStatePicker from '../components/CountryStatePicker'
 import FormSelect from '../components/FormSelect'
 import usePersistedTab from '../hooks/usePersistedTab'
@@ -37,7 +38,7 @@ const PIX_TYPE_OPTS = [
 
 const EMPTY = {
   agency_type: 'agencia', person_type: 'juridica', status: 'active',
-  cnpj: '', company_name: '', name: '', state_registration: '', municipal_registration: '',
+  cnpj: '', cpf: '', company_name: '', name: '', state_registration: '', municipal_registration: '',
   responsible: '', phone: '', mobile: '', email: '', website: '',
   commission_rate: '', cep: '', street: '', number: '', complement: '',
   neighborhood: '', city: '', state: '', country: 'Brasil',
@@ -211,9 +212,13 @@ export default function AgencyDetail() {
     finally  { setCnpjLoading(false) }
   }
 
+  const isFisica = form.person_type === 'fisica'
+
   const REQUIRED_LABELS = {
     cnpj:            'CNPJ',
+    cpf:             'CPF',
     company_name:    'Razão social',
+    name:            'Nome',
     email:           'E-mail',
     phone:           'Telefone',
     commission_rate: 'Comissão',
@@ -221,8 +226,13 @@ export default function AgencyDetail() {
 
   const save = async () => {
     const errs = {}
-    if (!form.cnpj?.replace(/\D/g,''))      errs.cnpj            = true
-    if (!form.company_name?.trim())          errs.company_name    = true
+    if (isFisica) {
+      if (!form.cpf?.replace(/\D/g,''))    errs.cpf          = true
+      if (!form.name?.trim())              errs.name         = true
+    } else {
+      if (!form.cnpj?.replace(/\D/g,''))   errs.cnpj         = true
+      if (!form.company_name?.trim())      errs.company_name = true
+    }
     if (!form.email?.trim())                 errs.email           = true
     if (!form.phone?.replace(/\D/g,''))      errs.phone           = true
     if (!form.commission_rate && form.commission_rate !== 0) errs.commission_rate = true
@@ -363,26 +373,48 @@ export default function AgencyDetail() {
         <div className="grid3">
           <F label="CNPJ *">
             <div data-err={fieldErrors.cnpj ? 'true' : undefined}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <div style={{ flex: 1, ...(fieldErrors.cnpj ? { outline: '2px solid #dc2626', borderRadius: 8 } : {}) }}>
-                <CnpjInput value={form.cnpj} onChange={v => { setForm(f => ({ ...f, cnpj: v })); setIsDirty(true) }} />
+            {isFisica ? (
+              /* Pessoa Física: CPF */
+              <div data-err={fieldErrors.cpf ? 'true' : undefined}
+                style={fieldErrors.cpf ? { borderRadius: 8, boxShadow: '0 0 0 2px #dc2626' } : {}}>
+                <CpfInput value={form.cpf}
+                  onChange={v => { setForm(f => ({ ...f, cpf: v })); setIsDirty(true) }} />
+                {fieldErrors.cpf && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
               </div>
-              <button className="cep-btn" onClick={() => lookupCnpj()} disabled={cnpjLoading} title="Buscar dados pelo CNPJ" style={{ flexShrink: 0 }}>
-                <Ic n="search" s={13}/>
-              </button>
-            </div>
-            {fieldErrors.cnpj && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
+            ) : (
+              /* Pessoa Jurídica: CNPJ com busca */
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ flex: 1, ...(fieldErrors.cnpj ? { outline: '2px solid #dc2626', borderRadius: 8 } : {}) }}>
+                  <CnpjInput value={form.cnpj} onChange={v => { setForm(f => ({ ...f, cnpj: v })); setIsDirty(true) }} />
+                </div>
+                <button className="cep-btn" onClick={() => lookupCnpj()} disabled={cnpjLoading} title="Buscar dados pelo CNPJ" style={{ flexShrink: 0 }}>
+                  <Ic n="search" s={13}/>
+                </button>
+              </div>
+            )}
+            {fieldErrors.cnpj && !isFisica && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
             </div>
           </F>
-          <F label="Razão social *">{fi('company_name')}</F>
-          <F label="Nome fantasia">{fi('name')}</F>
+
+          {/* Jurídica: Razão social + Nome fantasia | Física: só Nome */}
+          {isFisica ? (
+            <F label="Nome *" col={2}>{fi('name', 'Nome completo')}</F>
+          ) : (
+            <>
+              <F label="Razão social *">{fi('company_name')}</F>
+              <F label="Nome fantasia">{fi('name')}</F>
+            </>
+          )}
         </div>
 
+        {/* Inscrições — apenas para Jurídica */}
+        {!isFisica && (
         <div className="grid3">
           <F label="Inscrição estadual">{fi('state_registration')}</F>
           <F label="Inscrição municipal">{fi('municipal_registration')}</F>
           <F label="Responsável">{fi('responsible')}</F>
         </div>
+        )}
 
         <div className="grid3">
           <F label="Telefone *">

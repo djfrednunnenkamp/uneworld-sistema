@@ -32,8 +32,9 @@ class Agency(models.Model):
     person_type  = models.CharField('Tipo de pessoa',   max_length=10, choices=PERSON_TYPE_CHOICES, default='juridica')
     status       = models.CharField('Status', max_length=10, choices=STATUS_CHOICES, default='active')
 
-    # Dados da empresa
+    # Dados da empresa / pessoa
     cnpj                  = models.CharField('CNPJ', max_length=20, blank=True)
+    cpf                   = models.CharField('CPF', max_length=20, blank=True)   # pessoa física
     company_name          = models.CharField('Razão social', max_length=200, blank=True)
     name                  = models.CharField('Nome fantasia', max_length=200, blank=True)  # opcional
     state_registration    = models.CharField('Inscrição estadual',   max_length=50, blank=True)
