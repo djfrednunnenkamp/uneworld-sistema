@@ -92,11 +92,14 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
     if (!form.email.trim()) { toast.error('E-mail é obrigatório.'); return }
     setSaving(true)
     try {
+      // Gera senha temporária aleatória (o convite vai substituir)
+      const tempPwd = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2).toUpperCase() + '!1'
       // Cria o usuário no sistema
       const r = await usersApi.create({
         email:      form.email.trim().toLowerCase(),
         first_name: form.first_name.trim(),
         last_name:  form.last_name.trim(),
+        password:   tempPwd,
         is_staff:   false,
       })
       const userId = r.data.id
