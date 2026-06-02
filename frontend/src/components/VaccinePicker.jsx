@@ -79,7 +79,7 @@ export default function VaccinePicker({ value, onChange }) {
           ref={inputRef}
           className="fi"
           value={open ? query : (value || '')}
-          onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true) }}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => { setQuery(''); setOpen(true) }}
           onKeyDown={handleKeyDown}
           placeholder="Digite ou selecione a vacina…"

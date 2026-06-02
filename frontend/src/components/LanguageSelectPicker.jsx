@@ -52,7 +52,7 @@ export default function LanguageSelectPicker({ value, onChange }) {
       <div style={{ position: 'relative' }}>
         <input ref={inputRef} className="fi"
           value={open ? query : (value || '')}
-          onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true) }}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => { setQuery(''); setOpen(true) }}
           onKeyDown={e => {
             if (e.key === 'Escape') setOpen(false)
