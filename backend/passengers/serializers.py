@@ -94,6 +94,9 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
     def get_display_name(self, obj):
         if obj.label:
             return obj.label
+        # Carteira profissional: mostra "OAB — Nº 12345" em vez do tipo genérico
+        if obj.doc_type == 'prof_card' and obj.doc_number:
+            return f"{obj.doc_number} — {obj.issued_by}" if obj.issued_by else obj.doc_number
         base = self.get_doc_type_label(obj)
         if obj.issued_by:
             return f"{base} — {obj.issued_by}"

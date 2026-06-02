@@ -485,6 +485,13 @@ class DocTypeViewSet(viewsets.ModelViewSet):
                {'key':'issued_date','label':'Data da vacinação','field_type':'date','required':False,'order':2},
                {'key':'expiry_date','label':'Data de validade','field_type':'date','required':False,'order':3},
              ]},
+            {'key':'prof_card',  'label':'Carteira Profissional',     'icon':'🪪','color':'#7c3aed','order':8,
+             'fields':[
+               {'key':'doc_number',  'label':'Nome da carteira','field_type':'prof_card','required':True, 'order':1},
+               {'key':'issued_by',   'label':'Número / Registro','field_type':'text',    'required':True, 'order':2},
+               {'key':'issued_date', 'label':'Data de emissão',  'field_type':'date',    'required':False,'order':3},
+               {'key':'expiry_date', 'label':'Data de validade', 'field_type':'date',    'required':False,'order':4},
+             ]},
             {'key':'other',      'label':'Outro documento',           'icon':'📎','color':'#475569','order':99,
              'fields':[
                {'key':'doc_number','label':'Número do documento','field_type':'text','required':False,'order':1},
