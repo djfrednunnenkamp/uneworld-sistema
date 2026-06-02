@@ -446,14 +446,16 @@ function PassengersTab({ listId, listType }) {
     load()
   }
 
-  // Agrupar por acomodação
+  // Agrupar por acomodação — sem acomodação sempre no topo
+  const UNASSIGNED = '(sem acomodação)'
+  const seen = {}
   const groups = []
-  const seen   = {}
   enrolled.forEach(e => {
-    const key = e.accommodation || '(sem acomodação)'
+    const key = e.accommodation || UNASSIGNED
     if (!seen[key]) { seen[key] = []; groups.push({ key, rows: seen[key] }) }
     seen[key].push(e)
   })
+  groups.sort((a, b) => a.key === UNASSIGNED ? -1 : b.key === UNASSIGNED ? 1 : 0)
 
   // Número sequencial global
   let seq = 0
@@ -493,20 +495,40 @@ function PassengersTab({ listId, listType }) {
           </div>
 
           {/* Grupos por acomodação */}
-          {groups.map(({ key, rows }) => (
+          {groups.map(({ key, rows }) => {
+            const isUnassigned = key === '(sem acomodação)'
+            return (
             <div key={key}>
               {/* Header do grupo */}
-              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 14px', background:'#f1f5f9', borderBottom:'1px solid #e2e8f0', borderTop:'1px solid #e2e8f0' }}>
-                <span style={{ fontSize:12, fontWeight:700, color:'#475569', letterSpacing:'.03em' }}>{key}</span>
-                <span style={{ fontSize:11, color:'#94a3b8' }}>({rows.length} pax)</span>
-                <button type="button"
-                  onClick={() => setEditAccom({ id: rows[0].id, accommodation: rows[0].accommodation || '', bulkKey: key })}
-                  title="Renomear acomodação"
-                  style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:13, padding:0, lineHeight:1 }}
-                  onMouseEnter={e => e.currentTarget.style.color='#1a2d4f'}
-                  onMouseLeave={e => e.currentTarget.style.color='#94a3b8'}>
-                  ✎
-                </button>
+              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px',
+                background: isUnassigned ? '#fffbeb' : '#f1f5f9',
+                borderBottom: `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
+                borderTop:    `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
+              }}>
+                {isUnassigned ? (
+                  <>
+                    <span style={{ fontSize:14 }}>⏳</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#92400e', letterSpacing:'.03em' }}>
+                      Aguardando acomodação
+                    </span>
+                    <span style={{ fontSize:11, background:'#fde68a', color:'#78350f', padding:'1px 7px', borderRadius:20, fontWeight:700 }}>
+                      {rows.length} pax
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#475569', letterSpacing:'.03em' }}>{key}</span>
+                    <span style={{ fontSize:11, color:'#94a3b8' }}>({rows.length} pax)</span>
+                    <button type="button"
+                      onClick={() => setEditAccom({ id: rows[0].id, accommodation: rows[0].accommodation || '', bulkKey: key })}
+                      title="Renomear acomodação"
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:13, padding:0, lineHeight:1 }}
+                      onMouseEnter={e => e.currentTarget.style.color='#1a2d4f'}
+                      onMouseLeave={e => e.currentTarget.style.color='#94a3b8'}>
+                      ✎
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Linhas dos passageiros */}
@@ -577,16 +599,27 @@ function PassengersTab({ listId, listType }) {
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:4 }}>
+                      {isUnassigned ? (
+                        <button type="button"
+                          onClick={() => setEditAccom({ id: e.id, accommodation: '' })}
+                          title="Atribuir acomodação"
+                          style={{ padding:'4px 8px', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}
+                          onMouseEnter={ev => { ev.currentTarget.style.background='#fde68a' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.background='#fffbeb' }}>
+                          🛏 Atribuir
+                        </button>
+                      ) : (
+                        <button type="button"
+                          onClick={() => setEditAccom({ id: e.id, accommodation: e.accommodation || '' })}
+                          title="Editar acomodação"
+                          style={{ padding:'4px 7px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
+                          onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
+                          🛏
+                        </button>
+                      )}
                       <button type="button"
-                        onClick={() => setEditAccom({ id: e.id, accommodation: e.accommodation || '' })}
-                        title="Editar acomodação"
-                        style={{ padding:'4px 7px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
-                        onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
-                        🛏
-                      </button>
-                      <button type="button"
-                        onClick={() => setConfirm({ id:e.id, name:e.passenger_name })}
+                        onClick={() => setConfirm({ id:e.id, name: e.passenger_name || e.block_agency })}
                         title="Remover"
                         style={{ padding:'4px 7px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
                         onMouseEnter={ev => { ev.currentTarget.style.background='#fee2e2'; ev.currentTarget.style.color='#dc2626'; ev.currentTarget.style.borderColor='#fecaca' }}
@@ -598,7 +631,7 @@ function PassengersTab({ listId, listType }) {
                 )
               })}
             </div>
-          ))}
+          )})}
         </div>
       )}
 
