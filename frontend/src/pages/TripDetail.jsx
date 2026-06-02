@@ -38,11 +38,10 @@ const STATUS_DOT = {
   cancelado:  { bg:'#dc2626', title:'Cancelado'  },
 }
 
-/* ── Picker de acomodação — combobox simples ── */
-// onSelect: chamado ao ESCOLHER uma opção (clique ou Enter)
-// onChange: chamado ao DIGITAR (atualiza o valor do input)
-function AccomPicker({ value, onChange, onSelect, existingRooms = [] }) {
+/* ── Picker de acomodação — busca em tempo real com nomes dos hóspedes ── */
+function AccomPicker({ onSelect, existingRooms = [], enrolledList = [] }) {
   const [types,   setTypes]   = useState([])
+  const [query,   setQuery]   = useState('')
   const [open,    setOpen]    = useState(false)
   const [cursor,  setCursor]  = useState(-1)
   const [dropPos, setDropPos] = useState({})
@@ -52,22 +51,41 @@ function AccomPicker({ value, onChange, onSelect, existingRooms = [] }) {
     configApi.accommodations().then(r => setTypes(r.data.results ?? r.data)).catch(() => {})
   }, [])
 
-  // Para cada tipo que bate com o texto digitado, monta opções de quartos
+  // Mapa: roomName → lista de nomes dos passageiros
+  const roomPeople = {}
+  enrolledList.forEach(e => {
+    if (!e.accommodation) return
+    if (!roomPeople[e.accommodation]) roomPeople[e.accommodation] = []
+    if (e.passenger_name) roomPeople[e.accommodation].push(e.passenger_name)
+    else if (e.block_agency) roomPeople[e.accommodation].push(`[${e.block_agency}]`)
+  })
+
+  const q = query.toLowerCase()
+
   const opts = (() => {
-    const q = (value || '').toLowerCase()
     const result = []
+    const existingRoomNames = [...new Set(existingRooms)].sort()
+
+    // Quartos existentes que batem com a busca
+    existingRoomNames.forEach(room => {
+      const people = roomPeople[room] || []
+      const matchesRoom   = !q || room.toLowerCase().includes(q)
+      const matchesPeople = people.some(p => p.toLowerCase().includes(q))
+      if (matchesRoom || matchesPeople) {
+        result.push({ kind:'room', room, people })
+      }
+    })
+
+    // Opções de "novo quarto" para cada tipo que bate
     types.forEach(t => {
       if (!q || t.name.toLowerCase().includes(q)) {
-        // Quartos existentes desse tipo
-        const rooms = [...new Set(existingRooms.filter(r => r === t.name || r.startsWith(t.name + ' ')))].sort()
-        rooms.forEach(r => result.push({ label: r, type: t, isNew: false }))
-        // Próximo quarto novo
-        let next = t.name + ' 1'
+        const roomsOfType = existingRoomNames.filter(r => r === t.name || r.startsWith(t.name + ' '))
+        let next = `${t.name} 1`
         for (let n = 1; n <= 99; n++) {
           const c = `${t.name} ${n}`
-          if (!rooms.includes(c)) { next = c; break }
+          if (!roomsOfType.includes(c)) { next = c; break }
         }
-        result.push({ label: `+ Novo quarto ${t.name}`, value: next, type: t, isNew: true })
+        result.push({ kind:'new', room: next, type: t })
       }
     })
     return result
@@ -82,51 +100,64 @@ function AccomPicker({ value, onChange, onSelect, existingRooms = [] }) {
   }
 
   const pick = (opt) => {
-    const chosen = opt.isNew ? opt.value : opt.label
-    onChange(chosen)
-    if (onSelect) onSelect(chosen)   // só chama onSelect ao escolher, nunca ao digitar
-    setOpen(false); setCursor(-1)
+    if (onSelect) onSelect(opt.room)
+    setQuery(''); setOpen(false); setCursor(-1)
   }
 
   const handleKey = (e) => {
-    if (!open) { if (e.key === 'ArrowDown') openDrop(); return }
+    if (!open) { if (e.key === 'ArrowDown') { openDrop(); return } }
     if (e.key === 'ArrowDown') { e.preventDefault(); setCursor(c => Math.min(c+1, opts.length-1)) }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor(c => Math.max(c-1, -1)) }
-    else if (e.key === 'Enter') { e.preventDefault(); if (cursor >= 0 && opts[cursor]) pick(opts[cursor]); else setOpen(false) }
-    else if (e.key === 'Escape') setOpen(false)
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor(c => Math.max(c-1, 0)) }
+    else if (e.key === 'Enter') { e.preventDefault(); if (cursor >= 0 && opts[cursor]) pick(opts[cursor]) }
+    else if (e.key === 'Escape') { setOpen(false); setQuery('') }
   }
 
   return (
     <div style={{ position:'relative' }}>
       <input ref={inputRef}
-        value={value}
-        onChange={e => { onChange(e.target.value); setCursor(-1) }}
+        value={query}
+        onChange={e => { setQuery(e.target.value); setCursor(-1); if (!open) openDrop() }}
         onFocus={openDrop}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onBlur={() => setTimeout(() => { setOpen(false); setQuery('') }, 160)}
         onKeyDown={handleKey}
         autoComplete="new-password"
-        placeholder="Digite o tipo de acomodação…"
+        placeholder="Buscar acomodação…"
         style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
         onFocus2={e => e.target.style.borderColor='#1a2d4f'}
       />
       {open && opts.length > 0 && (
-        <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:260, overflowY:'auto' }}>
-          {opts.map((opt, i) => (
-            <div key={i}
-              onMouseDown={() => pick(opt)}
-              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: i===cursor ? '#eff6ff' : 'transparent' }}
-              onMouseEnter={() => setCursor(i)} onMouseLeave={() => setCursor(-1)}>
-              <span style={{ fontSize:13, color: opt.isNew ? '#2e6db4' : i===cursor ? '#1a2d4f' : '#1e293b', fontWeight: opt.isNew || i===cursor ? 600 : 400 }}>
-                {opt.label}
-              </span>
-              <div style={{ display:'flex', gap:5, flexShrink:0 }}>
-                <span style={{ fontSize:11, color:'#94a3b8', background:'#f1f5f9', padding:'1px 7px', borderRadius:20 }}>
-                  {opt.type.capacity}p
-                </span>
-                {opt.type.is_couple && <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:10 }}>casal</span>}
+        <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:300, overflowY:'auto' }}>
+          {opts.map((opt, i) => {
+            const isSel = i === cursor
+            return (
+              <div key={i} onMouseDown={() => pick(opt)}
+                style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: isSel ? '#eff6ff' : 'transparent' }}
+                onMouseEnter={() => setCursor(i)} onMouseLeave={() => setCursor(-1)}>
+                {opt.kind === 'room' ? (
+                  <div>
+                    <p style={{ margin:0, fontSize:13, fontWeight: isSel ? 600 : 500, color: isSel ? '#1a2d4f' : '#1e293b' }}>
+                      {opt.room}
+                    </p>
+                    {opt.people.length > 0 && (
+                      <p style={{ margin:'2px 0 0', fontSize:11, color:'#64748b' }}>
+                        {opt.people.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span style={{ fontSize:13, color:'#2e6db4', fontWeight:600 }}>
+                      + Novo quarto — {opt.room}
+                    </span>
+                    <div style={{ display:'flex', gap:4 }}>
+                      <span style={{ fontSize:11, color:'#94a3b8', background:'#f1f5f9', padding:'1px 7px', borderRadius:20 }}>{opt.type.capacity}p</span>
+                      {opt.type.is_couple && <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:10 }}>casal</span>}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -991,8 +1022,13 @@ function PassengersTab({ listId, listType }) {
             </div>
             <div style={{ padding:'18px 22px' }}>
               <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Acomodação</label>
-              <AccomPicker value={bulkAccom} onChange={setBulkAccom}
-                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)} />
+              <AccomPicker
+                onSelect={v => setBulkAccom(v)}
+                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)}
+                enrolledList={enrolled} />
+              {bulkAccom && (
+                <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {bulkAccom} selecionado</p>
+              )}
             </div>
             <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button onClick={() => setShowBulkRoom(false)} style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
@@ -1030,7 +1066,7 @@ function PassengersTab({ listId, listType }) {
 
               {/* Picker (topo) — onSelect só é chamado ao escolher uma opção */}
               <div style={{ padding:'14px 22px 12px', borderBottom:'1px solid #f1f5f9', flexShrink:0 }}>
-                <AccomPicker value={''} onChange={() => {}} onSelect={moveToRoom} existingRooms={allRooms} />
+                <AccomPicker onSelect={moveToRoom} existingRooms={allRooms} enrolledList={enrolled} />
               </div>
 
               {/* Lista de quartos existentes */}
@@ -1112,8 +1148,13 @@ function PassengersTab({ listId, listType }) {
               <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Acomodação</span>
             </div>
             <div style={{ padding:'16px 20px' }}>
-              <AccomPicker value={editAccom.accommodation} onChange={v => setEditAccom(ea => ({ ...ea, accommodation: v }))}
-                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)} />
+              <AccomPicker
+                onSelect={v => setEditAccom(ea => ({ ...ea, accommodation: v }))}
+                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)}
+                enrolledList={enrolled} />
+              {editAccom.accommodation && (
+                <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {editAccom.accommodation}</p>
+              )}
             </div>
             <div style={{ padding:'0 20px 16px', display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button type="button" onClick={() => setEditAccom(null)}
