@@ -9,11 +9,7 @@ def secure_upload_path(instance, filename):
 
 
 class Passenger(models.Model):
-    GENDER_CHOICES = [
-        ('M', 'Masculino'),
-        ('F', 'Feminino'),
-        ('O', 'Outro'),
-    ]
+    GENDER_CHOICES = []  # sem choices — aceita qualquer valor da lista de gêneros configurável
     STATUS_CHOICES = [
         ('active',   'Ativo'),
         ('inactive', 'Inativo'),
@@ -44,7 +40,7 @@ class Passenger(models.Model):
     birth_place = models.CharField('Local de nascimento', max_length=200, blank=True)
     nationality        = models.CharField('Nacionalidade principal', max_length=100, default='BRASILEIRA', blank=True)
     other_nationalities= models.TextField('Outras nacionalidades', blank=True)
-    gender      = models.CharField('Gênero', max_length=1, choices=GENDER_CHOICES, blank=True)
+    gender      = models.CharField('Gênero', max_length=100, blank=True)  # armazena nome completo (ex: "Feminino")
     profession  = models.CharField('Profissão', max_length=200, blank=True)
     is_foreign  = models.BooleanField('Estrangeiro', default=False)
     is_verified = models.BooleanField('Cadastro verificado', default=False)

@@ -891,9 +891,8 @@ export default function PassengerDetail() {
     setFieldErrors({})
     setSaving(true)
     try {
-      const genderValue = form.gender === 'O' ? (form.gender_custom?.trim() || 'O') : form.gender
       const { gender_custom, full_name, ...rest } = form  // full_name calculado pelo backend
-      const payload = { ...rest, gender: genderValue }
+      const payload = { ...rest }
       // Datas vazias → null
       DATE_FIELDS.forEach(k => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null })
       if (isNew) {
