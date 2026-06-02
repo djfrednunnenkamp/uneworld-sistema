@@ -224,17 +224,28 @@ function AgencyUsersTab({ agencyId }) {
                   <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{m.full_name || m.email}</p>
                   <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{m.email}</p>
                 </div>
-                {/* Badges */}
+                {/* Badges — só mostra Admin e Inativo se relevante */}
                 <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                   {m.is_staff && pill('#eff6ff','#2563eb','Admin')}
                   {!m.is_active && pill('#fee2e2','#dc2626','Inativo')}
-                  {pill('#f0fdf4','#16a34a', ROLE_OPTS.find(r => r.value === m.role)?.label || m.role)}
                 </div>
-                {/* Remover */}
-                <button onClick={() => setConfirm({ id: m.id, name: m.full_name || m.email })}
-                  style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', color:'#dc2626', fontSize:12, padding:'4px 10px', fontFamily:'inherit', flexShrink:0 }}>
-                  Remover
-                </button>
+                {/* Ações */}
+                <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                  <button title="Editar"
+                    onClick={() => {/* edição futura */}}
+                    style={{ width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', transition:'all .12s' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b' }}>
+                    <Ic n="edit" s={13} />
+                  </button>
+                  <button title="Remover"
+                    onClick={() => setConfirm({ id: m.id, name: m.full_name || m.email })}
+                    style={{ width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer', transition:'all .12s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background='#fee2e2'; e.currentTarget.style.color='#dc2626'; e.currentTarget.style.borderColor='#fecaca' }}
+                    onMouseLeave={e => { e.currentTarget.style.background='#fff'; e.currentTarget.style.color='#94a3b8'; e.currentTarget.style.borderColor='#e2e8f0' }}>
+                    <Ic n="trash" s={13} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
