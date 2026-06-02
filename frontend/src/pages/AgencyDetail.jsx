@@ -38,7 +38,7 @@ const PIX_TYPE_OPTS = [
 
 const EMPTY = {
   agency_type: 'agencia', person_type: 'juridica', status: 'active',
-  cnpj: '', cpf: '', company_name: '', name: '', state_registration: '', municipal_registration: '',
+  cnpj: '', cpf: '', company_name: '', name: '', last_name: '', state_registration: '', municipal_registration: '',
   responsible: '', phone: '', mobile: '', email: '', website: '',
   commission_rate: '', cep: '', street: '', number: '', complement: '',
   neighborhood: '', city: '', state: '', country: 'Brasil',
@@ -219,6 +219,7 @@ export default function AgencyDetail() {
     cpf:             'CPF',
     company_name:    'Razão social',
     name:            'Nome',
+    last_name:       'Sobrenome',
     email:           'E-mail',
     phone:           'Telefone',
     commission_rate: 'Comissão',
@@ -229,6 +230,7 @@ export default function AgencyDetail() {
     if (isFisica) {
       if (!form.cpf?.replace(/\D/g,''))    errs.cpf          = true
       if (!form.name?.trim())              errs.name         = true
+      if (!form.last_name?.trim())         errs.last_name    = true
     } else {
       if (!form.cnpj?.replace(/\D/g,''))   errs.cnpj         = true
       if (!form.company_name?.trim())      errs.company_name = true
@@ -297,7 +299,10 @@ export default function AgencyDetail() {
       <div className="ph">
         <div>
           <h1 className="ph-title" style={{ marginBottom: 2 }}>
-            {(form.company_name || form.name)?.trim() || (isNew ? 'Nova agência' : 'Agência')}
+            {isFisica
+              ? (`${form.name || ''} ${form.last_name || ''}`).trim() || (isNew ? 'Nova agência' : 'Agência')
+              : (form.company_name || form.name)?.trim() || (isNew ? 'Nova agência' : 'Agência')
+            }
           </h1>
           {!isNew && <button className="link-btn" onClick={() => navigate('/agencias')} style={{ fontSize: 12, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>editar</button>}
         </div>
@@ -396,9 +401,12 @@ export default function AgencyDetail() {
             </div>
           </F>
 
-          {/* Jurídica: Razão social + Nome fantasia | Física: só Nome */}
+          {/* Jurídica: Razão social + Nome fantasia | Física: Nome + Sobrenome */}
           {isFisica ? (
-            <F label="Nome *" col={2}>{fi('name', 'Nome completo')}</F>
+            <>
+              <F label="Nome *">{fi('name', 'Primeiro nome')}</F>
+              <F label="Sobrenome *">{fi('last_name', 'Sobrenome')}</F>
+            </>
           ) : (
             <>
               <F label="Razão social *">{fi('company_name')}</F>
