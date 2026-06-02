@@ -350,6 +350,14 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
                 placeholder="Ex: SUÍÇA MARAVILHOSA C/TREM GLACIER EXPRESS…" />
             </div>
 
+            {/* Roteiros */}
+            <div>
+              <label style={lbl}>Roteiros</label>
+              <MultiPicker label="Roteiro" selected={form.roteiros} options={roteiros}
+                onToggle={id => toggleItem('roteiros', id)}
+                onCreate={handleAddRoteiro} onDelete={handleDelRoteiro} />
+            </div>
+
             {/* Tipo + Categoria */}
             <div style={row2}>
               <div>
@@ -392,14 +400,6 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
               <MultiPicker label="Adicional" selected={form.additionals} options={additionals}
                 onToggle={id => toggleItem('additionals', id)}
                 onCreate={handleAddAdditional} onDelete={handleDelAdditional} />
-            </div>
-
-            {/* Roteiros */}
-            <div>
-              <label style={lbl}>Roteiros</label>
-              <MultiPicker label="Roteiro" selected={form.roteiros} options={roteiros}
-                onToggle={id => toggleItem('roteiros', id)}
-                onCreate={handleAddRoteiro} onDelete={handleDelRoteiro} />
             </div>
 
             {/* Documento requerido */}
