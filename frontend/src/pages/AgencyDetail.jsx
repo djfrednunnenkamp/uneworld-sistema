@@ -268,7 +268,7 @@ export default function AgencyDetail() {
       <div className="ph">
         <div>
           <h1 className="ph-title" style={{ marginBottom: 2 }}>
-            {isNew ? 'Nova agência' : (form.company_name || form.name || 'Agência')}
+            {(form.company_name || form.name)?.trim() || (isNew ? 'Nova agência' : 'Agência')}
           </h1>
           {!isNew && <button className="link-btn" onClick={() => navigate('/agencias')} style={{ fontSize: 12, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>editar</button>}
         </div>
