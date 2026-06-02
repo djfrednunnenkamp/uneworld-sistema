@@ -527,9 +527,13 @@ function PassengersTab({ listId, listType }) {
   const [enrolled,   setEnrolled]   = useState([])
   const [loading,    setLoading]    = useState(true)
   const [showAdd,    setShowAdd]    = useState(false)
-  const [confirm,    setConfirm]    = useState(null)
-  const [editAccom,  setEditAccom]  = useState(null)
-  const [assignBlk,  setAssignBlk]  = useState(null) // enrollment de bloco a atribuir
+  const [confirm,      setConfirm]      = useState(null)
+  const [editAccom,    setEditAccom]    = useState(null)
+  const [assignBlk,    setAssignBlk]    = useState(null)
+  const [selected,     setSelected]     = useState(new Set())
+  const [bulkAccom,    setBulkAccom]    = useState('')
+  const [showBulkRoom, setShowBulkRoom] = useState(false)
+  const [bulkSaving,   setBulkSaving]   = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -540,6 +544,31 @@ function PassengersTab({ listId, listType }) {
   }, [listId])
 
   useEffect(() => { load() }, [load])
+
+  const toggleSelect  = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
+  const clearSelect   = ()   => setSelected(new Set())
+
+  const bulkDelete = async () => {
+    setBulkSaving(true)
+    try {
+      await Promise.all([...selected].map(eid => listsApi.removePassenger(listId, eid)))
+      toast.success(`${selected.size} removido${selected.size > 1 ? 's' : ''}.`)
+      clearSelect(); load()
+    } catch { toast.error('Erro ao remover selecionados.') }
+    finally { setBulkSaving(false) }
+  }
+
+  const bulkAssignRoom = async () => {
+    if (!bulkAccom.trim()) return
+    setBulkSaving(true)
+    try {
+      await Promise.all([...selected].map(eid => listsApi.updatePassenger(listId, eid, { accommodation: bulkAccom.trim() })))
+      toast.success(`Acomodação atribuída a ${selected.size} passageiro${selected.size > 1 ? 's' : ''}.`)
+      setShowBulkRoom(false); setBulkAccom(''); clearSelect(); load()
+    } catch { toast.error('Erro ao atribuir acomodação.') }
+    finally { setBulkSaving(false) }
+  }
 
   const remove = async (eid, name) => {
     await listsApi.removePassenger(listId, eid).catch(() => toast.error('Erro ao remover.'))
@@ -577,10 +606,12 @@ function PassengersTab({ listId, listType }) {
 
   const isAereo = listType === 'aereo'
 
+  const allSelected = enrolled.length > 0 && selected.size === enrolled.length
+
   return (
     <div>
       {/* Toolbar */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: selected.size > 0 ? 8 : 16 }}>
         <span style={{ fontSize:14, fontWeight:600, color:'#1e293b' }}>
           {enrolled.length} passageiro{enrolled.length !== 1 ? 's' : ''}
         </span>
@@ -589,6 +620,27 @@ function PassengersTab({ listId, listType }) {
           + Adicionar passageiro
         </button>
       </div>
+
+      {/* Barra de ações em massa */}
+      {selected.size > 0 && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', marginBottom:12, background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:10 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
+            {selected.size} selecionado{selected.size > 1 ? 's' : ''}
+          </span>
+          <button type="button" onClick={() => setShowBulkRoom(true)} disabled={bulkSaving}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            🛏 Atribuir acomodação
+          </button>
+          <button type="button" onClick={bulkDelete} disabled={bulkSaving}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            <Ic n="trash" s={12} /> Apagar selecionados
+          </button>
+          <button type="button" onClick={clearSelect}
+            style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign:'center', padding:'48px 0', color:'#94a3b8' }}>Carregando…</div>
@@ -601,7 +653,12 @@ function PassengersTab({ listId, listType }) {
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+            {/* Checkbox select-all */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                style={{ width:15, height:15, cursor:'pointer', accentColor:'#1a2d4f' }} />
+            </div>
             {[
               {h:'Nº',        align:'center'},
               {h:'●',         align:'center'},
@@ -667,9 +724,15 @@ function PassengersTab({ listId, listType }) {
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
+
+                    {/* Checkbox */}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleSelect(e.id)}
+                        style={{ width:15, height:15, cursor:'pointer', accentColor:'#1a2d4f' }} />
+                    </div>
 
                     {/* Nº */}
                     <span style={{ textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8' }}>{seqMap[e.id]}</span>
@@ -769,6 +832,37 @@ function PassengersTab({ listId, listType }) {
               })}
             </div>
           )})}
+        </div>
+      )}
+
+      {/* Popup acomodação em massa */}
+      {showBulkRoom && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
+          onMouseDown={e => { if (e.target === e.currentTarget) setShowBulkRoom(false) }}>
+          <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:400, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+            <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div>
+                <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Atribuir acomodação</p>
+                <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{selected.size} passageiro{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}</p>
+              </div>
+              <button onClick={() => setShowBulkRoom(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+            </div>
+            <div style={{ padding:'18px 22px' }}>
+              <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Nome da acomodação</label>
+              <input value={bulkAccom} onChange={e => setBulkAccom(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && bulkAssignRoom()}
+                autoFocus
+                placeholder="Ex: Apto. Duplo Twin, Quarto 101…"
+                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #1a2d4f', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }} />
+            </div>
+            <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button onClick={() => setShowBulkRoom(false)} style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
+              <button onClick={bulkAssignRoom} disabled={!bulkAccom.trim() || bulkSaving}
+                style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !bulkAccom.trim()||bulkSaving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !bulkAccom.trim()||bulkSaving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+                {bulkSaving ? 'Atribuindo…' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
