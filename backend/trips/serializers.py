@@ -71,7 +71,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'start_date_br', 'end_date_br',
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
-            'required_documents', 'status', 'notes',
+            'required_documents', 'status', 'roteiro', 'notes',
             'enrolled_count', 'created_at', 'updated_at',
         ]
 

@@ -175,14 +175,17 @@ export default function TripDetail() {
   const { id }   = useParams()
   const navigate = useNavigate()
 
-  const [list,      setList]      = useState(null)
-  const [loading,   setLoading]   = useState(true)
-  const [showEdit,  setShowEdit]  = useState(false)
+  const [list,        setList]        = useState(null)
+  const [loading,     setLoading]     = useState(true)
+  const [showEdit,    setShowEdit]    = useState(false)
+  const [roteiro,     setRoteiro]     = useState('')
+  const [savingRot,   setSavingRot]   = useState(false)
+  const [dirtyRot,    setDirtyRot]    = useState(false)
   const [tab, setTab] = usePersistedTab('tab_list_detail', 'passengers')
 
   const load = useCallback(() => {
     listsApi.get(id)
-      .then(r => setList(r.data))
+      .then(r => { setList(r.data); setRoteiro(r.data.roteiro || '') })
       .catch(() => { toast.error('Lista de passageiros não encontrada.'); navigate('/viagens') })
       .finally(() => setLoading(false))
   }, [id])
@@ -193,6 +196,16 @@ export default function TripDetail() {
     setList(data)
     setShowEdit(false)
     toast.success('Lista de passageiros atualizada.')
+  }
+
+  const handleSaveRoteiro = async () => {
+    setSavingRot(true)
+    try {
+      await listsApi.update(id, { roteiro })
+      setDirtyRot(false)
+      toast.success('Roteiro salvo.')
+    } catch { toast.error('Erro ao salvar roteiro.') }
+    finally { setSavingRot(false) }
   }
 
   if (loading) return (
@@ -206,7 +219,7 @@ export default function TripDetail() {
 
   const TABS = [
     { key:'passengers', label:'Passageiros' },
-    // novas abas serão adicionadas aqui futuramente
+    { key:'roteiro',    label:'Roteiro'     },
   ]
 
   return (
@@ -269,6 +282,53 @@ export default function TripDetail() {
 
       {/* Conteúdo das abas */}
       {tab === 'passengers' && <PassengersTab listId={id} />}
+
+      {tab === 'roteiro' && (
+        <div className="det-card">
+          <div className="section">
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <div>
+                <div className="section-title" style={{ marginBottom:2 }}>Roteiro da lista</div>
+                <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>
+                  Descreva o roteiro desta lista de passageiros — dias, destinos, atividades, etc.
+                </p>
+              </div>
+              {dirtyRot && (
+                <button type="button" onClick={handleSaveRoteiro} disabled={savingRot}
+                  style={{ padding:'8px 20px', borderRadius:8, border:'none', background: savingRot ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: savingRot ? 'default' : 'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                  {savingRot ? 'Salvando…' : 'Salvar roteiro'}
+                </button>
+              )}
+            </div>
+
+            <textarea
+              value={roteiro}
+              onChange={e => { setRoteiro(e.target.value); setDirtyRot(true) }}
+              placeholder={'Dia 1 — Chegada em…\nDia 2 — Visita a…\n\nDescreva aqui o roteiro completo da viagem.'}
+              rows={18}
+              style={{
+                width:'100%', boxSizing:'border-box',
+                padding:'14px 16px',
+                border:'1.5px solid #e2e8f0', borderRadius:10,
+                fontSize:14, lineHeight:1.7, fontFamily:'inherit',
+                color:'#1e293b', resize:'vertical', outline:'none',
+                background:'#fafbfc',
+              }}
+              onFocus={e => e.target.style.borderColor='#1a2d4f'}
+              onBlur={e => e.target.style.borderColor='#e2e8f0'}
+            />
+
+            {dirtyRot && (
+              <div style={{ marginTop:10, display:'flex', justifyContent:'flex-end' }}>
+                <button type="button" onClick={handleSaveRoteiro} disabled={savingRot}
+                  style={{ padding:'8px 20px', borderRadius:8, border:'none', background: savingRot ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: savingRot ? 'default' : 'pointer', fontFamily:'inherit' }}>
+                  {savingRot ? 'Salvando…' : 'Salvar roteiro'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal de edição */}
       {showEdit && (

@@ -117,6 +117,7 @@ class PassengerList(models.Model):
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     status               = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta')
+    roteiro              = models.TextField('Roteiro', blank=True)
     notes                = models.TextField('Observações', blank=True)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at           = models.DateTimeField('Atualizado em', auto_now=True)
