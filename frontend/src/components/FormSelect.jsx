@@ -28,6 +28,24 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  /* Recalcula posição sempre que a lista filtrada mudar (usuário digitando) */
+  useEffect(() => {
+    if (!open || !inputRef.current) return
+    const rect       = inputRef.current.getBoundingClientRect()
+    const estHeight  = Math.min(filtered.length * 42 + 8, 280)
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    let top
+    if (spaceBelow >= estHeight) {
+      top = rect.bottom + 4
+    } else if (spaceAbove >= estHeight) {
+      top = rect.top - estHeight - 4
+    } else {
+      top = spaceBelow >= spaceAbove ? rect.bottom + 4 : Math.max(8, rect.top - estHeight - 4)
+    }
+    setPos(prev => ({ ...prev, top, left: rect.left, width: rect.width }))
+  }, [open, filtered.length])
+
   /* Scroll automático do item destacado */
   useEffect(() => {
     if (listRef.current && highlighted >= 0)
