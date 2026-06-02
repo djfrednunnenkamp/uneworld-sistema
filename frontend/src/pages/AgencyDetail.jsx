@@ -184,40 +184,40 @@ export default function AgencyDetail() {
       {/* ── Dados do agente ── */}
       <div className="section">
         <div className="section-title">Dados do agente</div>
-        {/* Linha: toggles à esquerda lado a lado + tipos à direita */}
-        <div style={{ display: 'flex', gap: 28, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
-          <div>
-            <label className="fl">Mala direta impressa</label>
-            <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
-          </div>
-          <div>
-            <label className="fl">Dados bancários Andes</label>
-            <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
-          </div>
-          {/* Dois dropdowns no mesmo container para ficarem com largura igual */}
-          <div style={{ display: 'flex', gap: 16, flex: 1, minWidth: 320 }}>
-            <div style={{ flex: 1 }}>
-              <label className="fl">Tipo de cadastro</label>
-              {fs('agency_type',
-                <>
-                  <option value="agencia">Agência</option>
-                  <option value="representante">Representante</option>
-                  <option value="operadora">Operadora</option>
-                  <option value="parceiro">Parceiro</option>
-                  <option value="outro">Outro</option>
-                </>
-              )}
+        {/* grid3 — alinha com todas as linhas abaixo */}
+        <div className="grid3">
+          {/* Col 1: dois toggles lado a lado */}
+          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end' }}>
+            <div>
+              <label className="fl">Mala direta impressa</label>
+              <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label className="fl">Tipo de pessoa</label>
-              {fs('person_type',
-                <>
-                  <option value="juridica">Jurídica</option>
-                  <option value="fisica">Física</option>
-                </>
-              )}
+            <div>
+              <label className="fl">Dados bancários Andes</label>
+              <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
             </div>
           </div>
+          {/* Col 2 */}
+          <F label="Tipo de cadastro">
+            {fs('agency_type',
+              <>
+                <option value="agencia">Agência</option>
+                <option value="representante">Representante</option>
+                <option value="operadora">Operadora</option>
+                <option value="parceiro">Parceiro</option>
+                <option value="outro">Outro</option>
+              </>
+            )}
+          </F>
+          {/* Col 3 */}
+          <F label="Tipo de pessoa">
+            {fs('person_type',
+              <>
+                <option value="juridica">Jurídica</option>
+                <option value="fisica">Física</option>
+              </>
+            )}
+          </F>
         </div>
 
         <div className="grid3">
