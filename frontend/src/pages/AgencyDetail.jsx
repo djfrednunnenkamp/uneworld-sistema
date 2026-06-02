@@ -4,6 +4,8 @@ import axios from 'axios'
 import toast from 'react-hot-toast'
 import { agenciesApi } from '../api'
 import { Ic } from '../components/Icon'
+import PhoneInput from '../components/PhoneInput'
+import CnpjInput from '../components/CnpjInput'
 import usePersistedTab from '../hooks/usePersistedTab'
 
 const EMPTY = {
@@ -245,9 +247,11 @@ export default function AgencyDetail() {
 
         <div className="grid3">
           <F label="CNPJ">
-            <div className="cep-wrap">
-              <input className="fi" value={form.cnpj} onChange={set('cnpj')} placeholder="00.000.000/0000-00" />
-              <button className="cep-btn" onClick={lookupCnpj} disabled={cnpjLoading} title="Buscar dados pelo CNPJ">
+            <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ flex: 1 }}>
+                <CnpjInput value={form.cnpj} onChange={v => { setForm(f => ({ ...f, cnpj: v })); setIsDirty(true) }} />
+              </div>
+              <button className="cep-btn" onClick={lookupCnpj} disabled={cnpjLoading} title="Buscar dados pelo CNPJ" style={{ flexShrink: 0 }}>
                 <Ic n="search" s={13}/>
               </button>
             </div>
@@ -263,8 +267,12 @@ export default function AgencyDetail() {
         </div>
 
         <div className="grid3">
-          <F label="Telefone">{fi('phone', '(00) 0000-0000')}</F>
-          <F label="Celular">{fi('mobile', '(00) 00000-0000')}</F>
+          <F label="Telefone">
+            <PhoneInput value={form.phone} onChange={v => { setForm(f => ({ ...f, phone: v })); setIsDirty(true) }} />
+          </F>
+          <F label="Celular">
+            <PhoneInput value={form.mobile} onChange={v => { setForm(f => ({ ...f, mobile: v })); setIsDirty(true) }} />
+          </F>
           <F label="E-mail">{fi('email', 'email@exemplo.com')}</F>
         </div>
 
