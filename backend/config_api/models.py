@@ -91,10 +91,12 @@ class CustomDocType(models.Model):
 class CustomDocField(models.Model):
     """Campo de um tipo de documento."""
     FIELD_TYPES = [
-        ('text',    'Texto livre'),
-        ('date',    'Data'),
-        ('list',    'Lista suspensa'),
-        ('country', 'País / Estado / Cidade'),
+        ('text',       'Texto livre'),
+        ('date',       'Data'),
+        ('list',       'Lista suspensa'),
+        ('country',    'País / Estado / Cidade'),
+        ('language',   'Idioma'),
+        ('profession', 'Profissão'),
     ]
     doc_type   = models.ForeignKey(CustomDocType, on_delete=models.CASCADE, related_name='fields')
     key        = models.SlugField('Chave', max_length=50)

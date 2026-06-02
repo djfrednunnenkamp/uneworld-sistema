@@ -4,10 +4,12 @@ import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 
 const FIELD_TYPES = [
-  { value: 'text',    label: 'Texto livre',            icon: '📝', desc: 'Input de texto' },
-  { value: 'date',    label: 'Data',                   icon: '📅', desc: 'Calendário com máscara' },
-  { value: 'list',    label: 'Lista suspensa',         icon: '📋', desc: 'Dropdown com opções' },
-  { value: 'country', label: 'País / Estado / Cidade', icon: '🌍', desc: 'Seletor geográfico' },
+  { value: 'text',       label: 'Texto livre',            icon: '📝', desc: 'Input de texto' },
+  { value: 'date',       label: 'Data',                   icon: '📅', desc: 'Calendário com máscara' },
+  { value: 'list',       label: 'Lista suspensa',         icon: '📋', desc: 'Dropdown com opções' },
+  { value: 'country',    label: 'País / Estado / Cidade', icon: '🌍', desc: 'Seletor geográfico' },
+  { value: 'language',   label: 'Idioma',                 icon: '🌐', desc: 'Lista de idiomas cadastrados' },
+  { value: 'profession', label: 'Profissão',              icon: '💼', desc: 'Lista de profissões (CBO)' },
 ]
 
 const COUNTRY_LEVELS = [

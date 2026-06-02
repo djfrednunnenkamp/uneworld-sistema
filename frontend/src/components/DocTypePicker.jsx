@@ -10,6 +10,8 @@ import VaccinePicker from './VaccinePicker'
 import CountryStatePicker from './CountryStatePicker'
 import LocationPicker from './LocationPicker'
 import FormSelect from './FormSelect'
+import ProfessionPicker from './ProfessionPicker'
+import LanguageSelectPicker from './LanguageSelectPicker'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
 const MAX_SIZE_MB   = 15
@@ -25,9 +27,11 @@ function dbFieldToPickerField(f) {
   return {
     key:         f.key,
     label:       f.label,
-    type:        f.field_type === 'country' ? 'country'
-               : f.field_type === 'date'    ? 'date'
-               : f.field_type === 'list'    ? 'list'
+    type:        f.field_type === 'country'    ? 'country'
+               : f.field_type === 'date'       ? 'date'
+               : f.field_type === 'list'       ? 'list'
+               : f.field_type === 'language'   ? 'language'
+               : f.field_type === 'profession' ? 'profession'
                : f.key === 'doc_number' && f.doc_type_key === 'vaccine' ? 'vaccine_name'
                : 'text',
     subtype:     f.subtype || 'country_state_city',
@@ -538,6 +542,14 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                             ) : f.type === 'date' ? (
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
                                 <DatePicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : f.type === 'language' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                <LanguageSelectPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                              </div>
+                            ) : f.type === 'profession' ? (
+                              <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
+                                <ProfessionPicker value={docMeta[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
                               </div>
                             ) : f.type === 'vaccine_name' ? (
                               <div style={hasErr ? { borderRadius: 6, outline: '1.5px solid #dc2626' } : {}}>
