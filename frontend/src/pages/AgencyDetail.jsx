@@ -171,7 +171,8 @@ function AgencyUsersTab({ agencyId }) {
   const load = useCallback(() => {
     setLoading(true)
     agenciesApi.listMembers(agencyId)
-      .then(r => setMembers(r.data)).catch(() => {})
+      .then(r => setMembers(r.data))
+      .catch(err => toast.error('Erro ao carregar usuários: ' + (err.response?.status || err.message)))
       .finally(() => setLoading(false))
   }, [agencyId])
 

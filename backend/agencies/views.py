@@ -33,29 +33,31 @@ class AgencyViewSet(viewsets.ModelViewSet):
 
     # ── Membros ──────────────────────────────────────────────────────────────
 
-    @action(detail=True, methods=['get'], url_path='members',
+    @action(detail=True, methods=['get', 'post'], url_path='members',
             permission_classes=[IsAuthenticated])
-    def list_members(self, request, pk=None):
-        agency  = self.get_object()
-        members = agency.members.select_related('user').all()
-        return Response([{
-            'id':         m.id,
-            'user_id':    m.user.id,
-            'email':      m.user.email,
-            'first_name': m.user.first_name,
-            'last_name':  m.user.last_name,
-            'full_name':  f'{m.user.first_name} {m.user.last_name}'.strip() or m.user.email,
-            'is_staff':   m.user.is_staff,
-            'is_active':  m.user.is_active,
-            'role':       m.role,
-            'added_at':   m.added_at,
-        } for m in members])
+    def members(self, request, pk=None):
+        """GET: lista membros. POST: adiciona membro."""
+        agency = self.get_object()
 
-    @action(detail=True, methods=['post'], url_path='members',
-            permission_classes=[IsAuthenticated])
-    def add_member(self, request, pk=None):
-        """Adiciona usuário existente à agência pelo e-mail ou user_id."""
-        agency  = self.get_object()
+        if request.method == 'GET':
+            members = agency.members.select_related('user').all()
+            return Response([{
+                'id':         m.id,
+                'user_id':    m.user.id,
+                'email':      m.user.email,
+                'first_name': m.user.first_name,
+                'last_name':  m.user.last_name,
+                'full_name':  f'{m.user.first_name} {m.user.last_name}'.strip() or m.user.email,
+                'is_staff':   m.user.is_staff,
+                'is_active':  m.user.is_active,
+                'role':       m.role,
+                'added_at':   m.added_at,
+            } for m in members])
+
+        # POST — adiciona membro por user_id ou email
+        return self._add_member(request, agency)
+
+    def _add_member(self, request, agency):
         role    = request.data.get('role', 'operator')
         user_id = request.data.get('user_id')
         email   = request.data.get('email', '').strip().lower()
