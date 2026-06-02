@@ -44,7 +44,22 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…', co
     e.preventDefault()
     if (open) { setOpen(false); return }
     const rect = triggerRef.current?.getBoundingClientRect()
-    if (rect) setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    if (rect) {
+      const estHeight  = Math.min(options.length * 42 + 8, 280)
+      const spaceBelow = window.innerHeight - rect.bottom - 8
+      const spaceAbove = rect.top - 8
+      let top
+      if (spaceBelow >= estHeight) {
+        top = rect.bottom + 4                          // cabe abaixo → abre pra baixo
+      } else if (spaceAbove >= estHeight) {
+        top = rect.top - estHeight - 4                // cabe acima → abre pra cima
+      } else if (spaceBelow >= spaceAbove) {
+        top = rect.bottom + 4                         // mais espaço abaixo → com scroll
+      } else {
+        top = Math.max(8, rect.top - estHeight - 4)  // mais espaço acima → com scroll
+      }
+      setPos({ top, left: rect.left, width: rect.width })
+    }
     setOpen(true)
   }
 
@@ -83,7 +98,8 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…', co
           left:  pos.left,
           width: Math.max(pos.width, 220),
           background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 8,
-          boxShadow: '0 8px 32px rgba(0,0,0,.18)', zIndex: 9999, overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,.18)', zIndex: 9999,
+          maxHeight: 280, overflowY: 'auto',
         }}>
           {options.map(opt => {
             const isActive = opt.value === value
