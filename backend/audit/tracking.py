@@ -28,6 +28,7 @@ TRACKED_MODELS = {
 SKIP_FIELDS = {
     'password', 'last_login', 'file', 'original_name',
     'file_size', 'mime_type', 'preview_url', 'download_url',
+    'updated_at', 'created_at',  # campos meta — sempre mudam, geram ruído
 }
 
 # Rótulos amigáveis de campos comuns

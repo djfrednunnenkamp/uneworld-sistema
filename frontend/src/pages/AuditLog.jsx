@@ -92,6 +92,28 @@ function FDrop({ label, value, onChange, options }) {
   )
 }
 
+/* Formata valores ISO de data/hora para formato legível */
+function fmtVal(val) {
+  if (val === null || val === undefined) return '—'
+  const s = String(val)
+  // Detecta ISO datetime: 2026-06-02T02:00:33... ou 2026-06-02T...+00:00
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) {
+    try {
+      const d = new Date(s)
+      return d.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      })
+    } catch { return s }
+  }
+  // Detecta ISO date: 2026-06-02
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-')
+    return `${d}/${m}/${y}`
+  }
+  return s
+}
+
 /* ── Popup de detalhe de um evento ── */
 function LogDetailPopup({ entry, onClose }) {
   const style = ACTION_STYLE[entry.action] ?? ACTION_STYLE.update
@@ -150,16 +172,16 @@ function LogDetailPopup({ entry, onClose }) {
                         {val.antes !== null && val.antes !== '' && val.antes !== undefined && (
                           <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                             <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>antes</span>
-                            <span style={{ fontSize: 13, color: '#dc2626', textDecoration: 'line-through', wordBreak: 'break-word', opacity: .8 }}>{String(val.antes)}</span>
+                            <span style={{ fontSize: 13, color: '#dc2626', textDecoration: 'line-through', wordBreak: 'break-word', opacity: .8 }}>{fmtVal(val.antes)}</span>
                           </div>
                         )}
                         <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '2px 6px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>depois</span>
-                          <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600, wordBreak: 'break-word' }}>{String(val.depois ?? '—')}</span>
+                          <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600, wordBreak: 'break-word' }}>{fmtVal(val.depois)}</span>
                         </div>
                       </div>
                     ) : (
-                      <span style={{ fontSize: 13, color: '#1e293b', wordBreak: 'break-word' }}>{String(val ?? '—')}</span>
+                      <span style={{ fontSize: 13, color: '#1e293b', wordBreak: 'break-word' }}>{fmtVal(val)}</span>
                     )}
                   </div>
                 )
