@@ -81,7 +81,7 @@ const ROLE_OPTS = [
 
 /* ── Popup de novo usuário da agência ── */
 function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
-  const [form,   setForm]   = useState({ email:'', first_name:'', last_name:'', role:'operator' })
+  const [form,   setForm]   = useState({ email:'', first_name:'', last_name:'' })
   const [saving, setSaving] = useState(false)
 
   const lbl = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
@@ -101,7 +101,7 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
       })
       const userId = r.data.id
       // Vincula à agência
-      await agenciesApi.addMember(agencyId, form.email.trim().toLowerCase(), form.role)
+      await agenciesApi.addMember(agencyId, form.email.trim().toLowerCase(), 'operator')
       // Envia convite por e-mail
       await usersApi.sendInvite(userId).catch(() => {})
       toast.success(`${form.first_name || form.email} adicionado e convite enviado.`)
@@ -138,10 +138,6 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
               <input value={form.last_name} onChange={set('last_name')} placeholder="Sobrenome"
                 style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
             </div>
-          </div>
-          <div>
-            <label style={lbl}>Função</label>
-            <FormSelect value={form.role} onChange={v => setForm(f => ({ ...f, role: v }))} options={ROLE_OPTS} />
           </div>
           <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>
             Um e-mail de convite será enviado automaticamente para o usuário definir sua senha.
