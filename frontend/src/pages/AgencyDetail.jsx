@@ -532,7 +532,8 @@ export default function AgencyDetail() {
                   aleatorio: '',
                 }
                 const key = autoFill[v] ?? ''
-                setForm(f => ({ ...f, pix_key_type: v, pix_key: key || f.pix_key }))
+                // Sempre substitui — se vazio, limpa o campo para o usuário digitar manualmente
+                setForm(f => ({ ...f, pix_key_type: v, pix_key: key }))
                 setIsDirty(true)
               }}
               options={PIX_TYPE_OPTS}
