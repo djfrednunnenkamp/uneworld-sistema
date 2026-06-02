@@ -612,6 +612,7 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
 /* ── Aba de Passageiros ── */
 function PassengersTab({ listId, listType }) {
   const [enrolled,   setEnrolled]   = useState([])
+  const [accomTypes, setAccomTypes] = useState([])
   const [loading,    setLoading]    = useState(true)
   const [showAdd,    setShowAdd]    = useState(false)
   const [confirm,      setConfirm]      = useState(null)
@@ -631,6 +632,9 @@ function PassengersTab({ listId, listType }) {
   }, [listId])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    configApi.accommodations().then(r => setAccomTypes(r.data.results ?? r.data)).catch(() => {})
+  }, [])
 
   const toggleSelect  = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
@@ -766,6 +770,14 @@ function PassengersTab({ listId, listType }) {
           {/* Grupos por acomodação */}
           {groups.map(({ key, rows }) => {
             const isUnassigned = key === '(sem acomodação)'
+            // Validação de capacidade
+            const accomType = !isUnassigned ? accomTypes.find(t => t.name === key) : null
+            const paxCount  = rows.length
+            const capacity  = accomType?.capacity
+            const capStatus = !accomType ? null
+              : paxCount > capacity  ? 'over'
+              : paxCount < capacity  ? 'under'
+              : 'ok'
             return (
             <div key={key}>
               {/* Header do grupo */}
@@ -788,6 +800,29 @@ function PassengersTab({ listId, listType }) {
                   <>
                     <span style={{ fontSize:12, fontWeight:700, color:'#475569', letterSpacing:'.03em' }}>{key}</span>
                     <span style={{ fontSize:11, color:'#94a3b8' }}>({rows.length} pax)</span>
+
+                    {/* Flag de capacidade */}
+                    {capStatus === 'over' && (
+                      <span title={`Capacidade: ${capacity} pessoa${capacity!==1?'s':''}. Quarto superlotado!`}
+                        style={{ fontSize:11, fontWeight:700, background:'#fee2e2', color:'#dc2626', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
+                        ⚠ Superlotado ({paxCount}/{capacity})
+                      </span>
+                    )}
+                    {capStatus === 'under' && (
+                      <span title={`Capacidade: ${capacity} pessoa${capacity!==1?'s':''}. Há vagas disponíveis.`}
+                        style={{ fontSize:11, fontWeight:600, background:'#fef9c3', color:'#854d0e', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
+                        ○ {capacity - paxCount} vaga{(capacity-paxCount)!==1?'s':''} disponível{(capacity-paxCount)!==1?'is':''}
+                      </span>
+                    )}
+                    {capStatus === 'ok' && (
+                      <span style={{ fontSize:11, color:'#16a34a', fontWeight:600 }}>✓</span>
+                    )}
+                    {accomType?.is_couple && (
+                      <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:20, fontWeight:600 }}>
+                        casal
+                      </span>
+                    )}
+
                     <button type="button"
                       onClick={() => setEditAccom({ id: rows[0].id, accommodation: rows[0].accommodation || '', bulkKey: key })}
                       title="Renomear acomodação"
