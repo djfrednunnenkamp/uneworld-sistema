@@ -8,7 +8,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import { Ic } from '../components/Icon'
 
 const TYPE_LABEL = {
-  aereo:'Aéreo', terrestre:'Terrestre', maritimo:'Marítimo', fluvial:'Fluvial', misto:'Misto',
+  aereo:'Via Aéreo', onibus:'Via Ônibus', maritimo:'Via Marítimo',
 }
 const CAT_LABEL  = { internacional:'Internacional', nacional:'Nacional' }
 const DOC_LABEL  = { passaporte:'Passaporte', rg:'RG', cnh:'CNH', visto:'Visto', '':'—' }
