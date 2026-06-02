@@ -162,10 +162,78 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
   )
 }
 
+/* ── Popup de edição de usuário da agência ── */
+function EditAgencyUserPopup({ user, onSaved, onClose }) {
+  const [form,   setForm]   = useState({ first_name: user.first_name || '', last_name: user.last_name || '', email: user.email || '' })
+  const [saving, setSaving] = useState(false)
+
+  const lbl = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
+  const inp = { width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    if (!form.email.trim()) { toast.error('E-mail é obrigatório.'); return }
+    setSaving(true)
+    try {
+      await usersApi.update(user.id, {
+        email:      form.email.trim().toLowerCase(),
+        first_name: form.first_name.trim(),
+        last_name:  form.last_name.trim(),
+      })
+      toast.success('Usuário atualizado.')
+      onSaved()
+    } catch (err) {
+      toast.error(err.response?.data?.email?.[0] ?? err.response?.data?.error ?? 'Erro ao atualizar.')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:440, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Editar usuário</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+        <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={lbl}>E-mail</label>
+            <input value={form.email} onChange={set('email')} placeholder="email@exemplo.com"
+              style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div>
+              <label style={lbl}>Nome</label>
+              <input value={form.first_name} onChange={set('first_name')} placeholder="Nome"
+                style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            </div>
+            <div>
+              <label style={lbl}>Sobrenome</label>
+              <input value={form.last_name} onChange={set('last_name')} placeholder="Sobrenome"
+                style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving || !form.email.trim()}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving || !form.email.trim() ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving || !form.email.trim() ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AgencyUsersTab({ agencyId }) {
   const [members,  setMembers]  = useState([])
   const [loading,  setLoading]  = useState(true)
   const [showNew,  setShowNew]  = useState(false)
+  const [editUser, setEditUser] = useState(null) // {id, first_name, last_name, email}
   const [confirm,  setConfirm]  = useState(null)
 
   const load = useCallback(() => {
@@ -232,7 +300,7 @@ function AgencyUsersTab({ agencyId }) {
                 {/* Ações */}
                 <div style={{ display:'flex', gap:4, flexShrink:0 }}>
                   <button title="Editar"
-                    onClick={() => {/* edição futura */}}
+                    onClick={() => setEditUser({ id: m.user_id, first_name: m.first_name, last_name: m.last_name, email: m.email })}
                     style={{ width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', transition:'all .12s' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b' }}>
@@ -267,6 +335,14 @@ function AgencyUsersTab({ agencyId }) {
           agencyId={agencyId}
           onSaved={load}
           onClose={() => setShowNew(false)}
+        />
+      )}
+
+      {editUser && (
+        <EditAgencyUserPopup
+          user={editUser}
+          onSaved={() => { setEditUser(null); load() }}
+          onClose={() => setEditUser(null)}
         />
       )}
     </div>
