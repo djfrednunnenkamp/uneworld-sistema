@@ -66,6 +66,8 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   const [searching,    setSearching]    = useState(false)
   const [selected,     setSelected]     = useState(null)
   const [paxOpen,      setPaxOpen]      = useState(false)
+  const [paxAgencies,  setPaxAgencies]  = useState([])
+  const [selPaxAgency, setSelPaxAgency] = useState(null)
   // Modo bloqueio — agência
   const [blockAgency,  setBlockAgency]  = useState('')
   const [blockQty,     setBlockQty]     = useState(1)
@@ -133,7 +135,8 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
           toast.error('Passageiro já está nesta lista.'); setSaving(false); return
         }
         await listsApi.addPassenger(listId, {
-          passenger: selected.id, accommodation, enrollment_status: estatus, notes: '',
+          passenger: selected.id, agency: selPaxAgency?.id || null,
+          enrollment_status: estatus, notes: '',
         })
         toast.success(`${selected.full_name} adicionado.`)
       }
@@ -187,7 +190,11 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                       : results.map(p => (
                         <div key={p.id}
                           style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#f0fdf4' : 'transparent' }}
-                          onMouseDown={() => { setSelected(p); setSearch(p.full_name); setPaxOpen(false) }}
+                          onMouseDown={() => {
+                          setSelected(p); setSearch(p.full_name); setPaxOpen(false)
+                          setSelPaxAgency(null); setPaxAgencies([])
+                          passengersApi.agencies(p.id).then(r => setPaxAgencies(r.data)).catch(() => {})
+                        }}
                           onMouseEnter={ev => { if (selected?.id!==p.id) ev.currentTarget.style.background='#f8fafc' }}
                           onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#f0fdf4' : 'transparent' }}>
                           <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
@@ -199,6 +206,34 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
               </div>
               {selected && (
                 <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selected.full_name} selecionado</p>
+              )}
+            </div>
+          )}
+
+          {/* Agência do passageiro — aparece após selecionar passageiro */}
+          {mode === 'passenger' && selected && (
+            <div>
+              <label style={LBL}>Agência <span style={{ fontWeight:400, color:'#94a3b8', textTransform:'none', letterSpacing:0 }}>(opcional)</span></label>
+              {paxAgencies.length === 0 ? (
+                <p style={{ margin:0, fontSize:12, color:'#94a3b8', fontStyle:'italic' }}>
+                  Nenhuma agência vinculada a este passageiro.
+                </p>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {paxAgencies.map(ag => {
+                    const isSel = selPaxAgency?.id === ag.id
+                    return (
+                      <label key={ag.id}
+                        style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1.5px solid ${isSel ? '#1a2d4f' : '#e2e8f0'}`, background: isSel ? '#f0f4ff' : '#fff', cursor:'pointer', transition:'all .12s', userSelect:'none' }}
+                        onClick={() => setSelPaxAgency(isSel ? null : ag)}>
+                        <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isSel ? '#1a2d4f' : '#d1d5db'}`, background: isSel ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          {isSel && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize:13, color: isSel ? '#1a2d4f' : '#1e293b', fontWeight: isSel ? 600 : 400 }}>{ag.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
               )}
             </div>
           )}
@@ -350,8 +385,8 @@ function PassengersTab({ listId, listType }) {
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 140px 140px 90px', gap:0, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-            {['Nº', '●', isAereo?'✈':'', 'Passageiro', 'Nasc.', 'Nac.', 'Gên.', 'Pass / RG', 'CPF', 'Ações'].map((h, i) => (
+          <div style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 130px 130px 120px 80px', gap:0, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+            {['Nº', '●', isAereo?'✈':'', 'Passageiro', 'Nasc.', 'Nac.', 'Gên.', 'Pass / RG', 'CPF', 'Agência', 'Ações'].map((h, i) => (
               <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: i===0?'center':'left' }}>{h}</span>
             ))}
           </div>
@@ -384,7 +419,7 @@ function PassengersTab({ listId, listType }) {
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 140px 140px 90px', gap:0, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 130px 130px 120px 80px', gap:0, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -433,6 +468,11 @@ function PassengersTab({ listId, listType }) {
 
                     {/* CPF */}
                     <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{e.is_block ? '—' : cpf}</span>
+
+                    {/* Agência */}
+                    <span style={{ fontSize:11, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {e.agency_name || '—'}
+                    </span>
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:4 }}>

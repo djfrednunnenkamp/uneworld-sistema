@@ -43,6 +43,21 @@ class PassengerViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset().filter(status='active')
         return Response(PassengerListSerializer(qs, many=True).data)
 
+    @action(detail=True, methods=['get'], url_path='agencies',
+            permission_classes=[IsAuthenticated])
+    def agencies(self, request, pk=None):
+        """Retorna as agências vinculadas a este passageiro."""
+        passenger = self.get_object()
+        data = [{
+            'id':           a.id,
+            'name':         a.company_name or a.name or f'Agência #{a.pk}',
+            'company_name': a.company_name,
+            'cnpj':         a.cnpj,
+            'cpf':          a.cpf,
+            'person_type':  a.person_type,
+        } for a in passenger.agencies.all()]
+        return Response(data)
+
     @action(detail=True, methods=['get', 'post'], url_path='documents',
             parser_classes=[MultiPartParser, FormParser])
     def documents(self, request, pk=None):
