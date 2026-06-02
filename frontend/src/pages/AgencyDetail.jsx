@@ -194,26 +194,29 @@ export default function AgencyDetail() {
             <label className="fl">Dados bancários Andes</label>
             <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
           </div>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <label className="fl">Tipo de cadastro</label>
-            {fs('agency_type',
-              <>
-                <option value="agencia">Agência</option>
-                <option value="representante">Representante</option>
-                <option value="operadora">Operadora</option>
-                <option value="parceiro">Parceiro</option>
-                <option value="outro">Outro</option>
-              </>
-            )}
-          </div>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <label className="fl">Tipo de pessoa</label>
-            {fs('person_type',
-              <>
-                <option value="juridica">Jurídica</option>
-                <option value="fisica">Física</option>
-              </>
-            )}
+          {/* Dois dropdowns no mesmo container para ficarem com largura igual */}
+          <div style={{ display: 'flex', gap: 16, flex: 1, minWidth: 320 }}>
+            <div style={{ flex: 1 }}>
+              <label className="fl">Tipo de cadastro</label>
+              {fs('agency_type',
+                <>
+                  <option value="agencia">Agência</option>
+                  <option value="representante">Representante</option>
+                  <option value="operadora">Operadora</option>
+                  <option value="parceiro">Parceiro</option>
+                  <option value="outro">Outro</option>
+                </>
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="fl">Tipo de pessoa</label>
+              {fs('person_type',
+                <>
+                  <option value="juridica">Jurídica</option>
+                  <option value="fisica">Física</option>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
