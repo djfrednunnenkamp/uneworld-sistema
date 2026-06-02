@@ -9,6 +9,7 @@ import Dashboard       from './pages/Dashboard'
 import Passengers      from './pages/Passengers'
 import PassengerDetail from './pages/PassengerDetail'
 import Agencies        from './pages/Agencies'
+import AgencyDetail    from './pages/AgencyDetail'
 import Trips           from './pages/Trips'
 import Meetings        from './pages/Meetings'
 import Users           from './pages/Users'
@@ -43,6 +44,7 @@ function AppRoutes() {
         <Route path="passageiros"         element={<Passengers      />} />
         <Route path="passageiros/:id"     element={<PassengerDetail />} />
         <Route path="agencias"            element={<Agencies        />} />
+        <Route path="agencias/:id"        element={<AgencyDetail    />} />
         <Route path="viagens"             element={<Trips           />} />
         <Route path="reunioes"            element={<Meetings        />} />
         <Route path="usuarios"            element={<Users           />} />
