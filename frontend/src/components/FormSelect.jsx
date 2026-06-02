@@ -28,23 +28,6 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  /* Recalcula posição sempre que a lista filtrada mudar (usuário digitando) */
-  useEffect(() => {
-    if (!open || !inputRef.current) return
-    const rect       = inputRef.current.getBoundingClientRect()
-    const estHeight  = Math.min(filtered.length * 42 + 8, 280)
-    const spaceBelow = window.innerHeight - rect.bottom - 8
-    const spaceAbove = rect.top - 8
-    let top
-    if (spaceBelow >= estHeight) {
-      top = rect.bottom + 4
-    } else if (spaceAbove >= estHeight) {
-      top = rect.top - estHeight - 4
-    } else {
-      top = spaceBelow >= spaceAbove ? rect.bottom + 4 : Math.max(8, rect.top - estHeight - 4)
-    }
-    setPos(prev => ({ ...prev, top, left: rect.left, width: rect.width }))
-  }, [open, filtered.length])
 
   /* Scroll automático do item destacado */
   useEffect(() => {
@@ -64,19 +47,13 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
     if (open) return
     const rect = inputRef.current?.getBoundingClientRect()
     if (rect) {
-      const estHeight  = Math.min(filtered.length * 42 + 8, 280)
+      // Usa maxHeight fixo (280) para decisão estável — posição não muda ao digitar
+      const MAX_H      = 280
       const spaceBelow = window.innerHeight - rect.bottom - 8
-      const spaceAbove = rect.top - 8
-      let top, openUp = false
-      if (spaceBelow >= estHeight) {
-        top = rect.bottom + 4
-      } else if (spaceAbove >= estHeight) {
-        top = rect.top - estHeight - 4; openUp = true
-      } else {
-        top = spaceBelow >= spaceAbove ? rect.bottom + 4 : Math.max(8, rect.top - estHeight - 4)
-        openUp = spaceBelow < spaceAbove
-      }
-      setPos({ top, left: rect.left, width: rect.width, openUp })
+      const top = spaceBelow >= MAX_H
+        ? rect.bottom + 4                              // cabe abaixo → abre pra baixo
+        : Math.max(8, rect.top - MAX_H - 4)           // abre pra cima
+      setPos({ top, left: rect.left, width: rect.width })
     }
     setQuery('')
     setHighlighted(-1)
