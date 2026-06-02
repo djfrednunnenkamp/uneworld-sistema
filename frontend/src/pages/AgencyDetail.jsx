@@ -203,8 +203,10 @@ export default function AgencyDetail() {
 
   const [form,       setForm]       = useState(() => {
     if (isNew) {
-      const cnpj = searchParams.get('cnpj') || ''
-      return { ...EMPTY, cnpj }
+      const cnpj        = searchParams.get('cnpj') || ''
+      const cpf         = searchParams.get('cpf') || ''
+      const isFisicaURL = searchParams.get('person_type') === 'fisica'
+      return { ...EMPTY, cnpj, cpf, person_type: isFisicaURL ? 'fisica' : 'juridica' }
     }
     return { ...EMPTY }
   })
@@ -226,11 +228,11 @@ export default function AgencyDetail() {
     }
   }, [id])
 
-  /* Auto-busca dados do CNPJ quando vem do popup de criação */
+  /* Auto-busca dados do CNPJ quando vem do popup de criação (só para jurídica) */
   useEffect(() => {
-    const cnpjParam = searchParams.get('cnpj')
-    if (isNew && cnpjParam && cnpjParam.replace(/\D/g,'').length === 14) {
-      // lookupCnpj está definido abaixo mas só é chamado após a renderização
+    const cnpjParam   = searchParams.get('cnpj')
+    const isFisicaURL = searchParams.get('person_type') === 'fisica'
+    if (isNew && !isFisicaURL && cnpjParam && cnpjParam.replace(/\D/g,'').length === 14) {
       // eslint-disable-next-line
       lookupCnpj(cnpjParam)
     }
