@@ -63,7 +63,7 @@ const STATUS_OPTS = [
 
 const COLS = [
   {
-    key: 'name', label: 'Nome da Lista', align: 'left',
+    key: 'name', label: 'Nome da Lista de Passageiros', align: 'left',
     render: (v) => <span style={{ fontWeight:600, color:'#1e293b' }}>{v}</span>,
   },
   {
@@ -127,7 +127,7 @@ export default function Trips() {
 
   const handleDelete = async () => {
     await listsApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
-    toast.success('Lista excluída.')
+    toast.success('Lista de passageiros excluída.')
     setDelRow(null)
     load()
   }
@@ -148,7 +148,7 @@ export default function Trips() {
     <>
       <DataTable
         title="Listas de Passageiros"
-        addLabel="Adicionar Lista"
+        addLabel="Adicionar Lista de Passageiros"
         data={filtered}
         cols={COLS}
         searchKeys={['name']}

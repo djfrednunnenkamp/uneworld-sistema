@@ -204,7 +204,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
       const r = isEdit
         ? await listsApi.update(initial.id, payload)
         : await listsApi.create(payload)
-      toast.success(isEdit ? 'Lista atualizada.' : 'Lista criada!')
+      toast.success(isEdit ? 'Lista de passageiros atualizada.' : 'Lista de passageiros criada!')
       onSaved(r.data)
     } catch (err) {
       toast.error(err.response?.data?.detail ?? 'Erro ao salvar.')
@@ -220,7 +220,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
         {/* Cabeçalho */}
         <div style={{ padding:'18px 24px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
           <span style={{ fontSize:16, fontWeight:700, color:'#0f172a' }}>
-            {isEdit ? 'Editar lista' : 'Nova lista de passageiros'}
+            {isEdit ? 'Editar lista de passageiros' : 'Nova lista de passageiros'}
           </span>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
         </div>
@@ -231,7 +231,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
 
             {/* Nome */}
             <div>
-              <label style={lbl}>Nome da Lista</label>
+              <label style={lbl}>Nome da Lista de Passageiros</label>
               <input value={form.name} onChange={set('name')} style={inp}
                 placeholder="Ex: SUÍÇA MARAVILHOSA C/TREM GLACIER EXPRESS…" />
             </div>
@@ -321,7 +321,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
           </button>
           <button type="button" onClick={handleSave} disabled={saving}
             style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
-            {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar lista →'}
+            {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar lista de passageiros →'}
           </button>
         </div>
       </div>

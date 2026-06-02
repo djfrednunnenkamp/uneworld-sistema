@@ -183,7 +183,7 @@ export default function TripDetail() {
   const load = useCallback(() => {
     listsApi.get(id)
       .then(r => setList(r.data))
-      .catch(() => { toast.error('Lista não encontrada.'); navigate('/viagens') })
+      .catch(() => { toast.error('Lista de passageiros não encontrada.'); navigate('/viagens') })
       .finally(() => setLoading(false))
   }, [id])
 
@@ -192,7 +192,7 @@ export default function TripDetail() {
   const handleSaved = (data) => {
     setList(data)
     setShowEdit(false)
-    toast.success('Lista atualizada.')
+    toast.success('Lista de passageiros atualizada.')
   }
 
   if (loading) return (
@@ -227,7 +227,7 @@ export default function TripDetail() {
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-            <Ic n="edit" s={13} /> Editar lista
+            <Ic n="edit" s={13} /> Editar lista de passageiros
           </button>
         </div>
       </div>
