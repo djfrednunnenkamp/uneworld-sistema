@@ -85,12 +85,59 @@ function DocMultiSelect({ selected, onToggle }) {
   )
 }
 
+/* ── Popup inline para adicionar novo item ── */
+function AddItemPopup({ label, onConfirm, onClose }) {
+  const [val, setVal] = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
+
+  const confirm = async () => {
+    const name = val.trim()
+    if (!name) return
+    setSaving(true)
+    try { await onConfirm(name); onClose() }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', backdropFilter:'blur(2px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:900, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:360, boxShadow:'0 24px 60px rgba(0,0,0,.2)', overflow:'hidden' }}>
+        <div style={{ padding:'16px 20px 12px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Novo {label.toLowerCase()}</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:20, lineHeight:1, padding:2 }}>×</button>
+        </div>
+        <div style={{ padding:'16px 20px' }}>
+          <input ref={inputRef} value={val} onChange={e => setVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') onClose() }}
+            placeholder={`Nome do ${label.toLowerCase()}…`}
+            style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+            onFocus={e => e.target.style.borderColor='#1a2d4f'}
+            onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+        </div>
+        <div style={{ padding:'0 20px 16px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'7px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={confirm} disabled={saving || !val.trim()}
+            style={{ padding:'7px 18px', borderRadius:8, border:'none', background: saving || !val.trim() ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving || !val.trim() ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Adicionando…' : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── MultiPicker compacto ── */
 function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete }) {
-  const [open,   setOpen]   = useState(false)
-  const [search, setSearch] = useState('')
-  const [newVal, setNewVal] = useState('')
-  const [pos,    setPos]    = useState({})
+  const [open,      setOpen]      = useState(false)
+  const [search,    setSearch]    = useState('')
+  const [showAdd,   setShowAdd]   = useState(false)
+  const [pos,       setPos]       = useState({})
   const ref    = useRef(null)
   const btnRef = useRef(null)
 
@@ -115,15 +162,8 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
     ? 'Nada selecionado'
     : options.filter(o => selected.includes(o.id)).map(o => o.name).join(', ')
 
-  const handleCreate = async () => {
-    const name = newVal.trim()
-    if (!name) return
-    await onCreate(name)
-    setNewVal('')
-    setSearch('')
-  }
-
   return (
+    <>
     <div ref={ref}>
       <button ref={btnRef} type="button" onClick={toggle} style={{ ...inp, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', textAlign:'left', width:'100%' }}>
         <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color: selected.length ? '#1e293b' : '#94a3b8', fontSize:13 }}>
@@ -133,24 +173,16 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
       </button>
       {open && (
         <div style={{ position:'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
-          {/* Busca */}
-          <div style={{ padding:'8px 10px', borderBottom:'1px solid #f1f5f9' }}>
+          {/* Busca + botão adicionar */}
+          <div style={{ padding:'8px 10px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:6 }}>
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Pesquisar…"
-              style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', border:'1.5px solid #e2e8f0', borderRadius:6, fontSize:12, outline:'none', fontFamily:'inherit' }}
-              onFocus={e => e.target.style.borderColor='#1a2d4f'}
-              onBlur={e => e.target.style.borderColor='#e2e8f0'} />
-          </div>
-          {/* Adicionar novo */}
-          <div style={{ padding:'6px 10px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:6 }}>
-            <input value={newVal} onChange={e => setNewVal(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              placeholder={`Novo ${label.toLowerCase()}…`}
               style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e2e8f0', borderRadius:6, fontSize:12, outline:'none', fontFamily:'inherit' }}
               onFocus={e => e.target.style.borderColor='#1a2d4f'}
               onBlur={e => e.target.style.borderColor='#e2e8f0'} />
-            <button type="button" onClick={handleCreate}
-              style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
+            <button type="button" onClick={() => setShowAdd(true)}
+              title={`Novo ${label.toLowerCase()}`}
+              style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#1a2d4f', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', lineHeight:1 }}>
               +
             </button>
           </div>
@@ -185,6 +217,14 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
         </div>
       )}
     </div>
+    {showAdd && (
+      <AddItemPopup
+        label={label}
+        onConfirm={onCreate}
+        onClose={() => setShowAdd(false)}
+      />
+    )}
+    </>
   )
 }
 
