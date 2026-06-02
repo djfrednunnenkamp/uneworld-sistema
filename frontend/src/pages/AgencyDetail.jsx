@@ -101,6 +101,17 @@ export default function AgencyDetail() {
     }
   }, [id])
 
+  /* Auto-busca dados do CNPJ quando vem do popup de criação */
+  useEffect(() => {
+    const cnpjParam = searchParams.get('cnpj')
+    if (isNew && cnpjParam && cnpjParam.replace(/\D/g,'').length === 14) {
+      // lookupCnpj está definido abaixo mas só é chamado após a renderização
+      // eslint-disable-next-line
+      lookupCnpj(cnpjParam)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const set   = (k) => (e) => { setForm(f => ({ ...f, [k]: e.target.value })); setIsDirty(true) }
   const setB  = (k) => (v)  => { setForm(f => ({ ...f, [k]: v })); setIsDirty(true) }
   const setV  = (k, v)      => { setForm(f => ({ ...f, [k]: v })); setIsDirty(true) }
@@ -156,10 +167,13 @@ export default function AgencyDetail() {
     return d
   }
 
-  /* Busca CNPJ via BrasilAPI */
-  const lookupCnpj = async () => {
-    const cnpj = form.cnpj.replace(/\D/g, '')
-    if (cnpj.length !== 14) { toast.error('CNPJ incompleto (14 dígitos).'); return }
+  /* Busca CNPJ via BrasilAPI — aceita CNPJ por parâmetro ou usa form.cnpj */
+  const lookupCnpj = async (cnpjOverride) => {
+    const cnpj = (cnpjOverride ?? form.cnpj).replace(/\D/g, '')
+    if (cnpj.length !== 14) {
+      if (!cnpjOverride) toast.error('CNPJ incompleto (14 dígitos).')
+      return
+    }
     setCnpjLoading(true)
     try {
       const r = await axios.get(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`)
