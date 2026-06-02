@@ -347,7 +347,7 @@ export default function AgencyDetail() {
               <div style={{ flex: 1 }}>
                 <CnpjInput value={form.cnpj} onChange={v => { setForm(f => ({ ...f, cnpj: v })); setIsDirty(true) }} />
               </div>
-              <button className="cep-btn" onClick={lookupCnpj} disabled={cnpjLoading} title="Buscar dados pelo CNPJ" style={{ flexShrink: 0 }}>
+              <button className="cep-btn" onClick={() => lookupCnpj()} disabled={cnpjLoading} title="Buscar dados pelo CNPJ" style={{ flexShrink: 0 }}>
                 <Ic n="search" s={13}/>
               </button>
             </div>
