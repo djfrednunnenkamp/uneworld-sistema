@@ -418,6 +418,8 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
   const [selected,  setSelected]  = useState(null)
   const [saving,    setSaving]    = useState(false)
   const [open,      setOpen]      = useState(false)
+  const [dropPos,   setDropPos]   = useState({})
+  const inputRef = useRef(null)
   const debRef = useRef(null)
 
   const handleSearch = (q) => {
@@ -433,6 +435,10 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
   }
 
   const handleFocus = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect()
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
     setOpen(true)
     if (!results.length) handleSearch('')
   }
@@ -464,15 +470,14 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
           <div>
             <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Passageiro</label>
             <div style={{ position:'relative' }}>
-              <input value={search} onChange={e => handleSearch(e.target.value)}
+              <input ref={inputRef} value={search} onChange={e => handleSearch(e.target.value)}
                 onFocus={handleFocus}
                 onBlur={() => setTimeout(() => setOpen(false), 200)}
                 autoComplete="new-password"
                 placeholder="Buscar por nome, CPF ou e-mail…"
-                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:`1.5px solid ${selected ? '#16a34a' : '#e2e8f0'}`, borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
-                onFocus2={e => e.target.style.borderColor='#1a2d4f'} />
+                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:`1.5px solid ${selected ? '#16a34a' : '#e2e8f0'}`, borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }} />
               {open && (
-                <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:800, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+                <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
                   {searching
                     ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
                     : results.length === 0
