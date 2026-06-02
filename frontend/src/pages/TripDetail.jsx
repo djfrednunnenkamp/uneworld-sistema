@@ -39,7 +39,9 @@ const STATUS_DOT = {
 }
 
 /* ── Picker de acomodação — combobox simples ── */
-function AccomPicker({ value, onChange, existingRooms = [] }) {
+// onSelect: chamado ao ESCOLHER uma opção (clique ou Enter)
+// onChange: chamado ao DIGITAR (atualiza o valor do input)
+function AccomPicker({ value, onChange, onSelect, existingRooms = [] }) {
   const [types,   setTypes]   = useState([])
   const [open,    setOpen]    = useState(false)
   const [cursor,  setCursor]  = useState(-1)
@@ -80,7 +82,9 @@ function AccomPicker({ value, onChange, existingRooms = [] }) {
   }
 
   const pick = (opt) => {
-    onChange(opt.isNew ? opt.value : opt.label)
+    const chosen = opt.isNew ? opt.value : opt.label
+    onChange(chosen)
+    if (onSelect) onSelect(chosen)   // só chama onSelect ao escolher, nunca ao digitar
     setOpen(false); setCursor(-1)
   }
 
@@ -1024,9 +1028,9 @@ function PassengersTab({ listId, listType }) {
                 <button onClick={() => setMoveEnrollment(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
               </div>
 
-              {/* Picker (topo) */}
+              {/* Picker (topo) — onSelect só é chamado ao escolher uma opção */}
               <div style={{ padding:'14px 22px 12px', borderBottom:'1px solid #f1f5f9', flexShrink:0 }}>
-                <AccomPicker value={''} onChange={moveToRoom} existingRooms={allRooms} />
+                <AccomPicker value={''} onChange={() => {}} onSelect={moveToRoom} existingRooms={allRooms} />
               </div>
 
               {/* Lista de quartos existentes */}
