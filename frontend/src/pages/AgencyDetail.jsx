@@ -224,8 +224,9 @@ export default function AgencyDetail() {
         </div>
       </div>
 
+      <div className="det-card">
       {/* ── Dados do agente ── */}
-      <div className="det-card"><div className="section">
+      <div className="section">
         <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>Dados do agente</span>
           <button
@@ -310,10 +311,10 @@ export default function AgencyDetail() {
           </F>
           <F label="Website" col={2}>{fi('website', 'https://www.exemplo.com.br')}</F>
         </div>
-      </div></div>
+      </div>
 
       {/* ── Endereço ── */}
-      <div className="det-card"><div className="section">
+      <div className="section">
         <div className="section-title">Endereço</div>
         <div className="grid3">
           <F label="CEP">
@@ -346,10 +347,10 @@ export default function AgencyDetail() {
           </F>
         </div>
 
-      </div></div>
+      </div>
 
       {/* ── Dados PIX ── */}
-      <div className="det-card"><div className="section">
+      <div className="section">
         <div className="section-title">Dados PIX</div>
         <div className="grid3">
           <F label="Tipo de chave PIX">
@@ -357,7 +358,8 @@ export default function AgencyDetail() {
           </F>
           <F label="Chave PIX" col={2}>{fi('pix_key')}</F>
         </div>
-      </div></div>
+      </div>
+      </div>{/* fim det-card */}
 
     {/* ── Popup de Observações ── */}
       {notesOpen && (
