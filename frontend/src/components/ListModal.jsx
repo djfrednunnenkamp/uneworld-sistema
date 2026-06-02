@@ -15,9 +15,10 @@ const CAT_OPTS = [
   { value: 'nacional',      label: 'Nacional'      },
 ]
 const DOC_OPTS = [
-  { value: 'passaporte', label: 'Passaporte' },
-  { value: 'rg',         label: 'RG'         },
-  { value: 'cnh',        label: 'CNH'        },
+  { value: 'passaporte',          label: 'Passaporte'          },
+  { value: 'rg',                  label: 'RG'                  },
+  { value: 'carteira_identidade', label: 'Carteira de Identidade' },
+  { value: 'cnh',                 label: 'CNH'                 },
 ]
 
 const EMPTY = {
@@ -28,6 +29,53 @@ const EMPTY = {
   required_documents: [], status: 'aberta', notes: '',
 }
 
+
+/* ── DocMultiSelect: dropdown de opções fixas com checkbox ── */
+function DocMultiSelect({ selected, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const displayVal = selected.length === 0
+    ? 'Nada selecionado'
+    : DOC_OPTS.filter(o => selected.includes(o.value)).map(o => o.label).join(', ')
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ ...inp, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', textAlign:'left', width:'100%' }}>
+        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color: selected.length ? '#1e293b' : '#94a3b8', fontSize:13 }}>
+          {displayVal}
+        </span>
+        <span style={{ fontSize:10, color:'#94a3b8', marginLeft:8 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:600, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
+          {DOC_OPTS.map(opt => {
+            const checked = selected.includes(opt.value)
+            return (
+              <div key={opt.value}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderBottom:'1px solid #f8fafc', background: checked ? '#f0f9ff' : 'transparent', cursor:'pointer' }}
+                onClick={() => onToggle(opt.value)}
+                onMouseEnter={e => { if (!checked) e.currentTarget.style.background='#f8fafc' }}
+                onMouseLeave={e => { e.currentTarget.style.background = checked ? '#f0f9ff' : 'transparent' }}>
+                <div style={{ width:15, height:15, borderRadius:4, border:`2px solid ${checked ? '#1a2d4f' : '#d1d5db'}`, background: checked ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {checked && <span style={{ color:'#fff', fontSize:9, fontWeight:900, lineHeight:1 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:13, color:'#1e293b' }}>{opt.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 /* ── MultiPicker compacto ── */
 function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete }) {
@@ -265,25 +313,13 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
             <div style={row2}>
               <div>
                 <label style={lbl}>Documentos requeridos</label>
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap', paddingTop:4 }}>
-                  {DOC_OPTS.map(opt => {
-                    const checked = (form.required_documents || []).includes(opt.value)
-                    return (
-                      <label key={opt.value}
-                        style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', padding:'6px 12px', borderRadius:8, border:`1.5px solid ${checked ? '#1a2d4f' : '#e2e8f0'}`, background: checked ? '#f0f4ff' : '#fff', transition:'all .12s', userSelect:'none' }}>
-                        <div style={{ width:15, height:15, borderRadius:4, border:`2px solid ${checked ? '#1a2d4f' : '#d1d5db'}`, background: checked ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          {checked && <span style={{ color:'#fff', fontSize:9, fontWeight:900, lineHeight:1 }}>✓</span>}
-                        </div>
-                        <input type="checkbox" checked={checked} style={{ display:'none' }}
-                          onChange={() => {
-                            const list = form.required_documents || []
-                            setV('required_documents', checked ? list.filter(x => x !== opt.value) : [...list, opt.value])
-                          }} />
-                        <span style={{ fontSize:13, color: checked ? '#1a2d4f' : '#475569', fontWeight: checked ? 600 : 400 }}>{opt.label}</span>
-                      </label>
-                    )
-                  })}
-                </div>
+                <DocMultiSelect
+                  selected={form.required_documents || []}
+                  onToggle={v => {
+                    const list = form.required_documents || []
+                    setV('required_documents', list.includes(v) ? list.filter(x => x !== v) : [...list, v])
+                  }}
+                />
               </div>
               <div>
                 <label style={lbl}>Status da lista</label>
