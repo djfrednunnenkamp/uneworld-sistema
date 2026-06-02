@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import usePersistedTab from '../hooks/usePersistedTab'
 import toast from 'react-hot-toast'
-import { configApi } from '../api'
+import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import DocTypesManager from '../components/DocTypesManager'
 
@@ -456,7 +456,7 @@ function CountriesTab() {
 /* Seção principal */
 const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
-const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Países & Estados']
+const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Países & Estados']
 
 export default function Settings() {
   const [section, setSection] = usePersistedTab('tab_settings_section', 0)
@@ -465,12 +465,14 @@ export default function Settings() {
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])
   const [genders,    setGenders]    = useState([])
-  const [profCards,  setProfCards]  = useState([])
-  const [loadingP,   setLoadingP]   = useState(true)
-  const [loadingL,   setLoadingL]   = useState(true)
-  const [loadingV,   setLoadingV]   = useState(true)
-  const [loadingG,   setLoadingG]   = useState(true)
-  const [loadingPC,  setLoadingPC]  = useState(true)
+  const [profCards,    setProfCards]    = useState([])
+  const [listAddits,   setListAddits]   = useState([])
+  const [loadingP,     setLoadingP]     = useState(true)
+  const [loadingL,     setLoadingL]     = useState(true)
+  const [loadingV,     setLoadingV]     = useState(true)
+  const [loadingG,     setLoadingG]     = useState(true)
+  const [loadingPC,    setLoadingPC]    = useState(true)
+  const [loadingLA,    setLoadingLA]    = useState(true)
 
   useEffect(() => {
     configApi.professions().then(r => setProfessions(r.data)).catch(() => {}).finally(() => setLoadingP(false))
@@ -478,6 +480,7 @@ export default function Settings() {
     configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {}).finally(() => setLoadingV(false))
     configApi.genders().then(r => setGenders(r.data)).catch(() => {}).finally(() => setLoadingG(false))
     configApi.profCards().then(r => setProfCards(r.data)).catch(() => {}).finally(() => setLoadingPC(false))
+    listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
   }, [])
 
   const addProfession = async (name) => {
@@ -531,6 +534,17 @@ export default function Settings() {
     catch { toast.error('Erro ao remover carteira.') }
   }
 
+  const addListAddit = async (name) => {
+    try {
+      const r = await listsApi.addAdditional(name)
+      setListAddits(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar.') }
+  }
+  const delListAddit = async (id) => {
+    try { await listsApi.removeAdditional(id); setListAddits(p => p.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover.') }
+  }
+
   const tabStyle = (active) => ({
     padding: '10px 16px', border: 'none', background: 'none',
     fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
@@ -569,8 +583,9 @@ export default function Settings() {
             {tab===1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv"   type="languages" />}
             {tab===2 && <ItemList items={vaccines}    loading={loadingV} onAdd={addVaccine}    onDelete={delVaccine}    placeholder="Nova vacina…"    filename="vacinas.csv"   type="vaccines" />}
             {tab===3 && <ItemList items={genders}    loading={loadingG}  onAdd={addGender}   onDelete={delGender}   placeholder="Novo gênero…"   filename="generos.csv"   type="genders" />}
-            {tab===4 && <ItemList items={profCards}  loading={loadingPC} onAdd={addProfCard} onDelete={delProfCard} placeholder="Nova carteira…" filename="carteiras.csv" type="prof_cards" />}
-            {tab===5 && <CountriesTab />}
+            {tab===4 && <ItemList items={profCards}    loading={loadingPC} onAdd={addProfCard}  onDelete={delProfCard}  placeholder="Nova carteira…"  filename="carteiras.csv"  type="prof_cards" />}
+            {tab===5 && <ItemList items={listAddits}   loading={loadingLA} onAdd={addListAddit} onDelete={delListAddit} placeholder="Novo adicional…" filename="adicionais.csv" type="list_addits" />}
+            {tab===6 && <CountriesTab />}
           </div>
         </>
       )}
