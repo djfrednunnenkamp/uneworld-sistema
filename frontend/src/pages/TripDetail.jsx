@@ -669,7 +669,16 @@ function PassengersTab({ listId, listType }) {
   }
 
   const saveAccom = async () => {
-    await listsApi.updatePassenger(listId, editAccom.id, { accommodation: editAccom.accommodation })
+    const accom = editAccom.accommodation
+    if (editAccom.bulkKey) {
+      // Atualiza TODOS os passageiros do grupo
+      const groupIds = enrolled
+        .filter(e => (e.accommodation || '(sem acomodação)') === editAccom.bulkKey)
+        .map(e => e.id)
+      await Promise.all(groupIds.map(eid => listsApi.updatePassenger(listId, eid, { accommodation: accom })))
+    } else {
+      await listsApi.updatePassenger(listId, editAccom.id, { accommodation: accom })
+    }
     setEditAccom(null); load()
   }
 
