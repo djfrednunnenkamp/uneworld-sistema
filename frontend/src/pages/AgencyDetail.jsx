@@ -116,6 +116,15 @@ export default function AgencyDetail() {
   const setB  = (k) => (v)  => { setForm(f => ({ ...f, [k]: v })); setIsDirty(true) }
   const setV  = (k, v)      => { setForm(f => ({ ...f, [k]: v })); setIsDirty(true) }
 
+  /* Avisa ao recarregar/fechar com alterações não salvas */
+  useEffect(() => {
+    const handler = (e) => {
+      if (isDirty) { e.preventDefault(); e.returnValue = '' }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
   /* Auto-limpa erros quando o campo é preenchido */
   useEffect(() => {
     if (!Object.keys(fieldErrors).length) return
