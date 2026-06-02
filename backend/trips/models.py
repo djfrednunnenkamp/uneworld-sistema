@@ -105,13 +105,7 @@ class PassengerList(models.Model):
         ('aberta',  'Aberta'),
         ('fechada', 'Fechada'),
     ]
-    DOC_CHOICES = [
-        ('',           'Nenhum'),
-        ('passaporte', 'Passaporte'),
-        ('rg',         'RG'),
-        ('cnh',        'CNH'),
-        ('visto',      'Visto'),
-    ]
+    DOC_CHOICES = ['passaporte', 'rg', 'cnh']
 
     name                 = models.CharField('Nome', max_length=300)
     list_type            = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='aereo')
@@ -122,7 +116,7 @@ class PassengerList(models.Model):
     end_date             = models.DateField('Data de término', null=True, blank=True)
     suppliers            = models.ManyToManyField(Supplier,       blank=True, related_name='passenger_lists', verbose_name='Fornecedores')
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
-    required_document    = models.CharField('Documento requerido', max_length=20, choices=DOC_CHOICES, blank=True)
+    required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     status               = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta')
     notes                = models.TextField('Observações', blank=True)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)

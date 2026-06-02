@@ -11,7 +11,7 @@ const TYPE_LABEL = {
   aereo:'Via Aéreo', onibus:'Via Ônibus', maritimo:'Via Marítimo',
 }
 const CAT_LABEL  = { internacional:'Internacional', nacional:'Nacional' }
-const DOC_LABEL  = { passaporte:'Passaporte', rg:'RG', cnh:'CNH', visto:'Visto', '':'—' }
+const DOC_LABEL  = { passaporte:'Passaporte', rg:'RG', cnh:'CNH' }
 
 const fmt = (d) => {
   if (!d) return '—'
@@ -241,7 +241,7 @@ export default function TripDetail() {
           <Chip label="Término"        value={fmt(list.end_date)} />
           <Chip label="Capacidade"     value={list.block_capacity > 0 ? String(list.block_capacity) : '—'} />
           <Chip label="Acomodações"    value={list.total_accommodations > 0 ? String(list.total_accommodations) : '—'} />
-          <Chip label="Doc. requerido" value={DOC_LABEL[list.required_document] || '—'} />
+          <Chip label="Doc. requeridos" value={(list.required_documents || []).map(d => DOC_LABEL[d]).filter(Boolean).join(', ') || '—'} />
           <Chip label="Fornecedores"   value={supplierNames} />
           <Chip label="Adicionais"     value={additionalNames} />
           <div style={{ display:'flex', flexDirection:'column', gap:2 }}>

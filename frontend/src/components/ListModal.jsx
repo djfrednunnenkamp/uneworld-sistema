@@ -15,11 +15,9 @@ const CAT_OPTS = [
   { value: 'nacional',      label: 'Nacional'      },
 ]
 const DOC_OPTS = [
-  { value: '',           label: 'Nenhum'     },
   { value: 'passaporte', label: 'Passaporte' },
   { value: 'rg',         label: 'RG'         },
   { value: 'cnh',        label: 'CNH'        },
-  { value: 'visto',      label: 'Visto'      },
 ]
 
 const EMPTY = {
@@ -27,7 +25,7 @@ const EMPTY = {
   block_capacity: 0, total_accommodations: 0,
   start_date: '', end_date: '',
   suppliers: [], additionals: [],
-  required_document: '', status: 'aberta', notes: '',
+  required_documents: [], status: 'aberta', notes: '',
 }
 
 
@@ -125,8 +123,9 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
 
   const [form,       setForm]       = useState(() => initial ? {
     ...EMPTY, ...initial,
-    suppliers:   (initial.suppliers   || []).map(s => typeof s === 'object' ? s.id : s),
-    additionals: (initial.additionals || []).map(a => typeof a === 'object' ? a.id : a),
+    suppliers:          (initial.suppliers   || []).map(s => typeof s === 'object' ? s.id : s),
+    additionals:        (initial.additionals || []).map(a => typeof a === 'object' ? a.id : a),
+    required_documents: Array.isArray(initial.required_documents) ? initial.required_documents : [],
   } : { ...EMPTY })
   const [saving,      setSaving]      = useState(false)
   const [suppliers,   setSuppliers]   = useState([])
@@ -265,8 +264,26 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
             {/* Documento requerido + Status */}
             <div style={row2}>
               <div>
-                <label style={lbl}>Documento requerido</label>
-                <FormSelect value={form.required_document} onChange={v => setV('required_document', v)} options={DOC_OPTS} />
+                <label style={lbl}>Documentos requeridos</label>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', paddingTop:4 }}>
+                  {DOC_OPTS.map(opt => {
+                    const checked = (form.required_documents || []).includes(opt.value)
+                    return (
+                      <label key={opt.value}
+                        style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', padding:'6px 12px', borderRadius:8, border:`1.5px solid ${checked ? '#1a2d4f' : '#e2e8f0'}`, background: checked ? '#f0f4ff' : '#fff', transition:'all .12s', userSelect:'none' }}>
+                        <div style={{ width:15, height:15, borderRadius:4, border:`2px solid ${checked ? '#1a2d4f' : '#d1d5db'}`, background: checked ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          {checked && <span style={{ color:'#fff', fontSize:9, fontWeight:900, lineHeight:1 }}>✓</span>}
+                        </div>
+                        <input type="checkbox" checked={checked} style={{ display:'none' }}
+                          onChange={() => {
+                            const list = form.required_documents || []
+                            setV('required_documents', checked ? list.filter(x => x !== opt.value) : [...list, opt.value])
+                          }} />
+                        <span style={{ fontSize:13, color: checked ? '#1a2d4f' : '#475569', fontWeight: checked ? 600 : 400 }}>{opt.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
               <div>
                 <label style={lbl}>Status da lista</label>
