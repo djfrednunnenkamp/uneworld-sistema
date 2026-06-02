@@ -105,6 +105,22 @@ export default function AgencyDetail() {
   const setB  = (k) => (v)  => { setForm(f => ({ ...f, [k]: v })); setIsDirty(true) }
   const setV  = (k, v)      => { setForm(f => ({ ...f, [k]: v })); setIsDirty(true) }
 
+  /* Auto-limpa erros quando o campo é preenchido */
+  useEffect(() => {
+    if (!Object.keys(fieldErrors).length) return
+    setFieldErrors(prev => {
+      const next = { ...prev }
+      let changed = false
+      for (const k of Object.keys(next)) {
+        const v = form[k]
+        const filled = v !== null && v !== undefined &&
+          (typeof v !== 'string' || v.replace(/\D/g,'').length > 0 || v.trim().length > 0)
+        if (filled) { delete next[k]; changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [form])
+
   /* Busca CEP */
   const lookupCep = async () => {
     const cep = form.cep.replace(/\D/g, '')
@@ -223,7 +239,7 @@ export default function AgencyDetail() {
 
   const fi = (k, placeholder = '') => (
     <div data-err={fieldErrors[k] ? 'true' : undefined}>
-      <input className="fi" value={form[k] ?? ''} onChange={e => { set(k)(e); if (fieldErrors[k]) setFieldErrors(prev => { const n={...prev}; delete n[k]; return n }) }}
+      <input className="fi" value={form[k] ?? ''} onChange={set(k)}
         placeholder={placeholder} style={fieldErrors[k] ? errStyle : {}} />
       {fieldErrors[k] && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
     </div>
@@ -335,8 +351,8 @@ export default function AgencyDetail() {
         <div className="grid3">
           <F label="Telefone *">
             <div data-err={fieldErrors.phone ? 'true' : undefined}>
-              <div style={fieldErrors.phone ? { borderRadius:8, outline:'2px solid #dc2626', outlineOffset:1 } : {}}>
-                <PhoneInput value={form.phone} onChange={v => { setForm(f => ({ ...f, phone: v })); setIsDirty(true); if (fieldErrors.phone) setFieldErrors(p => { const n={...p}; delete n.phone; return n }) }} />
+              <div style={fieldErrors.phone ? { borderRadius:8, boxShadow:'0 0 0 2px #dc2626' } : {}}>
+                <PhoneInput value={form.phone} onChange={v => { setForm(f => ({ ...f, phone: v })); setIsDirty(true) }} />
               </div>
               {fieldErrors.phone && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
             </div>

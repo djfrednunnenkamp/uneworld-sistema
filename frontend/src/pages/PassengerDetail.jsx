@@ -768,6 +768,22 @@ export default function PassengerDetail() {
     }
   }, [id])
 
+  /* Auto-limpa erros de validação quando o campo é preenchido */
+  useEffect(() => {
+    if (!Object.keys(fieldErrors).length) return
+    setFieldErrors(prev => {
+      const next = { ...prev }
+      let changed = false
+      for (const k of Object.keys(next)) {
+        const v = form[k]
+        const filled = v !== null && v !== undefined && v !== false &&
+          (typeof v !== 'string' || v.replace(/\D/g,'').length > 0 || v.trim().length > 0)
+        if (filled) { delete next[k]; changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [form])
+
   /* Avisa ao recarregar/fechar com alterações não salvas */
   useEffect(() => {
     const handler = (e) => {
