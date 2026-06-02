@@ -180,6 +180,7 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                   onFocus={handlePaxFocus}
                   onBlur={() => setTimeout(() => setPaxOpen(false), 200)}
                   placeholder="Buscar por nome, CPF ou e-mail…"
+                  autoComplete="new-password"
                   style={{ ...INP, borderColor: selected ? '#16a34a' : '#e2e8f0' }} />
                 {paxOpen && (
                   <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
