@@ -35,7 +35,7 @@ class Agency(models.Model):
     # Dados da empresa
     cnpj                  = models.CharField('CNPJ', max_length=20, blank=True)
     company_name          = models.CharField('Razão social', max_length=200, blank=True)
-    name                  = models.CharField('Nome fantasia', max_length=200)  # mantém compatibilidade
+    name                  = models.CharField('Nome fantasia', max_length=200, blank=True)  # opcional
     state_registration    = models.CharField('Inscrição estadual',   max_length=50, blank=True)
     municipal_registration= models.CharField('Inscrição municipal',  max_length=50, blank=True)
     responsible           = models.CharField('Responsável', max_length=200, blank=True)

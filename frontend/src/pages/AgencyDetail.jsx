@@ -242,17 +242,26 @@ export default function AgencyDetail() {
     setFieldErrors({})
     setSaving(true)
     try {
+      // commission_rate vazio → null (evita erro no DecimalField do backend)
+      const payload = {
+        ...form,
+        commission_rate: form.commission_rate !== '' ? form.commission_rate : null,
+      }
       if (isNew) {
-        const r = await agenciesApi.create(form)
+        const r = await agenciesApi.create(payload)
         toast.success('Agência criada com sucesso.')
         navigate(`/agencias/${r.data.id}`, { replace: true })
       } else {
-        await agenciesApi.update(id, form)
+        await agenciesApi.update(id, payload)
         toast.success('Agência salva.')
       }
       setIsDirty(false)
     } catch (err) {
-      toast.error(err.response?.data?.detail ?? 'Erro ao salvar.')
+      const errData = err.response?.data
+      const msg = errData?.detail
+        ?? (typeof errData === 'object' ? Object.entries(errData).map(([k,v]) => `${k}: ${Array.isArray(v)?v[0]:v}`).join(' | ') : null)
+        ?? 'Erro ao salvar.'
+      toast.error(msg, { duration: 6000 })
     } finally { setSaving(false) }
   }
 
