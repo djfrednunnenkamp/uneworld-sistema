@@ -556,10 +556,6 @@ export default function DocTypesManager() {
           style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
           + Novo tipo de documento
         </button>
-        <button onClick={seed}
-          style={{ padding:'9px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          ↺ Restaurar padrão
-        </button>
         <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>
           {docTypes.length} tipo{docTypes.length!==1?'s':''}
         </span>
