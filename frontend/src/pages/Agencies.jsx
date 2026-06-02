@@ -136,7 +136,10 @@ function AgencyPreview({ agency, onClose, onEdit }) {
           </p>
           <Row label="Razão Social"  value={agency.company_name} />
           <Row label="Nome Fantasia" value={agency.name !== agency.company_name ? agency.name : null} />
-          <Row label="CNPJ"          value={agency.cnpj} />
+          {agency.person_type === 'fisica'
+            ? <Row label="CPF" value={agency.cpf} />
+            : <Row label="CNPJ" value={agency.cnpj} />
+          }
           <Row label="Telefone"      value={agency.phone} />
           <Row label="Celular"       value={agency.mobile} />
           <Row label="E-mail"        value={agency.email} />
@@ -166,11 +169,30 @@ function AgencyPreview({ agency, onClose, onEdit }) {
   )
 }
 
+/* ── PersonCell: mostra tipo de pessoa + CPF ou CNPJ ── */
+function PersonCell({ row }) {
+  const isFisica = row.person_type === 'fisica'
+  const doc      = isFisica ? row.cpf : row.cnpj
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+      <span style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase',
+        padding: '1px 7px', borderRadius: 20,
+        background: isFisica ? '#f0fdf4' : '#eff6ff',
+        color:      isFisica ? '#16a34a' : '#2563eb',
+      }}>
+        {isFisica ? 'Pessoa Física' : 'Pessoa Jurídica'}
+      </span>
+      <CopyCell value={doc} muted />
+    </div>
+  )
+}
+
 /* ── Colunas ── */
 const COLS = [
   { key: 'company_name', label: 'Razão Social',  align: 'center', render: (v, row) => <CopyCell value={v || row.name} bold /> },
   { key: 'name',         label: 'Nome Fantasia', align: 'center', render: (v) => <CopyCell value={v} muted /> },
-  { key: 'cnpj',         label: 'CNPJ',          align: 'center', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'cnpj',         label: 'CNPJ / CPF',   align: 'center', render: (_, row) => <PersonCell row={row} /> },
   { key: 'phone',        label: 'Telefone',      align: 'center', render: (v) => <CopyCell value={v} muted /> },
   { key: 'email',        label: 'E-mail',        align: 'center', render: (v) => <CopyCell value={v} muted /> },
   { key: 'commission_rate', label: 'Comissão', align: 'center', render: (v) => v ? <CopyCell value={`${v}%`} muted /> : <span style={{ color: '#cbd5e1' }}>—</span> },
