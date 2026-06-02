@@ -145,9 +145,17 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         pl = self.get_object()
         try:
             e = pl.list_enrollments.get(id=enrollment_id)
-            for field in ('accommodation', 'enrollment_status', 'order_in_list', 'notes'):
+            for field in ('accommodation', 'enrollment_status', 'order_in_list', 'notes',
+                          'pending_until', 'pending_reason'):
                 if field in request.data:
-                    setattr(e, field, request.data[field])
+                    setattr(e, field, request.data[field] or None if field == 'pending_until' else request.data[field])
+            # Atribuir passageiro a um bloco
+            if 'passenger' in request.data and request.data['passenger']:
+                from passengers.models import Passenger as PassengerModel
+                p = PassengerModel.objects.filter(pk=request.data['passenger']).first()
+                if p:
+                    e.passenger = p
+                    e.is_block  = False
             e.save()
             return Response(ListEnrollmentSerializer(e).data)
         except ListEnrollment.DoesNotExist:

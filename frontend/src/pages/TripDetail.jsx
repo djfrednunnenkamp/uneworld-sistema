@@ -410,13 +410,109 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   )
 }
 
+/* ── Popup para atribuir passageiro a um bloco ── */
+function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }) {
+  const [search,    setSearch]    = useState('')
+  const [results,   setResults]   = useState([])
+  const [searching, setSearching] = useState(false)
+  const [selected,  setSelected]  = useState(null)
+  const [saving,    setSaving]    = useState(false)
+  const [open,      setOpen]      = useState(false)
+  const debRef = useRef(null)
+
+  const handleSearch = (q) => {
+    setSearch(q); setSelected(null); setOpen(true)
+    clearTimeout(debRef.current)
+    debRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const r = await passengersApi.list({ search: q, page_size: 20 })
+        setResults(r.data.results ?? r.data)
+      } catch {} finally { setSearching(false) }
+    }, 200)
+  }
+
+  const handleFocus = () => {
+    setOpen(true)
+    if (!results.length) handleSearch('')
+  }
+
+  const handleAssign = async () => {
+    if (!selected) return
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, { passenger: selected.id })
+      toast.success(`${selected.full_name} atribuído ao bloco.`)
+      onSaved(); onClose()
+    } catch (err) {
+      toast.error(err.response?.data?.error ?? 'Erro ao atribuir.')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:460, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Atribuir passageiro ao bloco</p>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>Agência: {enrollment.block_agency}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+        <div style={{ padding:'18px 22px 20px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Passageiro</label>
+            <div style={{ position:'relative' }}>
+              <input value={search} onChange={e => handleSearch(e.target.value)}
+                onFocus={handleFocus}
+                onBlur={() => setTimeout(() => setOpen(false), 200)}
+                autoComplete="new-password"
+                placeholder="Buscar por nome, CPF ou e-mail…"
+                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:`1.5px solid ${selected ? '#16a34a' : '#e2e8f0'}`, borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+                onFocus2={e => e.target.style.borderColor='#1a2d4f'} />
+              {open && (
+                <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:800, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+                  {searching
+                    ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
+                    : results.length === 0
+                    ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Nenhum resultado.</p>
+                    : results.map(p => (
+                      <div key={p.id}
+                        style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#f0fdf4' : 'transparent' }}
+                        onMouseDown={() => { setSelected(p); setSearch(p.full_name); setOpen(false) }}
+                        onMouseEnter={ev => { if (selected?.id!==p.id) ev.currentTarget.style.background='#f8fafc' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#f0fdf4' : 'transparent' }}>
+                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
+                        <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+            {selected && <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selected.full_name} selecionado</p>}
+          </div>
+        </div>
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button onClick={onClose} style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
+          <button onClick={handleAssign} disabled={!selected || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !selected||saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !selected||saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Atribuindo…' : 'Atribuir passageiro'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Aba de Passageiros ── */
 function PassengersTab({ listId, listType }) {
-  const [enrolled,  setEnrolled]  = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [showAdd,   setShowAdd]   = useState(false)
-  const [confirm,   setConfirm]   = useState(null)
-  const [editAccom, setEditAccom] = useState(null) // {id, accommodation}
+  const [enrolled,   setEnrolled]   = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [confirm,    setConfirm]    = useState(null)
+  const [editAccom,  setEditAccom]  = useState(null)
+  const [assignBlk,  setAssignBlk]  = useState(null) // enrollment de bloco a atribuir
 
   const load = useCallback(() => {
     setLoading(true)
@@ -563,9 +659,10 @@ function PassengersTab({ listId, listType }) {
                     {/* Nome / Bloqueio */}
                     <div style={{ minWidth:0 }}>
                       {e.is_block ? (
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <span style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4 }}>BLOQUEIO</span>
-                          <span style={{ fontSize:13, fontWeight:600, color:'#78350f' }}>{e.block_agency}</span>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}
+                          onClick={() => setAssignBlk(e)}>
+                          <span style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0 }}>VAGA</span>
+                          <span style={{ fontSize:12, color:'#78350f', fontStyle:'italic' }}>Clique para atribuir passageiro</span>
                         </div>
                       ) : (
                         <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -599,7 +696,16 @@ function PassengersTab({ listId, listType }) {
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:4 }}>
-                      {isUnassigned ? (
+                      {isUnassigned && e.is_block ? (
+                        <button type="button"
+                          onClick={() => setAssignBlk(e)}
+                          title="Atribuir passageiro"
+                          style={{ padding:'4px 8px', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}
+                          onMouseEnter={ev => { ev.currentTarget.style.background='#fde68a' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.background='#fffbeb' }}>
+                          👤 Atribuir
+                        </button>
+                      ) : isUnassigned ? (
                         <button type="button"
                           onClick={() => setEditAccom({ id: e.id, accommodation: '' })}
                           title="Atribuir acomodação"
@@ -633,6 +739,17 @@ function PassengersTab({ listId, listType }) {
             </div>
           )})}
         </div>
+      )}
+
+      {/* Popup atribuir passageiro a bloco */}
+      {assignBlk && (
+        <AssignPassengerPopup
+          enrollment={assignBlk}
+          listId={listId}
+          enrolled={enrolled}
+          onSaved={load}
+          onClose={() => setAssignBlk(null)}
+        />
       )}
 
       {/* Popup adicionar */}
