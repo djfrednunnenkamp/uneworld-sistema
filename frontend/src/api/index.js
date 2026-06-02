@@ -23,6 +23,26 @@ export const tripsApi = {
   enrollments: (params) => api.get('/trips/enrollments/', { params }),
 }
 
+export const listsApi = {
+  // Listas de Passageiros
+  list:   (params) => api.get('/trips/lists/', { params }),
+  get:    (id)     => api.get(`/trips/lists/${id}/`),
+  create: (data)   => api.post('/trips/lists/', data),
+  update: (id, d)  => api.put(`/trips/lists/${id}/`, d),
+  remove: (id)     => api.delete(`/trips/lists/${id}/`),
+  // Passageiros na lista
+  listPassengers:   (id)          => api.get(`/trips/lists/${id}/passageiros/`),
+  addPassenger:     (id, pid, notes) => api.post(`/trips/lists/${id}/passageiros/`, { passenger: pid, notes }),
+  removePassenger:  (id, eid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/`),
+  // Fornecedores e Adicionais
+  suppliers:        ()            => api.get('/trips/suppliers/'),
+  addSupplier:      (name)        => api.post('/trips/suppliers/', { name }),
+  removeSupplier:   (id)          => api.delete(`/trips/suppliers/${id}/`),
+  listAdditionals:  ()            => api.get('/trips/list-additionals/'),
+  addAdditional:    (name)        => api.post('/trips/list-additionals/', { name }),
+  removeAdditional: (id)          => api.delete(`/trips/list-additionals/${id}/`),
+}
+
 export const meetingsApi = {
   list: (params) => api.get('/meetings/', { params }),
   get: (id) => api.get(`/meetings/${id}/`),
