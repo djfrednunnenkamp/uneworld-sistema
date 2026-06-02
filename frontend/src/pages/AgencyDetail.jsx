@@ -88,8 +88,9 @@ export default function AgencyDetail() {
   const [saving,     setSaving]     = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
   const [cnpjLoading,setCnpjLoading]= useState(false)
-  const [isDirty,    setIsDirty]    = useState(false)
-  const [notesOpen,  setNotesOpen]  = useState(false)
+  const [isDirty,     setIsDirty]    = useState(false)
+  const [notesOpen,   setNotesOpen]  = useState(false)
+  const [fieldErrors, setFieldErrors]= useState({})
 
   useEffect(() => {
     if (!isNew) {
@@ -171,11 +172,35 @@ export default function AgencyDetail() {
     finally  { setCnpjLoading(false) }
   }
 
+  const REQUIRED_LABELS = {
+    name:         'Nome fantasia',
+    company_name: 'Razão social',
+    phone:        'Telefone',
+    email:        'E-mail',
+  }
+
   const save = async () => {
-    if (!form.name && !form.company_name) {
-      toast.error('Informe o nome fantasia ou a razão social.')
+    const errs = {}
+    if (!form.name?.trim() && !form.company_name?.trim()) {
+      errs.name = true; errs.company_name = true
+    }
+    // Campos obrigatórios individuais
+    if (!form.phone?.replace(/\D/g,'')) errs.phone = true
+
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs)
+      const missing = Object.keys(errs)
+        .map(k => REQUIRED_LABELS[k] || k)
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .join(', ')
+      toast.error(`Campos obrigatórios em branco: ${missing}`, { duration: 5000 })
+      setTimeout(() => {
+        const first = document.querySelector('[data-err="true"] input, [data-err="true"] .fi, [data-err="true"]')
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
       return
     }
+    setFieldErrors({})
     setSaving(true)
     try {
       if (isNew) {
@@ -194,8 +219,14 @@ export default function AgencyDetail() {
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Carregando…</div>
 
+  const errStyle = { borderColor: '#dc2626', background: '#fef2f2' }
+
   const fi = (k, placeholder = '') => (
-    <input className="fi" value={form[k] ?? ''} onChange={set(k)} placeholder={placeholder} />
+    <div data-err={fieldErrors[k] ? 'true' : undefined}>
+      <input className="fi" value={form[k] ?? ''} onChange={e => { set(k)(e); if (fieldErrors[k]) setFieldErrors(prev => { const n={...prev}; delete n[k]; return n }) }}
+        placeholder={placeholder} style={fieldErrors[k] ? errStyle : {}} />
+      {fieldErrors[k] && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
+    </div>
   )
   const fs = (k, children) => (
     <select className="fs" value={form[k] ?? ''} onChange={set(k)}>{children}</select>
@@ -302,8 +333,13 @@ export default function AgencyDetail() {
         </div>
 
         <div className="grid3">
-          <F label="Telefone">
-            <PhoneInput value={form.phone} onChange={v => { setForm(f => ({ ...f, phone: v })); setIsDirty(true) }} />
+          <F label="Telefone *">
+            <div data-err={fieldErrors.phone ? 'true' : undefined}>
+              <div style={fieldErrors.phone ? { borderRadius:8, outline:'2px solid #dc2626', outlineOffset:1 } : {}}>
+                <PhoneInput value={form.phone} onChange={v => { setForm(f => ({ ...f, phone: v })); setIsDirty(true); if (fieldErrors.phone) setFieldErrors(p => { const n={...p}; delete n.phone; return n }) }} />
+              </div>
+              {fieldErrors.phone && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
+            </div>
           </F>
           <F label="Celular">
             <PhoneInput value={form.mobile} onChange={v => { setForm(f => ({ ...f, mobile: v })); setIsDirty(true) }} />
