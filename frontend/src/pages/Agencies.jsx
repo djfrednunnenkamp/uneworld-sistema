@@ -173,7 +173,7 @@ const COLS = [
   { key: 'cnpj',         label: 'CNPJ',          align: 'center', render: (v) => <CopyCell value={v} muted /> },
   { key: 'phone',        label: 'Telefone',      align: 'center', render: (v) => <CopyCell value={v} muted /> },
   { key: 'email',        label: 'E-mail',        align: 'center', render: (v) => <CopyCell value={v} muted /> },
-  { key: 'city',         label: 'Cidade',        align: 'center', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'commission_rate', label: 'Comissão', align: 'center', render: (v) => v ? <CopyCell value={`${v}%`} muted /> : <span style={{ color: '#cbd5e1' }}>—</span> },
   { key: 'status',       label: 'Status',        align: 'center', render: (v) => <StatusBadge value={v} /> },
 ]
 
