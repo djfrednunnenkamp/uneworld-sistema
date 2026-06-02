@@ -111,8 +111,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
   const [selBlkResp,   setSelBlkResp]   = useState(null)
   // Campos comuns
   const [accommodation,setAccommodation]= useState('')
-  const [estatus,      setEstatus]      = useState('pendente')
-  const [saving,       setSaving]       = useState(false)
+  const [estatus,       setEstatus]      = useState('pendente')
+  const [pendingUntil,  setPendingUntil] = useState('')
+  const [pendingReason, setPendingReason]= useState('')
+  const [saving,        setSaving]       = useState(false)
   const debRef  = useRef(null)
   const debAg   = useRef(null)
 
@@ -162,7 +164,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
           is_block: true, block_agency: agName,
           agency: selAgency?.id || null,
           responsible_user: selBlkResp?.user_id || null,
-          block_quantity: blockQty, enrollment_status: estatus, notes: '',
+          block_quantity: blockQty, enrollment_status: estatus,
+          pending_until: estatus === 'pendente' ? (pendingUntil || null) : null,
+          pending_reason: estatus === 'pendente' ? pendingReason : '',
+          notes: '',
         })
         toast.success(`${blockQty} vaga${blockQty>1?'s':''} de ${agName} adicionada${blockQty>1?'s':''}.`)
       } else {
@@ -174,7 +179,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
           passenger: selected.id,
           agency: selPaxAgency?.id || null,
           responsible_user: selPaxResp?.user_id || null,
-          enrollment_status: estatus, notes: '',
+          enrollment_status: estatus,
+          pending_until: estatus === 'pendente' ? (pendingUntil || null) : null,
+          pending_reason: estatus === 'pendente' ? pendingReason : '',
+          notes: '',
         })
         toast.success(`${selected.full_name} adicionado.`)
       }
@@ -353,8 +361,40 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
           {/* Status (comum) */}
           <div>
             <label style={LBL}>Status</label>
-            <StatusToggle value={estatus} onChange={setEstatus} />
+            <StatusToggle value={estatus} onChange={v => { setEstatus(v); if (v !== 'pendente') { setPendingUntil(''); setPendingReason('') } }} />
           </div>
+
+          {/* Campos extras quando Pendente */}
+          {estatus === 'pendente' && (
+            <>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <label style={LBL}>Pendente até</label>
+                  <input type="date" value={pendingUntil} onChange={e => setPendingUntil(e.target.value)}
+                    style={{ ...INP, colorScheme:'light' }}
+                    onFocus={e => e.target.style.borderColor='#f59e0b'}
+                    onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
+                  {pendingUntil && (() => {
+                    const days = Math.ceil((new Date(pendingUntil) - new Date()) / 86400000)
+                    return <span style={{ fontSize:12, color: days < 0 ? '#dc2626' : days <= 3 ? '#f59e0b' : '#16a34a', fontWeight:600 }}>
+                      {days < 0 ? `Venceu há ${-days}d` : days === 0 ? 'Vence hoje' : `Vence em ${days}d`}
+                    </span>
+                  })()}
+                </div>
+              </div>
+              <div>
+                <label style={LBL}>Motivo da pendência</label>
+                <textarea value={pendingReason} onChange={e => setPendingReason(e.target.value)}
+                  placeholder="Descreva o motivo pelo qual está pendente…"
+                  rows={3}
+                  style={{ ...INP, resize:'vertical', lineHeight:1.5 }}
+                  onFocus={e => e.target.style.borderColor='#f59e0b'}
+                  onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>

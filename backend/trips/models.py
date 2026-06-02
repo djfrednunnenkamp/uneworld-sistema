@@ -161,6 +161,8 @@ class ListEnrollment(models.Model):
     block_agency     = models.CharField('Agência (bloqueio)', max_length=200, blank=True)
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
     enrollment_status= models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente')
+    pending_until    = models.DateField('Pendente até', null=True, blank=True)
+    pending_reason   = models.TextField('Motivo da pendência', blank=True)
     order_in_list    = models.PositiveIntegerField('Ordem', default=0)
     enrolled_at      = models.DateTimeField('Adicionado em', auto_now_add=True)
     notes            = models.TextField('Observações', blank=True)
