@@ -377,7 +377,29 @@ export default function AgencyDetail() {
               }}>%</span>
             </div>
           </F>
-          <F label="Website" col={2}>{fi('website', 'https://www.exemplo.com.br')}</F>
+          <F label="Website" col={2}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input className="fi" value={form.website ?? ''} onChange={set('website')}
+                placeholder="https://www.exemplo.com.br" style={{ flex: 1 }} />
+              {form.website?.trim() && (
+                <a
+                  href={form.website.startsWith('http') ? form.website : `https://${form.website}`}
+                  target="_blank" rel="noopener noreferrer"
+                  title="Abrir site"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                    border: '1.5px solid #2e6db4', background: '#eff6ff', color: '#2e6db4',
+                    fontSize: 16, textDecoration: 'none', transition: 'all .12s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#2e6db4'; e.currentTarget.style.color = '#fff' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2e6db4' }}
+                >
+                  ↗
+                </a>
+              )}
+            </div>
+          </F>
         </div>
       </div>
 
