@@ -11,9 +11,10 @@ router.register('cities',       views.CityViewSet,       basename='city')
 router.register('vaccines',     views.VaccineViewSet,    basename='vaccine')
 router.register('genders',      views.GenderViewSet,        basename='gender')
 router.register('prof-cards',   views.ProfCardViewSet,      basename='profcard')
-router.register('doc-types',    views.DocTypeViewSet,       basename='doctype')
-router.register('doc-fields',   views.DocFieldViewSet,      basename='docfield')
-router.register('doc-options',  views.DocFieldOptionViewSet,basename='docoption')
+router.register('doc-types',      views.DocTypeViewSet,          basename='doctype')
+router.register('doc-fields',     views.DocFieldViewSet,         basename='docfield')
+router.register('doc-options',    views.DocFieldOptionViewSet,   basename='docoption')
+router.register('accommodations', views.AccommodationViewSet,    basename='accommodation')
 
 urlpatterns = [
     path('', include(router.urls)),

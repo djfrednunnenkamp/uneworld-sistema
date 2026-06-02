@@ -10,7 +10,8 @@ from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser
 from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
-                     CustomDocType, CustomDocField, CustomDocFieldOption)
+                     CustomDocType, CustomDocField, CustomDocFieldOption,
+                     ConfigAccommodation)
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -756,3 +757,17 @@ class StateViewSet(viewsets.ModelViewSet):
         except Exception:
             return Response({'error': 'Erro ao importar estados.'}, status=502)
         return Response({'total': country.states.count(), 'created': created})
+
+
+# ── Tipos de Acomodação ────────────────────────────────────────────────────
+
+class AccommodationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigAccommodation
+        fields = ['id', 'name']
+
+
+class AccommodationViewSet(viewsets.ModelViewSet):
+    queryset         = ConfigAccommodation.objects.all()
+    serializer_class = AccommodationSerializer
+    permission_classes = [IsAuthenticated]

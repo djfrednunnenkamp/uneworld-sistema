@@ -456,7 +456,7 @@ function CountriesTab() {
 /* Seção principal */
 const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
-const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Países & Estados']
+const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Tipos de Acomodação', 'Países & Estados']
 
 export default function Settings() {
   const [section, setSection] = usePersistedTab('tab_settings_section', 0)
@@ -467,6 +467,8 @@ export default function Settings() {
   const [genders,    setGenders]    = useState([])
   const [profCards,    setProfCards]    = useState([])
   const [listAddits,   setListAddits]   = useState([])
+  const [accoms,       setAccoms]       = useState([])
+  const [loadingAc,    setLoadingAc]    = useState(true)
   const [loadingP,     setLoadingP]     = useState(true)
   const [loadingL,     setLoadingL]     = useState(true)
   const [loadingV,     setLoadingV]     = useState(true)
@@ -481,6 +483,7 @@ export default function Settings() {
     configApi.genders().then(r => setGenders(r.data)).catch(() => {}).finally(() => setLoadingG(false))
     configApi.profCards().then(r => setProfCards(r.data)).catch(() => {}).finally(() => setLoadingPC(false))
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
+    configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
   }, [])
 
   const addProfession = async (name) => {
@@ -534,6 +537,17 @@ export default function Settings() {
     catch { toast.error('Erro ao remover carteira.') }
   }
 
+  const addAccom = async (name) => {
+    try {
+      const r = await configApi.addAccommodation(name)
+      setAccoms(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar.') }
+  }
+  const delAccom = async (id) => {
+    try { await configApi.delAccommodation(id); setAccoms(p => p.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover.') }
+  }
+
   const addListAddit = async (name) => {
     try {
       const r = await listsApi.addAdditional(name)
@@ -584,8 +598,9 @@ export default function Settings() {
             {tab===2 && <ItemList items={vaccines}    loading={loadingV} onAdd={addVaccine}    onDelete={delVaccine}    placeholder="Nova vacina…"    filename="vacinas.csv"   type="vaccines" />}
             {tab===3 && <ItemList items={genders}    loading={loadingG}  onAdd={addGender}   onDelete={delGender}   placeholder="Novo gênero…"   filename="generos.csv"   type="genders" />}
             {tab===4 && <ItemList items={profCards}    loading={loadingPC} onAdd={addProfCard}  onDelete={delProfCard}  placeholder="Nova carteira…"  filename="carteiras.csv"  type="prof_cards" />}
-            {tab===5 && <ItemList items={listAddits}   loading={loadingLA} onAdd={addListAddit} onDelete={delListAddit} placeholder="Novo adicional…" filename="adicionais.csv" type="list_addits" />}
-            {tab===6 && <CountriesTab />}
+            {tab===5 && <ItemList items={listAddits}   loading={loadingLA} onAdd={addListAddit} onDelete={delListAddit} placeholder="Novo adicional…"     filename="adicionais.csv"   type="list_addits" />}
+            {tab===6 && <ItemList items={accoms}       loading={loadingAc} onAdd={addAccom}     onDelete={delAccom}     placeholder="Nova acomodação…"   filename="acomodacoes.csv"  type="accommodations" />}
+            {tab===7 && <CountriesTab />}
           </div>
         </>
       )}

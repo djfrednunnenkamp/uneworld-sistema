@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { listsApi, passengersApi, agenciesApi } from '../api'
+import { listsApi, passengersApi, agenciesApi, configApi } from '../api'
 import DatePicker from '../components/DatePicker'
 import ListModal from '../components/ListModal'
 import usePersistedTab from '../hooks/usePersistedTab'
@@ -36,6 +36,36 @@ const STATUS_DOT = {
   confirmado: { bg:'#16a34a', title:'Confirmado' },
   pendente:   { bg:'#f59e0b', title:'Pendente'   },
   cancelado:  { bg:'#dc2626', title:'Cancelado'  },
+}
+
+/* ── Picker de acomodação com chips + campo livre ── */
+function AccomPicker({ value, onChange }) {
+  const [types, setTypes] = useState([])
+  useEffect(() => {
+    configApi.accommodations().then(r => setTypes(r.data.results ?? r.data)).catch(() => {})
+  }, [])
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {types.length > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+          {types.map(t => {
+            const active = value === t.name
+            return (
+              <button key={t.id} type="button" onClick={() => onChange(active ? '' : t.name)}
+                style={{ padding:'5px 14px', borderRadius:20, border:`1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`, background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#475569', fontSize:13, fontWeight: active ? 600 : 400, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}>
+                {t.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      <input value={value} onChange={e => onChange(e.target.value)}
+        placeholder="Ou escreva o nome (ex: Apto. Duplo Twin)…"
+        style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
+        onFocus={e => e.target.style.borderColor='#1a2d4f'}
+        onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+    </div>
+  )
 }
 
 const LBL = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
@@ -848,12 +878,8 @@ function PassengersTab({ listId, listType }) {
               <button onClick={() => setShowBulkRoom(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
             </div>
             <div style={{ padding:'18px 22px' }}>
-              <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Nome da acomodação</label>
-              <input value={bulkAccom} onChange={e => setBulkAccom(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && bulkAssignRoom()}
-                autoFocus
-                placeholder="Ex: Apto. Duplo Twin, Quarto 101…"
-                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #1a2d4f', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }} />
+              <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Acomodação</label>
+              <AccomPicker value={bulkAccom} onChange={setBulkAccom} />
             </div>
             <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button onClick={() => setShowBulkRoom(false)} style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
@@ -896,12 +922,7 @@ function PassengersTab({ listId, listType }) {
               <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Acomodação</span>
             </div>
             <div style={{ padding:'16px 20px' }}>
-              <input value={editAccom.accommodation}
-                onChange={e => setEditAccom(ea => ({ ...ea, accommodation: e.target.value }))}
-                onKeyDown={e => { if (e.key==='Enter') saveAccom(); if (e.key==='Escape') setEditAccom(null) }}
-                placeholder="Ex: Apto. Duplo Twin, Apto. Single…"
-                autoFocus
-                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #1a2d4f', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }} />
+              <AccomPicker value={editAccom.accommodation} onChange={v => setEditAccom(ea => ({ ...ea, accommodation: v }))} />
             </div>
             <div style={{ padding:'0 20px 16px', display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button type="button" onClick={() => setEditAccom(null)}

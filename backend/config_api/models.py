@@ -153,3 +153,15 @@ class ConfigCity(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.state.name})'
+
+
+class ConfigAccommodation(models.Model):
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Tipo de acomodação'
+        verbose_name_plural = 'Tipos de acomodação'
+
+    def __str__(self):
+        return self.name
