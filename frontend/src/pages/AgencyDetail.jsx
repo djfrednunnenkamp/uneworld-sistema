@@ -51,12 +51,13 @@ export default function AgencyDetail() {
   const navigate  = useNavigate()
   const isNew     = id === 'nova'
 
-  const [form,    setForm]    = useState({ ...EMPTY })
-  const [loading, setLoading] = useState(!isNew)
-  const [saving,  setSaving]  = useState(false)
+  const [form,       setForm]       = useState({ ...EMPTY })
+  const [loading,    setLoading]    = useState(!isNew)
+  const [saving,     setSaving]     = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
-  const [cnpjLoading, setCnpjLoading] = useState(false)
-  const [isDirty, setIsDirty] = useState(false)
+  const [cnpjLoading,setCnpjLoading]= useState(false)
+  const [isDirty,    setIsDirty]    = useState(false)
+  const [notesOpen,  setNotesOpen]  = useState(false)
 
   useEffect(() => {
     if (!isNew) {
@@ -154,7 +155,7 @@ export default function AgencyDetail() {
   )
 
   return (
-    <div>
+    <>
       {/* ── Header ── */}
       <div className="ph">
         <div>
@@ -183,7 +184,29 @@ export default function AgencyDetail() {
 
       {/* ── Dados do agente ── */}
       <div className="section">
-        <div className="section-title">Dados do agente</div>
+        <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Dados do agente</span>
+          <button
+            type="button"
+            onClick={() => setNotesOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '3px 10px', borderRadius: 6,
+              border: `1px solid ${form.notes?.trim() ? '#2e6db4' : '#e2e8f0'}`,
+              background: form.notes?.trim() ? '#eff6ff' : '#f8fafc',
+              color: form.notes?.trim() ? '#2e6db4' : '#94a3b8',
+              fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = form.notes?.trim() ? '#2e6db4' : '#e2e8f0'
+              e.currentTarget.style.color = form.notes?.trim() ? '#2e6db4' : '#94a3b8'
+            }}
+          >
+            <Ic n="edit" s={12} />
+            {form.notes?.trim() ? 'Observações ●' : 'Observações'}
+          </button>
+        </div>
         {/* grid3 — alinha com todas as linhas abaixo */}
         <div className="grid3">
           {/* Col 1: dois toggles lado a lado */}
@@ -309,12 +332,44 @@ export default function AgencyDetail() {
         </div>
       </div>
 
-      {/* ── Observações ── */}
-      <div className="section">
-        <div className="section-title">Observações</div>
-        <textarea className="fi" rows={4} style={{ resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
-          value={form.notes} onChange={set('notes')} placeholder="Notas internas…" />
-      </div>
-    </div>
+    {/* ── Popup de Observações ── */}
+      {notesOpen && (
+        <div onClick={e => { if (e.target === e.currentTarget) setNotesOpen(false) }}
+          style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:400, padding:20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .15s ease' }}>
+            <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0' }}>
+              <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Observações da agência</p>
+              <p style={{ fontSize:12, color:'#94a3b8', marginTop:3 }}>Informações adicionais, preferências ou anotações internas</p>
+            </div>
+            <div style={{ padding:'16px 20px' }}>
+              <textarea
+                autoFocus
+                value={form.notes ?? ''}
+                onChange={set('notes')}
+                rows={7}
+                placeholder="Ex.: Agência preferencial para grupos. Condições especiais de comissão negociadas..."
+                style={{ width:'100%', padding:'10px 12px', border:'1px solid #e2e8f0', borderRadius:8, fontSize:13, fontFamily:'inherit', color:'#1e293b', outline:'none', resize:'vertical', lineHeight:1.6, transition:'border-color .12s', boxSizing:'border-box' }}
+                onFocus={e => e.target.style.borderColor = '#2e6db4'}
+                onBlur={e  => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <p style={{ fontSize:11, color:'#94a3b8', marginTop:5, textAlign:'right' }}>
+                {(form.notes ?? '').length} caracteres
+              </p>
+            </div>
+            <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:10 }}>
+              <button onClick={() => setNotesOpen(false)}
+                style={{ padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                Fechar
+              </button>
+              <button onClick={() => setNotesOpen(false)}
+                style={{ padding:'7px 18px', borderRadius:6, border:'none', background:'#2e6db4', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
