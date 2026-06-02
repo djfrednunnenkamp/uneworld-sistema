@@ -601,9 +601,21 @@ function PassengersTab({ listId, listType }) {
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 130px 130px 120px 80px', gap:0, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-            {['Nº', '●', isAereo?'✈':'', 'Passageiro', 'Nasc.', 'Nac.', 'Gên.', 'Pass / RG', 'CPF', 'Agência', 'Ações'].map((h, i) => (
-              <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: i===0?'center':'left' }}>{h}</span>
+          <div style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 96px 48px 36px 120px 120px 110px 64px', gap:0, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+            {[
+              {h:'Nº',        align:'center'},
+              {h:'●',         align:'center'},
+              {h:isAereo?'✈':'', align:'center'},
+              {h:'Passageiro',align:'left'},
+              {h:'Nasc.',     align:'center'},
+              {h:'Nac.',      align:'center'},
+              {h:'Gên.',      align:'center'},
+              {h:'Pass / RG', align:'center'},
+              {h:'CPF',       align:'center'},
+              {h:'Agência',   align:'left'},
+              {h:'Ações',     align:'center'},
+            ].map(({h, align}, i) => (
+              <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: align }}>{h}</span>
             ))}
           </div>
 
@@ -655,7 +667,7 @@ function PassengersTab({ listId, listType }) {
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns:'44px 28px 32px 1fr 100px 56px 40px 130px 130px 120px 80px', gap:0, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns:'40px 24px 28px 1fr 96px 48px 36px 120px 120px 110px 64px', gap:0, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -689,22 +701,24 @@ function PassengersTab({ listId, listType }) {
                     </div>
 
                     {/* Nasc. */}
-                    <span style={{ fontSize:12, color:'#64748b' }}>{e.is_block ? '—' : birth}</span>
+                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block' }}>{e.is_block ? '—' : birth}</span>
 
                     {/* Nac. */}
-                    {e.is_block
-                      ? <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
-                      : <span style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4, display:'inline-block' }}>{nat}</span>
-                    }
+                    <div style={{ display:'flex', justifyContent:'center' }}>
+                      {e.is_block
+                        ? <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
+                        : <span style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4 }}>{nat}</span>
+                      }
+                    </div>
 
                     {/* Gênero */}
-                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center' }}>{e.is_block ? '—' : gen}</span>
+                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block' }}>{e.is_block ? '—' : gen}</span>
 
                     {/* Pass/RG */}
-                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{e.is_block ? '—' : doc}</span>
+                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.is_block ? '—' : doc}</span>
 
                     {/* CPF */}
-                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace' }}>{e.is_block ? '—' : cpf}</span>
+                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.is_block ? '—' : cpf}</span>
 
                     {/* Agência */}
                     <span style={{ fontSize:11, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -712,30 +726,30 @@ function PassengersTab({ listId, listType }) {
                     </span>
 
                     {/* Ações */}
-                    <div style={{ display:'flex', gap:4 }}>
+                    <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
                       {isUnassigned && e.is_block ? (
                         <button type="button"
                           onClick={() => setAssignBlk(e)}
                           title="Atribuir passageiro"
-                          style={{ padding:'4px 8px', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}
-                          onMouseEnter={ev => { ev.currentTarget.style.background='#fde68a' }}
-                          onMouseLeave={ev => { ev.currentTarget.style.background='#fffbeb' }}>
-                          👤 Atribuir
+                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:13, cursor:'pointer' }}
+                          onMouseEnter={ev => ev.currentTarget.style.background='#fde68a'}
+                          onMouseLeave={ev => ev.currentTarget.style.background='#fffbeb'}>
+                          <Ic n="users" s={12} />
                         </button>
                       ) : isUnassigned ? (
                         <button type="button"
                           onClick={() => setEditAccom({ id: e.id, accommodation: '' })}
                           title="Atribuir acomodação"
-                          style={{ padding:'4px 8px', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}
-                          onMouseEnter={ev => { ev.currentTarget.style.background='#fde68a' }}
-                          onMouseLeave={ev => { ev.currentTarget.style.background='#fffbeb' }}>
-                          🛏 Atribuir
+                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:13, cursor:'pointer' }}
+                          onMouseEnter={ev => ev.currentTarget.style.background='#fde68a'}
+                          onMouseLeave={ev => ev.currentTarget.style.background='#fffbeb'}>
+                          🛏
                         </button>
                       ) : (
                         <button type="button"
                           onClick={() => setEditAccom({ id: e.id, accommodation: e.accommodation || '' })}
                           title="Editar acomodação"
-                          style={{ padding:'4px 7px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
+                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:11, cursor:'pointer' }}
                           onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
                           onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
                           🛏
@@ -744,10 +758,10 @@ function PassengersTab({ listId, listType }) {
                       <button type="button"
                         onClick={() => setConfirm({ id:e.id, name: e.passenger_name || e.block_agency })}
                         title="Remover"
-                        style={{ padding:'4px 7px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}
+                        style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer' }}
                         onMouseEnter={ev => { ev.currentTarget.style.background='#fee2e2'; ev.currentTarget.style.color='#dc2626'; ev.currentTarget.style.borderColor='#fecaca' }}
                         onMouseLeave={ev => { ev.currentTarget.style.background='#fff'; ev.currentTarget.style.color='#94a3b8'; ev.currentTarget.style.borderColor='#e2e8f0' }}>
-                        ✕
+                        <Ic n="trash" s={12} />
                       </button>
                     </div>
                   </div>
