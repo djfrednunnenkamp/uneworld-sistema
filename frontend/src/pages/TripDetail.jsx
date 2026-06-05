@@ -1062,6 +1062,10 @@ function PassengersTab({ listId, listType }) {
               : paxCount > capacity  ? 'over'
               : paxCount < capacity  ? 'under'
               : 'ok'
+            // Alerta de casal: is_couple + 2 ou mais ocupantes reais do mesmo sexo
+            const genders = rows.filter(e => !e.is_block && e.passenger_gender).map(e => e.passenger_gender)
+            const sameSexCouple = accomType?.is_couple && genders.length >= 2
+              && genders.every(g => g === genders[0])
             return (
             <div key={key}>
               {/* Header do grupo */}
@@ -1104,6 +1108,12 @@ function PassengersTab({ listId, listType }) {
                     {accomType?.is_couple && (
                       <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 7px', borderRadius:20, fontWeight:600 }}>
                         casal
+                      </span>
+                    )}
+                    {sameSexCouple && (
+                      <span title="Acomodação de casal com dois passageiros do mesmo sexo"
+                        style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
+                        ⚠ Mesmo sexo
                       </span>
                     )}
 
