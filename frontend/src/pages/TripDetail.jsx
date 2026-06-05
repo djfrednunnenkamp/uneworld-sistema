@@ -8,6 +8,11 @@ import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
 import { Ic } from '../components/Icon'
 
+// Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
+const findAccomType = (types, roomName) =>
+  [...types].sort((a, b) => b.name.length - a.name.length)
+    .find(t => roomName === t.name || roomName.startsWith(t.name + ' '))
+
 const TYPE_LABEL = {
   aereo:'Via Aéreo', terrestre:'Via Terrestre',
 }
@@ -664,7 +669,7 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
   enrolled.forEach(e => {
     if (!e.accommodation) return
     if (!roomMap[e.accommodation]) {
-      const type = accomTypes.find(t => e.accommodation === t.name || e.accommodation.startsWith(t.name + ' '))
+      const type = findAccomType(accomTypes, e.accommodation)
       roomMap[e.accommodation] = { type, people: [] }
     }
     if (e.passenger_name) roomMap[e.accommodation].people.push(e.passenger_name)
@@ -804,7 +809,7 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
 /* ── Modal de edição de tipo da acomodação (não remove passageiros) ── */
 function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onClose }) {
   // Descobre o tipo atual pelo prefixo do nome do quarto
-  const currentType = accomTypes.find(t => roomName === t.name || roomName.startsWith(t.name + ' '))
+  const currentType = findAccomType(accomTypes, roomName)
   const [selectedType, setSelectedType] = useState(currentType?.name || '')
   const [saving, setSaving] = useState(false)
 
@@ -1054,7 +1059,7 @@ function PassengersTab({ listId, listType }) {
             const isUnassigned = key === '(sem acomodação)'
             // Validação de capacidade — detecta tipo pelo prefixo (ex: "Duplo 2" → tipo "Duplo")
             const accomType = !isUnassigned
-              ? accomTypes.find(t => key === t.name || key.startsWith(t.name + ' '))
+              ? findAccomType(accomTypes, key)
               : null
             const paxCount  = rows.length
             const capacity  = accomType?.capacity
