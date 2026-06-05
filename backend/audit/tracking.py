@@ -20,12 +20,13 @@ TRACKED_MODELS = {
     'Meeting':            'Reunião',
     'CustomDocType':      'Tipo de documento',
     'CustomDocField':     'Campo de documento',
-    'ConfigProfession':   'Profissão',
-    'ConfigLanguage':     'Idioma',
-    'ConfigCountry':      'País',
-    'ConfigState':        'Estado',
-    'ConfigVaccine':      'Vacina',
-    'ConfigGender':       'Gênero',
+    'ConfigProfession':     'Profissão',
+    'ConfigLanguage':       'Idioma',
+    'ConfigCountry':        'País',
+    'ConfigState':          'Estado',
+    'ConfigVaccine':        'Vacina',
+    'ConfigGender':         'Gênero',
+    'ConfigAccommodation':  'Tipo de acomodação',
 }
 
 # Campos a ignorar no diff
@@ -37,6 +38,7 @@ SKIP_FIELDS = {
 
 # Rótulos amigáveis de campos comuns
 FIELD_LABELS = {
+    # Usuário / Passageiro
     'first_name': 'Nome', 'last_name': 'Sobrenome', 'full_name': 'Nome completo',
     'email': 'E-mail', 'username': 'Login', 'is_staff': 'Administrador',
     'is_active': 'Ativo', 'phone1': 'Telefone', 'phone2': 'Contato 2',
@@ -44,10 +46,36 @@ FIELD_LABELS = {
     'nationality': 'Nacionalidade', 'gender': 'Gênero', 'profession': 'Profissão',
     'status': 'Status', 'notes': 'Observações', 'street': 'Endereço',
     'city': 'Cidade', 'state': 'Estado', 'country': 'País', 'cep': 'CEP',
+    'is_foreign': 'Estrangeiro', 'is_guide': 'Guia', 'is_verified': 'Verificado',
+    'diet_type': 'Alimentação', 'diet_notes': 'Obs. alimentação',
+    'passport': 'Passaporte', 'passport_expiry': 'Validade do passaporte',
+    'passport_issue': 'Emissão do passaporte',
+    'rg': 'RG', 'rg_issue_date': 'Emissão do RG', 'rg_issuer': 'Órgão emissor',
+    'rne': 'RNE', 'rne_expiry': 'Validade do RNE',
+    'seat_preference': 'Preferência de assento', 'seat_position': 'Posição no assento',
+    'flight_class': 'Classe do voo',
+    # Documento
     'doc_type': 'Tipo', 'doc_number': 'Número', 'issued_date': 'Emissão',
     'expiry_date': 'Validade', 'issued_by': 'Emissor',
+    # Genérico
     'label': 'Nome', 'name': 'Nome', 'key': 'Chave', 'order': 'Ordem',
-    'is_active': 'Ativo', 'color': 'Cor', 'icon': 'Ícone',
+    'color': 'Cor', 'icon': 'Ícone', 'capacity': 'Capacidade',
+    'is_couple': 'É casal',
+    # ListEnrollment — inscrição na lista de passageiros
+    'passenger': 'Passageiro', 'passenger_list': 'Lista',
+    'agency': 'Agência', 'responsible_user': 'Responsável',
+    'accommodation': 'Acomodação',
+    'enrollment_status': 'Status na lista',
+    'pending_until': 'Pendente até', 'pending_reason': 'Motivo da pendência',
+    'is_block': 'É bloqueio', 'block_agency': 'Agência (bloqueio)',
+    'block_quantity': 'Vagas (bloqueio)',
+    'order_in_list': 'Ordem na lista',
+    # PassengerList — lista / viagem
+    'list_type': 'Tipo de lista', 'category': 'Categoria',
+    'block_capacity': 'Capacidade de bloqueio',
+    'total_accommodations': 'Total de acomodações',
+    'start_date': 'Data de início', 'end_date': 'Data de término',
+    'required_documents': 'Documentos requeridos',
 }
 
 
