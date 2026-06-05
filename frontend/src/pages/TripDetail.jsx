@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import FormSelect from '../components/FormSelect'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -955,11 +956,12 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
         </div>
       </div>
 
-      {previewPax && (
+      {previewPax && createPortal(
         <PassengerPreviewModal
           passenger={previewPax}
           onClose={() => setPreviewPax(null)}
-        />
+        />,
+        document.body
       )}
     </div>
   )
