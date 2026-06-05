@@ -725,7 +725,8 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
                   const { type, people } = roomMap[room]
                   const cap   = type?.capacity
                   const count = people.length
-                  const over  = cap && count >= cap
+                  const full  = cap && count === cap
+                  const over  = cap && count > cap
                   return (
                     <button key={room} type="button" onClick={() => !saving && handleSelectRoom(room)} disabled={saving}
                       style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', cursor: saving ? 'default' : 'pointer', fontFamily:'inherit', textAlign:'left', transition:'all .12s' }}
@@ -742,8 +743,11 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
                       </div>
                       <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
                         {cap
-                          ? <span style={{ fontSize:11, fontWeight:600, color: over ? '#dc2626' : '#16a34a', background: over ? '#fee2e2' : '#dcfce7', padding:'1px 8px', borderRadius:20 }}>
-                              {count}/{cap} {over ? '⚠' : '✓'}
+                          ? <span style={{ fontSize:11, fontWeight:600,
+                              color:      over ? '#dc2626' : full ? '#92400e' : '#16a34a',
+                              background: over ? '#fee2e2' : full ? '#fef9c3' : '#dcfce7',
+                              padding:'1px 8px', borderRadius:20 }}>
+                              {count}/{cap} {over ? '⚠' : full ? '●' : '✓'}
                             </span>
                           : <span style={{ fontSize:11, color:'#94a3b8' }}>{count}p</span>
                         }
