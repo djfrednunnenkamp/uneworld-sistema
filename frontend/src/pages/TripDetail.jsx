@@ -257,7 +257,8 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
       setSearching(true)
       try {
         const r = await passengersApi.list({ search: q, page_size: 20 })
-        setResults(r.data.results ?? r.data)
+        const enrolledIds = new Set(enrolled.map(e => e.passenger).filter(Boolean))
+        setResults((r.data.results ?? r.data).filter(p => !enrolledIds.has(p.id)))
       } catch {} finally { setSearching(false) }
     }, 200)
   }
@@ -567,7 +568,8 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
       setSearching(true)
       try {
         const r = await passengersApi.list({ search: q, page_size: 20 })
-        setResults(r.data.results ?? r.data)
+        const enrolledIds = new Set(enrolled.map(e => e.passenger).filter(Boolean))
+        setResults((r.data.results ?? r.data).filter(p => !enrolledIds.has(p.id)))
       } catch {} finally { setSearching(false) }
     }, 200)
   }
