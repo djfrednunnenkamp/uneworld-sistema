@@ -655,8 +655,7 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
 // onConfirm(roomName): callback ao confirmar
 // onClose: fechar modal
 function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onClose }) {
-  const [newType,   setNewType]   = useState('')
-  const [saving,    setSaving]    = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // Monta mapa de quartos existentes: roomName → { type, people[] }
   const roomMap = {}
@@ -678,13 +677,12 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
     } finally { setSaving(false) }
   }
 
-  const handleCreateNew = async () => {
-    if (!newType) return
-    // Determina próximo número disponível para este tipo
-    const existing = existingRooms.filter(r => r === newType || r.startsWith(newType + ' '))
-    let next = `${newType} 1`
+  const handleCreateNewType = async (typeName) => {
+    if (!typeName) return
+    const existing = existingRooms.filter(r => r === typeName || r.startsWith(typeName + ' '))
+    let next = `${typeName} 1`
     for (let n = 1; n <= 99; n++) {
-      const c = `${newType} ${n}`
+      const c = `${typeName} ${n}`
       if (!existing.includes(c)) { next = c; break }
     }
     setSaving(true)
@@ -765,20 +763,21 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
                 Nenhum tipo configurado. Acesse Configurações → Acomodações.
               </p>
             ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                <select value={newType} onChange={e => setNewType(e.target.value)}
-                  style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color: newType ? '#1e293b' : '#94a3b8', background:'#fff', cursor:'pointer' }}>
-                  <option value="">Escolha o tipo…</option>
-                  {accomTypes.map(t => (
-                    <option key={t.id} value={t.name}>
-                      {t.name}{t.capacity ? ` (${t.capacity}p)` : ''}{t.is_couple ? ' — casal' : ''}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" onClick={handleCreateNew} disabled={!newType || saving}
-                  style={{ padding:'9px 16px', borderRadius:8, border:'none', background: !newType || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !newType || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
-                  {saving ? 'Criando…' : '+ Criar e vincular'}
-                </button>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {accomTypes.map(t => (
+                  <button key={t.id} type="button"
+                    onClick={() => handleCreateNewType(t.name)}
+                    disabled={saving}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', cursor: saving ? 'default' : 'pointer', fontFamily:'inherit', textAlign:'left', transition:'all .12s' }}
+                    onMouseEnter={ev => { if (!saving) { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.background='#f8fafc' } }}
+                    onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.background='#fff' }}>
+                    <span style={{ fontSize:13, fontWeight:600, color:'#2e6db4' }}>+ {t.name}</span>
+                    <div style={{ display:'flex', gap:4 }}>
+                      {t.capacity && <span style={{ fontSize:11, color:'#94a3b8', background:'#f1f5f9', padding:'1px 7px', borderRadius:20 }}>{t.capacity}p</span>}
+                      {t.is_couple && <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:10 }}>casal</span>}
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -1191,7 +1190,8 @@ function PassengersTab({ listId, listType }) {
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
-                      {e.is_block && isUnassigned ? (
+                      {/* Atribuir passageiro — só em bloqueios */}
+                      {e.is_block && (
                         <button type="button"
                           onClick={() => setAssignBlk(e)}
                           title="Atribuir passageiro ao bloco"
@@ -1200,16 +1200,16 @@ function PassengersTab({ listId, listType }) {
                           onMouseLeave={ev => ev.currentTarget.style.background='#fffbeb'}>
                           <Ic n="users" s={12} />
                         </button>
-                      ) : (
-                        <button type="button"
-                          onClick={() => setAccomModal({ enrollmentIds: [e.id] })}
-                          title={isUnassigned ? 'Adicionar à acomodação' : 'Alterar acomodação'}
-                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border: isUnassigned ? '1.5px solid #f59e0b' : '1px solid #e2e8f0', background: isUnassigned ? '#fffbeb' : '#fff', color: isUnassigned ? '#92400e' : '#64748b', fontSize:11, cursor:'pointer' }}
-                          onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f'; if (isUnassigned) ev.currentTarget.style.background='#fde68a' }}
-                          onMouseLeave={ev => { ev.currentTarget.style.borderColor= isUnassigned ? '#f59e0b' : '#e2e8f0'; ev.currentTarget.style.color= isUnassigned ? '#92400e' : '#64748b'; if (isUnassigned) ev.currentTarget.style.background='#fffbeb' }}>
-                          🛏
-                        </button>
                       )}
+                      {/* Acomodação — disponível para todos */}
+                      <button type="button"
+                        onClick={() => setAccomModal({ enrollmentIds: [e.id] })}
+                        title={isUnassigned ? 'Adicionar à acomodação' : 'Alterar acomodação'}
+                        style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border: isUnassigned ? '1.5px solid #f59e0b' : '1px solid #e2e8f0', background: isUnassigned ? '#fffbeb' : '#fff', color: isUnassigned ? '#92400e' : '#64748b', fontSize:11, cursor:'pointer' }}
+                        onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f'; if (isUnassigned) ev.currentTarget.style.background='#fde68a' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.borderColor= isUnassigned ? '#f59e0b' : '#e2e8f0'; ev.currentTarget.style.color= isUnassigned ? '#92400e' : '#64748b'; if (isUnassigned) ev.currentTarget.style.background='#fffbeb' }}>
+                        🛏
+                      </button>
                       <button type="button"
                         onClick={() => setConfirm({ id:e.id, name: e.passenger_name || e.block_agency })}
                         title="Remover"
