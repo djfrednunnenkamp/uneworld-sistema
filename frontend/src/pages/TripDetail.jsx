@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import FormSelect from '../components/FormSelect'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { listsApi, passengersApi, agenciesApi, configApi } from '../api'
@@ -808,28 +809,39 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
 
 /* ── Modal de edição de tipo da acomodação (não remove passageiros) ── */
 function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onClose }) {
-  // Descobre o tipo atual pelo prefixo do nome do quarto
   const currentType = findAccomType(accomTypes, roomName)
   const [selectedType, setSelectedType] = useState(currentType?.name || '')
   const [saving, setSaving] = useState(false)
 
-  const occupants = enrolled.filter(e => e.accommodation === roomName)
+  const occupants    = enrolled.filter(e => e.accommodation === roomName)
   const occupantNames = occupants
     .map(e => e.passenger_name || (e.block_agency ? `[${e.block_agency}]` : null))
     .filter(Boolean)
 
+  // Flags calculadas com base no tipo SELECIONADO
+  const selType  = accomTypes.find(t => t.name === selectedType)
+  const paxCount = occupants.length
+  const capacity = selType?.capacity
+  const capOver  = capacity && paxCount > capacity
+  const capFull  = capacity && paxCount === capacity
+  const capUnder = capacity && paxCount < capacity
+  const genders  = occupants.filter(e => !e.is_block && e.passenger_gender).map(e => e.passenger_gender)
+  const sameSex  = selType?.is_couple && genders.length >= 2 && genders.every(g => g === genders[0])
+
+  const typeOptions = accomTypes.map(t => ({
+    value: t.name,
+    label: `${t.name}${t.capacity ? ` (${t.capacity}p)` : ''}${t.is_couple ? ' — casal' : ''}`,
+  }))
+
   const handleSave = async () => {
     if (!selectedType || selectedType === currentType?.name) { onClose(); return }
     setSaving(true)
-    // Gera novo nome: mantém o número do quarto (ex: "Duplo 2" → número "2")
-    // Extrai sufixo numérico se existir
-    const suffix = currentType ? roomName.slice(currentType.name.length).trim() : ''
+    const suffix  = currentType ? roomName.slice(currentType.name.length).trim() : ''
     const newRoom = suffix ? `${selectedType} ${suffix}` : selectedType
     try {
       await Promise.all(occupants.map(e => listsApi.updatePassenger(listId, e.id, { accommodation: newRoom })))
       toast.success(`Acomodação alterada para ${newRoom}.`)
-      onSaved()
-      onClose()
+      onSaved(); onClose()
     } catch {
       toast.error('Erro ao alterar tipo da acomodação.')
     } finally { setSaving(false) }
@@ -838,7 +850,7 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'visible' }}>
 
         {/* Header */}
         <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -851,7 +863,7 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
 
         <div style={{ padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:16 }}>
 
-          {/* Passageiros atuais */}
+          {/* Passageiros vinculados */}
           {occupantNames.length > 0 && (
             <div style={{ background:'#f8fafc', borderRadius:8, padding:'10px 14px' }}>
               <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>Passageiros vinculados</p>
@@ -866,20 +878,43 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
             </div>
           )}
 
+          {/* Flags de alerta */}
+          {(capOver || capFull || capUnder || sameSex) && (
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              {capOver && (
+                <span style={{ fontSize:11, fontWeight:700, background:'#fee2e2', color:'#dc2626', padding:'3px 10px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
+                  ⚠ Superlotado ({paxCount}/{capacity})
+                </span>
+              )}
+              {capFull && (
+                <span style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', padding:'3px 10px', borderRadius:20 }}>
+                  ● Capacidade máxima ({paxCount}/{capacity})
+                </span>
+              )}
+              {capUnder && (
+                <span style={{ fontSize:11, fontWeight:600, background:'#f0fdf4', color:'#16a34a', padding:'3px 10px', borderRadius:20 }}>
+                  ✓ {capacity - paxCount} vaga{(capacity - paxCount) !== 1 ? 's' : ''} disponível{(capacity - paxCount) !== 1 ? 'is' : ''}
+                </span>
+              )}
+              {sameSex && (
+                <span style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', padding:'3px 10px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
+                  ⚠ Mesmo sexo
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Seletor de tipo */}
           <div>
             <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>
               Tipo da acomodação
             </label>
-            <select value={selectedType} onChange={e => setSelectedType(e.target.value)}
-              style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff', cursor:'pointer' }}>
-              <option value="">Escolha o tipo…</option>
-              {accomTypes.map(t => (
-                <option key={t.id} value={t.name}>
-                  {t.name}{t.capacity ? ` (${t.capacity}p)` : ''}{t.is_couple ? ' — casal' : ''}
-                </option>
-              ))}
-            </select>
+            <FormSelect
+              value={selectedType}
+              onChange={setSelectedType}
+              options={typeOptions}
+              placeholder="Escolha o tipo…"
+            />
           </div>
         </div>
 
