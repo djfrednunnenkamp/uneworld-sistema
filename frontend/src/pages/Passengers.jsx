@@ -367,6 +367,7 @@ export default function Passengers() {
         <PassengerPreviewModal
           passenger={viewRow}
           onClose={() => setViewRow(null)}
+          onEdit={() => { setViewRow(null); navigate(`/passageiros/${viewRow.id}`) }}
         />
       )}
       {delRow && (

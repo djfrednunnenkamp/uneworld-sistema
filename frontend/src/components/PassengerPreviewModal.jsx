@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { StatusBadge } from './DataTable'
 import { Ic } from './Icon'
 
@@ -40,36 +39,50 @@ function birthdayInfo(birthDate) {
   return { badge: null, color: null, bg: null, label, detail }
 }
 
-export default function PassengerPreviewModal({ passenger, onClose }) {
-  const navigate = useNavigate()
+/* Row definido FORA do componente para não criar novo tipo a cada render */
+function Row({ label, value, copied, onCopy }) {
+  if (!value) return null
+  const isCopied = copied === label
+  return (
+    <div onClick={() => onCopy(label, value)} title="Clique para copiar"
+      style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'8px 10px', borderRadius:6, borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background .1s' }}
+      onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+      onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+      <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
+      <span style={{ fontSize:13, color:'#1e293b', flex:1 }}>{value}</span>
+      {isCopied && (
+        <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', zIndex:10 }}>
+          ✓ Copiado
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Props:
+ *   passenger — objeto completo do passageiro
+ *   onClose   — fecha o modal
+ *   onEdit    — (opcional) navega para edição; se omitido, botão Editar não aparece
+ */
+export default function PassengerPreviewModal({ passenger, onClose, onEdit }) {
   const [copied, setCopied] = useState(null)
 
-  const initials = (n) => (n||'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()
+  if (!passenger) return null
+
+  const initials = (n) => (n || '').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
   const color    = PALETTE[(passenger.id ?? 0) % PALETTE.length]
-  const fmtDate  = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}) : null
+  const fmtDate  = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : null
 
-  const copyToClipboard = async (label, value) => {
+  const handleCopy = async (label, value) => {
     if (!value) return
-    try { await navigator.clipboard.writeText(value); setCopied(label); setTimeout(()=>setCopied(null),1800) } catch {}
-  }
-
-  const Row = ({ label, value }) => {
-    if (!value) return null
-    const isCopied = copied === label
-    return (
-      <div onClick={() => copyToClipboard(label, value)} title="Clique para copiar"
-        style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'8px 10px', borderRadius:6, borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background .1s' }}
-        onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
-        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-        <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
-        <span style={{ fontSize:13, color:'#1e293b', flex:1 }}>{value}</span>
-        {isCopied && <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', animation:'fadeUp .2s ease', zIndex:10 }}>✓ Copiado</span>}
-      </div>
-    )
+    try { await navigator.clipboard.writeText(value); setCopied(label); setTimeout(() => setCopied(null), 1800) } catch {}
   }
 
   const bInfo = birthdayInfo(passenger.birth_date)
   const age   = calcAge(passenger.birth_date)
+
+  const rowProps = { copied, onCopy: handleCopy }
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -84,11 +97,15 @@ export default function PassengerPreviewModal({ passenger, onClose }) {
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <span style={{ position:'relative', display:'inline-block' }}>
-              <p onClick={() => copyToClipboard('Nome', passenger.full_name)} title="Clique para copiar"
+              <p onClick={() => handleCopy('Nome', passenger.full_name)} title="Clique para copiar"
                 style={{ fontSize:16, fontWeight:700, color:'#1e293b', margin:0, cursor:'pointer' }}>
                 {passenger.full_name}
               </p>
-              {copied==='Nome' && <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', animation:'fadeUp .2s ease' }}>✓ Copiado</span>}
+              {copied === 'Nome' && (
+                <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none' }}>
+                  ✓ Copiado
+                </span>
+              )}
             </span>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
               <StatusBadge value={passenger.status} />
@@ -97,43 +114,46 @@ export default function PassengerPreviewModal({ passenger, onClose }) {
           </div>
           <button onClick={onClose}
             style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer', flexShrink:0 }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor='#1e293b'; e.currentTarget.style.color='#1e293b' }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#94a3b8' }}>
-            <Ic n="x" s={14}/>
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#1e293b'; e.currentTarget.style.color='#1e293b' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#94a3b8' }}>
+            <Ic n="x" s={14} />
           </button>
         </div>
 
         {/* Dados */}
         <div style={{ padding:'8px 12px 12px' }}>
-          <p style={{ fontSize:10, fontWeight:700, color:'#cbd5e1', textTransform:'uppercase', letterSpacing:'.05em', margin:'0 10px 4px', paddingTop:4 }}>Clique em qualquer linha para copiar</p>
-          <Row label="E-mail"      value={passenger.email} />
-          <Row label="Celular"     value={passenger.mobile||passenger.phone1} />
-          <Row label="Telefone"    value={passenger.mobile&&passenger.phone1?passenger.phone1:null} />
-          <Row label="CPF"         value={passenger.cpf} />
-          <Row label="Data nasc."  value={passenger.birth_date ? `${fmtDate(passenger.birth_date)} — ${age} anos` : null} />
+          <p style={{ fontSize:10, fontWeight:700, color:'#cbd5e1', textTransform:'uppercase', letterSpacing:'.05em', margin:'0 10px 4px', paddingTop:4 }}>
+            Clique em qualquer linha para copiar
+          </p>
+          <Row label="E-mail"      value={passenger.email}                                              {...rowProps} />
+          <Row label="Celular"     value={passenger.mobile || passenger.phone1}                         {...rowProps} />
+          <Row label="Telefone"    value={passenger.mobile && passenger.phone1 ? passenger.phone1 : null} {...rowProps} />
+          <Row label="CPF"         value={passenger.cpf}                                                {...rowProps} />
+          <Row label="Data nasc."  value={passenger.birth_date ? `${fmtDate(passenger.birth_date)} — ${age} anos` : null} {...rowProps} />
           {passenger.birth_date && bInfo && (
-            <div style={{ padding:'6px 10px', borderRadius:6, margin:'2px 0', borderBottom:'1px solid #f8fafc', background:bInfo.bg??'#f8fafc', color:bInfo.color??'#64748b', fontSize:12.5, fontWeight:500 }}>
+            <div style={{ padding:'6px 10px', borderRadius:6, margin:'2px 0', borderBottom:'1px solid #f8fafc', background: bInfo.bg ?? '#f8fafc', color: bInfo.color ?? '#64748b', fontSize:12.5, fontWeight:500 }}>
               {bInfo.detail}
             </div>
           )}
-          <Row label="Alimentação" value={passenger.diet_type ? DIET_PT[passenger.diet_type]??passenger.diet_type : null} />
-          <Row label="Agências"    value={passenger.agency_names} />
-          <Row label="Cidade / UF" value={passenger.city ? `${passenger.city}${passenger.state?` / ${passenger.state}`:''}` : null} />
+          <Row label="Alimentação" value={passenger.diet_type ? (DIET_PT[passenger.diet_type] ?? passenger.diet_type) : null} {...rowProps} />
+          <Row label="Agências"    value={passenger.agency_names ?? null}                               {...rowProps} />
+          <Row label="Cidade / UF" value={passenger.city ? `${passenger.city}${passenger.state ? ` / ${passenger.state}` : ''}` : null} {...rowProps} />
         </div>
 
         {/* Footer */}
-        <div style={{ padding:'12px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
-          <button
-            onClick={() => { onClose(); navigate(`/passageiros/${passenger.id}`) }}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-            <Ic n="edit" s={13}/> Editar
-          </button>
+        <div style={{ padding:'12px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent: onEdit ? 'space-between' : 'flex-end' }}>
+          {onEdit && (
+            <button onClick={onEdit}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+              <Ic n="edit" s={13} /> Editar
+            </button>
+          )}
           <button onClick={onClose}
             style={{ padding:'7px 24px', borderRadius:6, border:'none', background:'#2e6db4', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
-            onMouseEnter={e=>e.currentTarget.style.background='#275fa0'}
-            onMouseLeave={e=>e.currentTarget.style.background='#2e6db4'}>
+            onMouseEnter={e => e.currentTarget.style.background='#275fa0'}
+            onMouseLeave={e => e.currentTarget.style.background='#2e6db4'}>
             Fechar
           </button>
         </div>

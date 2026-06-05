@@ -811,6 +811,7 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
 
 /* ── Modal de edição de tipo da acomodação (não remove passageiros) ── */
 function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onClose }) {
+  const navigate    = useNavigate()
   const currentType = findAccomType(accomTypes, roomName)
   const [selectedType, setSelectedType] = useState(currentType?.name || '')
   const [saving,       setSaving]       = useState(false)
@@ -960,6 +961,7 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
         <PassengerPreviewModal
           passenger={previewPax}
           onClose={() => setPreviewPax(null)}
+          onEdit={() => { setPreviewPax(null); onClose(); navigate(`/passageiros/${previewPax.id}`) }}
         />,
         document.body
       )}
