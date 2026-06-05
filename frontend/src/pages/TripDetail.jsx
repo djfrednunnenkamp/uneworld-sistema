@@ -648,6 +648,246 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
   )
 }
 
+/* ── Modal de acomodação (reutilizável para massa e individual) ── */
+// enrollmentIds: lista de IDs de enrollments a vincular
+// enrolled: lista completa de enrollments da lista
+// accomTypes: tipos de acomodação disponíveis
+// onConfirm(roomName): callback ao confirmar
+// onClose: fechar modal
+function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onClose }) {
+  const [newType,   setNewType]   = useState('')
+  const [saving,    setSaving]    = useState(false)
+
+  // Monta mapa de quartos existentes: roomName → { type, people[] }
+  const roomMap = {}
+  enrolled.forEach(e => {
+    if (!e.accommodation) return
+    if (!roomMap[e.accommodation]) {
+      const type = accomTypes.find(t => e.accommodation === t.name || e.accommodation.startsWith(t.name + ' '))
+      roomMap[e.accommodation] = { type, people: [] }
+    }
+    if (e.passenger_name) roomMap[e.accommodation].people.push(e.passenger_name)
+    else if (e.block_agency) roomMap[e.accommodation].people.push(`[${e.block_agency}]`)
+  })
+  const existingRooms = Object.keys(roomMap).sort()
+
+  const handleSelectRoom = async (room) => {
+    setSaving(true)
+    try {
+      await onConfirm(room)
+    } finally { setSaving(false) }
+  }
+
+  const handleCreateNew = async () => {
+    if (!newType) return
+    // Determina próximo número disponível para este tipo
+    const existing = existingRooms.filter(r => r === newType || r.startsWith(newType + ' '))
+    let next = `${newType} 1`
+    for (let n = 1; n <= 99; n++) {
+      const c = `${newType} ${n}`
+      if (!existing.includes(c)) { next = c; break }
+    }
+    setSaving(true)
+    try {
+      await onConfirm(next)
+    } finally { setSaving(false) }
+  }
+
+  const isBulk = enrollmentIds.length > 1
+  const subtitle = isBulk
+    ? `${enrollmentIds.length} passageiros selecionados`
+    : enrolled.find(e => enrollmentIds[0] === e.id)?.passenger_name || enrolled.find(e => enrollmentIds[0] === e.id)?.block_agency || ''
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:480, boxShadow:'0 32px 80px rgba(0,0,0,.25)', display:'flex', flexDirection:'column', maxHeight:'85vh', overflow:'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Adicionar à acomodação</p>
+            {subtitle && <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{subtitle}</p>}
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:20 }}>
+
+          {/* Seção 1 — Acomodações existentes */}
+          {existingRooms.length > 0 && (
+            <div>
+              <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
+                Acomodações existentes
+              </p>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {existingRooms.map(room => {
+                  const { type, people } = roomMap[room]
+                  const cap   = type?.capacity
+                  const count = people.length
+                  const over  = cap && count >= cap
+                  return (
+                    <button key={room} type="button" onClick={() => !saving && handleSelectRoom(room)} disabled={saving}
+                      style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', cursor: saving ? 'default' : 'pointer', fontFamily:'inherit', textAlign:'left', transition:'all .12s' }}
+                      onMouseEnter={ev => { if (!saving) ev.currentTarget.style.borderColor='#1a2d4f' }}
+                      onMouseLeave={ev => ev.currentTarget.style.borderColor='#e2e8f0'}>
+                      <div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom: people.length ? 3 : 0 }}>
+                          <span style={{ fontSize:13, fontWeight:600, color:'#1e293b' }}>{room}</span>
+                          {type?.is_couple && <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:10 }}>casal</span>}
+                        </div>
+                        {people.length > 0 && (
+                          <p style={{ margin:0, fontSize:11, color:'#64748b' }}>{people.join(' / ')}</p>
+                        )}
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                        {cap
+                          ? <span style={{ fontSize:11, fontWeight:600, color: over ? '#dc2626' : '#16a34a', background: over ? '#fee2e2' : '#dcfce7', padding:'1px 8px', borderRadius:20 }}>
+                              {count}/{cap} {over ? '⚠' : '✓'}
+                            </span>
+                          : <span style={{ fontSize:11, color:'#94a3b8' }}>{count}p</span>
+                        }
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Seção 2 — Criar nova acomodação */}
+          <div>
+            <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
+              Criar nova acomodação
+            </p>
+            {accomTypes.length === 0 ? (
+              <p style={{ margin:0, fontSize:12, color:'#94a3b8', fontStyle:'italic' }}>
+                Nenhum tipo configurado. Acesse Configurações → Acomodações.
+              </p>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                <select value={newType} onChange={e => setNewType(e.target.value)}
+                  style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color: newType ? '#1e293b' : '#94a3b8', background:'#fff', cursor:'pointer' }}>
+                  <option value="">Escolha o tipo…</option>
+                  {accomTypes.map(t => (
+                    <option key={t.id} value={t.name}>
+                      {t.name}{t.capacity ? ` (${t.capacity}p)` : ''}{t.is_couple ? ' — casal' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" onClick={handleCreateNew} disabled={!newType || saving}
+                  style={{ padding:'9px 16px', borderRadius:8, border:'none', background: !newType || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !newType || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+                  {saving ? 'Criando…' : '+ Criar e vincular'}
+                </button>
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', justifyContent:'flex-end', flexShrink:0, borderTop:'1px solid #f1f5f9', paddingTop:14 }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Modal de edição de tipo da acomodação (não remove passageiros) ── */
+function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onClose }) {
+  // Descobre o tipo atual pelo prefixo do nome do quarto
+  const currentType = accomTypes.find(t => roomName === t.name || roomName.startsWith(t.name + ' '))
+  const [selectedType, setSelectedType] = useState(currentType?.name || '')
+  const [saving, setSaving] = useState(false)
+
+  const occupants = enrolled.filter(e => e.accommodation === roomName)
+  const occupantNames = occupants
+    .map(e => e.passenger_name || (e.block_agency ? `[${e.block_agency}]` : null))
+    .filter(Boolean)
+
+  const handleSave = async () => {
+    if (!selectedType || selectedType === currentType?.name) { onClose(); return }
+    setSaving(true)
+    // Gera novo nome: mantém o número do quarto (ex: "Duplo 2" → número "2")
+    // Extrai sufixo numérico se existir
+    const suffix = currentType ? roomName.slice(currentType.name.length).trim() : ''
+    const newRoom = suffix ? `${selectedType} ${suffix}` : selectedType
+    try {
+      await Promise.all(occupants.map(e => listsApi.updatePassenger(listId, e.id, { accommodation: newRoom })))
+      toast.success(`Acomodação alterada para ${newRoom}.`)
+      onSaved()
+      onClose()
+    } catch {
+      toast.error('Erro ao alterar tipo da acomodação.')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Editar acomodação</p>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{roomName}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        <div style={{ padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:16 }}>
+
+          {/* Passageiros atuais */}
+          {occupantNames.length > 0 && (
+            <div style={{ background:'#f8fafc', borderRadius:8, padding:'10px 14px' }}>
+              <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>Passageiros vinculados</p>
+              <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+                {occupantNames.map((name, i) => (
+                  <p key={i} style={{ margin:0, fontSize:13, color:'#1e293b' }}>• {name}</p>
+                ))}
+              </div>
+              <p style={{ margin:'8px 0 0', fontSize:11, color:'#94a3b8', fontStyle:'italic' }}>
+                Alterar o tipo não remove estes passageiros.
+              </p>
+            </div>
+          )}
+
+          {/* Seletor de tipo */}
+          <div>
+            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>
+              Tipo da acomodação
+            </label>
+            <select value={selectedType} onChange={e => setSelectedType(e.target.value)}
+              style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff', cursor:'pointer' }}>
+              <option value="">Escolha o tipo…</option>
+              {accomTypes.map(t => (
+                <option key={t.id} value={t.name}>
+                  {t.name}{t.capacity ? ` (${t.capacity}p)` : ''}{t.is_couple ? ' — casal' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={!selectedType || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !selectedType || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !selectedType || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Aba de Passageiros ── */
 function PassengersTab({ listId, listType }) {
   const [enrolled,   setEnrolled]   = useState([])
@@ -655,13 +895,13 @@ function PassengersTab({ listId, listType }) {
   const [loading,    setLoading]    = useState(true)
   const [showAdd,    setShowAdd]    = useState(false)
   const [confirm,      setConfirm]      = useState(null)
-  const [editAccom,    setEditAccom]    = useState(null)
   const [assignBlk,    setAssignBlk]    = useState(null)
   const [selected,      setSelected]      = useState(new Set())
-  const [bulkAccom,     setBulkAccom]     = useState('')
-  const [showBulkRoom,  setShowBulkRoom]  = useState(false)
   const [bulkSaving,    setBulkSaving]    = useState(false)
-  const [moveEnrollment,setMoveEnrollment]= useState(null) // {id, name, currentAccom}
+  // accomModal: null | { enrollmentIds: number[] }
+  const [accomModal,    setAccomModal]    = useState(null)
+  // editAccomType: null | roomName (string)
+  const [editAccomType, setEditAccomType] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -690,17 +930,6 @@ function PassengersTab({ listId, listType }) {
     finally { setBulkSaving(false) }
   }
 
-  const bulkAssignRoom = async () => {
-    if (!bulkAccom.trim()) return
-    setBulkSaving(true)
-    try {
-      await Promise.all([...selected].map(eid => listsApi.updatePassenger(listId, eid, { accommodation: bulkAccom.trim() })))
-      toast.success(`Acomodação atribuída a ${selected.size} passageiro${selected.size > 1 ? 's' : ''}.`)
-      setShowBulkRoom(false); setBulkAccom(''); clearSelect(); load()
-    } catch { toast.error('Erro ao atribuir acomodação.') }
-    finally { setBulkSaving(false) }
-  }
-
   const remove = async (eid, name) => {
     await listsApi.removePassenger(listId, eid).catch(() => toast.error('Erro ao remover.'))
     setConfirm(null)
@@ -708,18 +937,15 @@ function PassengersTab({ listId, listType }) {
     load()
   }
 
-  const saveAccom = async () => {
-    const accom = editAccom.accommodation
-    if (editAccom.bulkKey) {
-      // Atualiza TODOS os passageiros do grupo
-      const groupIds = enrolled
-        .filter(e => (e.accommodation || '(sem acomodação)') === editAccom.bulkKey)
-        .map(e => e.id)
-      await Promise.all(groupIds.map(eid => listsApi.updatePassenger(listId, eid, { accommodation: accom })))
-    } else {
-      await listsApi.updatePassenger(listId, editAccom.id, { accommodation: accom })
-    }
-    setEditAccom(null); load()
+  // Callback unificado: vincula os enrollmentIds à acomodação escolhida
+  const handleAccomConfirm = async (room) => {
+    const ids = accomModal.enrollmentIds
+    await Promise.all(ids.map(eid => listsApi.updatePassenger(listId, eid, { accommodation: room })))
+    const n = ids.length
+    toast.success(n > 1 ? `${n} passageiros vinculados a ${room}.` : `Vinculado a ${room}.`)
+    setAccomModal(null)
+    clearSelect()
+    load()
   }
 
   const toggleStatus = async (e) => {
@@ -767,9 +993,11 @@ function PassengersTab({ listId, listType }) {
           <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
             {selected.size} selecionado{selected.size > 1 ? 's' : ''}
           </span>
-          <button type="button" onClick={() => setShowBulkRoom(true)} disabled={bulkSaving}
+          <button type="button"
+            onClick={() => setAccomModal({ enrollmentIds: [...selected] })}
+            disabled={bulkSaving}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            🛏 Atribuir acomodação
+            🛏 Adicionar à acomodação
           </button>
           <button type="button" onClick={bulkDelete} disabled={bulkSaving}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
@@ -875,8 +1103,8 @@ function PassengersTab({ listId, listType }) {
                     )}
 
                     <button type="button"
-                      onClick={() => setEditAccom({ id: rows[0].id, accommodation: rows[0].accommodation || '', bulkKey: key })}
-                      title="Renomear acomodação"
+                      onClick={() => setEditAccomType(key)}
+                      title="Editar tipo da acomodação"
                       style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:13, padding:0, lineHeight:1 }}
                       onMouseEnter={e => e.currentTarget.style.color='#1a2d4f'}
                       onMouseLeave={e => e.currentTarget.style.color='#94a3b8'}>
@@ -963,31 +1191,22 @@ function PassengersTab({ listId, listType }) {
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
-                      {isUnassigned && e.is_block ? (
+                      {e.is_block && isUnassigned ? (
                         <button type="button"
                           onClick={() => setAssignBlk(e)}
-                          title="Atribuir passageiro"
+                          title="Atribuir passageiro ao bloco"
                           style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:13, cursor:'pointer' }}
                           onMouseEnter={ev => ev.currentTarget.style.background='#fde68a'}
                           onMouseLeave={ev => ev.currentTarget.style.background='#fffbeb'}>
                           <Ic n="users" s={12} />
                         </button>
-                      ) : isUnassigned ? (
-                        <button type="button"
-                          onClick={() => setEditAccom({ id: e.id, accommodation: '' })}
-                          title="Atribuir acomodação"
-                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:13, cursor:'pointer' }}
-                          onMouseEnter={ev => ev.currentTarget.style.background='#fde68a'}
-                          onMouseLeave={ev => ev.currentTarget.style.background='#fffbeb'}>
-                          🛏
-                        </button>
                       ) : (
                         <button type="button"
-                          onClick={() => setMoveEnrollment({ id: e.id, name: e.passenger_name || e.block_agency, currentAccom: e.accommodation || '' })}
-                          title="Mover para outro quarto"
-                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:11, cursor:'pointer' }}
-                          onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
-                          onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
+                          onClick={() => setAccomModal({ enrollmentIds: [e.id] })}
+                          title={isUnassigned ? 'Adicionar à acomodação' : 'Alterar acomodação'}
+                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border: isUnassigned ? '1.5px solid #f59e0b' : '1px solid #e2e8f0', background: isUnassigned ? '#fffbeb' : '#fff', color: isUnassigned ? '#92400e' : '#64748b', fontSize:11, cursor:'pointer' }}
+                          onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f'; if (isUnassigned) ev.currentTarget.style.background='#fde68a' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.borderColor= isUnassigned ? '#f59e0b' : '#e2e8f0'; ev.currentTarget.style.color= isUnassigned ? '#92400e' : '#64748b'; if (isUnassigned) ev.currentTarget.style.background='#fffbeb' }}>
                           🛏
                         </button>
                       )}
@@ -1008,115 +1227,28 @@ function PassengersTab({ listId, listType }) {
         </div>
       )}
 
-      {/* Popup acomodação em massa */}
-      {showBulkRoom && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
-          onMouseDown={e => { if (e.target === e.currentTarget) setShowBulkRoom(false) }}>
-          <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:400, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
-            <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <div>
-                <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Atribuir acomodação</p>
-                <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{selected.size} passageiro{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}</p>
-              </div>
-              <button onClick={() => setShowBulkRoom(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
-            </div>
-            <div style={{ padding:'18px 22px' }}>
-              <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Acomodação</label>
-              <AccomPicker
-                onSelect={v => setBulkAccom(v)}
-                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)}
-                enrolledList={enrolled} />
-              {bulkAccom && (
-                <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {bulkAccom} selecionado</p>
-              )}
-            </div>
-            <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button onClick={() => setShowBulkRoom(false)} style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
-              <button onClick={bulkAssignRoom} disabled={!bulkAccom.trim() || bulkSaving}
-                style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !bulkAccom.trim()||bulkSaving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !bulkAccom.trim()||bulkSaving ? 'default' : 'pointer', fontFamily:'inherit' }}>
-                {bulkSaving ? 'Atribuindo…' : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Modal de acomodação — reutilizado para massa e individual */}
+      {accomModal && (
+        <AccomPickerModal
+          enrollmentIds={accomModal.enrollmentIds}
+          enrolled={enrolled}
+          accomTypes={accomTypes}
+          onConfirm={handleAccomConfirm}
+          onClose={() => setAccomModal(null)}
+        />
       )}
 
-      {/* Popup mover passageiro entre quartos */}
-      {moveEnrollment && (() => {
-        const allRooms = [...new Set(enrolled.map(e => e.accommodation).filter(Boolean))].sort()
-        const moveToRoom = async (room) => {
-          if (!room) return
-          await listsApi.updatePassenger(listId, moveEnrollment.id, { accommodation: room })
-          toast.success(`Movido para ${room}.`)
-          setMoveEnrollment(null); load()
-        }
-        return (
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
-            onMouseDown={ev => { if (ev.target === ev.currentTarget) setMoveEnrollment(null) }}>
-            <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:460, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden', display:'flex', flexDirection:'column', maxHeight:'85vh' }}>
-
-              {/* Header */}
-              <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-                <div>
-                  <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Mover para quarto</p>
-                  <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{moveEnrollment.name}</p>
-                </div>
-                <button onClick={() => setMoveEnrollment(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
-              </div>
-
-              {/* Picker (topo) — onSelect só é chamado ao escolher uma opção */}
-              <div style={{ padding:'14px 22px 12px', borderBottom:'1px solid #f1f5f9', flexShrink:0 }}>
-                <AccomPicker onSelect={moveToRoom} existingRooms={allRooms} enrolledList={enrolled} />
-              </div>
-
-              {/* Lista de quartos existentes */}
-              <div style={{ flex:1, overflowY:'auto', padding:'8px 22px 16px' }}>
-                {allRooms.length === 0 ? (
-                  <p style={{ textAlign:'center', color:'#94a3b8', fontSize:13, padding:'20px 0', margin:0 }}>
-                    Nenhum quarto criado ainda. Use o campo acima.
-                  </p>
-                ) : (
-                  <>
-                    <p style={{ margin:'8px 0 8px', fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>
-                      Quartos na lista
-                    </p>
-                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                      {allRooms.map(room => {
-                        const isCurrent = room === moveEnrollment.currentAccom
-                        const type = accomTypes.find(t => room === t.name || room.startsWith(t.name + ' '))
-                        const count = enrolled.filter(e => e.accommodation === room).length
-                        const cap   = type?.capacity
-                        const over  = cap && count >= cap
-                        return (
-                          <button key={room} type="button" disabled={isCurrent}
-                            onClick={() => moveToRoom(room)}
-                            style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:8, border:`1.5px solid ${isCurrent ? '#1a2d4f' : '#e2e8f0'}`, background: isCurrent ? '#f0f4ff' : '#fff', cursor: isCurrent ? 'default' : 'pointer', fontFamily:'inherit', transition:'all .12s', textAlign:'left' }}
-                            onMouseEnter={ev => { if (!isCurrent) ev.currentTarget.style.borderColor='#1a2d4f' }}
-                            onMouseLeave={ev => { if (!isCurrent) ev.currentTarget.style.borderColor='#e2e8f0' }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                              <span style={{ fontSize:13, fontWeight:600, color: isCurrent ? '#1a2d4f' : '#1e293b' }}>{room}</span>
-                              {isCurrent && <span style={{ fontSize:11, color:'#2e6db4', background:'#eff6ff', padding:'1px 7px', borderRadius:10, fontWeight:600 }}>atual</span>}
-                              {type?.is_couple && <span style={{ fontSize:10, color:'#7c3aed', background:'#ede9fe', padding:'1px 6px', borderRadius:10 }}>casal</span>}
-                            </div>
-                            <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-                              {cap
-                                ? <span style={{ fontSize:11, fontWeight:600, color: over ? '#dc2626' : '#16a34a', background: over ? '#fee2e2' : '#dcfce7', padding:'1px 8px', borderRadius:20 }}>
-                                    {count}/{cap} {over ? '⚠' : '✓'}
-                                  </span>
-                                : <span style={{ fontSize:11, color:'#94a3b8' }}>{count}p</span>
-                              }
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )
-      })()}
+      {/* Modal editar tipo da acomodação */}
+      {editAccomType && (
+        <EditAccomTypeModal
+          roomName={editAccomType}
+          accomTypes={accomTypes}
+          enrolled={enrolled}
+          listId={listId}
+          onSaved={load}
+          onClose={() => setEditAccomType(null)}
+        />
+      )}
 
       {/* Popup atribuir passageiro a bloco */}
       {assignBlk && (
@@ -1137,37 +1269,6 @@ function PassengersTab({ listId, listType }) {
           onAdded={load}
           onClose={() => setShowAdd(false)}
         />
-      )}
-
-      {/* Popup editar acomodação */}
-      {editAccom && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
-          onMouseDown={e => { if (e.target === e.currentTarget) setEditAccom(null) }}>
-          <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:380, boxShadow:'0 24px 60px rgba(0,0,0,.2)', overflow:'hidden' }}>
-            <div style={{ padding:'16px 20px 12px', borderBottom:'1px solid #e2e8f0' }}>
-              <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Acomodação</span>
-            </div>
-            <div style={{ padding:'16px 20px' }}>
-              <AccomPicker
-                onSelect={v => setEditAccom(ea => ({ ...ea, accommodation: v }))}
-                existingRooms={enrolled.map(e => e.accommodation).filter(Boolean)}
-                enrolledList={enrolled} />
-              {editAccom.accommodation && (
-                <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {editAccom.accommodation}</p>
-              )}
-            </div>
-            <div style={{ padding:'0 20px 16px', display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button type="button" onClick={() => setEditAccom(null)}
-                style={{ padding:'7px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                Cancelar
-              </button>
-              <button type="button" onClick={saveAccom}
-                style={{ padding:'7px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                Salvar
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {confirm && (
