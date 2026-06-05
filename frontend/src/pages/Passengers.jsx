@@ -7,6 +7,7 @@ import DelModal from '../components/DelModal'
 import NewPassengerModal from '../components/NewPassengerModal'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
 import { Ic } from '../components/Icon'
+import PassengerPreviewModal from '../components/PassengerPreviewModal'
 
 /* ── Helpers ── */
 function calcAge(birthDate) {
@@ -363,10 +364,9 @@ export default function Passengers() {
       />
 
       {viewRow && (
-        <PassengerPreview
+        <PassengerPreviewModal
           passenger={viewRow}
           onClose={() => setViewRow(null)}
-          onEdit={() => { setViewRow(null); navigate(`/passageiros/${viewRow.id}`) }}
         />
       )}
       {delRow && (

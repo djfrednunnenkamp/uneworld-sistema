@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import FormSelect from '../components/FormSelect'
+import PassengerPreviewModal from '../components/PassengerPreviewModal'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { listsApi, passengersApi, agenciesApi, configApi } from '../api'
@@ -811,12 +812,21 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
 function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onClose }) {
   const currentType = findAccomType(accomTypes, roomName)
   const [selectedType, setSelectedType] = useState(currentType?.name || '')
-  const [saving, setSaving] = useState(false)
+  const [saving,       setSaving]       = useState(false)
+  const [previewPax,   setPreviewPax]   = useState(null)   // objeto completo do passageiro
+  const [loadingPax,   setLoadingPax]   = useState(null)   // id sendo carregado
 
-  const occupants    = enrolled.filter(e => e.accommodation === roomName)
-  const occupantNames = occupants
-    .map(e => e.passenger_name || (e.block_agency ? `[${e.block_agency}]` : null))
-    .filter(Boolean)
+  const occupants = enrolled.filter(e => e.accommodation === roomName)
+
+  const openPreview = async (e) => {
+    if (!e.passenger) return
+    setLoadingPax(e.passenger)
+    try {
+      const r = await passengersApi.get(e.passenger)
+      setPreviewPax(r.data)
+    } catch { toast.error('Não foi possível carregar o passageiro.') }
+    finally { setLoadingPax(null) }
+  }
 
   // Flags calculadas com base no tipo SELECIONADO
   const selType  = accomTypes.find(t => t.name === selectedType)
@@ -864,13 +874,28 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
         <div style={{ padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* Passageiros vinculados */}
-          {occupantNames.length > 0 && (
+          {occupants.length > 0 && (
             <div style={{ background:'#f8fafc', borderRadius:8, padding:'10px 14px' }}>
               <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>Passageiros vinculados</p>
-              <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
-                {occupantNames.map((name, i) => (
-                  <p key={i} style={{ margin:0, fontSize:13, color:'#1e293b' }}>• {name}</p>
-                ))}
+              <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                {occupants.map((e) => {
+                  const name     = e.passenger_name || (e.block_agency ? `[${e.block_agency}]` : null)
+                  if (!name) return null
+                  const isLoading = loadingPax === e.passenger
+                  const clickable = !!e.passenger
+                  return (
+                    <div key={e.id}
+                      onClick={() => clickable && openPreview(e)}
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 4px', borderRadius:6, cursor: clickable ? 'pointer' : 'default', transition:'background .1s' }}
+                      onMouseEnter={ev => { if (clickable) ev.currentTarget.style.background='#e2e8f0' }}
+                      onMouseLeave={ev => { ev.currentTarget.style.background='transparent' }}>
+                      <span style={{ color:'#94a3b8', fontSize:12 }}>•</span>
+                      <span style={{ fontSize:13, color: clickable ? '#1a2d4f' : '#1e293b', fontWeight: clickable ? 600 : 400, textDecoration: clickable ? 'underline' : 'none', textDecorationStyle:'dotted', textUnderlineOffset:3 }}>
+                        {isLoading ? 'Carregando…' : name}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
               <p style={{ margin:'8px 0 0', fontSize:11, color:'#94a3b8', fontStyle:'italic' }}>
                 Alterar o tipo não remove estes passageiros.
@@ -929,6 +954,13 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
           </button>
         </div>
       </div>
+
+      {previewPax && (
+        <PassengerPreviewModal
+          passenger={previewPax}
+          onClose={() => setPreviewPax(null)}
+        />
+      )}
     </div>
   )
 }
