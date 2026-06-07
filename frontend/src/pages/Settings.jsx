@@ -6,6 +6,7 @@ import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import DocTypesManager from '../components/DocTypesManager'
 import AccommodationManager from '../components/AccommodationManager'
+import { Ic } from '../components/Icon'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -659,27 +660,33 @@ export default function Settings() {
 
       {/* ── Seção: Listas ── */}
       {section === 0 && (
-        <div style={{ padding:'24px', maxWidth:480 }}>
-          <input value={listSearch} onChange={e => setListSearch(e.target.value)} placeholder="Buscar lista…"
-            style={{ ...inp, width:'100%', marginBottom:14 }}
-            onFocus={e => e.target.style.borderColor = '#1a2d4f'}
-            onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+        <div style={{ padding:'24px' }}>
+          <div className="search-row" style={{ justifyContent:'flex-end' }}>
+            <div className="search-wrap">
+              <span className="search-ico"><Ic n="search" s={14}/></span>
+              <input className="search-in" placeholder="Buscar lista…"
+                value={listSearch} onChange={e => setListSearch(e.target.value)} />
+            </div>
+          </div>
 
-          <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
+          <div className="tcard">
             {filteredListDefs.length === 0 ? (
-              <p style={{ textAlign:'center', padding:'28px 0', color:'#94a3b8', fontSize:13 }}>Nenhuma lista encontrada.</p>
+              <div className="empty-state">
+                <div style={{ color:'#cbd5e1' }}><Ic n="search" s={28}/></div>
+                <p>Nenhuma lista encontrada</p>
+              </div>
             ) : filteredListDefs.map((d, idx) => (
               <div key={d.key} onClick={() => setActiveList(d.key)}
                 style={{
                   display:'flex', alignItems:'center', justifyContent:'space-between',
-                  padding:'13px 16px', fontSize:13.5, fontWeight:500, color:'#0f172a', cursor:'pointer',
+                  padding:'13px 16px', fontSize:13, fontWeight:500, color:'#1e293b', cursor:'pointer',
                   borderBottom: idx < filteredListDefs.length - 1 ? '1px solid #f1f5f9' : 'none',
                   background:'#fff', transition:'background .1s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                 onMouseLeave={e => e.currentTarget.style.background = '#fff'}
               >
-                <span>{d.label}</span>
+                <span className="t-name">{d.label}</span>
                 <span style={{ color:'#cbd5e1', fontSize:17 }}>›</span>
               </div>
             ))}
