@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
+import { Ic } from './Icon'
 
 const FIELD_TYPES = [
   { value: 'text',       label: 'Texto livre',            icon: '📝', desc: 'Input de texto' },
@@ -602,15 +603,9 @@ export default function DocTypesManager() {
                 <span style={{ padding:'2px 8px', borderRadius:20, background:'#fee2e2', color:'#dc2626', fontSize:11, fontWeight:600 }}>Inativo</span>
               )}
               {/* Ações */}
-              <div style={{ display:'flex', gap:6 }}>
-                <button onClick={() => setModal({ docType: dt })}
-                  style={{ padding:'6px 14px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                  ✏ Editar
-                </button>
-                <button onClick={() => setConfirm({ id:dt.id, name:dt.label })}
-                  style={{ padding:'6px 10px', borderRadius:7, border:'1px solid #fecaca', background:'#fef2f2', color:'#dc2626', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
-                  ✕
-                </button>
+              <div className="r-acts">
+                <button className="r-btn edit" title="Editar" onClick={() => setModal({ docType: dt })}><Ic n="edit" s={13}/></button>
+                <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id:dt.id, name:dt.label })}><Ic n="trash" s={13}/></button>
               </div>
             </div>
           ))}

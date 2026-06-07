@@ -298,19 +298,13 @@ function AgencyUsersTab({ agencyId }) {
                   {!m.is_active && pill('#fee2e2','#dc2626','Inativo')}
                 </div>
                 {/* Ações */}
-                <div style={{ display:'flex', gap:4, flexShrink:0 }}>
-                  <button title="Editar"
-                    onClick={() => setEditUser({ id: m.user_id, first_name: m.first_name, last_name: m.last_name, email: m.email })}
-                    style={{ width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', transition:'all .12s' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b' }}>
+                <div className="r-acts">
+                  <button className="r-btn edit" title="Editar"
+                    onClick={() => setEditUser({ id: m.user_id, first_name: m.first_name, last_name: m.last_name, email: m.email })}>
                     <Ic n="edit" s={13} />
                   </button>
-                  <button title="Remover"
-                    onClick={() => setConfirm({ id: m.id, name: m.full_name || m.email })}
-                    style={{ width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer', transition:'all .12s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background='#fee2e2'; e.currentTarget.style.color='#dc2626'; e.currentTarget.style.borderColor='#fecaca' }}
-                    onMouseLeave={e => { e.currentTarget.style.background='#fff'; e.currentTarget.style.color='#94a3b8'; e.currentTarget.style.borderColor='#e2e8f0' }}>
+                  <button className="r-btn del" title="Remover"
+                    onClick={() => setConfirm({ id: m.id, name: m.full_name || m.email })}>
                     <Ic n="trash" s={13} />
                   </button>
                 </div>
