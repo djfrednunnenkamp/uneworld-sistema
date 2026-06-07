@@ -148,7 +148,7 @@ export default function AgencyPicker({ selectedIds = [], onChange }) {
               ) : filtered.map((a) => {
                 const checked = draft.includes(a.id)
                 return (
-                  <label
+                  <div
                     key={a.id}
                     onClick={() => toggleAgency(a.id)}
                     style={{
@@ -164,7 +164,7 @@ export default function AgencyPicker({ selectedIds = [], onChange }) {
                       type="checkbox"
                       readOnly
                       checked={checked}
-                      style={{ width: 15, height: 15, accentColor: '#2e6db4', flexShrink: 0 }}
+                      style={{ width: 15, height: 15, accentColor: '#2e6db4', flexShrink: 0, pointerEvents: 'none' }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: '#1e293b', margin: 0 }}>
@@ -179,7 +179,7 @@ export default function AgencyPicker({ selectedIds = [], onChange }) {
                         <Ic n="check" s={14} />
                       </span>
                     )}
-                  </label>
+                  </div>
                 )
               })}
             </div>
