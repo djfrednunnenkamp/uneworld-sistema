@@ -107,10 +107,6 @@ class PassengerList(models.Model):
         ('aereo',     'Via Aéreo'),
         ('terrestre', 'Via Terrestre'),
     ]
-    CATEGORY_CHOICES = [
-        ('internacional', 'Internacional'),
-        ('nacional',      'Nacional'),
-    ]
     STATUS_CHOICES = [
         ('aberta',  'Aberta'),
         ('fechada', 'Fechada'),
@@ -119,7 +115,7 @@ class PassengerList(models.Model):
 
     name                 = models.CharField('Nome', max_length=300)
     list_type            = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='aereo')
-    category             = models.CharField('Categoria', max_length=20, choices=CATEGORY_CHOICES, default='internacional')
+    category             = models.CharField('Categoria', max_length=100, default='Internacional')
     block_capacity       = models.PositiveIntegerField('Capacidade do bloqueio', default=0)
     total_accommodations = models.PositiveIntegerField('Total de acomodações', default=0)
     start_date           = models.DateField('Data de início', null=True, blank=True)

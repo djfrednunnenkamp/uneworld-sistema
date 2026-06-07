@@ -152,6 +152,10 @@ export const configApi = {
   genders:    () => api.get('/config/genders/'),
   addGender:  (name) => api.post('/config/genders/', { name }),
   delGender:  (id)   => api.delete(`/config/genders/${id}/`),
+  // Categorias de lista
+  listCategories:    () => api.get('/config/list-categories/'),
+  addListCategory:   (name) => api.post('/config/list-categories/', { name }),
+  delListCategory:   (id)   => api.delete(`/config/list-categories/${id}/`),
   // Vacinas
   vaccines:       () => api.get('/config/vaccines/'),
   addVaccine:     (name) => api.post('/config/vaccines/', { name }),

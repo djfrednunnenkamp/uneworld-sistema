@@ -15,7 +15,6 @@ const fmt = (d) => {
 const TYPE_LABEL = {
   aereo: 'Via Aéreo', terrestre: 'Via Terrestre',
 }
-const CAT_LABEL = { internacional: 'Internacional', nacional: 'Nacional' }
 
 /* ── FDrop ── */
 function FDrop({ label, value, onChange, options, active }) {
@@ -71,7 +70,7 @@ const COLS = [
   },
   {
     key: 'category', label: 'Categoria', align: 'center',
-    render: (v) => <span style={{ fontSize:12, color:'#475569' }}>{CAT_LABEL[v] || v}</span>,
+    render: (v) => <span style={{ fontSize:12, color:'#475569' }}>{v}</span>,
   },
   {
     key: 'start_date', label: 'Início', align: 'center',

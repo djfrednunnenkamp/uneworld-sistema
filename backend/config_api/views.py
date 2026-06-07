@@ -11,7 +11,7 @@ from rest_framework.parsers import MultiPartParser
 from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
-                     ConfigAccommodation)
+                     ConfigAccommodation, ConfigListCategory)
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -605,6 +605,18 @@ class GenderSerializer(serializers.ModelSerializer):
 class GenderViewSet(viewsets.ModelViewSet):
     queryset = ConfigGender.objects.all()
     serializer_class = GenderSerializer
+    pagination_class = None
+
+
+class ListCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigListCategory
+        fields = ['id', 'name']
+
+
+class ListCategoryViewSet(viewsets.ModelViewSet):
+    queryset = ConfigListCategory.objects.all()
+    serializer_class = ListCategorySerializer
     pagination_class = None
 
     def get_permissions(self):

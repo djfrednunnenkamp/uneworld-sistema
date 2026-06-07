@@ -19,7 +19,6 @@ const findAccomType = (types, roomName) =>
 const TYPE_LABEL = {
   aereo:'Via Aéreo', terrestre:'Via Terrestre',
 }
-const CAT_LABEL  = { internacional:'Internacional', nacional:'Nacional' }
 const DOC_LABEL  = { passaporte:'Passaporte', carteira_identidade:'Carteira de Identidade' }
 
 const fmt = (d) => {
@@ -1440,7 +1439,7 @@ export default function TripDetail() {
       <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px', marginBottom:20, boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
         <div style={{ display:'flex', flexWrap:'wrap', gap:'20px 40px', alignItems:'flex-start' }}>
           <Chip label="Tipo"           value={TYPE_LABEL[list.list_type] || list.list_type} />
-          <Chip label="Categoria"      value={CAT_LABEL[list.category]   || list.category} />
+          <Chip label="Categoria"      value={list.category} />
           <Chip label="Início"         value={fmt(list.start_date)} />
           <Chip label="Término"        value={fmt(list.end_date)} />
           <Chip label="Capacidade"     value={list.block_capacity > 0 ? String(list.block_capacity) : '—'} />

@@ -27,6 +27,7 @@ TRACKED_MODELS = {
     'ConfigVaccine':        'Vacina',
     'ConfigGender':         'Gênero',
     'ConfigAccommodation':  'Tipo de acomodação',
+    'ConfigListCategory':   'Categoria de lista',
 }
 
 # Campos a ignorar no diff

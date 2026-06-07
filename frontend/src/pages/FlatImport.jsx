@@ -17,6 +17,7 @@ const API_MAP = {
   professions: { add: (name) => configApi.addProfession(name), label: 'Profissões' },
   languages:   { add: (name) => configApi.addLanguage(name),   label: 'Idiomas'    },
   vaccines:    { add: (name) => configApi.addVaccine(name),    label: 'Vacinas'    },
+  list_categories: { add: (name) => configApi.addListCategory(name), label: 'Categorias de Lista' },
 }
 
 const MODES = [

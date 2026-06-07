@@ -457,7 +457,7 @@ function CountriesTab() {
 /* Seção principal */
 const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
-const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Tipos de Acomodação', 'Países & Estados']
+const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Tipos de Acomodação', 'Categorias de Lista', 'Países & Estados']
 
 export default function Settings() {
   const [section, setSection] = usePersistedTab('tab_settings_section', 0)
@@ -466,6 +466,7 @@ export default function Settings() {
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])
   const [genders,    setGenders]    = useState([])
+  const [listCats,   setListCats]   = useState([])
   const [profCards,    setProfCards]    = useState([])
   const [listAddits,   setListAddits]   = useState([])
   const [accoms,       setAccoms]       = useState([])
@@ -474,6 +475,7 @@ export default function Settings() {
   const [loadingL,     setLoadingL]     = useState(true)
   const [loadingV,     setLoadingV]     = useState(true)
   const [loadingG,     setLoadingG]     = useState(true)
+  const [loadingLC,    setLoadingLC]    = useState(true)
   const [loadingPC,    setLoadingPC]    = useState(true)
   const [loadingLA,    setLoadingLA]    = useState(true)
 
@@ -482,6 +484,7 @@ export default function Settings() {
     configApi.languages().then(r => setLanguages(r.data)).catch(() => {}).finally(() => setLoadingL(false))
     configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {}).finally(() => setLoadingV(false))
     configApi.genders().then(r => setGenders(r.data)).catch(() => {}).finally(() => setLoadingG(false))
+    configApi.listCategories().then(r => setListCats(r.data)).catch(() => {}).finally(() => setLoadingLC(false))
     configApi.profCards().then(r => setProfCards(r.data)).catch(() => {}).finally(() => setLoadingPC(false))
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
@@ -526,6 +529,16 @@ export default function Settings() {
   const delGender = async (id) => {
     try { await configApi.delGender(id); setGenders(g => g.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover gênero.') }
+  }
+  const addListCategory = async (name) => {
+    try {
+      const r = await configApi.addListCategory(name)
+      setListCats(c => [...c, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar categoria.') }
+  }
+  const delListCategory = async (id) => {
+    try { await configApi.delListCategory(id); setListCats(c => c.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover categoria.') }
   }
   const addProfCard = async (name) => {
     try {
@@ -604,7 +617,8 @@ export default function Settings() {
               setLoadingAc(true)
               configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
             }} />}
-            {tab===7 && <CountriesTab />}
+            {tab===7 && <ItemList items={listCats} loading={loadingLC} onAdd={addListCategory} onDelete={delListCategory} placeholder="Nova categoria…" filename="categorias_lista.csv" type="list_categories" />}
+            {tab===8 && <CountriesTab />}
           </div>
         </>
       )}

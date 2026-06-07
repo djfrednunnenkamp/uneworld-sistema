@@ -15,6 +15,7 @@ router.register('doc-types',      views.DocTypeViewSet,          basename='docty
 router.register('doc-fields',     views.DocFieldViewSet,         basename='docfield')
 router.register('doc-options',    views.DocFieldOptionViewSet,   basename='docoption')
 router.register('accommodations', views.AccommodationViewSet,    basename='accommodation')
+router.register('list-categories', views.ListCategoryViewSet,    basename='listcategory')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -167,3 +167,15 @@ class ConfigAccommodation(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConfigListCategory(models.Model):
+    name = models.CharField('Nome', max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Categoria de lista'
+        verbose_name_plural = 'Categorias de lista'
+
+    def __str__(self):
+        return self.name

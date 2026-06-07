@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { listsApi } from '../api'
+import { listsApi, configApi } from '../api'
 import FormSelect from './FormSelect'
 import DatePicker from './DatePicker'
 
@@ -9,17 +9,13 @@ const TYPE_OPTS = [
   { value: 'aereo',     label: 'Via Aéreo'     },
   { value: 'terrestre', label: 'Via Terrestre'  },
 ]
-const CAT_OPTS = [
-  { value: 'internacional', label: 'Internacional' },
-  { value: 'nacional',      label: 'Nacional'      },
-]
 const DOC_OPTS = [
   { value: 'passaporte',          label: 'Passaporte'             },
   { value: 'carteira_identidade', label: 'Carteira de Identidade' },
 ]
 
 const EMPTY = {
-  name: '', list_type: 'aereo', category: 'internacional',
+  name: '', list_type: 'aereo', category: 'Internacional',
   block_capacity: 0, total_accommodations: 0,
   start_date: '', end_date: '',
   suppliers: [], additionals: [], roteiros: [],
@@ -258,12 +254,16 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   const [suppliers,   setSuppliers]   = useState([])
   const [additionals, setAdditionals] = useState([])
   const [roteiros,    setRoteiros]    = useState([])
+  const [categories,  setCategories]  = useState([])
 
   useEffect(() => {
     listsApi.suppliers().then(r => setSuppliers(r.data.results ?? r.data)).catch(() => {})
     listsApi.listAdditionals().then(r => setAdditionals(r.data.results ?? r.data)).catch(() => {})
     listsApi.roteiros().then(r => setRoteiros(r.data.results ?? r.data)).catch(() => {})
+    configApi.listCategories().then(r => setCategories(r.data.results ?? r.data)).catch(() => {})
   }, [])
+
+  const catOpts = categories.map(c => ({ value: c.name, label: c.name }))
 
   const set  = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
   const setV = (k, v)     => setForm(f => ({ ...f, [k]: v }))
@@ -366,7 +366,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
               </div>
               <div>
                 <label style={lbl}>Categoria</label>
-                <FormSelect value={form.category} onChange={v => setV('category', v)} options={CAT_OPTS} />
+                <FormSelect value={form.category} onChange={v => setV('category', v)} options={catOpts} />
               </div>
             </div>
 
