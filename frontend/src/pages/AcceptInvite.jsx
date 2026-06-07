@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import PasswordInput from '../components/PasswordInput'
 
 export default function AcceptInvite() {
   const [params]  = useSearchParams()
@@ -69,12 +70,12 @@ export default function AcceptInvite() {
               <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom:16 }}>
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>Criar senha</label>
-                  <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" style={inp} autoFocus
+                  <PasswordInput value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" style={inp} autoFocus
                     onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
                 </div>
                 <div style={{ marginBottom:24 }}>
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>Confirmar senha</label>
-                  <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repita a senha" style={inp}
+                  <PasswordInput value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repita a senha" style={inp}
                     onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
                 </div>
                 <button type="submit" disabled={saving}

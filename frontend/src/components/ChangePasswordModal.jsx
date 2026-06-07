@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { authApi } from '../api'
+import PasswordInput from './PasswordInput'
 
 const overlay = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
@@ -57,17 +58,17 @@ export default function ChangePasswordModal({ onClose }) {
         <form onSubmit={handleSave} style={{ padding: '20px 24px 24px' }}>
           <div style={{ marginBottom: 12 }}>
             <label style={label}>Senha atual</label>
-            <input type="password" value={current} onChange={e => setCurrent(e.target.value)} placeholder="••••••••" style={inp} autoFocus
+            <PasswordInput value={current} onChange={e => setCurrent(e.target.value)} placeholder="••••••••" style={inp} autoFocus
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={label}>Nova senha</label>
-            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Mínimo 8 caracteres" style={inp}
+            <PasswordInput value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Mínimo 8 caracteres" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={label}>Confirmar nova senha</label>
-            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repita a nova senha" style={inp}
+            <PasswordInput value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repita a nova senha" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
           {error && (

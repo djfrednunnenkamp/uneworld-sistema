@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import DelModal from '../components/DelModal'
+import PasswordInput from '../components/PasswordInput'
 import { Ic } from '../components/Icon'
 
 const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_staff:false, is_active:true }
@@ -66,7 +67,7 @@ function UserModal({ user, onClose, onSaved }) {
           {!skipPwd && (
             <div>
               <label style={lbl}>{isEdit ? 'Nova senha (deixe vazio para manter)' : 'Senha *'}</label>
-              <input style={inp} type="password" value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••••' : 'Mínimo 8 caracteres'} />
+              <PasswordInput style={inp} value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••••' : 'Mínimo 8 caracteres'} />
             </div>
           )}
 
