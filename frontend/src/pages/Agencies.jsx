@@ -91,7 +91,7 @@ function AgencyPreview({ agency, onClose, onEdit }) {
         onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', minWidth: 120, flexShrink: 0 }}>{label}</span>
-        <span style={{ fontSize: 13, color: '#1e293b', flex: 1 }}>{value}</span>
+        <span title={value} style={{ fontSize: 13, color: '#1e293b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
         {isCopied && <span style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', background: '#059669', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10 }}>✓ Copiado</span>}
       </div>
     )

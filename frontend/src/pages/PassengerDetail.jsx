@@ -961,13 +961,14 @@ export default function PassengerDetail() {
     <><div>
       {/* ── Header ── */}
       <div className="det-header">
-        <div>
-          <h1 className="det-title">
+        <div style={{ minWidth: 0, flex: 1, marginRight: 16 }}>
+          <h1 className="det-title" title={`${form.first_name} ${form.last_name}`.trim() || form.full_name || ''}
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {`${form.first_name} ${form.last_name}`.trim() || (isNew ? 'Novo Passageiro' : form.full_name || 'Passageiro')}
           </h1>
           {!isNew && <p className="det-subtitle">editar</p>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {/* Status do cadastro no header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <label style={{ fontSize: 12, color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>Status:</label>

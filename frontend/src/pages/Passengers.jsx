@@ -46,9 +46,14 @@ function CopyCell({ value, muted, name }) {
     try { await navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1400) } catch {}
   }
   return (
-    <span onClick={copy} title="Clique para copiar"
-      style={{ cursor:'pointer', position:'relative', color:muted?'#64748b':'#1e293b', fontWeight:name?500:400 }}>
-      {value}
+    <span onClick={copy} title={value}
+      style={{ cursor:'pointer', position:'relative', display:'inline-block', maxWidth:'100%', verticalAlign:'bottom' }}>
+      <span style={{
+        display:'block', maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+        color:muted?'#64748b':'#1e293b', fontWeight:name?500:400,
+      }}>
+        {value}
+      </span>
       {ok && (
         <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', animation:'fadeUp .2s ease' }}>✓ Copiado</span>
       )}
@@ -165,7 +170,7 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
         onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
         onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
         <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
-        <span style={{ fontSize:13, color:'#1e293b', flex:1 }}>{value}</span>
+        <span title={value} style={{ fontSize:13, color:'#1e293b', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{value}</span>
         {isCopied && <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', animation:'fadeUp .2s ease', zIndex:10 }}>✓ Copiado</span>}
       </div>
     )
@@ -184,9 +189,9 @@ function PassengerPreview({ passenger, onClose, onEdit }) {
             {initials(passenger.full_name)}
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <span style={{position:'relative',display:'inline-block'}}>
-              <p onClick={() => copyToClipboard('Nome', passenger.full_name)} title="Clique para copiar"
-                style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer'}}>
+            <span style={{position:'relative',display:'block',minWidth:0}}>
+              <p onClick={() => copyToClipboard('Nome', passenger.full_name)} title={passenger.full_name}
+                style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                 {passenger.full_name}
               </p>
               {copied==='Nome' && <span style={{position:'absolute',top:-18,left:'50%',transform:'translateX(-50%)',background:'#059669',color:'#fff',fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,whiteSpace:'nowrap',pointerEvents:'none',animation:'fadeUp .2s ease'}}>✓ Copiado</span>}
