@@ -108,46 +108,27 @@ function CsvButtons({ items, filename, type }) {
 }
 
 /* ── ItemList (Profissões / Idiomas) ── */
-function ItemList({ items, loading, onDelete, onAdd, placeholder, filename, type }) {
+function ItemList({ items, loading, onDelete, onAdd, placeholder, addTitle, filename, type }) {
   const [search,  setSearch]  = useState('')
-  const [newVal,  setNewVal]  = useState('')
-  const [adding,  setAdding]  = useState(false)
   const [confirm, setConfirm] = useState(null) // {id, name}
+  const [showAdd, setShowAdd] = useState(false)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return items.filter(i => i.name.toLowerCase().includes(q))
   }, [items, search])
 
-  const handleAdd = async () => {
-    const v = newVal.trim(); if (!v) return
-    setAdding(true)
-    try { await onAdd(v); setNewVal('') }
-    finally { setAdding(false) }
-  }
-
   return (
     <>
     <div>
-      {/* Toolbar: busca + CSV */}
+      {/* Toolbar: busca + adicionar + CSV */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
           style={{ ...inp, flex: 1, minWidth: 160 }}
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+        <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>
         <CsvButtons items={items} filename={filename} type={type} />
-      </div>
-
-      {/* Adicionar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-        <input value={newVal} onChange={e => setNewVal(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder={placeholder} style={{ ...inp, flex: 1 }}
-          onFocus={e => e.target.style.borderColor = '#1a2d4f'}
-          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-        <button onClick={handleAdd} disabled={adding || !newVal.trim()} style={btnPri}>
-          + Adicionar
-        </button>
       </div>
 
       <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
@@ -187,7 +168,77 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, filename, type
         onCancel={() => setConfirm(null)}
       />
     )}
+    {showAdd && (
+      <AddItemModal
+        title={addTitle || 'Adicionar item'}
+        placeholder={placeholder}
+        onAdd={onAdd}
+        onClose={() => setShowAdd(false)}
+      />
+    )}
   </>
+  )
+}
+
+/* ── Pop-up para adicionar um item com campo de texto ── */
+function AddItemModal({ title, placeholder, onAdd, onClose }) {
+  const [val,    setVal]    = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
+
+  const handleSave = async () => {
+    const v = val.trim(); if (!v) return
+    setSaving(true)
+    try { await onAdd(v); onClose() }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:380, boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>{title}</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+        <div style={{ padding:'18px 22px' }}>
+          <input ref={inputRef} value={val} onChange={e => setVal(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder={placeholder} style={{ ...inp, width:'100%' }}
+            onFocus={e => e.target.style.borderColor = '#1a2d4f'}
+            onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+        </div>
+        <div style={{ padding:'14px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', gap:8 }}>
+          <button onClick={onClose}
+            style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving || !val.trim()} style={{ ...btnPri, opacity: (saving || !val.trim()) ? .6 : 1 }}>
+            {saving ? 'Adicionando…' : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Pop-up genérico para exibir o conteúdo de uma lista ── */
+function ListDetailModal({ title, onClose, wide, children }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth: wide ? 980 : 540, maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+        <div style={{ padding:'18px 24px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <span style={{ fontSize:16, fontWeight:700, color:'#0f172a' }}>{title}</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+          {children}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -457,11 +508,23 @@ function CountriesTab() {
 /* Seção principal */
 const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
-const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Tipos de Acomodação', 'Categoria de Acomodações', 'Países & Estados']
+const LIST_DEFS = [
+  { key:'professions',     label:'Profissões' },
+  { key:'languages',       label:'Idiomas' },
+  { key:'vaccines',        label:'Vacinas' },
+  { key:'genders',         label:'Gêneros' },
+  { key:'prof_cards',      label:'Carteiras' },
+  { key:'list_addits',     label:'Adicionais de Lista' },
+  { key:'accommodations',  label:'Tipos de Acomodação' },
+  { key:'list_categories', label:'Categoria de Acomodações' },
+  { key:'countries',       label:'Países & Estados' },
+]
+const WIDE_LISTS = ['accommodations', 'countries']
 
 export default function Settings() {
-  const [section, setSection] = usePersistedTab('tab_settings_section', 0)
-  const [tab,     setTab]     = usePersistedTab('tab_settings_list', 0)
+  const [section, setSection]     = usePersistedTab('tab_settings_section', 0)
+  const [listSearch, setListSearch] = useState('')
+  const [activeList, setActiveList] = useState(null)
   const [professions, setProfessions] = useState([])
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])
@@ -573,12 +636,8 @@ export default function Settings() {
     catch { toast.error('Erro ao remover.') }
   }
 
-  const tabStyle = (active) => ({
-    padding: '10px 16px', border: 'none', background: 'none',
-    fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
-    color: active ? '#1a2d4f' : '#64748b', fontFamily: 'inherit',
-    borderBottom: active ? '2px solid #1a2d4f' : '2px solid transparent',
-  })
+  const filteredListDefs = LIST_DEFS.filter(d => d.label.toLowerCase().includes(listSearch.trim().toLowerCase()))
+  const activeDef = LIST_DEFS.find(d => d.key === activeList)
 
   return (
     <div>
@@ -600,27 +659,49 @@ export default function Settings() {
 
       {/* ── Seção: Listas ── */}
       {section === 0 && (
-        <>
-          <div style={{ display:'flex', gap:4, padding:'0 24px', borderBottom:'1px solid #e2e8f0', marginBottom:24, background:'#f8fafc' }}>
-            {LIST_TABS.map((t, i) => (
-              <button key={t} onClick={() => setTab(i)} style={tabStyle(tab===i)}>{t}</button>
+        <div style={{ padding:'24px', maxWidth:480 }}>
+          <input value={listSearch} onChange={e => setListSearch(e.target.value)} placeholder="Buscar lista…"
+            style={{ ...inp, width:'100%', marginBottom:14 }}
+            onFocus={e => e.target.style.borderColor = '#1a2d4f'}
+            onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+
+          <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
+            {filteredListDefs.length === 0 ? (
+              <p style={{ textAlign:'center', padding:'28px 0', color:'#94a3b8', fontSize:13 }}>Nenhuma lista encontrada.</p>
+            ) : filteredListDefs.map((d, idx) => (
+              <div key={d.key} onClick={() => setActiveList(d.key)}
+                style={{
+                  display:'flex', alignItems:'center', justifyContent:'space-between',
+                  padding:'13px 16px', fontSize:13.5, fontWeight:500, color:'#0f172a', cursor:'pointer',
+                  borderBottom: idx < filteredListDefs.length - 1 ? '1px solid #f1f5f9' : 'none',
+                  background:'#fff', transition:'background .1s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+              >
+                <span>{d.label}</span>
+                <span style={{ color:'#cbd5e1', fontSize:17 }}>›</span>
+              </div>
             ))}
           </div>
-          <div style={{ padding:'0 24px 40px' }}>
-            {tab===0 && <ItemList items={professions} loading={loadingP} onAdd={addProfession} onDelete={delProfession} placeholder="Nova profissão…" filename="profissoes.csv" type="professions" />}
-            {tab===1 && <ItemList items={languages}   loading={loadingL} onAdd={addLanguage}   onDelete={delLanguage}   placeholder="Novo idioma…"    filename="idiomas.csv"   type="languages" />}
-            {tab===2 && <ItemList items={vaccines}    loading={loadingV} onAdd={addVaccine}    onDelete={delVaccine}    placeholder="Nova vacina…"    filename="vacinas.csv"   type="vaccines" />}
-            {tab===3 && <ItemList items={genders}    loading={loadingG}  onAdd={addGender}   onDelete={delGender}   placeholder="Novo gênero…"   filename="generos.csv"   type="genders" />}
-            {tab===4 && <ItemList items={profCards}    loading={loadingPC} onAdd={addProfCard}  onDelete={delProfCard}  placeholder="Nova carteira…"  filename="carteiras.csv"  type="prof_cards" />}
-            {tab===5 && <ItemList items={listAddits}   loading={loadingLA} onAdd={addListAddit} onDelete={delListAddit} placeholder="Novo adicional…"     filename="adicionais.csv"   type="list_addits" />}
-            {tab===6 && <AccommodationManager items={accoms} loading={loadingAc} onRefresh={() => {
-              setLoadingAc(true)
-              configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
-            }} />}
-            {tab===7 && <ItemList items={listCats} loading={loadingLC} onAdd={addListCategory} onDelete={delListCategory} placeholder="Nova categoria…" filename="categorias_lista.csv" type="list_categories" />}
-            {tab===8 && <CountriesTab />}
-          </div>
-        </>
+        </div>
+      )}
+
+      {activeDef && (
+        <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>
+          {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={addProfession}   onDelete={delProfession}   placeholder="Nome da profissão…"  addTitle="Nova profissão"  filename="profissoes.csv"       type="professions" />}
+          {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={addLanguage}     onDelete={delLanguage}     placeholder="Nome do idioma…"     addTitle="Novo idioma"     filename="idiomas.csv"          type="languages" />}
+          {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={addVaccine}      onDelete={delVaccine}      placeholder="Nome da vacina…"     addTitle="Nova vacina"     filename="vacinas.csv"          type="vaccines" />}
+          {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={addGender}       onDelete={delGender}       placeholder="Nome do gênero…"     addTitle="Novo gênero"     filename="generos.csv"          type="genders" />}
+          {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={addProfCard}     onDelete={delProfCard}     placeholder="Nome da carteira…"   addTitle="Nova carteira"   filename="carteiras.csv"        type="prof_cards" />}
+          {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={addListAddit}    onDelete={delListAddit}    placeholder="Nome do adicional…"  addTitle="Novo adicional"  filename="adicionais.csv"       type="list_addits" />}
+          {activeDef.key === 'accommodations'  && <AccommodationManager items={accoms} loading={loadingAc} onRefresh={() => {
+            setLoadingAc(true)
+            configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
+          }} />}
+          {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={addListCategory} onDelete={delListCategory} placeholder="Nome da categoria…" addTitle="Nova categoria" filename="categorias_lista.csv" type="list_categories" />}
+          {activeDef.key === 'countries'       && <CountriesTab />}
+        </ListDetailModal>
       )}
 
       {/* ── Seção: Tipos de Documento ── */}
