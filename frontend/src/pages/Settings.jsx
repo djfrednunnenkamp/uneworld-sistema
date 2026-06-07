@@ -457,7 +457,7 @@ function CountriesTab() {
 /* Seção principal */
 const SECTIONS = ['Listas', 'Tipos de Documento']
 /* Sub-tabs da seção Listas */
-const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Tipos de Acomodação', 'Categorias de Lista', 'Países & Estados']
+const LIST_TABS = ['Profissões', 'Idiomas', 'Vacinas', 'Gêneros', 'Carteiras', 'Adicionais de Lista', 'Tipos de Acomodação', 'Categoria de Acomodações', 'Países & Estados']
 
 export default function Settings() {
   const [section, setSection] = usePersistedTab('tab_settings_section', 0)
