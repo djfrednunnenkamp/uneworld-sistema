@@ -82,6 +82,11 @@ export default function PassengerPreviewModal({ passenger, onClose, onEdit }) {
   const bInfo = birthdayInfo(passenger.birth_date)
   const age   = calcAge(passenger.birth_date)
 
+  // agency_names pode vir como array de objetos [{id, name}] ou já como string
+  const agencyNames = Array.isArray(passenger.agency_names)
+    ? passenger.agency_names.map(a => (typeof a === 'string' ? a : a?.name)).filter(Boolean).join(', ')
+    : (passenger.agency_names || null)
+
   const rowProps = { copied, onCopy: handleCopy }
 
   return (
@@ -136,7 +141,7 @@ export default function PassengerPreviewModal({ passenger, onClose, onEdit }) {
             </div>
           )}
           <Row label="Alimentação" value={passenger.diet_type ? (DIET_PT[passenger.diet_type] ?? passenger.diet_type) : null} {...rowProps} />
-          <Row label="Agências"    value={passenger.agency_names ?? null}                               {...rowProps} />
+          <Row label="Agências"    value={agencyNames || null}                                          {...rowProps} />
           <Row label="Cidade / UF" value={passenger.city ? `${passenger.city}${passenger.state ? ` / ${passenger.state}` : ''}` : null} {...rowProps} />
         </div>
 
