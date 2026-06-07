@@ -40,6 +40,19 @@ function exportCsv(items, filename) {
   URL.revokeObjectURL(url)
 }
 
+/* CSV combinado — uma linha por item, com a coluna "lista" identificando a origem */
+function exportCombinedCsv(groups, filename) {
+  const rows = ['lista,nome']
+  groups.forEach(({ label, items }) => {
+    items.forEach(i => rows.push(`"${label.replace(/"/g, '""')}","${i.name.replace(/"/g, '""')}"`))
+  })
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 function readCsv(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -523,6 +536,8 @@ const LIST_DEFS = [
 const WIDE_LISTS = ['accommodations', 'countries']
 
 export default function Settings() {
+  const navigate = useNavigate()
+  const fileAllRef = useRef(null)
   const [section, setSection]     = usePersistedTab('tab_settings_section', 0)
   const [listSearch, setListSearch] = useState('')
   const [activeList, setActiveList] = useState(null)
@@ -637,6 +652,34 @@ export default function Settings() {
     catch { toast.error('Erro ao remover.') }
   }
 
+  /* ── CSV combinado: exporta/importa todas as listas simples (nome único) de uma vez ── */
+  const SIMPLE_LIST_GROUPS = [
+    { key:'professions',     label:'Profissões',             items: professions },
+    { key:'languages',       label:'Idiomas',                items: languages   },
+    { key:'vaccines',        label:'Vacinas',                items: vaccines    },
+    { key:'genders',         label:'Gêneros',                items: genders     },
+    { key:'prof_cards',      label:'Carteiras',              items: profCards   },
+    { key:'list_addits',     label:'Adicionais de Lista',    items: listAddits  },
+    { key:'list_categories', label:'Categoria de Acomodações', items: listCats  },
+  ]
+
+  const handleExportAll = () => {
+    exportCombinedCsv(SIMPLE_LIST_GROUPS, 'todas_as_listas.csv')
+  }
+
+  const handleImportAllFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const csvText = await file.text()
+    navigate('/configuracoes/import', {
+      state: {
+        csvText, filename: file.name, type: 'all',
+        existingByType: Object.fromEntries(SIMPLE_LIST_GROUPS.map(g => [g.key, g.items.map(i => i.name)])),
+      }
+    })
+  }
+
   const filteredListDefs = LIST_DEFS.filter(d => d.label.toLowerCase().includes(listSearch.trim().toLowerCase()))
   const activeDef = LIST_DEFS.find(d => d.key === activeList)
 
@@ -661,11 +704,21 @@ export default function Settings() {
       {/* ── Seção: Listas ── */}
       {section === 0 && (
         <div style={{ padding:'24px' }}>
-          <div className="search-row" style={{ justifyContent:'flex-end' }}>
+          <div className="search-row">
             <div className="search-wrap">
               <span className="search-ico"><Ic n="search" s={14}/></span>
               <input className="search-in" placeholder="Buscar lista…"
                 value={listSearch} onChange={e => setListSearch(e.target.value)} />
+            </div>
+            <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+              <button style={btnCsv('#059669')} onClick={handleExportAll} title="Baixar CSV com todas as listas">
+                ⬇ Exportar tudo
+              </button>
+              <button style={btnCsv('#2e6db4')} onClick={() => fileAllRef.current?.click()} title="Importar CSV com todas as listas">
+                ⬆ Importar tudo
+              </button>
+              <input ref={fileAllRef} type="file" accept=".csv,text/csv"
+                style={{ display:'none' }} onChange={handleImportAllFile} />
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { configApi } from '../api'
+import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 
 function parseCsvNames(text) {
@@ -13,12 +13,54 @@ function parseCsvNames(text) {
     .filter(Boolean)
 }
 
-const API_MAP = {
-  professions: { add: (name) => configApi.addProfession(name), label: 'Profissões' },
-  languages:   { add: (name) => configApi.addLanguage(name),   label: 'Idiomas'    },
-  vaccines:    { add: (name) => configApi.addVaccine(name),    label: 'Vacinas'    },
-  list_categories: { add: (name) => configApi.addListCategory(name), label: 'Categorias de Lista' },
+/* Faz o parse de uma linha CSV simples, respeitando aspas e vírgulas internas */
+function splitCsvLine(line) {
+  const out = []
+  let cur = '', inQ = false
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (inQ) {
+      if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++ } else inQ = false }
+      else cur += c
+    } else {
+      if (c === '"') inQ = true
+      else if (c === ',') { out.push(cur); cur = '' }
+      else cur += c
+    }
+  }
+  out.push(cur)
+  return out.map(s => s.trim())
 }
+
+/* CSV combinado: colunas "lista,nome" — uma linha por item de qualquer lista simples */
+function parseCombinedCsv(text, labelToKey) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+  if (!lines.length) return []
+  const head = splitCsvLine(lines[0]).map(s => s.toLowerCase())
+  const hasHeader = head.includes('lista') && head.includes('nome')
+  const listIdx = hasHeader ? head.indexOf('lista') : 0
+  const nameIdx = hasHeader ? head.indexOf('nome') : 1
+  return lines.slice(hasHeader ? 1 : 0).map(line => {
+    const cols = splitCsvLine(line)
+    const listLabel = (cols[listIdx] || '').trim()
+    const name      = (cols[nameIdx] || '').trim()
+    return { listLabel, listKey: labelToKey[listLabel.toLowerCase()] || null, name }
+  }).filter(r => r.listLabel || r.name)
+}
+
+const API_MAP = {
+  professions:     { add: (name) => configApi.addProfession(name),   label: 'Profissões' },
+  languages:       { add: (name) => configApi.addLanguage(name),     label: 'Idiomas'    },
+  vaccines:        { add: (name) => configApi.addVaccine(name),      label: 'Vacinas'    },
+  genders:         { add: (name) => configApi.addGender(name),       label: 'Gêneros'    },
+  prof_cards:      { add: (name) => configApi.addProfCard(name),     label: 'Carteiras'  },
+  list_addits:     { add: (name) => listsApi.addAdditional(name),    label: 'Adicionais de Lista' },
+  list_categories: { add: (name) => configApi.addListCategory(name), label: 'Categoria de Acomodações' },
+}
+
+const LABEL_TO_KEY = Object.fromEntries(
+  Object.entries(API_MAP).map(([key, def]) => [def.label.toLowerCase(), key])
+)
 
 const MODES = [
   { key:'new',    label:'Somente adicionar',   desc:'Mantém os existentes, insere apenas os novos.' },
@@ -68,7 +110,8 @@ function Spin() {
 export default function FlatImport() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { csvText, filename, type, existingNames = [] } = location.state || {}
+  const { csvText, filename, type, existingNames = [], existingByType = {} } = location.state || {}
+  const isAll    = type === 'all'
   const apiDef   = API_MAP[type] || API_MAP.professions
   const backPath = '/configuracoes'
 
@@ -81,20 +124,42 @@ export default function FlatImport() {
   const [selected,   setSelected]   = useState(new Set())
   const [confirm,    setConfirm]    = useState(null) // { type:'bulk'|'single', id?, count? }
 
+  /* Conjuntos de nomes já existentes — um por lista (modo combinado) ou um único (modo simples) */
+  const existingSets = useMemo(() => {
+    if (isAll) {
+      return Object.fromEntries(
+        Object.entries(existingByType).map(([key, names]) => [key, new Set(names.map(n => n.toLowerCase()))])
+      )
+    }
+    return { [type]: new Set(existingNames.map(n => n.toLowerCase())) }
+  }, [isAll, existingByType, existingNames, type])
+
+  const rowStatus = (name, listKey) => {
+    if (!name.trim()) return 'error'
+    if (isAll && !listKey) return 'error'
+    const set = existingSets[listKey ?? type]
+    return set?.has(name.toLowerCase()) ? 'duplicate' : 'valid'
+  }
+
   useEffect(() => {
     if (!csvText) { navigate(backPath); return }
-    const names    = parseCsvNames(csvText)
-    const existing = new Set(existingNames.map(n => n.toLowerCase()))
-    setRows(names.map((name, i) => ({
-      id: i + 1, name,
-      status: !name.trim() ? 'error' : existing.has(name.toLowerCase()) ? 'duplicate' : 'valid',
-    })))
+    if (isAll) {
+      const parsed = parseCombinedCsv(csvText, LABEL_TO_KEY)
+      setRows(parsed.map((r, i) => ({
+        id: i + 1, name: r.name, listKey: r.listKey, listLabel: r.listKey ? API_MAP[r.listKey].label : r.listLabel,
+        status: rowStatus(r.name, r.listKey),
+      })))
+    } else {
+      const names = parseCsvNames(csvText)
+      setRows(names.map((name, i) => ({
+        id: i + 1, name, listKey: type, listLabel: apiDef.label,
+        status: rowStatus(name, type),
+      })))
+    }
   }, [])
 
-  const existingSet = useMemo(() => new Set(existingNames.map(n => n.toLowerCase())), [existingNames])
-
-  const editRow   = (id, name) => setRows(prev => prev.map(r => r.id === id
-    ? { ...r, name, status: !name.trim() ? 'error' : existingSet.has(name.toLowerCase()) ? 'duplicate' : 'valid' }
+  const editRow = (id, name) => setRows(prev => prev.map(r => r.id === id
+    ? { ...r, name, status: rowStatus(name, r.listKey) }
     : r
   ))
 
@@ -135,7 +200,8 @@ export default function FlatImport() {
     setPhase('importing')
     let added = 0, skipped = 0
     for (const row of toProcess) {
-      try { await apiDef.add(row.name); added++ } catch { skipped++ }
+      try { await (isAll ? API_MAP[row.listKey].add(row.name) : apiDef.add(row.name)); added++ }
+      catch { skipped++ }
     }
     setResult({ added, skipped })
     setPhase('done')
@@ -175,7 +241,7 @@ export default function FlatImport() {
             ← Cancelar
           </button>
           <h1 style={{ fontSize:16, fontWeight:700, color:'#0f172a', margin:0 }}>
-            Revisão de Importação — {apiDef.label}
+            Revisão de Importação — {isAll ? 'Todas as listas' : apiDef.label}
           </h1>
         </div>
         <div style={{ display:'flex', gap:8 }}>
@@ -196,19 +262,27 @@ export default function FlatImport() {
         </div>
 
         {/* Modo */}
-        <div>
-          <p style={{ fontSize:11, fontWeight:700, color:'#64748b', margin:'0 0 8px', textTransform:'uppercase', letterSpacing:'.06em' }}>Modo de Importação:</p>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-            {MODES.map(m => (
-              <div key={m.key} onClick={() => setMode(m.key)}
-                style={{ border:`2px solid ${mode===m.key?'#2e6db4':'#e2e8f0'}`, borderRadius:10, padding:'12px 16px', cursor:'pointer',
-                  background: mode===m.key?'#f0f6ff':'#fff', transition:'all .12s' }}>
-                <p style={{ fontSize:14, fontWeight:700, color:mode===m.key?'#1a2d4f':'#1e293b', margin:'0 0 4px' }}>{m.label}</p>
-                <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{m.desc}</p>
-              </div>
-            ))}
+        {isAll ? (
+          <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 16px' }}>
+            <p style={{ fontSize:13, color:'#475569', margin:0 }}>
+              Como o arquivo combina várias listas, apenas itens novos (não duplicados) serão adicionados — cada um na lista indicada pela coluna <strong>Lista</strong>.
+            </p>
           </div>
-        </div>
+        ) : (
+          <div>
+            <p style={{ fontSize:11, fontWeight:700, color:'#64748b', margin:'0 0 8px', textTransform:'uppercase', letterSpacing:'.06em' }}>Modo de Importação:</p>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+              {MODES.map(m => (
+                <div key={m.key} onClick={() => setMode(m.key)}
+                  style={{ border:`2px solid ${mode===m.key?'#2e6db4':'#e2e8f0'}`, borderRadius:10, padding:'12px 16px', cursor:'pointer',
+                    background: mode===m.key?'#f0f6ff':'#fff', transition:'all .12s' }}>
+                  <p style={{ fontSize:14, fontWeight:700, color:mode===m.key?'#1a2d4f':'#1e293b', margin:'0 0 4px' }}>{m.label}</p>
+                  <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{m.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Toolbar: busca + filtros + seleção */}
         <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
@@ -256,13 +330,14 @@ export default function FlatImport() {
                   </th>
                   <th style={{...th, width:60}}>Linha</th>
                   <th style={{...th, width:130}}>Status</th>
+                  {isAll && <th style={{...th, width:180}}>Lista</th>}
                   <th style={th}>Nome</th>
                   <th style={{...th, width:80, textAlign:'center'}}>Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={5} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
+                  <tr><td colSpan={isAll ? 6 : 5} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
                     {search ? 'Nenhum resultado para a busca.' : 'Nenhum item nesta categoria.'}
                   </td></tr>
                 ) : filtered.map((row, idx) => {
@@ -278,6 +353,11 @@ export default function FlatImport() {
                         {row.status==='duplicate' && <span style={pill('#fef9c3','#ca8a04')}>Duplicado</span>}
                         {row.status==='error'     && <span style={pill('#fee2e2','#dc2626')}>Inválido</span>}
                       </td>
+                      {isAll && (
+                        <td style={{padding:'9px 12px', fontSize:12.5, color: row.listKey ? '#1e293b' : '#dc2626'}}>
+                          {row.listKey ? row.listLabel : (row.listLabel ? `"${row.listLabel}" — lista desconhecida` : '—')}
+                        </td>
+                      )}
                       <td style={{padding:'9px 12px'}}>
                         <Editable value={row.name} onChange={v => editRow(row.id, v)} />
                       </td>
