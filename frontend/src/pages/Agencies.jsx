@@ -16,9 +16,14 @@ function CopyCell({ value, muted, bold }) {
     try { await navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1400) } catch {}
   }
   return (
-    <span onClick={copy} title="Clique para copiar"
-      style={{ cursor: 'pointer', position: 'relative', color: muted ? '#64748b' : '#1e293b', fontWeight: bold ? 500 : 400 }}>
-      {value}
+    <span onClick={copy} title={value}
+      style={{ cursor: 'pointer', position: 'relative', display: 'inline-block', maxWidth: '100%', verticalAlign: 'bottom' }}>
+      <span style={{
+        display: 'block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        color: muted ? '#64748b' : '#1e293b', fontWeight: bold ? 500 : 400,
+      }}>
+        {value}
+      </span>
       {ok && (
         <span style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', background: '#059669', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
           ✓ Copiado

@@ -571,8 +571,13 @@ export default function AgencyDetail() {
     <>
       {/* ── Header ── */}
       <div className="ph">
-        <div>
-          <h1 className="ph-title" style={{ marginBottom: 2 }}>
+        <div style={{ minWidth: 0, flex: 1, marginRight: 16 }}>
+          <h1 className="ph-title" title={
+              isFisica
+                ? (`${form.name || ''} ${form.last_name || ''}`).trim()
+                : (form.company_name || form.name)?.trim()
+            }
+            style={{ marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {isFisica
               ? (`${form.name || ''} ${form.last_name || ''}`).trim() || (isNew ? 'Nova agência' : 'Agência')
               : (form.company_name || form.name)?.trim() || (isNew ? 'Nova agência' : 'Agência')
@@ -580,7 +585,7 @@ export default function AgencyDetail() {
           </h1>
           {!isNew && <button className="link-btn" onClick={() => navigate('/agencias')} style={{ fontSize: 12, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>editar</button>}
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 13, color: '#64748b' }}>Status:</span>
             <div style={{ width: 140 }}>
