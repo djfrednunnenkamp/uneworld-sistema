@@ -117,14 +117,17 @@ def user_create(request):
     last_name  = data.get('last_name', '').strip()
     is_staff   = bool(data.get('is_staff', False))
 
-    if not email or not password:
-        return Response({'error': 'E-mail e senha são obrigatórios.'}, status=400)
+    if not email:
+        return Response({'error': 'E-mail é obrigatório.'}, status=400)
+    if password and len(password) < 8:
+        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
     if User.objects.filter(email__iexact=email).exists():
         return Response({'error': 'E-mail já cadastrado.'}, status=400)
 
     # username = e-mail (identificador interno único)
+    # Sem senha: usuário é criado com senha inutilizável — define a sua via convite por e-mail
     user = User.objects.create_user(
-        username=email, password=password, email=email,
+        username=email, password=password or None, email=email,
         first_name=first_name, last_name=last_name, is_staff=is_staff,
     )
     return Response(serialize_user(user), status=201)
