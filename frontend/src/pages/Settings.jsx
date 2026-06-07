@@ -122,10 +122,11 @@ function CsvButtons({ items, filename, type }) {
 }
 
 /* ── ItemList (Profissões / Idiomas) ── */
-function ItemList({ items, loading, onDelete, onAdd, placeholder, addTitle, filename, type }) {
+function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addTitle, editTitle, filename, type }) {
   const [search,  setSearch]  = useState('')
   const [confirm, setConfirm] = useState(null) // {id, name}
   const [showAdd, setShowAdd] = useState(false)
+  const [editing, setEditing] = useState(null) // {id, name}
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -166,11 +167,10 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, addTitle, file
             onMouseLeave={e => e.currentTarget.style.background = '#fff'}
           >
             <span>{item.name}</span>
-            <button onClick={() => setConfirm({ id: item.id, name: item.name })}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 16, lineHeight: 1, padding: '2px 4px', borderRadius: 4 }}
-              onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
-              onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}
-              title="Remover">×</button>
+            <div className="r-acts">
+              <button className="r-btn edit" title="Editar" onClick={() => setEditing({ id: item.id, name: item.name })}><Ic n="edit" s={13}/></button>
+              <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id: item.id, name: item.name })}><Ic n="trash" s={13}/></button>
+            </div>
           </div>
         ))}
       </div>
@@ -188,6 +188,15 @@ function ItemList({ items, loading, onDelete, onAdd, placeholder, addTitle, file
         placeholder={placeholder}
         onAdd={onAdd}
         onClose={() => setShowAdd(false)}
+      />
+    )}
+    {editing && (
+      <NameFormModal
+        title={editTitle || 'Editar item'}
+        placeholder={placeholder}
+        initial={editing.name}
+        onSave={(name) => onUpdate(editing.id, name)}
+        onClose={() => setEditing(null)}
       />
     )}
   </>
@@ -649,6 +658,12 @@ export default function Settings() {
       setProfessions(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
     } catch { toast.error('Erro ao adicionar profissão.') }
   }
+  const updateProfession = async (id, name) => {
+    try {
+      const r = await configApi.updateProfession(id, name)
+      setProfessions(p => p.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar profissão.') }
+  }
   const delProfession = async (id) => {
     try { await configApi.delProfession(id); setProfessions(p => p.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover profissão.') }
@@ -658,6 +673,12 @@ export default function Settings() {
       const r = await configApi.addLanguage(name)
       setLanguages(l => [...l, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
     } catch { toast.error('Erro ao adicionar idioma.') }
+  }
+  const updateLanguage = async (id, name) => {
+    try {
+      const r = await configApi.updateLanguage(id, name)
+      setLanguages(l => l.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar idioma.') }
   }
   const delLanguage = async (id) => {
     try { await configApi.delLanguage(id); setLanguages(l => l.filter(x => x.id !== id)) }
@@ -669,6 +690,12 @@ export default function Settings() {
       setVaccines(v => [...v, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
     } catch { toast.error('Erro ao adicionar vacina.') }
   }
+  const updateVaccine = async (id, name) => {
+    try {
+      const r = await configApi.updateVaccine(id, name)
+      setVaccines(v => v.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar vacina.') }
+  }
   const delVaccine = async (id) => {
     try { await configApi.delVaccine(id); setVaccines(v => v.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover vacina.') }
@@ -678,6 +705,12 @@ export default function Settings() {
       const r = await configApi.addGender(name)
       setGenders(g => [...g, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
     } catch { toast.error('Erro ao adicionar gênero.') }
+  }
+  const updateGender = async (id, name) => {
+    try {
+      const r = await configApi.updateGender(id, name)
+      setGenders(g => g.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar gênero.') }
   }
   const delGender = async (id) => {
     try { await configApi.delGender(id); setGenders(g => g.filter(x => x.id !== id)) }
@@ -689,6 +722,12 @@ export default function Settings() {
       setListCats(c => [...c, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
     } catch { toast.error('Erro ao adicionar categoria.') }
   }
+  const updateListCategory = async (id, name) => {
+    try {
+      const r = await configApi.updateListCategory(id, name)
+      setListCats(c => c.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar categoria.') }
+  }
   const delListCategory = async (id) => {
     try { await configApi.delListCategory(id); setListCats(c => c.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover categoria.') }
@@ -698,6 +737,12 @@ export default function Settings() {
       const r = await configApi.addProfCard(name)
       setProfCards(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
     } catch { toast.error('Erro ao adicionar carteira.') }
+  }
+  const updateProfCard = async (id, name) => {
+    try {
+      const r = await configApi.updateProfCard(id, name)
+      setProfCards(p => p.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar carteira.') }
   }
   const delProfCard = async (id) => {
     try { await configApi.delProfCard(id); setProfCards(p => p.filter(x => x.id !== id)) }
@@ -720,6 +765,12 @@ export default function Settings() {
       const r = await listsApi.addAdditional(name)
       setListAddits(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
     } catch { toast.error('Erro ao adicionar.') }
+  }
+  const updateListAddit = async (id, name) => {
+    try {
+      const r = await listsApi.updateAdditional(id, name)
+      setListAddits(p => p.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar adicional.') }
   }
   const delListAddit = async (id) => {
     try { await listsApi.removeAdditional(id); setListAddits(p => p.filter(x => x.id !== id)) }
@@ -823,17 +874,17 @@ export default function Settings() {
 
       {activeDef && (
         <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>
-          {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={addProfession}   onDelete={delProfession}   placeholder="Nome da profissão…"  addTitle="Nova profissão"  filename="profissoes.csv"       type="professions" />}
-          {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={addLanguage}     onDelete={delLanguage}     placeholder="Nome do idioma…"     addTitle="Novo idioma"     filename="idiomas.csv"          type="languages" />}
-          {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={addVaccine}      onDelete={delVaccine}      placeholder="Nome da vacina…"     addTitle="Nova vacina"     filename="vacinas.csv"          type="vaccines" />}
-          {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={addGender}       onDelete={delGender}       placeholder="Nome do gênero…"     addTitle="Novo gênero"     filename="generos.csv"          type="genders" />}
-          {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={addProfCard}     onDelete={delProfCard}     placeholder="Nome da carteira…"   addTitle="Nova carteira"   filename="carteiras.csv"        type="prof_cards" />}
-          {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={addListAddit}    onDelete={delListAddit}    placeholder="Nome do adicional…"  addTitle="Novo adicional"  filename="adicionais.csv"       type="list_addits" />}
+          {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={addProfession}   onUpdate={updateProfession}   onDelete={delProfession}   placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
+          {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={addLanguage}     onUpdate={updateLanguage}     onDelete={delLanguage}     placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
+          {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={addVaccine}      onUpdate={updateVaccine}      onDelete={delVaccine}      placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
+          {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={addGender}       onUpdate={updateGender}       onDelete={delGender}       placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
+          {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={addProfCard}     onUpdate={updateProfCard}     onDelete={delProfCard}     placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
+          {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={addListAddit}    onUpdate={updateListAddit}    onDelete={delListAddit}    placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
           {activeDef.key === 'accommodations'  && <AccommodationManager items={accoms} loading={loadingAc} onRefresh={() => {
             setLoadingAc(true)
             configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
           }} />}
-          {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={addListCategory} onDelete={delListCategory} placeholder="Nome da categoria…" addTitle="Nova categoria" filename="categorias_lista.csv" type="list_categories" />}
+          {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={addListCategory} onUpdate={updateListCategory} onDelete={delListCategory} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
           {activeDef.key === 'countries'       && <CountriesTab />}
         </ListDetailModal>
       )}

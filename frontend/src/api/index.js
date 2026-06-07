@@ -42,6 +42,7 @@ export const listsApi = {
   removeSupplier:   (id)          => api.delete(`/trips/suppliers/${id}/`),
   listAdditionals:  ()            => api.get('/trips/list-additionals/'),
   addAdditional:    (name)        => api.post('/trips/list-additionals/', { name }),
+  updateAdditional: (id, name)    => api.patch(`/trips/list-additionals/${id}/`, { name }),
   removeAdditional: (id)          => api.delete(`/trips/list-additionals/${id}/`),
   // Roteiros
   roteiros:         ()            => api.get('/trips/roteiros/'),
@@ -104,11 +105,13 @@ export const configApi = {
   // Profissões
   professions:       ()     => api.get('/config/professions/'),
   addProfession:     (name) => api.post('/config/professions/', { name }),
+  updateProfession:  (id, name) => api.patch(`/config/professions/${id}/`, { name }),
   delProfession:     (id)   => api.delete(`/config/professions/${id}/`),
   importProfessions: ()     => api.post('/config/professions/import/'),
   // Idiomas
   languages:         ()     => api.get('/config/languages/'),
   addLanguage:       (name) => api.post('/config/languages/', { name }),
+  updateLanguage:    (id, name) => api.patch(`/config/languages/${id}/`, { name }),
   delLanguage:       (id)   => api.delete(`/config/languages/${id}/`),
   importLanguages:   ()     => api.post('/config/languages/import/'),
   // Países
@@ -144,6 +147,7 @@ export const configApi = {
   // Carteiras profissionais
   profCards:       () => api.get('/config/prof-cards/'),
   addProfCard:     (name) => api.post('/config/prof-cards/', { name }),
+  updateProfCard:  (id, name) => api.patch(`/config/prof-cards/${id}/`, { name }),
   delProfCard:     (id)   => api.delete(`/config/prof-cards/${id}/`),
   importProfCards: ()     => api.post('/config/prof-cards/import/'),
   // Tipos de Acomodação
@@ -154,14 +158,17 @@ export const configApi = {
   // Gêneros
   genders:    () => api.get('/config/genders/'),
   addGender:  (name) => api.post('/config/genders/', { name }),
+  updateGender: (id, name) => api.patch(`/config/genders/${id}/`, { name }),
   delGender:  (id)   => api.delete(`/config/genders/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),
+  updateListCategory: (id, name) => api.patch(`/config/list-categories/${id}/`, { name }),
   delListCategory:   (id)   => api.delete(`/config/list-categories/${id}/`),
   // Vacinas
   vaccines:       () => api.get('/config/vaccines/'),
   addVaccine:     (name) => api.post('/config/vaccines/', { name }),
+  updateVaccine:  (id, name) => api.patch(`/config/vaccines/${id}/`, { name }),
   delVaccine:     (id)   => api.delete(`/config/vaccines/${id}/`),
   importVaccines: ()     => api.post('/config/vaccines/import/'),
   // CSV global (países + estados + cidades)
