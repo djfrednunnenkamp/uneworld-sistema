@@ -114,16 +114,19 @@ export const configApi = {
   // Países
   countries:         ()     => api.get('/config/countries/'),
   addCountry:        (name, code) => api.post('/config/countries/', { name, code }),
+  updateCountry:     (id, name)   => api.patch(`/config/countries/${id}/`, { name }),
   delCountry:        (id)   => api.delete(`/config/countries/${id}/`),
   importCountries:   ()     => api.post('/config/countries/import/'),
   // Estados
   states:            (country_id) => api.get('/config/states/', { params: { country_id } }),
   addState:          (country_id, name, code) => api.post('/config/states/', { country_id, name, code }),
+  updateState:       (id, name)   => api.patch(`/config/states/${id}/`, { name }),
   delState:          (id)   => api.delete(`/config/states/${id}/`),
   importStates:      (country_id) => api.post('/config/states/import/', { country_id }),
   // Cidades
   cities:    (state_id) => api.get('/config/cities/', { params: { state_id } }),
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
+  updateCity: (id, name) => api.patch(`/config/cities/${id}/`, { name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),
   // Tipos de documento
   docTypes:       ()       => api.get('/config/doc-types/'),

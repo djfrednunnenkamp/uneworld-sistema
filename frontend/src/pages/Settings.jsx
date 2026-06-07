@@ -297,13 +297,52 @@ function GeoCsvBar() {
 }
 
 /* ── Estilos de coluna (módulo-level para não recriar a cada render) ── */
-const colDelBtn = { background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 14, lineHeight: 1, padding: '1px 3px', flexShrink: 0 }
 const colAddInp = { ...inp, flex: 1, fontSize: 12, padding: '7px 10px' }
-const colAddBtn = { ...btnPri, fontSize: 12, padding: '7px 10px' }
+const colAddBtn = { ...btnPri, fontSize: 12, padding: '7px 10px', whiteSpace: 'nowrap' }
 const colBox    = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 380, overflowY: 'auto' }
 
+/* Pop-up para criar/editar um nome simples (país, estado, cidade) — mesmo padrão do sistema */
+function NameFormModal({ title, placeholder, initial, onSave, onClose }) {
+  const [val,    setVal]    = useState(initial ?? '')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
+
+  const handleSave = async () => {
+    const v = val.trim(); if (!v) return
+    setSaving(true)
+    try { await onSave(v); onClose() }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="mbox" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <span className="mtitle">{title}</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={15}/></button>
+        </div>
+        <div className="mbody">
+          <div className="ff" style={{ marginBottom: 0 }}>
+            <input ref={inputRef} className="fi" value={val} onChange={e => setVal(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              placeholder={placeholder} />
+          </div>
+        </div>
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || !val.trim()}>
+            {saving ? 'Salvando…' : (initial != null ? 'Salvar' : '+ Adicionar')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* Col é um componente de módulo (nunca redefinido dentro de CountriesTab) */
-function Col({ title, count, search, onSearch, newVal, onNew, onAdd, loading, children, placeholder }) {
+function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading, children }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -317,19 +356,40 @@ function Col({ title, count, search, onSearch, newVal, onNew, onAdd, loading, ch
           style={{ ...colAddInp }}
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-      </div>
-      <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-        <input value={newVal} onChange={e => onNew(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && onAdd(newVal)}
-          placeholder={placeholder} style={colAddInp}
-          onFocus={e => e.target.style.borderColor = '#1a2d4f'}
-          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-        <button onClick={() => onAdd(newVal)} disabled={!newVal.trim()} style={colAddBtn}>+</button>
+        <button onClick={onAddClick} disabled={addDisabled} style={{ ...colAddBtn, opacity: addDisabled ? .5 : 1, cursor: addDisabled ? 'default' : 'pointer' }}>
+          + Adicionar
+        </button>
       </div>
       <div style={colBox}>
         {loading
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Carregando…</p>
           : children}
+      </div>
+    </div>
+  )
+}
+
+/* Linha de país/estado/cidade — com ações de editar/excluir no padrão do sistema */
+function GeoRow({ label, extra, selected, onClick, onEdit, onDelete }) {
+  return (
+    <div onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+        padding: '6px 6px 6px 10px', fontSize: 12, cursor: onClick ? 'pointer' : 'default',
+        borderBottom: '1px solid #f1f5f9',
+        background: selected ? '#f0f6ff' : '#fff',
+        borderLeft: selected ? '3px solid #2e6db4' : '3px solid transparent',
+      }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f8fafc' }}
+      onMouseLeave={e => { e.currentTarget.style.background = selected ? '#f0f6ff' : '#fff' }}
+    >
+      <span style={{ fontWeight: selected ? 600 : 400, color: selected ? '#2e6db4' : '#0f172a', fontSize: 12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+        {label}
+        {extra != null && <span style={{ color: '#94a3b8', marginLeft: 5, fontWeight: 400 }}>{extra}</span>}
+      </span>
+      <div style={{ display:'flex', gap:3, flexShrink:0 }} onClick={e => e.stopPropagation()}>
+        <button className="r-btn edit" title="Editar" style={{ width:24, height:24 }} onClick={onEdit}><Ic n="edit" s={11}/></button>
+        <button className="r-btn del"  title="Excluir" style={{ width:24, height:24 }} onClick={onDelete}><Ic n="trash" s={11}/></button>
       </div>
     </div>
   )
@@ -349,9 +409,7 @@ function CountriesTab() {
   const [searchS,    setSearchS]    = useState('')
   const [searchCi,   setSearchCi]   = useState('')
   const [confirm,    setConfirm]    = useState(null) // {action, id, name}
-  const [newCountry, setNewCountry] = useState('')
-  const [newState,   setNewState]   = useState('')
-  const [newCity,    setNewCity]    = useState('')
+  const [form,       setForm]       = useState(null) // {kind:'country'|'state'|'city', item?}
 
   const loadCountries = () => {
     setLoadingC(true)
@@ -370,8 +428,15 @@ function CountriesTab() {
   useEffect(() => { loadCountries() }, [])
 
   const addCountry = async (name) => {
-    try { await configApi.addCountry(name, ''); setNewCountry(''); loadCountries() }
+    try { await configApi.addCountry(name, ''); loadCountries() }
     catch { toast.error('Erro ao adicionar país.') }
+  }
+  const updateCountry = async (id, name) => {
+    try {
+      await configApi.updateCountry(id, name)
+      if (selCountry?.id === id) setSelCountry(c => ({ ...c, name }))
+      loadCountries()
+    } catch { toast.error('Erro ao salvar país.') }
   }
   const delCountry = async (id) => {
     try {
@@ -382,8 +447,15 @@ function CountriesTab() {
   }
   const addState = async (name) => {
     if (!selCountry) return
-    try { await configApi.addState(selCountry.id, name, ''); setNewState(''); loadStates(selCountry) }
+    try { await configApi.addState(selCountry.id, name, ''); loadStates(selCountry) }
     catch { toast.error('Erro ao adicionar estado.') }
+  }
+  const updateState = async (id, name) => {
+    try {
+      await configApi.updateState(id, name)
+      if (selState?.id === id) setSelState(s => ({ ...s, name }))
+      if (selCountry) loadStates(selCountry)
+    } catch { toast.error('Erro ao salvar estado.') }
   }
   const delState = async (id) => {
     try {
@@ -394,8 +466,12 @@ function CountriesTab() {
   }
   const addCity = async (name) => {
     if (!selState) return
-    try { await configApi.addCity(selState.id, name); setNewCity(''); loadCities(selState) }
+    try { await configApi.addCity(selState.id, name); loadCities(selState) }
     catch { toast.error('Erro ao adicionar cidade.') }
+  }
+  const updateCity = async (id, name) => {
+    try { await configApi.updateCity(id, name); if (selState) loadCities(selState) }
+    catch { toast.error('Erro ao salvar cidade.') }
   }
   const delCity = async (id) => {
     try { await configApi.delCity(id); setCities(c => c.filter(x => x.id !== id)) }
@@ -406,15 +482,17 @@ function CountriesTab() {
   const filteredS  = useMemo(() => { const q = searchS.toLowerCase();  return states.filter(s => s.name.toLowerCase().includes(q)) }, [states, searchS])
   const filteredCi = useMemo(() => { const q = searchCi.toLowerCase(); return cities.filter(c => c.name.toLowerCase().includes(q)) }, [cities, searchCi])
 
-  const colStyle = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 380, overflowY: 'auto' }
-  const selRow = (sel) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '7px 10px', fontSize: 12, cursor: 'pointer',
-    borderBottom: '1px solid #f1f5f9',
-    background: sel ? '#f0f6ff' : '#fff',
-    borderLeft: sel ? '3px solid #2e6db4' : '3px solid transparent',
-  })
-  const delBtn = colDelBtn
+  const formSave = async (name) => {
+    if (form.kind === 'country') return form.item ? updateCountry(form.item.id, name) : addCountry(name)
+    if (form.kind === 'state')   return form.item ? updateState(form.item.id, name)   : addState(name)
+    if (form.kind === 'city')    return form.item ? updateCity(form.item.id, name)    : addCity(name)
+  }
+  const formTitles = {
+    country: form?.item ? 'Editar país'   : 'Novo país',
+    state:   form?.item ? 'Editar estado' : 'Novo estado',
+    city:    form?.item ? 'Editar cidade' : 'Nova cidade',
+  }
+  const formPlaceholders = { country: 'Nome do país…', state: 'Nome do estado…', city: 'Nome da cidade…' }
 
   return (
     <>
@@ -423,25 +501,20 @@ function CountriesTab() {
       {/* ── Países ── */}
       <Col title="Países" count={countries.length}
         search={searchC} onSearch={setSearchC}
-        newVal={newCountry} onNew={setNewCountry} onAdd={addCountry}
-        loading={loadingC} placeholder="Novo país…"
-        
+        onAddClick={() => setForm({ kind:'country' })}
+        loading={loadingC}
       >
         {filteredC.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
           : filteredC.map(c => (
-            <div key={c.id} onClick={() => loadStates(c)} style={selRow(selCountry?.id === c.id)}
-              onMouseEnter={e => { if (selCountry?.id !== c.id) e.currentTarget.style.background = '#f8fafc' }}
-              onMouseLeave={e => { e.currentTarget.style.background = selCountry?.id === c.id ? '#f0f6ff' : '#fff' }}
-            >
-              <span style={{ fontWeight: selCountry?.id === c.id ? 600 : 400, color: selCountry?.id === c.id ? '#2e6db4' : '#0f172a', fontSize: 12 }}>
-                {c.name}
-                {c.state_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 5 }}>{c.state_count}</span>}
-              </span>
-              <button onClick={e => { e.stopPropagation(); setConfirm({ action:'country', id:c.id, name:c.name }) }} style={delBtn}
-                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
-                onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
-            </div>
+            <GeoRow key={c.id}
+              label={c.name}
+              extra={c.state_count > 0 ? c.state_count : null}
+              selected={selCountry?.id === c.id}
+              onClick={() => loadStates(c)}
+              onEdit={() => setForm({ kind:'country', item:c })}
+              onDelete={() => setConfirm({ action:'country', id:c.id, name:c.name })}
+            />
           ))
         }
       </Col>
@@ -450,28 +523,23 @@ function CountriesTab() {
       <Col title={selCountry ? `${selCountry.name} — Estados` : 'Estados'}
         count={selCountry ? states.length : null}
         search={searchS} onSearch={setSearchS}
-        newVal={newState} onNew={setNewState} onAdd={addState}
-        loading={loadingS} placeholder="Novo estado…"
-        
+        onAddClick={() => setForm({ kind:'state' })}
+        addDisabled={!selCountry}
+        loading={loadingS}
       >
         {!selCountry
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um país</p>
           : filteredS.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum estado.</p>
           : filteredS.map(s => (
-            <div key={s.id} onClick={() => loadCities(s)} style={selRow(selState?.id === s.id)}
-              onMouseEnter={e => { if (selState?.id !== s.id) e.currentTarget.style.background = '#f8fafc' }}
-              onMouseLeave={e => { e.currentTarget.style.background = selState?.id === s.id ? '#f0f6ff' : '#fff' }}
-            >
-              <span style={{ fontWeight: selState?.id === s.id ? 600 : 400, color: selState?.id === s.id ? '#2e6db4' : '#0f172a', fontSize: 12 }}>
-                {s.name}
-                {s.code && <span style={{ color: '#94a3b8', marginLeft: 4 }}>{s.code}</span>}
-                {s.city_count > 0 && <span style={{ color: '#94a3b8', marginLeft: 4 }}>{s.city_count}</span>}
-              </span>
-              <button onClick={e => { e.stopPropagation(); setConfirm({ action:'state', id:s.id, name:s.name }) }} style={delBtn}
-                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
-                onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
-            </div>
+            <GeoRow key={s.id}
+              label={s.name}
+              extra={[s.code, s.city_count > 0 ? s.city_count : null].filter(Boolean).join(' · ') || null}
+              selected={selState?.id === s.id}
+              onClick={() => loadCities(s)}
+              onEdit={() => setForm({ kind:'state', item:s })}
+              onDelete={() => setConfirm({ action:'state', id:s.id, name:s.name })}
+            />
           ))
         }
       </Col>
@@ -480,28 +548,34 @@ function CountriesTab() {
       <Col title={selState ? `${selState.name} — Cidades` : 'Cidades'}
         count={selState ? cities.length : null}
         search={searchCi} onSearch={setSearchCi}
-        newVal={newCity} onNew={setNewCity} onAdd={addCity}
-        loading={loadingCi} placeholder="Nova cidade…"
-        
+        onAddClick={() => setForm({ kind:'city' })}
+        addDisabled={!selState}
+        loading={loadingCi}
       >
         {!selState
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um estado</p>
           : filteredCi.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhuma cidade.</p>
           : filteredCi.map(c => (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', fontSize: 12, color: '#0f172a', borderBottom: '1px solid #f1f5f9', background: '#fff' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-              onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-            >
-              <span>{c.name}</span>
-              <button onClick={() => setConfirm({ action:'city', id:c.id, name:c.name })} style={delBtn}
-                onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
-                onMouseLeave={e => e.currentTarget.style.color = '#fca5a5'}>×</button>
-            </div>
+            <GeoRow key={c.id}
+              label={c.name}
+              selected={false}
+              onEdit={() => setForm({ kind:'city', item:c })}
+              onDelete={() => setConfirm({ action:'city', id:c.id, name:c.name })}
+            />
           ))
         }
       </Col>
     </div>
+    {form && (
+      <NameFormModal
+        title={formTitles[form.kind]}
+        placeholder={formPlaceholders[form.kind]}
+        initial={form.item ? form.item.name : null}
+        onSave={formSave}
+        onClose={() => setForm(null)}
+      />
+    )}
     {confirm && (
       <ConfirmModal
         message={`Remover "${confirm.name}"?`}
