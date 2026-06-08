@@ -25,15 +25,18 @@ export default function LocationPicker({ value, onChange }) {
   const inputRef  = useRef(null)
   const listRef   = useRef(null)
 
-  /* fecha ao clicar fora */
+  /* fecha ao clicar fora — usa fase de captura: ao escolher um item, o passo
+     muda (ex.: estado → cidade) e a lista é re-renderizada antes da fase de
+     bolha chegar ao document, removendo o elemento clicado do DOM e fazendo
+     o "contains" abaixo retornar falso (fechando o popup por engano) */
   useEffect(() => {
     const h = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) {
         setOpen(false)
       }
     }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
+    document.addEventListener('mousedown', h, true)
+    return () => document.removeEventListener('mousedown', h, true)
   }, [])
 
   /* carrega países na primeira abertura */
