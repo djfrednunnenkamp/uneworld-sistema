@@ -1345,7 +1345,8 @@ function PassengersTab({ listId, listType, onData }) {
         setEnrolled(r.data)
         if (firstLoad.current) {
           firstLoad.current = false
-          setCollapsed(new Set(r.data.map(e => e.accommodation || '(sem acomodação)')))
+          const keys = r.data.map(e => e.enrollment_status === 'cancelado' ? '(cancelados)' : (e.accommodation || '(sem acomodação)'))
+          setCollapsed(new Set(keys))
         }
       })
       .catch(() => toast.error('Erro ao carregar passageiros.'))
@@ -1427,7 +1428,11 @@ function PassengersTab({ listId, listType, onData }) {
     setActionsModal(null)
     switch (action) {
       case 'edit':
-        if (enrollment.passenger) navigate(`/passageiros/${enrollment.passenger}`)
+        if (enrollment.passenger) {
+          // Sempre abrir na aba "Informações do cliente" — a aba persistida pode estar em "Documentos"
+          try { localStorage.setItem('tab_passenger_detail', 'info') } catch { /* localStorage indisponível — segue normalmente */ }
+          navigate(`/passageiros/${enrollment.passenger}`)
+        }
         break
       case 'notes':
         setNotesModal(enrollment)
