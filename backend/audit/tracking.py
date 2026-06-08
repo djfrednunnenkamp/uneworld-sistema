@@ -157,6 +157,10 @@ def log_save(sender, instance, created, **kwargs):
         if not changes:
             return  # Nada mudou
 
+    try:
+        repr_str = str(instance)[:500]
+    except Exception:
+        repr_str = f'{sender.__name__}#{instance.pk}'
     AuditLog.objects.create(
         user=user,
         user_display=user_display(user),
@@ -164,7 +168,7 @@ def log_save(sender, instance, created, **kwargs):
         model_name=sender.__name__,
         model_label=TRACKED_MODELS[sender.__name__],
         object_id=str(instance.pk),
-        object_repr=str(instance)[:500],
+        object_repr=repr_str,
         changes=changes,
         ip_address=get_current_ip(),
     )
@@ -181,6 +185,10 @@ def log_delete(sender, instance, **kwargs):
 
     user = get_current_user()
 
+    try:
+        repr_str = str(instance)[:500]
+    except Exception:
+        repr_str = f'{sender.__name__}#{instance.pk}'
     AuditLog.objects.create(
         user=user,
         user_display=user_display(user),
@@ -188,7 +196,7 @@ def log_delete(sender, instance, **kwargs):
         model_name=sender.__name__,
         model_label=TRACKED_MODELS[sender.__name__],
         object_id=str(instance.pk),
-        object_repr=str(instance)[:500],
+        object_repr=repr_str,
         changes=obj_to_dict(instance),
         ip_address=get_current_ip(),
     )

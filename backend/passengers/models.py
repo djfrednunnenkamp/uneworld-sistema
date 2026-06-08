@@ -153,5 +153,5 @@ class PassengerDocument(models.Model):
         ordering            = ['-uploaded_at']
 
     def __str__(self):
-        label = self.label or self.get_doc_type_display()
+        label = self.label or dict(self.DOC_TYPE_CHOICES).get(self.doc_type, self.doc_type)
         return f'{label} — {self.passenger}'
