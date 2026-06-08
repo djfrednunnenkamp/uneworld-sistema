@@ -1048,7 +1048,7 @@ function MetricChip({ label, value }) {
   )
 }
 
-function MetricsPanel({ enrolled, accomTypes, blockCapacity }) {
+function MetricsPanel({ enrolled, accomTypes }) {
   const ageCounts = AGE_ROWS.map(() => 0)
   enrolled.forEach(e => {
     if (e.is_block || !e.passenger_birth_date) return
@@ -1065,30 +1065,14 @@ function MetricsPanel({ enrolled, accomTypes, blockCapacity }) {
     accomCounts[label] = (accomCounts[label] || 0) + 1
   })
 
-  // Pode ficar negativo — significa que foram vendidas mais vagas do que o bloqueio permite
-  const available = blockCapacity > 0 ? blockCapacity - enrolled.length : null
-  const oversold   = available != null && available < 0
-
   return (
-    <div style={{ display:'flex', gap:20, alignItems:'stretch', background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px', marginBottom:16, boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
-      <div style={{ flex:1, display:'flex', flexWrap:'nowrap', alignItems:'center', gap:28, overflowX:'auto', minWidth:0 }}>
-        {AGE_ROWS.map((r, i) => <MetricChip key={r.label} label={r.label} value={ageCounts[i]} />)}
-        {Object.entries(accomCounts).map(([label, count]) => (
-          <MetricChip key={label} label={`Apto. ${label}`} value={count} />
-        ))}
-        <MetricChip label="Total de acomodações" value={roomNames.length} />
-        <MetricChip label="Total de passageiros" value={enrolled.length} />
-      </div>
-      {available != null && (
-        <div style={{
-          flexShrink:0, width:200, borderRadius:10, color:'#fff', display:'flex', flexDirection:'column',
-          alignItems:'flex-end', justifyContent:'center', padding:'18px 22px', gap:2,
-          background: oversold ? 'linear-gradient(135deg,#dc2626,#b91c1c)' : 'linear-gradient(135deg,#16a34a,#15803d)',
-        }}>
-          <span style={{ fontSize:38, fontWeight:800, lineHeight:1 }}>{available}</span>
-          <span style={{ fontSize:13, fontWeight:600, textAlign:'right' }}>Disponíveis para venda</span>
-        </div>
-      )}
+    <div style={{ display:'flex', flexWrap:'nowrap', alignItems:'center', gap:28, overflowX:'auto', minWidth:0, background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'12px 20px', boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
+      {AGE_ROWS.map((r, i) => <MetricChip key={r.label} label={r.label} value={ageCounts[i]} />)}
+      {Object.entries(accomCounts).map(([label, count]) => (
+        <MetricChip key={label} label={`Apto. ${label}`} value={count} />
+      ))}
+      <MetricChip label="Total de acomodações" value={roomNames.length} />
+      <MetricChip label="Total de passageiros" value={enrolled.length} />
     </div>
   )
 }
@@ -1552,6 +1536,10 @@ export default function TripDetail() {
     { key:'roteiro',    label:'Roteiro'     },
   ]
 
+  // Pode ficar negativo — significa que foram vendidas mais vagas do que o bloqueio permite
+  const available = list.block_capacity > 0 ? list.block_capacity - paxData.enrolled.length : null
+  const oversold  = available != null && available < 0
+
   return (
     <div>
       {/* Cabeçalho */}
@@ -1576,22 +1564,39 @@ export default function TripDetail() {
         </div>
       </div>
 
-      {/* Card de resumo */}
-      <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px', marginBottom:20, boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
-        <div style={{ display:'flex', flexWrap:'wrap', gap:'20px 40px', alignItems:'flex-start' }}>
-          <Chip label="Tipo"           value={TYPE_LABEL[list.list_type] || list.list_type} />
-          <Chip label="Categoria"      value={list.category} />
-          <Chip label="Início"         value={fmt(list.start_date)} />
-          <Chip label="Término"        value={fmt(list.end_date)} />
-          <Chip label="Capacidade"     value={list.block_capacity > 0 ? String(list.block_capacity) : '—'} />
-          <Chip label="Acomodações"    value={list.total_accommodations > 0 ? String(list.total_accommodations) : '—'} />
-        </div>
-      </div>
+      {/* Resumo + Métricas */}
+      <div style={{ display:'flex', gap:20, alignItems:'stretch', marginBottom:20 }}>
+        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:12, minWidth:0 }}>
+          {/* Card de resumo */}
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'12px 20px', boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'14px 40px', alignItems:'flex-start' }}>
+              <Chip label="Tipo"           value={TYPE_LABEL[list.list_type] || list.list_type} />
+              <Chip label="Categoria"      value={list.category} />
+              <Chip label="Início"         value={fmt(list.start_date)} />
+              <Chip label="Término"        value={fmt(list.end_date)} />
+              <Chip label="Capacidade"     value={list.block_capacity > 0 ? String(list.block_capacity) : '—'} />
+              <Chip label="Acomodações"    value={list.total_accommodations > 0 ? String(list.total_accommodations) : '—'} />
+            </div>
+          </div>
 
-      {/* Métricas */}
-      {!paxData.loading && paxData.enrolled.length > 0 && (
-        <MetricsPanel enrolled={paxData.enrolled} accomTypes={paxData.accomTypes} blockCapacity={list.block_capacity} />
-      )}
+          {/* Métricas */}
+          {!paxData.loading && paxData.enrolled.length > 0 && (
+            <MetricsPanel enrolled={paxData.enrolled} accomTypes={paxData.accomTypes} />
+          )}
+        </div>
+
+        {available != null && (
+          <div style={{
+            flexShrink:0, width:200, borderRadius:12, color:'#fff', display:'flex', flexDirection:'column',
+            alignItems:'flex-end', justifyContent:'center', padding:'18px 22px', gap:2,
+            background: oversold ? 'linear-gradient(135deg,#dc2626,#b91c1c)' : 'linear-gradient(135deg,#16a34a,#15803d)',
+            boxShadow:'0 1px 4px rgba(0,0,0,.08)',
+          }}>
+            <span style={{ fontSize:38, fontWeight:800, lineHeight:1 }}>{available}</span>
+            <span style={{ fontSize:13, fontWeight:600, textAlign:'right' }}>Disponíveis para venda</span>
+          </div>
+        )}
+      </div>
 
       {/* Tabs */}
       <div style={{ display:'flex', gap:0, borderBottom:'2px solid #e2e8f0', marginBottom:20 }}>
