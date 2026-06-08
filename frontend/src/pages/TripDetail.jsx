@@ -2765,14 +2765,14 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
 }
 
 /* ── Modal criar/editar trecho de voo ── */
-function FlightLegModal({ initial, direction, onSave, onClose }) {
+function FlightLegModal({ initial, prefill, direction, onSave, onClose }) {
   const isEdit = !!initial
-  const [origin,  setOrigin]  = useState(initial?.origin_airport_data  || null)
-  const [dest,    setDest]    = useState(initial?.destination_airport_data || null)
-  const [fnum,    setFnum]    = useState(initial?.flight_number || '')
-  const [airline, setAirline] = useState(initial?.airline || '')
-  const [date,        setDate]        = useState(initial?.departure_date || '')
-  const [time,        setTime]        = useState(initial?.departure_time?.slice(0,5) || '')
+  const [origin,      setOrigin]      = useState(initial?.origin_airport_data      || prefill?.origin_airport_data || null)
+  const [dest,        setDest]        = useState(initial?.destination_airport_data || null)
+  const [fnum,        setFnum]        = useState(initial?.flight_number || '')
+  const [airline,     setAirline]     = useState(initial?.airline || '')
+  const [date,        setDate]        = useState(initial?.departure_date || prefill?.departure_date || '')
+  const [time,        setTime]        = useState(initial?.departure_time?.slice(0,5) || prefill?.departure_time || '')
   const [arrivalDate, setArrivalDate] = useState(initial?.arrival_date || '')
   const [arrivalTime, setArrivalTime] = useState(initial?.arrival_time?.slice(0,5) || '')
   const [saving,      setSaving]      = useState(false)
@@ -2983,7 +2983,18 @@ function FlightsTab({ listId, list }) {
             </span>
           )}
         </div>
-        <button type="button" onClick={() => setLegModal({ direction, initial: null })}
+        <button type="button" onClick={() => {
+          const last = legsList.length > 0 ? legsList[legsList.length - 1] : null
+          setLegModal({
+            direction,
+            initial: null,
+            prefill: last ? {
+              origin_airport_data: last.destination_airport_data,
+              departure_date:      last.arrival_date || '',
+              departure_time:      last.arrival_time ? last.arrival_time.slice(0, 5) : '',
+            } : null,
+          })
+        }}
           style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
@@ -3028,6 +3039,7 @@ function FlightsTab({ listId, list }) {
       {legModal && (
         <FlightLegModal
           initial={legModal.initial}
+          prefill={legModal.prefill}
           direction={legModal.direction}
           onSave={handleSave}
           onClose={() => setLegModal(null)}
