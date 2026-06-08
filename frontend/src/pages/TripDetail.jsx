@@ -19,7 +19,6 @@ const findAccomType = (types, roomName) =>
 const TYPE_LABEL = {
   aereo:'Via Aéreo', terrestre:'Via Terrestre',
 }
-const DOC_LABEL  = { passaporte:'Passaporte', carteira_identidade:'Carteira de Identidade' }
 
 const fmt = (d) => {
   if (!d) return '—'
@@ -34,6 +33,60 @@ function Chip({ label, value }) {
     <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
       <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>{label}</span>
       <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{value}</span>
+    </div>
+  )
+}
+
+/* ── Selo de status da lista — clicável, abre dropdown para alterar ── */
+const LIST_STATUS_OPTS = [
+  { value:'aberta',  label:'Aberta',  bg:'#dcfce7', color:'#16a34a' },
+  { value:'fechada', label:'Fechada', bg:'#f1f5f9', color:'#64748b' },
+]
+
+function ListStatusBadge({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const current = LIST_STATUS_OPTS.find(o => o.value === value) || LIST_STATUS_OPTS[1]
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:20, border:'none', cursor:'pointer', fontFamily:'inherit', background:current.bg, color:current.color }}>
+        {current.label}
+        <span style={{ fontSize:9, opacity:.7 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:200, background:'#fff',
+          borderRadius:8, border:'1px solid #e2e8f0', boxShadow:'0 8px 24px rgba(0,0,0,.10)',
+          minWidth:140, overflow:'hidden', animation:'mIn .12s ease' }}>
+          {LIST_STATUS_OPTS.map(opt => {
+            const sel = value === opt.value
+            return (
+              <button key={opt.value} type="button"
+                onClick={() => { setOpen(false); if (!sel) onChange(opt.value) }}
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
+                  padding:'9px 14px', gap:10, background:sel?'#eff6ff':'transparent',
+                  border:'none', borderBottom:'1px solid #f8fafc',
+                  color:sel?'#2e6db4':'#1e293b', fontSize:13, fontWeight:sel?600:400,
+                  cursor:'pointer', fontFamily:'inherit', textAlign:'left', transition:'background .1s' }}
+                onMouseEnter={e => { if(!sel) e.currentTarget.style.background='#f8fafc' }}
+                onMouseLeave={e => { if(!sel) e.currentTarget.style.background='transparent' }}>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ width:8, height:8, borderRadius:'50%', background:opt.color }} />
+                  {opt.label}
+                </span>
+                {sel && <span style={{ color:'#2e6db4' }}>✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -1398,14 +1451,23 @@ export default function TripDetail() {
     toast.success('Lista de passageiros atualizada.')
   }
 
+  const handleStatusChange = async (status) => {
+    const prev = list.status
+    setList(l => ({ ...l, status }))
+    try {
+      await listsApi.patch(id, { status })
+      toast.success('Status atualizado.')
+    } catch {
+      setList(l => ({ ...l, status: prev }))
+      toast.error('Erro ao atualizar status.')
+    }
+  }
+
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300, color:'#94a3b8' }}>
       Carregando…
     </div>
   )
-
-  const supplierNames  = (list.suppliers_data  || []).map(s => s.name).join(', ') || '—'
-  const additionalNames= (list.additionals_data || []).map(a => a.name).join(', ') || '—'
 
   const TABS = [
     { key:'passengers', label:'Passageiros' },
@@ -1425,7 +1487,8 @@ export default function TripDetail() {
           </button>
           <h1 className="ph-title" style={{ margin:0 }}>{list.name}</h1>
         </div>
-        <div className="ph-actions">
+        <div className="ph-actions" style={{ alignItems:'center' }}>
+          <ListStatusBadge value={list.status} onChange={handleStatusChange} />
           <button type="button" onClick={() => setShowEdit(true)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
@@ -1444,19 +1507,6 @@ export default function TripDetail() {
           <Chip label="Término"        value={fmt(list.end_date)} />
           <Chip label="Capacidade"     value={list.block_capacity > 0 ? String(list.block_capacity) : '—'} />
           <Chip label="Acomodações"    value={list.total_accommodations > 0 ? String(list.total_accommodations) : '—'} />
-          <Chip label="Doc. requeridos" value={(list.required_documents || []).map(d => DOC_LABEL[d]).filter(Boolean).join(', ') || '—'} />
-          <Chip label="Fornecedores"   value={supplierNames} />
-          <Chip label="Adicionais"     value={additionalNames} />
-          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-            <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>Status</span>
-            <span style={{
-              fontSize:12, fontWeight:700, padding:'2px 10px', borderRadius:20,
-              background: list.status === 'aberta' ? '#dcfce7' : '#f1f5f9',
-              color:      list.status === 'aberta' ? '#16a34a' : '#64748b',
-            }}>
-              {list.status === 'aberta' ? 'Aberta' : 'Fechada'}
-            </span>
-          </div>
         </div>
       </div>
 

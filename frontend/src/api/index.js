@@ -30,6 +30,7 @@ export const listsApi = {
   get:    (id)     => api.get(`/trips/lists/${id}/`),
   create: (data)   => api.post('/trips/lists/', data),
   update: (id, d)  => api.put(`/trips/lists/${id}/`, d),
+  patch:  (id, d)  => api.patch(`/trips/lists/${id}/`, d),
   remove: (id)     => api.delete(`/trips/lists/${id}/`),
   // Passageiros na lista
   listPassengers:   (id)          => api.get(`/trips/lists/${id}/passageiros/`),
