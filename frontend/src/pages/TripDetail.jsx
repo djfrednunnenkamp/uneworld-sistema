@@ -1934,7 +1934,7 @@ function PassengersTab({ listId, listType, onData }) {
               {h:'Nasc.',     align:'center'},
               {h:'Nac.',      align:'center'},
               {h:'Gên.',      align:'center'},
-              {h:'Pass / RG', align:'center'},
+              {h:'Passaporte',align:'center'},
               {h:'CPF',       align:'center'},
               {h:'Agência',   align:'left'},
               {h:'Ações',     align:'center'},
@@ -2072,7 +2072,7 @@ function PassengersTab({ listId, listType, onData }) {
               {!isCollapsed && rows.map((e, ri) => {
                 const nat = (e.passenger_nationality || '').slice(0,3).toUpperCase() || '—'
                 const gen = e.passenger_gender ? e.passenger_gender[0].toUpperCase() : '—'
-                const doc = e.passenger_passport || e.passenger_rg || '—'
+                const passports = e.passenger_passports || []
                 const cpf = e.passenger_cpf || '—'
                 const birth = e.passenger_birth_date ? fmt(e.passenger_birth_date) : '—'
 
@@ -2136,8 +2136,19 @@ function PassengersTab({ listId, listType, onData }) {
                     {/* Gênero */}
                     <span style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block' }}>{e.is_block ? '—' : gen}</span>
 
-                    {/* Pass/RG */}
-                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.is_block ? '—' : doc}</span>
+                    {/* Passaporte(s) — número + sigla do país, até 2 */}
+                    <span style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1, overflow:'hidden' }}>
+                      {e.is_block || passports.length === 0 ? (
+                        <span style={{ fontSize:12, color:'#475569' }}>—</span>
+                      ) : passports.map((p, pi) => (
+                        <span key={pi} style={{ fontSize:11.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>
+                          {p.number}
+                          {p.country && (
+                            <span style={{ fontSize:9.5, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{p.country.toUpperCase()}</span>
+                          )}
+                        </span>
+                      ))}
+                    </span>
 
                     {/* CPF */}
                     <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.is_block ? '—' : cpf}</span>

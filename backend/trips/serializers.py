@@ -114,6 +114,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_nationality= serializers.SerializerMethodField()
     passenger_gender     = serializers.SerializerMethodField()
     passenger_passport   = serializers.SerializerMethodField()
+    passenger_passports  = serializers.SerializerMethodField()
     passenger_rg         = serializers.SerializerMethodField()
     passenger_status     = serializers.SerializerMethodField()
 
@@ -127,6 +128,15 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_passenger_nationality(self, obj):return obj.passenger.nationality if obj.passenger else ''
     def get_passenger_gender(self, obj):     return obj.passenger.gender      if obj.passenger else ''
     def get_passenger_passport(self, obj):   return obj.passenger.passport    if obj.passenger else ''
+
+    def get_passenger_passports(self, obj):
+        """Lista de até 2 passaportes: [{'number': ..., 'country': 'BR'}, ...]"""
+        p = obj.passenger
+        if not p:
+            return []
+        pairs = [(p.passport, p.passport_country), (p.passport2, p.passport2_country)]
+        return [{'number': num, 'country': country} for num, country in pairs if num]
+
     def get_passenger_rg(self, obj):         return obj.passenger.rg          if obj.passenger else ''
     def get_passenger_status(self, obj):     return obj.passenger.status      if obj.passenger else ''
 
@@ -152,7 +162,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'is_block', 'block_agency',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
-            'passenger_passport', 'passenger_rg', 'passenger_status',
+            'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason', 'order_in_list',
             'enrolled_at', 'notes',
         ]

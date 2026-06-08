@@ -47,6 +47,7 @@ const EMPTY = {
   gender:'', gender_custom:'', profession:'', is_foreign:false, is_verified:false, is_guide:false,
   agencies:[],
   cpf:'',
+  passport:'', passport_country:'', passport2:'', passport2_country:'',
   phone1:'', phone2:'', mobile:'',
   flight_class:'', seat_preference:'', seat_position:'', diet_type:'', diet_notes:'', receives_mail:false,
   cep:'', street:'', number:'', complement:'', neighborhood:'', city:'', state:'', country:'Brasil',
@@ -239,6 +240,7 @@ function DocumentsTab({ passengerId, isNew }) {
       if (r.data?.length) setDocTypes(r.data)
     }).catch(() => {})
   }, [])
+
 
   const openNotes = (doc) => { setNotesDoc(doc); setNotesText(doc.notes ?? '') }
 
@@ -757,6 +759,14 @@ export default function PassengerDetail() {
   const [tab,        setTab]        = usePersistedTab('tab_passenger_detail', 'info')
   const [isDirty,    setIsDirty]    = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})  // { fieldKey: true }
+  const [countryOpts, setCountryOpts] = useState([])
+
+  // Carrega países para o seletor de país do passaporte (sigla)
+  useEffect(() => {
+    configApi.countries().then(r => {
+      setCountryOpts((r.data || []).filter(c => c.code).map(c => ({ value: c.code, label: `${c.code} — ${c.name}` })))
+    }).catch(() => {})
+  }, [])
 
   /* load passenger data */
   useEffect(() => {
@@ -1115,6 +1125,36 @@ export default function PassengerDetail() {
                   onChangePrimary={(v) => { setForm((f) => ({ ...f, nationality: v })); markDirty() }}
                   onChangeOthers={(v)  => { setForm((f) => ({ ...f, other_nationalities: v })); markDirty() }}
                 />
+              </F>
+            </div>
+
+            {/* Linha extra: Passaportes (até 2, número + sigla do país) */}
+            <div className="grid3">
+              <F label="Passaporte">
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input className="fi" value={form.passport} onChange={set('passport')} placeholder="Número" style={{ flex: 1.5 }} />
+                  <div style={{ width: 110 }}>
+                    <FormSelect
+                      value={form.passport_country}
+                      onChange={(v) => { setForm((f) => ({ ...f, passport_country: v })); markDirty() }}
+                      options={countryOpts}
+                      placeholder="País"
+                    />
+                  </div>
+                </div>
+              </F>
+              <F label="2º passaporte (opcional)">
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input className="fi" value={form.passport2} onChange={set('passport2')} placeholder="Número" style={{ flex: 1.5 }} />
+                  <div style={{ width: 110 }}>
+                    <FormSelect
+                      value={form.passport2_country}
+                      onChange={(v) => { setForm((f) => ({ ...f, passport2_country: v })); markDirty() }}
+                      options={countryOpts}
+                      placeholder="País"
+                    />
+                  </div>
+                </div>
               </F>
             </div>
           </div>
