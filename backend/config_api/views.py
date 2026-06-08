@@ -11,7 +11,7 @@ from rest_framework.parsers import MultiPartParser
 from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
-                     ConfigAccommodation, ConfigListCategory, Airport)
+                     ConfigAccommodation, ConfigListCategory, Airport, Airline)
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -852,3 +852,42 @@ class AirportViewSet(viewsets.ModelViewSet):
         t = threading.Thread(target=run, daemon=True)
         t.start()
         return Response({'status': 'Importação iniciada. Pode levar alguns segundos.'}, status=status.HTTP_202_ACCEPTED)
+
+
+# ── Companhias Aéreas ────────────────────────────────────────────────────────
+
+class AirlineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Airline
+        fields = ['id', 'name', 'iata_code', 'country']
+
+
+class AirlineViewSet(viewsets.ModelViewSet):
+    queryset           = Airline.objects.all()
+    serializer_class   = AirlineSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class   = None
+
+    def get_queryset(self):
+        qs = Airline.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        if q:
+            from django.db.models import Q
+            qs = qs.filter(Q(name__icontains=q) | Q(iata_code__icontains=q))
+        return qs[:80]
+
+    @action(detail=False, methods=['post'])
+    def seed(self, request):
+        """Importa companhias aéreas em background via OpenFlights."""
+        import threading
+        from django.core.management import call_command
+
+        def run():
+            try:
+                call_command('seed_airlines')
+            except Exception:
+                pass
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        return Response({'status': 'Importação iniciada.'}, status=status.HTTP_202_ACCEPTED)

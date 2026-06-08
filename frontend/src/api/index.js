@@ -162,6 +162,12 @@ export const configApi = {
   updateProfCard:  (id, name) => api.patch(`/config/prof-cards/${id}/`, { name }),
   delProfCard:     (id)   => api.delete(`/config/prof-cards/${id}/`),
   importProfCards: ()     => api.post('/config/prof-cards/import/'),
+  // Companhias aéreas
+  airlines:       (params) => api.get('/config/airlines/', { params }),
+  addAirline:     (data)   => api.post('/config/airlines/', data),
+  updateAirline:  (id, d)  => api.patch(`/config/airlines/${id}/`, d),
+  delAirline:     (id)     => api.delete(`/config/airlines/${id}/`),
+  seedAirlines:   ()       => api.post('/config/airlines/seed/'),
   // Aeroportos
   airports:       (params) => api.get('/config/airports/', { params }),
   addAirport:     (data)   => api.post('/config/airports/', data),

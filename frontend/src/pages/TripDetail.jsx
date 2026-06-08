@@ -10,6 +10,7 @@ import ListModal from '../components/ListModal'
 import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
 import { Ic } from '../components/Icon'
+import AirlinePicker from '../components/AirlinePicker'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -2770,9 +2771,11 @@ function FlightLegModal({ initial, direction, onSave, onClose }) {
   const [dest,    setDest]    = useState(initial?.destination_airport_data || null)
   const [fnum,    setFnum]    = useState(initial?.flight_number || '')
   const [airline, setAirline] = useState(initial?.airline || '')
-  const [date,    setDate]    = useState(initial?.departure_date || '')
-  const [time,    setTime]    = useState(initial?.departure_time?.slice(0,5) || '')
-  const [saving,  setSaving]  = useState(false)
+  const [date,        setDate]        = useState(initial?.departure_date || '')
+  const [time,        setTime]        = useState(initial?.departure_time?.slice(0,5) || '')
+  const [arrivalDate, setArrivalDate] = useState(initial?.arrival_date || '')
+  const [arrivalTime, setArrivalTime] = useState(initial?.arrival_time?.slice(0,5) || '')
+  const [saving,      setSaving]      = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
@@ -2783,8 +2786,10 @@ function FlightLegModal({ initial, direction, onSave, onClose }) {
         destination_airport: dest?.id   ?? null,
         flight_number:       fnum.trim().toUpperCase(),
         airline:             airline.trim(),
-        departure_date:      date  || null,
-        departure_time:      time  || null,
+        departure_date:      date        || null,
+        departure_time:      time        || null,
+        arrival_date:        arrivalDate || null,
+        arrival_time:        arrivalTime || null,
         order:               initial?.order ?? 0,
       })
       onClose()
@@ -2822,18 +2827,29 @@ function FlightLegModal({ initial, direction, onSave, onClose }) {
             </div>
             <div className="ff" style={{ margin:0 }}>
               <label className="fl">Companhia aérea</label>
-              <input className="fi" value={airline} onChange={e => setAirline(e.target.value)} placeholder="Ex: LATAM" />
+              <AirlinePicker value={airline} onChange={setAirline} />
             </div>
           </div>
-          {/* Data + Horário */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10 }}>
+          {/* Partida */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10, marginBottom:14 }}>
             <div className="ff" style={{ margin:0 }}>
               <label className="fl">Data de partida</label>
               <DatePicker fixed value={date} onChange={setDate} />
             </div>
             <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Horário</label>
+              <label className="fl">Horário partida</label>
               <input className="fi" type="time" value={time} onChange={e => setTime(e.target.value)} />
+            </div>
+          </div>
+          {/* Chegada */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10 }}>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Data de chegada</label>
+              <DatePicker fixed value={arrivalDate} onChange={setArrivalDate} />
+            </div>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Horário chegada</label>
+              <input className="fi" type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)} />
             </div>
           </div>
         </div>

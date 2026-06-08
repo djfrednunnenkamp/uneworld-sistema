@@ -181,6 +181,21 @@ class ConfigListCategory(models.Model):
         return self.name
 
 
+class Airline(models.Model):
+    name      = models.CharField('Nome', max_length=200)
+    iata_code = models.CharField('Código IATA', max_length=10, blank=True)
+    country   = models.CharField('País', max_length=200, blank=True)
+
+    class Meta:
+        ordering            = ['name']
+        verbose_name        = 'Companhia aérea'
+        verbose_name_plural = 'Companhias aéreas'
+
+    def __str__(self):
+        parts = [self.iata_code, self.name]
+        return ' — '.join(p for p in parts if p)
+
+
 class Airport(models.Model):
     name      = models.CharField('Nome', max_length=200)
     iata_code = models.CharField('Código IATA', max_length=10, blank=True)

@@ -261,6 +261,8 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             airline=data.get('airline', ''),
             departure_date=data.get('departure_date') or None,
             departure_time=data.get('departure_time') or None,
+            arrival_date=data.get('arrival_date') or None,
+            arrival_time=data.get('arrival_time') or None,
             origin_airport_id=data.get('origin_airport') or None,
             destination_airport_id=data.get('destination_airport') or None,
         )
@@ -282,7 +284,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         for field in ('direction', 'order', 'flight_number', 'airline'):
             if field in request.data:
                 setattr(leg, field, request.data[field])
-        for field in ('departure_date', 'departure_time'):
+        for field in ('departure_date', 'departure_time', 'arrival_date', 'arrival_time'):
             if field in request.data:
                 setattr(leg, field, request.data[field] or None)
         for fk in ('origin_airport', 'destination_airport'):

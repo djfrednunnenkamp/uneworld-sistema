@@ -7,6 +7,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import DocTypesManager from '../components/DocTypesManager'
 import AccommodationManager from '../components/AccommodationManager'
 import AirportsManager from '../components/AirportsManager'
+import AirlinesManager from '../components/AirlinesManager'
 import { Ic } from '../components/Icon'
 
 /* ── CSV global: Países → Estados → Cidades ── */
@@ -641,8 +642,9 @@ const LIST_DEFS = [
   { key:'list_categories', label:'Categoria de Acomodações' },
   { key:'countries',       label:'Países & Estados' },
   { key:'airports',        label:'Aeroportos' },
+  { key:'airlines',        label:'Companhias Aéreas' },
 ]
-const WIDE_LISTS = ['accommodations', 'countries', 'airports']
+const WIDE_LISTS = ['accommodations', 'countries', 'airports', 'airlines']
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -659,8 +661,10 @@ export default function Settings() {
   const [listAddits,   setListAddits]   = useState([])
   const [accoms,       setAccoms]       = useState([])
   const [airports,     setAirports]     = useState([])
+  const [airlines,     setAirlines]     = useState([])
   const [loadingAc,    setLoadingAc]    = useState(true)
   const [loadingAir,   setLoadingAir]   = useState(true)
+  const [loadingAirl,  setLoadingAirl]  = useState(true)
   const [loadingP,     setLoadingP]     = useState(true)
   const [loadingL,     setLoadingL]     = useState(true)
   const [loadingV,     setLoadingV]     = useState(true)
@@ -679,6 +683,7 @@ export default function Settings() {
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
     configApi.airports().then(r => setAirports(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAir(false))
+    configApi.airlines().then(r => setAirlines(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAirl(false))
   }, [])
 
   const addProfession = async (name) => {
@@ -935,6 +940,10 @@ export default function Settings() {
           {activeDef.key === 'airports'        && <AirportsManager items={airports} loading={loadingAir} onRefresh={() => {
             setLoadingAir(true)
             configApi.airports().then(r => setAirports(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAir(false))
+          }} />}
+          {activeDef.key === 'airlines'        && <AirlinesManager items={airlines} loading={loadingAirl} onRefresh={() => {
+            setLoadingAirl(true)
+            configApi.airlines().then(r => setAirlines(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAirl(false))
           }} />}
         </ListDetailModal>
       )}

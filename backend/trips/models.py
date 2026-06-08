@@ -202,6 +202,8 @@ class FlightLeg(models.Model):
     airline             = models.CharField('Companhia aérea', max_length=100, blank=True)
     departure_date      = models.DateField('Data de partida', null=True, blank=True)
     departure_time      = models.TimeField('Horário de partida', null=True, blank=True)
+    arrival_date        = models.DateField('Data de chegada', null=True, blank=True)
+    arrival_time        = models.TimeField('Horário de chegada', null=True, blank=True)
     created_at          = models.DateTimeField(auto_now_add=True)
 
     class Meta:

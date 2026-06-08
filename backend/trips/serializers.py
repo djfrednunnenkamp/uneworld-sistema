@@ -248,7 +248,9 @@ class FlightLegSerializer(serializers.ModelSerializer):
             'id', 'direction', 'order',
             'origin_airport', 'origin_airport_data',
             'destination_airport', 'destination_airport_data',
-            'flight_number', 'airline', 'departure_date', 'departure_time',
+            'flight_number', 'airline',
+            'departure_date', 'departure_time',
+            'arrival_date',   'arrival_time',
         ]
 
     def _ap(self, obj):
