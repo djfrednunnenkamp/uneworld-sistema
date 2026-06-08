@@ -1966,10 +1966,10 @@ function PassengersTab({ listId, listType, onData }) {
             return (
             <div key={key}>
               {/* Header do grupo */}
-              <div onClick={() => { if (!isUnassigned && !isCancelled) setEditAccomType(key) }}
-                title={(!isUnassigned && !isCancelled) ? 'Clique para editar o tipo da acomodação' : undefined}
+              <div onClick={() => toggleGroup(key)}
+                title={isCollapsed ? 'Expandir' : 'Recolher'}
                 style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px',
-                cursor: (!isUnassigned && !isCancelled) ? 'pointer' : 'default',
+                cursor: 'pointer',
                 background: isCancelled ? '#fef2f2' : isUnassigned ? '#fffbeb' : '#f1f5f9',
                 borderBottom: `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
                 borderTop:    `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
@@ -2051,7 +2051,7 @@ function PassengersTab({ listId, listType, onData }) {
                       style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:13, padding:0, lineHeight:1 }}
                       onMouseEnter={e => e.currentTarget.style.color='#1a2d4f'}
                       onMouseLeave={e => e.currentTarget.style.color='#94a3b8'}>
-                      ✎
+                      <Ic n="edit" s={13} />
                     </button>
 
                     {roomIdByName[key] != null && (
