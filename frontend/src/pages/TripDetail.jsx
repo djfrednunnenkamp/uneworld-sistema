@@ -1271,12 +1271,17 @@ function PassengersTab({ listId, listType, onData }) {
 
   const handleEnrollmentStatus = async (enrollment, status, note) => {
     const statusChanged = status !== enrollment.enrollment_status
+    const reactivating  = statusChanged && enrollment.enrollment_status === 'cancelado' && status !== 'cancelado'
     const payload = { enrollment_status: status }
     if (status === 'cancelado') payload.notes = note
+    // Ao reativar quem estava cancelado, a acomodação anterior é liberada —
+    // a pessoa volta para "Aguardando acomodação" para ser realocada manualmente
+    if (reactivating) payload.accommodation = ''
     await listsApi.updatePassenger(listId, enrollment.id, payload)
       .then(() => {
         if (!statusChanged) toast.success('Observação atualizada.')
         else if (status === 'cancelado') toast.success('Passageiro movido para Cancelados.')
+        else if (reactivating) toast.success('Passageiro reativado — aguardando nova acomodação.')
         else toast.success('Status atualizado.')
       })
       .catch(() => toast.error('Erro ao atualizar status.'))
