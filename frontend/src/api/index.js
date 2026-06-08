@@ -42,6 +42,11 @@ export const listsApi = {
   addRoom:          (id, name)     => api.post(`/trips/lists/${id}/rooms/`, { name }),
   renameRoom:       (id, rid, name) => api.patch(`/trips/lists/${id}/rooms/${rid}/`, { name }),
   removeRoom:       (id, rid, resolution) => api.delete(`/trips/lists/${id}/rooms/${rid}/`, resolution ? { data: { resolution } } : undefined),
+  // Trechos de voo
+  listFlights:       (id)          => api.get(`/trips/lists/${id}/flights/`),
+  addFlight:         (id, data)    => api.post(`/trips/lists/${id}/flights/`, data),
+  updateFlight:      (id, fid, d)  => api.patch(`/trips/lists/${id}/flights/${fid}/`, d),
+  removeFlight:      (id, fid)     => api.delete(`/trips/lists/${id}/flights/${fid}/`),
   // Fornecedores e Adicionais
   suppliers:        ()            => api.get('/trips/suppliers/'),
   addSupplier:      (name)        => api.post('/trips/suppliers/', { name }),

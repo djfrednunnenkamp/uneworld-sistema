@@ -2,11 +2,11 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room, FlightLeg
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
     SupplierSerializer, ListAdditionalSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
-    RoomSerializer,
+    RoomSerializer, FlightLegSerializer,
 )
 
 
@@ -237,4 +237,58 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         if old_name != new_name:
             pl.list_enrollments.filter(accommodation=old_name).update(accommodation=new_name)
         return Response(RoomSerializer(room).data)
+
+    # ── Trechos de voo ──────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['get', 'post'], url_path='flights',
+            permission_classes=[IsAuthenticated])
+    def flights(self, request, pk=None):
+        """GET: lista trechos. POST: cria trecho."""
+        pl = self.get_object()
+        if request.method == 'GET':
+            legs = pl.flight_legs.select_related('origin_airport', 'destination_airport').all()
+            return Response(FlightLegSerializer(legs, many=True).data)
+        data = request.data.copy()
+        data['passenger_list'] = pl.id
+        for fk in ('origin_airport', 'destination_airport'):
+            if fk in data and not data[fk]:
+                data[fk] = None
+        leg = FlightLeg(
+            passenger_list=pl,
+            direction=data.get('direction', 'ida'),
+            order=int(data.get('order', 0)),
+            flight_number=data.get('flight_number', ''),
+            airline=data.get('airline', ''),
+            departure_date=data.get('departure_date') or None,
+            departure_time=data.get('departure_time') or None,
+            origin_airport_id=data.get('origin_airport') or None,
+            destination_airport_id=data.get('destination_airport') or None,
+        )
+        leg.save()
+        return Response(FlightLegSerializer(leg).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'flights/(?P<leg_id>\d+)',
+            permission_classes=[IsAuthenticated])
+    def manage_flight(self, request, pk=None, leg_id=None):
+        """PATCH: atualiza trecho. DELETE: remove trecho."""
+        pl = self.get_object()
+        try:
+            leg = FlightLeg.objects.select_related('origin_airport', 'destination_airport').get(passenger_list=pl, id=leg_id)
+        except FlightLeg.DoesNotExist:
+            return Response({'error': 'Trecho não encontrado.'}, status=404)
+        if request.method == 'DELETE':
+            leg.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        for field in ('direction', 'order', 'flight_number', 'airline'):
+            if field in request.data:
+                setattr(leg, field, request.data[field])
+        for field in ('departure_date', 'departure_time'):
+            if field in request.data:
+                setattr(leg, field, request.data[field] or None)
+        for fk in ('origin_airport', 'destination_airport'):
+            if fk in request.data:
+                setattr(leg, f'{fk}_id', request.data[fk] or None)
+        leg.save()
+        leg.refresh_from_db()
+        return Response(FlightLegSerializer(leg).data)
 

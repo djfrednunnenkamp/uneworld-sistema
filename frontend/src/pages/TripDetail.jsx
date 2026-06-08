@@ -2657,10 +2657,10 @@ function PassengersTab({ listId, listType, defaultAirport, onData }) {
 }
 
 /* ── Aba "Local de Embarque" ── */
-function DeparturesTab({ listId, list }) {
+/* ── Popup passageiros com embarque diferente do padrão ── */
+function BoardingInfoModal({ listId, defAirport, onClose }) {
   const [enrolled, setEnrolled] = useState([])
   const [loading,  setLoading]  = useState(true)
-  const defAirport = list.default_airport_data || null
 
   useEffect(() => {
     listsApi.listPassengers(listId)
@@ -2669,147 +2669,369 @@ function DeparturesTab({ listId, list }) {
       .finally(() => setLoading(false))
   }, [listId])
 
+  const active      = enrolled.filter(e => e.enrollment_status !== 'cancelado')
+  const nonDefault  = active.filter(e => !!e.departure_airport_data)
+
+  // Aeroportos únicos (individais + padrão)
+  const airportMap = {}
+  active.forEach(e => {
+    const ap  = e.departure_airport_data || defAirport
+    const key = ap ? String(ap.id) : '__none__'
+    if (!airportMap[key]) airportMap[key] = { ap, count: 0 }
+    airportMap[key].count++
+  })
+  const airportGroups = Object.values(airportMap).sort((a, b) => b.count - a.count)
+
+  const IataChip = ({ ap, amber }) => (
+    <span style={{
+      fontFamily:'monospace', fontWeight:700, fontSize:11, padding:'1px 7px',
+      borderRadius:5, letterSpacing:'.03em', flexShrink:0,
+      color:      amber ? '#92400e' : '#1a2d4f',
+      background: amber ? '#fef3c7' : '#eff6ff',
+      border:     amber ? '1.5px solid #f59e0b' : '1px solid #bfdbfe',
+    }}>
+      {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+    </span>
+  )
+
+  return (
+    <div className="overlay" style={{ zIndex:800 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="mbox" style={{ maxWidth:520 }}>
+        <div className="mhead">
+          <span className="mtitle">Aeroportos de embarque</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
+        </div>
+        <div className="mbody">
+          {loading ? (
+            <p style={{ color:'#94a3b8', fontSize:13, margin:0 }}>Carregando…</p>
+          ) : (
+            <>
+              {/* Todos os aeroportos */}
+              <div style={{ marginBottom:20 }}>
+                <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Aeroportos</p>
+                <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
+                  {airportGroups.map(({ ap, count }, idx) => {
+                    const isDefAp = defAirport && ap && ap.id === defAirport.id
+                    return (
+                      <div key={ap ? ap.id : '__none__'}
+                        style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom: idx < airportGroups.length-1 ? '1px solid #f1f5f9' : 'none', background: isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc' }}>
+                        {ap ? <IataChip ap={ap} amber={!isDefAp} /> : <span style={{ fontSize:12, color:'#cbd5e1' }}>—</span>}
+                        <span style={{ flex:1, fontSize:13, color:'#1e293b' }}>{ap ? ap.name : 'Não definido'}</span>
+                        {isDefAp && <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#dbeafe', padding:'1px 6px', borderRadius:4 }}>PADRÃO</span>}
+                        <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>{count} pax</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Passageiros fora do padrão */}
+              <div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                  <p style={{ margin:0, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Embarques diferentes do padrão</p>
+                  {nonDefault.length > 0 && (
+                    <span style={{ fontSize:11, fontWeight:700, color:'#92400e', background:'#fef3c7', border:'1.5px solid #f59e0b', padding:'1px 7px', borderRadius:20 }}>{nonDefault.length}</span>
+                  )}
+                </div>
+                {nonDefault.length === 0 ? (
+                  <p style={{ color:'#94a3b8', fontSize:13, margin:0 }}>Todos embarcam pelo aeroporto padrão.</p>
+                ) : (
+                  <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
+                    {nonDefault.map((e, idx) => {
+                      const ap = e.departure_airport_data
+                      return (
+                        <div key={e.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom: idx < nonDefault.length-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc' }}>
+                          <span style={{ flex:1, fontSize:13, fontWeight:500, color:'#1e293b' }}>
+                            {e.passenger_name || <span style={{ color:'#f59e0b', fontStyle:'italic' }}>[{e.block_agency}]</span>}
+                          </span>
+                          <IataChip ap={ap} amber />
+                          <span style={{ fontSize:12, color:'#475569' }}>{ap.city || ap.name}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Modal criar/editar trecho de voo ── */
+function FlightLegModal({ initial, direction, onSave, onClose }) {
+  const isEdit = !!initial
+  const [origin,  setOrigin]  = useState(initial?.origin_airport_data  || null)
+  const [dest,    setDest]    = useState(initial?.destination_airport_data || null)
+  const [fnum,    setFnum]    = useState(initial?.flight_number || '')
+  const [airline, setAirline] = useState(initial?.airline || '')
+  const [date,    setDate]    = useState(initial?.departure_date || '')
+  const [time,    setTime]    = useState(initial?.departure_time?.slice(0,5) || '')
+  const [saving,  setSaving]  = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await onSave({
+        direction,
+        origin_airport:      origin?.id ?? null,
+        destination_airport: dest?.id   ?? null,
+        flight_number:       fnum.trim().toUpperCase(),
+        airline:             airline.trim(),
+        departure_date:      date  || null,
+        departure_time:      time  || null,
+        order:               initial?.order ?? 0,
+      })
+      onClose()
+    } catch { toast.error('Erro ao salvar trecho.') }
+    finally { setSaving(false) }
+  }
+
+  const dirLabel = direction === 'ida' ? 'Ida' : 'Volta'
+
+  return (
+    <div className="overlay" style={{ zIndex:810 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="mbox" style={{ maxWidth:460 }}>
+        <div className="mhead">
+          <span className="mtitle">{isEdit ? 'Editar trecho' : `Novo trecho — ${dirLabel}`}</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
+        </div>
+        <div className="mbody">
+          {/* Origem → Destino */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 32px 1fr', gap:8, alignItems:'end', marginBottom:14 }}>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Aeroporto de origem</label>
+              <AirportPicker value={origin} onChange={setOrigin} placeholder="Buscar origem…" />
+            </div>
+            <div style={{ textAlign:'center', fontSize:16, color:'#94a3b8', paddingBottom:8 }}>→</div>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Aeroporto de destino</label>
+              <AirportPicker value={dest} onChange={setDest} placeholder="Buscar destino…" />
+            </div>
+          </div>
+          {/* Número do voo + Companhia */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Número do voo</label>
+              <input className="fi" value={fnum} onChange={e => setFnum(e.target.value)} placeholder="Ex: LA8084" style={{ textTransform:'uppercase' }} />
+            </div>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Companhia aérea</label>
+              <input className="fi" value={airline} onChange={e => setAirline(e.target.value)} placeholder="Ex: LATAM" />
+            </div>
+          </div>
+          {/* Data + Horário */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10 }}>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Data de partida</label>
+              <DatePicker fixed value={date} onChange={setDate} />
+            </div>
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Horário</label>
+              <input className="fi" type="time" value={time} onChange={e => setTime(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Aba de Voos ── */
+function FlightsTab({ listId, list }) {
+  const [legs,      setLegs]      = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [legModal,  setLegModal]  = useState(null)   // null | { direction, initial? }
+  const [delConfirm, setDelConfirm] = useState(null) // null | leg
+  const [showBoarding, setShowBoarding] = useState(false)
+  const defAirport = list.default_airport_data || null
+
+  const load = useCallback(() => {
+    listsApi.listFlights(listId)
+      .then(r => setLegs(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [listId])
+
+  useEffect(() => { load() }, [load])
+
+  const handleSave = async (data) => {
+    if (legModal.initial) {
+      await listsApi.updateFlight(listId, legModal.initial.id, data)
+      toast.success('Trecho atualizado.')
+    } else {
+      await listsApi.addFlight(listId, data)
+      toast.success('Trecho adicionado.')
+    }
+    load()
+  }
+
+  const handleDelete = async (leg) => {
+    await listsApi.removeFlight(listId, leg.id)
+    toast.success('Trecho removido.')
+    setDelConfirm(null)
+    load()
+  }
+
   if (list.list_type !== 'aereo') {
     return (
       <div className="det-card">
         <div className="section" style={{ textAlign:'center', padding:'48px 0' }}>
           <p style={{ fontSize:32, marginBottom:8 }}>🚌</p>
           <p style={{ color:'#94a3b8', fontSize:14, fontWeight:500 }}>Esta lista é via terrestre.</p>
-          <p style={{ color:'#cbd5e1', fontSize:12 }}>Configurações de local de embarque se aplicam somente a viagens aéreas.</p>
         </div>
       </div>
     )
   }
 
-  const active = enrolled.filter(e => e.enrollment_status !== 'cancelado')
+  const ida   = legs.filter(l => l.direction === 'ida')
+  const volta = legs.filter(l => l.direction === 'volta')
 
-  // Agrupa por aeroporto efetivo (individual > padrão)
-  const airportMap = {}
-  active.forEach(e => {
-    const ap  = e.departure_airport_data || defAirport
-    const key = ap ? String(ap.id) : '__none__'
-    if (!airportMap[key]) airportMap[key] = { ap, pax: [] }
-    airportMap[key].pax.push(e)
-  })
-  const airportGroups = Object.values(airportMap).sort((a, b) => b.pax.length - a.pax.length)
+  const fmtDate = d => {
+    if (!d) return null
+    const [y, m, day] = d.split('-')
+    return `${day}/${m}/${y}`
+  }
+  const fmtTime = t => t ? t.slice(0,5) : null
 
-  // Passageiros com embarque diferente do padrão
-  const nonDefault = active.filter(e => !!e.departure_airport_data)
-
-  const IataChip = ({ ap, amber }) => (
-    <span style={{
-      fontFamily:'monospace', fontWeight:700, fontSize:12,
-      padding:'2px 8px', borderRadius:5, letterSpacing:'.03em', flexShrink:0,
-      color:      amber ? '#92400e' : '#1a2d4f',
-      background: amber ? '#fef3c7' : '#eff6ff',
-      border:     amber ? '1.5px solid #f59e0b' : '1px solid #bfdbfe',
-    }}>
-      {ap.iata_code || ap.name.slice(0, 3).toUpperCase()}
-    </span>
+  const LegRow = ({ leg, idx, total }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderBottom: idx < total-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc' }}>
+      {/* Rota */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
+        {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
+          <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
+            {i === 1 && <span style={{ color:'#cbd5e1', fontSize:14 }}>→</span>}
+            {ap ? (
+              <span style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:12, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, border:'1px solid #bfdbfe' }}>
+                  {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+                </span>
+                <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
+              </span>
+            ) : (
+              <span style={{ fontSize:13, color:'#cbd5e1', fontStyle:'italic' }}>—</span>
+            )}
+          </span>
+        ))}
+      </div>
+      {/* Detalhes */}
+      <div style={{ display:'flex', alignItems:'center', gap:14, flexShrink:0 }}>
+        {leg.flight_number && (
+          <span style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color:'#475569', background:'#f1f5f9', padding:'2px 8px', borderRadius:5 }}>
+            {leg.flight_number}
+          </span>
+        )}
+        {leg.airline && (
+          <span style={{ fontSize:12, color:'#64748b' }}>{leg.airline}</span>
+        )}
+        {(leg.departure_date || leg.departure_time) && (
+          <span style={{ fontSize:12, color:'#94a3b8' }}>
+            {[fmtDate(leg.departure_date), fmtTime(leg.departure_time)].filter(Boolean).join(' · ')}
+          </span>
+        )}
+        <button type="button" onClick={() => setLegModal({ direction: leg.direction, initial: leg })}
+          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b' }}>
+          <Ic n="edit" s={12}/>
+        </button>
+        <button type="button" onClick={() => setDelConfirm(leg)}
+          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer' }}
+          onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+          onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+          <Ic n="trash" s={12}/>
+        </button>
+      </div>
+    </div>
   )
 
-  const thStyle = { fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }
+  const Section = ({ direction, title, legsList }) => (
+    <div style={{ marginBottom:28 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div className="section-title" style={{ marginBottom:0 }}>{title}</div>
+          {legsList.length > 0 && (
+            <span style={{ fontSize:11, fontWeight:600, color:'#64748b', background:'#f1f5f9', padding:'2px 8px', borderRadius:20 }}>
+              {legsList.length} trecho{legsList.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <button type="button" onClick={() => setLegModal({ direction, initial: null })}
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+          <Ic n="plus" s={12}/> Adicionar trecho
+        </button>
+      </div>
+      {legsList.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'24px 0', background:'#f8fafc', borderRadius:10, border:'1px dashed #e2e8f0' }}>
+          <p style={{ margin:0, fontSize:13, color:'#94a3b8' }}>Nenhum trecho cadastrado. Clique em "Adicionar trecho".</p>
+        </div>
+      ) : (
+        <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
+          {legsList.map((leg, idx) => <LegRow key={leg.id} leg={leg} idx={idx} total={legsList.length} />)}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="det-card">
       <div className="section">
+        {/* Cabeçalho com botão de embarques */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', marginBottom:20 }}>
+          <button type="button" onClick={() => setShowBoarding(true)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+            <Ic n="users" s={13}/> Aeroportos dos passageiros
+          </button>
+        </div>
 
         {loading ? (
           <p style={{ color:'#94a3b8', fontSize:13 }}>Carregando…</p>
-        ) : active.length === 0 ? (
-          <p style={{ color:'#94a3b8', fontSize:13 }}>Nenhum passageiro ativo nesta lista.</p>
         ) : (
           <>
-            {/* ── Seção 1: Aeroportos de embarque ── */}
-            <div style={{ marginBottom:32 }}>
-              <div className="section-title" style={{ marginBottom:12 }}>Aeroportos de embarque</div>
-              <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 120px', columnGap:12, padding:'8px 16px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-                  <span style={thStyle}>Código</span>
-                  <span style={thStyle}>Aeroporto</span>
-                  <span style={thStyle}>Passageiros</span>
-                </div>
-                {airportGroups.map(({ ap, pax }, idx) => {
-                  const isDefAp   = defAirport && ap && ap.id === defAirport.id
-                  const allCustom = pax.every(e => !!e.departure_airport_data)
-                  return (
-                    <div key={ap ? ap.id : '__none__'}
-                      style={{ display:'grid', gridTemplateColumns:'80px 1fr 120px', columnGap:12, padding:'10px 16px', borderBottom: idx < airportGroups.length-1 ? '1px solid #f1f5f9' : 'none', background: isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}>
-                      <span>
-                        {ap
-                          ? <IataChip ap={ap} amber={allCustom && !isDefAp} />
-                          : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>
-                        }
-                      </span>
-                      <span>
-                        <span style={{ fontSize:13, fontWeight:500, color:'#1e293b' }}>
-                          {ap ? ap.name : 'Não definido'}
-                        </span>
-                        {ap && (ap.city || ap.country) && (
-                          <span style={{ fontSize:11, color:'#94a3b8', marginLeft:6 }}>
-                            {[ap.city, ap.country].filter(Boolean).join(', ')}
-                          </span>
-                        )}
-                        {isDefAp && (
-                          <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#dbeafe', padding:'1px 6px', borderRadius:4, letterSpacing:'.04em', marginLeft:8 }}>PADRÃO</span>
-                        )}
-                      </span>
-                      <span style={{ fontSize:13, fontWeight:600, color: isDefAp ? '#1a2d4f' : '#475569' }}>
-                        {pax.length} passageiro{pax.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* ── Seção 2: Embarques diferentes do padrão ── */}
-            <div>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                <div className="section-title" style={{ marginBottom:0 }}>Embarques diferentes do padrão</div>
-                {nonDefault.length > 0 && (
-                  <span style={{ fontSize:11, fontWeight:700, color:'#92400e', background:'#fef3c7', border:'1.5px solid #f59e0b', padding:'2px 8px', borderRadius:20 }}>
-                    {nonDefault.length}
-                  </span>
-                )}
-              </div>
-              {nonDefault.length === 0 ? (
-                <div style={{ textAlign:'center', padding:'28px 0', background:'#f8fafc', borderRadius:10, border:'1px solid #e2e8f0' }}>
-                  <p style={{ margin:0, fontSize:13, color:'#94a3b8' }}>
-                    Todos os passageiros embarcam pelo aeroporto padrão.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 220px', columnGap:12, padding:'8px 16px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-                    <span style={thStyle}>Passageiro</span>
-                    <span style={thStyle}>Aeroporto de saída</span>
-                  </div>
-                  {nonDefault.map((e, idx) => {
-                    const ap = e.departure_airport_data
-                    return (
-                      <div key={e.id} style={{ display:'grid', gridTemplateColumns:'1fr 220px', columnGap:12, padding:'10px 16px', borderBottom: idx < nonDefault.length-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}>
-                        <span style={{ fontSize:13, fontWeight:500, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {e.passenger_name || <span style={{ color:'#f59e0b', fontStyle:'italic' }}>[Vaga — {e.block_agency}]</span>}
-                        </span>
-                        <span style={{ display:'flex', alignItems:'center', gap:7 }}>
-                          <IataChip ap={ap} amber />
-                          <span style={{ fontSize:12, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {ap.city || ap.name}
-                          </span>
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+            <Section direction="ida"   title="✈ Ida"   legsList={ida}   />
+            <Section direction="volta" title="✈ Volta" legsList={volta} />
           </>
         )}
       </div>
+
+      {legModal && (
+        <FlightLegModal
+          initial={legModal.initial}
+          direction={legModal.direction}
+          onSave={handleSave}
+          onClose={() => setLegModal(null)}
+        />
+      )}
+      {delConfirm && (
+        <ConfirmModal
+          message={`Remover trecho ${delConfirm.origin_airport_data?.iata_code || '?'} → ${delConfirm.destination_airport_data?.iata_code || '?'}?`}
+          onOk={() => handleDelete(delConfirm)}
+          onCancel={() => setDelConfirm(null)}
+        />
+      )}
+      {showBoarding && (
+        <BoardingInfoModal listId={listId} defAirport={defAirport} onClose={() => setShowBoarding(false)} />
+      )}
     </div>
   )
 }
+
+
 
 /* ── Página principal ── */
 export default function TripDetail() {
@@ -2856,8 +3078,8 @@ export default function TripDetail() {
   )
 
   const TABS = [
-    { key:'passengers', label:'Passageiros'      },
-    { key:'embarque',   label:'Local de Embarque'},
+    { key:'passengers', label:'Passageiros' },
+    ...(list.list_type === 'aereo' ? [{ key:'voos', label:'Voos' }] : []),
   ]
 
   // Pode ficar negativo — significa que foram vendidas mais vagas do que o bloqueio permite
@@ -2935,7 +3157,7 @@ export default function TripDetail() {
       {/* Conteúdo das abas */}
       {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} onData={setPaxData} />}
 
-{tab === 'embarque' && <DeparturesTab listId={id} list={list} />}
+{tab === 'voos' && <FlightsTab listId={id} list={list} />}
 
       {/* Modal de edição */}
       {showEdit && (
