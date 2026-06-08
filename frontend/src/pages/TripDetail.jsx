@@ -212,6 +212,129 @@ function EnrollmentStatusModal({ enrollment, onSave, onClose }) {
   )
 }
 
+/* ── Popup "Observações" do passageiro — reaproveita o campo notes do enrollment ── */
+function PassengerNotesModal({ enrollment, listId, onSaved, onClose }) {
+  const [notes,  setNotes]  = useState(enrollment.notes || '')
+  const [saving, setSaving] = useState(false)
+  const name  = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+  const dirty = notes !== (enrollment.notes || '')
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, { notes })
+      toast.success('Observações salvas.')
+      onSaved(); onClose()
+    } catch { toast.error('Erro ao salvar observações.') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Observações</p>
+            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2, flexShrink:0 }}>×</button>
+        </div>
+
+        <div style={{ padding:'16px 22px 20px' }}>
+          <label style={LBL}>Anotações sobre este passageiro</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="Escreva aqui qualquer observação relevante sobre o passageiro nesta viagem…"
+            rows={5}
+            style={{ ...INP, resize:'vertical', lineHeight:1.5 }}
+            onFocus={e => e.target.style.borderColor='#2e6db4'}
+            onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={!dirty || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !dirty || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !dirty || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Menu "mais ações" do passageiro — itens já existentes funcionam, os demais aparecem como "Em breve" ── */
+const PASSENGER_ACTIONS = [
+  { key:'quick_edit',  label:'Edição rápida do passageiro', icon:'list',     enabled:false },
+  { key:'edit',        label:'Editar o passageiro',         icon:'edit',     enabled:true  },
+  { key:'notes',       label:'Observações',                 icon:'docs',     enabled:true  },
+  { key:'extra_info',  label:'Informações adicionais',      icon:'plus',     enabled:false },
+  { key:'seat',        label:'Informar o assento',          icon:'grid',     enabled:false },
+  { key:'crew',        label:'Equipe técnica',              icon:'users',    enabled:false },
+  { key:'pax_type',    label:'Tipo de passageiro',          icon:'settings', enabled:false },
+  { key:'boarding',    label:'Local de embarque',           icon:'globe',    enabled:false },
+  { key:'contracts',   label:'Contratos',                   icon:'docs',     enabled:false },
+  { key:'swap_room',   label:'Trocar de quarto',            icon:'building', enabled:true  },
+  { key:'link_client', label:'Vincular cliente',            icon:'users',    enabled:false },
+  { key:'link_agency', label:'Vincular agência',            icon:'building', enabled:false },
+  { key:'delete',      label:'Excluir passageiro',          icon:'trash',    enabled:true, danger:true },
+]
+
+function PassengerActionsMenu({ onAction }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={(ev) => { ev.stopPropagation(); setOpen(o => !o) }}
+        title="Editar / mais ações"
+        style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}
+        onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
+        onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
+        <Ic n="edit" s={12} />
+      </button>
+      {open && (
+        <div onClick={ev => ev.stopPropagation()}
+          style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:320, background:'#fff',
+          borderRadius:8, border:'1px solid #e2e8f0', boxShadow:'0 8px 24px rgba(0,0,0,.10)',
+          minWidth:240, maxHeight:380, overflowY:'auto', overflowX:'hidden', animation:'mIn .12s ease' }}>
+          {PASSENGER_ACTIONS.map(act => (
+            <button key={act.key} type="button" disabled={!act.enabled}
+              onClick={() => { if (!act.enabled) return; setOpen(false); onAction(act.key) }}
+              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
+                padding:'9px 14px', gap:10, background:'transparent',
+                border:'none', borderBottom:'1px solid #f8fafc',
+                color: !act.enabled ? '#cbd5e1' : act.danger ? '#dc2626' : '#1e293b',
+                fontSize:13, fontWeight:400, cursor: act.enabled ? 'pointer' : 'default',
+                fontFamily:'inherit', textAlign:'left', transition:'background .1s' }}
+              onMouseEnter={e => { if (act.enabled) e.currentTarget.style.background = act.danger ? '#fef2f2' : '#f8fafc' }}
+              onMouseLeave={e => { e.currentTarget.style.background='transparent' }}>
+              <span style={{ display:'flex', alignItems:'center', gap:9, minWidth:0 }}>
+                <Ic n={act.icon} s={13} />
+                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{act.label}</span>
+              </span>
+              {!act.enabled && (
+                <span style={{ fontSize:9, fontWeight:700, color:'#94a3b8', background:'#f1f5f9', padding:'2px 6px', borderRadius:10, letterSpacing:'.03em', textTransform:'uppercase', flexShrink:0 }}>
+                  Em breve
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Picker de acomodação — busca em tempo real com nomes dos hóspedes ── */
 function AccomPicker({ onSelect, existingRooms = [], enrolledList = [] }) {
   const [types,   setTypes]   = useState([])
@@ -1186,6 +1309,7 @@ function MetricsPanel({ enrolled, accomTypes }) {
 
 /* ── Aba de Passageiros ── */
 function PassengersTab({ listId, listType, onData }) {
+  const navigate = useNavigate()
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -1201,6 +1325,8 @@ function PassengersTab({ listId, listType, onData }) {
   const [collapsed,     setCollapsed]     = useState(new Set())
   // statusModal: null | enrollment (objeto) — popup para trocar status / observação de cancelamento
   const [statusModal,   setStatusModal]   = useState(null)
+  // notesModal: null | enrollment (objeto) — popup "Observações" do menu de ações
+  const [notesModal,    setNotesModal]    = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -1288,6 +1414,26 @@ function PassengersTab({ listId, listType, onData }) {
     load()
   }
 
+  // Roteia as ações do menu "⋯" do passageiro — algumas reaproveitam popups já existentes
+  const handlePassengerAction = (action, enrollment) => {
+    switch (action) {
+      case 'edit':
+        if (enrollment.passenger) navigate(`/passageiros/${enrollment.passenger}`)
+        break
+      case 'notes':
+        setNotesModal(enrollment)
+        break
+      case 'swap_room':
+        setAccomModal({ enrollmentIds: [enrollment.id] })
+        break
+      case 'delete':
+        setConfirm({ id: enrollment.id, name: enrollment.passenger_name || enrollment.block_agency })
+        break
+      default:
+        break
+    }
+  }
+
   // Cancelados ficam separados — pendentes de devolução de valores
   const CANCELLED = '(cancelados)'
   const activeEnrolled    = enrolled.filter(e => e.enrollment_status !== 'cancelado')
@@ -1364,7 +1510,7 @@ function PassengersTab({ listId, listType, onData }) {
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {/* Checkbox select-all */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
               <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -1511,7 +1657,7 @@ function PassengersTab({ listId, listType, onData }) {
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -1582,6 +1728,8 @@ function PassengersTab({ listId, listType, onData }) {
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
+                      {/* Editar / mais ações — abre menu com todas as opções do passageiro */}
+                      <PassengerActionsMenu onAction={(action) => handlePassengerAction(action, e)} />
                       {/* Atribuir passageiro — só em bloqueios */}
                       {e.is_block && (
                         <button type="button"
@@ -1627,6 +1775,16 @@ function PassengersTab({ listId, listType, onData }) {
           accomTypes={accomTypes}
           onConfirm={handleAccomConfirm}
           onClose={() => setAccomModal(null)}
+        />
+      )}
+
+      {/* Popup Observações — acessado pelo menu de ações do passageiro */}
+      {notesModal && (
+        <PassengerNotesModal
+          enrollment={notesModal}
+          listId={listId}
+          onSaved={load}
+          onClose={() => setNotesModal(null)}
         />
       )}
 
