@@ -32,30 +32,47 @@ function splitCsvLine(line) {
   return out.map(s => s.trim())
 }
 
-/* CSV combinado: colunas "lista,nome" — uma linha por item de qualquer lista simples */
+/* CSV combinado: colunas "lista,nome[,pessoas,casal,pais,codigo]" */
 function parseCombinedCsv(text, labelToKey) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
   if (!lines.length) return []
   const head = splitCsvLine(lines[0]).map(s => s.toLowerCase())
   const hasHeader = head.includes('lista') && head.includes('nome')
-  const listIdx = hasHeader ? head.indexOf('lista') : 0
-  const nameIdx = hasHeader ? head.indexOf('nome') : 1
+  const idx = (col) => hasHeader ? head.indexOf(col) : -1
+  const listIdx    = hasHeader ? head.indexOf('lista') : 0
+  const nameIdx    = hasHeader ? head.indexOf('nome')  : 1
+  const pessoasIdx = idx('pessoas')
+  const casalIdx   = idx('casal')
+  const paisIdx    = idx('pais')
+  const codigoIdx  = idx('codigo')
   return lines.slice(hasHeader ? 1 : 0).map(line => {
     const cols = splitCsvLine(line)
     const listLabel = (cols[listIdx] || '').trim()
     const name      = (cols[nameIdx] || '').trim()
-    return { listLabel, listKey: labelToKey[listLabel.toLowerCase()] || null, name }
+    const extras    = {}
+    if (pessoasIdx >= 0 && cols[pessoasIdx]) extras.capacity  = Number(cols[pessoasIdx]) || 1
+    if (casalIdx   >= 0) extras.is_couple    = ['sim','true','1','yes'].includes((cols[casalIdx] || '').trim().toLowerCase())
+    if (paisIdx    >= 0 && cols[paisIdx])    extras.parent_country = cols[paisIdx].trim()
+    if (codigoIdx  >= 0 && cols[codigoIdx])  extras.code           = cols[codigoIdx].trim()
+    return { listLabel, listKey: labelToKey[listLabel.toLowerCase()] || null, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
 
 const API_MAP = {
-  professions:     { add: (name) => configApi.addProfession(name),   label: 'Profissões' },
-  languages:       { add: (name) => configApi.addLanguage(name),     label: 'Idiomas'    },
-  vaccines:        { add: (name) => configApi.addVaccine(name),      label: 'Vacinas'    },
-  genders:         { add: (name) => configApi.addGender(name),       label: 'Gêneros'    },
-  prof_cards:      { add: (name) => configApi.addProfCard(name),     label: 'Carteiras'  },
-  list_addits:     { add: (name) => listsApi.addAdditional(name),    label: 'Adicionais de Lista' },
-  list_categories: { add: (name) => configApi.addListCategory(name), label: 'Categoria de Acomodações' },
+  professions:     { add: (name)         => configApi.addProfession(name),    label: 'Profissões' },
+  languages:       { add: (name)         => configApi.addLanguage(name),      label: 'Idiomas' },
+  vaccines:        { add: (name)         => configApi.addVaccine(name),       label: 'Vacinas' },
+  genders:         { add: (name)         => configApi.addGender(name),        label: 'Gêneros' },
+  prof_cards:      { add: (name)         => configApi.addProfCard(name),      label: 'Carteiras' },
+  list_addits:     { add: (name)         => listsApi.addAdditional(name),     label: 'Adicionais de Lista' },
+  list_categories: { add: (name)         => configApi.addListCategory(name),  label: 'Categoria de Acomodações' },
+  accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), label: 'Acomodações' },
+  countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), label: 'Países' },
+  states:          { add: (name, extras, ctx) => {
+    const c = (ctx?.allCountries || []).find(x => x.name.toLowerCase() === (extras.parent_country || '').toLowerCase())
+    if (!c) return Promise.reject(new Error('País não encontrado'))
+    return configApi.addState(c.id, name, extras.code || '')
+  }, label: 'Estados' },
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -110,7 +127,7 @@ function Spin() {
 export default function FlatImport() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { csvText, filename, type, existingNames = [], existingByType = {} } = location.state || {}
+  const { csvText, filename, type, existingNames = [], existingByType = {}, allCountries = [] } = location.state || {}
   const isAll    = type === 'all'
   const apiDef   = API_MAP[type] || API_MAP.professions
   const backPath = '/configuracoes'
@@ -134,9 +151,10 @@ export default function FlatImport() {
     return { [type]: new Set(existingNames.map(n => n.toLowerCase())) }
   }, [isAll, existingByType, existingNames, type])
 
-  const rowStatus = (name, listKey) => {
+  const rowStatus = (name, listKey, extras = {}) => {
     if (!name.trim()) return 'error'
     if (isAll && !listKey) return 'error'
+    if (listKey === 'states' && !extras.parent_country) return 'error'
     const set = existingSets[listKey ?? type]
     return set?.has(name.toLowerCase()) ? 'duplicate' : 'valid'
   }
@@ -147,12 +165,13 @@ export default function FlatImport() {
       const parsed = parseCombinedCsv(csvText, LABEL_TO_KEY)
       setRows(parsed.map((r, i) => ({
         id: i + 1, name: r.name, listKey: r.listKey, listLabel: r.listKey ? API_MAP[r.listKey].label : r.listLabel,
-        status: rowStatus(r.name, r.listKey),
+        extras: r.extras || {},
+        status: rowStatus(r.name, r.listKey, r.extras || {}),
       })))
     } else {
       const names = parseCsvNames(csvText)
       setRows(names.map((name, i) => ({
-        id: i + 1, name, listKey: type, listLabel: apiDef.label,
+        id: i + 1, name, listKey: type, listLabel: apiDef.label, extras: {},
         status: rowStatus(name, type),
       })))
     }
@@ -200,8 +219,11 @@ export default function FlatImport() {
     setPhase('importing')
     let added = 0, skipped = 0
     for (const row of toProcess) {
-      try { await (isAll ? API_MAP[row.listKey].add(row.name) : apiDef.add(row.name)); added++ }
-      catch { skipped++ }
+      try {
+        const fn = isAll ? API_MAP[row.listKey]?.add : apiDef.add
+        if (fn) await fn(row.name, row.extras || {}, { allCountries })
+        added++
+      } catch { skipped++ }
     }
     setResult({ added, skipped })
     setPhase('done')
@@ -332,12 +354,13 @@ export default function FlatImport() {
                   <th style={{...th, width:130}}>Status</th>
                   {isAll && <th style={{...th, width:180}}>Lista</th>}
                   <th style={th}>Nome</th>
+                  {isAll && <th style={{...th, width:150}}>Detalhes</th>}
                   <th style={{...th, width:80, textAlign:'center'}}>Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={isAll ? 6 : 5} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
+                  <tr><td colSpan={isAll ? 7 : 5} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
                     {search ? 'Nenhum resultado para a busca.' : 'Nenhum item nesta categoria.'}
                   </td></tr>
                 ) : filtered.map((row, idx) => {
@@ -361,6 +384,19 @@ export default function FlatImport() {
                       <td style={{padding:'9px 12px'}}>
                         <Editable value={row.name} onChange={v => editRow(row.id, v)} />
                       </td>
+                      {isAll && (
+                        <td style={{padding:'9px 12px', fontSize:12, color:'#64748b'}}>
+                          {row.listKey === 'accommodations' && row.extras && (
+                            <span>{row.extras.capacity ?? 1}p{row.extras.is_couple ? ' · casal' : ''}</span>
+                          )}
+                          {row.listKey === 'countries' && row.extras?.code && (
+                            <span style={{fontFamily:'monospace'}}>{row.extras.code}</span>
+                          )}
+                          {row.listKey === 'states' && (
+                            <span>{row.extras?.parent_country || <em style={{color:'#dc2626'}}>sem país</em>}{row.extras?.code ? ` (${row.extras.code})` : ''}</span>
+                          )}
+                        </td>
+                      )}
                       <td style={{padding:'9px 12px', textAlign:'center'}}>
                         <button
                           onClick={() => setConfirm({ type:'single', id: row.id, name: row.name })}

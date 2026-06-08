@@ -40,11 +40,21 @@ function exportCsv(items, filename) {
   URL.revokeObjectURL(url)
 }
 
-/* CSV combinado — uma linha por item, com a coluna "lista" identificando a origem */
-function exportCombinedCsv(groups, filename) {
-  const rows = ['lista,nome']
-  groups.forEach(({ label, items }) => {
-    items.forEach(i => rows.push(`"${label.replace(/"/g, '""')}","${i.name.replace(/"/g, '""')}"`))
+/* CSV combinado — inclui listas simples + acomodações + países + estados */
+function exportCombinedCsvFull(simpleGroups, accoms, countries, states, filename) {
+  const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
+  const rows = ['lista,nome,pessoas,casal,pais,codigo']
+  simpleGroups.forEach(({ label, items }) => {
+    items.forEach(i => rows.push(`${q(label)},${q(i.name)},,,,`))
+  })
+  accoms.forEach(a => {
+    rows.push(`${q('Acomodações')},${q(a.name)},${a.capacity},${a.is_couple ? 'sim' : 'não'},,`)
+  })
+  countries.forEach(c => {
+    rows.push(`${q('Países')},${q(c.name)},,,,${q(c.code || '')}`)
+  })
+  states.forEach(s => {
+    rows.push(`${q('Estados')},${q(s.name)},,,${q(s.country_name || '')},${q(s.code || '')}`)
   })
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
@@ -788,8 +798,11 @@ export default function Settings() {
     { key:'list_categories', label:'Categoria de Acomodações', items: listCats  },
   ]
 
-  const handleExportAll = () => {
-    exportCombinedCsv(SIMPLE_LIST_GROUPS, 'todas_as_listas.csv')
+  const handleExportAll = async () => {
+    try {
+      const [cRes, sRes] = await Promise.all([configApi.countries(), configApi.allStates()])
+      exportCombinedCsvFull(SIMPLE_LIST_GROUPS, accoms, cRes.data, sRes.data, 'todas_as_listas.csv')
+    } catch { toast.error('Erro ao exportar.') }
   }
 
   const handleImportAllFile = async (e) => {
@@ -797,10 +810,17 @@ export default function Settings() {
     if (!file) return
     e.target.value = ''
     const csvText = await file.text()
+    let allCountries = []
+    try { allCountries = (await configApi.countries()).data } catch {}
     navigate('/configuracoes/import', {
       state: {
         csvText, filename: file.name, type: 'all',
-        existingByType: Object.fromEntries(SIMPLE_LIST_GROUPS.map(g => [g.key, g.items.map(i => i.name)])),
+        existingByType: {
+          ...Object.fromEntries(SIMPLE_LIST_GROUPS.map(g => [g.key, g.items.map(i => i.name)])),
+          accommodations: accoms.map(a => a.name),
+          countries: allCountries.map(c => c.name),
+        },
+        allCountries,
       }
     })
   }

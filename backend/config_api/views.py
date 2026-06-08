@@ -292,10 +292,11 @@ class LanguageSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class StateSerializer(serializers.ModelSerializer):
-    city_count = serializers.SerializerMethodField()
+    city_count   = serializers.SerializerMethodField()
+    country_name = serializers.CharField(source='country.name', read_only=True)
     class Meta:
-        model = ConfigState
-        fields = ['id', 'name', 'code', 'city_count']
+        model  = ConfigState
+        fields = ['id', 'name', 'code', 'city_count', 'country_name']
     def get_city_count(self, obj):
         return obj.cities.count()
 
@@ -731,7 +732,9 @@ class StateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         country_id = self.request.query_params.get('country_id')
         if country_id:
-            return ConfigState.objects.filter(country_id=country_id)
+            return ConfigState.objects.filter(country_id=country_id).select_related('country')
+        if self.request.query_params.get('all'):
+            return ConfigState.objects.all().select_related('country').order_by('country__name', 'name')
         return ConfigState.objects.none()
 
     def get_permissions(self):

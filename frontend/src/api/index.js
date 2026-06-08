@@ -128,6 +128,7 @@ export const configApi = {
   importCountries:   ()     => api.post('/config/countries/import/'),
   // Estados
   states:            (country_id) => api.get('/config/states/', { params: { country_id } }),
+  allStates:         ()           => api.get('/config/states/', { params: { all: true } }),
   addState:          (country_id, name, code) => api.post('/config/states/', { country_id, name, code }),
   updateState:       (id, name)   => api.patch(`/config/states/${id}/`, { name }),
   delState:          (id)   => api.delete(`/config/states/${id}/`),
