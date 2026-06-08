@@ -170,3 +170,17 @@ class ListEnrollment(models.Model):
         ordering            = ['order_in_list', 'enrolled_at']
 
     def __str__(self): return f'{self.passenger} → {self.passenger_list}'
+
+
+class Room(models.Model):
+    passenger_list = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='rooms', verbose_name='Lista')
+    name           = models.CharField('Nome', max_length=200)
+    created_at     = models.DateTimeField('Criado em', auto_now_add=True)
+
+    class Meta:
+        unique_together     = ['passenger_list', 'name']
+        verbose_name        = 'Acomodação'
+        verbose_name_plural = 'Acomodações'
+        ordering            = ['name']
+
+    def __str__(self): return f'{self.name} ({self.passenger_list})'

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -58,6 +58,17 @@ class RoteiroSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Roteiro
         fields = ['id', 'name']
+
+
+class RoomSerializer(serializers.ModelSerializer):
+    occupant_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = Room
+        fields = ['id', 'name', 'occupant_count']
+
+    def get_occupant_count(self, obj):
+        return ListEnrollment.objects.filter(passenger_list=obj.passenger_list, accommodation=obj.name).count()
 
 
 class PassengerListSerializer(serializers.ModelSerializer):

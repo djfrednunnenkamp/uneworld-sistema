@@ -959,8 +959,15 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
 // accomTypes: tipos de acomodação disponíveis
 // onConfirm(roomName): callback ao confirmar
 // onClose: fechar modal
-function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onClose }) {
+function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, listId, onConfirm, onClose }) {
   const [saving, setSaving] = useState(false)
+  const [emptyRooms, setEmptyRooms] = useState([])
+
+  useEffect(() => {
+    listsApi.listRooms(listId)
+      .then(r => setEmptyRooms(r.data.filter(room => room.occupant_count === 0).map(room => room.name)))
+      .catch(() => {})
+  }, [listId])
 
   // Monta mapa de quartos existentes: roomName → { type, people[] }
   const roomMap = {}
@@ -972,6 +979,10 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, onConfirm, onCl
     }
     if (e.passenger_name) roomMap[e.accommodation].people.push(e.passenger_name)
     else if (e.block_agency) roomMap[e.accommodation].people.push(`[${e.block_agency}]`)
+  })
+  // Acomodações vazias (criadas via "Gerenciar acomodações", sem passageiros ainda)
+  emptyRooms.forEach(name => {
+    if (!roomMap[name]) roomMap[name] = { type: findAccomType(accomTypes, name), people: [] }
   })
   const existingRooms = Object.keys(roomMap).sort()
 
@@ -1265,6 +1276,176 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
   )
 }
 
+/* ── Modal "Gerenciar acomodações" — cria, renomeia e remove quartos da lista ── */
+function ManageRoomsModal({ listId, onChanged, onClose }) {
+  const [rooms,    setRooms]    = useState(null)
+  const [newName,  setNewName]  = useState('')
+  const [creating, setCreating] = useState(false)
+  const [editing,  setEditing]  = useState(null)   // id da sala em edição
+  const [editVal,  setEditVal]  = useState('')
+  const [busyId,   setBusyId]   = useState(null)   // id em salvamento/exclusão
+
+  const load = useCallback(() => {
+    listsApi.listRooms(listId).then(r => setRooms(r.data)).catch(() => toast.error('Erro ao carregar acomodações.'))
+  }, [listId])
+
+  useEffect(() => { load() }, [load])
+
+  const handleCreate = async () => {
+    const name = newName.trim()
+    if (!name) return
+    setCreating(true)
+    try {
+      await listsApi.addRoom(listId, name)
+      setNewName('')
+      toast.success('Acomodação criada.')
+      load(); onChanged()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Erro ao criar acomodação.')
+    } finally { setCreating(false) }
+  }
+
+  const startEdit = (room) => { setEditing(room.id); setEditVal(room.name) }
+  const cancelEdit = () => { setEditing(null); setEditVal('') }
+
+  const handleRename = async (room) => {
+    const name = editVal.trim()
+    if (!name || name === room.name) { cancelEdit(); return }
+    setBusyId(room.id)
+    try {
+      await listsApi.renameRoom(listId, room.id, name)
+      toast.success('Acomodação renomeada.')
+      cancelEdit()
+      load(); onChanged()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Erro ao renomear acomodação.')
+    } finally { setBusyId(null) }
+  }
+
+  const handleDelete = async (room) => {
+    setBusyId(room.id)
+    try {
+      await listsApi.removeRoom(listId, room.id)
+      toast.success('Acomodação removida.')
+      load(); onChanged()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Erro ao remover acomodação.')
+    } finally { setBusyId(null) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:480, boxShadow:'0 32px 80px rgba(0,0,0,.25)', display:'flex', flexDirection:'column', maxHeight:'85vh', overflow:'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Gerenciar acomodações</p>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>Crie, renomeie ou remova as acomodações da lista</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:18 }}>
+
+          {/* Criar nova acomodação */}
+          <div>
+            <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
+              Criar acomodação vazia
+            </p>
+            <div style={{ display:'flex', gap:8 }}>
+              <input value={newName} onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
+                placeholder="Nome da acomodação (ex: Duplo 5)"
+                style={{ flex:1, boxSizing:'border-box', padding:'8px 11px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }}
+                onFocus={e => e.target.style.borderColor='#1a2d4f'}
+                onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+              <button type="button" onClick={handleCreate} disabled={creating || !newName.trim()}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background: creating || !newName.trim() ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor: creating || !newName.trim() ? 'default' : 'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                <Ic n="plus" s={13} /> Criar
+              </button>
+            </div>
+            <p style={{ margin:'8px 0 0', fontSize:11, color:'#94a3b8', fontStyle:'italic' }}>
+              Acomodações vazias ficam disponíveis para receber passageiros depois.
+            </p>
+          </div>
+
+          {/* Lista de acomodações */}
+          <div>
+            <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
+              Acomodações da lista {rooms ? `(${rooms.length})` : ''}
+            </p>
+            {rooms === null ? (
+              <p style={{ margin:0, fontSize:12, color:'#94a3b8', textAlign:'center', padding:'14px 0' }}>Carregando…</p>
+            ) : rooms.length === 0 ? (
+              <p style={{ margin:0, fontSize:12, color:'#94a3b8', fontStyle:'italic', textAlign:'center', padding:'14px 0' }}>Nenhuma acomodação criada ainda.</p>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {rooms.map(room => {
+                  const isEditing = editing === room.id
+                  const isBusy    = busyId === room.id
+                  const empty     = room.occupant_count === 0
+                  return (
+                    <div key={room.id}
+                      style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'9px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff' }}>
+                      {isEditing ? (
+                        <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleRename(room); if (e.key === 'Escape') cancelEdit() }}
+                          style={{ flex:1, boxSizing:'border-box', padding:'6px 9px', border:'1.5px solid #1a2d4f', borderRadius:6, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }} />
+                      ) : (
+                        <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                          <span style={{ fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{room.name}</span>
+                          <span style={{ fontSize:11, color: empty ? '#94a3b8' : '#16a34a', background: empty ? '#f1f5f9' : '#dcfce7', padding:'1px 8px', borderRadius:20, flexShrink:0 }}>
+                            {room.occupant_count} {room.occupant_count === 1 ? 'pessoa' : 'pessoas'}
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>
+                        {isEditing ? (
+                          <>
+                            <button type="button" onClick={() => handleRename(room)} disabled={isBusy} title="Salvar"
+                              style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #bbf7d0', background:'#f0fdf4', color:'#16a34a', cursor: isBusy ? 'default' : 'pointer' }}>
+                              <Ic n="check" s={13} />
+                            </button>
+                            <button type="button" onClick={cancelEdit} disabled={isBusy} title="Cancelar"
+                              style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor: isBusy ? 'default' : 'pointer' }}>
+                              <Ic n="x" s={13} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button type="button" onClick={() => startEdit(room)} disabled={isBusy} title="Renomear"
+                              style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', cursor: isBusy ? 'default' : 'pointer' }}>
+                              <Ic n="edit" s={12} />
+                            </button>
+                            <button type="button" onClick={() => empty && handleDelete(room)} disabled={isBusy || !empty}
+                              title={empty ? 'Excluir' : 'Não é possível excluir — há passageiros nesta acomodação'}
+                              style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:`1px solid ${empty ? '#fecaca' : '#e2e8f0'}`, background: empty ? '#fee2e2' : '#f8fafc', color: empty ? '#dc2626' : '#cbd5e1', cursor: isBusy || !empty ? 'default' : 'pointer' }}>
+                              <Ic n="trash" s={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', justifyContent:'flex-end', flexShrink:0, borderTop:'1px solid #f1f5f9', paddingTop:14 }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Painel de métricas — faixas etárias, acomodações e vagas para venda ── */
 const AGE_ROWS = [
   { test: a => a >= 60,            label:'Acima de 60 anos'  },
@@ -1335,6 +1516,8 @@ function PassengersTab({ listId, listType, onData }) {
   const [notesModal,    setNotesModal]    = useState(null)
   // actionsModal: null | enrollment (objeto) — popup "Ações do passageiro"
   const [actionsModal,  setActionsModal]  = useState(null)
+  // roomsModal: bool — popup "Gerenciar acomodações"
+  const [roomsModal,    setRoomsModal]    = useState(false)
 
   const firstLoad = useRef(true)
 
@@ -1484,10 +1667,16 @@ function PassengersTab({ listId, listType, onData }) {
             <span style={{ fontSize:12, fontWeight:500, color:'#dc2626' }}> · {cancelledEnrolled.length} cancelado{cancelledEnrolled.length !== 1 ? 's' : ''}</span>
           )}
         </span>
-        <button type="button" onClick={() => setShowAdd(true)}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          + Adicionar passageiro
-        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button type="button" onClick={() => setRoomsModal(true)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            🛏 Gerenciar acomodações
+          </button>
+          <button type="button" onClick={() => setShowAdd(true)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            + Adicionar passageiro
+          </button>
+        </div>
       </div>
 
       {/* Barra de ações em massa */}
@@ -1790,6 +1979,7 @@ function PassengersTab({ listId, listType, onData }) {
           enrollmentIds={accomModal.enrollmentIds}
           enrolled={enrolled}
           accomTypes={accomTypes}
+          listId={listId}
           onConfirm={handleAccomConfirm}
           onClose={() => setAccomModal(null)}
         />
@@ -1832,6 +2022,15 @@ function PassengersTab({ listId, listType, onData }) {
           listId={listId}
           onSaved={load}
           onClose={() => setEditAccomType(null)}
+        />
+      )}
+
+      {/* Modal gerenciar acomodações da lista */}
+      {roomsModal && (
+        <ManageRoomsModal
+          listId={listId}
+          onChanged={load}
+          onClose={() => setRoomsModal(false)}
         />
       )}
 

@@ -2,10 +2,11 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
     SupplierSerializer, ListAdditionalSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
+    RoomSerializer,
 )
 
 
@@ -168,4 +169,60 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                 e.is_block  = False
         e.save()
         return Response(ListEnrollmentSerializer(e).data)
+
+    # ── Acomodações (quartos) ────────────────────────────────────────────────
+
+    @action(detail=True, methods=['get', 'post'], url_path='rooms',
+            permission_classes=[IsAuthenticated])
+    def rooms(self, request, pk=None):
+        """GET: lista acomodações (com backfill das que só existem como string nas inscrições). POST: cria acomodação vazia."""
+        pl = self.get_object()
+
+        if request.method == 'GET':
+            existing_names = set(Room.objects.filter(passenger_list=pl).values_list('name', flat=True))
+            derived_names = set(
+                pl.list_enrollments.exclude(accommodation='').values_list('accommodation', flat=True)
+            )
+            for name in derived_names - existing_names:
+                Room.objects.get_or_create(passenger_list=pl, name=name)
+            rooms = Room.objects.filter(passenger_list=pl)
+            return Response(RoomSerializer(rooms, many=True).data)
+
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'error': 'Nome da acomodação é obrigatório.'}, status=400)
+        if Room.objects.filter(passenger_list=pl, name=name).exists():
+            return Response({'error': 'Já existe uma acomodação com esse nome.'}, status=400)
+        room = Room.objects.create(passenger_list=pl, name=name)
+        return Response(RoomSerializer(room).data, status=201)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'rooms/(?P<room_id>\d+)',
+            permission_classes=[IsAuthenticated])
+    def manage_room(self, request, pk=None, room_id=None):
+        """PATCH: renomeia acomodação (e sincroniza inscrições). DELETE: remove acomodação vazia."""
+        pl = self.get_object()
+        try:
+            room = Room.objects.get(passenger_list=pl, id=room_id)
+        except Room.DoesNotExist:
+            return Response({'error': 'Acomodação não encontrada.'}, status=404)
+
+        if request.method == 'DELETE':
+            occupants = pl.list_enrollments.filter(accommodation=room.name).count()
+            if occupants > 0:
+                return Response({'error': 'Não é possível excluir uma acomodação com passageiros.'}, status=400)
+            room.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # PATCH — renomear
+        new_name = (request.data.get('name') or '').strip()
+        if not new_name:
+            return Response({'error': 'Nome da acomodação é obrigatório.'}, status=400)
+        if new_name != room.name and Room.objects.filter(passenger_list=pl, name=new_name).exists():
+            return Response({'error': 'Já existe uma acomodação com esse nome.'}, status=400)
+        old_name = room.name
+        room.name = new_name
+        room.save()
+        if old_name != new_name:
+            pl.list_enrollments.filter(accommodation=old_name).update(accommodation=new_name)
+        return Response(RoomSerializer(room).data)
 
