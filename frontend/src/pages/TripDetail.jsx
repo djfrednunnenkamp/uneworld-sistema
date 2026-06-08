@@ -113,52 +113,101 @@ const ENROLLMENT_STATUS_OPTS = [
   { value:'cancelado',  label:'Cancelado',  color:'#dc2626' },
 ]
 
-/* ── Dropdown de status do passageiro na lista (substitui o toggle por clique) ── */
-function EnrollmentStatusDot({ value, onChange }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+/* ── Botão de status do passageiro na lista — clique abre popup para trocar ── */
+function EnrollmentStatusDot({ value, onClick }) {
   const dot = STATUS_DOT[value] || STATUS_DOT.pendente
+  return (
+    <button type="button" onClick={(ev) => { ev.stopPropagation(); onClick() }}
+      title={`Status: ${dot.title} — clique para alterar`}
+      style={{ width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', border:'none', background:'transparent', cursor:'pointer', padding:0, margin:'0 auto' }}>
+      <div style={{ width:10, height:10, borderRadius:'50%', background:dot.bg, boxShadow:`0 0 0 2px ${dot.bg}30` }} />
+    </button>
+  )
+}
 
-  useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
+/* ── Popup para alterar o status do passageiro — ao cancelar, pede observação ── */
+function EnrollmentStatusModal({ enrollment, onSave, onClose }) {
+  const [status, setStatus] = useState(enrollment.enrollment_status)
+  const [note,   setNote]   = useState(enrollment.notes || '')
+  const [saving, setSaving] = useState(false)
+
+  const name  = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+  const dirty = status !== enrollment.enrollment_status || (status === 'cancelado' && note !== (enrollment.notes || ''))
+
+  const handleSave = async () => {
+    setSaving(true)
+    try { await onSave(status, note); onClose() }
+    finally { setSaving(false) }
+  }
 
   return (
-    <div ref={ref} style={{ position:'relative', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <button type="button" onClick={(ev) => { ev.stopPropagation(); setOpen(o => !o) }}
-        title={dot.title}
-        style={{ width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', border:'none', background:'transparent', cursor:'pointer', padding:0 }}>
-        <div style={{ width:10, height:10, borderRadius:'50%', background:dot.bg, boxShadow:`0 0 0 2px ${dot.bg}30` }} />
-      </button>
-      {open && (
-        <div onClick={ev => ev.stopPropagation()}
-          style={{ position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)', zIndex:300, background:'#fff',
-          borderRadius:8, border:'1px solid #e2e8f0', boxShadow:'0 8px 24px rgba(0,0,0,.10)',
-          minWidth:140, overflow:'hidden', animation:'mIn .12s ease' }}>
-          {ENROLLMENT_STATUS_OPTS.map(opt => {
-            const sel = value === opt.value
-            return (
-              <button key={opt.value} type="button"
-                onClick={() => { setOpen(false); if (!sel) onChange(opt.value) }}
-                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
-                  padding:'9px 14px', gap:10, background:sel?'#eff6ff':'transparent',
-                  border:'none', borderBottom:'1px solid #f8fafc',
-                  color:sel?'#2e6db4':'#1e293b', fontSize:13, fontWeight:sel?600:400,
-                  cursor:'pointer', fontFamily:'inherit', textAlign:'left', transition:'background .1s' }}
-                onMouseEnter={e => { if(!sel) e.currentTarget.style.background='#f8fafc' }}
-                onMouseLeave={e => { if(!sel) e.currentTarget.style.background='transparent' }}>
-                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <span style={{ width:8, height:8, borderRadius:'50%', background:opt.color }} />
-                  {opt.label}
-                </span>
-                {sel && <span style={{ color:'#2e6db4' }}>✓</span>}
-              </button>
-            )
-          })}
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Status do passageiro</p>
+            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2, flexShrink:0 }}>×</button>
         </div>
-      )}
+
+        <div style={{ padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={LBL}>Selecione o status</label>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {ENROLLMENT_STATUS_OPTS.map(opt => {
+                const sel = status === opt.value
+                return (
+                  <button key={opt.value} type="button" onClick={() => setStatus(opt.value)}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
+                      padding:'10px 14px', borderRadius:8, gap:10,
+                      border: `1.5px solid ${sel ? '#2e6db4' : '#e2e8f0'}`,
+                      background: sel ? '#eff6ff' : '#fff',
+                      color: sel ? '#2e6db4' : '#1e293b', fontSize:13, fontWeight: sel ? 600 : 400,
+                      cursor:'pointer', fontFamily:'inherit', textAlign:'left', transition:'all .12s' }}
+                    onMouseEnter={e => { if(!sel) e.currentTarget.style.borderColor='#cbd5e1' }}
+                    onMouseLeave={e => { if(!sel) e.currentTarget.style.borderColor='#e2e8f0' }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:9 }}>
+                      <span style={{ width:9, height:9, borderRadius:'50%', background:opt.color }} />
+                      {opt.label}
+                    </span>
+                    {sel && <span>✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {status === 'cancelado' && (
+            <div>
+              <label style={LBL}>Observação sobre o cancelamento</label>
+              <textarea value={note} onChange={e => setNote(e.target.value)}
+                placeholder="Descreva o motivo do cancelamento, valores a devolver, prazos, etc…"
+                rows={3}
+                style={{ ...INP, resize:'vertical', lineHeight:1.5 }}
+                onFocus={e => e.target.style.borderColor='#dc2626'}
+                onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+              <p style={{ margin:'6px 0 0', fontSize:11, color:'#b91c1c', fontStyle:'italic' }}>
+                O passageiro será movido para a seção "Cancelados", pendente de devolução de valores.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={!dirty || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !dirty || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !dirty || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1150,6 +1199,8 @@ function PassengersTab({ listId, listType, onData }) {
   // editAccomType: null | roomName (string)
   const [editAccomType, setEditAccomType] = useState(null)
   const [collapsed,     setCollapsed]     = useState(new Set())
+  // statusModal: null | enrollment (objeto) — popup para trocar status / observação de cancelamento
+  const [statusModal,   setStatusModal]   = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -1218,10 +1269,16 @@ function PassengersTab({ listId, listType, onData }) {
     load()
   }
 
-  const handleEnrollmentStatus = async (enrollment, status) => {
-    if (status === enrollment.enrollment_status) return
-    await listsApi.updatePassenger(listId, enrollment.id, { enrollment_status: status })
-      .then(() => { if (status === 'cancelado') toast.success('Passageiro movido para Cancelados.') })
+  const handleEnrollmentStatus = async (enrollment, status, note) => {
+    const statusChanged = status !== enrollment.enrollment_status
+    const payload = { enrollment_status: status }
+    if (status === 'cancelado') payload.notes = note
+    await listsApi.updatePassenger(listId, enrollment.id, payload)
+      .then(() => {
+        if (!statusChanged) toast.success('Observação atualizada.')
+        else if (status === 'cancelado') toast.success('Passageiro movido para Cancelados.')
+        else toast.success('Status atualizado.')
+      })
       .catch(() => toast.error('Erro ao atualizar status.'))
     load()
   }
@@ -1462,8 +1519,8 @@ function PassengersTab({ listId, listType, onData }) {
                     {/* Nº */}
                     <span style={{ textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8' }}>{seqMap[e.id] ?? '—'}</span>
 
-                    {/* Status — clique abre dropdown com Confirmado / Pendente / Cancelado */}
-                    <EnrollmentStatusDot value={e.enrollment_status} onChange={(status) => handleEnrollmentStatus(e, status)} />
+                    {/* Status — clique abre popup com Confirmado / Pendente / Cancelado */}
+                    <EnrollmentStatusDot value={e.enrollment_status} onClick={() => setStatusModal(e)} />
 
                     {/* ✈ (modo de transporte) */}
                     {isAereo
@@ -1480,9 +1537,16 @@ function PassengersTab({ listId, listType, onData }) {
                           <span style={{ fontSize:12, color:'#78350f', fontStyle:'italic' }}>Clique para atribuir passageiro</span>
                         </div>
                       ) : (
-                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {e.passenger_name}
-                        </p>
+                        <>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {e.passenger_name}
+                          </p>
+                          {isCancelled && e.notes && (
+                            <p title={e.notes} style={{ margin:'2px 0 0', fontSize:11, color:'#b91c1c', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                              💬 {e.notes}
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -1558,6 +1622,15 @@ function PassengersTab({ listId, listType, onData }) {
           accomTypes={accomTypes}
           onConfirm={handleAccomConfirm}
           onClose={() => setAccomModal(null)}
+        />
+      )}
+
+      {/* Popup trocar status do passageiro / observação de cancelamento */}
+      {statusModal && (
+        <EnrollmentStatusModal
+          enrollment={statusModal}
+          onSave={(status, note) => handleEnrollmentStatus(statusModal, status, note)}
+          onClose={() => setStatusModal(null)}
         />
       )}
 
