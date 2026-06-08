@@ -1098,7 +1098,7 @@ function MetricsPanel({ enrolled, accomTypes, blockCapacity }) {
 }
 
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType, blockCapacity }) {
+function PassengersTab({ listId, listType, onData }) {
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -1124,6 +1124,11 @@ function PassengersTab({ listId, listType, blockCapacity }) {
   useEffect(() => {
     configApi.accommodations().then(r => setAccomTypes(r.data.results ?? r.data)).catch(() => {})
   }, [])
+
+  // Repassa os dados ao componente pai — exibidos no painel de métricas, acima das abas
+  useEffect(() => {
+    onData?.({ enrolled, accomTypes, loading })
+  }, [enrolled, accomTypes, loading, onData])
 
   const toggleSelect  = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
@@ -1185,11 +1190,6 @@ function PassengersTab({ listId, listType, blockCapacity }) {
 
   return (
     <div>
-      {/* Métricas */}
-      {!loading && enrolled.length > 0 && (
-        <MetricsPanel enrolled={enrolled} accomTypes={accomTypes} blockCapacity={blockCapacity} />
-      )}
-
       {/* Toolbar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: selected.size > 0 ? 8 : 16 }}>
         <span style={{ fontSize:14, fontWeight:600, color:'#1e293b' }}>
@@ -1516,6 +1516,7 @@ export default function TripDetail() {
   const [loading,   setLoading]   = useState(true)
   const [showEdit,  setShowEdit]  = useState(false)
   const [tab, setTab] = usePersistedTab('tab_list_detail', 'passengers')
+  const [paxData, setPaxData] = useState({ enrolled: [], accomTypes: [], loading: true })
 
   const load = useCallback(() => {
     listsApi.get(id)
@@ -1591,6 +1592,11 @@ export default function TripDetail() {
         </div>
       </div>
 
+      {/* Métricas */}
+      {!paxData.loading && paxData.enrolled.length > 0 && (
+        <MetricsPanel enrolled={paxData.enrolled} accomTypes={paxData.accomTypes} blockCapacity={list.block_capacity} />
+      )}
+
       {/* Tabs */}
       <div style={{ display:'flex', gap:0, borderBottom:'2px solid #e2e8f0', marginBottom:20 }}>
         {TABS.map(t => (
@@ -1602,7 +1608,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} blockCapacity={list.block_capacity} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} onData={setPaxData} />}
 
       {tab === 'roteiro' && (
         <div className="det-card">
