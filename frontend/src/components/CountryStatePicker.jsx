@@ -17,6 +17,8 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
   const [states,     setStates]     = useState([])
   const [selCountry, setSelCountry] = useState(null)
   const [highlighted, setHighlighted] = useState(-1)
+  // top XOR bottom — quando abre pra cima usa bottom para grudar no input
+  const [pos, setPos] = useState({ top: 'auto', bottom: 'auto', left: 0, width: 0 })
 
   const wrapRef  = useRef(null)
   const inputRef = useRef(null)
@@ -79,6 +81,23 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
 
   const back = () => { setSearch(''); setStep('country') }
 
+  /* Abre o dropdown calculando se há espaço abaixo do campo — senão, abre para cima */
+  const openDrop = () => {
+    if (!open) {
+      const rect = inputRef.current?.getBoundingClientRect()
+      if (rect) {
+        const spaceBelow = window.innerHeight - rect.bottom - 8
+        if (spaceBelow >= 220) {
+          setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
+        } else {
+          setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
+        }
+      }
+    }
+    setSearch('')
+    setOpen(true)
+  }
+
   const q = search.toLowerCase()
   const listCountries = useMemo(
     () => countries.filter(c => c.name_pt.toLowerCase().includes(q) || c.name_en.toLowerCase().includes(q)),
@@ -113,7 +132,7 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
           className="fi"
           value={open ? search : fieldValue}
           onChange={(e) => { setSearch(e.target.value); setOpen(true); setHighlighted(-1) }}
-          onFocus={() => { setSearch(''); setOpen(true) }}
+          onFocus={openDrop}
           onKeyDown={handleKeyDown}
           placeholder="Digite o país…"
           style={{ paddingRight: fieldValue && !open ? 28 : undefined }}
@@ -128,9 +147,9 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
 
       {open && (
         <div style={{
-          position:'absolute', top:'calc(100% + 3px)', left:0, right:0,
+          position:'fixed', top:pos.top, bottom:pos.bottom, left:pos.left, width: Math.max(pos.width, 220),
           background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8,
-          boxShadow:'0 8px 28px rgba(0,0,0,.14)', zIndex:400,
+          boxShadow:'0 8px 28px rgba(0,0,0,.14)', zIndex:9999,
           display:'flex', flexDirection:'column', maxHeight:280,
         }}>
           {/* Breadcrumb */}
