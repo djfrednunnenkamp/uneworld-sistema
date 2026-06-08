@@ -1277,9 +1277,9 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
 }
 
 /* ── Modal "Gerenciar acomodações" — cria, renomeia e remove quartos da lista ── */
-function ManageRoomsModal({ listId, onChanged, onClose }) {
+function ManageRoomsModal({ listId, accomTypes, onChanged, onClose }) {
   const [rooms,    setRooms]    = useState(null)
-  const [newName,  setNewName]  = useState('')
+  const [newType,  setNewType]  = useState('')
   const [creating, setCreating] = useState(false)
   const [editing,  setEditing]  = useState(null)   // id da sala em edição
   const [editVal,  setEditVal]  = useState('')
@@ -1291,13 +1291,24 @@ function ManageRoomsModal({ listId, onChanged, onClose }) {
 
   useEffect(() => { load() }, [load])
 
+  const typeOptions = accomTypes.map(t => ({
+    value: t.name,
+    label: `${t.name}${t.capacity ? ` (${t.capacity}p)` : ''}${t.is_couple ? ' — casal' : ''}`,
+  }))
+
   const handleCreate = async () => {
-    const name = newName.trim()
-    if (!name) return
+    if (!newType) return
+    const existingNames = (rooms || []).map(r => r.name)
+    const matching = existingNames.filter(n => n === newType || n.startsWith(newType + ' '))
+    let name = `${newType} 1`
+    for (let n = 1; n <= 99; n++) {
+      const c = `${newType} ${n}`
+      if (!matching.includes(c)) { name = c; break }
+    }
     setCreating(true)
     try {
       await listsApi.addRoom(listId, name)
-      setNewName('')
+      setNewType('')
       toast.success('Acomodação criada.')
       load(); onChanged()
     } catch (err) {
@@ -1354,20 +1365,22 @@ function ManageRoomsModal({ listId, onChanged, onClose }) {
             <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
               Criar acomodação vazia
             </p>
-            <div style={{ display:'flex', gap:8 }}>
-              <input value={newName} onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
-                placeholder="Nome da acomodação (ex: Duplo 5)"
-                style={{ flex:1, boxSizing:'border-box', padding:'8px 11px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }}
-                onFocus={e => e.target.style.borderColor='#1a2d4f'}
-                onBlur={e => e.target.style.borderColor='#e2e8f0'} />
-              <button type="button" onClick={handleCreate} disabled={creating || !newName.trim()}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background: creating || !newName.trim() ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor: creating || !newName.trim() ? 'default' : 'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+            <div style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+              <div style={{ flex:1 }}>
+                <FormSelect
+                  value={newType}
+                  onChange={setNewType}
+                  options={typeOptions}
+                  placeholder="Escolha o tipo…"
+                />
+              </div>
+              <button type="button" onClick={handleCreate} disabled={creating || !newType}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background: creating || !newType ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor: creating || !newType ? 'default' : 'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
                 <Ic n="plus" s={13} /> Criar
               </button>
             </div>
             <p style={{ margin:'8px 0 0', fontSize:11, color:'#94a3b8', fontStyle:'italic' }}>
-              Acomodações vazias ficam disponíveis para receber passageiros depois.
+              O nome é gerado a partir do tipo (ex: "Duplo 3") — depois é só renomear para um nome fixo, se quiser.
             </p>
           </div>
 
@@ -2029,6 +2042,7 @@ function PassengersTab({ listId, listType, onData }) {
       {roomsModal && (
         <ManageRoomsModal
           listId={listId}
+          accomTypes={accomTypes}
           onChanged={load}
           onClose={() => setRoomsModal(false)}
         />
