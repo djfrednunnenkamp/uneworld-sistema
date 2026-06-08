@@ -164,6 +164,19 @@ class ListEnrollment(models.Model):
     pending_until      = models.DateField('Pendente até', null=True, blank=True)
     pending_reason     = models.TextField('Motivo da pendência', blank=True)
     departure_airport  = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='enrollments', verbose_name='Aeroporto de saída')
+    # Passagem do voo principal (voo do grupo)
+    TICKET_STATUS = [
+        ('nao_emitida',    'Não emitida'),
+        ('via_bloqueio',   'Emitida via bloqueio'),
+        ('fora_bloqueio',  'Emitida fora do bloqueio'),
+    ]
+    ticket_status      = models.CharField('Status da passagem', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
+    ticket_number      = models.CharField('Número da reserva', max_length=100, blank=True)
+    ticket_seat        = models.CharField('Assento', max_length=20, blank=True)
+    # Passagem do trecho de conexão (só para passageiros com aeroporto individual diferente do padrão)
+    connection_ticket_status = models.CharField('Status da passagem de conexão', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
+    connection_ticket_number = models.CharField('Número da reserva (conexão)', max_length=100, blank=True)
+    connection_ticket_seat   = models.CharField('Assento (conexão)', max_length=20, blank=True)
     order_in_list      = models.PositiveIntegerField('Ordem', default=0)
     enrolled_at        = models.DateTimeField('Adicionado em', auto_now_add=True)
     notes              = models.TextField('Observações', blank=True)

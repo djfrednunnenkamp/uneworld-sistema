@@ -156,7 +156,9 @@ class PassengerListViewSet(viewsets.ModelViewSet):
 
         # PATCH
         for field in ('accommodation', 'enrollment_status', 'order_in_list', 'notes',
-                      'pending_until', 'pending_reason'):
+                      'pending_until', 'pending_reason',
+                      'ticket_status', 'ticket_number', 'ticket_seat',
+                      'connection_ticket_status', 'connection_ticket_number', 'connection_ticket_seat'):
             if field in request.data:
                 val = request.data[field]
                 setattr(e, field, (val or None) if field == 'pending_until' else val)
