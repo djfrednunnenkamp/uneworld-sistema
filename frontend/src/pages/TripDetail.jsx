@@ -2704,7 +2704,6 @@ export default function TripDetail() {
 
   const TABS = [
     { key:'passengers', label:'Passageiros'      },
-    { key:'roteiro',    label:'Roteiro'          },
     { key:'embarque',   label:'Local de Embarque'},
   ]
 
@@ -2783,45 +2782,7 @@ export default function TripDetail() {
       {/* Conteúdo das abas */}
       {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} onData={setPaxData} />}
 
-      {tab === 'roteiro' && (
-        <div className="det-card">
-          <div className="section">
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <div>
-                <div className="section-title" style={{ marginBottom:2 }}>Roteiros</div>
-                <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>
-                  Roteiros vinculados a esta lista de passageiros.
-                </p>
-              </div>
-              <button type="button" onClick={() => setShowEdit(true)}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-                + Gerenciar roteiros
-              </button>
-            </div>
-
-            {(list.roteiros_data || []).length === 0 ? (
-              <div style={{ textAlign:'center', padding:'48px 0' }}>
-                <p style={{ fontSize:32, marginBottom:8 }}>🗺️</p>
-                <p style={{ color:'#94a3b8', fontSize:14, fontWeight:500 }}>Nenhum roteiro vinculado.</p>
-                <p style={{ color:'#cbd5e1', fontSize:12 }}>Clique em "Gerenciar roteiros" para adicionar.</p>
-              </div>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-                {(list.roteiros_data || []).map((r, idx) => (
-                  <div key={r.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderBottom:'1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
-                    <span style={{ fontSize:16 }}>🗺️</span>
-                    <span style={{ fontSize:14, fontWeight:600, color:'#1e293b' }}>{r.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {tab === 'embarque' && <DeparturesTab listId={id} list={list} />}
+{tab === 'embarque' && <DeparturesTab listId={id} list={list} />}
 
       {/* Modal de edição */}
       {showEdit && (
