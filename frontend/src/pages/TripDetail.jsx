@@ -332,10 +332,8 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
 
   const [status,  setStatus]  = useState(enrollment.ticket_status             || 'nao_emitida')
   const [number,  setNumber]  = useState(enrollment.ticket_number             || '')
-  const [seat,    setSeat]    = useState(enrollment.ticket_seat               || '')
   const [cStatus, setCStatus] = useState(enrollment.connection_ticket_status  || 'nao_emitida')
   const [cNumber, setCNumber] = useState(enrollment.connection_ticket_number  || '')
-  const [cSeat,   setCSeat]   = useState(enrollment.connection_ticket_seat    || '')
   const [saving,  setSaving]  = useState(false)
 
   const handleSave = async () => {
@@ -344,10 +342,10 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
       await listsApi.updatePassenger(listId, enrollment.id, {
         ticket_status:  status,
         ticket_number:  status === 'nao_emitida' ? '' : number,
-        ticket_seat:    status === 'via_bloqueio' ? seat : '',
+        ticket_seat:    '',
         connection_ticket_status: hasConnection ? cStatus : 'nao_emitida',
         connection_ticket_number: hasConnection && cStatus !== 'nao_emitida' ? cNumber : '',
-        connection_ticket_seat:   hasConnection && cStatus === 'via_bloqueio' ? cSeat : '',
+        connection_ticket_seat:   '',
       })
       toast.success('Passagem atualizada.')
       onSaved(); onClose()
@@ -390,23 +388,14 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
     </div>
   )
 
-  const SegmentFields = ({ segStatus, onSegStatus, segNumber, onSegNumber, segSeat, onSegSeat }) => (
+  const SegmentFields = ({ segStatus, onSegStatus, segNumber, onSegNumber }) => (
     <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
       <StatusPicker value={segStatus} onChange={onSegStatus} />
       {segStatus !== 'nao_emitida' && (
-        <div style={{ display:'grid', gridTemplateColumns: segStatus === 'via_bloqueio' ? '1fr 100px' : '1fr', gap:10 }}>
-          <div className="ff" style={{ margin:0 }}>
-            <label className="fl">Número da reserva</label>
-            <input className="fi" value={segNumber} onChange={e => onSegNumber(e.target.value)}
-              placeholder="Ex: ABC123" />
-          </div>
-          {segStatus === 'via_bloqueio' && (
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Assento</label>
-              <input className="fi" value={segSeat} onChange={e => onSegSeat(e.target.value.toUpperCase())}
-                placeholder="12A" style={{ textTransform:'uppercase' }} />
-            </div>
-          )}
+        <div className="ff" style={{ margin:0 }}>
+          <label className="fl">Número da reserva</label>
+          <input className="fi" value={segNumber} onChange={e => onSegNumber(e.target.value)}
+            placeholder="Ex: ABC123" />
         </div>
       )}
     </div>
@@ -436,7 +425,6 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           <SegmentFields
             segStatus={status}  onSegStatus={setStatus}
             segNumber={number}  onSegNumber={setNumber}
-            segSeat={seat}      onSegSeat={setSeat}
           />
 
           {/* Trecho de conexão */}
@@ -451,7 +439,6 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
               <SegmentFields
                 segStatus={cStatus}  onSegStatus={setCStatus}
                 segNumber={cNumber}  onSegNumber={setCNumber}
-                segSeat={cSeat}      onSegSeat={setCSeat}
               />
             </div>
           )}
