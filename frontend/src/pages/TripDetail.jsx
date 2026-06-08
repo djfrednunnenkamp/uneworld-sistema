@@ -1300,12 +1300,19 @@ function DeleteOccupiedRoomModal({ roomName, occupants, onConfirm, onClose }) {
       label: 'Remover os passageiros desta viagem e excluir a acomodação',
       detail: `${n === 1 ? 'A inscrição deste passageiro' : 'As inscrições destes passageiros'} nesta lista ${n === 1 ? 'é apagada' : 'são apagadas'} definitivamente.`,
     },
+    {
+      value: 'move',
+      label: 'Mover cada passageiro individualmente para outra acomodação',
+      detail: 'Abre uma tela para escolher, um a um, o destino de cada passageiro — em acomodações existentes ou novas.',
+    },
   ]
 
   const handleConfirm = async () => {
     setBusy(true)
     try { await onConfirm(resolution) } finally { setBusy(false) }
   }
+
+  const isMove = resolution === 'move'
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -1340,13 +1347,90 @@ function DeleteOccupiedRoomModal({ roomName, occupants, onConfirm, onClose }) {
               )
             })}
           </div>
-          <p style={{ fontSize:12, color:'#94a3b8', margin:'12px 0 0' }}>Esta ação não pode ser desfeita.</p>
+          {!isMove && <p style={{ fontSize:12, color:'#94a3b8', margin:'12px 0 0' }}>Esta ação não pode ser desfeita.</p>}
         </div>
         <div className="mfoot">
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancelar</button>
-          <button className="btn btn-danger" onClick={handleConfirm} disabled={busy}>{busy ? 'Excluindo…' : 'Excluir acomodação'}</button>
+          <button className={isMove ? 'btn btn-primary' : 'btn btn-danger'} onClick={handleConfirm} disabled={busy}>
+            {busy ? 'Aguarde…' : (isMove ? 'Continuar' : 'Excluir acomodação')}
+          </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ── Modal "Mover passageiros" — realoca cada ocupante individualmente antes de excluir o quarto ── */
+function MovePassengersModal({ roomId, roomName, listId, enrolled, accomTypes, rooms, onMoved, onDeleteRoom, onClose }) {
+  const [pickerFor, setPickerFor] = useState(null)   // enrollment sendo movido
+
+  const occupants = enrolled.filter(e => e.accommodation === roomName)
+
+  const handleConfirmMove = async (room) => {
+    await listsApi.updatePassenger(listId, pickerFor.id, { accommodation: room })
+    const name = pickerFor.passenger_name || pickerFor.block_agency || 'Passageiro'
+    toast.success(`${name} movido para ${room}.`)
+    setPickerFor(null)
+    onMoved()
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:690, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:460, boxShadow:'0 32px 80px rgba(0,0,0,.25)', display:'flex', flexDirection:'column', maxHeight:'85vh', overflow:'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Mover passageiros</p>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{roomName} — escolha o destino de cada um</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:8 }}>
+          {occupants.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'20px 0', display:'flex', flexDirection:'column', gap:10, alignItems:'center' }}>
+              <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#16a34a' }}>✓ Todos os passageiros foram movidos</p>
+              <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>A acomodação "{roomName}" está vazia e pode ser excluída agora.</p>
+              <button type="button" onClick={onDeleteRoom}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                <Ic n="trash" s={13}/> Excluir acomodação vazia
+              </button>
+            </div>
+          ) : occupants.map(e => {
+            const name = e.passenger_name || (e.block_agency ? `[${e.block_agency}]` : 'Vaga em bloco')
+            return (
+              <div key={e.id}
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0' }}>
+                <span style={{ fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>
+                <button type="button" onClick={() => setPickerFor(e)}
+                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:8, border:'1.5px solid #1a2d4f', background:'#fff', color:'#1a2d4f', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                  <Ic n="building" s={13}/> Mover
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', justifyContent:'flex-end', flexShrink:0, borderTop:'1px solid #f1f5f9', paddingTop:14 }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Fechar
+          </button>
+        </div>
+      </div>
+
+      {pickerFor && (
+        <AccomPickerModal
+          enrollmentIds={[pickerFor.id]}
+          enrolled={enrolled.filter(en => en.accommodation !== roomName || en.id === pickerFor.id)}
+          accomTypes={accomTypes}
+          rooms={rooms.filter(r => r.id !== roomId)}
+          onConfirm={handleConfirmMove}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
     </div>
   )
 }
@@ -1609,6 +1693,8 @@ function PassengersTab({ listId, listType, onData }) {
   const [roomsModal,    setRoomsModal]    = useState(false)
   // deleteRoomModal: null | { roomId, roomName, occupants } — popup "excluir acomodação ocupada"
   const [deleteRoomModal, setDeleteRoomModal] = useState(null)
+  // moveRoomModal: null | { roomId, roomName } — popup "mover passageiros individualmente"
+  const [moveRoomModal,   setMoveRoomModal]   = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -2201,8 +2287,30 @@ function PassengersTab({ listId, listType, onData }) {
         <DeleteOccupiedRoomModal
           roomName={deleteRoomModal.roomName}
           occupants={deleteRoomModal.occupants}
-          onConfirm={(resolution) => doDeleteRoom(deleteRoomModal.roomId, deleteRoomModal.roomName, resolution)}
+          onConfirm={(resolution) => {
+            if (resolution === 'move') {
+              const { roomId, roomName } = deleteRoomModal
+              setDeleteRoomModal(null)
+              setMoveRoomModal({ roomId, roomName })
+              return Promise.resolve()
+            }
+            return doDeleteRoom(deleteRoomModal.roomId, deleteRoomModal.roomName, resolution)
+          }}
           onClose={() => setDeleteRoomModal(null)}
+        />
+      )}
+
+      {moveRoomModal && (
+        <MovePassengersModal
+          roomId={moveRoomModal.roomId}
+          roomName={moveRoomModal.roomName}
+          listId={listId}
+          enrolled={enrolled}
+          accomTypes={accomTypes}
+          rooms={rooms}
+          onMoved={() => { load(); loadRooms() }}
+          onDeleteRoom={() => { doDeleteRoom(moveRoomModal.roomId, moveRoomModal.roomName); setMoveRoomModal(null) }}
+          onClose={() => setMoveRoomModal(null)}
         />
       )}
     </div>
