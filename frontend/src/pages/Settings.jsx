@@ -40,21 +40,35 @@ function exportCsv(items, filename) {
   URL.revokeObjectURL(url)
 }
 
-/* CSV combinado — inclui listas simples + acomodações + países + estados */
-function exportCombinedCsvFull(simpleGroups, accoms, countries, states, filename) {
+function splitCsvLineSettings(line) {
+  const out = []; let cur = '', inQ = false
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (inQ) { if (c === '"') { if (line[i+1]==='"'){cur+='"';i++}else inQ=false } else cur+=c }
+    else { if (c==='"') inQ=true; else if (c===','){out.push(cur);cur=''}else cur+=c }
+  }
+  out.push(cur); return out.map(s=>s.trim())
+}
+
+/* CSV combinado — inclui listas simples + acomodações + países + estados + cidades
+   Formato: lista,nome,pessoas,casal,pais,estado,codigo */
+function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
-  const rows = ['lista,nome,pessoas,casal,pais,codigo']
+  const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
-    items.forEach(i => rows.push(`${q(label)},${q(i.name)},,,,`))
+    items.forEach(i => rows.push(`${q(label)},${q(i.name)},,,,,`))
   })
   accoms.forEach(a => {
-    rows.push(`${q('Acomodações')},${q(a.name)},${a.capacity},${a.is_couple ? 'sim' : 'não'},,`)
+    rows.push(`${q('Acomodações')},${q(a.name)},${a.capacity},${a.is_couple ? 'sim' : 'não'},,,`)
   })
   countries.forEach(c => {
-    rows.push(`${q('Países')},${q(c.name)},,,,${q(c.code || '')}`)
+    rows.push(`${q('Países')},${q(c.name)},,,,,${q(c.code || '')}`)
   })
   states.forEach(s => {
-    rows.push(`${q('Estados')},${q(s.name)},,,${q(s.country_name || '')},${q(s.code || '')}`)
+    rows.push(`${q('Estados')},${q(s.name)},,,${q(s.country_name || '')},,${q(s.code || '')}`)
+  })
+  cities.forEach(c => {
+    rows.push(`${q('Cidades')},${q(c.name)},,,${q(c.country)},${q(c.state)},`)
   })
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
@@ -800,8 +814,15 @@ export default function Settings() {
 
   const handleExportAll = async () => {
     try {
-      const [cRes, sRes] = await Promise.all([configApi.countries(), configApi.allStates()])
-      exportCombinedCsvFull(SIMPLE_LIST_GROUPS, accoms, cRes.data, sRes.data, 'todas_as_listas.csv')
+      const [cRes, sRes, geoRes] = await Promise.all([
+        configApi.countries(),
+        configApi.allStates(),
+        configApi.geoExport(),
+      ])
+      // Extrai apenas linhas com cidade a partir do geo CSV
+      const geoText = await geoRes.data.text()
+      const cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
+      exportCombinedCsvFull(SIMPLE_LIST_GROUPS, accoms, cRes.data, sRes.data, cities, 'todas_as_listas.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 

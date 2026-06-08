@@ -32,7 +32,7 @@ function splitCsvLine(line) {
   return out.map(s => s.trim())
 }
 
-/* CSV combinado: colunas "lista,nome[,pessoas,casal,pais,codigo]" */
+/* CSV combinado: colunas "lista,nome[,pessoas,casal,pais,estado,codigo]" */
 function parseCombinedCsv(text, labelToKey) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
   if (!lines.length) return []
@@ -44,15 +44,17 @@ function parseCombinedCsv(text, labelToKey) {
   const pessoasIdx = idx('pessoas')
   const casalIdx   = idx('casal')
   const paisIdx    = idx('pais')
+  const estadoIdx  = idx('estado')
   const codigoIdx  = idx('codigo')
   return lines.slice(hasHeader ? 1 : 0).map(line => {
     const cols = splitCsvLine(line)
     const listLabel = (cols[listIdx] || '').trim()
     const name      = (cols[nameIdx] || '').trim()
     const extras    = {}
-    if (pessoasIdx >= 0 && cols[pessoasIdx]) extras.capacity  = Number(cols[pessoasIdx]) || 1
+    if (pessoasIdx >= 0 && cols[pessoasIdx]) extras.capacity       = Number(cols[pessoasIdx]) || 1
     if (casalIdx   >= 0) extras.is_couple    = ['sim','true','1','yes'].includes((cols[casalIdx] || '').trim().toLowerCase())
     if (paisIdx    >= 0 && cols[paisIdx])    extras.parent_country = cols[paisIdx].trim()
+    if (estadoIdx  >= 0 && cols[estadoIdx])  extras.parent_state   = cols[estadoIdx].trim()
     if (codigoIdx  >= 0 && cols[codigoIdx])  extras.code           = cols[codigoIdx].trim()
     return { listLabel, listKey: labelToKey[listLabel.toLowerCase()] || null, name, extras }
   }).filter(r => r.listLabel || r.name)
@@ -73,6 +75,7 @@ const API_MAP = {
     if (!c) return Promise.reject(new Error('País não encontrado'))
     return configApi.addState(c.id, name, extras.code || '')
   }, label: 'Estados' },
+  cities:          { add: null, label: 'Cidades' }, // importadas em batch via geoImport
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -155,6 +158,7 @@ export default function FlatImport() {
     if (!name.trim()) return 'error'
     if (isAll && !listKey) return 'error'
     if (listKey === 'states' && !extras.parent_country) return 'error'
+    if (listKey === 'cities' && (!extras.parent_country || !extras.parent_state)) return 'error'
     const set = existingSets[listKey ?? type]
     return set?.has(name.toLowerCase()) ? 'duplicate' : 'valid'
   }
@@ -218,13 +222,31 @@ export default function FlatImport() {
     if (!toProcess.length) return
     setPhase('importing')
     let added = 0, skipped = 0
-    for (const row of toProcess) {
+
+    const cityRows  = isAll ? toProcess.filter(r => r.listKey === 'cities') : []
+    const otherRows = toProcess.filter(r => r.listKey !== 'cities')
+
+    for (const row of otherRows) {
       try {
         const fn = isAll ? API_MAP[row.listKey]?.add : apiDef.add
         if (fn) await fn(row.name, row.extras || {}, { allCountries })
         added++
       } catch { skipped++ }
     }
+
+    if (cityRows.length > 0) {
+      const esc = s => (s || '').replace(/"/g, '""')
+      const lines = ['pais,estado,cidade', ...cityRows.map(r =>
+        `"${esc(r.extras.parent_country || '')}","${esc(r.extras.parent_state || '')}","${esc(r.name)}"`
+      )]
+      const fd = new FormData()
+      fd.append('file', new Blob([lines.join('\n')], { type: 'text/csv' }), 'cities.csv')
+      try {
+        const res = await configApi.geoImport(fd)
+        added += res.data.cities || 0
+      } catch { skipped += cityRows.length }
+    }
+
     setResult({ added, skipped })
     setPhase('done')
   }
@@ -394,6 +416,9 @@ export default function FlatImport() {
                           )}
                           {row.listKey === 'states' && (
                             <span>{row.extras?.parent_country || <em style={{color:'#dc2626'}}>sem país</em>}{row.extras?.code ? ` (${row.extras.code})` : ''}</span>
+                          )}
+                          {row.listKey === 'cities' && (
+                            <span>{row.extras?.parent_state || <em style={{color:'#dc2626'}}>sem estado</em>}{row.extras?.parent_country ? `, ${row.extras.parent_country}` : ''}</span>
                           )}
                         </td>
                       )}
