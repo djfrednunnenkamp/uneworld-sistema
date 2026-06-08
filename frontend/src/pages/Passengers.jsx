@@ -6,7 +6,6 @@ import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import NewPassengerModal from '../components/NewPassengerModal'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
-import { Ic } from '../components/Icon'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
 
 /* ── Helpers ── */
@@ -147,92 +146,6 @@ const COLS = [
   }},
   { key:'status', label:'Status', render:(v) => <StatusBadge value={v} /> },
 ]
-
-/* ── Popup visualização rápida ── */
-function PassengerPreview({ passenger, onClose, onEdit }) {
-  const [copied, setCopied] = useState(null)
-  const initials = (n) => (n||'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()
-  const PALETTE  = ['#2B3A8F','#0369A1','#0D6E6E','#6B3FA0','#B45309','#9B3A2A','#2D6A4F','#1E5799']
-  const color    = PALETTE[(passenger.id??0) % PALETTE.length]
-  const fmtDate  = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}) : null
-
-  const copyToClipboard = async (label, value) => {
-    if (!value) return
-    try { await navigator.clipboard.writeText(value); setCopied(label); setTimeout(()=>setCopied(null),1800) } catch {}
-  }
-
-  const Row = ({ label, value }) => {
-    if (!value) return null
-    const isCopied = copied === label
-    return (
-      <div onClick={() => copyToClipboard(label, value)} title="Clique para copiar"
-        style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'8px 10px', borderRadius:6, borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background .1s' }}
-        onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
-        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-        <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
-        <span title={value} style={{ fontSize:13, color:'#1e293b', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{value}</span>
-        {isCopied && <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', animation:'fadeUp .2s ease', zIndex:10 }}>✓ Copiado</span>}
-      </div>
-    )
-  }
-
-  const bInfo = birthdayInfo(passenger.birth_date)
-  const age   = calcAge(passenger.birth_date)
-
-  return (
-    <div onClick={(e)=>{if(e.target===e.currentTarget)onClose()}}
-      style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',backdropFilter:'blur(3px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}>
-      <div onClick={e=>e.stopPropagation()}
-        style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:460,boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
-        <div style={{padding:'20px 22px 16px',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:14}}>
-          <div style={{width:48,height:48,borderRadius:'50%',background:color,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:17,fontWeight:700,flexShrink:0}}>
-            {initials(passenger.full_name)}
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <span style={{position:'relative',display:'block',minWidth:0}}>
-              <p onClick={() => copyToClipboard('Nome', passenger.full_name)} title={passenger.full_name}
-                style={{fontSize:16,fontWeight:700,color:'#1e293b',margin:0,cursor:'pointer',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                {passenger.full_name}
-              </p>
-              {copied==='Nome' && <span style={{position:'absolute',top:-18,left:'50%',transform:'translateX(-50%)',background:'#059669',color:'#fff',fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,whiteSpace:'nowrap',pointerEvents:'none',animation:'fadeUp .2s ease'}}>✓ Copiado</span>}
-            </span>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
-              <StatusBadge value={passenger.status} />
-              {passenger.is_foreign && <span style={{fontSize:11,fontWeight:600,color:'#0891b2',background:'#e0f2fe',padding:'1px 6px',borderRadius:6}}>Estrangeiro</span>}
-            </div>
-          </div>
-          <button onClick={onClose} style={{width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',color:'#94a3b8',cursor:'pointer',flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.borderColor='#1e293b';e.currentTarget.style.color='#1e293b'}} onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#94a3b8'}}>
-            <Ic n="x" s={14}/>
-          </button>
-        </div>
-        <div style={{padding:'8px 12px 12px'}}>
-          <p style={{fontSize:10,fontWeight:700,color:'#cbd5e1',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 10px 4px',paddingTop:4}}>Clique em qualquer linha para copiar</p>
-          <Row label="E-mail"      value={passenger.email} />
-          <Row label="Celular"     value={passenger.mobile||passenger.phone1} />
-          <Row label="Telefone"    value={passenger.mobile&&passenger.phone1?passenger.phone1:null} />
-          <Row label="CPF"         value={passenger.cpf} />
-          <Row label="Data nasc."  value={passenger.birth_date ? `${fmtDate(passenger.birth_date)} — ${age} anos` : null} />
-          {passenger.birth_date && bInfo && (
-            <div style={{padding:'6px 10px',borderRadius:6,margin:'2px 0',borderBottom:'1px solid #f8fafc',background:bInfo.bg??'#f8fafc',color:bInfo.color??'#64748b',fontSize:12.5,fontWeight:500}}>
-              {bInfo.detail}
-            </div>
-          )}
-          <Row label="Alimentação" value={passenger.diet_type?DIET_PT[passenger.diet_type]??passenger.diet_type:null} />
-          <Row label="Agências"    value={passenger.agency_names} />
-          <Row label="Cidade / UF" value={passenger.city?`${passenger.city}${passenger.state?` / ${passenger.state}`:''}`:null} />
-        </div>
-        <div style={{padding:'12px 22px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
-          <button onClick={onEdit} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all .12s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='#2e6db4';e.currentTarget.style.color='#2e6db4'}} onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#475569'}}>
-            <Ic n="edit" s={13}/> Editar
-          </button>
-          <button onClick={onClose} style={{padding:'7px 24px',borderRadius:6,border:'none',background:'#2e6db4',color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}} onMouseEnter={e=>e.currentTarget.style.background='#275fa0'} onMouseLeave={e=>e.currentTarget.style.background='#2e6db4'}>
-            Fechar
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /* ── Página principal ── */
 export default function Passengers() {

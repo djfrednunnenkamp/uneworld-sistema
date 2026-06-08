@@ -49,7 +49,7 @@ function Row({ label, value, copied, onCopy }) {
       onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
       onMouseLeave={e => e.currentTarget.style.background='transparent'}>
       <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8', minWidth:110, flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:13, color:'#1e293b', flex:1 }}>{value}</span>
+      <span title={value} style={{ fontSize:13, color:'#1e293b', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{value}</span>
       {isCopied && (
         <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', zIndex:10 }}>
           ✓ Copiado
@@ -101,9 +101,9 @@ export default function PassengerPreviewModal({ passenger, onClose, onEdit }) {
             {initials(passenger.full_name)}
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <span style={{ position:'relative', display:'inline-block' }}>
-              <p onClick={() => handleCopy('Nome', passenger.full_name)} title="Clique para copiar"
-                style={{ fontSize:16, fontWeight:700, color:'#1e293b', margin:0, cursor:'pointer' }}>
+            <span style={{ position:'relative', display:'block', minWidth:0 }}>
+              <p onClick={() => handleCopy('Nome', passenger.full_name)} title={passenger.full_name}
+                style={{ fontSize:16, fontWeight:700, color:'#1e293b', margin:0, cursor:'pointer', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {passenger.full_name}
               </p>
               {copied === 'Nome' && (
