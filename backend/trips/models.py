@@ -124,6 +124,7 @@ class PassengerList(models.Model):
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
     roteiros             = models.ManyToManyField(Roteiro,        blank=True, related_name='passenger_lists', verbose_name='Roteiros')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
+    default_airport      = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='default_lists', verbose_name='Aeroporto de saída padrão')
     status               = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta')
     notes                = models.TextField('Observações', blank=True)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
@@ -156,12 +157,13 @@ class ListEnrollment(models.Model):
     is_block         = models.BooleanField('É bloqueio', default=False)
     block_agency     = models.CharField('Agência (bloqueio)', max_length=200, blank=True)
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
-    enrollment_status= models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente')
-    pending_until    = models.DateField('Pendente até', null=True, blank=True)
-    pending_reason   = models.TextField('Motivo da pendência', blank=True)
-    order_in_list    = models.PositiveIntegerField('Ordem', default=0)
-    enrolled_at      = models.DateTimeField('Adicionado em', auto_now_add=True)
-    notes            = models.TextField('Observações', blank=True)
+    enrollment_status  = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente')
+    pending_until      = models.DateField('Pendente até', null=True, blank=True)
+    pending_reason     = models.TextField('Motivo da pendência', blank=True)
+    departure_airport  = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='enrollments', verbose_name='Aeroporto de saída')
+    order_in_list      = models.PositiveIntegerField('Ordem', default=0)
+    enrolled_at        = models.DateTimeField('Adicionado em', auto_now_add=True)
+    notes              = models.TextField('Observações', blank=True)
 
     class Meta:
         unique_together     = ['passenger_list', 'passenger']

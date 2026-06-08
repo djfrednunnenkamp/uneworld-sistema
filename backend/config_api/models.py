@@ -179,3 +179,19 @@ class ConfigListCategory(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Airport(models.Model):
+    name      = models.CharField('Nome', max_length=200)
+    iata_code = models.CharField('Código IATA', max_length=10, blank=True)
+    city      = models.CharField('Cidade', max_length=200, blank=True)
+    country   = models.CharField('País', max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Aeroporto'
+        verbose_name_plural = 'Aeroportos'
+
+    def __str__(self):
+        parts = [self.iata_code, self.name]
+        return ' — '.join(p for p in parts if p)

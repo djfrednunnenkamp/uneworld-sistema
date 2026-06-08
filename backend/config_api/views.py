@@ -11,7 +11,7 @@ from rest_framework.parsers import MultiPartParser
 from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
-                     ConfigAccommodation, ConfigListCategory)
+                     ConfigAccommodation, ConfigListCategory, Airport)
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -786,3 +786,28 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     queryset         = ConfigAccommodation.objects.all()
     serializer_class = AccommodationSerializer
     permission_classes = [IsAuthenticated]
+
+
+# ── Aeroportos ────────────────────────────────────────────────────────────
+
+class AirportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Airport
+        fields = ['id', 'name', 'iata_code', 'city', 'country']
+
+
+class AirportViewSet(viewsets.ModelViewSet):
+    queryset           = Airport.objects.all()
+    serializer_class   = AirportSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class   = None
+
+    def get_queryset(self):
+        qs = Airport.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        if q:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(name__icontains=q) | Q(iata_code__icontains=q) | Q(city__icontains=q)
+            )
+        return qs

@@ -6,6 +6,7 @@ import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import DocTypesManager from '../components/DocTypesManager'
 import AccommodationManager from '../components/AccommodationManager'
+import AirportsManager from '../components/AirportsManager'
 import { Ic } from '../components/Icon'
 
 /* ── CSV global: Países → Estados → Cidades ── */
@@ -639,8 +640,9 @@ const LIST_DEFS = [
   { key:'accommodations',  label:'Tipos de Acomodação' },
   { key:'list_categories', label:'Categoria de Acomodações' },
   { key:'countries',       label:'Países & Estados' },
+  { key:'airports',        label:'Aeroportos' },
 ]
-const WIDE_LISTS = ['accommodations', 'countries']
+const WIDE_LISTS = ['accommodations', 'countries', 'airports']
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -656,7 +658,9 @@ export default function Settings() {
   const [profCards,    setProfCards]    = useState([])
   const [listAddits,   setListAddits]   = useState([])
   const [accoms,       setAccoms]       = useState([])
+  const [airports,     setAirports]     = useState([])
   const [loadingAc,    setLoadingAc]    = useState(true)
+  const [loadingAir,   setLoadingAir]   = useState(true)
   const [loadingP,     setLoadingP]     = useState(true)
   const [loadingL,     setLoadingL]     = useState(true)
   const [loadingV,     setLoadingV]     = useState(true)
@@ -674,6 +678,7 @@ export default function Settings() {
     configApi.profCards().then(r => setProfCards(r.data)).catch(() => {}).finally(() => setLoadingPC(false))
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
+    configApi.airports().then(r => setAirports(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAir(false))
   }, [])
 
   const addProfession = async (name) => {
@@ -927,6 +932,10 @@ export default function Settings() {
           }} />}
           {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={addListCategory} onUpdate={updateListCategory} onDelete={delListCategory} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
           {activeDef.key === 'countries'       && <CountriesTab />}
+          {activeDef.key === 'airports'        && <AirportsManager items={airports} loading={loadingAir} onRefresh={() => {
+            setLoadingAir(true)
+            configApi.airports().then(r => setAirports(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAir(false))
+          }} />}
         </ListDetailModal>
       )}
 

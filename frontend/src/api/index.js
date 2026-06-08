@@ -157,6 +157,11 @@ export const configApi = {
   updateProfCard:  (id, name) => api.patch(`/config/prof-cards/${id}/`, { name }),
   delProfCard:     (id)   => api.delete(`/config/prof-cards/${id}/`),
   importProfCards: ()     => api.post('/config/prof-cards/import/'),
+  // Aeroportos
+  airports:       (params) => api.get('/config/airports/', { params }),
+  addAirport:     (data)   => api.post('/config/airports/', data),
+  updateAirport:  (id, d)  => api.patch(`/config/airports/${id}/`, d),
+  delAirport:     (id)     => api.delete(`/config/airports/${id}/`),
   // Tipos de Acomodação
   accommodations:       ()            => api.get('/config/accommodations/'),
   addAccommodation:     (data)        => api.post('/config/accommodations/', data),

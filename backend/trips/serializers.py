@@ -71,16 +71,25 @@ class RoomSerializer(serializers.ModelSerializer):
         return ListEnrollment.objects.filter(passenger_list=obj.passenger_list, accommodation=obj.name).count()
 
 
+class AirportBriefSerializer(serializers.Serializer):
+    id        = serializers.IntegerField()
+    name      = serializers.CharField()
+    iata_code = serializers.CharField()
+    city      = serializers.CharField()
+    country   = serializers.CharField()
+
+
 class PassengerListSerializer(serializers.ModelSerializer):
-    suppliers_data   = SupplierSerializer(source='suppliers',         many=True, read_only=True)
-    additionals_data = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
-    roteiros_data    = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
-    suppliers        = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
-    additionals      = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
-    roteiros         = serializers.PrimaryKeyRelatedField(queryset=Roteiro.objects.all(),        many=True, required=False)
-    enrolled_count   = serializers.IntegerField(read_only=True)
-    start_date_br    = serializers.SerializerMethodField()
-    end_date_br      = serializers.SerializerMethodField()
+    suppliers_data      = SupplierSerializer(source='suppliers',         many=True, read_only=True)
+    additionals_data    = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
+    roteiros_data       = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
+    suppliers           = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
+    additionals         = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
+    roteiros            = serializers.PrimaryKeyRelatedField(queryset=Roteiro.objects.all(),        many=True, required=False)
+    enrolled_count      = serializers.IntegerField(read_only=True)
+    start_date_br       = serializers.SerializerMethodField()
+    end_date_br         = serializers.SerializerMethodField()
+    default_airport_data = serializers.SerializerMethodField()
 
     class Meta:
         model  = PassengerList
@@ -91,9 +100,16 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
             'roteiros', 'roteiros_data',
-            'required_documents', 'status', 'notes',
+            'required_documents', 'default_airport', 'default_airport_data',
+            'status', 'notes',
             'enrolled_count', 'created_at', 'updated_at',
         ]
+
+    def get_default_airport_data(self, obj):
+        if obj.default_airport_id:
+            a = obj.default_airport
+            return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
+        return None
 
     def get_start_date_br(self, obj):
         if not obj.start_date: return ''
@@ -158,8 +174,9 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_passenger_rg(self, obj):         return obj.passenger.rg          if obj.passenger else ''
     def get_passenger_status(self, obj):     return obj.passenger.status      if obj.passenger else ''
 
-    agency_name           = serializers.SerializerMethodField()
-    responsible_user_name = serializers.SerializerMethodField()
+    agency_name              = serializers.SerializerMethodField()
+    responsible_user_name    = serializers.SerializerMethodField()
+    departure_airport_data   = serializers.SerializerMethodField()
 
     def get_agency_name(self, obj):
         if obj.agency:
@@ -172,6 +189,12 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             return name or obj.responsible_user.email
         return ''
 
+    def get_departure_airport_data(self, obj):
+        if obj.departure_airport_id:
+            a = obj.departure_airport
+            return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
+        return None
+
     class Meta:
         model  = ListEnrollment
         fields = [
@@ -181,7 +204,8 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
-            'accommodation', 'enrollment_status', 'pending_until', 'pending_reason', 'order_in_list',
-            'enrolled_at', 'notes',
+            'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
+            'departure_airport', 'departure_airport_data',
+            'order_in_list', 'enrolled_at', 'notes',
         ]
         read_only_fields = ['enrolled_at']

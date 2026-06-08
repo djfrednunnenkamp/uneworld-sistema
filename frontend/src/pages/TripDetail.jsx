@@ -266,6 +266,126 @@ function PassengerNotesModal({ enrollment, listId, onSaved, onClose }) {
   )
 }
 
+/* ── Picker de aeroporto — busca por nome / IATA / cidade ── */
+function AirportPicker({ value, onChange, placeholder }) {
+  const [query,   setQuery]   = useState('')
+  const [open,    setOpen]    = useState(false)
+  const [options, setOptions] = useState([])
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      configApi.airports({ q: query }).then(r => setOptions(r.data.results ?? r.data)).catch(() => {})
+    }, 200)
+    return () => clearTimeout(t)
+  }, [query, open])
+
+  const display = value ? `${value.iata_code ? value.iata_code + ' — ' : ''}${value.name}` : ''
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <input
+        value={open ? query : display}
+        onChange={e => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => { setQuery(''); setOpen(true) }}
+        placeholder={placeholder || 'Buscar aeroporto…'}
+        style={{ width:'100%', padding:'8px 10px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box' }}
+      />
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 2px)', left:0, right:0, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:260, overflowY:'auto', zIndex:300, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+          {options.length === 0 ? (
+            <p style={{ textAlign:'center', padding:'16px 0', color:'#94a3b8', fontSize:13, margin:0 }}>
+              {query.length >= 1 ? 'Nenhum aeroporto encontrado.' : 'Digite para buscar…'}
+            </p>
+          ) : options.map(a => (
+            <div key={a.id}
+              onMouseDown={e => { e.preventDefault(); onChange(a); setOpen(false); setQuery('') }}
+              style={{ padding:'9px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid #f1f5f9' }}
+              onMouseEnter={e => e.currentTarget.style.background='#f0f7ff'}
+              onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+              {a.iata_code && (
+                <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, fontFamily:'monospace', flexShrink:0 }}>{a.iata_code}</span>
+              )}
+              <span style={{ fontSize:13, color:'#1e293b', fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.name}</span>
+              {(a.city || a.country) && (
+                <span style={{ fontSize:11, color:'#94a3b8', flexShrink:0 }}>{[a.city, a.country].filter(Boolean).join(', ')}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Modal para definir aeroporto de saída individual do passageiro ── */
+function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
+  const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+  const [airport, setAirport] = useState(enrollment.departure_airport_data || null)
+  const [saving,  setSaving]  = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, { departure_airport: airport?.id ?? null })
+      toast.success('Aeroporto de saída atualizado.')
+      onSaved(); onClose()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  const fmtA = a => a ? (a.iata_code ? `${a.iata_code} — ${a.name}` : a.name) : null
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:440, boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Local de embarque</p>
+            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        <div style={{ padding:'16px 22px 20px' }}>
+          {defaultAirport && (
+            <p style={{ fontSize:12, color:'#64748b', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:7, padding:'7px 10px', margin:'0 0 14px' }}>
+              ✈ Padrão da lista: <strong>{fmtA(defaultAirport)}</strong>
+            </p>
+          )}
+          <label style={LBL}>Aeroporto de saída individual</label>
+          <AirportPicker value={airport} onChange={setAirport} placeholder="Mesmo que o padrão da lista…" />
+          {airport && (
+            <button type="button" onClick={() => setAirport(null)}
+              style={{ marginTop:8, fontSize:12, color:'#64748b', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline' }}>
+              ✕ Remover e usar aeroporto padrão da lista
+            </button>
+          )}
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Menu "mais ações" do passageiro — itens já existentes funcionam, os demais aparecem como "Em breve" ── */
 const PASSENGER_ACTIONS = [
   { key:'quick_edit',  label:'Edição rápida do passageiro', icon:'list',     enabled:false },
@@ -275,7 +395,7 @@ const PASSENGER_ACTIONS = [
   { key:'seat',        label:'Informar o assento',          icon:'grid',     enabled:false },
   { key:'crew',        label:'Equipe técnica',              icon:'users',    enabled:false },
   { key:'pax_type',    label:'Tipo de passageiro',          icon:'settings', enabled:false },
-  { key:'boarding',    label:'Local de embarque',           icon:'globe',    enabled:false },
+  { key:'boarding',    label:'Local de embarque',           icon:'globe',    enabled:true  },
   { key:'contracts',   label:'Contratos',                   icon:'docs',     enabled:false },
   { key:'swap_room',   label:'Trocar de quarto',            icon:'building', enabled:true  },
   { key:'link_client', label:'Vincular cliente',            icon:'users',    enabled:false },
@@ -1667,7 +1787,7 @@ function MetricsPanel({ enrolled, accomTypes }) {
 }
 
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType, onData }) {
+function PassengersTab({ listId, listType, defaultAirport, onData }) {
   const navigate = useNavigate()
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
@@ -1695,6 +1815,8 @@ function PassengersTab({ listId, listType, onData }) {
   const [deleteRoomModal, setDeleteRoomModal] = useState(null)
   // moveRoomModal: null | { roomId, roomName } — popup "mover passageiros individualmente"
   const [moveRoomModal,   setMoveRoomModal]   = useState(null)
+  // boardingModal: null | enrollment (objeto) — popup "Local de embarque" do passageiro
+  const [boardingModal,   setBoardingModal]   = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -1821,6 +1943,9 @@ function PassengersTab({ listId, listType, onData }) {
       case 'notes':
         setNotesModal(enrollment)
         break
+      case 'boarding':
+        setBoardingModal(enrollment)
+        break
       case 'swap_room':
         setAccomModal({ enrollmentIds: [enrollment.id] })
         break
@@ -1920,7 +2045,7 @@ function PassengersTab({ listId, listType, onData }) {
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {/* Checkbox select-all */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
               <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -1937,6 +2062,7 @@ function PassengersTab({ listId, listType, onData }) {
               {h:'Passaporte',align:'center'},
               {h:'CPF',       align:'center'},
               {h:'Agência',   align:'left'},
+              ...(isAereo ? [{h:'Emb.',     align:'center'}] : []),
               {h:'Ações',     align:'center'},
             ].map(({h, align}, i) => (
               <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: align }}>{h}</span>
@@ -2083,7 +2209,7 @@ function PassengersTab({ listId, listType, onData }) {
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns:'32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -2170,6 +2296,25 @@ function PassengersTab({ listId, listType, onData }) {
                       {e.agency_name || '—'}
                     </span>
 
+                    {/* Embarque — aeroporto de saída (individual ou padrão da lista) */}
+                    {isAereo && (() => {
+                      const ap = e.departure_airport_data || defaultAirport
+                      const isIndividual = !!e.departure_airport_data
+                      const code = ap?.iata_code || (ap?.name?.slice(0,3).toUpperCase())
+                      return (
+                        <span title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (individual)' : ' (padrão)'}` : 'Não definido'}
+                          style={{ display:'flex', justifyContent:'center' }}>
+                          {ap ? (
+                            <span style={{ fontSize:11, fontWeight:700, color: isIndividual ? '#1a2d4f' : '#64748b', background: isIndividual ? '#eff6ff' : '#f1f5f9', padding:'2px 6px', borderRadius:5, fontFamily:'monospace', letterSpacing:'.03em', border: isIndividual ? '1px solid #bfdbfe' : 'none' }}>
+                              {code}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
+                          )}
+                        </span>
+                      )
+                    })()}
+
                     {/* Ações */}
                     <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
                       {/* Editar / mais ações — abre popup com todas as opções do passageiro */}
@@ -2242,6 +2387,17 @@ function PassengersTab({ listId, listType, onData }) {
           listId={listId}
           onSaved={load}
           onClose={() => setNotesModal(null)}
+        />
+      )}
+
+      {/* Popup Local de embarque — define aeroporto de saída individual */}
+      {boardingModal && (
+        <BoardingModal
+          enrollment={boardingModal}
+          listId={listId}
+          defaultAirport={defaultAirport}
+          onSaved={load}
+          onClose={() => setBoardingModal(null)}
         />
       )}
 
@@ -2340,6 +2496,147 @@ function PassengersTab({ listId, listType, onData }) {
   )
 }
 
+/* ── Aba "Local de Embarque" ── */
+function DeparturesTab({ listId, list, onListRefresh }) {
+  const [enrolled,  setEnrolled]  = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [defAirport, setDefAirport] = useState(list.default_airport_data || null)
+  const [saving,    setSaving]    = useState(false)
+
+  useEffect(() => {
+    listsApi.listPassengers(listId)
+      .then(r => setEnrolled(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [listId])
+
+  const handleSetDefault = async (airport) => {
+    setDefAirport(airport)
+    setSaving(true)
+    try {
+      await listsApi.patch(listId, { default_airport: airport?.id ?? null })
+      onListRefresh()
+      toast.success(airport ? 'Aeroporto padrão definido.' : 'Aeroporto padrão removido.')
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  if (list.list_type !== 'aereo') {
+    return (
+      <div className="det-card">
+        <div className="section" style={{ textAlign:'center', padding:'48px 0' }}>
+          <p style={{ fontSize:32, marginBottom:8 }}>🚌</p>
+          <p style={{ color:'#94a3b8', fontSize:14, fontWeight:500 }}>Esta lista é via terrestre.</p>
+          <p style={{ color:'#cbd5e1', fontSize:12 }}>Configurações de local de embarque se aplicam somente a viagens aéreas.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const activeEnrolled = enrolled.filter(e => e.enrollment_status !== 'cancelado')
+
+  const byAirport = {}
+  activeEnrolled.forEach(e => {
+    const ap = e.departure_airport_data || defAirport
+    const key = ap ? (ap.iata_code || ap.name) : '(não definido)'
+    if (!byAirport[key]) byAirport[key] = { ap, list: [] }
+    byAirport[key].list.push(e)
+  })
+
+  return (
+    <div className="det-card">
+      <div className="section">
+        {/* Aeroporto padrão */}
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20 }}>
+          <div>
+            <div className="section-title" style={{ marginBottom:4 }}>Aeroporto de saída padrão</div>
+            <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>
+              Usado para todos os passageiros sem aeroporto individual definido.
+            </p>
+          </div>
+          {saving && <span style={{ fontSize:12, color:'#94a3b8' }}>Salvando…</span>}
+        </div>
+
+        <div style={{ maxWidth:500, marginBottom:24 }}>
+          <AirportPicker value={defAirport} onChange={handleSetDefault} placeholder="Selecionar aeroporto padrão desta lista…" />
+          {defAirport && (
+            <button type="button" onClick={() => handleSetDefault(null)}
+              style={{ marginTop:6, fontSize:12, color:'#64748b', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline' }}>
+              ✕ Remover aeroporto padrão
+            </button>
+          )}
+        </div>
+
+        {/* Resumo por aeroporto */}
+        {!loading && activeEnrolled.length > 0 && (
+          <div style={{ marginBottom:24, display:'flex', flexWrap:'wrap', gap:10 }}>
+            {Object.entries(byAirport).map(([key, { ap, list: paxList }]) => (
+              <div key={key} style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:10, padding:'10px 16px', minWidth:160 }}>
+                <p style={{ margin:'0 0 2px', fontSize:13, fontWeight:700, color:'#1a2d4f' }}>
+                  {ap ? (ap.iata_code ? <><span style={{ fontFamily:'monospace', fontSize:14 }}>{ap.iata_code}</span> — {ap.name}</> : ap.name) : 'Não definido'}
+                </p>
+                {ap && (ap.city || ap.country) && (
+                  <p style={{ margin:'0 0 6px', fontSize:11, color:'#94a3b8' }}>{[ap.city, ap.country].filter(Boolean).join(', ')}</p>
+                )}
+                <p style={{ margin:0, fontSize:12, color:'#64748b', fontWeight:600 }}>{paxList.length} passageiro{paxList.length !== 1 ? 's' : ''}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tabela de passageiros */}
+        <div style={{ fontSize:12, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>
+          Passageiros
+        </div>
+
+        {loading ? (
+          <p style={{ color:'#94a3b8', fontSize:13 }}>Carregando…</p>
+        ) : activeEnrolled.length === 0 ? (
+          <p style={{ color:'#94a3b8', fontSize:13 }}>Nenhum passageiro ativo.</p>
+        ) : (
+          <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
+            {/* Header */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 160px', columnGap:12, padding:'8px 14px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+              {['Passageiro', 'Acomodação', 'Aeroporto de saída'].map((h, i) => (
+                <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>{h}</span>
+              ))}
+            </div>
+            {activeEnrolled.map((e, idx) => {
+              const ap = e.departure_airport_data || defAirport
+              const isIndividual = !!e.departure_airport_data
+              return (
+                <div key={e.id} style={{ display:'grid', gridTemplateColumns:'1fr 140px 160px', columnGap:12, padding:'9px 14px', borderBottom: idx < activeEnrolled.length-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}>
+                  <span style={{ fontSize:13, fontWeight:500, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {e.passenger_name || <span style={{ color:'#f59e0b', fontStyle:'italic' }}>[Vaga — {e.block_agency}]</span>}
+                  </span>
+                  <span style={{ fontSize:12, color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {e.accommodation || '—'}
+                  </span>
+                  <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    {ap ? (
+                      <>
+                        {ap.iata_code && (
+                          <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, fontFamily:'monospace', flexShrink:0 }}>{ap.iata_code}</span>
+                        )}
+                        <span style={{ fontSize:12, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ap.name}</span>
+                        {isIndividual && (
+                          <span style={{ fontSize:9, fontWeight:700, color:'#7c3aed', background:'#ede9fe', padding:'1px 5px', borderRadius:4, flexShrink:0, letterSpacing:'.02em' }}>IND</span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>Não definido</span>
+                    )}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /* ── Página principal ── */
 export default function TripDetail() {
   const { id }   = useParams()
@@ -2385,8 +2682,9 @@ export default function TripDetail() {
   )
 
   const TABS = [
-    { key:'passengers', label:'Passageiros' },
-    { key:'roteiro',    label:'Roteiro'     },
+    { key:'passengers', label:'Passageiros'      },
+    { key:'roteiro',    label:'Roteiro'          },
+    { key:'embarque',   label:'Local de Embarque'},
   ]
 
   // Pode ficar negativo — significa que foram vendidas mais vagas do que o bloqueio permite
@@ -2462,7 +2760,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} onData={setPaxData} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} onData={setPaxData} />}
 
       {tab === 'roteiro' && (
         <div className="det-card">
@@ -2501,6 +2799,8 @@ export default function TripDetail() {
           </div>
         </div>
       )}
+
+      {tab === 'embarque' && <DeparturesTab listId={id} list={list} onListRefresh={load} />}
 
       {/* Modal de edição */}
       {showEdit && (
