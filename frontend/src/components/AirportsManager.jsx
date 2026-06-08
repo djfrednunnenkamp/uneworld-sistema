@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
@@ -13,24 +14,37 @@ const btnCsv = (color) => ({
   cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
 })
 
-/* ── Input com autocomplete por lista de sugestões ── */
-function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled, inputRef: extRef }) {
+/* ── Input com autocomplete — dropdown via portal para não ser cortado pelo modal ── */
+function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled }) {
   const [open,    setOpen]    = useState(false)
   const [options, setOptions] = useState([])
   const [query,   setQuery]   = useState(value)
-  const wrapRef  = useRef(null)
-  const localRef = useRef(null)
-  const ref      = extRef || localRef
+  const [dropStyle, setDropStyle] = useState({})
+  const inputRef = useRef(null)
 
   // Sincroniza query quando value muda externamente (ex: limpar ao trocar país)
-  useEffect(() => { setQuery(value) }, [value])
+  useEffect(() => { setQuery(value) }, [value]) // eslint-disable-line react-hooks/set-state-in-effect
 
   // Fecha ao clicar fora
   useEffect(() => {
-    const h = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    const h = e => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          !e.target.closest('[data-suggest-dropdown]')) {
+        setOpen(false)
+      }
+    }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  // Calcula posição fixed quando abre
+  const openDropdown = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect()
+      setDropStyle({ top: r.bottom + 2, left: r.left, width: r.width })
+    }
+    setOpen(true)
+  }
 
   // Busca com debounce
   useEffect(() => {
@@ -44,36 +58,36 @@ function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled
     return () => clearTimeout(t)
   }, [query, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const select = (opt) => {
-    setQuery(opt); onChange(opt); setOpen(false)
-  }
+  const select = (opt) => { setQuery(opt); onChange(opt); setOpen(false) }
 
   return (
-    <div ref={wrapRef} style={{ position:'relative' }}>
+    <>
       <input
-        ref={ref}
+        ref={inputRef}
         className="fi"
         value={query}
         disabled={disabled}
         placeholder={placeholder}
-        onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); if (!open) openDropdown() }}
+        onFocus={openDropdown}
         style={disabled ? { background:'#f8fafc', color:'#94a3b8', cursor:'not-allowed' } : {}}
       />
-      {open && options.length > 0 && (
-        <div style={{ position:'absolute', top:'calc(100% + 2px)', left:0, right:0, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:220, overflowY:'auto', zIndex:400, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+      {open && options.length > 0 && createPortal(
+        <div data-suggest-dropdown
+          style={{ position:'fixed', ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:220, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
           {options.map((opt, i) => (
             <div key={i}
               onMouseDown={e => { e.preventDefault(); select(opt) }}
-              style={{ padding:'8px 12px', cursor:'pointer', fontSize:13, color:'#1e293b', borderBottom: i < options.length-1 ? '1px solid #f1f5f9' : 'none' }}
+              style={{ padding:'9px 12px', cursor:'pointer', fontSize:13, color:'#1e293b', borderBottom: i < options.length-1 ? '1px solid #f1f5f9' : 'none' }}
               onMouseEnter={e => e.currentTarget.style.background='#f0f7ff'}
               onMouseLeave={e => e.currentTarget.style.background='#fff'}>
               {opt}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
 
