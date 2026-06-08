@@ -2972,6 +2972,47 @@ function FlightsTab({ listId, list }) {
     </div>
   )
 
+  const calcLayover = (prev, next) => {
+    if (!prev.arrival_date || !prev.arrival_time || !next.departure_date || !next.departure_time) return null
+    const from = new Date(`${prev.arrival_date}T${prev.arrival_time}`)
+    const to   = new Date(`${next.departure_date}T${next.departure_time}`)
+    const diff = to - from
+    if (diff <= 0) return null
+    const h = Math.floor(diff / 3600000)
+    const m = Math.floor((diff % 3600000) / 60000)
+    return h > 0 ? (m > 0 ? `${h}h ${m}min` : `${h}h`) : `${m}min`
+  }
+
+  const ConnectionBadge = ({ prev, next }) => {
+    const ap      = prev.destination_airport_data
+    const layover = calcLayover(prev, next)
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:0, background:'#f8fafc', borderTop:'1px solid #e2e8f0', borderBottom:'1px solid #e2e8f0' }}>
+        <div style={{ flex:1, height:1, background:'#e2e8f0' }} />
+        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 16px', flexShrink:0 }}>
+          <span style={{ fontSize:15, color:'#94a3b8' }}>✈</span>
+          {layover && (
+            <span style={{ fontSize:12, fontWeight:700, color:'#0f766e', background:'#f0fdf4', border:'1px solid #bbf7d0', padding:'2px 8px', borderRadius:20 }}>
+              {layover} de conexão
+            </span>
+          )}
+          {ap ? (
+            <span style={{ fontSize:12, color:'#475569', display:'flex', alignItems:'center', gap:5 }}>
+              {ap.city && <span style={{ fontWeight:600, color:'#1e293b' }}>{ap.city}</span>}
+              <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 6px', borderRadius:4, border:'1px solid #bfdbfe' }}>
+                {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+              </span>
+              <span style={{ color:'#94a3b8' }}>{ap.name}</span>
+            </span>
+          ) : (
+            <span style={{ fontSize:12, color:'#94a3b8', fontStyle:'italic' }}>aeroporto de conexão não definido</span>
+          )}
+        </div>
+        <div style={{ flex:1, height:1, background:'#e2e8f0' }} />
+      </div>
+    )
+  }
+
   const Section = ({ direction, title, legsList }) => (
     <div style={{ marginBottom:28 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
@@ -3007,7 +3048,14 @@ function FlightsTab({ listId, list }) {
         </div>
       ) : (
         <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
-          {legsList.map((leg, idx) => <LegRow key={leg.id} leg={leg} idx={idx} total={legsList.length} />)}
+          {legsList.map((leg, idx) => (
+            <>
+              <LegRow key={leg.id} leg={leg} idx={idx} total={legsList.length} />
+              {idx < legsList.length - 1 && (
+                <ConnectionBadge key={`conn-${leg.id}`} prev={leg} next={legsList[idx + 1]} />
+              )}
+            </>
+          ))}
         </div>
       )}
     </div>
