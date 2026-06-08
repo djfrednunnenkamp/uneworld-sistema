@@ -1092,11 +1092,20 @@ function PassengersTab({ listId, listType, onData }) {
   const [accomModal,    setAccomModal]    = useState(null)
   // editAccomType: null | roomName (string)
   const [editAccomType, setEditAccomType] = useState(null)
+  const [collapsed,     setCollapsed]     = useState(new Set())
+
+  const firstLoad = useRef(true)
 
   const load = useCallback(() => {
     setLoading(true)
     listsApi.listPassengers(listId)
-      .then(r => setEnrolled(r.data))
+      .then(r => {
+        setEnrolled(r.data)
+        if (firstLoad.current) {
+          firstLoad.current = false
+          setCollapsed(new Set(r.data.map(e => e.accommodation || '(sem acomodação)')))
+        }
+      })
       .catch(() => toast.error('Erro ao carregar passageiros.'))
       .finally(() => setLoading(false))
   }, [listId])
@@ -1115,7 +1124,6 @@ function PassengersTab({ listId, listType, onData }) {
   const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
   const clearSelect   = ()   => setSelected(new Set())
 
-  const [collapsed, setCollapsed] = useState(new Set())
   const toggleGroup = (key) => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
   const toggleGroupSelect = (rows) => setSelected(s => {
     const n = new Set(s)
