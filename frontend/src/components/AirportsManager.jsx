@@ -13,15 +13,85 @@ const btnCsv = (color) => ({
   cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
 })
 
+/* ── Input com autocomplete por lista de sugestões ── */
+function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled, inputRef: extRef }) {
+  const [open,    setOpen]    = useState(false)
+  const [options, setOptions] = useState([])
+  const [query,   setQuery]   = useState(value)
+  const wrapRef  = useRef(null)
+  const localRef = useRef(null)
+  const ref      = extRef || localRef
+
+  // Sincroniza query quando value muda externamente (ex: limpar ao trocar país)
+  useEffect(() => { setQuery(value) }, [value])
+
+  // Fecha ao clicar fora
+  useEffect(() => {
+    const h = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  // Busca com debounce
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetchSuggestions(query)
+        setOptions(r.data ?? [])
+      } catch { setOptions([]) }
+    }, 180)
+    return () => clearTimeout(t)
+  }, [query, open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const select = (opt) => {
+    setQuery(opt); onChange(opt); setOpen(false)
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position:'relative' }}>
+      <input
+        ref={ref}
+        className="fi"
+        value={query}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        style={disabled ? { background:'#f8fafc', color:'#94a3b8', cursor:'not-allowed' } : {}}
+      />
+      {open && options.length > 0 && (
+        <div style={{ position:'absolute', top:'calc(100% + 2px)', left:0, right:0, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:220, overflowY:'auto', zIndex:400, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+          {options.map((opt, i) => (
+            <div key={i}
+              onMouseDown={e => { e.preventDefault(); select(opt) }}
+              style={{ padding:'8px 12px', cursor:'pointer', fontSize:13, color:'#1e293b', borderBottom: i < options.length-1 ? '1px solid #f1f5f9' : 'none' }}
+              onMouseEnter={e => e.currentTarget.style.background='#f0f7ff'}
+              onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AirportFormModal({ title, initial, onSave, onClose }) {
-  const [name,     setName]     = useState(initial?.name ?? '')
-  const [iata,     setIata]     = useState(initial?.iata_code ?? '')
-  const [city,     setCity]     = useState(initial?.city ?? '')
-  const [country,  setCountry]  = useState(initial?.country ?? '')
-  const [saving,   setSaving]   = useState(false)
+  const [name,    setName]    = useState(initial?.name ?? '')
+  const [iata,    setIata]    = useState(initial?.iata_code ?? '')
+  const [country, setCountry] = useState(initial?.country ?? '')
+  const [city,    setCity]    = useState(initial?.city ?? '')
+  const [saving,  setSaving]  = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
+
+  const handleCountryChange = (v) => {
+    setCountry(v)
+    // Limpa cidade ao trocar país
+    if (v !== country) setCity('')
+  }
 
   const handleSave = async () => {
     const v = name.trim(); if (!v) return
@@ -46,22 +116,29 @@ function AirportFormModal({ title, initial, onSave, onClose }) {
               onKeyDown={e => e.key === 'Enter' && handleSave()}
               placeholder="Ex: Aeroporto Internacional de Guarulhos" />
           </div>
-          <div style={{ display:'flex', gap:12 }}>
-            <div className="ff" style={{ flex:'0 0 120px', marginBottom:0 }}>
-              <label className="fl">Código IATA</label>
-              <input className="fi" value={iata} onChange={e => setIata(e.target.value.toUpperCase())}
-                maxLength={10} placeholder="Ex: GRU" style={{ textTransform:'uppercase' }} />
-            </div>
-            <div className="ff" style={{ flex:1, marginBottom:0 }}>
-              <label className="fl">Cidade</label>
-              <input className="fi" value={city} onChange={e => setCity(e.target.value)}
-                placeholder="Ex: São Paulo" />
-            </div>
+          <div className="ff" style={{ flex:'0 0 120px' }}>
+            <label className="fl">Código IATA</label>
+            <input className="fi" value={iata} onChange={e => setIata(e.target.value.toUpperCase())}
+              maxLength={10} placeholder="Ex: GRU" style={{ textTransform:'uppercase' }} />
           </div>
           <div className="ff">
             <label className="fl">País</label>
-            <input className="fi" value={country} onChange={e => setCountry(e.target.value)}
-              placeholder="Ex: Brasil" />
+            <SuggestInput
+              value={country}
+              onChange={handleCountryChange}
+              fetchSuggestions={q => configApi.airportCountrySuggest(q)}
+              placeholder="Ex: Brasil"
+            />
+          </div>
+          <div className="ff">
+            <label className="fl">Cidade</label>
+            <SuggestInput
+              value={city}
+              onChange={setCity}
+              fetchSuggestions={q => configApi.airportCitySuggest(country, q)}
+              placeholder={country ? 'Ex: São Paulo' : 'Selecione o país primeiro…'}
+              disabled={!country.trim()}
+            />
           </div>
         </div>
         <div className="mfoot">

@@ -812,6 +812,31 @@ class AirportViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @action(detail=False, methods=['get'], url_path='country-suggestions')
+    def country_suggestions(self, request):
+        """Países distintos com aeroportos cadastrados, filtrados por ?q=."""
+        from django.db.models import Q
+        q = request.query_params.get('q', '').strip()
+        qs = Airport.objects.exclude(country='')
+        if q:
+            qs = qs.filter(country__icontains=q)
+        names = list(qs.values_list('country', flat=True).distinct().order_by('country')[:60])
+        return Response(names)
+
+    @action(detail=False, methods=['get'], url_path='city-suggestions')
+    def city_suggestions(self, request):
+        """Cidades distintas para um país, filtradas por ?q=. Requer ?country=."""
+        from django.db.models import Q
+        country = request.query_params.get('country', '').strip()
+        q       = request.query_params.get('q', '').strip()
+        qs = Airport.objects.exclude(city='')
+        if country:
+            qs = qs.filter(country__iexact=country)
+        if q:
+            qs = qs.filter(city__icontains=q)
+        cities = list(qs.values_list('city', flat=True).distinct().order_by('city')[:60])
+        return Response(cities)
+
     @action(detail=False, methods=['post'])
     def seed(self, request):
         """Importa aeroportos mundiais do OurAirports em background."""
