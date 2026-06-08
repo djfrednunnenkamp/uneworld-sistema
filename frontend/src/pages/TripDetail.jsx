@@ -2504,11 +2504,10 @@ function PassengersTab({ listId, listType, defaultAirport, onData }) {
 }
 
 /* ── Aba "Local de Embarque" ── */
-function DeparturesTab({ listId, list, onListRefresh }) {
-  const [enrolled,   setEnrolled]   = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [defAirport, setDefAirport] = useState(list.default_airport_data || null)
-  const [saving,     setSaving]     = useState(false)
+function DeparturesTab({ listId, list }) {
+  const [enrolled, setEnrolled] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const defAirport = list.default_airport_data || null
 
   useEffect(() => {
     listsApi.listPassengers(listId)
@@ -2516,17 +2515,6 @@ function DeparturesTab({ listId, list, onListRefresh }) {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [listId])
-
-  const handleSetDefault = async (airport) => {
-    setDefAirport(airport)
-    setSaving(true)
-    try {
-      await listsApi.patch(listId, { default_airport: airport?.id ?? null })
-      onListRefresh()
-      toast.success(airport ? 'Aeroporto padrão definido.' : 'Aeroporto padrão removido.')
-    } catch { toast.error('Erro ao salvar.') }
-    finally { setSaving(false) }
-  }
 
   if (list.list_type !== 'aereo') {
     return (
@@ -2550,7 +2538,7 @@ function DeparturesTab({ listId, list, onListRefresh }) {
     if (!airportMap[key]) airportMap[key] = { ap, pax: [] }
     airportMap[key].pax.push(e)
   })
-  const airportGroups = Object.values(airportMap).sort((a, b) => (b.pax.length - a.pax.length))
+  const airportGroups = Object.values(airportMap).sort((a, b) => b.pax.length - a.pax.length)
 
   // Passageiros com embarque diferente do padrão
   const nonDefault = active.filter(e => !!e.departure_airport_data)
@@ -2563,33 +2551,15 @@ function DeparturesTab({ listId, list, onListRefresh }) {
       background: amber ? '#fef3c7' : '#eff6ff',
       border:     amber ? '1.5px solid #f59e0b' : '1px solid #bfdbfe',
     }}>
-      {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+      {ap.iata_code || ap.name.slice(0, 3).toUpperCase()}
     </span>
   )
+
+  const thStyle = { fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }
 
   return (
     <div className="det-card">
       <div className="section">
-
-        {/* ── Aeroporto padrão ── */}
-        <div style={{ marginBottom:28 }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-            <div className="section-title" style={{ marginBottom:0 }}>Aeroporto de saída padrão</div>
-            {saving && <span style={{ fontSize:12, color:'#94a3b8' }}>Salvando…</span>}
-          </div>
-          <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 10px' }}>
-            Usado para todos os passageiros sem embarque individual definido.
-          </p>
-          <div style={{ maxWidth:480 }}>
-            <AirportPicker value={defAirport} onChange={handleSetDefault} placeholder="Selecionar aeroporto padrão desta lista…" />
-            {defAirport && (
-              <button type="button" onClick={() => handleSetDefault(null)}
-                style={{ marginTop:5, fontSize:11, color:'#94a3b8', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline' }}>
-                ✕ Remover aeroporto padrão
-              </button>
-            )}
-          </div>
-        </div>
 
         {loading ? (
           <p style={{ color:'#94a3b8', fontSize:13 }}>Carregando…</p>
@@ -2600,47 +2570,47 @@ function DeparturesTab({ listId, list, onListRefresh }) {
             {/* ── Seção 1: Aeroportos de embarque ── */}
             <div style={{ marginBottom:32 }}>
               <div className="section-title" style={{ marginBottom:12 }}>Aeroportos de embarque</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:10 }}>
-                {airportGroups.map(({ ap, pax }) => {
+              <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 120px', columnGap:12, padding:'8px 16px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+                  <span style={thStyle}>Código</span>
+                  <span style={thStyle}>Aeroporto</span>
+                  <span style={thStyle}>Passageiros</span>
+                </div>
+                {airportGroups.map(({ ap, pax }, idx) => {
                   const isDefAp   = defAirport && ap && ap.id === defAirport.id
                   const allCustom = pax.every(e => !!e.departure_airport_data)
                   return (
                     <div key={ap ? ap.id : '__none__'}
-                      style={{
-                        borderRadius:10, padding:'14px 16px',
-                        border: isDefAp ? '2px solid #bfdbfe' : '1.5px solid #e2e8f0',
-                        background: isDefAp ? '#f0f7ff' : '#fff',
-                      }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                        {ap ? (
-                          <IataChip ap={ap} amber={allCustom && !isDefAp} />
-                        ) : (
-                          <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>Não definido</span>
+                      style={{ display:'grid', gridTemplateColumns:'80px 1fr 120px', columnGap:12, padding:'10px 16px', borderBottom: idx < airportGroups.length-1 ? '1px solid #f1f5f9' : 'none', background: isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}>
+                      <span>
+                        {ap
+                          ? <IataChip ap={ap} amber={allCustom && !isDefAp} />
+                          : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>
+                        }
+                      </span>
+                      <span>
+                        <span style={{ fontSize:13, fontWeight:500, color:'#1e293b' }}>
+                          {ap ? ap.name : 'Não definido'}
+                        </span>
+                        {ap && (ap.city || ap.country) && (
+                          <span style={{ fontSize:11, color:'#94a3b8', marginLeft:6 }}>
+                            {[ap.city, ap.country].filter(Boolean).join(', ')}
+                          </span>
                         )}
                         {isDefAp && (
-                          <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#dbeafe', padding:'1px 6px', borderRadius:4, letterSpacing:'.04em' }}>PADRÃO</span>
+                          <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#dbeafe', padding:'1px 6px', borderRadius:4, letterSpacing:'.04em', marginLeft:8 }}>PADRÃO</span>
                         )}
-                      </div>
-                      {ap && (
-                        <p style={{ margin:'0 0 2px', fontSize:13, fontWeight:600, color:'#1e293b', lineHeight:1.3 }}>
-                          {ap.name}
-                        </p>
-                      )}
-                      {ap && (ap.city || ap.country) && (
-                        <p style={{ margin:'0 0 8px', fontSize:11, color:'#94a3b8' }}>
-                          {[ap.city, ap.country].filter(Boolean).join(', ')}
-                        </p>
-                      )}
-                      <p style={{ margin:0, fontSize:13, fontWeight:700, color: isDefAp ? '#1a2d4f' : '#475569' }}>
+                      </span>
+                      <span style={{ fontSize:13, fontWeight:600, color: isDefAp ? '#1a2d4f' : '#475569' }}>
                         {pax.length} passageiro{pax.length !== 1 ? 's' : ''}
-                      </p>
+                      </span>
                     </div>
                   )
                 })}
               </div>
             </div>
 
-            {/* ── Seção 2: Embarques individuais (diferentes do padrão) ── */}
+            {/* ── Seção 2: Embarques diferentes do padrão ── */}
             <div>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
                 <div className="section-title" style={{ marginBottom:0 }}>Embarques diferentes do padrão</div>
@@ -2650,7 +2620,6 @@ function DeparturesTab({ listId, list, onListRefresh }) {
                   </span>
                 )}
               </div>
-
               {nonDefault.length === 0 ? (
                 <div style={{ textAlign:'center', padding:'28px 0', background:'#f8fafc', borderRadius:10, border:'1px solid #e2e8f0' }}>
                   <p style={{ margin:0, fontSize:13, color:'#94a3b8' }}>
@@ -2659,15 +2628,14 @@ function DeparturesTab({ listId, list, onListRefresh }) {
                 </div>
               ) : (
                 <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 180px', columnGap:12, padding:'8px 16px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-                    {['Passageiro', 'Aeroporto de saída'].map((h, i) => (
-                      <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>{h}</span>
-                    ))}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 220px', columnGap:12, padding:'8px 16px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+                    <span style={thStyle}>Passageiro</span>
+                    <span style={thStyle}>Aeroporto de saída</span>
                   </div>
                   {nonDefault.map((e, idx) => {
                     const ap = e.departure_airport_data
                     return (
-                      <div key={e.id} style={{ display:'grid', gridTemplateColumns:'1fr 180px', columnGap:12, padding:'10px 16px', borderBottom: idx < nonDefault.length-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}>
+                      <div key={e.id} style={{ display:'grid', gridTemplateColumns:'1fr 220px', columnGap:12, padding:'10px 16px', borderBottom: idx < nonDefault.length-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}>
                         <span style={{ fontSize:13, fontWeight:500, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                           {e.passenger_name || <span style={{ color:'#f59e0b', fontStyle:'italic' }}>[Vaga — {e.block_agency}]</span>}
                         </span>
@@ -2853,7 +2821,7 @@ export default function TripDetail() {
         </div>
       )}
 
-      {tab === 'embarque' && <DeparturesTab listId={id} list={list} onListRefresh={load} />}
+      {tab === 'embarque' && <DeparturesTab listId={id} list={list} />}
 
       {/* Modal de edição */}
       {showEdit && (
