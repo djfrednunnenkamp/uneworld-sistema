@@ -1071,17 +1071,13 @@ function MetricsPanel({ enrolled, accomTypes, blockCapacity }) {
 
   return (
     <div style={{ display:'flex', gap:20, alignItems:'stretch', background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px', marginBottom:16, boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
-      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:18, justifyContent:'center', minWidth:0 }}>
-        <div style={{ display:'flex', flexWrap:'wrap', gap:'14px 36px' }}>
-          {AGE_ROWS.map((r, i) => <MetricChip key={r.label} label={r.label} value={ageCounts[i]} />)}
-        </div>
-        <div style={{ display:'flex', flexWrap:'wrap', gap:'14px 36px' }}>
-          {Object.entries(accomCounts).map(([label, count]) => (
-            <MetricChip key={label} label={`Apto. ${label}`} value={count} />
-          ))}
-          <MetricChip label="Total de acomodações" value={roomNames.length} />
-          <MetricChip label="Total de passageiros" value={enrolled.length} />
-        </div>
+      <div style={{ flex:1, display:'flex', flexWrap:'nowrap', alignItems:'center', gap:28, overflowX:'auto', minWidth:0 }}>
+        {AGE_ROWS.map((r, i) => <MetricChip key={r.label} label={r.label} value={ageCounts[i]} />)}
+        {Object.entries(accomCounts).map(([label, count]) => (
+          <MetricChip key={label} label={`Apto. ${label}`} value={count} />
+        ))}
+        <MetricChip label="Total de acomodações" value={roomNames.length} />
+        <MetricChip label="Total de passageiros" value={enrolled.length} />
       </div>
       {available != null && (
         <div style={{
