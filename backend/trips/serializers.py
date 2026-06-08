@@ -130,10 +130,28 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_passenger_passport(self, obj):   return obj.passenger.passport    if obj.passenger else ''
 
     def get_passenger_passports(self, obj):
-        """Lista de até 2 passaportes: [{'number': ..., 'country': 'BR'}, ...]"""
+        """Lista de até 2 passaportes lidos dos documentos enviados, com fallback nos campos escalares."""
         p = obj.passenger
         if not p:
             return []
+        from config_api.models import ConfigCountry
+        docs = list(
+            p.documents
+             .filter(doc_type='passport')
+             .exclude(doc_number='')
+             .order_by('-expiry_date', 'id')[:2]
+        )
+        if docs:
+            names = {d.issued_by for d in docs if d.issued_by}
+            codes = {c.name: c.code for c in ConfigCountry.objects.filter(name__in=names)}
+            return [
+                {
+                    'number': d.doc_number,
+                    'country': codes.get(d.issued_by, d.issued_by[:3].upper() if d.issued_by else ''),
+                }
+                for d in docs
+            ]
+        # Fallback: campos escalares preenchidos na aba Informações
         pairs = [(p.passport, p.passport_country), (p.passport2, p.passport2_country)]
         return [{'number': num, 'country': country} for num, country in pairs if num]
 
