@@ -1062,6 +1062,7 @@ function MetricsPanel({ enrolled, accomTypes }) {
   const accomCounts = {}
   roomNames.forEach(name => {
     const label = findAccomType(accomTypes, name)?.name || 'Outro'
+    if (label === 'Duplo Casal') return
     accomCounts[label] = (accomCounts[label] || 0) + 1
   })
 
