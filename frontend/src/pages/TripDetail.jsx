@@ -2302,10 +2302,17 @@ function PassengersTab({ listId, listType, defaultAirport, onData }) {
                       const isIndividual = !!e.departure_airport_data
                       const code = ap?.iata_code || (ap?.name?.slice(0,3).toUpperCase())
                       return (
-                        <span title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (individual)' : ' (padrão)'}` : 'Não definido'}
+                        <span title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (embarque individual)' : ' (padrão da lista)'}` : 'Não definido'}
                           style={{ display:'flex', justifyContent:'center' }}>
                           {ap ? (
-                            <span style={{ fontSize:11, fontWeight:700, color: isIndividual ? '#1a2d4f' : '#64748b', background: isIndividual ? '#eff6ff' : '#f1f5f9', padding:'2px 6px', borderRadius:5, fontFamily:'monospace', letterSpacing:'.03em', border: isIndividual ? '1px solid #bfdbfe' : 'none' }}>
+                            <span style={{
+                              fontSize:11, fontWeight:700, fontFamily:'monospace', letterSpacing:'.03em',
+                              padding:'2px 7px', borderRadius:5,
+                              color:      isIndividual ? '#92400e' : '#64748b',
+                              background: isIndividual ? '#fef3c7' : '#f1f5f9',
+                              border:     isIndividual ? '1.5px solid #f59e0b' : '1px solid transparent',
+                              boxShadow:  isIndividual ? '0 0 0 2px #fde68a55' : 'none',
+                            }}>
                               {code}
                             </span>
                           ) : (

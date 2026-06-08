@@ -81,7 +81,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
 
         if request.method == 'GET':
             entries = pl.list_enrollments.select_related(
-                'passenger', 'agency', 'responsible_user'
+                'passenger', 'agency', 'responsible_user', 'departure_airport'
             ).all()
             return Response(ListEnrollmentSerializer(entries, many=True).data)
 
@@ -160,6 +160,8 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             if field in request.data:
                 val = request.data[field]
                 setattr(e, field, (val or None) if field == 'pending_until' else val)
+        if 'departure_airport' in request.data:
+            e.departure_airport_id = request.data['departure_airport'] or None
         # Atribuir passageiro a um bloco
         if 'passenger' in request.data and request.data['passenger']:
             from passengers.models import Passenger as PassengerModel
