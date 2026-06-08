@@ -16,6 +16,15 @@ const findAccomType = (types, roomName) =>
   [...types].sort((a, b) => b.name.length - a.name.length)
     .find(t => roomName === t.name || roomName.startsWith(t.name + ' '))
 
+function calcAge(birthDate) {
+  if (!birthDate) return null
+  const today = new Date()
+  const b     = new Date(birthDate + 'T00:00:00')
+  let age = today.getFullYear() - b.getFullYear()
+  if (today.getMonth() < b.getMonth() || (today.getMonth() === b.getMonth() && today.getDate() < b.getDate())) age--
+  return age
+}
+
 const TYPE_LABEL = {
   aereo:'Via Aéreo', terrestre:'Via Terrestre',
 }
