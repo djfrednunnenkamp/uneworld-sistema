@@ -2377,8 +2377,8 @@ function PassengersTab({ listId, listType, defaultAirport, onData }) {
                     {/* ✈ passagem — clicável em listas aéreas */}
                     {isAereo ? (() => {
                       const ts = e.ticket_status || 'nao_emitida'
-                      const color = ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#1a2d4f' : '#059669'
-                      const bg    = ts === 'nao_emitida' ? 'transparent' : ts === 'via_bloqueio' ? '#eff6ff' : '#f0fdf4'
+                      const color = ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#b45309' : 'rgb(147,66,171)'
+                      const bg    = ts === 'nao_emitida' ? 'transparent' : ts === 'via_bloqueio' ? '#fef3c7' : '#f5edfb'
                       const title = ts === 'nao_emitida' ? 'Passagem não emitida' : ts === 'via_bloqueio' ? `Via bloqueio${e.ticket_number ? ' · ' + e.ticket_number : ''}${e.ticket_seat ? ' · ' + e.ticket_seat : ''}` : `Fora do bloqueio${e.ticket_number ? ' · ' + e.ticket_number : ''}`
                       return (
                         <button type="button" onClick={() => setTicketModal(e)}
