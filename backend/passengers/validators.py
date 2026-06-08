@@ -86,7 +86,13 @@ def validate_document_file(file):
 
         # Converte para RGB/RGBA limpo (remove EXIF, metadados e payloads)
         clean_format = 'JPEG' if ext in ('.jpg', '.jpeg') else 'PNG'
-        if img.mode not in ('RGB', 'RGBA', 'L'):
+        if clean_format == 'JPEG':
+            # JPEG não suporta canal alfa — qualquer modo com transparência
+            # (RGBA, LA, P-com-transparência) precisa virar RGB antes de salvar,
+            # senão o Pillow levanta OSError ("cannot write mode RGBA as JPEG")
+            if img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+        elif img.mode not in ('RGB', 'RGBA', 'L'):
             img = img.convert('RGB')
 
         out = io.BytesIO()
