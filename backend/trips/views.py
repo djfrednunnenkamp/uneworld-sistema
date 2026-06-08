@@ -207,9 +207,17 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Acomodação não encontrada.'}, status=404)
 
         if request.method == 'DELETE':
-            occupants = pl.list_enrollments.filter(accommodation=room.name).count()
-            if occupants > 0:
-                return Response({'error': 'Não é possível excluir uma acomodação com passageiros.'}, status=400)
+            occupants = pl.list_enrollments.filter(accommodation=room.name)
+            if occupants.exists():
+                resolution = request.data.get('resolution')
+                if resolution == 'unassign':
+                    occupants.update(accommodation='')
+                elif resolution == 'cancel':
+                    occupants.update(enrollment_status='cancelado', accommodation='')
+                elif resolution == 'remove':
+                    occupants.delete()
+                else:
+                    return Response({'error': 'Não é possível excluir uma acomodação com passageiros.'}, status=400)
             room.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 

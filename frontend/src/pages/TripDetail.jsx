@@ -1247,10 +1247,9 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
 
         <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'space-between', alignItems:'center' }}>
           {onDelete ? (
-            <button type="button" onClick={() => { if (occupants.length === 0) { onDelete(); onClose() } }}
-              disabled={occupants.length > 0}
-              title={occupants.length === 0 ? 'Excluir acomodação' : 'Não é possível excluir — há passageiros nesta acomodação'}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:`1.5px solid ${occupants.length === 0 ? '#fecaca' : '#e2e8f0'}`, background: occupants.length === 0 ? '#fee2e2' : '#f8fafc', color: occupants.length === 0 ? '#dc2626' : '#cbd5e1', fontSize:13, fontWeight:600, cursor: occupants.length === 0 ? 'pointer' : 'default', fontFamily:'inherit' }}>
+            <button type="button" onClick={() => { onDelete(); onClose() }}
+              title="Excluir acomodação"
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
               <Ic n="trash" s={13} /> Excluir
             </button>
           ) : <span />}
@@ -1275,6 +1274,79 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
         />,
         document.body
       )}
+    </div>
+  )
+}
+
+/* ── Modal "Excluir acomodação ocupada" — escolhe o destino dos passageiros antes de remover o quarto ── */
+function DeleteOccupiedRoomModal({ roomName, occupants, onConfirm, onClose }) {
+  const [resolution, setResolution] = useState('unassign')
+  const [busy,       setBusy]       = useState(false)
+  const n = occupants.length
+
+  const OPTIONS = [
+    {
+      value: 'unassign',
+      label: 'Excluir a acomodação e devolver os passageiros à lista de espera',
+      detail: `${n === 1 ? 'O passageiro volta' : 'Os passageiros voltam'} para "Aguardando acomodação" e ${n === 1 ? 'pode' : 'podem'} ser realocado${n === 1 ? '' : 's'} depois.`,
+    },
+    {
+      value: 'cancel',
+      label: 'Marcar os passageiros como cancelados e excluir a acomodação',
+      detail: `${n === 1 ? 'O passageiro é movido' : 'Os passageiros são movidos'} para "Cancelados" nesta lista.`,
+    },
+    {
+      value: 'remove',
+      label: 'Remover os passageiros desta viagem e excluir a acomodação',
+      detail: `${n === 1 ? 'A inscrição deste passageiro' : 'As inscrições destes passageiros'} nesta lista ${n === 1 ? 'é apagada' : 'são apagadas'} definitivamente.`,
+    },
+  ]
+
+  const handleConfirm = async () => {
+    setBusy(true)
+    try { await onConfirm(resolution) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="mbox" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <span className="mtitle">Excluir acomodação ocupada</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={15}/></button>
+        </div>
+        <div className="mbody">
+          <div style={{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:14 }}>
+            <div style={{ color:'#f59e0b', flexShrink:0, marginTop:2 }}><Ic n="warn" s={20}/></div>
+            <p style={{ fontSize:14, color:'#475569', lineHeight:1.7, margin:0 }}>
+              <strong>{roomName}</strong> tem {n} passageiro{n !== 1 ? 's' : ''} vinculado{n !== 1 ? 's' : ''}.
+              O que deseja fazer com {n !== 1 ? 'eles' : 'ele'} antes de excluir a acomodação?
+            </p>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {OPTIONS.map(opt => {
+              const isSel = resolution === opt.value
+              return (
+                <label key={opt.value}
+                  style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 12px', borderRadius:8, border:`1.5px solid ${isSel ? '#1a2d4f' : '#e2e8f0'}`, background: isSel ? '#f0f4ff' : '#fff', cursor:'pointer', transition:'all .12s' }}
+                  onClick={() => setResolution(opt.value)}>
+                  <div style={{ width:16, height:16, marginTop:2, borderRadius:'50%', border:`2px solid ${isSel ? '#1a2d4f' : '#d1d5db'}`, background: isSel ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    {isSel && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
+                  </div>
+                  <div>
+                    <p style={{ margin:0, fontSize:13, color: isSel ? '#1a2d4f' : '#1e293b', fontWeight: isSel ? 600 : 500 }}>{opt.label}</p>
+                    <p style={{ margin:'2px 0 0', fontSize:11, color:'#94a3b8' }}>{opt.detail}</p>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+          <p style={{ fontSize:12, color:'#94a3b8', margin:'12px 0 0' }}>Esta ação não pode ser desfeita.</p>
+        </div>
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button className="btn btn-danger" onClick={handleConfirm} disabled={busy}>{busy ? 'Excluindo…' : 'Excluir acomodação'}</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1535,6 +1607,8 @@ function PassengersTab({ listId, listType, onData }) {
   const [actionsModal,  setActionsModal]  = useState(null)
   // roomsModal: bool — popup "Gerenciar acomodações"
   const [roomsModal,    setRoomsModal]    = useState(false)
+  // deleteRoomModal: null | { roomId, roomName, occupants } — popup "excluir acomodação ocupada"
+  const [deleteRoomModal, setDeleteRoomModal] = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -1608,10 +1682,20 @@ function PassengersTab({ listId, listType, onData }) {
     load()
   }
 
-  const handleDeleteRoom = async (roomId, roomName) => {
+  const handleDeleteRoom = (roomId, roomName) => {
+    const occupants = enrolled.filter(e => e.accommodation === roomName)
+    if (occupants.length === 0) {
+      doDeleteRoom(roomId, roomName)
+    } else {
+      setDeleteRoomModal({ roomId, roomName, occupants })
+    }
+  }
+
+  const doDeleteRoom = async (roomId, roomName, resolution) => {
     try {
-      await listsApi.removeRoom(listId, roomId)
+      await listsApi.removeRoom(listId, roomId, resolution)
       toast.success(`Acomodação "${roomName}" removida.`)
+      setDeleteRoomModal(null)
       load(); loadRooms()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Erro ao remover acomodação.')
@@ -1886,11 +1970,11 @@ function PassengersTab({ listId, listType, onData }) {
 
                     {roomIdByName[key] != null && (
                       <button type="button"
-                        onClick={(ev) => { ev.stopPropagation(); paxCount === 0 && handleDeleteRoom(roomIdByName[key], key) }}
-                        title={paxCount === 0 ? 'Excluir acomodação' : 'Não é possível excluir — há passageiros nesta acomodação'}
-                        style={{ marginLeft:'auto', width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'none', background:'transparent', color: paxCount === 0 ? '#cbd5e1' : '#e2e8f0', cursor: paxCount === 0 ? 'pointer' : 'default', flexShrink:0 }}
-                        onMouseEnter={e => { if (paxCount === 0) e.currentTarget.style.color='#dc2626' }}
-                        onMouseLeave={e => { e.currentTarget.style.color = paxCount === 0 ? '#cbd5e1' : '#e2e8f0' }}>
+                        onClick={(ev) => { ev.stopPropagation(); handleDeleteRoom(roomIdByName[key], key) }}
+                        title="Excluir acomodação"
+                        style={{ marginLeft:'auto', width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'none', background:'transparent', color:'#cbd5e1', cursor:'pointer', flexShrink:0 }}
+                        onMouseEnter={e => e.currentTarget.style.color='#dc2626'}
+                        onMouseLeave={e => e.currentTarget.style.color='#cbd5e1'}>
                         <Ic n="trash" s={13} />
                       </button>
                     )}
@@ -2110,6 +2194,15 @@ function PassengersTab({ listId, listType, onData }) {
           message={`Remover ${confirm.name} da lista?`}
           onOk={() => remove(confirm.id, confirm.name)}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {deleteRoomModal && (
+        <DeleteOccupiedRoomModal
+          roomName={deleteRoomModal.roomName}
+          occupants={deleteRoomModal.occupants}
+          onConfirm={(resolution) => doDeleteRoom(deleteRoomModal.roomId, deleteRoomModal.roomName, resolution)}
+          onClose={() => setDeleteRoomModal(null)}
         />
       )}
     </div>
