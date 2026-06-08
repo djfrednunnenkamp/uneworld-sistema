@@ -283,43 +283,37 @@ const PASSENGER_ACTIONS = [
   { key:'delete',      label:'Excluir passageiro',          icon:'trash',    enabled:true, danger:true },
 ]
 
-function PassengerActionsMenu({ onAction }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
-
+function PassengerActionsModal({ enrollment, onAction, onClose }) {
+  const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
   return (
-    <div ref={ref} style={{ position:'relative' }}>
-      <button type="button" onClick={(ev) => { ev.stopPropagation(); setOpen(o => !o) }}
-        title="Editar / mais ações"
-        style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}
-        onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
-        onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
-        <Ic n="edit" s={12} />
-      </button>
-      {open && (
-        <div onClick={ev => ev.stopPropagation()}
-          style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:320, background:'#fff',
-          borderRadius:8, border:'1px solid #e2e8f0', boxShadow:'0 8px 24px rgba(0,0,0,.10)',
-          minWidth:240, maxHeight:380, overflowY:'auto', overflowX:'hidden', animation:'mIn .12s ease' }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:380, maxHeight:'85vh', display:'flex', flexDirection:'column', boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Ações do passageiro</p>
+            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2, flexShrink:0 }}>×</button>
+        </div>
+
+        {/* Opções */}
+        <div style={{ padding:'8px 10px', overflowY:'auto' }}>
           {PASSENGER_ACTIONS.map(act => (
             <button key={act.key} type="button" disabled={!act.enabled}
-              onClick={() => { if (!act.enabled) return; setOpen(false); onAction(act.key) }}
+              onClick={() => { if (!act.enabled) return; onAction(act.key) }}
               style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
-                padding:'9px 14px', gap:10, background:'transparent',
-                border:'none', borderBottom:'1px solid #f8fafc',
+                padding:'10px 12px', gap:10, borderRadius:8, background:'transparent',
+                border:'none', marginBottom:2,
                 color: !act.enabled ? '#cbd5e1' : act.danger ? '#dc2626' : '#1e293b',
                 fontSize:13, fontWeight:400, cursor: act.enabled ? 'pointer' : 'default',
                 fontFamily:'inherit', textAlign:'left', transition:'background .1s' }}
               onMouseEnter={e => { if (act.enabled) e.currentTarget.style.background = act.danger ? '#fef2f2' : '#f8fafc' }}
               onMouseLeave={e => { e.currentTarget.style.background='transparent' }}>
-              <span style={{ display:'flex', alignItems:'center', gap:9, minWidth:0 }}>
-                <Ic n={act.icon} s={13} />
+              <span style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+                <Ic n={act.icon} s={14} />
                 <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{act.label}</span>
               </span>
               {!act.enabled && (
@@ -330,8 +324,20 @@ function PassengerActionsMenu({ onAction }) {
             </button>
           ))}
         </div>
-      )}
+      </div>
     </div>
+  )
+}
+
+function PassengerActionsButton({ onClick }) {
+  return (
+    <button type="button" onClick={(ev) => { ev.stopPropagation(); onClick() }}
+      title="Editar / mais ações"
+      style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}
+      onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f' }}
+      onMouseLeave={ev => { ev.currentTarget.style.borderColor='#e2e8f0'; ev.currentTarget.style.color='#64748b' }}>
+      <Ic n="edit" s={12} />
+    </button>
   )
 }
 
@@ -1327,6 +1333,8 @@ function PassengersTab({ listId, listType, onData }) {
   const [statusModal,   setStatusModal]   = useState(null)
   // notesModal: null | enrollment (objeto) — popup "Observações" do menu de ações
   const [notesModal,    setNotesModal]    = useState(null)
+  // actionsModal: null | enrollment (objeto) — popup "Ações do passageiro"
+  const [actionsModal,  setActionsModal]  = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -1414,8 +1422,9 @@ function PassengersTab({ listId, listType, onData }) {
     load()
   }
 
-  // Roteia as ações do menu "⋯" do passageiro — algumas reaproveitam popups já existentes
+  // Roteia as ações do popup "Ações do passageiro" — algumas reaproveitam popups já existentes
   const handlePassengerAction = (action, enrollment) => {
+    setActionsModal(null)
     switch (action) {
       case 'edit':
         if (enrollment.passenger) navigate(`/passageiros/${enrollment.passenger}`)
@@ -1728,8 +1737,8 @@ function PassengersTab({ listId, listType, onData }) {
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
-                      {/* Editar / mais ações — abre menu com todas as opções do passageiro */}
-                      <PassengerActionsMenu onAction={(action) => handlePassengerAction(action, e)} />
+                      {/* Editar / mais ações — abre popup com todas as opções do passageiro */}
+                      <PassengerActionsButton onClick={() => setActionsModal(e)} />
                       {/* Atribuir passageiro — só em bloqueios */}
                       {e.is_block && (
                         <button type="button"
@@ -1775,6 +1784,15 @@ function PassengersTab({ listId, listType, onData }) {
           accomTypes={accomTypes}
           onConfirm={handleAccomConfirm}
           onClose={() => setAccomModal(null)}
+        />
+      )}
+
+      {/* Popup "Ações do passageiro" — lista as 13 opções, abre os demais popups */}
+      {actionsModal && (
+        <PassengerActionsModal
+          enrollment={actionsModal}
+          onAction={(action) => handlePassengerAction(action, actionsModal)}
+          onClose={() => setActionsModal(null)}
         />
       )}
 
