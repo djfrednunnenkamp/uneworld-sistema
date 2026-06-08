@@ -1021,8 +1021,68 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
   )
 }
 
+/* ── Painel de métricas — faixas etárias, acomodações e vagas para venda ── */
+const AGE_ROWS = [
+  { test: a => a >= 60,            label:'Acima de 60 anos'  },
+  { test: a => a >= 12 && a < 60,  label:'Adultos 12-59 anos' },
+  { test: a => a >= 2  && a < 12,  label:'Crianças 2-11 anos' },
+  { test: a => a < 2,              label:'Infantil < 2 anos'  },
+]
+
+function MetricRow({ label, value }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'5px 0' }}>
+      <span style={{ fontSize:13, color:'#475569' }}>{label}</span>
+      <span style={{ fontSize:11, fontWeight:700, color:'#64748b', background:'#f1f5f9', borderRadius:20, minWidth:24, textAlign:'center', padding:'2px 8px' }}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function MetricsPanel({ enrolled, accomTypes, blockCapacity }) {
+  const ageCounts = AGE_ROWS.map(() => 0)
+  enrolled.forEach(e => {
+    if (e.is_block || !e.passenger_birth_date) return
+    const age = calcAge(e.passenger_birth_date)
+    const idx = AGE_ROWS.findIndex(r => r.test(age))
+    if (idx >= 0) ageCounts[idx]++
+  })
+
+  // Quartos ocupados, agrupados por tipo de acomodação
+  const roomNames = [...new Set(enrolled.filter(e => e.accommodation).map(e => e.accommodation))]
+  const accomCounts = {}
+  roomNames.forEach(name => {
+    const label = findAccomType(accomTypes, name)?.name || 'Outro'
+    accomCounts[label] = (accomCounts[label] || 0) + 1
+  })
+
+  const available = blockCapacity > 0 ? Math.max(0, blockCapacity - enrolled.length) : null
+
+  return (
+    <div style={{ display:'flex', gap:20, alignItems:'stretch', flexWrap:'wrap', background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px', marginBottom:16, boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
+      <div style={{ flex:1, minWidth:220 }}>
+        {AGE_ROWS.map((r, i) => <MetricRow key={r.label} label={r.label} value={ageCounts[i]} />)}
+        <div style={{ height:1, background:'#f1f5f9', margin:'6px 0' }} />
+        {Object.entries(accomCounts).map(([label, count]) => (
+          <MetricRow key={label} label={`Apto. ${label}`} value={count} />
+        ))}
+        <MetricRow label="Total de acomodações" value={roomNames.length} />
+        <div style={{ height:1, background:'#f1f5f9', margin:'6px 0' }} />
+        <MetricRow label="Total de passageiros" value={enrolled.length} />
+      </div>
+      {available != null && (
+        <div style={{ flexShrink:0, width:200, borderRadius:10, background:'linear-gradient(135deg,#16a34a,#15803d)', color:'#fff', display:'flex', flexDirection:'column', alignItems:'flex-end', justifyContent:'center', padding:'18px 22px', gap:2 }}>
+          <span style={{ fontSize:34, fontWeight:800, lineHeight:1 }}>{available}</span>
+          <span style={{ fontSize:13, fontWeight:600, textAlign:'right' }}>Disponíveis para venda</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType }) {
+function PassengersTab({ listId, listType, blockCapacity }) {
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -1109,6 +1169,11 @@ function PassengersTab({ listId, listType }) {
 
   return (
     <div>
+      {/* Métricas */}
+      {!loading && enrolled.length > 0 && (
+        <MetricsPanel enrolled={enrolled} accomTypes={accomTypes} blockCapacity={blockCapacity} />
+      )}
+
       {/* Toolbar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: selected.size > 0 ? 8 : 16 }}>
         <span style={{ fontSize:14, fontWeight:600, color:'#1e293b' }}>
@@ -1521,7 +1586,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} blockCapacity={list.block_capacity} />}
 
       {tab === 'roteiro' && (
         <div className="det-card">
