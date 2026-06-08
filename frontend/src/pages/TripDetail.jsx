@@ -1115,6 +1115,15 @@ function PassengersTab({ listId, listType, onData }) {
   const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
   const clearSelect   = ()   => setSelected(new Set())
 
+  const [collapsed, setCollapsed] = useState(new Set())
+  const toggleGroup = (key) => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
+  const toggleGroupSelect = (rows) => setSelected(s => {
+    const n = new Set(s)
+    const allIn = rows.every(r => n.has(r.id))
+    rows.forEach(r => allIn ? n.delete(r.id) : n.add(r.id))
+    return n
+  })
+
   const bulkDelete = async () => {
     setBulkSaving(true)
     try {
@@ -1256,6 +1265,8 @@ function PassengersTab({ listId, listType, onData }) {
             const genders = rows.filter(e => !e.is_block && e.passenger_gender).map(e => e.passenger_gender)
             const sameSexCouple = accomType?.is_couple && genders.length >= 2
               && genders.every(g => g === genders[0])
+            const isCollapsed   = collapsed.has(key)
+            const groupAllSel   = rows.length > 0 && rows.every(r => selected.has(r.id))
             return (
             <div key={key}>
               {/* Header do grupo */}
@@ -1264,6 +1275,20 @@ function PassengersTab({ listId, listType, onData }) {
                 borderBottom: `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
                 borderTop:    `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
               }}>
+                {/* Expandir/recolher grupo */}
+                <button type="button" onClick={() => toggleGroup(key)}
+                  title={isCollapsed ? 'Expandir' : 'Recolher'}
+                  style={{ width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'none', background:'transparent', color:'#64748b', cursor:'pointer', fontSize:11, flexShrink:0, transition:'transform .15s', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }}
+                  onMouseEnter={ev => ev.currentTarget.style.color='#1a2d4f'}
+                  onMouseLeave={ev => ev.currentTarget.style.color='#64748b'}>
+                  ▾
+                </button>
+
+                {/* Selecionar todos do setor */}
+                <input type="checkbox" checked={groupAllSel} onChange={() => toggleGroupSelect(rows)}
+                  title="Selecionar todos deste setor"
+                  style={{ width:15, height:15, cursor:'pointer', accentColor:'#1a2d4f', flexShrink:0 }} />
+
                 {isUnassigned ? (
                   <>
                     <span style={{ fontSize:14 }}>⏳</span>
@@ -1320,7 +1345,7 @@ function PassengersTab({ listId, listType, onData }) {
               </div>
 
               {/* Linhas dos passageiros */}
-              {rows.map((e, ri) => {
+              {!isCollapsed && rows.map((e, ri) => {
                 const dot = STATUS_DOT[e.enrollment_status] || STATUS_DOT.pendente
                 const nat = (e.passenger_nationality || '').slice(0,3).toUpperCase() || '—'
                 const gen = e.passenger_gender ? e.passenger_gender[0].toUpperCase() : '—'
