@@ -2075,6 +2075,11 @@ function PassengersTab({ listId, listType, onData }) {
                 const passports = e.passenger_passports || []
                 const cpf = e.passenger_cpf || '—'
                 const birth = e.passenger_birth_date ? fmt(e.passenger_birth_date) : '—'
+                const copy = (text) => {
+                  if (!text || text === '—') return
+                  navigator.clipboard.writeText(String(text))
+                  toast.success('Copiado!', { id: 'cp', duration: 1000 })
+                }
 
                 return (
                   <div key={e.id}
@@ -2110,7 +2115,8 @@ function PassengersTab({ listId, listType, onData }) {
                         </div>
                       ) : (
                         <>
-                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
+                            style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
                             {e.passenger_name}
                           </p>
                           {isCancelled && e.notes && (
@@ -2123,25 +2129,29 @@ function PassengersTab({ listId, listType, onData }) {
                     </div>
 
                     {/* Nasc. */}
-                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block' }}>{e.is_block ? '—' : birth}</span>
+                    <span onClick={() => copy(birth)} title="Clique para copiar"
+                      style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : birth}</span>
 
                     {/* Nac. */}
                     <div style={{ display:'flex', justifyContent:'center' }}>
                       {e.is_block
                         ? <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
-                        : <span style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4 }}>{nat}</span>
+                        : <span onClick={() => copy(e.passenger_nationality)} title="Clique para copiar"
+                            style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4, cursor:'pointer' }}>{nat}</span>
                       }
                     </div>
 
                     {/* Gênero */}
-                    <span style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block' }}>{e.is_block ? '—' : gen}</span>
+                    <span onClick={() => copy(e.passenger_gender)} title="Clique para copiar"
+                      style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : gen}</span>
 
                     {/* Passaporte(s) — número + sigla do país, até 2 */}
                     <span style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1, overflow:'hidden' }}>
                       {e.is_block || passports.length === 0 ? (
                         <span style={{ fontSize:12, color:'#475569' }}>—</span>
                       ) : passports.map((p, pi) => (
-                        <span key={pi} style={{ fontSize:11.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>
+                        <span key={pi} onClick={() => copy(p.number)} title="Clique para copiar"
+                          style={{ fontSize:11.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
                           {p.number}
                           {p.country && (
                             <span style={{ fontSize:9.5, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{p.country.toUpperCase()}</span>
@@ -2151,10 +2161,12 @@ function PassengersTab({ listId, listType, onData }) {
                     </span>
 
                     {/* CPF */}
-                    <span style={{ fontSize:12, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.is_block ? '—' : cpf}</span>
+                    <span onClick={() => copy(e.passenger_cpf)} title="Clique para copiar"
+                      style={{ fontSize:12, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : cpf}</span>
 
                     {/* Agência */}
-                    <span style={{ fontSize:11, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    <span onClick={() => copy(e.agency_name)} title="Clique para copiar"
+                      style={{ fontSize:11, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
                       {e.agency_name || '—'}
                     </span>
 
