@@ -2986,14 +2986,20 @@ function FlightsTab({ listId, list }) {
   const ConnectionBadge = ({ prev, next }) => {
     const ap      = prev.destination_airport_data
     const layover = calcLayover(prev, next)
+    const missingArrival  = !prev.arrival_date || !prev.arrival_time
+    const missingDeparture = !next.departure_date || !next.departure_time
     return (
-      <div style={{ display:'flex', alignItems:'center', gap:0, background:'#f8fafc', borderTop:'1px solid #e2e8f0', borderBottom:'1px solid #e2e8f0' }}>
+      <div style={{ display:'flex', alignItems:'center', background:'#f8fafc', borderTop:'1px solid #e2e8f0', borderBottom:'1px solid #e2e8f0' }}>
         <div style={{ flex:1, height:1, background:'#e2e8f0' }} />
         <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 16px', flexShrink:0 }}>
           <span style={{ fontSize:15, color:'#94a3b8' }}>✈</span>
-          {layover && (
+          {layover ? (
             <span style={{ fontSize:12, fontWeight:700, color:'#0f766e', background:'#f0fdf4', border:'1px solid #bbf7d0', padding:'2px 8px', borderRadius:20 }}>
               {layover} de conexão
+            </span>
+          ) : (
+            <span style={{ fontSize:11, fontWeight:600, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', padding:'2px 8px', borderRadius:20 }}>
+              {missingArrival ? 'preencha a chegada do voo anterior' : missingDeparture ? 'preencha a partida do próximo voo' : '?'}
             </span>
           )}
           {ap ? (
