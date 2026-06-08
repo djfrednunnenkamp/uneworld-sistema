@@ -39,7 +39,7 @@ const fmt = (d) => {
 function Chip({ label, value }) {
   if (!value) return null
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
       <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>{label}</span>
       <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{value}</span>
     </div>
@@ -1041,8 +1041,8 @@ const AGE_ROWS = [
 /* Chip de métrica — título em cima, contagem em destaque embaixo (igual ao padrão dos dados da viagem, mas exibe zero) */
 function MetricChip({ label, value }) {
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:90 }}>
-      <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>{label}</span>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, minWidth:90 }}>
+      <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', textAlign:'center' }}>{label}</span>
       <span style={{ fontSize:18, color:'#1e293b', fontWeight:700 }}>{value}</span>
     </div>
   )
