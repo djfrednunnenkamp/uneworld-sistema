@@ -107,6 +107,62 @@ const STATUS_DOT = {
   cancelado:  { bg:'#dc2626', title:'Cancelado'  },
 }
 
+const ENROLLMENT_STATUS_OPTS = [
+  { value:'confirmado', label:'Confirmado', color:'#16a34a' },
+  { value:'pendente',   label:'Pendente',   color:'#f59e0b' },
+  { value:'cancelado',  label:'Cancelado',  color:'#dc2626' },
+]
+
+/* ── Dropdown de status do passageiro na lista (substitui o toggle por clique) ── */
+function EnrollmentStatusDot({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const dot = STATUS_DOT[value] || STATUS_DOT.pendente
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position:'relative', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <button type="button" onClick={(ev) => { ev.stopPropagation(); setOpen(o => !o) }}
+        title={dot.title}
+        style={{ width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', border:'none', background:'transparent', cursor:'pointer', padding:0 }}>
+        <div style={{ width:10, height:10, borderRadius:'50%', background:dot.bg, boxShadow:`0 0 0 2px ${dot.bg}30` }} />
+      </button>
+      {open && (
+        <div onClick={ev => ev.stopPropagation()}
+          style={{ position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)', zIndex:300, background:'#fff',
+          borderRadius:8, border:'1px solid #e2e8f0', boxShadow:'0 8px 24px rgba(0,0,0,.10)',
+          minWidth:140, overflow:'hidden', animation:'mIn .12s ease' }}>
+          {ENROLLMENT_STATUS_OPTS.map(opt => {
+            const sel = value === opt.value
+            return (
+              <button key={opt.value} type="button"
+                onClick={() => { setOpen(false); if (!sel) onChange(opt.value) }}
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
+                  padding:'9px 14px', gap:10, background:sel?'#eff6ff':'transparent',
+                  border:'none', borderBottom:'1px solid #f8fafc',
+                  color:sel?'#2e6db4':'#1e293b', fontSize:13, fontWeight:sel?600:400,
+                  cursor:'pointer', fontFamily:'inherit', textAlign:'left', transition:'background .1s' }}
+                onMouseEnter={e => { if(!sel) e.currentTarget.style.background='#f8fafc' }}
+                onMouseLeave={e => { if(!sel) e.currentTarget.style.background='transparent' }}>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ width:8, height:8, borderRadius:'50%', background:opt.color }} />
+                  {opt.label}
+                </span>
+                {sel && <span style={{ color:'#2e6db4' }}>✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Picker de acomodação — busca em tempo real com nomes dos hóspedes ── */
 function AccomPicker({ onSelect, existingRooms = [], enrolledList = [] }) {
   const [types,   setTypes]   = useState([])
@@ -1117,8 +1173,9 @@ function PassengersTab({ listId, listType, onData }) {
   }, [])
 
   // Repassa os dados ao componente pai — exibidos no painel de métricas, acima das abas
+  // (cancelados não contam mais como vaga ocupada nem entram nas métricas)
   useEffect(() => {
-    onData?.({ enrolled, accomTypes, loading })
+    onData?.({ enrolled: enrolled.filter(e => e.enrollment_status !== 'cancelado'), accomTypes, loading })
   }, [enrolled, accomTypes, loading, onData])
 
   const toggleSelect  = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -1161,27 +1218,35 @@ function PassengersTab({ listId, listType, onData }) {
     load()
   }
 
-  const toggleStatus = async (e) => {
-    const next = e.enrollment_status === 'confirmado' ? 'pendente' : 'confirmado'
-    await listsApi.updatePassenger(listId, e.id, { enrollment_status: next }).catch(() => {})
+  const handleEnrollmentStatus = async (enrollment, status) => {
+    if (status === enrollment.enrollment_status) return
+    await listsApi.updatePassenger(listId, enrollment.id, { enrollment_status: status })
+      .then(() => { if (status === 'cancelado') toast.success('Passageiro movido para Cancelados.') })
+      .catch(() => toast.error('Erro ao atualizar status.'))
     load()
   }
+
+  // Cancelados ficam separados — pendentes de devolução de valores
+  const CANCELLED = '(cancelados)'
+  const activeEnrolled    = enrolled.filter(e => e.enrollment_status !== 'cancelado')
+  const cancelledEnrolled = enrolled.filter(e => e.enrollment_status === 'cancelado')
 
   // Agrupar por acomodação — sem acomodação sempre no topo
   const UNASSIGNED = '(sem acomodação)'
   const seen = {}
   const groups = []
-  enrolled.forEach(e => {
+  activeEnrolled.forEach(e => {
     const key = e.accommodation || UNASSIGNED
     if (!seen[key]) { seen[key] = []; groups.push({ key, rows: seen[key] }) }
     seen[key].push(e)
   })
   groups.sort((a, b) => a.key === UNASSIGNED ? -1 : b.key === UNASSIGNED ? 1 : 0)
+  if (cancelledEnrolled.length > 0) groups.push({ key: CANCELLED, rows: cancelledEnrolled })
 
-  // Número sequencial global
+  // Número sequencial global — cancelados não entram na contagem
   let seq = 0
   const seqMap = {}
-  enrolled.forEach(e => { seq++; seqMap[e.id] = seq })
+  activeEnrolled.forEach(e => { seq++; seqMap[e.id] = seq })
 
   const isAereo = listType === 'aereo'
 
@@ -1192,7 +1257,10 @@ function PassengersTab({ listId, listType, onData }) {
       {/* Toolbar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: selected.size > 0 ? 8 : 16 }}>
         <span style={{ fontSize:14, fontWeight:600, color:'#1e293b' }}>
-          {enrolled.length} passageiro{enrolled.length !== 1 ? 's' : ''}
+          {activeEnrolled.length} passageiro{activeEnrolled.length !== 1 ? 's' : ''}
+          {cancelledEnrolled.length > 0 && (
+            <span style={{ fontSize:12, fontWeight:500, color:'#dc2626' }}> · {cancelledEnrolled.length} cancelado{cancelledEnrolled.length !== 1 ? 's' : ''}</span>
+          )}
         </span>
         <button type="button" onClick={() => setShowAdd(true)}
           style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
@@ -1259,9 +1327,10 @@ function PassengersTab({ listId, listType, onData }) {
 
           {/* Grupos por acomodação */}
           {groups.map(({ key, rows }) => {
-            const isUnassigned = key === '(sem acomodação)'
+            const isUnassigned = key === UNASSIGNED
+            const isCancelled  = key === CANCELLED
             // Validação de capacidade — detecta tipo pelo prefixo (ex: "Duplo 2" → tipo "Duplo")
-            const accomType = !isUnassigned
+            const accomType = (!isUnassigned && !isCancelled)
               ? findAccomType(accomTypes, key)
               : null
             const paxCount  = rows.length
@@ -1279,13 +1348,13 @@ function PassengersTab({ listId, listType, onData }) {
             return (
             <div key={key}>
               {/* Header do grupo */}
-              <div onClick={() => { if (!isUnassigned) setEditAccomType(key) }}
-                title={isUnassigned ? undefined : 'Clique para editar o tipo da acomodação'}
+              <div onClick={() => { if (!isUnassigned && !isCancelled) setEditAccomType(key) }}
+                title={(!isUnassigned && !isCancelled) ? 'Clique para editar o tipo da acomodação' : undefined}
                 style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px',
-                cursor: isUnassigned ? 'default' : 'pointer',
-                background: isUnassigned ? '#fffbeb' : '#f1f5f9',
-                borderBottom: `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
-                borderTop:    `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
+                cursor: (!isUnassigned && !isCancelled) ? 'pointer' : 'default',
+                background: isCancelled ? '#fef2f2' : isUnassigned ? '#fffbeb' : '#f1f5f9',
+                borderBottom: `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
+                borderTop:    `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
               }}>
                 {/* Expandir/recolher grupo */}
                 <button type="button" onClick={(ev) => { ev.stopPropagation(); toggleGroup(key) }}
@@ -1302,7 +1371,20 @@ function PassengersTab({ listId, listType, onData }) {
                   title="Selecionar todos deste setor"
                   style={{ width:15, height:15, cursor:'pointer', accentColor:'#1a2d4f', flexShrink:0 }} />
 
-                {isUnassigned ? (
+                {isCancelled ? (
+                  <>
+                    <span style={{ fontSize:14 }}>🚫</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#b91c1c', letterSpacing:'.03em' }}>
+                      Cancelados
+                    </span>
+                    <span style={{ fontSize:11, background:'#fecaca', color:'#7f1d1d', padding:'1px 7px', borderRadius:20, fontWeight:700 }}>
+                      {rows.length} pax
+                    </span>
+                    <span style={{ fontSize:11, color:'#b91c1c', fontStyle:'italic' }}>
+                      Pendentes de devolução de valores
+                    </span>
+                  </>
+                ) : isUnassigned ? (
                   <>
                     <span style={{ fontSize:14 }}>⏳</span>
                     <span style={{ fontSize:12, fontWeight:700, color:'#92400e', letterSpacing:'.03em' }}>
@@ -1359,7 +1441,6 @@ function PassengersTab({ listId, listType, onData }) {
 
               {/* Linhas dos passageiros */}
               {!isCollapsed && rows.map((e, ri) => {
-                const dot = STATUS_DOT[e.enrollment_status] || STATUS_DOT.pendente
                 const nat = (e.passenger_nationality || '').slice(0,3).toUpperCase() || '—'
                 const gen = e.passenger_gender ? e.passenger_gender[0].toUpperCase() : '—'
                 const doc = e.passenger_passport || e.passenger_rg || '—'
@@ -1379,12 +1460,10 @@ function PassengersTab({ listId, listType, onData }) {
                     </div>
 
                     {/* Nº */}
-                    <span style={{ textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8' }}>{seqMap[e.id]}</span>
+                    <span style={{ textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8' }}>{seqMap[e.id] ?? '—'}</span>
 
-                    {/* Status dot */}
-                    <div title={dot.title} onClick={() => toggleStatus(e)} style={{ cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <div style={{ width:10, height:10, borderRadius:'50%', background:dot.bg, boxShadow:`0 0 0 2px ${dot.bg}30` }} />
-                    </div>
+                    {/* Status — clique abre dropdown com Confirmado / Pendente / Cancelado */}
+                    <EnrollmentStatusDot value={e.enrollment_status} onChange={(status) => handleEnrollmentStatus(e, status)} />
 
                     {/* ✈ (modo de transporte) */}
                     {isAereo
