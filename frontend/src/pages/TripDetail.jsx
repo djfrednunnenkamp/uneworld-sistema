@@ -959,15 +959,8 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
 // accomTypes: tipos de acomodação disponíveis
 // onConfirm(roomName): callback ao confirmar
 // onClose: fechar modal
-function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, listId, onConfirm, onClose }) {
+function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, rooms, onConfirm, onClose }) {
   const [saving, setSaving] = useState(false)
-  const [emptyRooms, setEmptyRooms] = useState([])
-
-  useEffect(() => {
-    listsApi.listRooms(listId)
-      .then(r => setEmptyRooms(r.data.filter(room => room.occupant_count === 0).map(room => room.name)))
-      .catch(() => {})
-  }, [listId])
 
   // Monta mapa de quartos existentes: roomName → { type, people[] }
   const roomMap = {}
@@ -981,8 +974,8 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, listId, onConfi
     else if (e.block_agency) roomMap[e.accommodation].people.push(`[${e.block_agency}]`)
   })
   // Acomodações vazias (criadas via "Gerenciar acomodações", sem passageiros ainda)
-  emptyRooms.forEach(name => {
-    if (!roomMap[name]) roomMap[name] = { type: findAccomType(accomTypes, name), people: [] }
+  rooms.filter(room => room.occupant_count === 0).forEach(room => {
+    if (!roomMap[room.name]) roomMap[room.name] = { type: findAccomType(accomTypes, room.name), people: [] }
   })
   const existingRooms = Object.keys(roomMap).sort()
 
@@ -1116,7 +1109,7 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, listId, onConfi
 }
 
 /* ── Modal de edição de tipo da acomodação (não remove passageiros) ── */
-function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onClose }) {
+function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onDelete, onClose }) {
   const navigate    = useNavigate()
   const currentType = findAccomType(accomTypes, roomName)
   const [selectedType, setSelectedType] = useState(currentType?.name || '')
@@ -1252,15 +1245,25 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
           </div>
         </div>
 
-        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
-          <button type="button" onClick={onClose}
-            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            Cancelar
-          </button>
-          <button type="button" onClick={handleSave} disabled={!selectedType || saving}
-            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !selectedType || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !selectedType || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'space-between', alignItems:'center' }}>
+          {onDelete ? (
+            <button type="button" onClick={() => { if (occupants.length === 0) { onDelete(); onClose() } }}
+              disabled={occupants.length > 0}
+              title={occupants.length === 0 ? 'Excluir acomodação' : 'Não é possível excluir — há passageiros nesta acomodação'}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:`1.5px solid ${occupants.length === 0 ? '#fecaca' : '#e2e8f0'}`, background: occupants.length === 0 ? '#fee2e2' : '#f8fafc', color: occupants.length === 0 ? '#dc2626' : '#cbd5e1', fontSize:13, fontWeight:600, cursor: occupants.length === 0 ? 'pointer' : 'default', fontFamily:'inherit' }}>
+              <Ic n="trash" s={13} /> Excluir
+            </button>
+          ) : <span />}
+          <div style={{ display:'flex', gap:8 }}>
+            <button type="button" onClick={onClose}
+              style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              Cancelar
+            </button>
+            <button type="button" onClick={handleSave} disabled={!selectedType || saving}
+              style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !selectedType || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !selectedType || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1512,6 +1515,7 @@ function PassengersTab({ listId, listType, onData }) {
   const navigate = useNavigate()
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
+  const [rooms,      setRooms]      = useState([])
   const [loading,    setLoading]    = useState(true)
   const [showAdd,    setShowAdd]    = useState(false)
   const [confirm,      setConfirm]      = useState(null)
@@ -1549,7 +1553,11 @@ function PassengersTab({ listId, listType, onData }) {
       .finally(() => setLoading(false))
   }, [listId])
 
-  useEffect(() => { load() }, [load])
+  const loadRooms = useCallback(() => {
+    listsApi.listRooms(listId).then(r => setRooms(r.data)).catch(() => {})
+  }, [listId])
+
+  useEffect(() => { load(); loadRooms() }, [load, loadRooms])
   useEffect(() => {
     configApi.accommodations().then(r => setAccomTypes(r.data.results ?? r.data)).catch(() => {})
   }, [])
@@ -1598,6 +1606,16 @@ function PassengersTab({ listId, listType, onData }) {
     setAccomModal(null)
     clearSelect()
     load()
+  }
+
+  const handleDeleteRoom = async (roomId, roomName) => {
+    try {
+      await listsApi.removeRoom(listId, roomId)
+      toast.success(`Acomodação "${roomName}" removida.`)
+      load(); loadRooms()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Erro ao remover acomodação.')
+    }
   }
 
   const handleEnrollmentStatus = async (enrollment, status, note) => {
@@ -1653,10 +1671,16 @@ function PassengersTab({ listId, listType, onData }) {
   const UNASSIGNED = '(sem acomodação)'
   const seen = {}
   const groups = []
+  const roomIdByName = {}
+  rooms.forEach(room => { roomIdByName[room.name] = room.id })
   activeEnrolled.forEach(e => {
     const key = e.accommodation || UNASSIGNED
     if (!seen[key]) { seen[key] = []; groups.push({ key, rows: seen[key] }) }
     seen[key].push(e)
+  })
+  // Acomodações vazias (criadas via "Gerenciar acomodações") aparecem como grupos sem passageiros
+  rooms.forEach(room => {
+    if (!seen[room.name]) { seen[room.name] = []; groups.push({ key: room.name, rows: seen[room.name], roomId: room.id }) }
   })
   groups.sort((a, b) => a.key === UNASSIGNED ? -1 : b.key === UNASSIGNED ? 1 : 0)
   if (cancelledEnrolled.length > 0) groups.push({ key: CANCELLED, rows: cancelledEnrolled })
@@ -1859,6 +1883,17 @@ function PassengersTab({ listId, listType, onData }) {
                       onMouseLeave={e => e.currentTarget.style.color='#94a3b8'}>
                       ✎
                     </button>
+
+                    {roomIdByName[key] != null && (
+                      <button type="button"
+                        onClick={(ev) => { ev.stopPropagation(); paxCount === 0 && handleDeleteRoom(roomIdByName[key], key) }}
+                        title={paxCount === 0 ? 'Excluir acomodação' : 'Não é possível excluir — há passageiros nesta acomodação'}
+                        style={{ marginLeft:'auto', width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'none', background:'transparent', color: paxCount === 0 ? '#cbd5e1' : '#e2e8f0', cursor: paxCount === 0 ? 'pointer' : 'default', flexShrink:0 }}
+                        onMouseEnter={e => { if (paxCount === 0) e.currentTarget.style.color='#dc2626' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = paxCount === 0 ? '#cbd5e1' : '#e2e8f0' }}>
+                        <Ic n="trash" s={13} />
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -1992,7 +2027,7 @@ function PassengersTab({ listId, listType, onData }) {
           enrollmentIds={accomModal.enrollmentIds}
           enrolled={enrolled}
           accomTypes={accomTypes}
-          listId={listId}
+          rooms={rooms}
           onConfirm={handleAccomConfirm}
           onClose={() => setAccomModal(null)}
         />
@@ -2034,6 +2069,7 @@ function PassengersTab({ listId, listType, onData }) {
           enrolled={enrolled}
           listId={listId}
           onSaved={load}
+          onDelete={roomIdByName[editAccomType] != null ? () => handleDeleteRoom(roomIdByName[editAccomType], editAccomType) : null}
           onClose={() => setEditAccomType(null)}
         />
       )}
@@ -2043,7 +2079,7 @@ function PassengersTab({ listId, listType, onData }) {
         <ManageRoomsModal
           listId={listId}
           accomTypes={accomTypes}
-          onChanged={load}
+          onChanged={() => { load(); loadRooms() }}
           onClose={() => setRoomsModal(false)}
         />
       )}
