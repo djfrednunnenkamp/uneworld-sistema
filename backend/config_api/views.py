@@ -874,7 +874,8 @@ class AirlineViewSet(viewsets.ModelViewSet):
         if q:
             from django.db.models import Q
             qs = qs.filter(Q(name__icontains=q) | Q(iata_code__icontains=q))
-        return qs[:80]
+            return qs[:80]
+        return qs
 
     @action(detail=False, methods=['post'])
     def seed(self, request):
