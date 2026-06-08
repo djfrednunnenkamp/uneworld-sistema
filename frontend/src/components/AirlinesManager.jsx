@@ -1,8 +1,105 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
+
+let _cachedCountries = null
+
+function CountryField({ value, onChange }) {
+  const [query,       setQuery]       = useState(value || '')
+  const [open,        setOpen]        = useState(false)
+  const [all,         setAll]         = useState(_cachedCountries || [])
+  const [highlighted, setHighlighted] = useState(-1)
+  const [dropStyle,   setDropStyle]   = useState({})
+  const inputRef = useRef(null)
+
+  useEffect(() => { setQuery(value || '') }, [value])
+
+  useEffect(() => {
+    if (_cachedCountries) return
+    configApi.countries().then(r => {
+      _cachedCountries = r.data
+      setAll(r.data)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const h = e => {
+      if (inputRef.current && !inputRef.current.contains(e.target) &&
+          !e.target.closest('[data-cntry-drop]')) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const openDrop = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect()
+      setDropStyle({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 220) })
+    }
+    setOpen(true)
+    setHighlighted(-1)
+  }
+
+  const filtered = all.filter(c =>
+    c.name.toLowerCase().includes((query || '').toLowerCase())
+  ).slice(0, 80)
+
+  const select = (c) => {
+    onChange(c.name)
+    setQuery(c.name)
+    setOpen(false)
+  }
+
+  const handleKeyDown = (e) => {
+    if (!open) { if (e.key !== 'Tab') openDrop(); return }
+    if (e.key === 'Escape')    { setOpen(false) }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, filtered.length - 1)) }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, -1)) }
+    if (e.key === 'Enter' && filtered.length > 0) {
+      e.preventDefault()
+      select(highlighted >= 0 ? filtered[highlighted] : filtered[0])
+    }
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        value={query}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); if (!open) openDrop() }}
+        onFocus={openDrop}
+        onKeyDown={handleKeyDown}
+        placeholder="Ex: Brasil"
+        style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:6, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }}
+        onBlur={e => { e.target.style.borderColor='#e2e8f0' }}
+      />
+      {open && createPortal(
+        <div data-cntry-drop
+          style={{ position:'fixed', ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:220, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
+          {filtered.length === 0 ? (
+            <p style={{ textAlign:'center', padding:'12px 0', color:'#94a3b8', fontSize:13, margin:0 }}>
+              {all.length === 0 ? 'Carregando…' : 'Nenhum país encontrado.'}
+            </p>
+          ) : filtered.map((c, idx) => (
+            <div key={c.id}
+              data-cntry-drop
+              onMouseDown={e => { e.preventDefault(); select(c) }}
+              onMouseEnter={() => setHighlighted(idx)}
+              style={{ padding:'8px 12px', cursor:'pointer', fontSize:13, color:'#1e293b', borderBottom:'1px solid #f1f5f9', background: idx === highlighted ? '#e8f0fe' : '#fff' }}>
+              {c.name}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
 
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
@@ -46,8 +143,7 @@ function AirlineFormModal({ title, initial, onSave, onClose }) {
             </div>
             <div className="ff" style={{ margin:0 }}>
               <label className="fl">País</label>
-              <input className="fi" value={country} onChange={e => setCountry(e.target.value)}
-                placeholder="Ex: Brasil" />
+              <CountryField value={country} onChange={setCountry} />
             </div>
           </div>
         </div>
