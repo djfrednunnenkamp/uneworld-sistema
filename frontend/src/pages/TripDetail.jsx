@@ -1278,13 +1278,16 @@ function PassengersTab({ listId, listType, onData }) {
             return (
             <div key={key}>
               {/* Header do grupo */}
-              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px',
+              <div onClick={() => { if (!isUnassigned) setEditAccomType(key) }}
+                title={isUnassigned ? undefined : 'Clique para editar o tipo da acomodação'}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px',
+                cursor: isUnassigned ? 'default' : 'pointer',
                 background: isUnassigned ? '#fffbeb' : '#f1f5f9',
                 borderBottom: `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
                 borderTop:    `1px solid ${isUnassigned ? '#fde68a' : '#e2e8f0'}`,
               }}>
                 {/* Expandir/recolher grupo */}
-                <button type="button" onClick={() => toggleGroup(key)}
+                <button type="button" onClick={(ev) => { ev.stopPropagation(); toggleGroup(key) }}
                   title={isCollapsed ? 'Expandir' : 'Recolher'}
                   style={{ width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'none', background:'transparent', color:'#64748b', cursor:'pointer', fontSize:11, flexShrink:0, transition:'transform .15s', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }}
                   onMouseEnter={ev => ev.currentTarget.style.color='#1a2d4f'}
@@ -1294,6 +1297,7 @@ function PassengersTab({ listId, listType, onData }) {
 
                 {/* Selecionar todos do setor */}
                 <input type="checkbox" checked={groupAllSel} onChange={() => toggleGroupSelect(rows)}
+                  onClick={ev => ev.stopPropagation()}
                   title="Selecionar todos deste setor"
                   style={{ width:15, height:15, cursor:'pointer', accentColor:'#1a2d4f', flexShrink:0 }} />
 
@@ -1341,7 +1345,7 @@ function PassengersTab({ listId, listType, onData }) {
                     )}
 
                     <button type="button"
-                      onClick={() => setEditAccomType(key)}
+                      onClick={(ev) => { ev.stopPropagation(); setEditAccomType(key) }}
                       title="Editar tipo da acomodação"
                       style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:13, padding:0, lineHeight:1 }}
                       onMouseEnter={e => e.currentTarget.style.color='#1a2d4f'}
