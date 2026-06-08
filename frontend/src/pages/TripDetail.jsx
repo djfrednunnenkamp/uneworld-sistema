@@ -949,11 +949,12 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
                   return (
                     <div key={e.id}
                       onClick={() => clickable && openPreview(e)}
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 4px', borderRadius:6, cursor: clickable ? 'pointer' : 'default', transition:'background .1s' }}
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 4px', borderRadius:6, minWidth:0, cursor: clickable ? 'pointer' : 'default', transition:'background .1s' }}
                       onMouseEnter={ev => { if (clickable) ev.currentTarget.style.background='#e2e8f0' }}
                       onMouseLeave={ev => { ev.currentTarget.style.background='transparent' }}>
-                      <span style={{ color:'#94a3b8', fontSize:12 }}>•</span>
-                      <span style={{ fontSize:13, color: clickable ? '#1a2d4f' : '#1e293b', fontWeight: clickable ? 600 : 400, textDecoration: clickable ? 'underline' : 'none', textDecorationStyle:'dotted', textUnderlineOffset:3 }}>
+                      <span style={{ color:'#94a3b8', fontSize:12, flexShrink:0 }}>•</span>
+                      <span title={isLoading ? undefined : name}
+                        style={{ fontSize:13, color: clickable ? '#1a2d4f' : '#1e293b', fontWeight: clickable ? 600 : 400, textDecoration: clickable ? 'underline' : 'none', textDecorationStyle:'dotted', textUnderlineOffset:3, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {isLoading ? 'Carregando…' : name}
                       </span>
                     </div>
