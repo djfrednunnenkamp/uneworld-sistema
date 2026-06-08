@@ -1750,15 +1750,18 @@ function PassengersTab({ listId, listType, onData }) {
                           <Ic n="users" s={12} />
                         </button>
                       )}
-                      {/* Acomodação — disponível para todos */}
-                      <button type="button"
-                        onClick={() => setAccomModal({ enrollmentIds: [e.id] })}
-                        title={isUnassigned ? 'Adicionar à acomodação' : 'Alterar acomodação'}
-                        style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border: isUnassigned ? '1.5px solid #f59e0b' : '1px solid #e2e8f0', background: isUnassigned ? '#fffbeb' : '#fff', color: isUnassigned ? '#92400e' : '#64748b', fontSize:11, cursor:'pointer' }}
-                        onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f'; if (isUnassigned) ev.currentTarget.style.background='#fde68a' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.borderColor= isUnassigned ? '#f59e0b' : '#e2e8f0'; ev.currentTarget.style.color= isUnassigned ? '#92400e' : '#64748b'; if (isUnassigned) ev.currentTarget.style.background='#fffbeb' }}>
-                        🛏
-                      </button>
+                      {/* Acomodação — só aparece enquanto o passageiro ainda não tem quarto;
+                          depois de acomodado, a troca passa a ser feita por "Trocar de quarto" no popup de ações */}
+                      {isUnassigned && (
+                        <button type="button"
+                          onClick={() => setAccomModal({ enrollmentIds: [e.id] })}
+                          title="Adicionar à acomodação"
+                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #f59e0b', background:'#fffbeb', color:'#92400e', fontSize:11, cursor:'pointer' }}
+                          onMouseEnter={ev => { ev.currentTarget.style.borderColor='#1a2d4f'; ev.currentTarget.style.color='#1a2d4f'; ev.currentTarget.style.background='#fde68a' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.borderColor='#f59e0b'; ev.currentTarget.style.color='#92400e'; ev.currentTarget.style.background='#fffbeb' }}>
+                          🛏
+                        </button>
+                      )}
                       <button type="button"
                         onClick={() => setConfirm({ id:e.id, name: e.passenger_name || e.block_agency })}
                         title="Remover"
