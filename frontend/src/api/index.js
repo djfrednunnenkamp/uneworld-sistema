@@ -162,6 +162,7 @@ export const configApi = {
   addAirport:     (data)   => api.post('/config/airports/', data),
   updateAirport:  (id, d)  => api.patch(`/config/airports/${id}/`, d),
   delAirport:     (id)     => api.delete(`/config/airports/${id}/`),
+  seedAirports:   ()       => api.post('/config/airports/seed/'),
   // Tipos de Acomodação
   accommodations:       ()            => api.get('/config/accommodations/'),
   addAccommodation:     (data)        => api.post('/config/accommodations/', data),

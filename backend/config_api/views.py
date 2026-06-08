@@ -811,3 +811,19 @@ class AirportViewSet(viewsets.ModelViewSet):
                 Q(name__icontains=q) | Q(iata_code__icontains=q) | Q(city__icontains=q)
             )
         return qs
+
+    @action(detail=False, methods=['post'])
+    def seed(self, request):
+        """Importa aeroportos mundiais do OurAirports em background."""
+        import threading
+        from django.core.management import call_command
+
+        def run():
+            try:
+                call_command('seed_airports')
+            except Exception:
+                pass
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        return Response({'status': 'Importação iniciada. Pode levar alguns segundos.'}, status=status.HTTP_202_ACCEPTED)

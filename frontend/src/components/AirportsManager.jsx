@@ -110,7 +110,22 @@ function Row({ item, onEdit, onDelete }) {
 export default function AirportsManager({ items, loading, onRefresh }) {
   const [search,   setSearch]   = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [seeding,  setSeeding]  = useState(false)
   const fileRef = useRef(null)
+
+  const handleSeed = async () => {
+    if (!window.confirm('Importar todos os aeroportos do mundo inteiro via OurAirports? Isso pode levar alguns segundos.')) return
+    setSeeding(true)
+    try {
+      await configApi.seedAirports()
+      toast.success('Importação iniciada! Aguarde alguns segundos e recarregue a lista.', { duration: 5000 })
+      setTimeout(() => { onRefresh() }, 4000)
+    } catch {
+      toast.error('Erro ao iniciar importação.')
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   const filtered = items.filter(i =>
     i.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -203,6 +218,9 @@ export default function AirportsManager({ items, loading, onRefresh }) {
         <button style={btnCsv('#059669')} onClick={exportCsv} title="Exportar como CSV">⬇ Exportar</button>
         <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">⬆ Importar</button>
         <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />
+        <button style={btnCsv('#7c3aed')} onClick={handleSeed} disabled={seeding} title="Importar todos os aeroportos do mundo via OurAirports">
+          {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
+        </button>
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
