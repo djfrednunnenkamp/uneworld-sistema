@@ -89,7 +89,10 @@ class PassengerListSerializer(serializers.ModelSerializer):
     enrolled_count      = serializers.IntegerField(read_only=True)
     start_date_br       = serializers.SerializerMethodField()
     end_date_br         = serializers.SerializerMethodField()
-    default_airport_data = serializers.SerializerMethodField()
+    default_airport_data   = serializers.SerializerMethodField()
+    departure_country_data = serializers.SerializerMethodField()
+    departure_state_data   = serializers.SerializerMethodField()
+    departure_city_data    = serializers.SerializerMethodField()
 
     class Meta:
         model  = PassengerList
@@ -100,7 +103,11 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
             'roteiros', 'roteiros_data',
-            'required_documents', 'default_airport', 'default_airport_data',
+            'required_documents',
+            'default_airport', 'default_airport_data',
+            'departure_country', 'departure_country_data',
+            'departure_state',   'departure_state_data',
+            'departure_city',    'departure_city_data',
             'status', 'notes',
             'enrolled_count', 'created_at', 'updated_at',
         ]
@@ -109,6 +116,24 @@ class PassengerListSerializer(serializers.ModelSerializer):
         if obj.default_airport_id:
             a = obj.default_airport
             return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
+        return None
+
+    def get_departure_country_data(self, obj):
+        if obj.departure_country_id:
+            c = obj.departure_country
+            return {'id': c.id, 'name': c.name}
+        return None
+
+    def get_departure_state_data(self, obj):
+        if obj.departure_state_id:
+            s = obj.departure_state
+            return {'id': s.id, 'name': s.name}
+        return None
+
+    def get_departure_city_data(self, obj):
+        if obj.departure_city_id:
+            c = obj.departure_city
+            return {'id': c.id, 'name': c.name}
         return None
 
     def get_start_date_br(self, obj):

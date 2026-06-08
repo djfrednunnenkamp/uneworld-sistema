@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { listsApi, configApi } from '../api'
 import FormSelect from './FormSelect'
 import DatePicker from './DatePicker'
+import AirportPicker from './AirportPicker'
 
 /* ── Opções ── */
 const TYPE_OPTS = [
@@ -20,6 +21,8 @@ const EMPTY = {
   start_date: '', end_date: '',
   suppliers: [], additionals: [], roteiros: [],
   required_documents: [], status: 'aberta', notes: '',
+  default_airport: null,
+  departure_country: null, departure_state: null, departure_city: null,
 }
 
 
@@ -249,6 +252,10 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     additionals:        (initial.additionals || []).map(a => typeof a === 'object' ? a.id : a),
     roteiros:           (initial.roteiros    || []).map(r => typeof r === 'object' ? r.id : r),
     required_documents: Array.isArray(initial.required_documents) ? initial.required_documents : [],
+    default_airport:    initial.default_airport    || null,
+    departure_country:  initial.departure_country  || null,
+    departure_state:    initial.departure_state    || null,
+    departure_city:     initial.departure_city     || null,
   } : { ...EMPTY })
   const [saving,      setSaving]      = useState(false)
   const [suppliers,   setSuppliers]   = useState([])
@@ -256,12 +263,31 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   const [roteiros,    setRoteiros]    = useState([])
   const [categories,  setCategories]  = useState([])
 
+  // Dados para exibição do aeroporto e da localização terrestre
+  const [airportData,  setAirportData]  = useState(initial?.default_airport_data  || null)
+  const [countries,    setCountries]    = useState([])
+  const [states,       setStates]       = useState([])
+  const [cities,       setCities]       = useState([])
+
   useEffect(() => {
     listsApi.suppliers().then(r => setSuppliers(r.data.results ?? r.data)).catch(() => {})
     listsApi.listAdditionals().then(r => setAdditionals(r.data.results ?? r.data)).catch(() => {})
     listsApi.roteiros().then(r => setRoteiros(r.data.results ?? r.data)).catch(() => {})
     configApi.listCategories().then(r => setCategories(r.data.results ?? r.data)).catch(() => {})
+    configApi.countries().then(r => setCountries(r.data.results ?? r.data)).catch(() => {})
   }, [])
+
+  // Carrega estados quando o país muda
+  useEffect(() => {
+    if (!form.departure_country) { setStates([]); setCities([]); return }
+    configApi.states(form.departure_country).then(r => setStates(r.data.results ?? r.data)).catch(() => {})
+  }, [form.departure_country])
+
+  // Carrega cidades quando o estado muda
+  useEffect(() => {
+    if (!form.departure_state) { setCities([]); return }
+    configApi.cities(form.departure_state).then(r => setCities(r.data.results ?? r.data)).catch(() => {})
+  }, [form.departure_state])
 
   const catOpts = categories.map(c => ({ value: c.name, label: c.name }))
 
@@ -314,6 +340,10 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
         end_date:             form.end_date   || null,
         block_capacity:       Number(form.block_capacity)       || 0,
         total_accommodations: Number(form.total_accommodations) || 0,
+        // limpa campos do tipo oposto
+        ...(form.list_type === 'aereo'
+          ? { departure_country: null, departure_state: null, departure_city: null }
+          : { default_airport: null }),
       }
       const r = isEdit
         ? await listsApi.update(initial.id, payload)
@@ -369,6 +399,57 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
                 <FormSelect value={form.category} onChange={v => setV('category', v)} options={catOpts} />
               </div>
             </div>
+
+            {/* Aeroporto base (aéreo) ou cidade de saída (terrestre) */}
+            {form.list_type === 'aereo' ? (
+              <div>
+                <label style={lbl}>Aeroporto de saída padrão</label>
+                <AirportPicker
+                  value={airportData}
+                  onChange={a => { setAirportData(a); setV('default_airport', a?.id ?? null) }}
+                  placeholder="Buscar aeroporto…"
+                />
+                {airportData && (
+                  <button type="button" onClick={() => { setAirportData(null); setV('default_airport', null) }}
+                    style={{ marginTop:5, fontSize:11, color:'#94a3b8', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline' }}>
+                    ✕ Remover aeroporto padrão
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label style={lbl}>Cidade de saída</label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+                  <div>
+                    <label style={{ ...lbl, marginTop:0, fontSize:10 }}>País</label>
+                    <FormSelect
+                      value={form.departure_country ?? ''}
+                      onChange={v => { setV('departure_country', v || null); setV('departure_state', null); setV('departure_city', null) }}
+                      options={[{ value: '', label: 'Selecionar…' }, ...countries.map(c => ({ value: c.id, label: c.name }))]}
+                      placeholder="País…"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, marginTop:0, fontSize:10 }}>Estado</label>
+                    <FormSelect
+                      value={form.departure_state ?? ''}
+                      onChange={v => { setV('departure_state', v || null); setV('departure_city', null) }}
+                      options={[{ value: '', label: form.departure_country ? 'Selecionar…' : '—' }, ...states.map(s => ({ value: s.id, label: s.name }))]}
+                      placeholder="Estado…"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, marginTop:0, fontSize:10 }}>Cidade</label>
+                    <FormSelect
+                      value={form.departure_city ?? ''}
+                      onChange={v => setV('departure_city', v || null)}
+                      options={[{ value: '', label: form.departure_state ? 'Selecionar…' : '—' }, ...cities.map(c => ({ value: c.id, label: c.name }))]}
+                      placeholder="Cidade…"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Capacidade + Acomodações */}
             <div style={row2}>
