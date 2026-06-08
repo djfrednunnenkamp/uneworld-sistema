@@ -328,15 +328,15 @@ function AirportPicker({ value, onChange, placeholder }) {
 /* ── Modal de passagem aérea ── */
 function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
-  const hasConnection = !!enrollment.departure_airport_data  // aeroporto individual diferente do padrão
+  const hasConnection = !!enrollment.departure_airport_data
 
-  const [status,     setStatus]     = useState(enrollment.ticket_status      || 'nao_emitida')
-  const [number,     setNumber]     = useState(enrollment.ticket_number      || '')
-  const [seat,       setSeat]       = useState(enrollment.ticket_seat        || '')
-  const [cStatus,    setCStatus]    = useState(enrollment.connection_ticket_status  || 'nao_emitida')
-  const [cNumber,    setCNumber]    = useState(enrollment.connection_ticket_number  || '')
-  const [cSeat,      setCSeat]      = useState(enrollment.connection_ticket_seat    || '')
-  const [saving,     setSaving]     = useState(false)
+  const [status,  setStatus]  = useState(enrollment.ticket_status             || 'nao_emitida')
+  const [number,  setNumber]  = useState(enrollment.ticket_number             || '')
+  const [seat,    setSeat]    = useState(enrollment.ticket_seat               || '')
+  const [cStatus, setCStatus] = useState(enrollment.connection_ticket_status  || 'nao_emitida')
+  const [cNumber, setCNumber] = useState(enrollment.connection_ticket_number  || '')
+  const [cSeat,   setCSeat]   = useState(enrollment.connection_ticket_seat    || '')
+  const [saving,  setSaving]  = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
@@ -345,62 +345,66 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
         ticket_status:  status,
         ticket_number:  status === 'nao_emitida' ? '' : number,
         ticket_seat:    status === 'via_bloqueio' ? seat : '',
-        connection_ticket_status:  hasConnection ? cStatus  : 'nao_emitida',
-        connection_ticket_number:  hasConnection && cStatus !== 'nao_emitida' ? cNumber : '',
-        connection_ticket_seat:    hasConnection && cStatus === 'via_bloqueio' ? cSeat : '',
+        connection_ticket_status: hasConnection ? cStatus : 'nao_emitida',
+        connection_ticket_number: hasConnection && cStatus !== 'nao_emitida' ? cNumber : '',
+        connection_ticket_seat:   hasConnection && cStatus === 'via_bloqueio' ? cSeat : '',
       })
-      toast.success('Informações de passagem salvas.')
+      toast.success('Passagem atualizada.')
       onSaved(); onClose()
     } catch { toast.error('Erro ao salvar.') }
     finally { setSaving(false) }
   }
 
-  const OPTS = [
-    { value: 'nao_emitida',   label: 'Não emitida',           icon: '—'  },
-    { value: 'via_bloqueio',  label: 'Emitida via bloqueio',  icon: '🔒' },
-    { value: 'fora_bloqueio', label: 'Emitida fora do bloqueio', icon: '✈' },
-  ]
+  const fmtAp = ap => ap ? (ap.iata_code ? `${ap.iata_code} · ${ap.city || ap.name}` : ap.name) : ''
 
-  const fmtAp = ap => ap ? (ap.iata_code ? `${ap.iata_code} — ${ap.city || ap.name}` : ap.name) : ''
+  // Cores por status
+  const COLORS = {
+    nao_emitida:   { fg:'#94a3b8', bg:'#f8fafc',  border:'#e2e8f0' },
+    via_bloqueio:  { fg:'#b45309', bg:'#fffbeb',  border:'#fde68a' },
+    fora_bloqueio: { fg:'rgb(147,66,171)', bg:'#faf5ff', border:'#e9d5ff' },
+  }
+
+  const StatusPicker = ({ value, onChange }) => (
+    <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden' }}>
+      {[
+        { v:'nao_emitida',   label:'Não emitida'          },
+        { v:'via_bloqueio',  label:'Via bloqueio'         },
+        { v:'fora_bloqueio', label:'Fora do bloqueio'     },
+      ].map(({ v, label }, i, arr) => {
+        const sel = value === v
+        const c   = COLORS[v]
+        return (
+          <button key={v} type="button" onClick={() => onChange(v)}
+            style={{
+              flex:1, padding:'8px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
+              fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
+              borderRight: i < arr.length-1 ? '1px solid #e2e8f0' : 'none',
+              background:  sel ? c.bg  : '#fff',
+              color:       sel ? c.fg  : '#94a3b8',
+              boxShadow:   sel ? `inset 0 -2px 0 ${c.fg}` : 'none',
+            }}>
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   const SegmentFields = ({ segStatus, onSegStatus, segNumber, onSegNumber, segSeat, onSegSeat }) => (
-    <div style={{ marginTop: 12 }}>
-      {/* Seletor de status */}
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-        {OPTS.map(o => (
-          <button key={o.value} type="button" onClick={() => onSegStatus(o.value)}
-            style={{
-              flex:1, padding:'9px 6px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
-              fontSize:12, fontWeight:600, textAlign:'center', transition:'all .12s',
-              border:      segStatus === o.value ? '2px solid #1a2d4f' : '1.5px solid #e2e8f0',
-              background:  segStatus === o.value ? '#eff6ff' : '#fff',
-              color:       segStatus === o.value ? '#1a2d4f' : '#64748b',
-            }}>
-            <div style={{ fontSize:16, marginBottom:3 }}>{o.icon}</div>
-            <div style={{ fontSize:11, lineHeight:1.2 }}>{o.label}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Campos condicionais */}
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <StatusPicker value={segStatus} onChange={onSegStatus} />
       {segStatus !== 'nao_emitida' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          <div>
-            <label style={LBL}>Número da reserva</label>
-            <input value={segNumber} onChange={e => onSegNumber(e.target.value)}
-              placeholder="Ex: ABC123"
-              style={{ width:'100%', boxSizing:'border-box', padding:'8px 11px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }}
-              onFocus={e => e.target.style.borderColor='#1a2d4f'}
-              onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+        <div style={{ display:'grid', gridTemplateColumns: segStatus === 'via_bloqueio' ? '1fr 100px' : '1fr', gap:10 }}>
+          <div className="ff" style={{ margin:0 }}>
+            <label className="fl">Número da reserva</label>
+            <input className="fi" value={segNumber} onChange={e => onSegNumber(e.target.value)}
+              placeholder="Ex: ABC123" />
           </div>
           {segStatus === 'via_bloqueio' && (
-            <div>
-              <label style={LBL}>Assento</label>
-              <input value={segSeat} onChange={e => onSegSeat(e.target.value.toUpperCase())}
-                placeholder="Ex: 12A"
-                style={{ width:'100%', boxSizing:'border-box', padding:'8px 11px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff', textTransform:'uppercase' }}
-                onFocus={e => e.target.style.borderColor='#1a2d4f'}
-                onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Assento</label>
+              <input className="fi" value={segSeat} onChange={e => onSegSeat(e.target.value.toUpperCase())}
+                placeholder="12A" style={{ textTransform:'uppercase' }} />
             </div>
           )}
         </div>
@@ -409,44 +413,41 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
   )
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:480, maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+    <div className="overlay" style={{ zIndex:750 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="mbox" style={{ maxWidth:460 }}>
 
-        {/* Cabeçalho */}
-        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <div className="mhead">
           <div style={{ minWidth:0 }}>
-            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Passagem aérea</p>
-            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+            <span className="mtitle">Passagem aérea</span>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
           </div>
-          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2, flexShrink:0 }}>×</button>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
         </div>
 
-        {/* Corpo */}
-        <div style={{ flex:1, overflowY:'auto', padding:'18px 22px' }}>
+        <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:0 }}>
 
-          {/* Trecho principal */}
-          <div style={{ marginBottom: hasConnection ? 24 : 0 }}>
-            {hasConnection && (
-              <div style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>
-                ✈ Voo principal
-                {defaultAirport && <span style={{ fontWeight:400, textTransform:'none', marginLeft:6, color:'#94a3b8' }}>({fmtAp(defaultAirport)})</span>}
-              </div>
-            )}
-            <SegmentFields
-              segStatus={status}   onSegStatus={setStatus}
-              segNumber={number}   onSegNumber={setNumber}
-              segSeat={seat}       onSegSeat={setSeat}
-            />
-          </div>
+          {/* Voo principal */}
+          {hasConnection && (
+            <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
+              Voo principal
+              {defaultAirport && <span style={{ fontWeight:400, textTransform:'none', marginLeft:6, color:'#94a3b8' }}>— {fmtAp(defaultAirport)}</span>}
+            </p>
+          )}
+          <SegmentFields
+            segStatus={status}  onSegStatus={setStatus}
+            segNumber={number}  onSegNumber={setNumber}
+            segSeat={seat}      onSegSeat={setSeat}
+          />
 
           {/* Trecho de conexão */}
           {hasConnection && (
-            <div style={{ borderTop:'1px solid #e2e8f0', paddingTop:20 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>
-                ✈ Trecho de conexão
-                <span style={{ fontWeight:400, textTransform:'none', marginLeft:6, color:'#94a3b8' }}>({fmtAp(enrollment.departure_airport_data)} → {fmtAp(defaultAirport)})</span>
-              </div>
+            <div style={{ marginTop:20, paddingTop:20, borderTop:'1px solid #f1f5f9' }}>
+              <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
+                Conexão
+                <span style={{ fontWeight:400, textTransform:'none', marginLeft:6, color:'#94a3b8' }}>
+                  — {fmtAp(enrollment.departure_airport_data)} → {fmtAp(defaultAirport)}
+                </span>
+              </p>
               <SegmentFields
                 segStatus={cStatus}  onSegStatus={setCStatus}
                 segNumber={cNumber}  onSegNumber={setCNumber}
@@ -456,14 +457,9 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           )}
         </div>
 
-        {/* Rodapé */}
-        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end', flexShrink:0 }}>
-          <button type="button" onClick={onClose}
-            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            Cancelar
-          </button>
-          <button type="button" onClick={handleSave} disabled={saving}
-            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
