@@ -263,6 +263,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             departure_time=data.get('departure_time') or None,
             arrival_date=data.get('arrival_date') or None,
             arrival_time=data.get('arrival_time') or None,
+            blocked_seats=data.get('blocked_seats') or None,
             origin_airport_id=data.get('origin_airport') or None,
             destination_airport_id=data.get('destination_airport') or None,
         )
@@ -287,6 +288,8 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         for field in ('departure_date', 'departure_time', 'arrival_date', 'arrival_time'):
             if field in request.data:
                 setattr(leg, field, request.data[field] or None)
+        if 'blocked_seats' in request.data:
+            leg.blocked_seats = request.data['blocked_seats'] or None
         for fk in ('origin_airport', 'destination_airport'):
             if fk in request.data:
                 setattr(leg, f'{fk}_id', request.data[fk] or None)

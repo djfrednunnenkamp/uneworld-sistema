@@ -251,6 +251,7 @@ class FlightLegSerializer(serializers.ModelSerializer):
             'flight_number', 'airline',
             'departure_date', 'departure_time',
             'arrival_date',   'arrival_time',
+            'blocked_seats',
         ]
 
     def _ap(self, obj):

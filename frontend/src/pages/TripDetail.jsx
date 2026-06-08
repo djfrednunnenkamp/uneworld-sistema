@@ -2773,9 +2773,10 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose }) {
   const [airline,     setAirline]     = useState(initial?.airline || '')
   const [date,        setDate]        = useState(initial?.departure_date || prefill?.departure_date || '')
   const [time,        setTime]        = useState(initial?.departure_time?.slice(0,5) || prefill?.departure_time || '')
-  const [arrivalDate, setArrivalDate] = useState(initial?.arrival_date || '')
-  const [arrivalTime, setArrivalTime] = useState(initial?.arrival_time?.slice(0,5) || '')
-  const [saving,      setSaving]      = useState(false)
+  const [arrivalDate,    setArrivalDate]    = useState(initial?.arrival_date || '')
+  const [arrivalTime,    setArrivalTime]    = useState(initial?.arrival_time?.slice(0,5) || '')
+  const [blockedSeats,   setBlockedSeats]   = useState(initial?.blocked_seats ?? '')
+  const [saving,         setSaving]         = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
@@ -2790,6 +2791,7 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose }) {
         departure_time:      time        || null,
         arrival_date:        arrivalDate || null,
         arrival_time:        arrivalTime || null,
+        blocked_seats:       blockedSeats !== '' ? Number(blockedSeats) : null,
         order:               initial?.order ?? 0,
       })
       onClose()
@@ -2842,7 +2844,7 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose }) {
             </div>
           </div>
           {/* Chegada */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10, marginBottom:14 }}>
             <div className="ff" style={{ margin:0 }}>
               <label className="fl">Data de chegada</label>
               <DatePicker fixed value={arrivalDate} onChange={setArrivalDate} />
@@ -2851,6 +2853,13 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose }) {
               <label className="fl">Horário chegada</label>
               <input className="fi" type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)} />
             </div>
+          </div>
+          {/* Lugares bloqueados */}
+          <div className="ff" style={{ margin:0 }}>
+            <label className="fl">Lugares bloqueados</label>
+            <input className="fi" type="number" min="0" max="999" value={blockedSeats}
+              onChange={e => setBlockedSeats(e.target.value)}
+              placeholder="Qtd. de assentos reservados no bloqueio" />
           </div>
         </div>
         <div className="mfoot">
@@ -2954,6 +2963,11 @@ function FlightsTab({ listId, list }) {
         {(leg.departure_date || leg.departure_time) && (
           <span style={{ fontSize:12, color:'#94a3b8' }}>
             {[fmtDate(leg.departure_date), fmtTime(leg.departure_time)].filter(Boolean).join(' · ')}
+          </span>
+        )}
+        {leg.blocked_seats != null && (
+          <span style={{ fontSize:11, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', border:'1px solid #bfdbfe', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:4 }}>
+            🔒 {leg.blocked_seats} lugares
           </span>
         )}
         <button type="button" onClick={() => setLegModal({ direction: leg.direction, initial: leg })}
