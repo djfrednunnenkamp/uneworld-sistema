@@ -3440,7 +3440,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                     {/* Agência */}
                     <span onClick={() => copy(e.agency_name)} title="Clique para copiar"
                       style={{ fontSize:12, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
-                      {e.is_provisional ? '—' : (e.agency_name || '—')}
+                      {(e.is_provisional && !e.agency) ? '—' : (e.agency_name || '—')}
                     </span>
 
                     {/* Ações */}
