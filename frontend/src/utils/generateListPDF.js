@@ -182,25 +182,40 @@ export async function generateListPDF(list, enrollments, opts) {
     return y
   }
 
-  // Hooks para desenhar o bolo de aniversario numa coluna especifica
+  // Hooks para desenhar bolo antes e depois da data, na mesma linha, com cor laranja
   function birthdayHooks(birthdaySet, colIndex) {
     if (!cakeImg || birthdaySet.size === 0) return {}
-    const ICON = 5.5  // tamanho do icone em mm
+    const ICON   = 4        // mm — icone pequeno
+    const GAP    = 1        // mm — espaco entre icone e texto
+    const PAD_L  = 2        // margem esquerda da celula
+    const ORANGE = [220, 80, 20]
+
     return {
+      // Desloca o texto para a direita (espaco pro bolo esquerdo) e aplica cor laranja
       didParseCell: data => {
         if (data.section === 'body' && birthdaySet.has(data.row.index) && data.column.index === colIndex) {
-          data.cell.styles.cellPadding = { top: 3, right: 4, bottom: 3, left: ICON + 5 }
+          data.cell.styles.textColor    = ORANGE
+          data.cell.styles.cellPadding  = { top: 3, right: PAD_L, bottom: 3, left: PAD_L + ICON + GAP }
+          data.cell.styles.overflow     = 'hidden'
         }
       },
+      // Depois que o texto ja foi desenhado (laranja, com offset): pinta o bolo esquerdo
+      // e, se couber, o bolo direito logo apos o texto
       didDrawCell: data => {
+        if (!cakeImg) return
         if (data.section === 'body' && birthdaySet.has(data.row.index) && data.column.index === colIndex) {
-          try {
-            doc.addImage(cakeImg, 'PNG',
-              data.cell.x + 2,
-              data.cell.y + (data.cell.height - ICON) / 2,
-              ICON, ICON
-            )
-          } catch {}
+          const midY    = data.cell.y + data.cell.height / 2
+          const leftX   = data.cell.x + PAD_L
+          // bolo esquerdo
+          try { doc.addImage(cakeImg, 'PNG', leftX, midY - ICON / 2, ICON, ICON) } catch {}
+          // bolo direito — posiciona apos o texto
+          const dateStr = String(data.cell.raw || '')
+          doc.setFontSize(8)
+          const tw      = doc.getTextWidth(dateStr)
+          const rightX  = leftX + ICON + GAP + tw + GAP
+          if (rightX + ICON <= data.cell.x + data.cell.width - PAD_L) {
+            try { doc.addImage(cakeImg, 'PNG', rightX, midY - ICON / 2, ICON, ICON) } catch {}
+          }
         }
       },
     }
@@ -228,11 +243,11 @@ export async function generateListPDF(list, enrollments, opts) {
       e.agency_name || '',
     ])
 
-    // N(7)+Bloq(22)+Nome(62)+Apto(26)+Nasc(22)+Nac(16)+Gen(16)+Pass(24)+CPF(28)+Ag(46)=269
+    // N(7)+Bloq(22)+Nome(58)+Apto(26)+Nasc(28)+Nac(16)+Gen(16)+Pass(24)+CPF(28)+Ag(44)=269
     applyTableStyle(doc, y,
       ['N', 'Bloqueio aereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
       body,
-      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:62}, 3:{cellWidth:26}, 4:{cellWidth:22}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:46} },
+      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:44} },
       birthdayHooks(bdaySet, 4)   // Nascimento = coluna 4
     )
   }
@@ -252,11 +267,11 @@ export async function generateListPDF(list, enrollments, opts) {
       fmtDate(e.passenger_passport_expiry),
       e.passenger_cpf || '',
     ])
-    // N(7)+Nome(80)+Nasc(22)+Nac(16)+Gen(16)+Pass(28)+Exp(22)+Val(22)+CPF(56)=269
+    // N(7)+Nome(76)+Nasc(28)+Nac(16)+Gen(16)+Pass(28)+Exp(22)+Val(22)+CPF(54)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'Expedicao', 'Validade', 'CPF'],
       body,
-      { 0:{cellWidth:7}, 1:{cellWidth:80}, 2:{cellWidth:22}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:56} },
+      { 0:{cellWidth:7}, 1:{cellWidth:76}, 2:{cellWidth:28}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:54} },
       birthdayHooks(bdaySet, 2)   // Nascimento = coluna 2
     )
   }
