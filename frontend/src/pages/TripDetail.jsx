@@ -731,15 +731,51 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
               <Field label="E-mail" field="email" type="email" />
               <Field label="Nacionalidade" field="nationality" />
 
-              {/* RG */}
-              <Field label="RG" field="rg" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={LBL}>Expedição do RG</label>
-                  <DatePicker value={form?.rg_issue_date || ''} onChange={v => upd('rg_issue_date', v)} placeholder="DD/MM/AAAA" />
-                </div>
-                <Field label="Órgão expedidor do RG" field="rg_issuer" />
-              </div>
+              {/* RGs registrados nos documentos */}
+              {(() => {
+                const rgs = docs.filter(d => d.doc_type === 'rg')
+                const fmtDate = (iso) => {
+                  if (!iso) return null
+                  const [y, m, d] = iso.split('-')
+                  return `${d}/${m}/${y}`
+                }
+                return (
+                  <div>
+                    <label style={LBL}>RG</label>
+                    {rgs.length === 0
+                      ? <p style={{ fontSize: 13, color: '#94a3b8', margin: '8px 0 0' }}>Nenhum RG cadastrado nos documentos.</p>
+                      : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                          {rgs.map(r => (
+                            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff' }}>
+                              {/* Thumbnail */}
+                              <div style={{ width: 52, height: 36, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
+                                {r.preview_url
+                                  ? <img src={r.preview_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  : <span style={{ fontSize: 20 }}>🪪</span>
+                                }
+                              </div>
+                              {/* Info */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                                    {r.doc_number || '—'}
+                                  </span>
+                                  {r.issued_by && (
+                                    <span style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4 }}>{r.issued_by}</span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                  {fmtDate(r.issued_date) ? `Emissão: ${fmtDate(r.issued_date)}` : 'Sem data de emissão'}
+                                  {fmtDate(r.expiry_date) ? ` · Validade: ${fmtDate(r.expiry_date)}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                    }
+                  </div>
+                )
+              })()}
 
               {/* Passaportes registrados — lista com seleção para a viagem */}
               {(() => {
