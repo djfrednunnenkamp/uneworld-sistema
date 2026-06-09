@@ -3058,9 +3058,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const filterQ = filterSearch.toLowerCase().trim()
   const matchesFilter = e =>
     !filterQ ||
-    (e.passenger_name  || '').toLowerCase().includes(filterQ) ||
-    (e.block_agency    || '').toLowerCase().includes(filterQ) ||
-    (e.agency_name     || '').toLowerCase().includes(filterQ)
+    (e.passenger_name || '').toLowerCase().includes(filterQ) ||
+    (e.block_agency   || '').toLowerCase().includes(filterQ)
   const activeEnrolled    = enrolled.filter(e => e.enrollment_status !== 'cancelado' && matchesFilter(e))
   const cancelledEnrolled = enrolled.filter(e => e.enrollment_status === 'cancelado'  && matchesFilter(e))
 
@@ -3075,11 +3074,15 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
     if (!seen[key]) { seen[key] = []; groups.push({ key, rows: seen[key] }) }
     seen[key].push(e)
   })
-  // Acomodações vazias (criadas via "Gerenciar acomodações") aparecem como grupos sem passageiros
-  rooms.forEach(room => {
-    if (!seen[room.name]) { seen[room.name] = []; groups.push({ key: room.name, rows: seen[room.name], roomId: room.id }) }
-  })
+  // Acomodações vazias — só aparecem quando não há filtro ativo
+  if (!filterQ) {
+    rooms.forEach(room => {
+      if (!seen[room.name]) { seen[room.name] = []; groups.push({ key: room.name, rows: seen[room.name], roomId: room.id }) }
+    })
+  }
   groups.sort((a, b) => a.key === UNASSIGNED ? -1 : b.key === UNASSIGNED ? 1 : 0)
+  // Com filtro ativo, esconde grupos sem passageiro correspondente
+  if (filterQ) groups.splice(0, groups.length, ...groups.filter(g => g.rows.length > 0))
   if (cancelledEnrolled.length > 0) groups.push({ key: CANCELLED, rows: cancelledEnrolled })
 
   // Número sequencial global — cancelados não entram na contagem
