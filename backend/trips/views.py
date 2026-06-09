@@ -89,14 +89,17 @@ class PassengerListViewSet(viewsets.ModelViewSet):
 
     def _add_passenger(self, request, pl):
         is_block          = request.data.get('is_block', False)
+        is_provisional    = request.data.get('is_provisional', False)
         accommodation     = request.data.get('accommodation', '')
         estatus           = request.data.get('enrollment_status', 'pendente')
+        pending_until     = request.data.get('pending_until') or None
+        pending_reason    = request.data.get('pending_reason', '')
         notes             = request.data.get('notes', '')
         agency_id         = request.data.get('agency')
         responsible_uid   = request.data.get('responsible_user')
 
         if is_block:
-            # Bloqueio de agência — cria N vagas sem passageiro
+            # Bloqueio de agência ou passageiro provisório — cria N vagas sem passageiro
             agency_name = request.data.get('block_agency', '').strip()
             quantity    = int(request.data.get('block_quantity', 1))
             if not agency_name:
@@ -111,9 +114,10 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             for _ in range(quantity):
                 e = ListEnrollment.objects.create(
                     passenger_list=pl, passenger=None,
-                    is_block=True, block_agency=agency_name,
+                    is_block=True, is_provisional=bool(is_provisional), block_agency=agency_name,
                     agency=agency_obj, responsible_user=resp_user,
-                    accommodation=accommodation, enrollment_status=estatus, notes=notes,
+                    accommodation=accommodation, enrollment_status=estatus,
+                    pending_until=pending_until, pending_reason=pending_reason, notes=notes,
                 )
                 created.append(ListEnrollmentSerializer(e).data)
             return Response(created, status=201)
