@@ -45,7 +45,7 @@ export function StatusBadge({ value }) {
 export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
-  extraFilters, onLog,
+  extraFilters, topBar, onLog,
   onAdd, onEdit, onView, onDelete, onDocs, loading,
 }) {
   const [q,   setQ]   = useState('')
@@ -79,6 +79,8 @@ export default function DataTable({
           <button className="btn btn-primary" onClick={onAdd}><Ic n="plus" s={13}/>{addLabel}</button>
         </div>
       </div>
+
+      {topBar && <div style={{ marginBottom:4 }}>{topBar}</div>}
 
       {/* ── Search + filters ── */}
       <div className="search-row">

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { listsApi } from '../api'
-import DataTable, { StatusBadge } from '../components/DataTable'
+import DataTable from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import ListModal from '../components/ListModal'
 
@@ -16,47 +16,21 @@ const TYPE_LABEL = {
   aereo: 'Via Aéreo', terrestre: 'Via Terrestre',
 }
 
-/* ── FDrop ── */
-function FDrop({ label, value, onChange, options, active }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const selected = options.find(o => o.value === value)
-  useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
-        style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 11px', borderRadius:6, border:`1px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff', color: active ? '#2e6db4' : '#475569', fontSize:13, fontWeight: active ? 600 : 400, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
-        {label}{selected && value !== options[0].value ? `: ${selected.label}` : ''}
-        <span style={{ fontSize:9, opacity:.7 }}>▼</span>
-      </button>
-      {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:200, background:'#fff', borderRadius:8, border:'1px solid #e2e8f0', boxShadow:'0 8px 24px rgba(0,0,0,.10)', minWidth:160, overflow:'hidden' }}>
-          {options.map(opt => {
-            const sel = value === opt.value
-            return (
-              <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false) }}
-                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:'9px 14px', background: sel ? '#eff6ff' : 'transparent', border:'none', borderBottom:'1px solid #f8fafc', color: sel ? '#2e6db4' : '#1e293b', fontSize:13, fontWeight: sel ? 600 : 400, cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}
-                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
-                onMouseLeave={e => { e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}>
-                <span>{opt.label}</span>
-                {sel && <span style={{ color:'#2e6db4' }}>✓</span>}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d }
+
+const getPhase = (row) => {
+  const now   = today()
+  const start = row.start_date ? new Date(row.start_date + 'T00:00:00') : null
+  const end   = row.end_date   ? new Date(row.end_date   + 'T00:00:00') : null
+  if (!start || now < start) return 'criacao'
+  if (!end   || now <= end)  return 'andamento'
+  return 'finalizada'
 }
 
-const STATUS_OPTS = [
-  { value: 'all',     label: 'Todos'   },
-  { value: 'aberta',  label: 'Aberta'  },
-  { value: 'fechada', label: 'Fechada' },
+const PHASES = [
+  { key:'criacao',    label:'Em criação',   color:'#2563eb', bg:'#eff6ff', dot:'#93c5fd' },
+  { key:'andamento',  label:'Em andamento', color:'#16a34a', bg:'#f0fdf4', dot:'#86efac' },
+  { key:'finalizada', label:'Finalizadas',  color:'#64748b', bg:'#f1f5f9', dot:'#cbd5e1' },
 ]
 
 const COLS = [
@@ -112,7 +86,7 @@ export default function Trips() {
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
   const [showNew, setShowNew] = useState(false)
-  const [statusF, setStatusF] = useState('all')
+  const [phase,   setPhase]   = useState('criacao')
 
   const load = () => {
     setLoading(true)
@@ -130,16 +104,49 @@ export default function Trips() {
     load()
   }
 
-  // Após salvar no modal → navega para a página completa da lista
   const handleSaved = (data) => {
     setShowNew(false)
     navigate(`/viagens/${data.id}`)
   }
 
-  const filtered = statusF === 'all' ? rows : rows.filter(r => r.status === statusF)
+  const counts  = { criacao: 0, andamento: 0, finalizada: 0 }
+  rows.forEach(r => { const p = getPhase(r); if (counts[p] !== undefined) counts[p]++ })
 
-  const filterBar = (
-    <FDrop label="Status" value={statusF} onChange={setStatusF} options={STATUS_OPTS} active={statusF !== 'all'} />
+  const filtered = rows.filter(r => getPhase(r) === phase)
+
+  const activePhase = PHASES.find(p => p.key === phase)
+
+  const tabBar = (
+    <div style={{ display:'flex', gap:2, background:'#f1f5f9', borderRadius:10, padding:3, marginBottom:16 }}>
+      {PHASES.map(p => {
+        const sel = phase === p.key
+        return (
+          <button key={p.key} type="button" onClick={() => setPhase(p.key)}
+            style={{
+              flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:7,
+              padding:'8px 12px', borderRadius:8, border:'none', cursor:'pointer', fontFamily:'inherit',
+              fontSize:13, fontWeight: sel ? 700 : 500, transition:'all .15s',
+              background: sel ? '#fff' : 'transparent',
+              color:      sel ? p.color : '#94a3b8',
+              boxShadow:  sel ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
+            }}>
+            <span style={{
+              width:7, height:7, borderRadius:'50%', flexShrink:0,
+              background: sel ? p.dot : '#cbd5e1',
+              boxShadow: sel && p.key === 'andamento' ? `0 0 0 3px ${p.dot}66` : 'none',
+            }}/>
+            {p.label}
+            <span style={{
+              fontSize:11, fontWeight:700, padding:'1px 7px', borderRadius:20, marginLeft:2,
+              background: sel ? p.bg : '#e2e8f0',
+              color:      sel ? p.color : '#94a3b8',
+            }}>
+              {counts[p.key]}
+            </span>
+          </button>
+        )
+      })}
+    </div>
   )
 
   return (
@@ -150,7 +157,7 @@ export default function Trips() {
         data={filtered}
         cols={COLS}
         searchKeys={['name']}
-        extraFilters={filterBar}
+        topBar={tabBar}
         onAdd={() => setShowNew(true)}
         onView={(row) => navigate(`/viagens/${row.id}`)}
         onDelete={(row) => setDelRow(row)}
