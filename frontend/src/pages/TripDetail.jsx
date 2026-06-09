@@ -3712,320 +3712,6 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   )
 }
 
-/* ── Aba "Local de Embarque" ── */
-/* ── Popup passageiros com embarque diferente do padrão ── */
-function FeederLegsModal({ listId, airport, onClose }) {
-  const [legs,     setLegs]     = useState([])
-  const [loaded,   setLoaded]   = useState(false)
-  const [legModal, setLegModal] = useState(null)
-  const [delLeg,   setDelLeg]   = useState(null)
-
-  const load = () =>
-    listsApi.listFeederLegs(listId, airport.id).then(r => { setLegs(r.data); setLoaded(true) }).catch(() => {})
-
-  useEffect(() => { load() }, [])
-
-  const handleSave = async (data) => {
-    const payload = { ...data, departure_airport: airport.id }
-    if (legModal.initial) {
-      await listsApi.updateFeederLeg(listId, legModal.initial.id, payload)
-      toast.success('Trecho atualizado.')
-    } else {
-      await listsApi.addFeederLeg(listId, payload)
-      toast.success('Trecho adicionado.')
-    }
-    setLegModal(null)
-    load()
-  }
-
-  const handleDelete = async (leg) => {
-    await listsApi.removeFeederLeg(listId, leg.id)
-    setDelLeg(null)
-    load()
-  }
-
-  const fmtDate = d => { if (!d) return null; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}` }
-  const fmtTime = t => t ? t.slice(0,5) : null
-
-  const calcLayover = (prev, next) => {
-    if (!prev.arrival_date || !prev.arrival_time || !next.departure_date || !next.departure_time) return null
-    const from = new Date(`${prev.arrival_date}T${prev.arrival_time}`)
-    const to   = new Date(`${next.departure_date}T${next.departure_time}`)
-    const diff = to - from
-    const h = Math.floor(Math.abs(diff)/3600000)
-    const m = Math.floor((Math.abs(diff)%3600000)/60000)
-    const label = h > 0 ? (m > 0 ? `${h}h ${m}min` : `${h}h`) : `${m}min`
-    return { label, valid: diff > 0 }
-  }
-
-  const iata = airport.iata_code || airport.name.slice(0,3).toUpperCase()
-
-  return (
-    <div className="overlay" style={{ zIndex:830 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="mbox" style={{ maxWidth:520 }}>
-        <div className="mhead">
-          <span className="mtitle" style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:12, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'2px 8px', borderRadius:5 }}>{iata}</span>
-            Voos de acesso — {airport.city || airport.name}
-          </span>
-          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
-        </div>
-        <div className="mbody">
-          {!loaded ? (
-            <p style={{ color:'#94a3b8', fontSize:13, margin:0 }}>Carregando…</p>
-          ) : legs.length === 0 ? (
-            <p style={{ color:'#94a3b8', fontSize:13, margin:'0 0 12px' }}>Nenhum trecho cadastrado.</p>
-          ) : (
-            <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', marginBottom:12 }}>
-              {legs.map((leg, idx) => (
-                <React.Fragment key={leg.id}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', background: idx%2===0?'#fff':'#fafbfc', borderBottom: idx < legs.length-1 ? '1px solid #f1f5f9' : 'none' }}>
-                    {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
-                      <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
-                        {i===1 && <span style={{ color:'#cbd5e1' }}>→</span>}
-                        {ap ? (
-                          <span style={{ display:'flex', alignItems:'center', gap:3 }}>
-                            <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
-                              {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
-                            </span>
-                            <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
-                          </span>
-                        ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
-                      </span>
-                    ))}
-                    <span style={{ flex:1 }}/>
-                    {leg.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{leg.flight_number}</span>}
-                    {leg.airline && <span style={{ fontSize:11, color:'#64748b' }}>{leg.airline}</span>}
-                    {(leg.departure_date||leg.departure_time) && <span style={{ fontSize:11, color:'#94a3b8' }}>{[fmtDate(leg.departure_date),fmtTime(leg.departure_time)].filter(Boolean).join(' ')}</span>}
-                    {leg.blocked_seats != null && <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', border:'1px solid #bfdbfe', padding:'1px 6px', borderRadius:20 }}>🔒 {leg.blocked_seats}</span>}
-                    <button type="button" onClick={() => setLegModal({ initial: leg })}
-                      style={{ width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}>
-                      <Ic n="edit" s={11}/>
-                    </button>
-                    <button type="button" onClick={() => setDelLeg(leg)}
-                      style={{ width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer' }}>
-                      <Ic n="trash" s={11}/>
-                    </button>
-                  </div>
-                  {idx < legs.length - 1 && (() => {
-                    const ly = calcLayover(leg, legs[idx+1])
-                    const conAp = leg.destination_airport_data
-                    return (
-                      <div style={{ display:'flex', alignItems:'center', background:'#f8fafc', borderBottom:'1px solid #f1f5f9' }}>
-                        <div style={{ flex:1, height:1, background:'#e2e8f0' }}/>
-                        <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px', fontSize:11 }}>
-                          <span style={{ color:'#94a3b8' }}>✈</span>
-                          {ly ? (
-                            <span style={{ fontWeight:700, color: ly.valid ? '#0f766e' : '#b45309', background: ly.valid ? '#f0fdf4' : '#fffbeb', border:`1px solid ${ly.valid ? '#bbf7d0' : '#fde68a'}`, padding:'1px 7px', borderRadius:20 }}>
-                              {ly.valid ? '' : '⚠ '}{ly.label} de conexão
-                            </span>
-                          ) : null}
-                          {conAp && <span style={{ color:'#64748b' }}><strong>{conAp.city||conAp.name}</strong> <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:10, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>{conAp.iata_code}</span></span>}
-                        </div>
-                        <div style={{ flex:1, height:1, background:'#e2e8f0' }}/>
-                      </div>
-                    )
-                  })()}
-                </React.Fragment>
-              ))}
-            </div>
-          )}
-          <button type="button"
-            onClick={() => {
-              const last = legs.length > 0 ? legs[legs.length-1] : null
-              setLegModal({
-                initial: null,
-                prefill: last ? {
-                  origin_airport_data: last.destination_airport_data,
-                  departure_date: last.arrival_date || '',
-                  departure_time: last.arrival_time ? last.arrival_time.slice(0,5) : '',
-                } : {
-                  origin_airport_data: airport,
-                },
-              })
-            }}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            <Ic n="plus" s={11}/> Adicionar trecho
-          </button>
-        </div>
-        <div className="mfoot">
-          <button className="btn btn-outline" onClick={onClose}>Fechar</button>
-        </div>
-      </div>
-
-      {legModal && (
-        <FlightLegModal
-          initial={legModal.initial}
-          prefill={legModal.prefill}
-          direction="ida"
-          zIndex={860}
-          onSave={handleSave}
-          onClose={() => setLegModal(null)}
-        />
-      )}
-      {delLeg && (
-        <ConfirmModal
-          message={`Remover trecho ${delLeg.origin_airport_data?.iata_code||'?'} → ${delLeg.destination_airport_data?.iata_code||'?'}?`}
-          onOk={() => handleDelete(delLeg)}
-          onCancel={() => setDelLeg(null)}
-        />
-      )}
-    </div>
-  )
-}
-
-function BoardingInfoModal({ listId, defAirport, onClose }) {
-  const [enrolled,  setEnrolled]  = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [feederAp,  setFeederAp]  = useState(null)
-  const [feederLegs, setFeederLegs] = useState([])
-  const [addingAp,  setAddingAp]  = useState(false)
-
-  const loadFeederLegs = () =>
-    listsApi.listFeederLegs(listId).then(r => setFeederLegs(r.data)).catch(() => {})
-
-  useEffect(() => {
-    listsApi.listPassengers(listId)
-      .then(r => setEnrolled(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-    loadFeederLegs()
-  }, [listId])
-
-  const active      = enrolled.filter(e => e.enrollment_status !== 'cancelado')
-  const nonDefault  = active.filter(e => !!e.departure_airport_data)
-
-  // Aeroportos únicos: passageiros + aeroportos que têm feeder legs
-  const airportMap = {}
-  active.forEach(e => {
-    const ap  = e.departure_airport_data || defAirport
-    const key = ap ? String(ap.id) : '__none__'
-    if (!airportMap[key]) airportMap[key] = { ap, count: 0 }
-    airportMap[key].count++
-  })
-  feederLegs.forEach(leg => {
-    if (!leg.departure_airport) return
-    const ap  = leg.departure_airport_data || { id: leg.departure_airport }
-    const key = String(ap.id)
-    if (!airportMap[key]) airportMap[key] = { ap, count: 0 }
-  })
-  const airportGroups = Object.values(airportMap).sort((a, b) => b.count - a.count)
-
-  const IataChip = ({ ap, amber }) => (
-    <span style={{
-      fontFamily:'monospace', fontWeight:700, fontSize:11, padding:'1px 7px',
-      borderRadius:5, letterSpacing:'.03em', flexShrink:0,
-      color:      amber ? '#92400e' : '#1a2d4f',
-      background: amber ? '#fef3c7' : '#eff6ff',
-      border:     amber ? '1.5px solid #f59e0b' : '1px solid #bfdbfe',
-    }}>
-      {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
-    </span>
-  )
-
-  return (
-    <div className="overlay" style={{ zIndex:800 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="mbox" style={{ maxWidth:520 }}>
-        <div className="mhead">
-          <span className="mtitle">Aeroportos de embarque</span>
-          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
-        </div>
-        <div className="mbody">
-          {loading ? (
-            <p style={{ color:'#94a3b8', fontSize:13, margin:0 }}>Carregando…</p>
-          ) : (
-            <>
-              {/* Todos os aeroportos */}
-              <div style={{ marginBottom:20 }}>
-                <div style={{ display:'flex', alignItems:'center', marginBottom:10 }}>
-                  <p style={{ margin:0, flex:1, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Aeroportos</p>
-                  <button type="button" onClick={() => setAddingAp(true)}
-                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                    <Ic n="plus" s={10}/> Aeroporto
-                  </button>
-                </div>
-                {addingAp && (
-                  <div className="overlay" style={{ zIndex:830 }} onMouseDown={e => { if (e.target === e.currentTarget) setAddingAp(false) }}>
-                    <div className="mbox" style={{ maxWidth:400 }}>
-                      <div className="mhead">
-                        <span className="mtitle">Adicionar aeroporto</span>
-                        <button className="mclose" onClick={() => setAddingAp(false)}><Ic n="x" s={14}/></button>
-                      </div>
-                      <div className="mbody">
-                        <AirportPicker
-                          value={null}
-                          placeholder="Buscar aeroporto…"
-                          onChange={ap => { setAddingAp(false); setFeederAp(ap) }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
-                  {airportGroups.map(({ ap, count }, idx) => {
-                    const isDefAp = defAirport && ap && ap.id === defAirport.id
-                    return (
-                      <div key={ap ? ap.id : '__none__'}
-                        onClick={() => ap && setFeederAp(ap)}
-                        style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom: idx < airportGroups.length-1 ? '1px solid #f1f5f9' : 'none', background: isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc', cursor: ap ? 'pointer' : 'default', transition:'background .12s' }}
-                        onMouseEnter={e => { if (ap) e.currentTarget.style.background = isDefAp ? '#dbeafe' : '#f1f5f9' }}
-                        onMouseLeave={e => { if (ap) e.currentTarget.style.background = isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc' }}>
-                        {ap ? <IataChip ap={ap} amber={!isDefAp} /> : <span style={{ fontSize:12, color:'#cbd5e1' }}>—</span>}
-                        <span style={{ flex:1, fontSize:13, color:'#1e293b' }}>{ap ? ap.name : 'Não definido'}</span>
-                        {isDefAp && <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#dbeafe', padding:'1px 6px', borderRadius:4 }}>PADRÃO</span>}
-                        <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>{count} pax</span>
-                        {ap && <span style={{ fontSize:11, color:'#94a3b8' }}>✈</span>}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Passageiros fora do padrão */}
-              <div style={{ marginBottom:20 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-                  <p style={{ margin:0, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Embarques diferentes do padrão</p>
-                  {nonDefault.length > 0 && (
-                    <span style={{ fontSize:11, fontWeight:700, color:'#92400e', background:'#fef3c7', border:'1.5px solid #f59e0b', padding:'1px 7px', borderRadius:20 }}>{nonDefault.length}</span>
-                  )}
-                </div>
-                {nonDefault.length === 0 ? (
-                  <p style={{ color:'#94a3b8', fontSize:13, margin:0 }}>Todos embarcam pelo aeroporto padrão.</p>
-                ) : (
-                  <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
-                    {nonDefault.map((e, idx) => {
-                      const ap = e.departure_airport_data
-                      return (
-                        <div key={e.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom: idx < nonDefault.length-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc' }}>
-                          <span style={{ flex:1, fontSize:13, fontWeight:500,
-                            color:     e.enrollment_status === 'pendente' ? '#92400e' : '#1e293b',
-                            fontStyle: e.enrollment_status === 'pendente' ? 'italic'  : 'normal',
-                          }}>
-                            {e.passenger_name || <span style={{ color:'#f59e0b', fontStyle:'italic' }}>[{e.block_agency}]</span>}
-                          </span>
-                          <IataChip ap={ap} amber />
-                          <span style={{ fontSize:12, color:'#475569' }}>{ap.city || ap.name}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-            </>
-          )}
-        </div>
-        <div className="mfoot">
-          <button className="btn btn-outline" onClick={onClose}>Fechar</button>
-        </div>
-      </div>
-      {feederAp && (
-        <FeederLegsModal listId={listId} airport={feederAp} onClose={() => { setFeederAp(null); loadFeederLegs() }} />
-      )}
-    </div>
-  )
-}
-
 /* ── Modal criar/editar trecho de voo ── */
 function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, hideBlockedSeats }) {
   const isEdit = !!initial
@@ -4139,24 +3825,16 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, 
 
 /* ── Aba de Voos ── */
 function FlightsTab({ listId, list }) {
-  const [enrolled,   setEnrolled]   = useState([])
-  const [feederLegs, setFeederLegs] = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [filterQ,    setFilterQ]    = useState('')
-  const [feederAp,   setFeederAp]   = useState(null)
+  const [enrolled, setEnrolled] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [filterQ,  setFilterQ]  = useState('')
 
   const defAirport = list.default_airport_data || null
 
   const loadAll = useCallback(() => {
     setLoading(true)
-    Promise.all([
-      listsApi.listPassengers(listId),
-      listsApi.listFeederLegs(listId),
-    ])
-      .then(([paxRes, fRes]) => {
-        setEnrolled(paxRes.data)
-        setFeederLegs(fRes.data)
-      })
+    listsApi.listPassengers(listId)
+      .then(r => setEnrolled(r.data))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [listId])
@@ -4183,12 +3861,6 @@ function FlightsTab({ listId, list }) {
     const key = String(ap.id)
     if (!airportMap[key]) airportMap[key] = { ap, passengers: [] }
     airportMap[key].passengers.push(e)
-  })
-  feederLegs.forEach(leg => {
-    if (!leg.departure_airport_data) return
-    const ap  = leg.departure_airport_data
-    const key = String(ap.id)
-    if (!airportMap[key]) airportMap[key] = { ap, passengers: [] }
   })
 
   const fq = filterQ.toLowerCase().trim()
@@ -4275,12 +3947,6 @@ function FlightsTab({ listId, list }) {
                   <span style={{ fontSize:11, fontWeight:700, color:'#fff', background:'#1a2d4f', padding:'2px 9px', borderRadius:20 }}>
                     {passengers.length} pax
                   </span>
-                  <button type="button" onClick={() => setFeederAp(ap)}
-                    style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #cbd5e1', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor='#cbd5e1'; e.currentTarget.style.color='#475569' }}>
-                    <Ic n="plane" s={10}/> Voos de acesso
-                  </button>
                 </div>
                 {/* Passenger rows */}
                 {passengers.length === 0 ? (
@@ -4315,13 +3981,6 @@ function FlightsTab({ listId, list }) {
         )}
       </div>
 
-      {feederAp && (
-        <FeederLegsModal
-          listId={listId}
-          airport={feederAp}
-          onClose={() => { setFeederAp(null); loadAll() }}
-        />
-      )}
     </div>
   )
 }
