@@ -2898,30 +2898,6 @@ function ManageRoomsModal({ listId, accomTypes, onChanged, onClose }) {
 
         <div style={{ flex:1, overflowY:'auto', padding:'16px 22px 20px', display:'flex', flexDirection:'column', gap:18 }}>
 
-          {/* Criar nova acomodação */}
-          <div>
-            <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
-              Criar acomodação vazia
-            </p>
-            <div style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
-              <div style={{ flex:1 }}>
-                <FormSelect
-                  value={newType}
-                  onChange={setNewType}
-                  options={typeOptions}
-                  placeholder="Escolha o tipo…"
-                />
-              </div>
-              <button type="button" onClick={handleCreate} disabled={creating || !newType}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background: creating || !newType ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor: creating || !newType ? 'default' : 'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
-                <Ic n="plus" s={13} /> Criar
-              </button>
-            </div>
-            <p style={{ margin:'8px 0 0', fontSize:11, color:'#94a3b8', fontStyle:'italic' }}>
-              O nome é gerado a partir do tipo (ex: "Duplo 3") — depois é só renomear para um nome fixo, se quiser.
-            </p>
-          </div>
-
           {/* Lista de acomodações */}
           <div>
             <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
