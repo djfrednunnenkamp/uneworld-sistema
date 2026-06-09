@@ -355,7 +355,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     applyTableStyle(doc, y,
       ['N', 'Bloqueio\naereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:22,halign:'center'}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:44} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:22,halign:'center'}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24,halign:'center'}, 8:{cellWidth:28}, 9:{cellWidth:44} },
       mergeHooks(birthdayHooks(bdaySet, 4), bloqueioHooks(1))   // Nascimento = coluna 4, Bloqueio = coluna 1
     )
   }
@@ -379,7 +379,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'Expedicao', 'Validade', 'CPF'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:54} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28,halign:'center'}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:54} },
       birthdayHooks(bdaySet, 2)   // Nascimento = coluna 2
     )
   }
