@@ -370,6 +370,9 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             destination_airport_id=request.data.get('destination_airport') or None,
         )
         leg.save()
+        leg.refresh_from_db()
+        leg = FeederLeg.objects.select_related(
+            'origin_airport', 'destination_airport', 'departure_airport').get(pk=leg.pk)
         return Response(FeederLegSerializer(leg).data, status=201)
 
     @action(detail=True, methods=['patch', 'delete'], url_path=r'feeder-legs/(?P<leg_id>\d+)',
@@ -378,7 +381,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         pl = self.get_object()
         try:
             leg = FeederLeg.objects.select_related(
-                'origin_airport', 'destination_airport').get(passenger_list=pl, id=leg_id)
+                'origin_airport', 'destination_airport', 'departure_airport').get(passenger_list=pl, id=leg_id)
         except FeederLeg.DoesNotExist:
             return Response({'error': 'Trecho não encontrado.'}, status=404)
         if request.method == 'DELETE':

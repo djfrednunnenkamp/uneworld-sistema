@@ -290,13 +290,14 @@ class PassengerFlightLegSerializer(serializers.ModelSerializer):
 
 
 class FeederLegSerializer(serializers.ModelSerializer):
+    departure_airport_data   = serializers.SerializerMethodField()
     origin_airport_data      = serializers.SerializerMethodField()
     destination_airport_data = serializers.SerializerMethodField()
 
     class Meta:
         model  = FeederLeg
         fields = [
-            'id', 'departure_airport', 'order',
+            'id', 'departure_airport', 'departure_airport_data', 'order',
             'origin_airport', 'origin_airport_data',
             'destination_airport', 'destination_airport_data',
             'flight_number', 'airline',
@@ -307,6 +308,9 @@ class FeederLegSerializer(serializers.ModelSerializer):
 
     def _ap(self, obj):
         return {'id': obj.id, 'name': obj.name, 'iata_code': obj.iata_code, 'city': obj.city, 'country': obj.country}
+
+    def get_departure_airport_data(self, obj):
+        return self._ap(obj.departure_airport) if obj.departure_airport_id else None
 
     def get_origin_airport_data(self, obj):
         return self._ap(obj.origin_airport) if obj.origin_airport_id else None

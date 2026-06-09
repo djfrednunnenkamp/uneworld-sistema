@@ -3022,24 +3022,36 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
   const [enrolled,  setEnrolled]  = useState([])
   const [loading,   setLoading]   = useState(true)
   const [feederAp,  setFeederAp]  = useState(null)
+  const [feederLegs, setFeederLegs] = useState([])
+  const [addingAp,  setAddingAp]  = useState(false)
+
+  const loadFeederLegs = () =>
+    listsApi.listFeederLegs(listId).then(r => setFeederLegs(r.data)).catch(() => {})
 
   useEffect(() => {
     listsApi.listPassengers(listId)
       .then(r => setEnrolled(r.data))
       .catch(() => {})
       .finally(() => setLoading(false))
+    loadFeederLegs()
   }, [listId])
 
   const active      = enrolled.filter(e => e.enrollment_status !== 'cancelado')
   const nonDefault  = active.filter(e => !!e.departure_airport_data)
 
-  // Aeroportos únicos (individais + padrão)
+  // Aeroportos únicos: passageiros + aeroportos que têm feeder legs
   const airportMap = {}
   active.forEach(e => {
     const ap  = e.departure_airport_data || defAirport
     const key = ap ? String(ap.id) : '__none__'
     if (!airportMap[key]) airportMap[key] = { ap, count: 0 }
     airportMap[key].count++
+  })
+  feederLegs.forEach(leg => {
+    if (!leg.departure_airport) return
+    const ap  = leg.departure_airport_data || { id: leg.departure_airport }
+    const key = String(ap.id)
+    if (!airportMap[key]) airportMap[key] = { ap, count: 0 }
   })
   const airportGroups = Object.values(airportMap).sort((a, b) => b.count - a.count)
 
@@ -3069,7 +3081,22 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
             <>
               {/* Todos os aeroportos */}
               <div style={{ marginBottom:20 }}>
-                <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Aeroportos</p>
+                <div style={{ display:'flex', alignItems:'center', marginBottom:10 }}>
+                  <p style={{ margin:0, flex:1, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Aeroportos</p>
+                  <button type="button" onClick={() => setAddingAp(v => !v)}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background: addingAp ? '#f0f7ff' : '#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                    <Ic n="plus" s={10}/> Aeroporto
+                  </button>
+                </div>
+                {addingAp && (
+                  <div style={{ marginBottom:8 }}>
+                    <AirportPicker
+                      value={null}
+                      placeholder="Buscar aeroporto para adicionar…"
+                      onChange={ap => { setAddingAp(false); setFeederAp(ap) }}
+                    />
+                  </div>
+                )}
                 <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
                   {airportGroups.map(({ ap, count }, idx) => {
                     const isDefAp = defAirport && ap && ap.id === defAirport.id
@@ -3088,7 +3115,6 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
                     )
                   })}
                 </div>
-                <p style={{ margin:'6px 0 0', fontSize:11, color:'#94a3b8' }}>Clique em um aeroporto para gerir os voos de acesso.</p>
               </div>
 
               {/* Passageiros fora do padrão */}
@@ -3127,7 +3153,7 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
         </div>
       </div>
       {feederAp && (
-        <FeederLegsModal listId={listId} airport={feederAp} onClose={() => setFeederAp(null)} />
+        <FeederLegsModal listId={listId} airport={feederAp} onClose={() => { setFeederAp(null); loadFeederLegs() }} />
       )}
     </div>
   )
