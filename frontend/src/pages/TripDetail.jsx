@@ -730,6 +730,7 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
   )
 
   return (
+    <>
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 750, padding: 20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,.25)' }}>
@@ -1113,6 +1114,7 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
     </div>
 
     {viewingDoc && <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />}
+    </>
   )
 }
 
