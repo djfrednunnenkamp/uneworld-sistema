@@ -2,11 +2,11 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room, FlightLeg
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room, FlightLeg, PassengerFlightLeg
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
     SupplierSerializer, ListAdditionalSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
-    RoomSerializer, FlightLegSerializer,
+    RoomSerializer, FlightLegSerializer, PassengerFlightLegSerializer,
 )
 
 
@@ -173,6 +173,105 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                 e.is_block  = False
         e.save()
         return Response(ListEnrollmentSerializer(e).data)
+
+    # ── Trechos individuais de voo por passageiro ───────────────────────────
+
+    def _get_enrollment(self, pl, enrollment_id):
+        try:
+            return pl.list_enrollments.get(id=enrollment_id)
+        except ListEnrollment.DoesNotExist:
+            return None
+
+    @action(detail=True, methods=['get', 'post'],
+            url_path=r'passageiros/(?P<enrollment_id>\d+)/legs',
+            permission_classes=[IsAuthenticated])
+    def passenger_legs(self, request, pk=None, enrollment_id=None):
+        pl = self.get_object()
+        e  = self._get_enrollment(pl, enrollment_id)
+        if not e:
+            return Response({'error': 'Inscrição não encontrada.'}, status=404)
+
+        if request.method == 'GET':
+            legs = e.passenger_flight_legs.select_related('origin_airport', 'destination_airport').all()
+            return Response(PassengerFlightLegSerializer(legs, many=True).data)
+
+        leg = PassengerFlightLeg(
+            enrollment=e,
+            direction=request.data.get('direction', 'ida'),
+            order=int(request.data.get('order', 0)),
+            flight_number=request.data.get('flight_number', ''),
+            airline=request.data.get('airline', ''),
+            departure_date=request.data.get('departure_date') or None,
+            departure_time=request.data.get('departure_time') or None,
+            arrival_date=request.data.get('arrival_date') or None,
+            arrival_time=request.data.get('arrival_time') or None,
+            origin_airport_id=request.data.get('origin_airport') or None,
+            destination_airport_id=request.data.get('destination_airport') or None,
+        )
+        leg.save()
+        return Response(PassengerFlightLegSerializer(leg).data, status=201)
+
+    @action(detail=True, methods=['patch', 'delete'],
+            url_path=r'passageiros/(?P<enrollment_id>\d+)/legs/(?P<leg_id>\d+)',
+            permission_classes=[IsAuthenticated])
+    def manage_passenger_leg(self, request, pk=None, enrollment_id=None, leg_id=None):
+        pl = self.get_object()
+        e  = self._get_enrollment(pl, enrollment_id)
+        if not e:
+            return Response({'error': 'Inscrição não encontrada.'}, status=404)
+        try:
+            leg = PassengerFlightLeg.objects.select_related('origin_airport', 'destination_airport').get(enrollment=e, id=leg_id)
+        except PassengerFlightLeg.DoesNotExist:
+            return Response({'error': 'Trecho não encontrado.'}, status=404)
+
+        if request.method == 'DELETE':
+            leg.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        for field in ('direction', 'order', 'flight_number', 'airline'):
+            if field in request.data:
+                setattr(leg, field, request.data[field])
+        for field in ('departure_date', 'departure_time', 'arrival_date', 'arrival_time'):
+            if field in request.data:
+                setattr(leg, field, request.data[field] or None)
+        for fk in ('origin_airport', 'destination_airport'):
+            if fk in request.data:
+                setattr(leg, f'{fk}_id', request.data[fk] or None)
+        leg.save()
+        leg.refresh_from_db()
+        return Response(PassengerFlightLegSerializer(leg).data)
+
+    @action(detail=True, methods=['post'],
+            url_path=r'passageiros/(?P<enrollment_id>\d+)/legs/copy',
+            permission_classes=[IsAuthenticated])
+    def copy_legs_from_block(self, request, pk=None, enrollment_id=None):
+        """Copia os trechos do bloqueio para o passageiro, substituindo os existentes."""
+        pl = self.get_object()
+        e  = self._get_enrollment(pl, enrollment_id)
+        if not e:
+            return Response({'error': 'Inscrição não encontrada.'}, status=404)
+
+        e.passenger_flight_legs.all().delete()
+        block_legs = pl.flight_legs.select_related('origin_airport', 'destination_airport').all()
+        new_legs = [
+            PassengerFlightLeg(
+                enrollment=e,
+                direction=bl.direction,
+                order=bl.order,
+                origin_airport=bl.origin_airport,
+                destination_airport=bl.destination_airport,
+                flight_number=bl.flight_number,
+                airline=bl.airline,
+                departure_date=bl.departure_date,
+                departure_time=bl.departure_time,
+                arrival_date=bl.arrival_date,
+                arrival_time=bl.arrival_time,
+            )
+            for bl in block_legs
+        ]
+        PassengerFlightLeg.objects.bulk_create(new_legs)
+        legs = e.passenger_flight_legs.select_related('origin_airport', 'destination_airport').all()
+        return Response(PassengerFlightLegSerializer(legs, many=True).data, status=201)
 
     # ── Acomodações (quartos) ────────────────────────────────────────────────
 

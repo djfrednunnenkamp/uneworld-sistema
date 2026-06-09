@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room, FlightLeg
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room, FlightLeg, PassengerFlightLeg
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -252,6 +252,31 @@ class FlightLegSerializer(serializers.ModelSerializer):
             'departure_date', 'departure_time',
             'arrival_date',   'arrival_time',
             'blocked_seats',
+        ]
+
+    def _ap(self, obj):
+        return {'id': obj.id, 'name': obj.name, 'iata_code': obj.iata_code, 'city': obj.city, 'country': obj.country}
+
+    def get_origin_airport_data(self, obj):
+        return self._ap(obj.origin_airport) if obj.origin_airport_id else None
+
+    def get_destination_airport_data(self, obj):
+        return self._ap(obj.destination_airport) if obj.destination_airport_id else None
+
+
+class PassengerFlightLegSerializer(serializers.ModelSerializer):
+    origin_airport_data      = serializers.SerializerMethodField()
+    destination_airport_data = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = PassengerFlightLeg
+        fields = [
+            'id', 'direction', 'order',
+            'origin_airport', 'origin_airport_data',
+            'destination_airport', 'destination_airport_data',
+            'flight_number', 'airline',
+            'departure_date', 'departure_time',
+            'arrival_date',   'arrival_time',
         ]
 
     def _ap(self, obj):

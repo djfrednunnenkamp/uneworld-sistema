@@ -329,23 +329,72 @@ function AirportPicker({ value, onChange, placeholder }) {
 /* ── Modal de passagem aérea ── */
 function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
-  const hasConnection = !!enrollment.departure_airport_data
 
-  const [status,  setStatus]  = useState(enrollment.ticket_status             || 'nao_emitida')
-  const [number,  setNumber]  = useState(enrollment.ticket_number             || '')
-  const [cStatus, setCStatus] = useState(enrollment.connection_ticket_status  || 'nao_emitida')
-  const [cNumber, setCNumber] = useState(enrollment.connection_ticket_number  || '')
+  const [status,  setStatus]  = useState(enrollment.ticket_status  || 'nao_emitida')
+  const [number,  setNumber]  = useState(enrollment.ticket_number  || '')
   const [saving,  setSaving]  = useState(false)
+
+  // Voos do bloqueio (para exibição em "via_bloqueio")
+  const [blockLegs,    setBlockLegs]    = useState([])
+  // Trechos individuais do passageiro (para "fora_bloqueio")
+  const [pLegs,        setPLegs]        = useState([])
+  const [pLegsLoaded,  setPLegsLoaded]  = useState(false)
+  const [copying,      setCopying]      = useState(false)
+  const [legModal,     setLegModal]     = useState(null)  // null | { initial?, direction }
+  const [delLeg,       setDelLeg]       = useState(null)
+
+  useEffect(() => {
+    listsApi.listFlights(listId).then(r => setBlockLegs(r.data)).catch(() => {})
+  }, [listId])
+
+  useEffect(() => {
+    if (status === 'fora_bloqueio' && !pLegsLoaded) {
+      listsApi.listPassengerLegs(listId, enrollment.id).then(r => {
+        setPLegs(r.data)
+        setPLegsLoaded(true)
+      }).catch(() => {})
+    }
+  }, [status, pLegsLoaded, listId, enrollment.id])
+
+  const reloadPLegs = () =>
+    listsApi.listPassengerLegs(listId, enrollment.id).then(r => setPLegs(r.data)).catch(() => {})
+
+  const handleCopyFromBlock = async () => {
+    setCopying(true)
+    try {
+      const r = await listsApi.copyLegsFromBlock(listId, enrollment.id)
+      setPLegs(r.data)
+      toast.success('Voos copiados do bloqueio.')
+    } catch { toast.error('Erro ao copiar.') }
+    finally { setCopying(false) }
+  }
+
+  const handleSaveLeg = async (data) => {
+    if (legModal.initial) {
+      await listsApi.updatePassengerLeg(listId, enrollment.id, legModal.initial.id, data)
+      toast.success('Trecho atualizado.')
+    } else {
+      await listsApi.addPassengerLeg(listId, enrollment.id, data)
+      toast.success('Trecho adicionado.')
+    }
+    reloadPLegs()
+  }
+
+  const handleDeleteLeg = async (leg) => {
+    await listsApi.removePassengerLeg(listId, enrollment.id, leg.id)
+    setDelLeg(null)
+    reloadPLegs()
+  }
 
   const handleSave = async () => {
     setSaving(true)
     try {
       await listsApi.updatePassenger(listId, enrollment.id, {
-        ticket_status:  status,
-        ticket_number:  status === 'nao_emitida' ? '' : number,
-        ticket_seat:    '',
-        connection_ticket_status: hasConnection ? cStatus : 'nao_emitida',
-        connection_ticket_number: hasConnection && cStatus !== 'nao_emitida' ? cNumber : '',
+        ticket_status: status,
+        ticket_number: status === 'nao_emitida' ? '' : number,
+        ticket_seat:   '',
+        connection_ticket_status: 'nao_emitida',
+        connection_ticket_number: '',
         connection_ticket_seat:   '',
       })
       toast.success('Passagem atualizada.')
@@ -354,57 +403,113 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
     finally { setSaving(false) }
   }
 
-  const fmtAp = ap => ap ? (ap.iata_code ? `${ap.iata_code} · ${ap.city || ap.name}` : ap.name) : ''
-
-  // Cores por status
   const COLORS = {
-    nao_emitida:   { fg:'#94a3b8', bg:'#f8fafc',  border:'#e2e8f0' },
-    via_bloqueio:  { fg:'#b45309', bg:'#fffbeb',  border:'#fde68a' },
-    fora_bloqueio: { fg:'rgb(147,66,171)', bg:'#faf5ff', border:'#e9d5ff' },
+    nao_emitida:   { fg:'#94a3b8', bg:'#f8fafc',  accent:'#94a3b8' },
+    via_bloqueio:  { fg:'#b45309', bg:'#fffbeb',  accent:'#b45309' },
+    fora_bloqueio: { fg:'rgb(147,66,171)', bg:'#faf5ff', accent:'rgb(147,66,171)' },
   }
 
-  const StatusPicker = ({ value, onChange }) => (
-    <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden' }}>
-      {[
-        { v:'nao_emitida',   label:'Não emitida'          },
-        { v:'via_bloqueio',  label:'Via bloqueio'         },
-        { v:'fora_bloqueio', label:'Fora do bloqueio'     },
-      ].map(({ v, label }, i, arr) => {
-        const sel = value === v
-        const c   = COLORS[v]
-        return (
-          <button key={v} type="button" onClick={() => onChange(v)}
-            style={{
-              flex:1, padding:'8px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
-              fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
-              borderRight: i < arr.length-1 ? '1px solid #e2e8f0' : 'none',
-              background:  sel ? c.bg  : '#fff',
-              color:       sel ? c.fg  : '#94a3b8',
-              boxShadow:   sel ? `inset 0 -2px 0 ${c.fg}` : 'none',
-            }}>
-            {label}
-          </button>
-        )
-      })}
-    </div>
-  )
+  const fmtDate = d => { if (!d) return null; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}` }
+  const fmtTime = t => t ? t.slice(0,5) : null
 
-  const SegmentFields = ({ segStatus, onSegStatus, segNumber, onSegNumber }) => (
-    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-      <StatusPicker value={segStatus} onChange={onSegStatus} />
-      {segStatus !== 'nao_emitida' && (
-        <div className="ff" style={{ margin:0 }}>
-          <label className="fl">Número da reserva</label>
-          <input className="fi" value={segNumber} onChange={e => onSegNumber(e.target.value)}
-            placeholder="Ex: ABC123" />
-        </div>
+  const LegReadRow = ({ leg }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#fff', borderBottom:'1px solid #f1f5f9' }}>
+      {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
+        <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
+          {i===1 && <span style={{ color:'#cbd5e1', fontSize:13 }}>→</span>}
+          {ap ? (
+            <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+              <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
+                {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+              </span>
+              <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
+            </span>
+          ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
+        </span>
+      ))}
+      <span style={{ flex:1 }}/>
+      {leg.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{leg.flight_number}</span>}
+      {leg.airline && <span style={{ fontSize:11, color:'#64748b' }}>{leg.airline}</span>}
+      {(leg.departure_date || leg.departure_time) && (
+        <span style={{ fontSize:11, color:'#94a3b8' }}>{[fmtDate(leg.departure_date), fmtTime(leg.departure_time)].filter(Boolean).join(' ')}</span>
       )}
     </div>
   )
 
+  const LegEditRow = ({ leg }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#fff', borderBottom:'1px solid #f1f5f9' }}
+      onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+      onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+      {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
+        <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
+          {i===1 && <span style={{ color:'#cbd5e1', fontSize:13 }}>→</span>}
+          {ap ? (
+            <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+              <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
+                {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+              </span>
+              <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
+            </span>
+          ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
+        </span>
+      ))}
+      <span style={{ flex:1 }}/>
+      {leg.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{leg.flight_number}</span>}
+      {(leg.departure_date || leg.departure_time) && (
+        <span style={{ fontSize:11, color:'#94a3b8' }}>{[fmtDate(leg.departure_date), fmtTime(leg.departure_time)].filter(Boolean).join(' ')}</span>
+      )}
+      <button type="button" onClick={() => setLegModal({ direction: leg.direction, initial: leg })}
+        style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', flexShrink:0 }}>
+        <Ic n="edit" s={11}/>
+      </button>
+      <button type="button" onClick={() => setDelLeg(leg)}
+        style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer', flexShrink:0 }}>
+        <Ic n="trash" s={11}/>
+      </button>
+    </div>
+  )
+
+  const LegsSection = ({ direction, label, legs, editable }) => {
+    const dirLegs = legs.filter(l => l.direction === direction)
+    return (
+      <div style={{ marginBottom:10 }}>
+        <p style={{ margin:'0 0 4px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>{label}</p>
+        {dirLegs.length === 0 ? (
+          <p style={{ margin:0, fontSize:12, color:'#94a3b8', padding:'8px 12px', background:'#f8fafc', borderRadius:6, border:'1px dashed #e2e8f0' }}>
+            Nenhum trecho cadastrado.
+          </p>
+        ) : (
+          <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden' }}>
+            {dirLegs.map(l => editable ? <LegEditRow key={l.id} leg={l}/> : <LegReadRow key={l.id} leg={l}/>)}
+          </div>
+        )}
+        {editable && (
+          <button type="button"
+            onClick={() => {
+              const last = dirLegs.length > 0 ? dirLegs[dirLegs.length-1] : null
+              setLegModal({
+                direction,
+                initial: null,
+                prefill: last ? {
+                  origin_airport_data: last.destination_airport_data,
+                  departure_date:      last.arrival_date || '',
+                  departure_time:      last.arrival_time ? last.arrival_time.slice(0,5) : '',
+                } : null,
+              })
+            }}
+            style={{ marginTop:5, display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            <Ic n="plus" s={10}/> Adicionar trecho
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const c = COLORS[status] || COLORS.nao_emitida
+
   return (
     <div className="overlay" style={{ zIndex:750 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="mbox" style={{ maxWidth:460 }}>
+      <div className="mbox" style={{ maxWidth:500 }}>
 
         <div className="mhead">
           <div style={{ minWidth:0 }}>
@@ -414,33 +519,80 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
         </div>
 
-        <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:0 }}>
+        <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:14, maxHeight:'72vh', overflowY:'auto' }}>
 
-          {/* Voo principal */}
-          {hasConnection && (
-            <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
-              Voo principal
-              {defaultAirport && <span style={{ fontWeight:400, textTransform:'none', marginLeft:6, color:'#94a3b8' }}>— {fmtAp(defaultAirport)}</span>}
-            </p>
+          {/* Seletor de status */}
+          <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden' }}>
+            {[
+              { v:'nao_emitida',   label:'Não emitida'    },
+              { v:'via_bloqueio',  label:'Via bloqueio'   },
+              { v:'fora_bloqueio', label:'Voo individual' },
+            ].map(({ v, label }, i, arr) => {
+              const sel = status === v
+              const col = COLORS[v]
+              return (
+                <button key={v} type="button" onClick={() => setStatus(v)}
+                  style={{
+                    flex:1, padding:'9px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
+                    fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
+                    borderRight: i < arr.length-1 ? '1px solid #e2e8f0' : 'none',
+                    background:  sel ? col.bg  : '#fff',
+                    color:       sel ? col.fg  : '#94a3b8',
+                    boxShadow:   sel ? `inset 0 -2px 0 ${col.accent}` : 'none',
+                  }}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Número da reserva (quando emitida) */}
+          {status !== 'nao_emitida' && (
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Número da reserva</label>
+              <input className="fi" value={number} onChange={e => setNumber(e.target.value)} placeholder="Ex: ABC123" />
+            </div>
           )}
-          <SegmentFields
-            segStatus={status}  onSegStatus={setStatus}
-            segNumber={number}  onSegNumber={setNumber}
-          />
 
-          {/* Trecho de conexão */}
-          {hasConnection && (
-            <div style={{ marginTop:20, paddingTop:20, borderTop:'1px solid #f1f5f9' }}>
-              <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
-                Conexão
-                <span style={{ fontWeight:400, textTransform:'none', marginLeft:6, color:'#94a3b8' }}>
-                  — {fmtAp(enrollment.departure_airport_data)} → {fmtAp(defaultAirport)}
-                </span>
+          {/* Via bloqueio — exibe voos do bloqueio */}
+          {status === 'via_bloqueio' && (
+            <div>
+              <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:700, color:'#b45309', textTransform:'uppercase', letterSpacing:'.05em' }}>
+                Voos do bloqueio
               </p>
-              <SegmentFields
-                segStatus={cStatus}  onSegStatus={setCStatus}
-                segNumber={cNumber}  onSegNumber={setCNumber}
-              />
+              {blockLegs.length === 0 ? (
+                <p style={{ margin:0, fontSize:12, color:'#94a3b8', padding:'10px 14px', background:'#fffbeb', borderRadius:7, border:'1px solid #fde68a' }}>
+                  Nenhum voo cadastrado no bloqueio desta lista.
+                </p>
+              ) : (
+                <>
+                  <LegsSection direction="ida"   label="✈ Ida"   legs={blockLegs} editable={false}/>
+                  <LegsSection direction="volta" label="✈ Volta" legs={blockLegs} editable={false}/>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Voo individual — editor de trechos por passageiro */}
+          {status === 'fora_bloqueio' && (
+            <div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                <p style={{ margin:0, fontSize:11, fontWeight:700, color:'rgb(147,66,171)', textTransform:'uppercase', letterSpacing:'.05em' }}>
+                  Trechos do passageiro
+                </p>
+                <button type="button" onClick={handleCopyFromBlock} disabled={copying}
+                  style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e9d5ff', background:'#faf5ff', color:'rgb(147,66,171)', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  {copying ? '…' : '↓ Copiar do bloqueio'}
+                </button>
+              </div>
+              {!pLegsLoaded ? (
+                <p style={{ color:'#94a3b8', fontSize:12 }}>Carregando…</p>
+              ) : (
+                <>
+                  <LegsSection direction="ida"   label="✈ Ida"   legs={pLegs} editable={true}/>
+                  <LegsSection direction="volta" label="✈ Volta" legs={pLegs} editable={true}/>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -452,6 +604,26 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           </button>
         </div>
       </div>
+
+      {/* Sub-modal para editar trecho individual */}
+      {legModal && (
+        <FlightLegModal
+          initial={legModal.initial}
+          prefill={legModal.prefill}
+          direction={legModal.direction}
+          zIndex={820}
+          onSave={handleSaveLeg}
+          onClose={() => setLegModal(null)}
+        />
+      )}
+
+      {delLeg && (
+        <ConfirmModal
+          message={`Remover trecho ${delLeg.origin_airport_data?.iata_code || '?'} → ${delLeg.destination_airport_data?.iata_code || '?'}?`}
+          onOk={() => handleDeleteLeg(delLeg)}
+          onCancel={() => setDelLeg(null)}
+        />
+      )}
     </div>
   )
 }
@@ -2765,7 +2937,7 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
 }
 
 /* ── Modal criar/editar trecho de voo ── */
-function FlightLegModal({ initial, prefill, direction, onSave, onClose }) {
+function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex }) {
   const isEdit = !!initial
   const [origin,      setOrigin]      = useState(initial?.origin_airport_data      || prefill?.origin_airport_data || null)
   const [dest,        setDest]        = useState(initial?.destination_airport_data || null)
@@ -2802,7 +2974,7 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose }) {
   const dirLabel = direction === 'ida' ? 'Ida' : 'Volta'
 
   return (
-    <div className="overlay" style={{ zIndex:810 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="overlay" style={{ zIndex: zIndex ?? 810 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="mbox" style={{ maxWidth:460 }}>
         <div className="mhead">
           <span className="mtitle">{isEdit ? 'Editar trecho' : `Novo trecho — ${dirLabel}`}</span>

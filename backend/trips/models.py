@@ -218,6 +218,27 @@ class FlightLeg(models.Model):
         return f'{o} → {d} ({self.flight_number or "sem nº"})'
 
 
+class PassengerFlightLeg(models.Model):
+    DIRECTION_CHOICES = [('ida', 'Ida'), ('volta', 'Volta')]
+
+    enrollment          = models.ForeignKey(ListEnrollment, on_delete=models.CASCADE, related_name='passenger_flight_legs')
+    direction           = models.CharField('Direção', max_length=10, choices=DIRECTION_CHOICES, default='ida')
+    order               = models.PositiveSmallIntegerField('Ordem', default=0)
+    origin_airport      = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de origem')
+    destination_airport = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de destino')
+    flight_number       = models.CharField('Número do voo', max_length=20, blank=True)
+    airline             = models.CharField('Companhia aérea', max_length=100, blank=True)
+    departure_date      = models.DateField('Data de partida', null=True, blank=True)
+    departure_time      = models.TimeField('Horário de partida', null=True, blank=True)
+    arrival_date        = models.DateField('Data de chegada', null=True, blank=True)
+    arrival_time        = models.TimeField('Horário de chegada', null=True, blank=True)
+
+    class Meta:
+        ordering            = ['direction', 'order', 'departure_date', 'departure_time']
+        verbose_name        = 'Trecho individual de voo'
+        verbose_name_plural = 'Trechos individuais de voo'
+
+
 class Room(models.Model):
     passenger_list = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='rooms', verbose_name='Lista')
     name           = models.CharField('Nome', max_length=200)
