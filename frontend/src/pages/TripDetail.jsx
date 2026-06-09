@@ -1204,7 +1204,7 @@ function StatusToggle({ value, onChange }) {
 
 /* ── Popup de adicionar passageiro / bloqueio ── */
 function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
-  const mkRow = () => ({ id: Date.now() + Math.random(), paxSearch:'', passenger:null, paxResults:[], paxSearching:false, agSearch:'', agency:null, agResults:[], agSearching:false, members:[], responsible:null, status:'pendente', prazo:'', notes:'' })
+  const mkRow = () => ({ id: Date.now() + Math.random(), paxSearch:'', passenger:null, paxResults:[], paxSearching:false, agSearch:'', agency:null, agResults:[], agSearching:false, members:[], responsible:null, respInput:'', status:'pendente', statusInput:'Pendente', prazo:'', notes:'' })
   const [newRoom,    setNewRoom]    = useState(false)
   const [accomType,  setAccomType]  = useState('')
   const [accomTypes, setAccomTypes] = useState([])
@@ -1245,6 +1245,66 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
       } catch { upd(id, { agSearching: false }) }
     }, 200)
   }
+
+  const getDropItems = (row, field) => {
+    if (field === 'pax') return row.paxResults
+    if (field === 'ag')  return row.agResults
+    if (field === 'status') {
+      const q = (row.statusInput || '').toLowerCase()
+      return ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado' && o.label.toLowerCase().includes(q))
+    }
+    if (field === 'resp') {
+      const q = (row.respInput || '').toLowerCase()
+      return (row.members || []).filter(m =>
+        (m.user_name || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q)
+      )
+    }
+    return []
+  }
+
+  const selectItem = (rid, field, item) => {
+    if (field === 'pax') {
+      upd(rid, { passenger: item, paxSearch: item.full_name })
+    } else if (field === 'ag') {
+      const lbl = item.company_name || item.name
+      upd(rid, { agency: item, agSearch: lbl, responsible: null, respInput: '', members: [] })
+      agenciesApi.listMembers(item.id).then(r => upd(rid, { members: r.data })).catch(() => {})
+    } else if (field === 'status') {
+      upd(rid, { status: item.value, statusInput: item.label })
+    } else if (field === 'resp') {
+      upd(rid, { responsible: item, respInput: item.user_name || item.email })
+    }
+    setOpenDrop(null)
+  }
+
+  const handleKey = (e, rid, field) => {
+    if (!['ArrowDown','ArrowUp','Enter','Escape'].includes(e.key)) return
+    if (e.key === 'Escape') { setOpenDrop(null); return }
+    e.preventDefault()
+    if (!openDrop || openDrop.rid !== rid || openDrop.field !== field) return
+    const row = rows.find(r => r.id === rid)
+    if (!row) return
+    const items = getDropItems(row, field)
+    const h = openDrop.hover ?? 0
+    if (e.key === 'ArrowDown') setOpenDrop(d => d ? { ...d, hover: Math.min(h + 1, items.length - 1) } : d)
+    else if (e.key === 'ArrowUp') setOpenDrop(d => d ? { ...d, hover: Math.max(h - 1, 0) } : d)
+    else if (e.key === 'Enter') { const it = items[h]; if (it) selectItem(rid, field, it) }
+  }
+
+  const openDropFor = (e, rid, field) => {
+    const r = e.target.getBoundingClientRect()
+    setOpenDrop({ rid, field, top: r.bottom + 4, left: r.left, width: Math.max(r.width, 200), hover: 0 })
+  }
+
+  const restoreOnBlur = (rid, field) => setTimeout(() => {
+    setOpenDrop(d => d?.rid === rid && d?.field === field ? null : d)
+    setRows(rs => rs.map(r => {
+      if (r.id !== rid) return r
+      if (field === 'status') return { ...r, statusInput: ENROLLMENT_STATUS_OPTS.find(o => o.value === r.status)?.label || r.status }
+      if (field === 'resp')   return { ...r, respInput: r.responsible ? (r.responsible.user_name || r.responsible.email) : '' }
+      return r
+    }))
+  }, 150)
 
   const handleSave = async () => {
     const valid = rows.filter(r => r.passenger)
@@ -1347,9 +1407,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                       {/* Passageiro */}
                       <td style={{ padding:'5px 6px', overflow:'hidden' }}>
                         <input value={row.paxSearch}
-                          onChange={e => searchPax(rid, e.target.value)}
-                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'pax', top:r.bottom+4, left:r.left, width:Math.max(r.width,220) }); if (!row.paxResults.length) searchPax(rid, row.paxSearch) }}
-                          onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid && d?.field==='pax' ? null : d), 200)}
+                          onChange={e => { searchPax(rid, e.target.value); setOpenDrop(d => d?.rid===rid&&d?.field==='pax' ? {...d,hover:0} : d) }}
+                          onFocus={e => { openDropFor(e, rid, 'pax'); if (!row.paxResults.length) searchPax(rid, row.paxSearch) }}
+                          onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid&&d?.field==='pax' ? null : d), 150)}
+                          onKeyDown={e => handleKey(e, rid, 'pax')}
                           placeholder="Passageiro…" className="fi"
                           style={{ ...cellInput, borderColor: row.passenger ? '#16a34a' : undefined }} />
                         {row.passenger && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.passenger.full_name}</p>}
@@ -1358,9 +1419,10 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                       {/* Agência */}
                       <td style={{ padding:'5px 6px', overflow:'hidden' }}>
                         <input value={row.agSearch}
-                          onChange={e => searchAg(rid, e.target.value)}
-                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'ag', top:r.bottom+4, left:r.left, width:Math.max(r.width,220) }); if (!row.agResults.length) searchAg(rid, row.agSearch) }}
-                          onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid && d?.field==='ag' ? null : d), 200)}
+                          onChange={e => { searchAg(rid, e.target.value); setOpenDrop(d => d?.rid===rid&&d?.field==='ag' ? {...d,hover:0} : d) }}
+                          onFocus={e => { openDropFor(e, rid, 'ag'); if (!row.agResults.length) searchAg(rid, row.agSearch) }}
+                          onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid&&d?.field==='ag' ? null : d), 150)}
+                          onKeyDown={e => handleKey(e, rid, 'ag')}
                           placeholder="Agência…" className="fi"
                           style={{ ...cellInput, borderColor: row.agency ? '#16a34a' : undefined }} />
                         {row.agency && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.agency.company_name || row.agency.name}</p>}
@@ -1368,9 +1430,16 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
 
                       {/* Status */}
                       <td style={{ padding:'5px 6px' }}>
-                        <select value={row.status} onChange={e => upd(rid, { status: e.target.value })} className="fi" style={{ ...cellInput }}>
-                          {ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
+                        <div style={{ position:'relative' }}>
+                          <input value={row.statusInput}
+                            onChange={e => { upd(rid, { statusInput: e.target.value }); setOpenDrop(d => d?.rid===rid&&d?.field==='status' ? {...d,hover:0} : d) }}
+                            onFocus={e => openDropFor(e, rid, 'status')}
+                            onBlur={() => restoreOnBlur(rid, 'status')}
+                            onKeyDown={e => handleKey(e, rid, 'status')}
+                            placeholder="Status…" className="fi"
+                            style={{ ...cellInput, paddingRight:22 }} />
+                          <span style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', width:8, height:8, borderRadius:'50%', background: ENROLLMENT_STATUS_OPTS.find(o=>o.value===row.status)?.color || '#94a3b8', pointerEvents:'none', flexShrink:0 }} />
+                        </div>
                       </td>
 
                       {/* Prazo */}
@@ -1386,14 +1455,15 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
 
                       {/* Responsável */}
                       <td style={{ padding:'5px 6px', overflow:'hidden' }}>
-                        {row.members.length > 0 ? (
-                          <select value={row.responsible?.user_id || ''} onChange={e => upd(rid, { responsible: row.members.find(m => String(m.user_id)===e.target.value)||null })} className="fi" style={{ ...cellInput }}>
-                            <option value="">— responsável</option>
-                            {row.members.map(m => <option key={m.user_id} value={m.user_id}>{m.user_name || m.email}</option>)}
-                          </select>
-                        ) : (
-                          <span style={{ fontSize:11, color:'#cbd5e1' }}>{row.agency ? 'Sem membros' : '—'}</span>
-                        )}
+                        <input value={row.respInput}
+                          onChange={e => { upd(rid, { respInput: e.target.value }); setOpenDrop(d => d?.rid===rid&&d?.field==='resp' ? {...d,hover:0} : d) }}
+                          onFocus={e => openDropFor(e, rid, 'resp')}
+                          onBlur={() => restoreOnBlur(rid, 'resp')}
+                          onKeyDown={e => handleKey(e, rid, 'resp')}
+                          placeholder={row.agency ? 'Responsável…' : '—'}
+                          disabled={!row.agency}
+                          className="fi"
+                          style={{ ...cellInput, color: row.responsible ? '#1e293b' : undefined, background: !row.agency ? '#f8fafc' : undefined }} />
                       </td>
 
                       {/* Remover */}
@@ -1412,46 +1482,75 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
             </table>
           </div>
 
-          {/* Portal dropdown */}
+          {/* Portal dropdown — unified for pax / ag / status / resp */}
           {openDrop && createPortal(
             <div style={{ ...DROP_STYLE, top: openDrop.top, left: openDrop.left, width: openDrop.width }}>
               {(() => {
                 const row = rows.find(r => r.id === openDrop.rid)
                 if (!row) return null
-                if (openDrop.field === 'pax') {
+                const { field, hover } = openDrop
+                const rid = openDrop.rid
+
+                if (field === 'pax') {
                   if (row.paxSearching) return DROP_EMPTY('Buscando…')
                   if (!row.paxResults.length) return DROP_EMPTY('Nenhum passageiro encontrado.')
-                  return row.paxResults.map(p => (
-                    <div key={p.id} style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
-                      onMouseDown={() => { upd(openDrop.rid, { passenger:p, paxSearch:p.full_name }); setOpenDrop(null) }}
-                      onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
-                      onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                  return row.paxResults.map((p, i) => (
+                    <div key={p.id}
+                      style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: hover===i ? '#eff6ff' : 'transparent' }}
+                      onMouseDown={() => selectItem(rid, 'pax', p)}
+                      onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:i} : d)}>
                       <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
                       <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
                     </div>
                   ))
                 }
-                if (openDrop.field === 'ag') {
+
+                if (field === 'ag') {
                   if (row.agSearching) return DROP_EMPTY('Buscando…')
                   if (!row.agResults.length) return DROP_EMPTY('Nenhuma agência encontrada.')
-                  return row.agResults.map(ag => {
+                  return row.agResults.map((ag, i) => {
                     const lbl = ag.company_name || ag.name
                     return (
-                      <div key={ag.id} style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
-                        onMouseDown={() => {
-                          const rid = openDrop.rid
-                          upd(rid, { agency:ag, agSearch:lbl, responsible:null, members:[] })
-                          setOpenDrop(null)
-                          agenciesApi.listMembers(ag.id).then(r => upd(rid, { members: r.data })).catch(() => {})
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
-                        onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                      <div key={ag.id}
+                        style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: hover===i ? '#eff6ff' : 'transparent' }}
+                        onMouseDown={() => selectItem(rid, 'ag', ag)}
+                        onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:i} : d)}>
                         <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{lbl}</p>
                         <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{ag.cnpj || ag.email || '—'}</p>
                       </div>
                     )
                   })
                 }
+
+                if (field === 'status') {
+                  const items = getDropItems(row, 'status')
+                  if (!items.length) return DROP_EMPTY('Nenhuma opção.')
+                  return items.map((opt, i) => (
+                    <div key={opt.value}
+                      style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', display:'flex', alignItems:'center', gap:9, background: hover===i ? '#eff6ff' : 'transparent' }}
+                      onMouseDown={() => selectItem(rid, 'status', opt)}
+                      onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:i} : d)}>
+                      <span style={{ width:9, height:9, borderRadius:'50%', background: opt.color, flexShrink:0 }} />
+                      <span style={{ fontSize:13, fontWeight: hover===i ? 600 : 400, color:'#1e293b' }}>{opt.label}</span>
+                    </div>
+                  ))
+                }
+
+                if (field === 'resp') {
+                  const items = getDropItems(row, 'resp')
+                  if (!row.agency) return DROP_EMPTY('Selecione uma agência primeiro.')
+                  if (!items.length) return DROP_EMPTY(row.members.length ? 'Nenhum membro encontrado.' : 'Carregando…')
+                  return items.map((m, i) => (
+                    <div key={m.user_id}
+                      style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: hover===i ? '#eff6ff' : 'transparent' }}
+                      onMouseDown={() => selectItem(rid, 'resp', m)}
+                      onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:i} : d)}>
+                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{m.user_name || m.email}</p>
+                      {m.user_name && <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{m.email}</p>}
+                    </div>
+                  ))
+                }
+
                 return null
               })()}
             </div>,
