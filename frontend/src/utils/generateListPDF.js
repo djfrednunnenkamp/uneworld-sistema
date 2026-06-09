@@ -60,6 +60,31 @@ function emojiToDataUrl(emoji, size = 20) {
   } catch { return null }
 }
 
+// Desenha um selo verde com check branco numa canvas e retorna data URL PNG
+function checkBadgeDataUrl(size = 20) {
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width  = size * 2
+    canvas.height = size * 2
+    const ctx = canvas.getContext('2d')
+    const r = size * 0.85
+    ctx.beginPath()
+    ctx.arc(size, size, r, 0, Math.PI * 2)
+    ctx.fillStyle = '#16a34a'
+    ctx.fill()
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth   = size * 0.18
+    ctx.lineCap     = 'round'
+    ctx.lineJoin    = 'round'
+    ctx.beginPath()
+    ctx.moveTo(size * 0.55, size * 1.02)
+    ctx.lineTo(size * 0.9,  size * 1.35)
+    ctx.lineTo(size * 1.5,  size * 0.65)
+    ctx.stroke()
+    return canvas.toDataURL('image/png')
+  } catch { return null }
+}
+
 // ── PDF theme ─────────────────────────────────────────────────────────────────
 
 const NAV    = [26, 45, 79]      // #1a2d4f
@@ -152,6 +177,9 @@ export async function generateListPDF(list, enrollments, opts) {
   // Emoji de aniversario renderizado em canvas
   const cakeImg = emojiToDataUrl('🎂', 20)   // 🎂
 
+  // Selo verde de "Sim" (bloqueio aereo) renderizado em canvas
+  const checkImg = checkBadgeDataUrl(20)
+
   const doc    = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pax    = enrollments.filter(e => !e.is_block && e.enrollment_status !== 'cancelado')
   const dates  = fmtDate(list.start_date) + ' A ' + fmtDate(list.end_date)
@@ -223,6 +251,51 @@ export async function generateListPDF(list, enrollments, opts) {
     }
   }
 
+  // Combina varios hooks didParseCell/didDrawCell numa unica chamada de tabela
+  function mergeHooks(...hooksList) {
+    const list = hooksList.filter(h => h && (h.didParseCell || h.didDrawCell))
+    if (list.length === 0) return {}
+    return {
+      didParseCell: data => list.forEach(h => h.didParseCell && h.didParseCell(data)),
+      didDrawCell:  data => list.forEach(h => h.didDrawCell  && h.didDrawCell(data)),
+    }
+  }
+
+  // Hooks: coluna "Bloqueio aereo" — Sim centralizado, verde, com selo de check
+  function bloqueioHooks(colIndex) {
+    const ICON  = 4      // mm
+    const GAP   = 1.3    // mm entre selo e texto
+    const GREEN = [22, 163, 74]
+
+    return {
+      didParseCell: data => {
+        if (data.section === 'body' && data.column.index === colIndex && data.cell.raw === 'Sim' && checkImg) {
+          data.cell.text = ['']
+        }
+      },
+      didDrawCell: data => {
+        if (data.section === 'body' && data.column.index === colIndex && data.cell.raw === 'Sim' && checkImg) {
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(8)
+          const label  = 'Sim'
+          const tw     = doc.getTextWidth(label)
+          const totalW = ICON + GAP + tw
+          const startX = data.cell.x + (data.cell.width - totalW) / 2
+          const padTop = (data.cell.padding?.top ?? 3)
+          const imgY   = data.cell.y + padTop
+          const textY  = imgY + 2.8
+
+          try { doc.addImage(checkImg, 'PNG', startX, imgY, ICON, ICON) } catch {}
+
+          doc.setTextColor(...GREEN)
+          doc.text(label, startX + ICON + GAP, textY)
+          doc.setTextColor(30, 41, 59)
+          doc.setFont('helvetica', 'normal')
+        }
+      },
+    }
+  }
+
   // ── 1. Lista de Passageiros Confirmados ─────────────────────────────────────
   if (opts.confirmados) {
     const accomCounts = {}
@@ -247,10 +320,10 @@ export async function generateListPDF(list, enrollments, opts) {
 
     // N(7)+Bloq(22)+Nome(58)+Apto(26)+Nasc(28)+Nac(16)+Gen(16)+Pass(24)+CPF(28)+Ag(44)=269
     applyTableStyle(doc, y,
-      ['N', 'Bloqueio aereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
+      ['N', 'Bloqueio\naereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
       body,
-      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:44} },
-      birthdayHooks(bdaySet, 4)   // Nascimento = coluna 4
+      { 0:{cellWidth:7}, 1:{cellWidth:22,halign:'center'}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:44} },
+      mergeHooks(birthdayHooks(bdaySet, 4), bloqueioHooks(1))   // Nascimento = coluna 4, Bloqueio = coluna 1
     )
   }
 
