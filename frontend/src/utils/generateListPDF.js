@@ -45,6 +45,21 @@ function hasBirthdayInTrip(birthDate, startDate, endDate) {
   return false
 }
 
+// Renderiza um emoji numa canvas e retorna data URL PNG
+function emojiToDataUrl(emoji, size = 20) {
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width  = size * 2
+    canvas.height = size * 2
+    const ctx = canvas.getContext('2d')
+    ctx.font          = `${size * 1.8}px serif`
+    ctx.textBaseline  = 'middle'
+    ctx.textAlign     = 'center'
+    ctx.fillText(emoji, size, size)
+    return canvas.toDataURL('image/png')
+  } catch { return null }
+}
+
 // ── PDF theme ─────────────────────────────────────────────────────────────────
 
 const NAV    = [26, 45, 79]      // #1a2d4f
@@ -52,7 +67,8 @@ const BLUE   = [46, 109, 180]    // #2e6db4
 const HEADER = [248, 250, 252]   // #f8fafc
 const BORDER = [226, 232, 240]   // #e2e8f0
 
-function applyTableStyle(doc, startY, head, body, colStyles = {}) {
+// hooks: { didParseCell?, didDrawCell? }
+function applyTableStyle(doc, startY, head, body, colStyles = {}, hooks = {}) {
   autoTable(doc, {
     startY,
     head: [head],
@@ -80,6 +96,7 @@ function applyTableStyle(doc, startY, head, body, colStyles = {}) {
     margin: { left: 14, right: 14 },
     tableLineColor: BORDER,
     tableLineWidth: 0.2,
+    ...hooks,
   })
   return doc.lastAutoTable.finalY
 }
@@ -87,21 +104,18 @@ function applyTableStyle(doc, startY, head, body, colStyles = {}) {
 function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
   const pw     = doc.internal.pageSize.getWidth()
   const LOGO_W = 30, LOGO_H = 16, LOGO_X = 14, LOGO_Y = 6
-  const NUM_W  = 60   // largura reservada para o numero a direita
+  const NUM_W  = 60
 
-  // Logo
   if (logoDataUrl) {
     try { doc.addImage(logoDataUrl, 'PNG', LOGO_X, LOGO_Y, LOGO_W, LOGO_H) } catch {}
   }
 
-  // Numero da lista (topo direito)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(...NAV)
   const numStr = 'LISTA DE PASSAGEIROS N' + String.fromCharCode(186) + ' ' + String(listNumber).padStart(5, '0')
   doc.text(numStr, pw - 14, 10, { align: 'right' })
 
-  // Titulo centralizado entre logo e numero
   const areaStart = LOGO_X + LOGO_W + 4
   const areaEnd   = pw - 14 - NUM_W
   const centerX   = areaStart + (areaEnd - areaStart) / 2
@@ -111,13 +125,11 @@ function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
   doc.setTextColor(...NAV)
   doc.text(title, centerX, 12, { align: 'center' })
 
-  // Subtitulo
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(71, 85, 105)
   doc.text(listName + ' (' + dates + ')', centerX, 19, { align: 'center' })
 
-  // Linha divisoria azul
   doc.setDrawColor(...BLUE)
   doc.setLineWidth(0.5)
   doc.line(14, 24, pw - 14, 24)
@@ -128,7 +140,6 @@ function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function generateListPDF(list, enrollments, opts) {
-  // Load logo
   let logoDataUrl = null
   try {
     const resp = await fetch('/logo.png')
@@ -138,13 +149,15 @@ export async function generateListPDF(list, enrollments, opts) {
     })
   } catch {}
 
+  // Emoji de aniversario renderizado em canvas
+  const cakeImg = emojiToDataUrl('🎂', 20)   // 🎂
+
   const doc    = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pax    = enrollments.filter(e => !e.is_block && e.enrollment_status !== 'cancelado')
   const dates  = fmtDate(list.start_date) + ' A ' + fmtDate(list.end_date)
   const lname  = (list.name || '').toUpperCase()
   const lnum   = list.id
 
-  // Mapa de colegas de quarto: accommodation -> [ids]
   const accomPairs = {}
   pax.forEach(e => {
     if (e.accommodation) {
@@ -169,6 +182,30 @@ export async function generateListPDF(list, enrollments, opts) {
     return y
   }
 
+  // Hooks para desenhar o bolo de aniversario numa coluna especifica
+  function birthdayHooks(birthdaySet, colIndex) {
+    if (!cakeImg || birthdaySet.size === 0) return {}
+    const ICON = 5.5  // tamanho do icone em mm
+    return {
+      didParseCell: data => {
+        if (data.section === 'body' && birthdaySet.has(data.row.index) && data.column.index === colIndex) {
+          data.cell.styles.cellPadding = { top: 3, right: 4, bottom: 3, left: ICON + 5 }
+        }
+      },
+      didDrawCell: data => {
+        if (data.section === 'body' && birthdaySet.has(data.row.index) && data.column.index === colIndex) {
+          try {
+            doc.addImage(cakeImg, 'PNG',
+              data.cell.x + 2,
+              data.cell.y + (data.cell.height - ICON) / 2,
+              ICON, ICON
+            )
+          } catch {}
+        }
+      },
+    }
+  }
+
   // ── 1. Lista de Passageiros Confirmados ─────────────────────────────────────
   if (opts.confirmados) {
     const accomCounts = {}
@@ -176,35 +213,34 @@ export async function generateListPDF(list, enrollments, opts) {
     const summary = Object.entries(accomCounts).map(([k, v]) => k + ': ' + v).join('   ') + '   Total: ' + pax.length
     const y = newSection('LISTA DE PASSAGEIROS CONFIRMADOS', summary)
 
-    const body = pax.map((e, i) => {
-      const isBday = hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date)
-      const bdate  = (isBday ? '* ' : '') + fmtDate(e.passenger_birth_date)
-      const name   = e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : '')
-      return [
-        i + 1,
-        e.ticket_status === 'via_bloqueio' ? 'Sim' : 'Nao',
-        name,
-        e.accommodation || '',
-        bdate,
-        fmtNat(e.passenger_nationality),
-        fmtGender(e.passenger_gender),
-        passportRg(e),
-        e.passenger_cpf || '',
-        e.agency_name || '',
-      ]
-    })
+    const bdaySet = new Set(pax.map((e, i) => hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date) ? i : -1).filter(i => i >= 0))
+
+    const body = pax.map((e, i) => [
+      i + 1,
+      e.ticket_status === 'via_bloqueio' ? 'Sim' : 'Nao',
+      e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
+      e.accommodation || '',
+      fmtDate(e.passenger_birth_date),          // sem prefixo — o bolo e desenhado via didDrawCell
+      fmtNat(e.passenger_nationality),
+      fmtGender(e.passenger_gender),
+      passportRg(e),
+      e.passenger_cpf || '',
+      e.agency_name || '',
+    ])
 
     // N(7)+Bloq(22)+Nome(62)+Apto(26)+Nasc(22)+Nac(16)+Gen(16)+Pass(24)+CPF(28)+Ag(46)=269
     applyTableStyle(doc, y,
       ['N', 'Bloqueio aereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
       body,
-      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:62}, 3:{cellWidth:26}, 4:{cellWidth:22}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:46} }
+      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:62}, 3:{cellWidth:26}, 4:{cellWidth:22}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:46} },
+      birthdayHooks(bdaySet, 4)   // Nascimento = coluna 4
     )
   }
 
   // ── 2. Lista com Data de Expedicao ──────────────────────────────────────────
   if (opts.data_expedicao) {
     const y = newSection('LISTA COM DATA DE EXPEDICAO', null)
+    const bdaySet = new Set(pax.map((e, i) => hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date) ? i : -1).filter(i => i >= 0))
     const body = pax.map((e, i) => [
       i + 1,
       e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
@@ -220,7 +256,8 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'Expedicao', 'Validade', 'CPF'],
       body,
-      { 0:{cellWidth:7}, 1:{cellWidth:80}, 2:{cellWidth:22}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:56} }
+      { 0:{cellWidth:7}, 1:{cellWidth:80}, 2:{cellWidth:22}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:56} },
+      birthdayHooks(bdaySet, 2)   // Nascimento = coluna 2
     )
   }
 
@@ -229,12 +266,11 @@ export async function generateListPDF(list, enrollments, opts) {
     const y = newSection('LISTA AEREO', null)
     const body = pax.map((e, i) => {
       const sameRoom = accomPairs[e.accommodation]
-      const juntos   = sameRoom && sameRoom.length > 1 ? 'Juntos' : ''
       return [
         i + 1,
         e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
         (e.passenger_seat_preference || '').toUpperCase(),
-        juntos,
+        sameRoom && sameRoom.length > 1 ? 'Juntos' : '',
         e.passenger_diet_type || '',
         fmtDate(e.passenger_birth_date),
         fmtNat(e.passenger_nationality),
@@ -253,7 +289,6 @@ export async function generateListPDF(list, enrollments, opts) {
   // ── 4. Lista de Embarque ─────────────────────────────────────────────────────
   if (opts.embarque) {
     const y = newSection('LISTA DE LOCAIS DE EMBARQUE', null)
-
     const groups = {}
     pax.forEach(e => {
       const ap  = e.departure_airport_data
@@ -261,17 +296,13 @@ export async function generateListPDF(list, enrollments, opts) {
       if (!groups[key]) groups[key] = []
       groups[key].push(e)
     })
-
     const pw2 = doc.internal.pageSize.getWidth()
-    let curY = y
-    let globalIdx = 1
-
+    let curY = y, globalIdx = 1
     Object.entries(groups).forEach(([airport, group]) => {
       if (curY > doc.internal.pageSize.getHeight() - 40) {
         doc.addPage()
         curY = addPageHeader(doc, 'LISTA DE LOCAIS DE EMBARQUE', lname, lnum, dates, logoDataUrl)
       }
-
       doc.setFillColor(...BLUE)
       doc.rect(14, curY, pw2 - 28, 7, 'F')
       doc.setFont('helvetica', 'bold')
@@ -279,7 +310,6 @@ export async function generateListPDF(list, enrollments, opts) {
       doc.setTextColor(255, 255, 255)
       doc.text('EMBARQUE: ' + airport, 17, curY + 4.5)
       curY += 9
-
       const body = group.map(e => [
         globalIdx++,
         e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
@@ -290,7 +320,6 @@ export async function generateListPDF(list, enrollments, opts) {
         e.passenger_cpf || '',
         e.passenger_diet_type || '',
       ])
-
       // N(7)+Nome(76)+Ass(20)+Nasc(22)+Nac(16)+Gen(16)+CPF(30)+Alim(82)=269
       curY = applyTableStyle(doc, curY,
         ['N', 'Nome', 'Assento', 'Nascimento', 'Nac.', 'Genero', 'CPF', 'Tipo Alimentacao'],
@@ -306,11 +335,7 @@ export async function generateListPDF(list, enrollments, opts) {
     const paxWithNotes = pax.filter(e => e.notes)
     const y = newSection('LISTA DE OBSERVACOES', null)
     const body = paxWithNotes.map((e, i) => [
-      i + 1,
-      e.passenger_name,
-      '',
-      e.notes || '',
-      e.passenger_diet_type || '',
+      i + 1, e.passenger_name, '', e.notes || '', e.passenger_diet_type || '',
     ])
     // N(7)+Nome(70)+Adic(50)+Obs(110)+Alim(32)=269
     applyTableStyle(doc, y,
