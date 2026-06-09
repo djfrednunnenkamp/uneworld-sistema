@@ -1959,6 +1959,12 @@ function LinkAgencyPopup({ enrollment, listId, onSaved, onClose }) {
   const debRef = useRef(null)
   const inpRef = useRef(null)
 
+  const refreshDropPos = () => {
+    if (!inpRef.current) return null
+    const rect = inpRef.current.getBoundingClientRect()
+    return { top: rect.bottom + 4, left: rect.left, width: rect.width }
+  }
+
   const doSearch = q => {
     clearTimeout(debRef.current)
     if (!q.trim()) { setResults([]); setDropPos(null); return }
@@ -1966,7 +1972,9 @@ function LinkAgencyPopup({ enrollment, listId, onSaved, onClose }) {
     debRef.current = setTimeout(async () => {
       try {
         const r = await agenciesApi.list({ search: q, page_size: 15 })
-        setResults(r.data.results || r.data)
+        const list = r.data.results || r.data
+        setResults(list)
+        if (list.length > 0) setDropPos(refreshDropPos())
       } catch { setResults([]) }
       finally { setSearching(false) }
     }, 280)
