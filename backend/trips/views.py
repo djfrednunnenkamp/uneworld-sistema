@@ -36,6 +36,13 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
 # ── Lista de Passageiros ─────────────────────────────────────────────────────
 
+def _cleanup_empty_rooms(pl):
+    """Apaga acomodações (Room) que não têm nenhuma inscrição ativa."""
+    occupied = set(
+        pl.list_enrollments.exclude(accommodation='').values_list('accommodation', flat=True)
+    )
+    Room.objects.filter(passenger_list=pl).exclude(name__in=occupied).delete()
+
 class SupplierViewSet(viewsets.ModelViewSet):
     queryset         = Supplier.objects.all()
     serializer_class = SupplierSerializer
@@ -156,6 +163,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
 
         if request.method == 'DELETE':
             e.delete()
+            _cleanup_empty_rooms(pl)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         # PATCH
@@ -192,6 +200,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                 e.passenger = None
                 e.is_block  = True
         e.save()
+        _cleanup_empty_rooms(pl)
         return Response(ListEnrollmentSerializer(e).data)
 
     # ── Trechos individuais de voo por passageiro ───────────────────────────
