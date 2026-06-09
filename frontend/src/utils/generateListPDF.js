@@ -182,40 +182,39 @@ export async function generateListPDF(list, enrollments, opts) {
     return y
   }
 
-  // Hooks para desenhar bolo antes e depois da data, na mesma linha, com cor laranja
+  // Hooks: zera o texto do autoTable e desenha tudo manualmente (centrado, mesma linha)
   function birthdayHooks(birthdaySet, colIndex) {
     if (!cakeImg || birthdaySet.size === 0) return {}
-    const ICON   = 4        // mm — icone pequeno
-    const GAP    = 1        // mm — espaco entre icone e texto
-    const PAD_L  = 2        // margem esquerda da celula
+    const ICON   = 4      // mm
+    const GAP    = 1.5    // mm entre icone e texto
     const ORANGE = [220, 80, 20]
 
     return {
-      // Desloca o texto para a direita (espaco pro bolo esquerdo) e aplica cor laranja
       didParseCell: data => {
+        // Limpa o texto que o autoTable desenharia — vamos renderizar manualmente
         if (data.section === 'body' && birthdaySet.has(data.row.index) && data.column.index === colIndex) {
-          data.cell.styles.textColor    = ORANGE
-          data.cell.styles.cellPadding  = { top: 3, right: PAD_L, bottom: 3, left: PAD_L + ICON + GAP }
-          data.cell.styles.overflow     = 'hidden'
+          data.cell.text = ['']
         }
       },
-      // Depois que o texto ja foi desenhado (laranja, com offset): pinta o bolo esquerdo
-      // e, se couber, o bolo direito logo apos o texto
       didDrawCell: data => {
         if (!cakeImg) return
         if (data.section === 'body' && birthdaySet.has(data.row.index) && data.column.index === colIndex) {
-          const midY    = data.cell.y + data.cell.height / 2
-          const leftX   = data.cell.x + PAD_L
-          // bolo esquerdo
-          try { doc.addImage(cakeImg, 'PNG', leftX, midY - ICON / 2, ICON, ICON) } catch {}
-          // bolo direito — posiciona apos o texto
           const dateStr = String(data.cell.raw || '')
+          doc.setFont('helvetica', 'normal')
           doc.setFontSize(8)
           const tw      = doc.getTextWidth(dateStr)
-          const rightX  = leftX + ICON + GAP + tw + GAP
-          if (rightX + ICON <= data.cell.x + data.cell.width - PAD_L) {
-            try { doc.addImage(cakeImg, 'PNG', rightX, midY - ICON / 2, ICON, ICON) } catch {}
-          }
+          const totalW  = ICON + GAP + tw + GAP + ICON
+          // centraliza horizontalmente na celula
+          const startX  = data.cell.x + (data.cell.width - totalW) / 2
+          const midY    = data.cell.y + data.cell.height / 2
+
+          try { doc.addImage(cakeImg, 'PNG', startX, midY - ICON / 2, ICON, ICON) } catch {}
+
+          doc.setTextColor(...ORANGE)
+          doc.text(dateStr, startX + ICON + GAP, midY + 1.4)   // +1.4 = ajuste de baseline 8pt
+          doc.setTextColor(30, 41, 59)  // reset
+
+          try { doc.addImage(cakeImg, 'PNG', startX + ICON + GAP + tw + GAP, midY - ICON / 2, ICON, ICON) } catch {}
         }
       },
     }
@@ -247,7 +246,7 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['N', 'Bloqueio aereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
       body,
-      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:44} },
+      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:44} },
       birthdayHooks(bdaySet, 4)   // Nascimento = coluna 4
     )
   }
@@ -271,7 +270,7 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'Expedicao', 'Validade', 'CPF'],
       body,
-      { 0:{cellWidth:7}, 1:{cellWidth:76}, 2:{cellWidth:28}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:54} },
+      { 0:{cellWidth:7}, 1:{cellWidth:76}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:54} },
       birthdayHooks(bdaySet, 2)   // Nascimento = coluna 2
     )
   }
