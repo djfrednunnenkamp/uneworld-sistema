@@ -2774,19 +2774,17 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       const ts1 = e.ticket_status || 'nao_emitida'
                       const hasFeederIcon = !e.is_block && e.departure_airport_data && defaultAirport && e.departure_airport_data.id !== defaultAirport.id
                       const ts2 = e.connection_ticket_status || 'nao_emitida'
-                      const TicketIcon = ({ ts, num, size = 13 }) => (
+                      const tBg = ts => ts === 'nao_emitida' ? 'rgba(203,213,225,.25)' : ts === 'via_bloqueio' ? 'rgba(245,158,11,.18)' : 'rgba(147,66,171,.15)'
+                      const TicketIcon = ({ ts, num }) => (
                         <button type="button" onClick={() => setTicketModal(e)} title={tTitle(ts, num)}
-                          style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:'none', border:'none', cursor:'pointer', padding:'2px 3px', borderRadius:5 }}>
-                          <span style={{ fontSize:size, lineHeight:1, color:tColor(ts) }}>✈</span>
-                          {ts !== 'nao_emitida'
-                            ? <span style={{ width:5, height:5, borderRadius:'50%', background:tColor(ts), flexShrink:0 }}/>
-                            : <span style={{ width:5, height:5 }}/>}
+                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:26, height:26, borderRadius:'50%', background:tBg(ts), border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
+                          <span style={{ fontSize:13, lineHeight:1, color:tColor(ts) }}>✈</span>
                         </button>
                       )
                       return (
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:3, paddingRight:4 }}>
-                          <TicketIcon ts={ts1} num={e.ticket_number} size={14}/>
-                          {hasFeederIcon && <TicketIcon ts={ts2} num={e.connection_ticket_number} size={11}/>}
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, paddingRight:2 }}>
+                          <TicketIcon ts={ts1} num={e.ticket_number}/>
+                          {hasFeederIcon && <TicketIcon ts={ts2} num={e.connection_ticket_number}/>}
                         </div>
                       )
                     })() : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
