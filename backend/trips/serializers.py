@@ -156,8 +156,9 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_gender     = serializers.SerializerMethodField()
     passenger_passport   = serializers.SerializerMethodField()
     passenger_passports  = serializers.SerializerMethodField()
-    passenger_rg         = serializers.SerializerMethodField()
-    passenger_status     = serializers.SerializerMethodField()
+    passenger_rg          = serializers.SerializerMethodField()
+    passenger_status      = serializers.SerializerMethodField()
+    passenger_is_verified = serializers.SerializerMethodField()
 
     def _p(self, obj): return obj.passenger  # helper
 
@@ -196,8 +197,9 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         pairs = [(p.passport, p.passport_country), (p.passport2, p.passport2_country)]
         return [{'number': num, 'country': country} for num, country in pairs if num]
 
-    def get_passenger_rg(self, obj):         return obj.passenger.rg          if obj.passenger else ''
-    def get_passenger_status(self, obj):     return obj.passenger.status      if obj.passenger else ''
+    def get_passenger_rg(self, obj):          return obj.passenger.rg           if obj.passenger else ''
+    def get_passenger_status(self, obj):      return obj.passenger.status       if obj.passenger else ''
+    def get_passenger_is_verified(self, obj): return obj.passenger.is_verified  if obj.passenger else False
 
     agency_name              = serializers.SerializerMethodField()
     responsible_user_name    = serializers.SerializerMethodField()
@@ -242,6 +244,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
+            'passenger_is_verified',
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
             'ticket_status', 'connection_ticket_status',

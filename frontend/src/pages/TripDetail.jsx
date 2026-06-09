@@ -3588,6 +3588,12 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       ) : (
                         <>
                           <div style={{ display:'flex', alignItems:'center', gap:5, minWidth:0 }}>
+                            {e.passenger_is_verified && (
+                              <span title="Cadastro verificado"
+                                style={{ flexShrink:0, width:18, height:18, borderRadius:'50%', background:'#dcfce7', border:'1.5px solid #4ade80', color:'#16a34a', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+                                ✓
+                              </span>
+                            )}
                             {e.notes && (
                               <span
                                 title={e.notes}
