@@ -197,9 +197,45 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         pairs = [(p.passport, p.passport_country), (p.passport2, p.passport2_country)]
         return [{'number': num, 'country': country} for num, country in pairs if num]
 
-    def get_passenger_rg(self, obj):          return obj.passenger.rg           if obj.passenger else ''
-    def get_passenger_status(self, obj):      return obj.passenger.status       if obj.passenger else ''
-    def get_passenger_is_verified(self, obj): return obj.passenger.is_verified  if obj.passenger else False
+    def get_passenger_rg(self, obj):          return obj.passenger.rg             if obj.passenger else ''
+    def get_passenger_status(self, obj):      return obj.passenger.status         if obj.passenger else ''
+    def get_passenger_is_verified(self, obj): return obj.passenger.is_verified    if obj.passenger else False
+
+    passenger_phone2          = serializers.SerializerMethodField()
+    passenger_mobile          = serializers.SerializerMethodField()
+    passenger_seat_preference = serializers.SerializerMethodField()
+    passenger_diet_type       = serializers.SerializerMethodField()
+    passenger_passport_issue  = serializers.SerializerMethodField()
+    passenger_passport_expiry = serializers.SerializerMethodField()
+    passenger_is_guide        = serializers.SerializerMethodField()
+    passenger_address         = serializers.SerializerMethodField()
+
+    def get_passenger_phone2(self, obj):          return obj.passenger.phone2          if obj.passenger else ''
+    def get_passenger_mobile(self, obj):           return obj.passenger.mobile          if obj.passenger else ''
+    def get_passenger_seat_preference(self, obj):  return obj.passenger.seat_preference if obj.passenger else ''
+    def get_passenger_diet_type(self, obj):        return obj.passenger.diet_type       if obj.passenger else ''
+    def get_passenger_is_guide(self, obj):         return obj.passenger.is_guide        if obj.passenger else False
+    def get_passenger_passport_issue(self, obj):
+        p = obj.passenger
+        if not p: return None
+        sd = obj.selected_passport_id and obj.selected_passport
+        if sd and sd.issued_date: return str(sd.issued_date)
+        return str(p.passport_issue) if p.passport_issue else None
+    def get_passenger_passport_expiry(self, obj):
+        p = obj.passenger
+        if not p: return None
+        sd = obj.selected_passport_id and obj.selected_passport
+        if sd and sd.expiry_date: return str(sd.expiry_date)
+        return str(p.passport_expiry) if p.passport_expiry else None
+    def get_passenger_address(self, obj):
+        p = obj.passenger
+        if not p: return ''
+        parts = [p.street]
+        if p.number: parts.append(p.number)
+        if p.complement: parts.append(p.complement)
+        addr = ', '.join(filter(None, parts))
+        city_line = ', '.join(filter(None, [p.neighborhood, p.city, p.state, p.cep]))
+        return '\n'.join(filter(None, [addr, city_line]))
 
     agency_name              = serializers.SerializerMethodField()
     responsible_user_name    = serializers.SerializerMethodField()
@@ -245,6 +281,10 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
             'passenger_is_verified',
+            'passenger_phone2', 'passenger_mobile',
+            'passenger_seat_preference', 'passenger_diet_type',
+            'passenger_passport_issue', 'passenger_passport_expiry',
+            'passenger_is_guide', 'passenger_address',
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
             'ticket_status', 'connection_ticket_status',

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { generateListPDF } from '../utils/generateListPDF'
 import { createPortal } from 'react-dom'
 import FormSelect from '../components/FormSelect'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
@@ -586,8 +587,9 @@ function AirportPopover({ enrollment, rect, listId, defaultAirport, onSaved, onC
 }
 
 /* ── Modal de impressão / download da lista ── */
-function PrintModal({ listName, onClose }) {
+function PrintModal({ list, enrollments, onClose }) {
   const [formato, setFormato] = useState('pdf')
+  const [generating, setGenerating] = useState(false)
   const [opts, setOpts] = useState({
     confirmados:    true,
     data_expedicao: false,
@@ -599,6 +601,19 @@ function PrintModal({ listName, onClose }) {
   })
 
   const toggle = key => setOpts(o => ({ ...o, [key]: !o[key] }))
+
+  const handleDownload = async () => {
+    if (generating) return
+    setGenerating(true)
+    try {
+      await generateListPDF(list, enrollments, opts)
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao gerar PDF.')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const rows = [
     { key:'confirmados',    label:'Exibir lista de passageiros confirmados' },
@@ -651,8 +666,8 @@ function PrintModal({ listName, onClose }) {
 
         <div className="mfoot">
           <button type="button" className="btn btn-outline" onClick={onClose}>Fechar</button>
-          <button type="button" className="btn btn-primary">
-            <Ic n="dl" s={13}/> Baixar
+          <button type="button" className="btn btn-primary" onClick={handleDownload} disabled={generating}>
+            <Ic n="dl" s={13}/> {generating ? 'Gerando…' : 'Baixar PDF'}
           </button>
         </div>
       </div>
@@ -4335,7 +4350,8 @@ export default function TripDetail() {
       {/* Modal de impressão / download */}
       {showPrint && (
         <PrintModal
-          listName={list.name}
+          list={list}
+          enrollments={paxData.enrolled}
           onClose={() => setShowPrint(false)}
         />
       )}
