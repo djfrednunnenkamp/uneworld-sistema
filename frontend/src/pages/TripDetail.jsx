@@ -1548,28 +1548,29 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
                         {row.agency && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.agency.company_name || row.agency.name}</p>}
                       </td>
 
-                      {/* Status — segmented control */}
-                      <td style={{ padding:'5px 6px' }}>
-                        <div style={{ display:'flex', background:'#f1f5f9', borderRadius:7, padding:2, gap:1 }}>
-                          {ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado').map(opt => {
-                            const sel = row.status === opt.value
-                            return (
-                              <button key={opt.value} type="button"
-                                onClick={() => upd(rid, { status: opt.value, statusInput: opt.label })}
-                                title={opt.label}
-                                style={{ flex:1, padding:'4px 0', borderRadius:5, border:'none', cursor:'pointer', fontFamily:'inherit',
-                                  fontSize:11, fontWeight: sel ? 700 : 400, transition:'all .12s',
-                                  background: sel ? '#fff' : 'transparent',
-                                  color: sel ? opt.color : '#94a3b8',
-                                  boxShadow: sel ? `0 1px 3px rgba(0,0,0,.10)` : 'none',
-                                  display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}>
-                                <span style={{ width:6, height:6, borderRadius:'50%', background: sel ? opt.color : '#cbd5e1', flexShrink:0 }} />
-                                {opt.label.slice(0,4)}.
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </td>
+                      {/* Status — botão + dropdown */}
+                      {(() => {
+                        const opt = ENROLLMENT_STATUS_OPTS.find(o => o.value === row.status)
+                        const isOpen = openDrop?.rid === rid && openDrop?.field === 'status'
+                        return (
+                          <td style={{ padding:'5px 6px' }}>
+                            <button type="button"
+                              onMouseDown={e => {
+                                if (isOpen) { setOpenDrop(null); return }
+                                const r = e.currentTarget.getBoundingClientRect()
+                                setOpenDrop({ rid, field:'status', top: r.bottom+4, left: r.left, width: Math.max(r.width, 190), hover:-1 })
+                              }}
+                              style={{ width:'100%', display:'flex', alignItems:'center', gap:6, padding:'6px 9px', borderRadius:7,
+                                border:`1.5px solid ${isOpen ? (opt?.color||'#e2e8f0') : '#e2e8f0'}`,
+                                background: isOpen ? `${opt?.color||'#f1f5f9'}12` : '#fafafa',
+                                cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}>
+                              <span style={{ width:8, height:8, borderRadius:'50%', background: opt?.color||'#94a3b8', flexShrink:0 }} />
+                              <span style={{ flex:1, fontSize:12, fontWeight:600, color: opt?.color||'#475569', textAlign:'left' }}>{opt?.label||'—'}</span>
+                              <span style={{ fontSize:9, color:'#94a3b8', lineHeight:1 }}>▾</span>
+                            </button>
+                          </td>
+                        )
+                      })()}
 
                       {/* Prazo */}
                       <td style={{ padding:'5px 6px' }}>
@@ -1675,17 +1676,29 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
                 }
 
                 if (field === 'status') {
-                  const items = getDropItems(row, 'status')
-                  if (!items.length) return DROP_EMPTY('Nenhuma opção.')
-                  return items.map((opt, i) => (
-                    <div key={opt.value}
-                      style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', display:'flex', alignItems:'center', gap:9, background: hover===i ? '#eff6ff' : 'transparent' }}
-                      onMouseDown={() => selectItem(rid, 'status', opt)}
-                      onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:i} : d)}>
-                      <span style={{ width:9, height:9, borderRadius:'50%', background: opt.color, flexShrink:0 }} />
-                      <span style={{ fontSize:13, fontWeight: hover===i ? 600 : 400, color:'#1e293b' }}>{opt.label}</span>
+                  const opts = ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado')
+                  return (
+                    <div style={{ padding:6, display:'flex', flexDirection:'column', gap:4 }}>
+                      {opts.map(opt => {
+                        const sel = row.status === opt.value
+                        return (
+                          <button key={opt.value} type="button"
+                            onMouseDown={() => selectItem(rid, 'status', opt)}
+                            style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8,
+                              border:`1.5px solid ${sel ? opt.color : '#e2e8f0'}`,
+                              background: sel ? `${opt.color}14` : '#fff',
+                              cursor:'pointer', fontFamily:'inherit', textAlign:'left', transition:'all .1s',
+                              width:'100%' }}
+                            onMouseEnter={e => { if (!sel) e.currentTarget.style.background='#f8fafc' }}
+                            onMouseLeave={e => { if (!sel) e.currentTarget.style.background='#fff' }}>
+                            <span style={{ width:10, height:10, borderRadius:'50%', background: opt.color, flexShrink:0 }} />
+                            <span style={{ fontSize:13, fontWeight: sel ? 700 : 500, color: sel ? opt.color : '#1e293b' }}>{opt.label}</span>
+                            {sel && <span style={{ marginLeft:'auto', fontSize:11, color: opt.color }}>✓</span>}
+                          </button>
+                        )
+                      })}
                     </div>
-                  ))
+                  )
                 }
 
                 if (field === 'resp') {
