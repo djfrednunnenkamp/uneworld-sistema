@@ -964,7 +964,7 @@ const PASSENGER_ACTIONS = [
   { key:'boarding',    label:'Local de embarque',           icon:'globe',    enabled:true  },
   { key:'contracts',   label:'Contratos',                   icon:'docs',     enabled:false },
   { key:'swap_room',   label:'Trocar de quarto',            icon:'building', enabled:true  },
-  { key:'link_client', label:'Vincular cliente',            icon:'users',    enabled:false },
+  { key:'link_client', label:'Vincular cliente',            icon:'users',    enabled:true  },
   { key:'link_agency', label:'Vincular agência',            icon:'building', enabled:true  },
   { key:'delete',      label:'Excluir passageiro',          icon:'trash',    enabled:true, danger:true },
 ]
@@ -1837,7 +1837,20 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
   }
 
   const isProvisional = enrollment.is_provisional
+  const isBlock       = enrollment.is_block
   const hasPassenger  = !!enrollment.passenger
+
+  const popupTitle = isProvisional
+    ? 'Vincular passageiro'
+    : isBlock
+      ? 'Atribuir passageiro ao bloco'
+      : 'Vincular / trocar passageiro'
+
+  const popupSubtitle = isProvisional
+    ? `Reserva provisória: ${enrollment.block_agency}`
+    : isBlock
+      ? `Agência: ${enrollment.block_agency}`
+      : (enrollment.passenger_name || 'Sem passageiro vinculado')
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}
@@ -1847,12 +1860,8 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
         {/* Header */}
         <div className="mhead">
           <div>
-            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>
-              {isProvisional ? 'Vincular passageiro' : 'Atribuir passageiro ao bloco'}
-            </p>
-            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>
-              {isProvisional ? `Reserva provisória: ${enrollment.block_agency}` : `Agência: ${enrollment.block_agency}`}
-            </p>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>{popupTitle}</p>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{popupSubtitle}</p>
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
         </div>
@@ -3023,6 +3032,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
         break
       case 'swap_room':
         setAccomModal({ enrollmentIds: [enrollment.id] })
+        break
+      case 'link_client':
+        setAssignBlk(enrollment)
         break
       case 'link_agency':
         setAgencyModal(enrollment)

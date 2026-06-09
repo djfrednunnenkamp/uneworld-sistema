@@ -176,13 +176,20 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             from django.contrib.auth.models import User
             ru_id = request.data['responsible_user']
             e.responsible_user = User.objects.filter(pk=ru_id).first() if ru_id else None
-        # Atribuir passageiro a um bloco
-        if 'passenger' in request.data and request.data['passenger']:
+        # Vincular / trocar / desvincular passageiro
+        if 'passenger' in request.data:
             from passengers.models import Passenger as PassengerModel
-            p = PassengerModel.objects.filter(pk=request.data['passenger']).first()
-            if p:
-                e.passenger = p
-                e.is_block  = False
+            pid = request.data['passenger']
+            if pid:
+                p = PassengerModel.objects.filter(pk=pid).first()
+                if p:
+                    e.passenger    = p
+                    e.is_block     = False
+                    e.is_provisional = False
+            else:
+                # Desvincular: converte de volta para bloco
+                e.passenger = None
+                e.is_block  = True
         e.save()
         return Response(ListEnrollmentSerializer(e).data)
 
