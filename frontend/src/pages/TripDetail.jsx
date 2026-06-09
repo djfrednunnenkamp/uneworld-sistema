@@ -4209,7 +4209,7 @@ export default function TripDetail() {
               <Chip label="Categoria"      value={list.category} />
               <Chip label="Início"         value={fmt(list.start_date)} />
               <Chip label="Término"        value={fmt(list.end_date)} />
-              <Chip label="Capacidade"     value={list.block_capacity > 0 ? String(list.block_capacity) : '—'} />
+              <Chip label="Capacidade do bloqueio"     value={list.block_capacity > 0 ? String(list.block_capacity) : '—'} />
               <Chip label="Acomodações reservadas"    value={list.total_accommodations > 0 ? String(list.total_accommodations) : '—'} />
             </div>
           </div>
