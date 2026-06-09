@@ -2902,6 +2902,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const [ticketModal,     setTicketModal]     = useState(null)
   // agencyModal: null | enrollment — popup "Vincular agência"
   const [agencyModal,     setAgencyModal]     = useState(null)
+  // filterSearch — filtro de pesquisa na tabela de passageiros
+  const [filterSearch,    setFilterSearch]    = useState('')
 
   const firstLoad = useRef(true)
 
@@ -3053,8 +3055,14 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
   // Cancelados ficam separados — pendentes de devolução de valores
   const CANCELLED = '(cancelados)'
-  const activeEnrolled    = enrolled.filter(e => e.enrollment_status !== 'cancelado')
-  const cancelledEnrolled = enrolled.filter(e => e.enrollment_status === 'cancelado')
+  const filterQ = filterSearch.toLowerCase().trim()
+  const matchesFilter = e =>
+    !filterQ ||
+    (e.passenger_name  || '').toLowerCase().includes(filterQ) ||
+    (e.block_agency    || '').toLowerCase().includes(filterQ) ||
+    (e.agency_name     || '').toLowerCase().includes(filterQ)
+  const activeEnrolled    = enrolled.filter(e => e.enrollment_status !== 'cancelado' && matchesFilter(e))
+  const cancelledEnrolled = enrolled.filter(e => e.enrollment_status === 'cancelado'  && matchesFilter(e))
 
   // Agrupar por acomodação — sem acomodação sempre no topo
   const UNASSIGNED = '(sem acomodação)'
@@ -3087,11 +3095,27 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
     <div>
       {/* Toolbar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: selected.size > 0 ? 8 : 16 }}>
-        <span style={{ fontSize:14, fontWeight:600, color:'#1e293b' }}>
-          {activeEnrolled.length} passageiro{activeEnrolled.length !== 1 ? 's' : ''}
-          {cancelledEnrolled.length > 0 && (
-            <span style={{ fontSize:12, fontWeight:500, color:'#dc2626' }}> · {cancelledEnrolled.length} cancelado{cancelledEnrolled.length !== 1 ? 's' : ''}</span>
+        {/* Campo de pesquisa — esquerda */}
+        <div style={{ position:'relative', flexShrink:0 }}>
+          <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', fontSize:13, pointerEvents:'none', lineHeight:1 }}>⌕</span>
+          <input
+            value={filterSearch}
+            onChange={e => setFilterSearch(e.target.value)}
+            placeholder="Pesquisar passageiro…"
+            style={{ paddingLeft:28, paddingRight: filterSearch ? 26 : 10, height:34, border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', width:230, background:'#fff', boxSizing:'border-box', transition:'border-color .12s' }}
+            onFocus={e => e.target.style.borderColor='#1a2d4f'}
+            onBlur={e => e.target.style.borderColor='#e2e8f0'}
+          />
+          {filterSearch && (
+            <button onClick={() => setFilterSearch('')}
+              style={{ position:'absolute', right:7, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:16, padding:0, lineHeight:1 }}>×</button>
           )}
+        </div>
+        <span style={{ fontSize:13, fontWeight:500, color: filterQ ? '#1a2d4f' : '#94a3b8', marginLeft:10, flexShrink:0 }}>
+          {filterQ
+            ? `${activeEnrolled.length + cancelledEnrolled.length} resultado${activeEnrolled.length + cancelledEnrolled.length !== 1 ? 's' : ''}`
+            : `${activeEnrolled.length} passageiro${activeEnrolled.length !== 1 ? 's' : ''}${cancelledEnrolled.length > 0 ? ` · ${cancelledEnrolled.length} cancelado${cancelledEnrolled.length !== 1 ? 's' : ''}` : ''}`
+          }
         </span>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {/* Toggle sanfona — habilita/desabilita recolher grupos */}
@@ -3190,7 +3214,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
             const genders = rows.filter(e => !e.is_block && e.passenger_gender).map(e => e.passenger_gender)
             const sameSexCouple = accomType?.is_couple && genders.length >= 2
               && genders.every(g => g === genders[0])
-            const isCollapsed   = accordionEnabled && collapsed.has(key)
+            const isCollapsed   = accordionEnabled && !filterQ && collapsed.has(key)
             const groupAllSel   = rows.length > 0 && rows.every(r => selected.has(r.id))
             return (
             <div key={key}>
