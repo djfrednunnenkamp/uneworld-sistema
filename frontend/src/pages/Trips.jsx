@@ -117,29 +117,26 @@ export default function Trips() {
   const activePhase = PHASES.find(p => p.key === phase)
 
   const tabBar = (
-    <div style={{ display:'flex', gap:2, background:'#f1f5f9', borderRadius:10, padding:3, marginBottom:16 }}>
+    <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:4 }}>
       {PHASES.map(p => {
         const sel = phase === p.key
         return (
           <button key={p.key} type="button" onClick={() => setPhase(p.key)}
             style={{
-              flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:7,
-              padding:'8px 12px', borderRadius:8, border:'none', cursor:'pointer', fontFamily:'inherit',
-              fontSize:13, fontWeight: sel ? 700 : 500, transition:'all .15s',
-              background: sel ? '#fff' : 'transparent',
-              color:      sel ? p.color : '#94a3b8',
-              boxShadow:  sel ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
+              display:'flex', alignItems:'center', gap:8,
+              padding:'10px 20px', border:'none', cursor:'pointer', fontFamily:'inherit',
+              background:'transparent', fontSize:13.5, fontWeight: sel ? 600 : 400,
+              color: sel ? p.color : '#94a3b8',
+              borderBottom: sel ? `2px solid ${p.color}` : '2px solid transparent',
+              marginBottom:'-1.5px', transition:'color .15s, border-color .15s',
+              outline:'none',
             }}>
-            <span style={{
-              width:7, height:7, borderRadius:'50%', flexShrink:0,
-              background: sel ? p.dot : '#cbd5e1',
-              boxShadow: sel && p.key === 'andamento' ? `0 0 0 3px ${p.dot}66` : 'none',
-            }}/>
             {p.label}
             <span style={{
-              fontSize:11, fontWeight:700, padding:'1px 7px', borderRadius:20, marginLeft:2,
-              background: sel ? p.bg : '#e2e8f0',
+              fontSize:11, fontWeight:600, padding:'1px 8px', borderRadius:20,
+              background: sel ? p.bg : '#f1f5f9',
               color:      sel ? p.color : '#94a3b8',
+              transition:'background .15s, color .15s',
             }}>
               {counts[p.key]}
             </span>
