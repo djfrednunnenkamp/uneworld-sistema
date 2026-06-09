@@ -261,6 +261,7 @@ export default function AuditLog() {
   const navigate       = useNavigate()
   const [searchParams] = useSearchParams()
   const initModel      = searchParams.get('model') || ''
+  const listId         = searchParams.get('list_id') || ''
 
   const [logs,     setLogs]     = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -278,13 +279,14 @@ export default function AuditLog() {
       if (f.search)    params.search    = f.search
       if (f.date_from) params.date_from = f.date_from
       if (f.date_to)   params.date_to   = f.date_to
+      if (listId)      params.list_id   = listId
       const r = await auditApi.list(params)
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
       setPage(p)
     } catch {}
     finally { setLoading(false) }
-  }, [filters])
+  }, [filters, listId])
 
   useEffect(() => { load(1, filters) }, [])
 
@@ -304,7 +306,15 @@ export default function AuditLog() {
       {/* Header */}
       <div className="ph" style={{ marginBottom: 20 }}>
         <div>
-          {ctx && (
+          {listId && (
+            <button onClick={() => navigate(`/viagens/${listId}`)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+              ← Voltar para a lista de passageiros
+            </button>
+          )}
+          {!listId && ctx && (
             <button onClick={() => navigate(ctx.back)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
               onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
@@ -313,7 +323,7 @@ export default function AuditLog() {
             </button>
           )}
           <h1 className="ph-title">
-            {ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
+            {listId ? 'Log da Lista de Passageiros' : ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
             {count.toLocaleString('pt-BR')} evento{count !== 1 ? 's' : ''} registrado{count !== 1 ? 's' : ''}

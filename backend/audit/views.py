@@ -45,10 +45,22 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         date_from = self.request.query_params.get('date_from')
         date_to   = self.request.query_params.get('date_to')
         object_id = self.request.query_params.get('object_id')
+        list_id   = self.request.query_params.get('list_id')
         if action:    qs = qs.filter(action=action)
         if model:     qs = qs.filter(model_name=model)
         if object_id: qs = qs.filter(object_id=object_id)
         if user:      qs = qs.filter(user_display__icontains=user)
         if date_from: qs = qs.filter(timestamp__date__gte=date_from)
         if date_to:   qs = qs.filter(timestamp__date__lte=date_to)
+        if list_id:
+            from trips.models import ListEnrollment
+            from django.db.models import Q
+            enrollment_ids = list(
+                ListEnrollment.objects.filter(passenger_list_id=list_id)
+                .values_list('id', flat=True)
+            )
+            qs = qs.filter(
+                Q(model_name='ListEnrollment', object_id__in=[str(i) for i in enrollment_ids]) |
+                Q(model_name='PassengerList', object_id=str(list_id))
+            )
         return qs
