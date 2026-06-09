@@ -167,6 +167,8 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                 setattr(e, field, (val or None) if field == 'pending_until' else val)
         if 'departure_airport' in request.data:
             e.departure_airport_id = request.data['departure_airport'] or None
+        if 'selected_passport' in request.data:
+            e.selected_passport_id = request.data['selected_passport'] or None
         if 'agency' in request.data:
             from agencies.models import Agency
             ag_id = request.data['agency']

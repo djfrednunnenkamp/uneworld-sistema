@@ -535,7 +535,7 @@ function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose })
 }
 
 /* ── Edição rápida do passageiro — popup com 2 abas: Informações e Documentos ── */
-function QuickEditModal({ enrollment, onSaved, onClose }) {
+function QuickEditModal({ enrollment, listId, onSaved, onClose }) {
   const passengerId = enrollment.passenger
   const [activeTab, setActiveTab] = useState('info')
   const [form,    setForm]    = useState(null)
@@ -543,6 +543,7 @@ function QuickEditModal({ enrollment, onSaved, onClose }) {
   const [genders, setGenders] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
+  const [selectedPassport, setSelectedPassport] = useState(enrollment.selected_passport || null)
 
   useEffect(() => {
     Promise.all([
@@ -588,6 +589,7 @@ function QuickEditModal({ enrollment, onSaved, onClose }) {
         mobile:          form.mobile,
         seat_preference: form.seat_preference,
       })
+      await listsApi.updatePassenger(listId, enrollment.id, { selected_passport: selectedPassport || null })
       toast.success('Passageiro atualizado.')
       onSaved()
       onClose()
@@ -739,18 +741,92 @@ function QuickEditModal({ enrollment, onSaved, onClose }) {
                 <Field label="Órgão expedidor do RG" field="rg_issuer" />
               </div>
 
-              {/* Passaporte */}
-              <Field label="Passaporte" field="passport" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={LBL}>Data de emissão do passaporte</label>
-                  <DatePicker value={form?.passport_issue || ''} onChange={v => upd('passport_issue', v)} placeholder="DD/MM/AAAA" />
-                </div>
-                <div>
-                  <label style={LBL}>Validade do passaporte</label>
-                  <DatePicker value={form?.passport_expiry || ''} onChange={v => upd('passport_expiry', v)} placeholder="DD/MM/AAAA" />
-                </div>
-              </div>
+              {/* Passaportes registrados — lista com seleção para a viagem */}
+              {(() => {
+                const passports = docs.filter(d => d.doc_type === 'passport')
+                const today = new Date()
+                const daysLeft = (iso) => {
+                  if (!iso) return null
+                  const diff = Math.ceil((new Date(iso + 'T00:00:00') - today) / 86400000)
+                  return diff
+                }
+                const expiryColor = (days) => {
+                  if (days === null) return '#94a3b8'
+                  if (days < 0)   return '#dc2626'
+                  if (days < 180) return '#f59e0b'
+                  return '#16a34a'
+                }
+                const expiryLabel = (days) => {
+                  if (days === null) return '—'
+                  if (days < 0)    return `Vencido há ${Math.abs(days)}d`
+                  if (days === 0)  return 'Vence hoje'
+                  if (days < 365) return `${days}d restantes`
+                  const months = Math.floor(days / 30)
+                  return `${months} meses restantes`
+                }
+                const fmtDate = (iso) => {
+                  if (!iso) return '—'
+                  const [y, m, d] = iso.split('-')
+                  return `${d}/${m}/${y}`
+                }
+                return (
+                  <div>
+                    <label style={LBL}>Passaportes</label>
+                    {passports.length === 0
+                      ? <p style={{ fontSize: 13, color: '#94a3b8', margin: '8px 0 0' }}>Nenhum passaporte enviado nos documentos.</p>
+                      : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                          {passports.map(p => {
+                            const days = daysLeft(p.expiry_date)
+                            const color = expiryColor(days)
+                            const sel = selectedPassport === p.id
+                            return (
+                              <button key={p.id} type="button" onClick={() => setSelectedPassport(sel ? null : p.id)}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                                  borderRadius: 10, border: `2px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`,
+                                  background: sel ? '#f0f4ff' : '#fff',
+                                  cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'inherit',
+                                  transition: 'border-color .15s, background .15s',
+                                }}>
+                                {/* Thumbnail */}
+                                <div style={{ width: 52, height: 36, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
+                                  {p.preview_url
+                                    ? <img src={p.preview_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    : <span style={{ fontSize: 20 }}>🛂</span>
+                                  }
+                                </div>
+                                {/* Info */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                                      {p.doc_number || '—'}
+                                    </span>
+                                    {p.issued_by && (
+                                      <span style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4 }}>{p.issued_by}</span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                    Emissão: {fmtDate(p.issued_date)} · Validade: {fmtDate(p.expiry_date)}
+                                  </div>
+                                </div>
+                                {/* Prazo */}
+                                <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: color, background: color + '18', padding: '2px 8px', borderRadius: 10 }}>
+                                    {expiryLabel(days)}
+                                  </span>
+                                </div>
+                                {/* Selecionado */}
+                                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`, background: sel ? '#1a2d4f' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {sel && <span style={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                    }
+                  </div>
+                )
+              })()}
 
               {/* RNE — só aparece quando Estrangeiro? estiver ativado */}
               {form?.is_foreign && (
@@ -3505,6 +3581,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
       {quickEditModal && (
         <QuickEditModal
           enrollment={quickEditModal}
+          listId={listId}
           onSaved={load}
           onClose={() => setQuickEditModal(null)}
         />

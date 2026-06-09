@@ -173,6 +173,7 @@ class ListEnrollment(models.Model):
     ]
     ticket_status            = models.CharField('Status da passagem', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
     connection_ticket_status = models.CharField('Status da passagem de conexão', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
+    selected_passport  = models.ForeignKey('passengers.PassengerDocument', null=True, blank=True, on_delete=models.SET_NULL, related_name='selected_for_enrollments', verbose_name='Passaporte selecionado para a viagem')
     order_in_list      = models.PositiveIntegerField('Ordem', default=0)
     enrolled_at        = models.DateTimeField('Adicionado em', auto_now_add=True)
     notes              = models.TextField('Observações', blank=True)

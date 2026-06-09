@@ -202,6 +202,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     agency_name              = serializers.SerializerMethodField()
     responsible_user_name    = serializers.SerializerMethodField()
     departure_airport_data   = serializers.SerializerMethodField()
+    selected_passport_data   = serializers.SerializerMethodField()
 
     def get_agency_name(self, obj):
         if obj.agency:
@@ -220,6 +221,18 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
         return None
 
+    def get_selected_passport_data(self, obj):
+        if obj.selected_passport_id:
+            d = obj.selected_passport
+            return {
+                'id': d.id,
+                'doc_number': d.doc_number,
+                'issued_date': str(d.issued_date) if d.issued_date else None,
+                'expiry_date': str(d.expiry_date) if d.expiry_date else None,
+                'issued_by': d.issued_by,
+            }
+        return None
+
     class Meta:
         model  = ListEnrollment
         fields = [
@@ -232,6 +245,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
             'ticket_status', 'connection_ticket_status',
+            'selected_passport', 'selected_passport_data',
             'order_in_list', 'enrolled_at', 'notes',
         ]
         read_only_fields = ['enrolled_at']
