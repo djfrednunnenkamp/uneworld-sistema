@@ -4139,39 +4139,29 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, 
 
 /* ── Aba de Voos ── */
 function FlightsTab({ listId, list }) {
-  const [legs,      setLegs]      = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [legModal,  setLegModal]  = useState(null)   // null | { direction, initial? }
-  const [delConfirm, setDelConfirm] = useState(null) // null | leg
-  const [showBoarding, setShowBoarding] = useState(false)
+  const [enrolled,   setEnrolled]   = useState([])
+  const [feederLegs, setFeederLegs] = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [filterQ,    setFilterQ]    = useState('')
+  const [feederAp,   setFeederAp]   = useState(null)
+
   const defAirport = list.default_airport_data || null
 
-  const load = useCallback(() => {
-    listsApi.listFlights(listId)
-      .then(r => setLegs(r.data))
+  const loadAll = useCallback(() => {
+    setLoading(true)
+    Promise.all([
+      listsApi.listPassengers(listId),
+      listsApi.listFeederLegs(listId),
+    ])
+      .then(([paxRes, fRes]) => {
+        setEnrolled(paxRes.data)
+        setFeederLegs(fRes.data)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [listId])
 
-  useEffect(() => { load() }, [load])
-
-  const handleSave = async (data) => {
-    if (legModal.initial) {
-      await listsApi.updateFlight(listId, legModal.initial.id, data)
-      toast.success('Trecho atualizado.')
-    } else {
-      await listsApi.addFlight(listId, data)
-      toast.success('Trecho adicionado.')
-    }
-    load()
-  }
-
-  const handleDelete = async (leg) => {
-    await listsApi.removeFlight(listId, leg.id)
-    toast.success('Trecho removido.')
-    setDelConfirm(null)
-    load()
-  }
+  useEffect(() => { loadAll() }, [loadAll])
 
   if (list.list_type !== 'aereo') {
     return (
@@ -4184,214 +4174,153 @@ function FlightsTab({ listId, list }) {
     )
   }
 
-  const ida   = legs.filter(l => l.direction === 'ida')
-  const volta = legs.filter(l => l.direction === 'volta')
+  const active = enrolled.filter(e => e.enrollment_status !== 'cancelado')
 
-  const fmtDate = d => {
-    if (!d) return null
-    const [y, m, day] = d.split('-')
-    return `${day}/${m}/${y}`
-  }
-  const fmtTime = t => t ? t.slice(0,5) : null
+  const airportMap = {}
+  active.forEach(e => {
+    if (!e.departure_airport_data) return
+    const ap  = e.departure_airport_data
+    const key = String(ap.id)
+    if (!airportMap[key]) airportMap[key] = { ap, passengers: [] }
+    airportMap[key].passengers.push(e)
+  })
+  feederLegs.forEach(leg => {
+    if (!leg.departure_airport_data) return
+    const ap  = leg.departure_airport_data
+    const key = String(ap.id)
+    if (!airportMap[key]) airportMap[key] = { ap, passengers: [] }
+  })
 
-  const LegRow = ({ leg, idx, total }) => (
-    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderBottom: idx < total-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc' }}>
-      {/* Rota */}
-      <div style={{ display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
-        {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
-          <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
-            {i === 1 && <span style={{ color:'#cbd5e1', fontSize:14 }}>→</span>}
-            {ap ? (
-              <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-                <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:12, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, border:'1px solid #bfdbfe' }}>
-                  {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
-                </span>
-                <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
-              </span>
-            ) : (
-              <span style={{ fontSize:13, color:'#cbd5e1', fontStyle:'italic' }}>—</span>
-            )}
-          </span>
-        ))}
-      </div>
-      {/* Detalhes */}
-      <div style={{ display:'flex', alignItems:'center', gap:14, flexShrink:0 }}>
-        {leg.flight_number && (
-          <span style={{ fontSize:12, fontWeight:700, fontFamily:'monospace', color:'#475569', background:'#f1f5f9', padding:'2px 8px', borderRadius:5 }}>
-            {leg.flight_number}
-          </span>
-        )}
-        {leg.airline && (
-          <span style={{ fontSize:12, color:'#64748b' }}>{leg.airline}</span>
-        )}
-        {(leg.departure_date || leg.departure_time) && (
-          <span style={{ fontSize:12, color:'#94a3b8' }}>
-            {[fmtDate(leg.departure_date), fmtTime(leg.departure_time)].filter(Boolean).join(' · ')}
-          </span>
-        )}
-        {leg.blocked_seats != null && (
-          <span style={{ fontSize:11, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', border:'1px solid #bfdbfe', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:4 }}>
-            🔒 {leg.blocked_seats} lugares
-          </span>
-        )}
-        <button type="button" onClick={() => setLegModal({ direction: leg.direction, initial: leg })}
-          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b' }}>
-          <Ic n="edit" s={12}/>
-        </button>
-        <button type="button" onClick={() => setDelConfirm(leg)}
-          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer' }}
-          onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-          onMouseLeave={e => e.currentTarget.style.background='#fff'}>
-          <Ic n="trash" s={12}/>
-        </button>
-      </div>
-    </div>
-  )
+  const fq = filterQ.toLowerCase().trim()
+  const groups = Object.values(airportMap)
+    .map(({ ap, passengers }) => {
+      const apMatch =
+        !fq ||
+        (ap.name      || '').toLowerCase().includes(fq) ||
+        (ap.iata_code || '').toLowerCase().includes(fq) ||
+        (ap.city      || '').toLowerCase().includes(fq)
+      const filteredPax = !fq
+        ? passengers
+        : passengers.filter(e =>
+            apMatch ||
+            (e.passenger_name || '').toLowerCase().includes(fq) ||
+            (e.block_agency   || '').toLowerCase().includes(fq)
+          )
+      return { ap, passengers: filteredPax, visible: apMatch || filteredPax.length > 0 }
+    })
+    .filter(g => g.visible)
+    .sort((a, b) => b.passengers.length - a.passengers.length)
 
-  const calcLayover = (prev, next) => {
-    if (!prev.arrival_date || !prev.arrival_time || !next.departure_date || !next.departure_time) return null
-    const from = new Date(`${prev.arrival_date}T${prev.arrival_time}`)
-    const to   = new Date(`${next.departure_date}T${next.departure_time}`)
-    const diff = to - from
-    const h = Math.floor(Math.abs(diff) / 3600000)
-    const m = Math.floor((Math.abs(diff) % 3600000) / 60000)
-    const label = h > 0 ? (m > 0 ? `${h}h ${m}min` : `${h}h`) : `${m}min`
-    return { label, valid: diff > 0 }
-  }
-
-  const ConnectionBadge = ({ prev, next }) => {
-    const ap      = prev.destination_airport_data
-    const layover = calcLayover(prev, next)
-    const missingArrival   = !prev.arrival_date || !prev.arrival_time
-    const missingDeparture = !next.departure_date || !next.departure_time
-    return (
-      <div style={{ display:'flex', alignItems:'center', background:'#f8fafc', borderTop:'1px solid #e2e8f0', borderBottom:'1px solid #e2e8f0' }}>
-        <div style={{ flex:1, height:1, background:'#e2e8f0' }} />
-        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 16px', flexShrink:0 }}>
-          <span style={{ fontSize:15, color:'#94a3b8' }}>✈</span>
-          {layover ? (
-            layover.valid ? (
-              <span style={{ fontSize:12, fontWeight:700, color:'#0f766e', background:'#f0fdf4', border:'1px solid #bbf7d0', padding:'2px 8px', borderRadius:20 }}>
-                {layover.label} de conexão
-              </span>
-            ) : (
-              <span style={{ fontSize:12, fontWeight:700, color:'#b45309', background:'#fffbeb', border:'1px solid #fde68a', padding:'2px 8px', borderRadius:20 }}>
-                ⚠ {layover.label} (verificar horários)
-              </span>
-            )
-          ) : (
-            <span style={{ fontSize:11, fontWeight:600, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', padding:'2px 8px', borderRadius:20 }}>
-              {missingArrival ? 'preencha a chegada do voo anterior' : missingDeparture ? 'preencha a partida do próximo voo' : '—'}
-            </span>
-          )}
-          {ap ? (
-            <span style={{ fontSize:12, color:'#475569', display:'flex', alignItems:'center', gap:5 }}>
-              {ap.city && <span style={{ fontWeight:600, color:'#1e293b' }}>{ap.city}</span>}
-              <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 6px', borderRadius:4, border:'1px solid #bfdbfe' }}>
-                {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
-              </span>
-              <span style={{ color:'#94a3b8' }}>{ap.name}</span>
-            </span>
-          ) : (
-            <span style={{ fontSize:12, color:'#94a3b8', fontStyle:'italic' }}>aeroporto de conexão não definido</span>
-          )}
-        </div>
-        <div style={{ flex:1, height:1, background:'#e2e8f0' }} />
-      </div>
-    )
-  }
-
-  const Section = ({ direction, title, legsList }) => (
-    <div style={{ marginBottom:28 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div className="section-title" style={{ marginBottom:0 }}>{title}</div>
-          {legsList.length > 0 && (
-            <span style={{ fontSize:11, fontWeight:600, color:'#64748b', background:'#f1f5f9', padding:'2px 8px', borderRadius:20 }}>
-              {legsList.length} trecho{legsList.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-        <button type="button" onClick={() => {
-          const last = legsList.length > 0 ? legsList[legsList.length - 1] : null
-          setLegModal({
-            direction,
-            initial: null,
-            prefill: last ? {
-              origin_airport_data: last.destination_airport_data,
-              departure_date:      last.arrival_date || '',
-              departure_time:      last.arrival_time ? last.arrival_time.slice(0, 5) : '',
-            } : null,
-          })
-        }}
-          style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-          <Ic n="plus" s={12}/> Adicionar trecho
-        </button>
-      </div>
-      {legsList.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'24px 0', background:'#f8fafc', borderRadius:10, border:'1px dashed #e2e8f0' }}>
-          <p style={{ margin:0, fontSize:13, color:'#94a3b8' }}>Nenhum trecho cadastrado. Clique em "Adicionar trecho".</p>
-        </div>
-      ) : (
-        <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
-          {legsList.map((leg, idx) => (
-            <>
-              <LegRow key={leg.id} leg={leg} idx={idx} total={legsList.length} />
-              {idx < legsList.length - 1 && (
-                <ConnectionBadge key={`conn-${leg.id}`} prev={leg} next={legsList[idx + 1]} />
-              )}
-            </>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  const STATUS_COLOR = { confirmado:'#16a34a', pendente:'#f59e0b', reservado:'#64748b', cancelado:'#dc2626' }
+  const STATUS_LABEL = { confirmado:'Confirmado', pendente:'Pendente', reservado:'Reservado', cancelado:'Cancelado' }
 
   return (
     <div className="det-card">
       <div className="section">
-        {/* Cabeçalho com botão de embarques */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', marginBottom:20 }}>
-          <button type="button" onClick={() => setShowBoarding(true)}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-            <Ic n="users" s={13}/> Aeroportos dos passageiros
-          </button>
+        {/* Toolbar */}
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
+          <div style={{ position:'relative', flex:1, maxWidth:340 }}>
+            <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', fontSize:13, pointerEvents:'none' }}>⌕</span>
+            <input
+              value={filterQ}
+              onChange={e => setFilterQ(e.target.value)}
+              placeholder="Pesquisar aeroporto ou passageiro…"
+              style={{ paddingLeft:28, height:34, border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, width:'100%', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+            />
+            {filterQ && (
+              <button onClick={() => setFilterQ('')}
+                style={{ position:'absolute', right:7, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:16, lineHeight:1, padding:0 }}>×</button>
+            )}
+          </div>
+          {!loading && Object.keys(airportMap).length > 0 && !filterQ && (
+            <span style={{ fontSize:12, color:'#64748b' }}>
+              {Object.keys(airportMap).length} aeroporto{Object.keys(airportMap).length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
 
         {loading ? (
           <p style={{ color:'#94a3b8', fontSize:13 }}>Carregando…</p>
+        ) : groups.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'48px 0', border:'1px dashed #e2e8f0', borderRadius:12 }}>
+            {filterQ ? (
+              <p style={{ margin:0, color:'#94a3b8', fontSize:13 }}>Nenhum resultado para "{filterQ}".</p>
+            ) : (
+              <>
+                <p style={{ fontSize:32, margin:'0 0 8px' }}>✈</p>
+                <p style={{ margin:0, color:'#94a3b8', fontSize:14, fontWeight:500 }}>Nenhum passageiro com aeroporto diferente do padrão.</p>
+                {defAirport && (
+                  <p style={{ margin:'6px 0 0', color:'#94a3b8', fontSize:12 }}>
+                    Aeroporto padrão: <strong style={{ color:'#1a2d4f' }}>{defAirport.iata_code} — {defAirport.name}</strong>
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         ) : (
-          <>
-            <Section direction="ida"   title="✈ Ida"   legsList={ida}   />
-            <Section direction="volta" title="✈ Volta" legsList={volta} />
-          </>
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            {groups.map(({ ap, passengers }) => (
+              <div key={ap.id} style={{ border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden' }}>
+                {/* Airport group header */}
+                <div style={{
+                  display:'flex', alignItems:'center', gap:10, padding:'11px 16px',
+                  background:'#dde6f5', borderBottom:'1px solid #b8cce8', borderLeft:'4px solid #1a2d4f',
+                }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:12, color:'#92400e', background:'#fef3c7', border:'1.5px solid #f59e0b', padding:'2px 9px', borderRadius:5 }}>
+                    {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+                  </span>
+                  <span style={{ fontSize:14, fontWeight:700, color:'#1a2d4f' }}>{ap.name}</span>
+                  {ap.city && <span style={{ fontSize:12, color:'#475569' }}>{ap.city}</span>}
+                  <span style={{ flex:1 }}/>
+                  <span style={{ fontSize:11, fontWeight:700, color:'#fff', background:'#1a2d4f', padding:'2px 9px', borderRadius:20 }}>
+                    {passengers.length} pax
+                  </span>
+                  <button type="button" onClick={() => setFeederAp(ap)}
+                    style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #cbd5e1', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor='#cbd5e1'; e.currentTarget.style.color='#475569' }}>
+                    <Ic n="plane" s={10}/> Voos de acesso
+                  </button>
+                </div>
+                {/* Passenger rows */}
+                {passengers.length === 0 ? (
+                  <div style={{ padding:'12px 16px' }}>
+                    <p style={{ margin:0, fontSize:12, color:'#94a3b8', fontStyle:'italic' }}>Nenhum passageiro atribuído a este aeroporto.</p>
+                  </div>
+                ) : (
+                  passengers.map((e, idx) => {
+                    const sc   = STATUS_COLOR[e.enrollment_status] || '#94a3b8'
+                    const sl   = STATUS_LABEL[e.enrollment_status] || e.enrollment_status
+                    const name = e.passenger_name || e.block_agency || '—'
+                    return (
+                      <div key={e.id} style={{
+                        display:'flex', alignItems:'center', gap:10, padding:'9px 16px',
+                        borderBottom: idx < passengers.length-1 ? '1px solid #f1f5f9' : 'none',
+                        background: idx%2===0 ? '#fff' : '#fafbfc',
+                      }}>
+                        <span style={{ flex:1, fontSize:13, fontWeight:500, color:'#1e293b' }}>{name}</span>
+                        {e.accommodation && (
+                          <span style={{ fontSize:11, color:'#475569', background:'#f1f5f9', padding:'1px 7px', borderRadius:10 }}>{e.accommodation}</span>
+                        )}
+                        <span style={{ fontSize:11, fontWeight:700, color: sc, background: sc+'1a', padding:'2px 8px', borderRadius:20 }}>
+                          {sl}
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      {legModal && (
-        <FlightLegModal
-          initial={legModal.initial}
-          prefill={legModal.prefill}
-          direction={legModal.direction}
-          onSave={handleSave}
-          onClose={() => setLegModal(null)}
+      {feederAp && (
+        <FeederLegsModal
+          listId={listId}
+          airport={feederAp}
+          onClose={() => { setFeederAp(null); loadAll() }}
         />
-      )}
-      {delConfirm && (
-        <ConfirmModal
-          message={`Remover trecho ${delConfirm.origin_airport_data?.iata_code || '?'} → ${delConfirm.destination_airport_data?.iata_code || '?'}?`}
-          onOk={() => handleDelete(delConfirm)}
-          onCancel={() => setDelConfirm(null)}
-        />
-      )}
-      {showBoarding && (
-        <BoardingInfoModal listId={listId} defAirport={defAirport} onClose={() => setShowBoarding(false)} />
       )}
     </div>
   )
