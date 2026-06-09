@@ -206,15 +206,18 @@ export async function generateListPDF(list, enrollments, opts) {
           const totalW  = ICON + GAP + tw + GAP + ICON
           // centraliza horizontalmente na celula
           const startX  = data.cell.x + (data.cell.width - totalW) / 2
-          const midY    = data.cell.y + data.cell.height / 2
+          // alinha pelo topo, igual ao texto normal (padding top + baseline 8pt)
+          const padTop  = (data.cell.padding?.top ?? 3)
+          const imgY    = data.cell.y + padTop
+          const textY   = imgY + 2.8   // baseline para fonte 8pt
 
-          try { doc.addImage(cakeImg, 'PNG', startX, midY - ICON / 2, ICON, ICON) } catch {}
+          try { doc.addImage(cakeImg, 'PNG', startX, imgY, ICON, ICON) } catch {}
 
           doc.setTextColor(...ORANGE)
-          doc.text(dateStr, startX + ICON + GAP, midY + 1.4)   // +1.4 = ajuste de baseline 8pt
+          doc.text(dateStr, startX + ICON + GAP, textY)
           doc.setTextColor(30, 41, 59)  // reset
 
-          try { doc.addImage(cakeImg, 'PNG', startX + ICON + GAP + tw + GAP, midY - ICON / 2, ICON, ICON) } catch {}
+          try { doc.addImage(cakeImg, 'PNG', startX + ICON + GAP + tw + GAP, imgY, ICON, ICON) } catch {}
         }
       },
     }
