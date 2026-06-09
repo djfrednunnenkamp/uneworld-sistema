@@ -383,10 +383,14 @@ function AirportPicker({ value, onChange, placeholder }) {
 }
 
 /* ── Modal de passagem aérea ── */
-function TicketModal({ enrollment, listId, field = 'ticket_status', onSaved, onClose }) {
+function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
-  const isConnection = field === 'connection_ticket_status'
-  const [status, setStatus] = useState(enrollment[field] || 'nao_emitida')
+  const hasConn = !enrollment.is_block && enrollment.departure_airport_data && defaultAirport &&
+                  enrollment.departure_airport_data.id !== defaultAirport.id
+  const connAp  = hasConn ? enrollment.departure_airport_data : null
+
+  const [main, setMain] = useState(enrollment.ticket_status            || 'nao_emitida')
+  const [conn, setConn] = useState(enrollment.connection_ticket_status || 'nao_emitida')
   const [saving, setSaving] = useState(false)
 
   const OPTS = [
@@ -395,10 +399,33 @@ function TicketModal({ enrollment, listId, field = 'ticket_status', onSaved, onC
     { v:'fora_bloqueio', label:'Voo individual', fg:'rgb(147,66,171)', bg:'#faf5ff',  accent:'rgb(147,66,171)'  },
   ]
 
+  const StatusBar = ({ value, onChange }) => (
+    <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden' }}>
+      {OPTS.map(({ v, label, fg, bg, accent }, i) => {
+        const sel = value === v
+        return (
+          <button key={v} type="button" onClick={() => onChange(v)}
+            style={{
+              flex:1, padding:'10px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
+              fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
+              borderRight: i < OPTS.length-1 ? '1px solid #e2e8f0' : 'none',
+              background:  sel ? bg     : '#fff',
+              color:       sel ? fg     : '#94a3b8',
+              boxShadow:   sel ? `inset 0 -2px 0 ${accent}` : 'none',
+            }}>
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   const handleSave = async () => {
     setSaving(true)
     try {
-      await listsApi.updatePassenger(listId, enrollment.id, { [field]: status })
+      const payload = { ticket_status: main }
+      if (hasConn) payload.connection_ticket_status = conn
+      await listsApi.updatePassenger(listId, enrollment.id, payload)
       toast.success('Passagem atualizada.')
       onSaved(); onClose()
     } catch { toast.error('Erro ao salvar.') }
@@ -407,33 +434,33 @@ function TicketModal({ enrollment, listId, field = 'ticket_status', onSaved, onC
 
   return (
     <div className="overlay" style={{ zIndex:750 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="mbox" style={{ maxWidth:380 }}>
+      <div className="mbox" style={{ maxWidth:400 }}>
         <div className="mhead">
           <div style={{ minWidth:0 }}>
-            <span className="mtitle">{isConnection ? 'Passagem — voo de acesso' : 'Passagem aérea'}</span>
+            <span className="mtitle">Passagem aérea</span>
             <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
           </div>
           <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
         </div>
-        <div className="mbody">
-          <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden' }}>
-            {OPTS.map(({ v, label, fg, bg, accent }, i) => {
-              const sel = status === v
-              return (
-                <button key={v} type="button" onClick={() => setStatus(v)}
-                  style={{
-                    flex:1, padding:'10px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
-                    fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
-                    borderRight: i < OPTS.length-1 ? '1px solid #e2e8f0' : 'none',
-                    background:  sel ? bg     : '#fff',
-                    color:       sel ? fg     : '#94a3b8',
-                    boxShadow:   sel ? `inset 0 -2px 0 ${accent}` : 'none',
-                  }}>
-                  {label}
-                </button>
-              )
-            })}
+        <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {/* Voo principal */}
+          <div>
+            <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>✈ Voo principal</p>
+            <StatusBar value={main} onChange={setMain} />
           </div>
+          {/* Voo de acesso (só quando aeroporto individual diferente do padrão) */}
+          {hasConn && (
+            <div>
+              <p style={{ margin:'0 0 6px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', display:'flex', alignItems:'center', gap:6 }}>
+                ✈ Voo de acesso
+                <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 6px', borderRadius:4 }}>
+                  {connAp.iata_code || connAp.name.slice(0,3).toUpperCase()}
+                </span>
+                <span style={{ fontWeight:400, color:'#94a3b8' }}>{connAp.city || connAp.name}</span>
+              </p>
+              <StatusBar value={conn} onChange={setConn} />
+            </div>
+          )}
         </div>
         <div className="mfoot">
           <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
@@ -2928,15 +2955,14 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                     {/* ✈ passagem — clicável em listas aéreas */}
                     {isAereo ? (() => {
                       const hasConnAirport = !e.is_block && e.departure_airport_data && defaultAirport && e.departure_airport_data.id !== defaultAirport.id
-                      const mkBtn = (ticketStatus, fieldName) => {
+                      const mkBtn = (ticketStatus) => {
                         const ts = ticketStatus || 'nao_emitida'
                         const tColor = ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#f59e0b' : 'rgb(147,66,171)'
-                        const tTitle = ts === 'nao_emitida' ? 'Não emitida' : ts === 'via_bloqueio' ? 'Via bloqueio' : 'Voo individual'
                         const c = ts === 'nao_emitida' ? '148,163,184' : ts === 'via_bloqueio' ? '245,158,11' : '147,66,171'
                         const a = ts === 'nao_emitida' ? '.22' : '.38'
                         const tGrad = `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
                         return (
-                          <button key={fieldName} type="button" onClick={() => setTicketModal({ enrollment: e, field: fieldName })} title={tTitle}
+                          <button type="button" onClick={() => setTicketModal(e)}
                             style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:tGrad, border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
                             <span style={{ fontSize:11, lineHeight:1, color:tColor }}>✈</span>
                           </button>
@@ -2944,8 +2970,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       }
                       return (
                         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
-                          {mkBtn(e.ticket_status, 'ticket_status')}
-                          {hasConnAirport && mkBtn(e.connection_ticket_status, 'connection_ticket_status')}
+                          {mkBtn(e.ticket_status)}
+                          {hasConnAirport && mkBtn(e.connection_ticket_status)}
                         </div>
                       )
                     })() : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
@@ -3141,9 +3167,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
       {/* Popup passagem aérea */}
       {ticketModal && (
         <TicketModal
-          enrollment={ticketModal.enrollment}
+          enrollment={ticketModal}
           listId={listId}
-          field={ticketModal.field}
+          defaultAirport={defaultAirport}
           onSaved={load}
           onClose={() => setTicketModal(null)}
         />
