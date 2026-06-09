@@ -1424,7 +1424,13 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                         <input value={row.paxSearch}
                           onChange={e => { searchPax(rid, e.target.value); setOpenDrop(d => d?.rid===rid&&d?.field==='pax' ? {...d,hover:0} : d) }}
                           onFocus={e => { openDropFor(e, rid, 'pax'); if (!row.paxResults.length) searchPax(rid, row.paxSearch) }}
-                          onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid&&d?.field==='pax' ? null : d), 150)}
+                          onBlur={() => setTimeout(() => {
+                            setOpenDrop(d => d?.rid===rid&&d?.field==='pax' ? null : d)
+                            setRows(rs => rs.map(r => {
+                              if (r.id !== rid || r.passenger || !r.paxSearch.trim()) return r
+                              return { ...r, passenger: { id: null, full_name: r.paxSearch.trim(), provisional: true } }
+                            }))
+                          }, 150)}
                           onKeyDown={e => handleKey(e, rid, 'pax')}
                           placeholder="Passageiro…" className="fi"
                           style={{ ...cellInput, borderColor: row.passenger ? '#16a34a' : undefined }} />
