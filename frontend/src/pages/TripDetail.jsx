@@ -1315,11 +1315,21 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
 
           {/* Tabela de passageiros */}
           <div style={{ overflowX:'auto', borderRadius:10, border:'1px solid #e2e8f0' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', tableLayout:'fixed' }}>
+              <colgroup>
+                <col style={{ width:32 }} />
+                <col style={{ width:'22%' }} />
+                <col style={{ width:'19%' }} />
+                <col style={{ width:106 }} />
+                <col style={{ width:118 }} />
+                <col />
+                <col style={{ width:'18%' }} />
+                <col style={{ width:30 }} />
+              </colgroup>
               <thead>
                 <tr style={{ background:'#f8fafc', borderBottom:'1.5px solid #e2e8f0' }}>
                   {['#','Passageiro','Agência','Status','Prazo','Observações','Responsável',''].map((h,i) => (
-                    <th key={i} style={{ padding:'8px 10px', fontSize:11, fontWeight:600, color:'#94a3b8', textAlign: i===0||i===7 ? 'center' : 'left', whiteSpace:'nowrap' }}>{h}</th>
+                    <th key={i} style={{ padding:'8px 10px', fontSize:11, fontWeight:600, color:'#94a3b8', textAlign: i===0||i===7 ? 'center' : 'left', whiteSpace:'nowrap', overflow:'hidden' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1327,57 +1337,58 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                 {rows.map((row, idx) => {
                   const rid = row.id
                   const isOdd = idx % 2 === 1
+                  const cellInput = { fontSize:12, padding:'5px 8px', width:'100%', boxSizing:'border-box' }
                   return (
                     <tr key={rid} style={{ borderBottom:'1px solid #f1f5f9', background: isOdd ? '#fafbfc' : '#fff', verticalAlign:'middle' }}>
 
                       {/* # */}
-                      <td style={{ padding:'6px 10px', textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8', width:36 }}>{idx+1}</td>
+                      <td style={{ padding:'6px 4px', textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8' }}>{idx+1}</td>
 
                       {/* Passageiro */}
-                      <td style={{ padding:'5px 8px', minWidth:180 }}>
+                      <td style={{ padding:'5px 6px', overflow:'hidden' }}>
                         <input value={row.paxSearch}
                           onChange={e => searchPax(rid, e.target.value)}
-                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'pax', top:r.bottom+4, left:r.left, width:r.width }); if (!row.paxResults.length) searchPax(rid, row.paxSearch) }}
+                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'pax', top:r.bottom+4, left:r.left, width:Math.max(r.width,220) }); if (!row.paxResults.length) searchPax(rid, row.paxSearch) }}
                           onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid && d?.field==='pax' ? null : d), 200)}
-                          placeholder="Selecione o passageiro…" className="fi"
-                          style={{ fontSize:12, padding:'5px 8px', borderColor: row.passenger ? '#16a34a' : undefined }} />
-                        {row.passenger && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600 }}>✓ {row.passenger.full_name}</p>}
+                          placeholder="Passageiro…" className="fi"
+                          style={{ ...cellInput, borderColor: row.passenger ? '#16a34a' : undefined }} />
+                        {row.passenger && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.passenger.full_name}</p>}
                       </td>
 
                       {/* Agência */}
-                      <td style={{ padding:'5px 8px', minWidth:160 }}>
+                      <td style={{ padding:'5px 6px', overflow:'hidden' }}>
                         <input value={row.agSearch}
                           onChange={e => searchAg(rid, e.target.value)}
-                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'ag', top:r.bottom+4, left:r.left, width:r.width }); if (!row.agResults.length) searchAg(rid, row.agSearch) }}
+                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'ag', top:r.bottom+4, left:r.left, width:Math.max(r.width,220) }); if (!row.agResults.length) searchAg(rid, row.agSearch) }}
                           onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid && d?.field==='ag' ? null : d), 200)}
-                          placeholder="Selecione a agência…" className="fi"
-                          style={{ fontSize:12, padding:'5px 8px', borderColor: row.agency ? '#16a34a' : undefined }} />
-                        {row.agency && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600 }}>✓ {row.agency.company_name || row.agency.name}</p>}
+                          placeholder="Agência…" className="fi"
+                          style={{ ...cellInput, borderColor: row.agency ? '#16a34a' : undefined }} />
+                        {row.agency && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.agency.company_name || row.agency.name}</p>}
                       </td>
 
                       {/* Status */}
-                      <td style={{ padding:'5px 8px', width:110 }}>
-                        <select value={row.status} onChange={e => upd(rid, { status: e.target.value })} className="fi" style={{ fontSize:12, padding:'5px 8px' }}>
+                      <td style={{ padding:'5px 6px' }}>
+                        <select value={row.status} onChange={e => upd(rid, { status: e.target.value })} className="fi" style={{ ...cellInput }}>
                           {ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </td>
 
                       {/* Prazo */}
-                      <td style={{ padding:'5px 8px', width:130 }}>
+                      <td style={{ padding:'5px 6px' }}>
                         <DatePicker fixed value={row.prazo} onChange={v => upd(rid, { prazo: v })} placeholder="DD/MM/AAAA" />
                       </td>
 
                       {/* Observações */}
-                      <td style={{ padding:'5px 8px', minWidth:160 }}>
+                      <td style={{ padding:'5px 6px', overflow:'hidden' }}>
                         <input value={row.notes} onChange={e => upd(rid, { notes: e.target.value })}
-                          placeholder="Observações…" className="fi" style={{ fontSize:12, padding:'5px 8px' }} />
+                          placeholder="Observações…" className="fi" style={{ ...cellInput }} />
                       </td>
 
                       {/* Responsável */}
-                      <td style={{ padding:'5px 8px', minWidth:150 }}>
+                      <td style={{ padding:'5px 6px', overflow:'hidden' }}>
                         {row.members.length > 0 ? (
-                          <select value={row.responsible?.user_id || ''} onChange={e => upd(rid, { responsible: row.members.find(m => String(m.user_id)===e.target.value)||null })} className="fi" style={{ fontSize:12, padding:'5px 8px' }}>
-                            <option value="">Nada selecionado</option>
+                          <select value={row.responsible?.user_id || ''} onChange={e => upd(rid, { responsible: row.members.find(m => String(m.user_id)===e.target.value)||null })} className="fi" style={{ ...cellInput }}>
+                            <option value="">— responsável</option>
                             {row.members.map(m => <option key={m.user_id} value={m.user_id}>{m.user_name || m.email}</option>)}
                           </select>
                         ) : (
