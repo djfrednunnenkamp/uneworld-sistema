@@ -236,10 +236,10 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     const y = addPageHeader(doc, title, lname, lnum, dates, logoDataUrl)
     if (summaryLine) {
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
+      doc.setFontSize(9)
       doc.setTextColor(71, 85, 105)
-      doc.text(summaryLine, 14, y - 1)
-      return y + 3
+      doc.text(summaryLine, 14, y + 2)
+      return y + 4
     }
     return y
   }
