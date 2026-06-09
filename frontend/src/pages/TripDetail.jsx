@@ -71,6 +71,29 @@ const LIST_STATUS_OPTS = [
   { value:'fechada', label:'Fechada', bg:'#f1f5f9', color:'#64748b' },
 ]
 
+function TripPhaseBadge({ startDate, endDate }) {
+  const today = new Date(); today.setHours(0,0,0,0)
+  const start = startDate ? new Date(startDate + 'T00:00:00') : null
+  const end   = endDate   ? new Date(endDate   + 'T00:00:00') : null
+
+  let label, bg, color, dot
+  if (!start || today < start) {
+    label = 'Em criação';    bg = '#eff6ff'; color = '#2563eb'; dot = '#93c5fd'
+  } else if (!end || today <= end) {
+    label = 'Em andamento';  bg = '#f0fdf4'; color = '#16a34a'; dot = '#86efac'
+  } else {
+    label = 'Finalizada';    bg = '#f1f5f9'; color = '#64748b'; dot = '#cbd5e1'
+  }
+
+  return (
+    <span style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:20, background:bg, color, userSelect:'none' }}>
+      <span style={{ width:7, height:7, borderRadius:'50%', background:dot, flexShrink:0,
+        boxShadow: label === 'Em andamento' ? `0 0 0 3px ${dot}55` : 'none' }}/>
+      {label}
+    </span>
+  )
+}
+
 function ListStatusBadge({ value, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -3837,6 +3860,7 @@ export default function TripDetail() {
           <h1 className="ph-title" style={{ margin:0 }}>{list.name}</h1>
         </div>
         <div className="ph-actions" style={{ alignItems:'center' }}>
+          <TripPhaseBadge startDate={list.start_date} endDate={list.end_date} />
           <ListStatusBadge value={list.status} onChange={handleStatusChange} />
           <button type="button" onClick={() => setShowEdit(true)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
