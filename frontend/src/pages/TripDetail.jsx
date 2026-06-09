@@ -704,9 +704,9 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
               {/* Seletor feeder */}
               <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden', marginBottom:12 }}>
                 {[
-                  { v:'nao_emitida',   label:'Nenhum voo'      },
-                  ...(feederBlockLegs.length > 0 ? [{ v:'via_bloqueio', label:'Via bloqueio' }] : []),
-                  { v:'fora_bloqueio', label:'Roteiro próprio' },
+                  { v:'nao_emitida',   label:'Não emitida'    },
+                  { v:'via_bloqueio',  label:'Via bloqueio'   },
+                  { v:'fora_bloqueio', label:'Voo individual' },
                 ].map(({ v, label }, i, arr) => {
                   const sel = feederStatus === v
                   const col = COLORS[v] || COLORS.nao_emitida
