@@ -1204,11 +1204,13 @@ function StatusToggle({ value, onChange }) {
 }
 
 /* ── Popup de adicionar passageiro / bloqueio ── */
-function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
+function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdded, onClose }) {
   const mkRow = () => ({ id: Date.now() + Math.random(), paxSearch:'', passenger:null, paxResults:[], paxSearching:false, agSearch:'', agency:null, agResults:[], agSearching:false, members:[], responsible:null, respInput:'', status:'pendente', statusInput:'Pendente', prazo:'', notes:'' })
-  const [newRoom,    setNewRoom]    = useState(false)
+  // accom: 'none' | 'new' | 'existing'
+  const [accomMode,  setAccomMode]  = useState('none')
   const [accomType,  setAccomType]  = useState('')
   const [accomTypes, setAccomTypes] = useState([])
+  const [existingRoom, setExistingRoom] = useState('')
   const [rows,       setRows]       = useState([mkRow()])
   const [saving,     setSaving]     = useState(false)
   const [openDrop,   setOpenDrop]   = useState(null)
@@ -1313,9 +1315,11 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
     setSaving(true)
     try {
       let roomName = ''
-      if (newRoom && accomType) {
+      if (accomMode === 'new' && accomType) {
         await listsApi.addRoom(listId, accomType).catch(() => {})
         roomName = accomType
+      } else if (accomMode === 'existing' && existingRoom) {
+        roomName = existingRoom
       }
       for (const row of valid) {
         if (row.passenger.provisional) {
@@ -1368,27 +1372,42 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
         {/* Body */}
         <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-          {/* Nova acomodação */}
-          <div style={{ display:'flex', alignItems:'center', gap:16, padding:'11px 16px', background:'#f8fafc', borderRadius:10, border:'1.5px solid #e2e8f0' }}>
-            <div style={{ flex:1 }}>
-              <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>Nova acomodação?</p>
-              <p style={{ margin:'2px 0 0', fontSize:11, color:'#94a3b8' }}>Marque esta opção para criar um novo quarto e já atribuir estes passageiros a ele.</p>
+          {/* Acomodação — 3 opções */}
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <p style={{ margin:0, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>Acomodação</p>
+            <div style={{ display:'flex', gap:8 }}>
+              {[
+                { k:'none',     icon:'—',  label:'Sem acomodação',      desc:'Atribuir depois'         },
+                { k:'new',      icon:'+',  label:'Nova acomodação',      desc:'Criar um novo quarto'    },
+                { k:'existing', icon:'→',  label:'Acomodação existente', desc:'Adicionar a quarto atual' },
+              ].map(opt => {
+                const sel = accomMode === opt.k
+                return (
+                  <button key={opt.k} type="button" onClick={() => setAccomMode(opt.k)}
+                    style={{ flex:1, padding:'10px 8px', borderRadius:10, border:`1.5px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`,
+                      background: sel ? '#f0f4ff' : '#fafafa', cursor:'pointer', fontFamily:'inherit', textAlign:'left', transition:'all .12s' }}>
+                    <p style={{ margin:0, fontSize:18, lineHeight:1, color: sel ? '#1a2d4f' : '#94a3b8' }}>{opt.icon}</p>
+                    <p style={{ margin:'5px 0 1px', fontSize:12, fontWeight:700, color: sel ? '#1a2d4f' : '#475569' }}>{opt.label}</p>
+                    <p style={{ margin:0, fontSize:10, color:'#94a3b8' }}>{opt.desc}</p>
+                  </button>
+                )
+              })}
             </div>
-            <button type="button" onClick={() => setNewRoom(v => !v)}
-              style={{ position:'relative', width:40, height:22, borderRadius:11, border:'none', cursor:'pointer', padding:0, flexShrink:0, transition:'background .2s', background: newRoom ? '#1a2d4f' : '#cbd5e1' }}>
-              <span style={{ position:'absolute', top:3, width:16, height:16, borderRadius:'50%', background:'#fff', transition:'left .2s', left: newRoom ? 21 : 3, boxShadow:'0 1px 3px rgba(0,0,0,.2)' }} />
-            </button>
-          </div>
 
-          {newRoom && (
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Tipo de acomodação</label>
-              <select value={accomType} onChange={e => setAccomType(e.target.value)} className="fi">
-                <option value="">Selecione o tipo…</option>
+            {accomMode === 'new' && (
+              <select value={accomType} onChange={e => setAccomType(e.target.value)} className="fi" style={{ marginTop:2 }}>
+                <option value="">Selecione o tipo de acomodação…</option>
                 {accomTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
               </select>
-            </div>
-          )}
+            )}
+
+            {accomMode === 'existing' && (
+              <select value={existingRoom} onChange={e => setExistingRoom(e.target.value)} className="fi" style={{ marginTop:2 }}>
+                <option value="">Selecione o quarto…</option>
+                {existingRooms.map(r => <option key={r.id} value={r.name}>{r.name}{r.occupant_count != null ? ` (${r.occupant_count} pax)` : ''}</option>)}
+              </select>
+            )}
+          </div>
 
           {/* Tabela de passageiros */}
           <div style={{ overflowX:'auto', borderRadius:10, border:'1px solid #e2e8f0' }}>
@@ -3268,7 +3287,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
         <AddPassengerPopup
           listId={listId}
           enrolled={enrolled}
-          onAdded={load}
+          rooms={rooms}
+          onAdded={() => { load(); loadRooms() }}
           onClose={() => setShowAdd(false)}
         />
       )}
