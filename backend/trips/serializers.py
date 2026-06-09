@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room, FlightLeg, PassengerFlightLeg, FeederLeg
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -231,89 +231,9 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
-            'ticket_status', 'ticket_number', 'ticket_seat',
-            'connection_ticket_status', 'connection_ticket_number', 'connection_ticket_seat',
+            'ticket_status',
             'order_in_list', 'enrolled_at', 'notes',
         ]
         read_only_fields = ['enrolled_at']
 
 
-class FlightLegSerializer(serializers.ModelSerializer):
-    origin_airport_data      = serializers.SerializerMethodField()
-    destination_airport_data = serializers.SerializerMethodField()
-
-    class Meta:
-        model  = FlightLeg
-        fields = [
-            'id', 'direction', 'order',
-            'origin_airport', 'origin_airport_data',
-            'destination_airport', 'destination_airport_data',
-            'flight_number', 'airline',
-            'departure_date', 'departure_time',
-            'arrival_date',   'arrival_time',
-            'blocked_seats',
-        ]
-
-    def _ap(self, obj):
-        return {'id': obj.id, 'name': obj.name, 'iata_code': obj.iata_code, 'city': obj.city, 'country': obj.country}
-
-    def get_origin_airport_data(self, obj):
-        return self._ap(obj.origin_airport) if obj.origin_airport_id else None
-
-    def get_destination_airport_data(self, obj):
-        return self._ap(obj.destination_airport) if obj.destination_airport_id else None
-
-
-class PassengerFlightLegSerializer(serializers.ModelSerializer):
-    origin_airport_data      = serializers.SerializerMethodField()
-    destination_airport_data = serializers.SerializerMethodField()
-
-    class Meta:
-        model  = PassengerFlightLeg
-        fields = [
-            'id', 'direction', 'order',
-            'origin_airport', 'origin_airport_data',
-            'destination_airport', 'destination_airport_data',
-            'flight_number', 'airline',
-            'departure_date', 'departure_time',
-            'arrival_date',   'arrival_time',
-        ]
-
-    def _ap(self, obj):
-        return {'id': obj.id, 'name': obj.name, 'iata_code': obj.iata_code, 'city': obj.city, 'country': obj.country}
-
-    def get_origin_airport_data(self, obj):
-        return self._ap(obj.origin_airport) if obj.origin_airport_id else None
-
-    def get_destination_airport_data(self, obj):
-        return self._ap(obj.destination_airport) if obj.destination_airport_id else None
-
-
-class FeederLegSerializer(serializers.ModelSerializer):
-    departure_airport_data   = serializers.SerializerMethodField()
-    origin_airport_data      = serializers.SerializerMethodField()
-    destination_airport_data = serializers.SerializerMethodField()
-
-    class Meta:
-        model  = FeederLeg
-        fields = [
-            'id', 'departure_airport', 'departure_airport_data', 'order',
-            'origin_airport', 'origin_airport_data',
-            'destination_airport', 'destination_airport_data',
-            'flight_number', 'airline',
-            'departure_date', 'departure_time',
-            'arrival_date',   'arrival_time',
-            'blocked_seats',
-        ]
-
-    def _ap(self, obj):
-        return {'id': obj.id, 'name': obj.name, 'iata_code': obj.iata_code, 'city': obj.city, 'country': obj.country}
-
-    def get_departure_airport_data(self, obj):
-        return self._ap(obj.departure_airport) if obj.departure_airport_id else None
-
-    def get_origin_airport_data(self, obj):
-        return self._ap(obj.origin_airport) if obj.origin_airport_id else None
-
-    def get_destination_airport_data(self, obj):
-        return self._ap(obj.destination_airport) if obj.destination_airport_id else None

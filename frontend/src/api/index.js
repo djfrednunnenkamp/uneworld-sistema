@@ -37,27 +37,11 @@ export const listsApi = {
   addPassenger:     (id, data)     => api.post(`/trips/lists/${id}/passageiros/`, data),
   updatePassenger:  (id, eid, d)  => api.patch(`/trips/lists/${id}/passageiros/${eid}/`, d),
   removePassenger:  (id, eid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/`),
-  // Trechos individuais por passageiro
-  listPassengerLegs:  (id, eid, dir)     => api.get(`/trips/lists/${id}/passageiros/${eid}/legs/`, dir ? { params: { direction: dir } } : {}),
-  addPassengerLeg:    (id, eid, data)    => api.post(`/trips/lists/${id}/passageiros/${eid}/legs/`, data),
-  updatePassengerLeg: (id, eid, lid, d)  => api.patch(`/trips/lists/${id}/passageiros/${eid}/legs/${lid}/`, d),
-  removePassengerLeg: (id, eid, lid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/legs/${lid}/`),
-  copyLegsFromBlock:  (id, eid)          => api.post(`/trips/lists/${id}/passageiros/${eid}/legs/copy/`),
-  // Trechos de acesso por aeroporto de embarque não-padrão
-  listFeederLegs:    (id, airportId)     => api.get(`/trips/lists/${id}/feeder-legs/`, { params: airportId ? { airport: airportId } : {} }),
-  addFeederLeg:      (id, data)          => api.post(`/trips/lists/${id}/feeder-legs/`, data),
-  updateFeederLeg:   (id, lid, d)        => api.patch(`/trips/lists/${id}/feeder-legs/${lid}/`, d),
-  removeFeederLeg:   (id, lid)           => api.delete(`/trips/lists/${id}/feeder-legs/${lid}/`),
   // Acomodações (quartos) na lista
   listRooms:        (id)          => api.get(`/trips/lists/${id}/rooms/`),
   addRoom:          (id, name)     => api.post(`/trips/lists/${id}/rooms/`, { name }),
   renameRoom:       (id, rid, name) => api.patch(`/trips/lists/${id}/rooms/${rid}/`, { name }),
   removeRoom:       (id, rid, resolution) => api.delete(`/trips/lists/${id}/rooms/${rid}/`, resolution ? { data: { resolution } } : undefined),
-  // Trechos de voo
-  listFlights:       (id)          => api.get(`/trips/lists/${id}/flights/`),
-  addFlight:         (id, data)    => api.post(`/trips/lists/${id}/flights/`, data),
-  updateFlight:      (id, fid, d)  => api.patch(`/trips/lists/${id}/flights/${fid}/`, d),
-  removeFlight:      (id, fid)     => api.delete(`/trips/lists/${id}/flights/${fid}/`),
   // Fornecedores e Adicionais
   suppliers:        ()            => api.get('/trips/suppliers/'),
   addSupplier:      (name)        => api.post('/trips/suppliers/', { name }),

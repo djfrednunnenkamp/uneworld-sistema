@@ -166,19 +166,12 @@ class ListEnrollment(models.Model):
     pending_until      = models.DateField('Pendente até', null=True, blank=True)
     pending_reason     = models.TextField('Motivo da pendência', blank=True)
     departure_airport  = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='enrollments', verbose_name='Aeroporto de saída')
-    # Passagem do voo principal (voo do grupo)
     TICKET_STATUS = [
         ('nao_emitida',    'Não emitida'),
-        ('via_bloqueio',   'Emitida via bloqueio'),
-        ('fora_bloqueio',  'Emitida fora do bloqueio'),
+        ('via_bloqueio',   'Via bloqueio'),
+        ('fora_bloqueio',  'Voo individual'),
     ]
     ticket_status      = models.CharField('Status da passagem', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
-    ticket_number      = models.CharField('Número da reserva', max_length=100, blank=True)
-    ticket_seat        = models.CharField('Assento', max_length=20, blank=True)
-    # Passagem do trecho de conexão (só para passageiros com aeroporto individual diferente do padrão)
-    connection_ticket_status = models.CharField('Status da passagem de conexão', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
-    connection_ticket_number = models.CharField('Número da reserva (conexão)', max_length=100, blank=True)
-    connection_ticket_seat   = models.CharField('Assento (conexão)', max_length=20, blank=True)
     order_in_list      = models.PositiveIntegerField('Ordem', default=0)
     enrolled_at        = models.DateTimeField('Adicionado em', auto_now_add=True)
     notes              = models.TextField('Observações', blank=True)
@@ -190,76 +183,6 @@ class ListEnrollment(models.Model):
         ordering            = ['order_in_list', 'enrolled_at']
 
     def __str__(self): return f'{self.passenger} → {self.passenger_list}'
-
-
-class FlightLeg(models.Model):
-    DIRECTION_CHOICES = [('ida', 'Ida'), ('volta', 'Volta')]
-
-    passenger_list      = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='flight_legs', verbose_name='Lista')
-    direction           = models.CharField('Direção', max_length=10, choices=DIRECTION_CHOICES, default='ida')
-    order               = models.PositiveSmallIntegerField('Ordem', default=0)
-    origin_airport      = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de origem')
-    destination_airport = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de destino')
-    flight_number       = models.CharField('Número do voo', max_length=20, blank=True)
-    airline             = models.CharField('Companhia aérea', max_length=100, blank=True)
-    departure_date      = models.DateField('Data de partida', null=True, blank=True)
-    departure_time      = models.TimeField('Horário de partida', null=True, blank=True)
-    arrival_date        = models.DateField('Data de chegada', null=True, blank=True)
-    arrival_time        = models.TimeField('Horário de chegada', null=True, blank=True)
-    blocked_seats       = models.PositiveSmallIntegerField('Lugares bloqueados', null=True, blank=True)
-    created_at          = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering            = ['direction', 'order', 'departure_date', 'departure_time']
-        verbose_name        = 'Trecho de voo'
-        verbose_name_plural = 'Trechos de voo'
-
-    def __str__(self):
-        o = self.origin_airport.iata_code if self.origin_airport else '?'
-        d = self.destination_airport.iata_code if self.destination_airport else '?'
-        return f'{o} → {d} ({self.flight_number or "sem nº"})'
-
-
-class FeederLeg(models.Model):
-    """Trechos de voo de acesso para um grupo que embarca num aeroporto não-padrão."""
-    passenger_list      = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='feeder_legs', verbose_name='Lista')
-    departure_airport   = models.ForeignKey('config_api.Airport', on_delete=models.CASCADE, related_name='feeder_legs', verbose_name='Aeroporto de embarque do grupo')
-    order               = models.PositiveSmallIntegerField('Ordem', default=0)
-    origin_airport      = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Origem')
-    destination_airport = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Destino')
-    flight_number       = models.CharField('Número do voo', max_length=20, blank=True)
-    airline             = models.CharField('Companhia aérea', max_length=100, blank=True)
-    departure_date      = models.DateField('Data de partida', null=True, blank=True)
-    departure_time      = models.TimeField('Horário de partida', null=True, blank=True)
-    arrival_date        = models.DateField('Data de chegada', null=True, blank=True)
-    arrival_time        = models.TimeField('Horário de chegada', null=True, blank=True)
-    blocked_seats       = models.PositiveSmallIntegerField('Lugares bloqueados', null=True, blank=True)
-
-    class Meta:
-        ordering            = ['departure_airport', 'order', 'departure_date', 'departure_time']
-        verbose_name        = 'Trecho de acesso'
-        verbose_name_plural = 'Trechos de acesso'
-
-
-class PassengerFlightLeg(models.Model):
-    DIRECTION_CHOICES = [('ida', 'Ida'), ('volta', 'Volta'), ('feeder', 'Acesso')]
-
-    enrollment          = models.ForeignKey(ListEnrollment, on_delete=models.CASCADE, related_name='passenger_flight_legs')
-    direction           = models.CharField('Direção', max_length=10, choices=DIRECTION_CHOICES, default='ida')
-    order               = models.PositiveSmallIntegerField('Ordem', default=0)
-    origin_airport      = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de origem')
-    destination_airport = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de destino')
-    flight_number       = models.CharField('Número do voo', max_length=20, blank=True)
-    airline             = models.CharField('Companhia aérea', max_length=100, blank=True)
-    departure_date      = models.DateField('Data de partida', null=True, blank=True)
-    departure_time      = models.TimeField('Horário de partida', null=True, blank=True)
-    arrival_date        = models.DateField('Data de chegada', null=True, blank=True)
-    arrival_time        = models.TimeField('Horário de chegada', null=True, blank=True)
-
-    class Meta:
-        ordering            = ['direction', 'order', 'departure_date', 'departure_time']
-        verbose_name        = 'Trecho individual de voo'
-        verbose_name_plural = 'Trechos individuais de voo'
 
 
 class Room(models.Model):

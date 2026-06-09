@@ -383,254 +383,30 @@ function AirportPicker({ value, onChange, placeholder }) {
 }
 
 /* ── Modal de passagem aérea ── */
-function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
+function TicketModal({ enrollment, listId, onSaved, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+  const [status, setStatus] = useState(enrollment.ticket_status || 'nao_emitida')
+  const [saving, setSaving] = useState(false)
 
-  const depAirport = enrollment.departure_airport_data || null
-  const hasFeeder  = depAirport && defaultAirport && depAirport.id !== defaultAirport.id
-
-  const [status,  setStatus]  = useState(enrollment.ticket_status  || 'nao_emitida')
-  const [number,  setNumber]  = useState(enrollment.ticket_number  || '')
-  const [saving,  setSaving]  = useState(false)
-
-  // Voos do bloqueio (para exibição em "via_bloqueio")
-  const [blockLegs,    setBlockLegs]    = useState([])
-  // Trechos individuais do passageiro (para "fora_bloqueio")
-  const [pLegs,        setPLegs]        = useState([])
-  const [pLegsLoaded,  setPLegsLoaded]  = useState(false)
-  const [copying,      setCopying]      = useState(false)
-  const [legModal,     setLegModal]     = useState(null)
-  const [delLeg,       setDelLeg]       = useState(null)
-
-  // Voo de acesso (feeder)
-  const [feederStatus,     setFeederStatus]     = useState(enrollment.connection_ticket_status || 'nao_emitida')
-  const [feederNumber,     setFeederNumber]     = useState(enrollment.connection_ticket_number || '')
-  const [feederBlockLegs,  setFeederBlockLegs]  = useState([])
-  const [feederBlockLoaded, setFeederBlockLoaded] = useState(false)
-  const [pFeederLegs,      setPFeederLegs]      = useState([])
-  const [pFeederLoaded,    setPFeederLoaded]    = useState(false)
-  const [feederLegModal,   setFeederLegModal]   = useState(null)
-  const [delFeederLeg,     setDelFeederLeg]     = useState(null)
-
-  useEffect(() => {
-    listsApi.listFlights(listId).then(r => setBlockLegs(r.data)).catch(() => {})
-  }, [listId])
-
-  useEffect(() => {
-    if (hasFeeder && feederStatus === 'via_bloqueio' && !feederBlockLoaded) {
-      listsApi.listFeederLegs(listId, depAirport.id).then(r => {
-        setFeederBlockLegs(r.data)
-        setFeederBlockLoaded(true)
-      }).catch(() => {})
-    }
-  }, [feederStatus, feederBlockLoaded, hasFeeder])
-
-  useEffect(() => {
-    if (hasFeeder && !feederBlockLoaded) {
-      listsApi.listFeederLegs(listId, depAirport.id).then(r => {
-        setFeederBlockLegs(r.data)
-        setFeederBlockLoaded(true)
-      }).catch(() => {})
-    }
-  }, [hasFeeder])
-
-  useEffect(() => {
-    if (status === 'fora_bloqueio' && !pLegsLoaded) {
-      listsApi.listPassengerLegs(listId, enrollment.id).then(r => {
-        setPLegs(r.data.filter(l => l.direction !== 'feeder'))
-        setPLegsLoaded(true)
-      }).catch(() => {})
-    }
-  }, [status, pLegsLoaded, listId, enrollment.id])
-
-  useEffect(() => {
-    if (hasFeeder && feederStatus === 'fora_bloqueio' && !pFeederLoaded) {
-      listsApi.listPassengerLegs(listId, enrollment.id, 'feeder').then(r => {
-        setPFeederLegs(r.data)
-        setPFeederLoaded(true)
-      }).catch(() => {})
-    }
-  }, [feederStatus, pFeederLoaded, hasFeeder])
-
-  const reloadPLegs = () =>
-    listsApi.listPassengerLegs(listId, enrollment.id).then(r => {
-      setPLegs(r.data.filter(l => l.direction !== 'feeder'))
-    }).catch(() => {})
-
-  const reloadPFeederLegs = () =>
-    listsApi.listPassengerLegs(listId, enrollment.id, 'feeder').then(r => setPFeederLegs(r.data)).catch(() => {})
-
-  const handleCopyFromBlock = async () => {
-    setCopying(true)
-    try {
-      const r = await listsApi.copyLegsFromBlock(listId, enrollment.id)
-      setPLegs(r.data.filter(l => l.direction !== 'feeder'))
-      toast.success('Voos copiados do bloqueio.')
-    } catch { toast.error('Erro ao copiar.') }
-    finally { setCopying(false) }
-  }
-
-  const handleSaveLeg = async (data) => {
-    if (legModal.initial) {
-      await listsApi.updatePassengerLeg(listId, enrollment.id, legModal.initial.id, data)
-      toast.success('Trecho atualizado.')
-    } else {
-      await listsApi.addPassengerLeg(listId, enrollment.id, data)
-      toast.success('Trecho adicionado.')
-    }
-    reloadPLegs()
-  }
-
-  const handleDeleteLeg = async (leg) => {
-    await listsApi.removePassengerLeg(listId, enrollment.id, leg.id)
-    setDelLeg(null)
-    reloadPLegs()
-  }
-
-  const handleSaveFeederLeg = async (data) => {
-    const payload = { ...data, direction: 'feeder' }
-    if (feederLegModal.initial) {
-      await listsApi.updatePassengerLeg(listId, enrollment.id, feederLegModal.initial.id, payload)
-      toast.success('Trecho atualizado.')
-    } else {
-      await listsApi.addPassengerLeg(listId, enrollment.id, payload)
-      toast.success('Trecho adicionado.')
-    }
-    setFeederLegModal(null)
-    reloadPFeederLegs()
-  }
-
-  const handleDeleteFeederLeg = async (leg) => {
-    await listsApi.removePassengerLeg(listId, enrollment.id, leg.id)
-    setDelFeederLeg(null)
-    reloadPFeederLegs()
-  }
+  const OPTS = [
+    { v:'nao_emitida',   label:'Não emitida',   fg:'#94a3b8',          bg:'#f8fafc',  accent:'#94a3b8'          },
+    { v:'via_bloqueio',  label:'Via bloqueio',  fg:'#b45309',          bg:'#fffbeb',  accent:'#b45309'          },
+    { v:'fora_bloqueio', label:'Voo individual', fg:'rgb(147,66,171)', bg:'#faf5ff',  accent:'rgb(147,66,171)'  },
+  ]
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await listsApi.updatePassenger(listId, enrollment.id, {
-        ticket_status: status,
-        ticket_number: status === 'nao_emitida' ? '' : number,
-        ticket_seat:   '',
-        connection_ticket_status: hasFeeder ? feederStatus : 'nao_emitida',
-        connection_ticket_number: hasFeeder && feederStatus !== 'nao_emitida' ? feederNumber : '',
-        connection_ticket_seat:   '',
-      })
+      await listsApi.updatePassenger(listId, enrollment.id, { ticket_status: status })
       toast.success('Passagem atualizada.')
       onSaved(); onClose()
     } catch { toast.error('Erro ao salvar.') }
     finally { setSaving(false) }
   }
 
-  const COLORS = {
-    nao_emitida:   { fg:'#94a3b8', bg:'#f8fafc',  accent:'#94a3b8' },
-    via_bloqueio:  { fg:'#b45309', bg:'#fffbeb',  accent:'#b45309' },
-    fora_bloqueio: { fg:'rgb(147,66,171)', bg:'#faf5ff', accent:'rgb(147,66,171)' },
-  }
-
-  const fmtDate = d => { if (!d) return null; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}` }
-  const fmtTime = t => t ? t.slice(0,5) : null
-
-  const LegReadRow = ({ leg }) => (
-    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#fff', borderBottom:'1px solid #f1f5f9' }}>
-      {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
-        <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
-          {i===1 && <span style={{ color:'#cbd5e1', fontSize:13 }}>→</span>}
-          {ap ? (
-            <span style={{ display:'flex', alignItems:'center', gap:4 }}>
-              <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
-                {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
-              </span>
-              <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
-            </span>
-          ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
-        </span>
-      ))}
-      <span style={{ flex:1 }}/>
-      {leg.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{leg.flight_number}</span>}
-      {leg.airline && <span style={{ fontSize:11, color:'#64748b' }}>{leg.airline}</span>}
-      {(leg.departure_date || leg.departure_time) && (
-        <span style={{ fontSize:11, color:'#94a3b8' }}>{[fmtDate(leg.departure_date), fmtTime(leg.departure_time)].filter(Boolean).join(' ')}</span>
-      )}
-    </div>
-  )
-
-  const LegEditRow = ({ leg }) => (
-    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#fff', borderBottom:'1px solid #f1f5f9' }}
-      onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
-      onMouseLeave={e => e.currentTarget.style.background='#fff'}>
-      {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
-        <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
-          {i===1 && <span style={{ color:'#cbd5e1', fontSize:13 }}>→</span>}
-          {ap ? (
-            <span style={{ display:'flex', alignItems:'center', gap:4 }}>
-              <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
-                {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
-              </span>
-              <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
-            </span>
-          ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
-        </span>
-      ))}
-      <span style={{ flex:1 }}/>
-      {leg.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{leg.flight_number}</span>}
-      {(leg.departure_date || leg.departure_time) && (
-        <span style={{ fontSize:11, color:'#94a3b8' }}>{[fmtDate(leg.departure_date), fmtTime(leg.departure_time)].filter(Boolean).join(' ')}</span>
-      )}
-      <button type="button" onClick={() => setLegModal({ direction: leg.direction, initial: leg })}
-        style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', flexShrink:0 }}>
-        <Ic n="edit" s={11}/>
-      </button>
-      <button type="button" onClick={() => setDelLeg(leg)}
-        style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer', flexShrink:0 }}>
-        <Ic n="trash" s={11}/>
-      </button>
-    </div>
-  )
-
-  const LegsSection = ({ direction, label, legs, editable }) => {
-    const dirLegs = legs.filter(l => l.direction === direction)
-    return (
-      <div style={{ marginBottom:10 }}>
-        <p style={{ margin:'0 0 4px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>{label}</p>
-        {dirLegs.length === 0 ? (
-          <p style={{ margin:0, fontSize:12, color:'#94a3b8', padding:'8px 12px', background:'#f8fafc', borderRadius:6, border:'1px dashed #e2e8f0' }}>
-            Nenhum trecho cadastrado.
-          </p>
-        ) : (
-          <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden' }}>
-            {dirLegs.map(l => editable ? <LegEditRow key={l.id} leg={l}/> : <LegReadRow key={l.id} leg={l}/>)}
-          </div>
-        )}
-        {editable && (
-          <button type="button"
-            onClick={() => {
-              const last = dirLegs.length > 0 ? dirLegs[dirLegs.length-1] : null
-              setLegModal({
-                direction,
-                initial: null,
-                prefill: last ? {
-                  origin_airport_data: last.destination_airport_data,
-                  departure_date:      last.arrival_date || '',
-                  departure_time:      last.arrival_time ? last.arrival_time.slice(0,5) : '',
-                } : null,
-              })
-            }}
-            style={{ marginTop:5, display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            <Ic n="plus" s={10}/> Adicionar trecho
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  const c = COLORS[status] || COLORS.nao_emitida
-
   return (
     <div className="overlay" style={{ zIndex:750 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="mbox" style={{ maxWidth:500 }}>
-
+      <div className="mbox" style={{ maxWidth:380 }}>
         <div className="mhead">
           <div style={{ minWidth:0 }}>
             <span className="mtitle">Passagem aérea</span>
@@ -638,207 +414,26 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           </div>
           <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
         </div>
-
-        <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:14, maxHeight:'72vh', overflowY:'auto' }}>
-
-          {/* Seletor de status */}
+        <div className="mbody">
           <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden' }}>
-            {[
-              { v:'nao_emitida',   label:'Não emitida'    },
-              { v:'via_bloqueio',  label:'Via bloqueio'   },
-              { v:'fora_bloqueio', label:'Voo individual' },
-            ].map(({ v, label }, i, arr) => {
+            {OPTS.map(({ v, label, fg, bg, accent }, i) => {
               const sel = status === v
-              const col = COLORS[v]
               return (
                 <button key={v} type="button" onClick={() => setStatus(v)}
                   style={{
-                    flex:1, padding:'9px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
+                    flex:1, padding:'10px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
                     fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
-                    borderRight: i < arr.length-1 ? '1px solid #e2e8f0' : 'none',
-                    background:  sel ? col.bg  : '#fff',
-                    color:       sel ? col.fg  : '#94a3b8',
-                    boxShadow:   sel ? `inset 0 -2px 0 ${col.accent}` : 'none',
+                    borderRight: i < OPTS.length-1 ? '1px solid #e2e8f0' : 'none',
+                    background:  sel ? bg     : '#fff',
+                    color:       sel ? fg     : '#94a3b8',
+                    boxShadow:   sel ? `inset 0 -2px 0 ${accent}` : 'none',
                   }}>
                   {label}
                 </button>
               )
             })}
           </div>
-
-          {/* Número da reserva (quando emitida) */}
-          {status !== 'nao_emitida' && (
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Número da reserva</label>
-              <input className="fi" value={number} onChange={e => setNumber(e.target.value)} placeholder="Ex: ABC123" />
-            </div>
-          )}
-
-          {/* Via bloqueio — exibe voos do bloqueio */}
-          {status === 'via_bloqueio' && (
-            <div>
-              <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:700, color:'#b45309', textTransform:'uppercase', letterSpacing:'.05em' }}>
-                Voos do bloqueio
-              </p>
-              {blockLegs.length === 0 ? (
-                <p style={{ margin:0, fontSize:12, color:'#94a3b8', padding:'10px 14px', background:'#fffbeb', borderRadius:7, border:'1px solid #fde68a' }}>
-                  Nenhum voo cadastrado no bloqueio desta lista.
-                </p>
-              ) : (
-                <>
-                  <LegsSection direction="ida"   label="✈ Ida"   legs={blockLegs} editable={false}/>
-                  <LegsSection direction="volta" label="✈ Volta" legs={blockLegs} editable={false}/>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Voo individual — editor de trechos por passageiro */}
-          {status === 'fora_bloqueio' && (
-            <div>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                <p style={{ margin:0, fontSize:11, fontWeight:700, color:'rgb(147,66,171)', textTransform:'uppercase', letterSpacing:'.05em' }}>
-                  Trechos do passageiro
-                </p>
-                <button type="button" onClick={handleCopyFromBlock} disabled={copying}
-                  style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e9d5ff', background:'#faf5ff', color:'rgb(147,66,171)', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                  {copying ? '…' : '↓ Copiar do bloqueio'}
-                </button>
-              </div>
-              {!pLegsLoaded ? (
-                <p style={{ color:'#94a3b8', fontSize:12 }}>Carregando…</p>
-              ) : (
-                <>
-                  <LegsSection direction="ida"   label="✈ Ida"   legs={pLegs} editable={true}/>
-                  <LegsSection direction="volta" label="✈ Volta" legs={pLegs} editable={true}/>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ── Voo de acesso (só aparece quando aeroporto individual diferente do padrão) ── */}
-          {hasFeeder && (
-            <div style={{ borderTop:'2px dashed #e2e8f0', paddingTop:14 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-                <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 7px', borderRadius:5 }}>
-                  {depAirport.iata_code || depAirport.name.slice(0,3).toUpperCase()}
-                </span>
-                <p style={{ margin:0, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
-                  Voo de acesso — {depAirport.city || depAirport.name}
-                </p>
-              </div>
-
-              {/* Seletor feeder */}
-              <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden', marginBottom:12 }}>
-                {[
-                  { v:'nao_emitida',   label:'Não emitida'    },
-                  ...(feederBlockLegs.length > 0 ? [{ v:'via_bloqueio', label:'Via bloqueio' }] : []),
-                  { v:'fora_bloqueio', label:'Voo individual' },
-                ].map(({ v, label }, i, arr) => {
-                  const sel = feederStatus === v
-                  const col = COLORS[v] || COLORS.nao_emitida
-                  return (
-                    <button key={v} type="button" onClick={() => setFeederStatus(v)}
-                      style={{
-                        flex:1, padding:'8px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
-                        fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
-                        borderRight: i < arr.length-1 ? '1px solid #e2e8f0' : 'none',
-                        background:  sel ? col.bg  : '#fff',
-                        color:       sel ? col.fg  : '#94a3b8',
-                        boxShadow:   sel ? `inset 0 -2px 0 ${col.accent}` : 'none',
-                      }}>
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Número da reserva feeder */}
-              {feederStatus !== 'nao_emitida' && (
-                <div className="ff" style={{ margin:'0 0 10px' }}>
-                  <label className="fl">Número da reserva (acesso)</label>
-                  <input className="fi" value={feederNumber} onChange={e => setFeederNumber(e.target.value)} placeholder="Ex: ABC123" />
-                </div>
-              )}
-
-              {/* Via bloqueio feeder — leitura */}
-              {feederStatus === 'via_bloqueio' && (
-                feederBlockLegs.length === 0 ? (
-                  <p style={{ margin:0, fontSize:12, color:'#94a3b8', padding:'10px 14px', background:'#fffbeb', borderRadius:7, border:'1px solid #fde68a' }}>
-                    Nenhum voo de acesso configurado para este aeroporto.
-                  </p>
-                ) : (
-                  <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden' }}>
-                    {feederBlockLegs.map(l => <LegReadRow key={l.id} leg={l}/>)}
-                  </div>
-                )
-              )}
-
-              {/* Roteiro próprio feeder — edição */}
-              {feederStatus === 'fora_bloqueio' && (
-                !pFeederLoaded ? (
-                  <p style={{ color:'#94a3b8', fontSize:12 }}>Carregando…</p>
-                ) : (
-                  <div>
-                    {pFeederLegs.length === 0 ? (
-                      <p style={{ margin:'0 0 6px', fontSize:12, color:'#94a3b8', padding:'8px 12px', background:'#f8fafc', borderRadius:6, border:'1px dashed #e2e8f0' }}>
-                        Nenhum trecho cadastrado.
-                      </p>
-                    ) : (
-                      <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden', marginBottom:6 }}>
-                        {pFeederLegs.map(l => (
-                          <div key={l.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#fff', borderBottom:'1px solid #f1f5f9' }}
-                            onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
-                            onMouseLeave={e => e.currentTarget.style.background='#fff'}>
-                            {[l.origin_airport_data, l.destination_airport_data].map((ap, i) => (
-                              <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
-                                {i===1 && <span style={{ color:'#cbd5e1', fontSize:13 }}>→</span>}
-                                {ap ? (
-                                  <span style={{ display:'flex', alignItems:'center', gap:4 }}>
-                                    <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
-                                      {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
-                                    </span>
-                                    <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
-                                  </span>
-                                ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
-                              </span>
-                            ))}
-                            <span style={{ flex:1 }}/>
-                            {l.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{l.flight_number}</span>}
-                            <button type="button" onClick={() => setFeederLegModal({ initial: l })}
-                              style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', flexShrink:0 }}>
-                              <Ic n="edit" s={11}/>
-                            </button>
-                            <button type="button" onClick={() => setDelFeederLeg(l)}
-                              style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer', flexShrink:0 }}>
-                              <Ic n="trash" s={11}/>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <button type="button"
-                      onClick={() => {
-                        const last = pFeederLegs.length > 0 ? pFeederLegs[pFeederLegs.length-1] : null
-                        setFeederLegModal({
-                          initial: null,
-                          prefill: last ? {
-                            origin_airport_data: last.destination_airport_data,
-                            departure_date: last.arrival_date || '',
-                            departure_time: last.arrival_time ? last.arrival_time.slice(0,5) : '',
-                          } : { origin_airport_data: depAirport },
-                        })
-                      }}
-                      style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                      <Ic n="plus" s={10}/> Adicionar trecho
-                    </button>
-                  </div>
-                )
-              )}
-            </div>
-          )}
         </div>
-
         <div className="mfoot">
           <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
@@ -846,47 +441,6 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           </button>
         </div>
       </div>
-
-      {/* Sub-modal para editar trecho individual */}
-      {legModal && (
-        <FlightLegModal
-          initial={legModal.initial}
-          prefill={legModal.prefill}
-          direction={legModal.direction}
-          zIndex={820}
-          hideBlockedSeats
-          onSave={handleSaveLeg}
-          onClose={() => setLegModal(null)}
-        />
-      )}
-
-      {delLeg && (
-        <ConfirmModal
-          message={`Remover trecho ${delLeg.origin_airport_data?.iata_code || '?'} → ${delLeg.destination_airport_data?.iata_code || '?'}?`}
-          onOk={() => handleDeleteLeg(delLeg)}
-          onCancel={() => setDelLeg(null)}
-        />
-      )}
-
-      {feederLegModal && (
-        <FlightLegModal
-          initial={feederLegModal.initial}
-          prefill={feederLegModal.prefill}
-          direction="feeder"
-          zIndex={820}
-          hideBlockedSeats
-          onSave={handleSaveFeederLeg}
-          onClose={() => setFeederLegModal(null)}
-        />
-      )}
-
-      {delFeederLeg && (
-        <ConfirmModal
-          message={`Remover trecho de acesso ${delFeederLeg.origin_airport_data?.iata_code || '?'} → ${delFeederLeg.destination_airport_data?.iata_code || '?'}?`}
-          onOk={() => handleDeleteFeederLeg(delFeederLeg)}
-          onCancel={() => setDelFeederLeg(null)}
-        />
-      )}
     </div>
   )
 }
@@ -3372,27 +2926,17 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
                     {/* ✈ passagem — clicável em listas aéreas */}
                     {isAereo ? (() => {
-                      const tColor = ts => ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#f59e0b' : 'rgb(147,66,171)'
-                      const tTitle = (ts, num) => ts === 'nao_emitida' ? 'Não emitida' : ts === 'via_bloqueio' ? `Via bloqueio${num ? ' · ' + num : ''}` : `Voo individual${num ? ' · ' + num : ''}`
-                      const ts1 = e.ticket_status || 'nao_emitida'
-                      const hasFeederIcon = !e.is_block && e.departure_airport_data && defaultAirport && e.departure_airport_data.id !== defaultAirport.id
-                      const ts2 = e.connection_ticket_status || 'nao_emitida'
-                      const tGrad = ts => {
-                        const c = ts === 'nao_emitida' ? '148,163,184' : ts === 'via_bloqueio' ? '245,158,11' : '147,66,171'
-                        const a = ts === 'nao_emitida' ? '.22' : '.38'
-                        return `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
-                      }
-                      const TicketIcon = ({ ts, num }) => (
-                        <button type="button" onClick={() => setTicketModal(e)} title={tTitle(ts, num)}
-                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:tGrad(ts), border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
-                          <span style={{ fontSize:11, lineHeight:1, color:tColor(ts) }}>✈</span>
-                        </button>
-                      )
+                      const ts = e.ticket_status || 'nao_emitida'
+                      const tColor = ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#f59e0b' : 'rgb(147,66,171)'
+                      const tTitle = ts === 'nao_emitida' ? 'Não emitida' : ts === 'via_bloqueio' ? 'Via bloqueio' : 'Voo individual'
+                      const c = ts === 'nao_emitida' ? '148,163,184' : ts === 'via_bloqueio' ? '245,158,11' : '147,66,171'
+                      const a = ts === 'nao_emitida' ? '.22' : '.38'
+                      const tGrad = `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
                       return (
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}>
-                          <TicketIcon ts={ts1} num={e.ticket_number}/>
-                          {hasFeederIcon && <TicketIcon ts={ts2} num={e.connection_ticket_number}/>}
-                        </div>
+                        <button type="button" onClick={() => setTicketModal(e)} title={tTitle}
+                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:tGrad, border:'none', cursor:'pointer', padding:0, flexShrink:0, margin:'0 auto' }}>
+                          <span style={{ fontSize:11, lineHeight:1, color:tColor }}>✈</span>
+                        </button>
                       )
                     })() : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
                     }
@@ -3589,7 +3133,6 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
         <TicketModal
           enrollment={ticketModal}
           listId={listId}
-          defaultAirport={defaultAirport}
           onSaved={load}
           onClose={() => setTicketModal(null)}
         />
@@ -3708,117 +3251,6 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
           onClose={() => setMoveRoomModal(null)}
         />
       )}
-    </div>
-  )
-}
-
-/* ── Modal criar/editar trecho de voo ── */
-function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, hideBlockedSeats }) {
-  const isEdit = !!initial
-  const [origin,      setOrigin]      = useState(initial?.origin_airport_data      || prefill?.origin_airport_data || null)
-  const [dest,        setDest]        = useState(initial?.destination_airport_data || null)
-  const [fnum,        setFnum]        = useState(initial?.flight_number || '')
-  const [airline,     setAirline]     = useState(initial?.airline || '')
-  const [date,        setDate]        = useState(initial?.departure_date || prefill?.departure_date || '')
-  const [time,        setTime]        = useState(initial?.departure_time?.slice(0,5) || prefill?.departure_time || '')
-  const [arrivalDate,    setArrivalDate]    = useState(initial?.arrival_date || '')
-  const [arrivalTime,    setArrivalTime]    = useState(initial?.arrival_time?.slice(0,5) || '')
-  const [blockedSeats,   setBlockedSeats]   = useState(initial?.blocked_seats ?? '')
-  const [saving,         setSaving]         = useState(false)
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await onSave({
-        direction,
-        origin_airport:      origin?.id ?? null,
-        destination_airport: dest?.id   ?? null,
-        flight_number:       fnum.trim().toUpperCase(),
-        airline:             airline.trim(),
-        departure_date:      date        || null,
-        departure_time:      time        || null,
-        arrival_date:        arrivalDate || null,
-        arrival_time:        arrivalTime || null,
-        blocked_seats:       blockedSeats !== '' ? Number(blockedSeats) : null,
-        order:               initial?.order ?? 0,
-      })
-      onClose()
-    } catch { toast.error('Erro ao salvar trecho.') }
-    finally { setSaving(false) }
-  }
-
-  const dirLabel = direction === 'ida' ? 'Ida' : direction === 'volta' ? 'Volta' : 'Acesso'
-
-  return (
-    <div className="overlay" style={{ zIndex: zIndex ?? 810 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="mbox" style={{ maxWidth:460 }}>
-        <div className="mhead">
-          <span className="mtitle">{isEdit ? 'Editar trecho' : `Novo trecho — ${dirLabel}`}</span>
-          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
-        </div>
-        <div className="mbody">
-          {/* Origem → Destino */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 32px 1fr', gap:8, alignItems:'end', marginBottom:14 }}>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Aeroporto de origem</label>
-              <AirportPicker value={origin} onChange={setOrigin} placeholder="Buscar origem…" />
-            </div>
-            <div style={{ textAlign:'center', fontSize:16, color:'#94a3b8', paddingBottom:8 }}>→</div>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Aeroporto de destino</label>
-              <AirportPicker value={dest} onChange={setDest} placeholder="Buscar destino…" />
-            </div>
-          </div>
-          {/* Número do voo + Companhia */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Número do voo</label>
-              <input className="fi" value={fnum} onChange={e => setFnum(e.target.value)} placeholder="Ex: LA8084" style={{ textTransform:'uppercase' }} />
-            </div>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Companhia aérea</label>
-              <AirlinePicker value={airline} onChange={setAirline} />
-            </div>
-          </div>
-          {/* Partida */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10, marginBottom:14 }}>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Data de partida</label>
-              <DatePicker fixed value={date} onChange={setDate} />
-            </div>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Horário partida</label>
-              <TimePicker fixed value={time} onChange={setTime} />
-            </div>
-          </div>
-          {/* Chegada */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px', gap:10, marginBottom:14 }}>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Data de chegada</label>
-              <DatePicker fixed value={arrivalDate} onChange={setArrivalDate} />
-            </div>
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Horário chegada</label>
-              <TimePicker fixed value={arrivalTime} onChange={setArrivalTime} />
-            </div>
-          </div>
-          {/* Lugares bloqueados */}
-          {!hideBlockedSeats && (
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Lugares bloqueados</label>
-              <input className="fi" type="number" min="0" max="999" value={blockedSeats}
-                onChange={e => setBlockedSeats(e.target.value)}
-                placeholder="Qtd. de assentos reservados no bloqueio" />
-            </div>
-          )}
-        </div>
-        <div className="mfoot">
-          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
