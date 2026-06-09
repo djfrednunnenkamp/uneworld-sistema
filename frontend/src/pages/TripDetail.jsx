@@ -2576,18 +2576,10 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                         </div>
                       ) : (
                         <>
-                          <div style={{ display:'flex', alignItems:'center', gap:6, minWidth:0 }}>
-                            <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
-                              style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer', flex:'0 1 auto', minWidth:0 }}>
-                              {e.passenger_name}
-                            </p>
-                            {bday && (
-                              <span title={`Faz aniversário no ${ordinal(bday)} dia da viagem`}
-                                style={{ flexShrink:0, display:'inline-flex', alignItems:'center', gap:3, fontSize:10, fontWeight:700, color:'#be185d', background:'#fdf2f8', border:'1px solid #fbcfe8', padding:'1px 6px', borderRadius:20, whiteSpace:'nowrap' }}>
-                                🎂 {ordinal(bday)} dia
-                              </span>
-                            )}
-                          </div>
+                          <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
+                            style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
+                            {e.passenger_name}
+                          </p>
                           {isCancelled && e.notes && (
                             <p title={e.notes} style={{ margin:'2px 0 0', fontSize:11, color:'#b91c1c', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                               💬 {e.notes}
@@ -2598,8 +2590,17 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                     </div>
 
                     {/* Nasc. */}
-                    <span onClick={() => copy(birth)} title="Clique para copiar"
-                      style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : birth}</span>
+                    {bday ? (
+                      <span onClick={() => copy(birth)} title="Aniversário durante a viagem — clique para copiar"
+                        style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, cursor:'pointer' }}>
+                        <span style={{ width:6, height:6, borderRadius:'50%', background:'#ec4899', flexShrink:0 }}/>
+                        <span style={{ fontSize:13, fontWeight:600, color:'#be185d' }}>{birth}</span>
+                        <span style={{ width:6, height:6, borderRadius:'50%', background:'#ec4899', flexShrink:0 }}/>
+                      </span>
+                    ) : (
+                      <span onClick={() => copy(birth)} title="Clique para copiar"
+                        style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : birth}</span>
+                    )}
 
                     {/* Nac. */}
                     <div style={{ display:'flex', justifyContent:'center' }}>
