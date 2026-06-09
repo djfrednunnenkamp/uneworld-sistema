@@ -2311,7 +2311,7 @@ const AGE_ROWS = [
   { test: a => a >= 60,            label:'Acima de 60 anos'  },
   { test: a => a >= 12 && a < 60,  label:'Adultos 12-59 anos' },
   { test: a => a >= 2  && a < 12,  label:'Crianças 2-11 anos' },
-  { test: a => a < 2,              label:'Infantil < 2 anos'  },
+  { test: a => a < 2,              label:'Crianças 0-23 meses'  },
 ]
 
 /* Chip de métrica — título em cima, contagem em destaque embaixo (igual ao padrão dos dados da viagem, mas exibe zero) */
