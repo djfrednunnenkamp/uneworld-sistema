@@ -3602,7 +3602,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       return (
                         <span
                           title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (embarque individual)' : ' (padrão da lista)'}\nClique para alterar` : 'Clique para definir aeroporto'}
-                          onClick={ev => { const r = ev.currentTarget.getBoundingClientRect(); setAirportPopover({ enrollment: e, rect: r }) }}
+                          onClick={() => setBoardingModal(e)}
                           style={{ display:'flex', justifyContent:'center', flexShrink:0, cursor:'pointer' }}>
                           {ap ? (
                             <span style={{
