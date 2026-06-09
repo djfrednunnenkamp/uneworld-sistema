@@ -3280,6 +3280,16 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
   return (
     <div>
+      {/* Link de log — acima da toolbar, alinhado à direita */}
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
+        <button type="button" onClick={() => navigate(`/log?list_id=${listId}`)}
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#f8fafc', color:'#64748b', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f'; e.currentTarget.style.background='#f1f5f9' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b'; e.currentTarget.style.background='#f8fafc' }}>
+          📋 Log da lista
+        </button>
+      </div>
+
       {/* Toolbar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: selected.size > 0 ? 8 : 16 }}>
         {/* Campo de pesquisa — esquerda */}
@@ -3317,10 +3327,6 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
           <button type="button" onClick={() => setRoomsModal(true)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             🛏 Gerenciar acomodações
-          </button>
-          <button type="button" onClick={() => navigate(`/log?list_id=${listId}`)}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            📋 Log
           </button>
           <button type="button" onClick={() => setShowAdd(true)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
