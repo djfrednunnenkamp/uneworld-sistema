@@ -168,6 +168,14 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                 setattr(e, field, (val or None) if field == 'pending_until' else val)
         if 'departure_airport' in request.data:
             e.departure_airport_id = request.data['departure_airport'] or None
+        if 'agency' in request.data:
+            from agencies.models import Agency
+            ag_id = request.data['agency']
+            e.agency = Agency.objects.filter(pk=ag_id).first() if ag_id else None
+        if 'responsible_user' in request.data:
+            from django.contrib.auth.models import User
+            ru_id = request.data['responsible_user']
+            e.responsible_user = User.objects.filter(pk=ru_id).first() if ru_id else None
         # Atribuir passageiro a um bloco
         if 'passenger' in request.data and request.data['passenger']:
             from passengers.models import Passenger as PassengerModel

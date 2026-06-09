@@ -965,7 +965,7 @@ const PASSENGER_ACTIONS = [
   { key:'contracts',   label:'Contratos',                   icon:'docs',     enabled:false },
   { key:'swap_room',   label:'Trocar de quarto',            icon:'building', enabled:true  },
   { key:'link_client', label:'Vincular cliente',            icon:'users',    enabled:false },
-  { key:'link_agency', label:'Vincular agência',            icon:'building', enabled:false },
+  { key:'link_agency', label:'Vincular agência',            icon:'building', enabled:true  },
   { key:'delete',      label:'Excluir passageiro',          icon:'trash',    enabled:true, danger:true },
 ]
 
@@ -1944,6 +1944,154 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
   )
 }
 
+/* ── Popup Vincular Agência ── */
+function LinkAgencyPopup({ enrollment, listId, onSaved, onClose }) {
+  const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+  const [query,     setQuery]     = useState('')
+  const [results,   setResults]   = useState([])
+  const [searching, setSearching] = useState(false)
+  const [selected,  setSelected]  = useState(
+    enrollment.agency ? { id: enrollment.agency, label: enrollment.agency_name } : null
+  )
+  const [dropPos, setDropPos] = useState(null)
+  const [hover,   setHover]   = useState(-1)
+  const [saving,  setSaving]  = useState(false)
+  const debRef = useRef(null)
+  const inpRef = useRef(null)
+
+  const doSearch = q => {
+    clearTimeout(debRef.current)
+    if (!q.trim()) { setResults([]); setDropPos(null); return }
+    setSearching(true)
+    debRef.current = setTimeout(async () => {
+      try {
+        const r = await agenciesApi.list({ search: q, page_size: 15 })
+        setResults(r.data.results || r.data)
+      } catch { setResults([]) }
+      finally { setSearching(false) }
+    }, 280)
+  }
+
+  const openDropAt = e => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDropPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+  }
+
+  const pick = ag => {
+    setSelected({ id: ag.id, label: ag.company_name || ag.name })
+    setQuery(ag.company_name || ag.name)
+    setDropPos(null)
+    setResults([])
+    setHover(-1)
+  }
+
+  const handleKey = e => {
+    if (!dropPos || results.length === 0) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHover(h => Math.min(h+1, results.length-1)) }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setHover(h => Math.max(h-1, 0)) }
+    if (e.key === 'Enter' && hover >= 0) { e.preventDefault(); pick(results[hover]) }
+    if (e.key === 'Escape') { setDropPos(null) }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, { agency: selected?.id || null })
+      toast.success(selected ? 'Agência vinculada com sucesso.' : 'Agência desvinculada.')
+      onSaved()
+      onClose()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  const dropdown = dropPos && results.length > 0 && createPortal(
+    <div onMouseDown={e => e.preventDefault()}
+      style={{ position:'fixed', top:dropPos.top, left:dropPos.left, width:dropPos.width, zIndex:9999,
+        background:'#fff', border:'1px solid #e2e8f0', borderRadius:10,
+        boxShadow:'0 8px 28px rgba(0,0,0,.13)', overflow:'hidden', maxHeight:240, overflowY:'auto' }}>
+      {results.map((ag, i) => (
+        <button key={ag.id} type="button" onMouseDown={() => pick(ag)}
+          style={{ display:'block', width:'100%', padding:'9px 14px', textAlign:'left',
+            background: i===hover ? '#f0f7ff' : '#fff', border:'none', cursor:'pointer',
+            fontFamily:'inherit', fontSize:13, fontWeight: i===hover ? 600 : 400, color:'#1e293b' }}
+          onMouseEnter={() => setHover(i)}>
+          {ag.company_name || ag.name}
+        </button>
+      ))}
+    </div>,
+    document.body
+  )
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)',
+        display:'flex', alignItems:'center', justifyContent:'center', zIndex:760, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Vincular agência</p>
+            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding:'20px 22px 8px' }}>
+          {/* Agência atual */}
+          {selected && (
+            <div style={{ marginBottom:16, padding:'10px 14px', background:'#f0f7ff', border:'1px solid #bfdbfe', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+              <div style={{ minWidth:0 }}>
+                <p style={{ margin:0, fontSize:10, fontWeight:700, color:'#2e6db4', textTransform:'uppercase', letterSpacing:'.05em' }}>Agência vinculada</p>
+                <p style={{ margin:'3px 0 0', fontSize:14, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selected.label}</p>
+              </div>
+              <button type="button" onClick={() => { setSelected(null); setQuery(''); inpRef.current?.focus() }}
+                style={{ fontSize:11, fontWeight:600, color:'#dc2626', background:'#fee2e2', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                Desvincular
+              </button>
+            </div>
+          )}
+
+          {/* Input busca */}
+          <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>
+            {selected ? 'Trocar agência' : 'Buscar agência'}
+          </label>
+          <input ref={inpRef}
+            value={query}
+            onChange={e => { setQuery(e.target.value); setSelected(null); doSearch(e.target.value) }}
+            onFocus={e => { if (results.length > 0) openDropAt(e) }}
+            onClick={e => { if (results.length > 0) openDropAt(e) }}
+            onKeyDown={handleKey}
+            onBlur={() => setTimeout(() => setDropPos(null), 160)}
+            placeholder="Digite o nome da agência…"
+            className="fi"
+            style={{ width:'100%', boxSizing:'border-box' }}
+          />
+          {searching && <p style={{ margin:'5px 0 0', fontSize:12, color:'#94a3b8' }}>Buscando…</p>}
+          {!searching && query.trim() && !selected && results.length === 0 && (
+            <p style={{ margin:'5px 0 0', fontSize:12, color:'#94a3b8' }}>Nenhuma agência encontrada.</p>
+          )}
+          {dropdown}
+          <div style={{ height:16 }} />
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:'12px 22px 18px', borderTop:'1px solid #f1f5f9', display:'flex', justifyContent:'flex-end', gap:8 }}>
+          <button onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Modal de acomodação (reutilizável para massa e individual) ── */
 // enrollmentIds: lista de IDs de enrollments a vincular
 // enrolled: lista completa de enrollments da lista
@@ -2693,6 +2841,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const [boardingModal,   setBoardingModal]   = useState(null)
   // ticketModal: null | enrollment — popup "Passagem aérea"
   const [ticketModal,     setTicketModal]     = useState(null)
+  // agencyModal: null | enrollment — popup "Vincular agência"
+  const [agencyModal,     setAgencyModal]     = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -2824,6 +2974,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
         break
       case 'swap_room':
         setAccomModal({ enrollmentIds: [enrollment.id] })
+        break
+      case 'link_agency':
+        setAgencyModal(enrollment)
         break
       case 'delete':
         setConfirm({ id: enrollment.id, name: enrollment.passenger_name || enrollment.block_agency })
@@ -3324,6 +3477,16 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
           defaultAirport={defaultAirport}
           onSaved={load}
           onClose={() => setTicketModal(null)}
+        />
+      )}
+
+      {/* Popup Vincular agência */}
+      {agencyModal && (
+        <LinkAgencyPopup
+          enrollment={agencyModal}
+          listId={listId}
+          onSaved={load}
+          onClose={() => setAgencyModal(null)}
         />
       )}
 
