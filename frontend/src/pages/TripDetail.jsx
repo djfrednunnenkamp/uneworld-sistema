@@ -290,10 +290,11 @@ function AirportPicker({ value, onChange, placeholder }) {
   const [query,   setQuery]   = useState('')
   const [open,    setOpen]    = useState(false)
   const [options, setOptions] = useState([])
-  const ref = useRef(null)
+  const [rect,    setRect]    = useState(null)
+  const inputRef = useRef(null)
 
   useEffect(() => {
-    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const h = e => { if (inputRef.current && !inputRef.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
@@ -306,40 +307,50 @@ function AirportPicker({ value, onChange, placeholder }) {
     return () => clearTimeout(t)
   }, [query, open])
 
+  const handleFocus = () => {
+    if (inputRef.current) setRect(inputRef.current.getBoundingClientRect())
+    setQuery('')
+    setOpen(true)
+  }
+
   const display = value ? `${value.iata_code ? value.iata_code + ' — ' : ''}${value.name}` : ''
 
+  const dropdown = open && rect && createPortal(
+    <div style={{ position:'fixed', top: rect.bottom + 2, left: rect.left, width: rect.width, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:260, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+      {options.length === 0 ? (
+        <p style={{ textAlign:'center', padding:'16px 0', color:'#94a3b8', fontSize:13, margin:0 }}>
+          {query.length >= 1 ? 'Nenhum aeroporto encontrado.' : 'Digite para buscar…'}
+        </p>
+      ) : options.map(a => (
+        <div key={a.id}
+          onMouseDown={e => { e.preventDefault(); onChange(a); setOpen(false); setQuery('') }}
+          style={{ padding:'9px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid #f1f5f9' }}
+          onMouseEnter={e => e.currentTarget.style.background='#f0f7ff'}
+          onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+          {a.iata_code && (
+            <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, fontFamily:'monospace', flexShrink:0 }}>{a.iata_code}</span>
+          )}
+          <span style={{ fontSize:13, color:'#1e293b', fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.name}</span>
+          {(a.city || a.country) && (
+            <span style={{ fontSize:11, color:'#94a3b8', flexShrink:0 }}>{[a.city, a.country].filter(Boolean).join(', ')}</span>
+          )}
+        </div>
+      ))}
+    </div>,
+    document.body
+  )
+
   return (
-    <div ref={ref} style={{ position:'relative' }}>
+    <div style={{ position:'relative' }}>
       <input
+        ref={inputRef}
         value={open ? query : display}
-        onChange={e => { setQuery(e.target.value); setOpen(true) }}
-        onFocus={() => { setQuery(''); setOpen(true) }}
+        onChange={e => { setQuery(e.target.value); if (!open && inputRef.current) setRect(inputRef.current.getBoundingClientRect()); setOpen(true) }}
+        onFocus={handleFocus}
         placeholder={placeholder || 'Buscar aeroporto…'}
         style={{ width:'100%', padding:'8px 10px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box' }}
       />
-      {open && (
-        <div style={{ position:'absolute', top:'calc(100% + 2px)', left:0, right:0, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:260, overflowY:'auto', zIndex:300, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
-          {options.length === 0 ? (
-            <p style={{ textAlign:'center', padding:'16px 0', color:'#94a3b8', fontSize:13, margin:0 }}>
-              {query.length >= 1 ? 'Nenhum aeroporto encontrado.' : 'Digite para buscar…'}
-            </p>
-          ) : options.map(a => (
-            <div key={a.id}
-              onMouseDown={e => { e.preventDefault(); onChange(a); setOpen(false); setQuery('') }}
-              style={{ padding:'9px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid #f1f5f9' }}
-              onMouseEnter={e => e.currentTarget.style.background='#f0f7ff'}
-              onMouseLeave={e => e.currentTarget.style.background='#fff'}>
-              {a.iata_code && (
-                <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, fontFamily:'monospace', flexShrink:0 }}>{a.iata_code}</span>
-              )}
-              <span style={{ fontSize:13, color:'#1e293b', fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.name}</span>
-              {(a.city || a.country) && (
-                <span style={{ fontSize:11, color:'#94a3b8', flexShrink:0 }}>{[a.city, a.country].filter(Boolean).join(', ')}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }
