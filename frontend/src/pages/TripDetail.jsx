@@ -1444,13 +1444,17 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
 
                       {/* Prazo */}
                       <td style={{ padding:'5px 6px' }}>
-                        <DatePicker fixed value={row.prazo} onChange={v => upd(rid, { prazo: v })} placeholder="DD/MM/AAAA" />
+                        {row.status !== 'confirmado'
+                          ? <DatePicker fixed value={row.prazo} onChange={v => upd(rid, { prazo: v })} placeholder="DD/MM/AAAA" />
+                          : <span style={{ fontSize:12, color:'#cbd5e1', paddingLeft:4 }}>—</span>}
                       </td>
 
                       {/* Observações */}
                       <td style={{ padding:'5px 6px', overflow:'hidden' }}>
-                        <input value={row.notes} onChange={e => upd(rid, { notes: e.target.value })}
-                          placeholder="Observações…" className="fi" style={{ ...cellInput }} />
+                        {row.status !== 'confirmado'
+                          ? <input value={row.notes} onChange={e => upd(rid, { notes: e.target.value })}
+                              placeholder="Observações…" className="fi" style={{ ...cellInput }} />
+                          : <span style={{ fontSize:12, color:'#cbd5e1', paddingLeft:4 }}>—</span>}
                       </td>
 
                       {/* Responsável */}
