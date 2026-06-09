@@ -752,18 +752,22 @@ function QuickEditModal({ enrollment, onSaved, onClose }) {
                 </div>
               </div>
 
-              {/* RNE */}
-              <Field label="RNE" field="rne" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={LBL}>Validade do RNE</label>
-                  <DatePicker value={form?.rne_expiry || ''} onChange={v => upd('rne_expiry', v)} placeholder="DD/MM/AAAA" />
-                </div>
-                <div>
-                  <label style={LBL}>Data de emissão do RNE</label>
-                  <DatePicker value={form?.rne_issue || ''} onChange={v => upd('rne_issue', v)} placeholder="DD/MM/AAAA" />
-                </div>
-              </div>
+              {/* RNE — só aparece quando Estrangeiro? estiver ativado */}
+              {form?.is_foreign && (
+                <>
+                  <Field label="RNE" field="rne" />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={LBL}>Validade do RNE</label>
+                      <DatePicker value={form?.rne_expiry || ''} onChange={v => upd('rne_expiry', v)} placeholder="DD/MM/AAAA" />
+                    </div>
+                    <div>
+                      <label style={LBL}>Data de emissão do RNE</label>
+                      <DatePicker value={form?.rne_issue || ''} onChange={v => upd('rne_issue', v)} placeholder="DD/MM/AAAA" />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Telefones */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
