@@ -165,7 +165,7 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
             'residence':   'Comprovante_Residencia',
             'other':       'Documento',
         }
-        doc_type_label = doc_type_map.get(doc.doc_type, doc.get_doc_type_display())
+        doc_type_label = doc_type_map.get(doc.doc_type, doc.doc_type)
 
         date_part = (
             str(doc.issued_date) if doc.issued_date else
