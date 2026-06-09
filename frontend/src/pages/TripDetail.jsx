@@ -153,9 +153,9 @@ const STATUS_DOT = {
 }
 
 const ENROLLMENT_STATUS_OPTS = [
-  { value:'confirmado', label:'Confirmado', color:'#16a34a' },
-  { value:'pendente',   label:'Pendente',   color:'#f59e0b' },
   { value:'reservado',  label:'Reservado',  color:'#64748b' },
+  { value:'pendente',   label:'Pendente',   color:'#f59e0b' },
+  { value:'confirmado', label:'Confirmado', color:'#16a34a' },
   { value:'cancelado',  label:'Cancelado',  color:'#dc2626' },
 ]
 
@@ -1190,7 +1190,7 @@ function ResponsibleSelect({ members, selected, onChange }) {
 function StatusToggle({ value, onChange }) {
   return (
     <div style={{ display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1.5px solid #e2e8f0', width:'fit-content' }}>
-      {[{v:'confirmado',l:'Confirmado',c:'#16a34a'},{v:'pendente',l:'Pendente',c:'#f59e0b'},{v:'reservado',l:'Reservado',c:'#64748b'}].map(opt => (
+      {[{v:'reservado',l:'Reservado',c:'#64748b'},{v:'pendente',l:'Pendente',c:'#f59e0b'},{v:'confirmado',l:'Confirmado',c:'#16a34a'}].map(opt => (
         <button key={opt.v} type="button" onClick={() => onChange(opt.v)}
           style={{ padding:'7px 14px', border:'none', fontFamily:'inherit', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .12s',
             background: value===opt.v ? opt.c : '#fff',
