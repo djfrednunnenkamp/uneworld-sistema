@@ -881,21 +881,58 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
               })()}
 
               {/* RNE — só aparece quando Estrangeiro? estiver ativado */}
-              {form?.is_foreign && (
-                <>
-                  <Field label="RNE" field="rne" />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <div>
-                      <label style={LBL}>Validade do RNE</label>
-                      <DatePicker value={form?.rne_expiry || ''} onChange={v => upd('rne_expiry', v)} placeholder="DD/MM/AAAA" />
-                    </div>
-                    <div>
-                      <label style={LBL}>Data de emissão do RNE</label>
-                      <DatePicker value={form?.rne_issue || ''} onChange={v => upd('rne_issue', v)} placeholder="DD/MM/AAAA" />
-                    </div>
+              {form?.is_foreign && (() => {
+                const rnes = docs.filter(d => d.doc_type === 'rne')
+                const fmtDate = (iso) => {
+                  if (!iso) return null
+                  const [y, m, d] = iso.split('-')
+                  return `${d}/${m}/${y}`
+                }
+                const today = new Date(); today.setHours(0,0,0,0)
+                const tripRef = startDate ? new Date(startDate + 'T00:00:00') : new Date(today.getTime() + 365 * 86400000)
+                const daysFromTrip = (iso) => iso ? Math.ceil((new Date(iso + 'T00:00:00') - tripRef) / 86400000) : null
+                return (
+                  <div>
+                    <label style={LBL}>RNE</label>
+                    {rnes.length === 0
+                      ? <p style={{ fontSize: 13, color: '#94a3b8', margin: '8px 0 0' }}>Nenhum RNE cadastrado nos documentos.</p>
+                      : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                          {rnes.map(r => {
+                            const days = daysFromTrip(r.expiry_date)
+                            const tooClose = days !== null && days < 365
+                            const expired = r.expiry_date && new Date(r.expiry_date + 'T00:00:00') < today
+                            if (expired) return null
+                            return (
+                              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: `1px solid ${tooClose ? '#fecaca' : '#e2e8f0'}`, background: tooClose ? '#fff8f8' : '#fff' }}>
+                                <div style={{ width: 52, height: 36, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
+                                  {r.preview_url
+                                    ? <img src={r.preview_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    : <span style={{ fontSize: 20 }}>🪪</span>
+                                  }
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>{r.doc_number || '—'}</span>
+                                    {r.issued_by && <span style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4 }}>{r.issued_by}</span>}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                    {fmtDate(r.issued_date) ? `Emissão: ${fmtDate(r.issued_date)}` : 'Sem data de emissão'}
+                                    {fmtDate(r.expiry_date) ? ` · Validade: ${fmtDate(r.expiry_date)}` : ''}
+                                  </div>
+                                </div>
+                                {days !== null && (
+                                  <span style={{ fontSize: 11, fontWeight: 700, flexShrink: 0, color: tooClose ? '#dc2626' : '#16a34a', background: tooClose ? '#fef2f2' : '#f0fdf4', padding: '2px 8px', borderRadius: 10, border: `1px solid ${tooClose ? '#fecaca' : '#bbf7d0'}` }}>
+                                    {tooClose ? (days <= 0 ? 'Vence antes da viagem!' : `Vence em ${days}d após viagem`) : `${Math.floor(days/30)} meses após viagem`}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                    }
                   </div>
-                </>
-              )}
+                )
+              })()}
 
               {/* Telefones */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
