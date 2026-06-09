@@ -2086,7 +2086,10 @@ function MovePassengersModal({ roomId, roomName, listId, enrolled, accomTypes, r
             return (
               <div key={e.id}
                 style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0' }}>
-                <span style={{ fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</span>
+                <span style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                  color:     e.enrollment_status === 'pendente' ? '#92400e' : '#1e293b',
+                  fontStyle: e.enrollment_status === 'pendente' ? 'italic'  : 'normal',
+                }}>{name}</span>
                 <button type="button" onClick={() => setPickerFor(e)}
                   style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:8, border:'1.5px solid #1a2d4f', background:'#fff', color:'#1a2d4f', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
                   <Ic n="building" s={13}/> Mover
@@ -2829,7 +2832,10 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       ) : (
                         <>
                           <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
-                            style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
+                            style={{ margin:0, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer',
+                              color:     e.enrollment_status === 'pendente' ? '#92400e' : '#1e293b',
+                              fontStyle: e.enrollment_status === 'pendente' ? 'italic'  : 'normal',
+                            }}>
                             {e.passenger_name}
                           </p>
                           {isCancelled && e.notes && (
@@ -3395,7 +3401,10 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
                       const ap = e.departure_airport_data
                       return (
                         <div key={e.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom: idx < nonDefault.length-1 ? '1px solid #f1f5f9' : 'none', background: idx%2===0 ? '#fff' : '#fafbfc' }}>
-                          <span style={{ flex:1, fontSize:13, fontWeight:500, color:'#1e293b' }}>
+                          <span style={{ flex:1, fontSize:13, fontWeight:500,
+                            color:     e.enrollment_status === 'pendente' ? '#92400e' : '#1e293b',
+                            fontStyle: e.enrollment_status === 'pendente' ? 'italic'  : 'normal',
+                          }}>
                             {e.passenger_name || <span style={{ color:'#f59e0b', fontStyle:'italic' }}>[{e.block_agency}]</span>}
                           </span>
                           <IataChip ap={ap} amber />
