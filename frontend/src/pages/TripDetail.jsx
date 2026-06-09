@@ -535,7 +535,7 @@ function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose })
 }
 
 /* ── Edição rápida do passageiro — popup com 2 abas: Informações e Documentos ── */
-function QuickEditModal({ enrollment, listId, onSaved, onClose }) {
+function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
   const passengerId = enrollment.passenger
   const [activeTab, setActiveTab] = useState('info')
   const [form,    setForm]    = useState(null)
@@ -743,48 +743,62 @@ function QuickEditModal({ enrollment, listId, onSaved, onClose }) {
 
               {/* Passaportes registrados — lista com seleção para a viagem */}
               {(() => {
-                const passports = docs.filter(d => d.doc_type === 'passport')
-                const today = new Date()
-                const daysLeft = (iso) => {
+                const today = new Date(); today.setHours(0,0,0,0)
+                // Referência para a flag: 1 ano após o início da viagem (ou hoje + 1 ano se sem data)
+                const tripRef = startDate
+                  ? new Date(startDate + 'T00:00:00')
+                  : new Date(today.getTime() + 365 * 86400000)
+                const tripRefPlus1y = new Date(tripRef.getTime() + 365 * 86400000)
+
+                // Passaportes já vencidos ficam fora da lista
+                const passports = docs.filter(d => {
+                  if (d.doc_type !== 'passport') return false
+                  if (!d.expiry_date) return true
+                  return new Date(d.expiry_date + 'T00:00:00') >= today
+                })
+
+                const daysFromTrip = (iso) => {
                   if (!iso) return null
-                  const diff = Math.ceil((new Date(iso + 'T00:00:00') - today) / 86400000)
-                  return diff
-                }
-                const expiryColor = (days) => {
-                  if (days === null) return '#94a3b8'
-                  if (days < 0)   return '#dc2626'
-                  if (days < 180) return '#f59e0b'
-                  return '#16a34a'
-                }
-                const expiryLabel = (days) => {
-                  if (days === null) return '—'
-                  if (days < 0)    return `Vencido há ${Math.abs(days)}d`
-                  if (days === 0)  return 'Vence hoje'
-                  if (days < 365) return `${days}d restantes`
-                  const months = Math.floor(days / 30)
-                  return `${months} meses restantes`
+                  return Math.ceil((new Date(iso + 'T00:00:00') - tripRef) / 86400000)
                 }
                 const fmtDate = (iso) => {
                   if (!iso) return '—'
                   const [y, m, d] = iso.split('-')
                   return `${d}/${m}/${y}`
                 }
+
                 return (
                   <div>
                     <label style={LBL}>Passaportes</label>
                     {passports.length === 0
-                      ? <p style={{ fontSize: 13, color: '#94a3b8', margin: '8px 0 0' }}>Nenhum passaporte enviado nos documentos.</p>
+                      ? <p style={{ fontSize: 13, color: '#94a3b8', margin: '8px 0 0' }}>Nenhum passaporte válido cadastrado.</p>
                       : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
                           {passports.map(p => {
-                            const days = daysLeft(p.expiry_date)
-                            const color = expiryColor(days)
+                            const days = daysFromTrip(p.expiry_date)
+                            // Flag vermelha: vence dentro de 1 ano da data da viagem
+                            const tooClose = days !== null && days < 365
                             const sel = selectedPassport === p.id
+
+                            const expiryBadge = (() => {
+                              if (days === null) return null
+                              if (tooClose) return {
+                                label: days <= 0 ? 'Vence antes da viagem!' : `Vence em ${days}d após viagem`,
+                                color: '#dc2626', bg: '#fef2f2',
+                              }
+                              const months = Math.floor(days / 30)
+                              return {
+                                label: months >= 24 ? `${Math.floor(months/12)} anos após viagem` : `${months} meses após viagem`,
+                                color: '#16a34a', bg: '#f0fdf4',
+                              }
+                            })()
+
                             return (
                               <button key={p.id} type="button" onClick={() => setSelectedPassport(sel ? null : p.id)}
                                 style={{
                                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                                  borderRadius: 10, border: `2px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`,
-                                  background: sel ? '#f0f4ff' : '#fff',
+                                  borderRadius: 10,
+                                  border: `2px solid ${tooClose ? '#fecaca' : sel ? '#1a2d4f' : '#e2e8f0'}`,
+                                  background: tooClose ? '#fff8f8' : sel ? '#f0f4ff' : '#fff',
                                   cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'inherit',
                                   transition: 'border-color .15s, background .15s',
                                 }}>
@@ -809,12 +823,14 @@ function QuickEditModal({ enrollment, listId, onSaved, onClose }) {
                                     Emissão: {fmtDate(p.issued_date)} · Validade: {fmtDate(p.expiry_date)}
                                   </div>
                                 </div>
-                                {/* Prazo */}
-                                <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: color, background: color + '18', padding: '2px 8px', borderRadius: 10 }}>
-                                    {expiryLabel(days)}
-                                  </span>
-                                </div>
+                                {/* Badge prazo */}
+                                {expiryBadge && (
+                                  <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: expiryBadge.color, background: expiryBadge.bg, padding: '2px 8px', borderRadius: 10, border: `1px solid ${expiryBadge.color}30` }}>
+                                      {expiryBadge.label}
+                                    </span>
+                                  </div>
+                                )}
                                 {/* Selecionado */}
                                 <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`, background: sel ? '#1a2d4f' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                   {sel && <span style={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</span>}
@@ -3582,6 +3598,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
         <QuickEditModal
           enrollment={quickEditModal}
           listId={listId}
+          startDate={startDate}
           onSaved={load}
           onClose={() => setQuickEditModal(null)}
         />
