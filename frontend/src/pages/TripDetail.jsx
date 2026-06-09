@@ -3083,18 +3083,26 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
               <div style={{ marginBottom:20 }}>
                 <div style={{ display:'flex', alignItems:'center', marginBottom:10 }}>
                   <p style={{ margin:0, flex:1, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Aeroportos</p>
-                  <button type="button" onClick={() => setAddingAp(v => !v)}
-                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background: addingAp ? '#f0f7ff' : '#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  <button type="button" onClick={() => setAddingAp(true)}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
                     <Ic n="plus" s={10}/> Aeroporto
                   </button>
                 </div>
                 {addingAp && (
-                  <div style={{ marginBottom:8 }}>
-                    <AirportPicker
-                      value={null}
-                      placeholder="Buscar aeroporto para adicionar…"
-                      onChange={ap => { setAddingAp(false); setFeederAp(ap) }}
-                    />
+                  <div className="overlay" style={{ zIndex:830 }} onMouseDown={e => { if (e.target === e.currentTarget) setAddingAp(false) }}>
+                    <div className="mbox" style={{ maxWidth:400 }}>
+                      <div className="mhead">
+                        <span className="mtitle">Adicionar aeroporto</span>
+                        <button className="mclose" onClick={() => setAddingAp(false)}><Ic n="x" s={14}/></button>
+                      </div>
+                      <div className="mbody">
+                        <AirportPicker
+                          value={null}
+                          placeholder="Buscar aeroporto…"
+                          onChange={ap => { setAddingAp(false); setFeederAp(ap) }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
                 <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
