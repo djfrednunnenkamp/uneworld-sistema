@@ -1204,310 +1204,261 @@ function StatusToggle({ value, onChange }) {
 
 /* ── Popup de adicionar passageiro / bloqueio ── */
 function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
-  const [mode,         setMode]         = useState('passenger') // 'passenger' | 'block'
-  // Modo passageiro
-  const [search,       setSearch]       = useState('')
-  const [results,      setResults]      = useState([])
-  const [searching,    setSearching]    = useState(false)
-  const [selected,     setSelected]     = useState(null)
-  const [paxOpen,      setPaxOpen]      = useState(false)
-  const [paxAgencies,  setPaxAgencies]  = useState([])
-  const [selPaxAgency, setSelPaxAgency] = useState(null)
-  const [paxAgMembers, setPaxAgMembers] = useState([])
-  const [selPaxResp,   setSelPaxResp]   = useState(null)
-  // Modo bloqueio — agência
-  const [blockAgency,  setBlockAgency]  = useState('')
-  const [blockQty,     setBlockQty]     = useState(1)
-  const [agResults,    setAgResults]    = useState([])
-  const [agSearching,  setAgSearching]  = useState(false)
-  const [agOpen,       setAgOpen]       = useState(false)
-  const [selAgency,    setSelAgency]    = useState(null)
-  const [blkMembers,   setBlkMembers]   = useState([])
-  const [selBlkResp,   setSelBlkResp]   = useState(null)
-  // Campos comuns
-  const [accommodation,setAccommodation]= useState('')
-  const [estatus,       setEstatus]      = useState('pendente')
-  const [pendingUntil,  setPendingUntil] = useState('')
-  const [pendingReason, setPendingReason]= useState('')
-  const [saving,        setSaving]       = useState(false)
-  const debRef     = useRef(null)
-  const debAg      = useRef(null)
-  const paxInputRef = useRef(null)
-  const agInputRef  = useRef(null)
-  const [paxDropPos, setPaxDropPos] = useState({})
-  const [agDropPos,  setAgDropPos]  = useState({})
+  const mkRow = () => ({ id: Date.now() + Math.random(), paxSearch:'', passenger:null, paxResults:[], paxSearching:false, agSearch:'', agency:null, agResults:[], agSearching:false, members:[], responsible:null, status:'pendente', prazo:'', notes:'' })
+  const [newRoom,    setNewRoom]    = useState(false)
+  const [accomType,  setAccomType]  = useState('')
+  const [accomTypes, setAccomTypes] = useState([])
+  const [rows,       setRows]       = useState([mkRow()])
+  const [saving,     setSaving]     = useState(false)
+  const [openDrop,   setOpenDrop]   = useState(null)
+  const debMap = useRef({})
 
-  // Passageiro: busca ao digitar OU ao focar (mostra todos se vazio)
-  const handleSearch = (q) => {
-    setSearch(q); setSelected(null); setPaxOpen(true)
-    clearTimeout(debRef.current)
-    debRef.current = setTimeout(async () => {
-      setSearching(true)
+  useEffect(() => {
+    configApi.accommodations().then(r => setAccomTypes(r.data.results ?? r.data)).catch(() => {})
+  }, [])
+
+  const upd = (id, patch) => setRows(rs => rs.map(r => r.id === id ? { ...r, ...patch } : r))
+  const addRow = () => setRows(rs => [...rs, mkRow()])
+  const delRow = (id) => setRows(rs => rs.filter(r => r.id !== id))
+
+  const searchPax = (id, q) => {
+    upd(id, { paxSearch: q, passenger: null })
+    clearTimeout(debMap.current[`p${id}`])
+    debMap.current[`p${id}`] = setTimeout(async () => {
+      upd(id, { paxSearching: true })
       try {
         const r = await passengersApi.list({ search: q, page_size: 20 })
-        const enrolledIds = new Set(enrolled.map(e => e.passenger).filter(Boolean))
-        setResults((r.data.results ?? r.data).filter(p => !enrolledIds.has(p.id)))
-      } catch {} finally { setSearching(false) }
+        const eids = new Set(enrolled.map(e => e.passenger).filter(Boolean))
+        upd(id, { paxResults: (r.data.results ?? r.data).filter(p => !eids.has(p.id)), paxSearching: false })
+      } catch { upd(id, { paxSearching: false }) }
     }, 200)
   }
 
-  const handlePaxFocus = () => {
-    if (paxInputRef.current) {
-      const r = paxInputRef.current.getBoundingClientRect()
-      setPaxDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
-    }
-    setPaxOpen(true)
-    if (!results.length && !searching) handleSearch(search)
-  }
-
-  // Agência: busca ao digitar OU ao focar
-  const handleAgSearch = (q) => {
-    setBlockAgency(q); setSelAgency(null); setAgOpen(true)
-    clearTimeout(debAg.current)
-    debAg.current = setTimeout(async () => {
-      setAgSearching(true)
+  const searchAg = (id, q) => {
+    upd(id, { agSearch: q, agency: null })
+    clearTimeout(debMap.current[`a${id}`])
+    debMap.current[`a${id}`] = setTimeout(async () => {
+      upd(id, { agSearching: true })
       try {
         const r = await agenciesApi.list({ search: q, page_size: 20 })
-        setAgResults(r.data.results ?? r.data)
-      } catch {} finally { setAgSearching(false) }
+        upd(id, { agResults: r.data.results ?? r.data, agSearching: false })
+      } catch { upd(id, { agSearching: false }) }
     }, 200)
   }
 
-  const handleAgFocus = () => {
-    if (agInputRef.current) {
-      const r = agInputRef.current.getBoundingClientRect()
-      setAgDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
-    }
-    setAgOpen(true)
-    if (!agResults.length && !agSearching) handleAgSearch(blockAgency)
-  }
-
-  const handleAdd = async () => {
+  const handleSave = async () => {
+    const valid = rows.filter(r => r.passenger)
+    if (!valid.length) { toast.error('Adicione pelo menos um passageiro.'); return }
     setSaving(true)
     try {
-      if (mode === 'block') {
-        const agName = selAgency ? (selAgency.company_name || selAgency.name) : blockAgency.trim()
-        if (!agName) { toast.error('Selecione ou informe a agência.'); setSaving(false); return }
-        await listsApi.addPassenger(listId, {
-          is_block: true, block_agency: agName,
-          agency: selAgency?.id || null,
-          responsible_user: selBlkResp?.user_id || null,
-          block_quantity: blockQty, enrollment_status: estatus,
-          pending_until: estatus === 'pendente' ? (pendingUntil || null) : null,
-          pending_reason: estatus === 'pendente' ? pendingReason : '',
-          notes: '',
-        })
-        toast.success(`${blockQty} vaga${blockQty>1?'s':''} de ${agName} adicionada${blockQty>1?'s':''}.`)
-      } else {
-        if (!selected) { toast.error('Selecione um passageiro.'); setSaving(false); return }
-        if (enrolled.some(e => e.passenger === selected.id)) {
-          toast.error('Passageiro já está nesta lista.'); setSaving(false); return
-        }
-        await listsApi.addPassenger(listId, {
-          passenger: selected.id,
-          agency: selPaxAgency?.id || null,
-          responsible_user: selPaxResp?.user_id || null,
-          enrollment_status: estatus,
-          pending_until: estatus === 'pendente' ? (pendingUntil || null) : null,
-          pending_reason: estatus === 'pendente' ? pendingReason : '',
-          notes: '',
-        })
-        toast.success(`${selected.full_name} adicionado.`)
+      let roomName = ''
+      if (newRoom && accomType) {
+        await listsApi.addRoom(listId, accomType).catch(() => {})
+        roomName = accomType
       }
+      for (const row of valid) {
+        await listsApi.addPassenger(listId, {
+          passenger: row.passenger.id,
+          agency: row.agency?.id || null,
+          responsible_user: row.responsible?.user_id || null,
+          enrollment_status: row.status,
+          pending_until: row.status === 'pendente' ? (row.prazo || null) : null,
+          pending_reason: row.status === 'pendente' ? row.notes : '',
+          notes: row.status !== 'pendente' ? row.notes : '',
+          ...(roomName ? { accommodation: roomName } : {}),
+        })
+      }
+      toast.success(`${valid.length} passageiro${valid.length>1?'s':''} adicionado${valid.length>1?'s':''}.`)
       onAdded(); onClose()
     } catch (err) { toast.error(err.response?.data?.error ?? 'Erro ao adicionar.') }
     finally { setSaving(false) }
   }
 
-  const agName   = selAgency ? (selAgency.company_name || selAgency.name) : blockAgency.trim()
-  const canSubmit = mode === 'block' ? !!agName : !!selected
-
-  const isBlock = mode === 'block'
-
-  /* Dropdown reutilizável */
-  const SearchDrop = ({ open, pos, loading, items, selected: selId, onPick, renderItem }) =>
-    open ? (
-      <div style={{ position:'fixed', top:pos.top, left:pos.left, width:pos.width, zIndex:900,
-        background:'#fff', borderRadius:10, border:'1px solid #e2e8f0',
-        boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
-        {loading
-          ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
-          : items.length === 0
-          ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Nenhum resultado encontrado.</p>
-          : items.map(item => renderItem(item, selId))
-        }
-      </div>
-    ) : null
+  const DROP_STYLE = { position:'fixed', zIndex:9999, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:200, overflowY:'auto', minWidth:200 }
+  const DROP_EMPTY = txt => <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>{txt}</p>
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)',
-      display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:16 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:500,
-        boxShadow:'0 32px 80px rgba(0,0,0,.25)', display:'flex', flexDirection:'column', maxHeight:'92vh' }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:1060, boxShadow:'0 32px 80px rgba(0,0,0,.25)', display:'flex', flexDirection:'column', maxHeight:'92vh' }}>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="mhead">
-          <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Adicionar passageiro</p>
+          <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Adicionar acomodação e passageiros</p>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
         </div>
 
-        {/* ── Corpo ── */}
+        {/* Body */}
         <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-          {/* Toggle bloqueio */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:10, background:'#f8fafc', border:'1.5px solid #e2e8f0' }}>
-            <div>
-              <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>Bloqueio de agência</p>
-              <p style={{ margin:'2px 0 0', fontSize:11, color:'#94a3b8' }}>Reserva de vagas em nome de uma agência</p>
+          {/* Nova acomodação */}
+          <div style={{ display:'flex', alignItems:'center', gap:16, padding:'11px 16px', background:'#f8fafc', borderRadius:10, border:'1.5px solid #e2e8f0' }}>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>Nova acomodação?</p>
+              <p style={{ margin:'2px 0 0', fontSize:11, color:'#94a3b8' }}>Marque esta opção para criar um novo quarto e já atribuir estes passageiros a ele.</p>
             </div>
-            <button type="button" onClick={() => { setMode(isBlock ? 'passenger' : 'block'); setResults([]); setSearch(''); setSelected(null) }}
-              style={{ position:'relative', width:40, height:22, borderRadius:11, border:'none', cursor:'pointer', padding:0, flexShrink:0, transition:'background .2s',
-                background: isBlock ? '#1a2d4f' : '#cbd5e1' }}>
-              <span style={{ position:'absolute', top:3, width:16, height:16, borderRadius:'50%', background:'#fff', transition:'left .2s',
-                left: isBlock ? 21 : 3, boxShadow:'0 1px 3px rgba(0,0,0,.2)' }} />
+            <button type="button" onClick={() => setNewRoom(v => !v)}
+              style={{ position:'relative', width:40, height:22, borderRadius:11, border:'none', cursor:'pointer', padding:0, flexShrink:0, transition:'background .2s', background: newRoom ? '#1a2d4f' : '#cbd5e1' }}>
+              <span style={{ position:'absolute', top:3, width:16, height:16, borderRadius:'50%', background:'#fff', transition:'left .2s', left: newRoom ? 21 : 3, boxShadow:'0 1px 3px rgba(0,0,0,.2)' }} />
             </button>
           </div>
 
-          {/* ── Passageiro ── */}
-          {!isBlock && (
+          {newRoom && (
             <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Passageiro</label>
-              <input ref={paxInputRef} value={search} onChange={e => handleSearch(e.target.value)}
-                onFocus={handlePaxFocus} onBlur={() => setTimeout(() => setPaxOpen(false), 200)}
-                placeholder="Buscar por nome, CPF ou e-mail…" autoComplete="new-password"
-                className="fi" style={{ borderColor: selected ? '#16a34a' : undefined }} />
-              <SearchDrop open={paxOpen} pos={paxDropPos} loading={searching} items={results} selected={selected?.id}
-                onPick={() => {}}
-                renderItem={(p, selId) => (
-                  <div key={p.id} style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selId===p.id ? '#f0fdf4' : 'transparent' }}
-                    onMouseDown={() => { setSelected(p); setSearch(p.full_name); setPaxOpen(false); setSelPaxAgency(null); setPaxAgencies([]); setSelPaxResp(null); setPaxAgMembers([]); passengersApi.agencies(p.id).then(r => setPaxAgencies(r.data)).catch(() => {}) }}
-                    onMouseEnter={ev => { if (selId!==p.id) ev.currentTarget.style.background='#f8fafc' }}
-                    onMouseLeave={ev => { ev.currentTarget.style.background = selId===p.id ? '#f0fdf4' : 'transparent' }}>
-                    <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
-                    <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
-                  </div>
-                )} />
-              {selected && <p style={{ margin:'5px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selected.full_name}</p>}
+              <label className="fl">Tipo de acomodação</label>
+              <select value={accomType} onChange={e => setAccomType(e.target.value)} className="fi">
+                <option value="">Selecione o tipo…</option>
+                {accomTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
             </div>
           )}
 
-          {/* Agência do passageiro */}
-          {!isBlock && selected && paxAgencies.length > 0 && (
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Agência <span style={{ fontWeight:400, color:'#94a3b8', textTransform:'none', letterSpacing:0 }}>(opcional)</span></label>
-              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                {paxAgencies.map(ag => {
-                  const isSel = selPaxAgency?.id === ag.id
+          {/* Tabela de passageiros */}
+          <div style={{ overflowX:'auto', borderRadius:10, border:'1px solid #e2e8f0' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ background:'#f8fafc', borderBottom:'1.5px solid #e2e8f0' }}>
+                  {['#','Passageiro','Agência','Status','Prazo','Observações','Responsável',''].map((h,i) => (
+                    <th key={i} style={{ padding:'8px 10px', fontSize:11, fontWeight:600, color:'#94a3b8', textAlign: i===0||i===7 ? 'center' : 'left', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => {
+                  const rid = row.id
+                  const isOdd = idx % 2 === 1
                   return (
-                    <label key={ag.id} style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 12px', borderRadius:8, border:`1.5px solid ${isSel ? '#1a2d4f' : '#e2e8f0'}`, background: isSel ? '#f0f4ff' : '#fff', cursor:'pointer', transition:'all .12s', userSelect:'none' }}
-                      onClick={() => { const n = isSel ? null : ag; setSelPaxAgency(n); setSelPaxResp(null); setPaxAgMembers([]); if (n) agenciesApi.listMembers(n.id).then(r => setPaxAgMembers(r.data)).catch(() => {}) }}>
-                      <div style={{ width:15, height:15, borderRadius:4, border:`2px solid ${isSel ? '#1a2d4f' : '#d1d5db'}`, background: isSel ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        {isSel && <span style={{ color:'#fff', fontSize:9, fontWeight:900, lineHeight:1 }}>✓</span>}
-                      </div>
-                      <span style={{ fontSize:13, color: isSel ? '#1a2d4f' : '#1e293b', fontWeight: isSel ? 600 : 400 }}>{ag.name}</span>
-                    </label>
+                    <tr key={rid} style={{ borderBottom:'1px solid #f1f5f9', background: isOdd ? '#fafbfc' : '#fff', verticalAlign:'middle' }}>
+
+                      {/* # */}
+                      <td style={{ padding:'6px 10px', textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8', width:36 }}>{idx+1}</td>
+
+                      {/* Passageiro */}
+                      <td style={{ padding:'5px 8px', minWidth:180 }}>
+                        <input value={row.paxSearch}
+                          onChange={e => searchPax(rid, e.target.value)}
+                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'pax', top:r.bottom+4, left:r.left, width:r.width }); if (!row.paxResults.length) searchPax(rid, row.paxSearch) }}
+                          onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid && d?.field==='pax' ? null : d), 200)}
+                          placeholder="Selecione o passageiro…" className="fi"
+                          style={{ fontSize:12, padding:'5px 8px', borderColor: row.passenger ? '#16a34a' : undefined }} />
+                        {row.passenger && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600 }}>✓ {row.passenger.full_name}</p>}
+                      </td>
+
+                      {/* Agência */}
+                      <td style={{ padding:'5px 8px', minWidth:160 }}>
+                        <input value={row.agSearch}
+                          onChange={e => searchAg(rid, e.target.value)}
+                          onFocus={e => { const r=e.target.getBoundingClientRect(); setOpenDrop({ rid, field:'ag', top:r.bottom+4, left:r.left, width:r.width }); if (!row.agResults.length) searchAg(rid, row.agSearch) }}
+                          onBlur={() => setTimeout(() => setOpenDrop(d => d?.rid===rid && d?.field==='ag' ? null : d), 200)}
+                          placeholder="Selecione a agência…" className="fi"
+                          style={{ fontSize:12, padding:'5px 8px', borderColor: row.agency ? '#16a34a' : undefined }} />
+                        {row.agency && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600 }}>✓ {row.agency.company_name || row.agency.name}</p>}
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding:'5px 8px', width:110 }}>
+                        <select value={row.status} onChange={e => upd(rid, { status: e.target.value })} className="fi" style={{ fontSize:12, padding:'5px 8px' }}>
+                          {ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </td>
+
+                      {/* Prazo */}
+                      <td style={{ padding:'5px 8px', width:130 }}>
+                        <DatePicker fixed value={row.prazo} onChange={v => upd(rid, { prazo: v })} placeholder="DD/MM/AAAA" />
+                      </td>
+
+                      {/* Observações */}
+                      <td style={{ padding:'5px 8px', minWidth:160 }}>
+                        <input value={row.notes} onChange={e => upd(rid, { notes: e.target.value })}
+                          placeholder="Observações…" className="fi" style={{ fontSize:12, padding:'5px 8px' }} />
+                      </td>
+
+                      {/* Responsável */}
+                      <td style={{ padding:'5px 8px', minWidth:150 }}>
+                        {row.members.length > 0 ? (
+                          <select value={row.responsible?.user_id || ''} onChange={e => upd(rid, { responsible: row.members.find(m => String(m.user_id)===e.target.value)||null })} className="fi" style={{ fontSize:12, padding:'5px 8px' }}>
+                            <option value="">Nada selecionado</option>
+                            {row.members.map(m => <option key={m.user_id} value={m.user_id}>{m.user_name || m.email}</option>)}
+                          </select>
+                        ) : (
+                          <span style={{ fontSize:11, color:'#cbd5e1' }}>{row.agency ? 'Sem membros' : '—'}</span>
+                        )}
+                      </td>
+
+                      {/* Remover */}
+                      <td style={{ padding:'5px 6px', textAlign:'center', width:32 }}>
+                        {rows.length > 1 && (
+                          <button type="button" onClick={() => delRow(rid)}
+                            style={{ background:'none', border:'none', cursor:'pointer', color:'#fca5a5', fontSize:17, lineHeight:1, padding:2 }}
+                            onMouseEnter={e => e.currentTarget.style.color='#dc2626'}
+                            onMouseLeave={e => e.currentTarget.style.color='#fca5a5'}>×</button>
+                        )}
+                      </td>
+                    </tr>
                   )
                 })}
-              </div>
-            </div>
-          )}
-
-          {!isBlock && selPaxAgency && (
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Responsável <span style={{ fontWeight:400, color:'#94a3b8', textTransform:'none', letterSpacing:0 }}>(opcional)</span></label>
-              <ResponsibleSelect members={paxAgMembers} selected={selPaxResp} onChange={setSelPaxResp} />
-            </div>
-          )}
-
-          {/* ── Bloqueio ── */}
-          {isBlock && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 100px', gap:12 }}>
-              <div className="ff" style={{ margin:0 }}>
-                <label className="fl">Agência</label>
-                <input ref={agInputRef} value={blockAgency} onChange={e => handleAgSearch(e.target.value)}
-                  onFocus={handleAgFocus} onBlur={() => setTimeout(() => setAgOpen(false), 200)}
-                  placeholder="Buscar agência…" className="fi"
-                  style={{ borderColor: selAgency ? '#16a34a' : undefined }} />
-                <SearchDrop open={agOpen} pos={agDropPos} loading={agSearching} items={agResults} selected={selAgency?.id}
-                  onPick={() => {}}
-                  renderItem={(ag, selId) => {
-                    const lbl = ag.company_name || ag.name
-                    return (
-                      <div key={ag.id} style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selId===ag.id ? '#f0fdf4' : 'transparent' }}
-                        onMouseDown={() => { setSelAgency(ag); setBlockAgency(lbl); setAgOpen(false); setSelBlkResp(null); setBlkMembers([]); agenciesApi.listMembers(ag.id).then(r => setBlkMembers(r.data)).catch(() => {}) }}
-                        onMouseEnter={ev => { if (selId!==ag.id) ev.currentTarget.style.background='#f8fafc' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.background = selId===ag.id ? '#f0fdf4' : 'transparent' }}>
-                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{lbl}</p>
-                        <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{ag.cnpj || ag.cpf || ag.email || '—'}</p>
-                      </div>
-                    )
-                  }} />
-                {selAgency && <p style={{ margin:'5px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selAgency.company_name || selAgency.name}</p>}
-              </div>
-              <div className="ff" style={{ margin:0 }}>
-                <label className="fl">Vagas</label>
-                <input type="number" min="1" max="100" value={blockQty}
-                  onChange={e => setBlockQty(Math.max(1, parseInt(e.target.value)||1))} className="fi" />
-              </div>
-            </div>
-          )}
-
-          {isBlock && selAgency && (
-            <div className="ff" style={{ margin:0 }}>
-              <label className="fl">Responsável <span style={{ fontWeight:400, color:'#94a3b8', textTransform:'none', letterSpacing:0 }}>(opcional)</span></label>
-              <ResponsibleSelect members={blkMembers} selected={selBlkResp} onChange={setSelBlkResp} />
-            </div>
-          )}
-
-          {/* ── Status ── */}
-          <div className="ff" style={{ margin:0 }}>
-            <label className="fl">Status</label>
-            <div style={{ display:'flex', gap:6 }}>
-              {ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado').map(opt => {
-                const sel = estatus === opt.value
-                return (
-                  <button key={opt.value} type="button"
-                    onClick={() => { setEstatus(opt.value); if (opt.value !== 'pendente') { setPendingUntil(''); setPendingReason('') } }}
-                    style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:7, padding:'8px 10px',
-                      borderRadius:8, border:`1.5px solid ${sel ? opt.color : '#e2e8f0'}`,
-                      background: sel ? `${opt.color}14` : '#fff',
-                      color: sel ? opt.color : '#94a3b8', fontSize:12.5, fontWeight: sel ? 700 : 400,
-                      cursor:'pointer', fontFamily:'inherit', transition:'all .12s',
-                    }}
-                    onMouseEnter={e => { if (!sel) e.currentTarget.style.borderColor='#cbd5e1' }}
-                    onMouseLeave={e => { if (!sel) e.currentTarget.style.borderColor='#e2e8f0' }}>
-                    <span style={{ width:8, height:8, borderRadius:'50%', background: sel ? opt.color : '#cbd5e1', flexShrink:0 }} />
-                    {opt.label}
-                  </button>
-                )
-              })}
-            </div>
+              </tbody>
+            </table>
           </div>
 
-          {/* Campos extras — Pendente */}
-          {estatus === 'pendente' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <div className="ff" style={{ margin:0 }}>
-                <label className="fl">Pendente até</label>
-                <DatePicker fixed value={pendingUntil} onChange={setPendingUntil} />
-              </div>
-              <div className="ff" style={{ margin:0 }}>
-                <label className="fl">Motivo</label>
-                <input value={pendingReason} onChange={e => setPendingReason(e.target.value)}
-                  placeholder="Motivo da pendência…" className="fi" />
-              </div>
-            </div>
+          {/* Portal dropdown */}
+          {openDrop && createPortal(
+            <div style={{ ...DROP_STYLE, top: openDrop.top, left: openDrop.left, width: openDrop.width }}>
+              {(() => {
+                const row = rows.find(r => r.id === openDrop.rid)
+                if (!row) return null
+                if (openDrop.field === 'pax') {
+                  if (row.paxSearching) return DROP_EMPTY('Buscando…')
+                  if (!row.paxResults.length) return DROP_EMPTY('Nenhum passageiro encontrado.')
+                  return row.paxResults.map(p => (
+                    <div key={p.id} style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
+                      onMouseDown={() => { upd(openDrop.rid, { passenger:p, paxSearch:p.full_name }); setOpenDrop(null) }}
+                      onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+                      onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
+                      <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
+                    </div>
+                  ))
+                }
+                if (openDrop.field === 'ag') {
+                  if (row.agSearching) return DROP_EMPTY('Buscando…')
+                  if (!row.agResults.length) return DROP_EMPTY('Nenhuma agência encontrada.')
+                  return row.agResults.map(ag => {
+                    const lbl = ag.company_name || ag.name
+                    return (
+                      <div key={ag.id} style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
+                        onMouseDown={() => {
+                          const rid = openDrop.rid
+                          upd(rid, { agency:ag, agSearch:lbl, responsible:null, members:[] })
+                          setOpenDrop(null)
+                          agenciesApi.listMembers(ag.id).then(r => upd(rid, { members: r.data })).catch(() => {})
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+                        onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{lbl}</p>
+                        <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{ag.cnpj || ag.email || '—'}</p>
+                      </div>
+                    )
+                  })
+                }
+                return null
+              })()}
+            </div>,
+            document.body
           )}
 
+          {/* + passageiro */}
+          <button type="button" onClick={addRow}
+            style={{ alignSelf:'flex-end', display:'flex', alignItems:'center', gap:7, padding:'7px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            + passageiro
+          </button>
         </div>
 
-        {/* ── Rodapé ── */}
+        {/* Footer */}
         <div className="mfoot">
-          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleAdd} disabled={!canSubmit || saving}
-            style={{ opacity: !canSubmit || saving ? .5 : 1, cursor: !canSubmit || saving ? 'default' : 'pointer' }}>
-            {saving ? 'Adicionando…' : isBlock ? `Reservar ${blockQty} vaga${blockQty>1?'s':''}` : 'Adicionar'}
+          <button className="btn btn-outline" onClick={onClose}>Fechar</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ opacity: saving ? .6 : 1 }}>
+            {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
       </div>
