@@ -1948,57 +1948,92 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
 function LinkAgencyPopup({ enrollment, listId, onSaved, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
   const [query,     setQuery]     = useState('')
-  const [results,   setResults]   = useState([])
-  const [searching, setSearching] = useState(false)
+  const [allAgencies, setAllAgencies] = useState([])  // lista completa carregada ao montar
+  const [results,   setResults]   = useState([])       // lista filtrada pelo query
+  const [searching, setSearching] = useState(true)
   const [selected,  setSelected]  = useState(
     enrollment.agency ? { id: enrollment.agency, label: enrollment.agency_name } : null
   )
-  const [dropPos, setDropPos] = useState(null)
-  const [hover,   setHover]   = useState(-1)
-  const [saving,  setSaving]  = useState(false)
+  const [dropOpen, setDropOpen] = useState(false)
+  const [hover,    setHover]    = useState(-1)
+  const [saving,   setSaving]   = useState(false)
   const debRef = useRef(null)
   const inpRef = useRef(null)
+  const wrapRef = useRef(null)
 
-  const refreshDropPos = () => {
-    if (!inpRef.current) return null
+  // Carrega todas as agências ao montar
+  useEffect(() => {
+    agenciesApi.list({ page_size: 100 })
+      .then(r => {
+        const list = r.data.results || r.data
+        setAllAgencies(list)
+        setResults(list)
+      })
+      .catch(() => {})
+      .finally(() => setSearching(false))
+  }, [])
+
+  // Fecha dropdown ao clicar fora
+  useEffect(() => {
+    const h = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setDropOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const getDropPos = () => {
+    if (!inpRef.current) return {}
     const rect = inpRef.current.getBoundingClientRect()
     return { top: rect.bottom + 4, left: rect.left, width: rect.width }
   }
 
-  const doSearch = q => {
+  const handleChange = e => {
+    const q = e.target.value
+    setQuery(q)
+    setSelected(null)
+    setHover(-1)
     clearTimeout(debRef.current)
-    if (!q.trim()) { setResults([]); setDropPos(null); return }
-    setSearching(true)
-    debRef.current = setTimeout(async () => {
-      try {
-        const r = await agenciesApi.list({ search: q, page_size: 15 })
-        const list = r.data.results || r.data
-        setResults(list)
-        if (list.length > 0) setDropPos(refreshDropPos())
-      } catch { setResults([]) }
-      finally { setSearching(false) }
-    }, 280)
-  }
-
-  const openDropAt = e => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setDropPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    if (!q.trim()) {
+      setResults(allAgencies)
+      setDropOpen(true)
+      return
+    }
+    debRef.current = setTimeout(() => {
+      const lower = q.toLowerCase()
+      const filtered = allAgencies.filter(ag =>
+        (ag.company_name || '').toLowerCase().includes(lower) ||
+        (ag.name || '').toLowerCase().includes(lower)
+      )
+      // Se locais não batem, faz busca no servidor
+      if (filtered.length > 0) {
+        setResults(filtered)
+        setDropOpen(true)
+      } else {
+        setSearching(true)
+        agenciesApi.list({ search: q, page_size: 15 })
+          .then(r => {
+            const list = r.data.results || r.data
+            setResults(list)
+            setDropOpen(list.length > 0)
+          })
+          .catch(() => setResults([]))
+          .finally(() => setSearching(false))
+      }
+    }, 200)
   }
 
   const pick = ag => {
     setSelected({ id: ag.id, label: ag.company_name || ag.name })
     setQuery(ag.company_name || ag.name)
-    setDropPos(null)
-    setResults([])
+    setDropOpen(false)
     setHover(-1)
   }
 
   const handleKey = e => {
-    if (!dropPos || results.length === 0) return
+    if (!dropOpen || results.length === 0) return
     if (e.key === 'ArrowDown') { e.preventDefault(); setHover(h => Math.min(h+1, results.length-1)) }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setHover(h => Math.max(h-1, 0)) }
     if (e.key === 'Enter' && hover >= 0) { e.preventDefault(); pick(results[hover]) }
-    if (e.key === 'Escape') { setDropPos(null) }
+    if (e.key === 'Escape') setDropOpen(false)
   }
 
   const handleSave = async () => {
@@ -2012,20 +2047,25 @@ function LinkAgencyPopup({ enrollment, listId, onSaved, onClose }) {
     finally { setSaving(false) }
   }
 
-  const dropdown = dropPos && results.length > 0 && createPortal(
+  const dropPos = getDropPos()
+  const dropdown = dropOpen && results.length > 0 && createPortal(
     <div onMouseDown={e => e.preventDefault()}
       style={{ position:'fixed', top:dropPos.top, left:dropPos.left, width:dropPos.width, zIndex:9999,
         background:'#fff', border:'1px solid #e2e8f0', borderRadius:10,
-        boxShadow:'0 8px 28px rgba(0,0,0,.13)', overflow:'hidden', maxHeight:240, overflowY:'auto' }}>
-      {results.map((ag, i) => (
-        <button key={ag.id} type="button" onMouseDown={() => pick(ag)}
-          style={{ display:'block', width:'100%', padding:'9px 14px', textAlign:'left',
-            background: i===hover ? '#f0f7ff' : '#fff', border:'none', cursor:'pointer',
-            fontFamily:'inherit', fontSize:13, fontWeight: i===hover ? 600 : 400, color:'#1e293b' }}
-          onMouseEnter={() => setHover(i)}>
-          {ag.company_name || ag.name}
-        </button>
-      ))}
+        boxShadow:'0 8px 28px rgba(0,0,0,.13)', overflow:'hidden', maxHeight:260, overflowY:'auto' }}>
+      {results.map((ag, i) => {
+        const label = ag.company_name || ag.name
+        return (
+          <button key={ag.id} type="button" onMouseDown={() => pick(ag)}
+            style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 14px', textAlign:'left',
+              background: i===hover ? '#f0f7ff' : '#fff', border:'none', cursor:'pointer',
+              fontFamily:'inherit', fontSize:13, color:'#1e293b', borderBottom: i < results.length-1 ? '1px solid #f8fafc' : 'none' }}
+            onMouseEnter={() => setHover(i)}>
+            <span style={{ display:'flex', alignItems:'center', justifyContent:'center', width:28, height:28, borderRadius:6, background:'#f1f5f9', flexShrink:0, fontSize:12 }}>🏢</span>
+            <span style={{ fontWeight: i===hover ? 600 : 400 }}>{label}</span>
+          </button>
+        )
+      })}
     </div>,
     document.body
   )
@@ -2054,7 +2094,7 @@ function LinkAgencyPopup({ enrollment, listId, onSaved, onClose }) {
                 <p style={{ margin:0, fontSize:10, fontWeight:700, color:'#2e6db4', textTransform:'uppercase', letterSpacing:'.05em' }}>Agência vinculada</p>
                 <p style={{ margin:'3px 0 0', fontSize:14, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selected.label}</p>
               </div>
-              <button type="button" onClick={() => { setSelected(null); setQuery(''); inpRef.current?.focus() }}
+              <button type="button" onClick={() => { setSelected(null); setQuery(''); setResults(allAgencies); setTimeout(() => inpRef.current?.focus(), 50) }}
                 style={{ fontSize:11, fontWeight:600, color:'#dc2626', background:'#fee2e2', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
                 Desvincular
               </button>
@@ -2065,19 +2105,20 @@ function LinkAgencyPopup({ enrollment, listId, onSaved, onClose }) {
           <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>
             {selected ? 'Trocar agência' : 'Buscar agência'}
           </label>
-          <input ref={inpRef}
-            value={query}
-            onChange={e => { setQuery(e.target.value); setSelected(null); doSearch(e.target.value) }}
-            onFocus={e => { if (results.length > 0) openDropAt(e) }}
-            onClick={e => { if (results.length > 0) openDropAt(e) }}
-            onKeyDown={handleKey}
-            onBlur={() => setTimeout(() => setDropPos(null), 160)}
-            placeholder="Digite o nome da agência…"
-            className="fi"
-            style={{ width:'100%', boxSizing:'border-box' }}
-          />
-          {searching && <p style={{ margin:'5px 0 0', fontSize:12, color:'#94a3b8' }}>Buscando…</p>}
-          {!searching && query.trim() && !selected && results.length === 0 && (
+          <div ref={wrapRef}>
+            <input ref={inpRef}
+              value={query}
+              onChange={handleChange}
+              onFocus={() => { setDropOpen(true); setHover(-1) }}
+              onKeyDown={handleKey}
+              placeholder={searching ? 'Carregando agências…' : 'Digite ou selecione a agência…'}
+              disabled={searching}
+              className="fi"
+              style={{ width:'100%', boxSizing:'border-box' }}
+              autoFocus
+            />
+          </div>
+          {!searching && !dropOpen && query.trim() && !selected && results.length === 0 && (
             <p style={{ margin:'5px 0 0', fontSize:12, color:'#94a3b8' }}>Nenhuma agência encontrada.</p>
           )}
           {dropdown}
