@@ -1207,12 +1207,16 @@ function StatusToggle({ value, onChange }) {
 function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdded, onClose }) {
   const mkRow = () => ({ id: Date.now() + Math.random(), paxSearch:'', passenger:null, paxResults:[], paxSearching:false, agSearch:'', agency:null, agResults:[], agSearching:false, members:[], responsible:null, respInput:'', status:'pendente', statusInput:'Pendente', prazo:'', notes:'' })
   // accom: 'none' | 'new' | 'existing'
-  const [accomMode,  setAccomMode]  = useState('none')
-  const [accomType,  setAccomType]  = useState('')
-  const [accomTypes, setAccomTypes] = useState([])
-  const [existingRoom, setExistingRoom] = useState('')
+  const [accomMode,       setAccomMode]       = useState('none')
+  const [accomType,       setAccomType]       = useState('')
+  const [accomTypeInput,  setAccomTypeInput]  = useState('')
+  const [accomTypes,      setAccomTypes]      = useState([])
+  const [existingRoom,    setExistingRoom]    = useState('')
+  const [existingRoomInput, setExistingRoomInput] = useState('')
+  const [accomDrop,       setAccomDrop]       = useState(null) // { field:'type'|'room', top, left, width, hover }
   const [rows,       setRows]       = useState([mkRow()])
   const [saving,     setSaving]     = useState(false)
+  const [submitted,  setSubmitted]  = useState(false)
   const [openDrop,   setOpenDrop]   = useState(null)
   const debMap = useRef({})
 
@@ -1310,8 +1314,10 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
   }, 150)
 
   const handleSave = async () => {
+    setSubmitted(true)
     const valid = rows.filter(r => r.passenger)
-    if (!valid.length) { toast.error('Adicione pelo menos um passageiro.'); return }
+    const accomErr = (accomMode === 'new' && !accomType) || (accomMode === 'existing' && !existingRoom)
+    if (!valid.length || accomErr) return
     setSaving(true)
     try {
       let roomName = ''
@@ -1394,18 +1400,88 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
               })}
             </div>
 
-            {accomMode === 'new' && (
-              <select value={accomType} onChange={e => setAccomType(e.target.value)} className="fi">
-                <option value="">Selecione o tipo…</option>
-                {accomTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-              </select>
-            )}
+            {accomMode === 'new' && (() => {
+              const err = submitted && !accomType
+              const q   = accomTypeInput.toLowerCase()
+              const items = accomTypes.filter(t => t.name.toLowerCase().includes(q))
+              return (
+                <div>
+                  <input value={accomTypeInput}
+                    onChange={e => { setAccomTypeInput(e.target.value); setAccomType(''); setAccomDrop(d => d?.field==='type' ? {...d,hover:0} : d) }}
+                    onFocus={e => { const r=e.target.getBoundingClientRect(); setAccomDrop({ field:'type', top:r.bottom+4, left:r.left, width:r.width, hover:0 }) }}
+                    onBlur={() => setTimeout(() => { setAccomDrop(d => d?.field==='type' ? null : d); if (!accomType) setAccomTypeInput('') }, 150)}
+                    onKeyDown={e => {
+                      if (!accomDrop || accomDrop.field!=='type') return
+                      if (e.key==='ArrowDown') { e.preventDefault(); setAccomDrop(d => ({...d, hover: Math.min((d.hover??0)+1, items.length-1)})) }
+                      else if (e.key==='ArrowUp') { e.preventDefault(); setAccomDrop(d => ({...d, hover: Math.max((d.hover??0)-1, 0)})) }
+                      else if (e.key==='Enter') { e.preventDefault(); const it=items[accomDrop.hover??0]; if(it){setAccomType(it.name);setAccomTypeInput(it.name);setAccomDrop(null)} }
+                      else if (e.key==='Escape') setAccomDrop(null)
+                    }}
+                    placeholder="Tipo de acomodação…" className="fi"
+                    style={{ borderColor: err ? '#dc2626' : accomType ? '#16a34a' : undefined }} />
+                  {err && <p style={{ margin:'4px 0 0', fontSize:11, color:'#dc2626' }}>Selecione o tipo de acomodação.</p>}
+                  {accomType && !err && <p style={{ margin:'4px 0 0', fontSize:11, color:'#16a34a', fontWeight:600 }}>✓ {accomType}</p>}
+                </div>
+              )
+            })()}
 
-            {accomMode === 'existing' && (
-              <select value={existingRoom} onChange={e => setExistingRoom(e.target.value)} className="fi">
-                <option value="">Selecione o quarto…</option>
-                {existingRooms.map(r => <option key={r.id} value={r.name}>{r.name}{r.occupant_count != null ? ` · ${r.occupant_count} pax` : ''}</option>)}
-              </select>
+            {accomMode === 'existing' && (() => {
+              const err = submitted && !existingRoom
+              const q   = existingRoomInput.toLowerCase()
+              const items = existingRooms.filter(r => r.name.toLowerCase().includes(q))
+              return (
+                <div>
+                  <input value={existingRoomInput}
+                    onChange={e => { setExistingRoomInput(e.target.value); setExistingRoom(''); setAccomDrop(d => d?.field==='room' ? {...d,hover:0} : d) }}
+                    onFocus={e => { const r=e.target.getBoundingClientRect(); setAccomDrop({ field:'room', top:r.bottom+4, left:r.left, width:r.width, hover:0 }) }}
+                    onBlur={() => setTimeout(() => { setAccomDrop(d => d?.field==='room' ? null : d); if (!existingRoom) setExistingRoomInput('') }, 150)}
+                    onKeyDown={e => {
+                      if (!accomDrop || accomDrop.field!=='room') return
+                      if (e.key==='ArrowDown') { e.preventDefault(); setAccomDrop(d => ({...d, hover: Math.min((d.hover??0)+1, items.length-1)})) }
+                      else if (e.key==='ArrowUp') { e.preventDefault(); setAccomDrop(d => ({...d, hover: Math.max((d.hover??0)-1, 0)})) }
+                      else if (e.key==='Enter') { e.preventDefault(); const it=items[accomDrop.hover??0]; if(it){setExistingRoom(it.name);setExistingRoomInput(it.name);setAccomDrop(null)} }
+                      else if (e.key==='Escape') setAccomDrop(null)
+                    }}
+                    placeholder="Buscar quarto…" className="fi"
+                    style={{ borderColor: err ? '#dc2626' : existingRoom ? '#16a34a' : undefined }} />
+                  {err && <p style={{ margin:'4px 0 0', fontSize:11, color:'#dc2626' }}>Selecione o quarto.</p>}
+                  {existingRoom && !err && <p style={{ margin:'4px 0 0', fontSize:11, color:'#16a34a', fontWeight:600 }}>✓ {existingRoom}</p>}
+                </div>
+              )
+            })()}
+
+            {/* Portal para dropdowns de acomodação */}
+            {accomDrop && createPortal(
+              <div style={{ position:'fixed', zIndex:9999, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:200, overflowY:'auto', top:accomDrop.top, left:accomDrop.left, width:accomDrop.width }}>
+                {accomDrop.field === 'type' && (() => {
+                  const q = accomTypeInput.toLowerCase()
+                  const items = accomTypes.filter(t => t.name.toLowerCase().includes(q))
+                  if (!items.length) return <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Nenhum tipo encontrado.</p>
+                  return items.map((t, i) => (
+                    <div key={t.id}
+                      style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: accomDrop.hover===i ? '#eff6ff' : 'transparent', fontSize:13, color:'#1e293b' }}
+                      onMouseDown={() => { setAccomType(t.name); setAccomTypeInput(t.name); setAccomDrop(null) }}
+                      onMouseEnter={() => setAccomDrop(d => d ? {...d, hover:i} : d)}>
+                      {t.name}
+                    </div>
+                  ))
+                })()}
+                {accomDrop.field === 'room' && (() => {
+                  const q = existingRoomInput.toLowerCase()
+                  const items = existingRooms.filter(r => r.name.toLowerCase().includes(q))
+                  if (!items.length) return <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Nenhum quarto encontrado.</p>
+                  return items.map((r, i) => (
+                    <div key={r.id}
+                      style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: accomDrop.hover===i ? '#eff6ff' : 'transparent' }}
+                      onMouseDown={() => { setExistingRoom(r.name); setExistingRoomInput(r.name); setAccomDrop(null) }}
+                      onMouseEnter={() => setAccomDrop(d => d ? {...d, hover:i} : d)}>
+                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{r.name}</p>
+                      {r.occupant_count != null && <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{r.occupant_count} passageiro{r.occupant_count!==1?'s':''}</p>}
+                    </div>
+                  ))
+                })()}
+              </div>,
+              document.body
             )}
           </div>
 
@@ -1454,7 +1530,8 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
                           }, 150)}
                           onKeyDown={e => handleKey(e, rid, 'pax')}
                           placeholder="Passageiro…" className="fi"
-                          style={{ ...cellInput, borderColor: row.passenger ? '#16a34a' : undefined }} />
+                          style={{ ...cellInput, borderColor: row.passenger ? '#16a34a' : (submitted ? '#dc2626' : undefined) }} />
+                        {submitted && !row.passenger && <p style={{ margin:'2px 0 0', fontSize:10, color:'#dc2626', fontWeight:600 }}>Obrigatório</p>}
                         {row.passenger && !row.passenger.provisional && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.passenger.full_name}</p>}
                         {row.passenger?.provisional && <p style={{ margin:'2px 0 0', fontSize:10, color:'#d97706', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>⚠ provisório — vincular depois</p>}
                       </td>
