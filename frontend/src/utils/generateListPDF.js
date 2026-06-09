@@ -72,6 +72,9 @@ function applyTableStyle(doc, startY, head, body, colStyles = {}) {
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 7.5,
+      overflow: 'hidden',
+      minCellHeight: 9,
+      cellPadding: { top: 3, right: 4, bottom: 3, left: 4 },
     },
     alternateRowStyles: { fillColor: HEADER },
     columnStyles: colStyles,
@@ -184,10 +187,11 @@ export async function generateListPDF(list, enrollments, opts) {
       ]
     })
 
+    // Nº(7) + Bloq(22) + Nome(62) + Apto(26) + Nasc(22) + Nac(16) + Gen(16) + Pass(24) + CPF(28) + Agência(46) = 269
     applyTableStyle(doc, y,
       ['Nº', 'Bloqueio aéreo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Gênero', 'PASS / RG', 'CPF', 'Agência'],
       body,
-      { 0: { cellWidth: 8 }, 1: { cellWidth: 22 }, 2: { cellWidth: 60 }, 3: { cellWidth: 28 }, 4: { cellWidth: 22 }, 5: { cellWidth: 12 }, 6: { cellWidth: 14 }, 7: { cellWidth: 22 }, 8: { cellWidth: 28 } }
+      { 0:{cellWidth:7}, 1:{cellWidth:22}, 2:{cellWidth:62}, 3:{cellWidth:26}, 4:{cellWidth:22}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24}, 8:{cellWidth:28}, 9:{cellWidth:46} }
     )
   }
 
@@ -208,7 +212,8 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['Nº', 'Nome', 'Nascimento', 'Nac.', 'Gênero', 'PASS / RG', 'Expedição', 'Validade', 'CPF'],
       body,
-      { 0: { cellWidth: 8 }, 1: { cellWidth: 72 }, 2: { cellWidth: 22 }, 3: { cellWidth: 12 }, 4: { cellWidth: 14 }, 5: { cellWidth: 22 }, 6: { cellWidth: 22 }, 7: { cellWidth: 22 } }
+      // Nº(7)+Nome(80)+Nasc(22)+Nac(16)+Gen(16)+Pass(28)+Exp(22)+Val(22)+CPF(56)=269
+      { 0:{cellWidth:7}, 1:{cellWidth:80}, 2:{cellWidth:22}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:56} }
     )
   }
 
@@ -233,7 +238,8 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['Nº', 'Nome', 'Assento', 'Assentos juntos', 'Tipo Alimentação', 'Nascimento', 'Nac.', 'Gênero', 'CPF'],
       body,
-      { 0: { cellWidth: 8 }, 1: { cellWidth: 65 }, 2: { cellWidth: 20 }, 3: { cellWidth: 22 }, 4: { cellWidth: 28 }, 5: { cellWidth: 22 }, 6: { cellWidth: 12 }, 7: { cellWidth: 14 } }
+      // Nº(7)+Nome(70)+Assento(20)+Juntos(22)+Alim(30)+Nasc(22)+Nac(16)+Gen(16)+CPF(66)=269
+      { 0:{cellWidth:7}, 1:{cellWidth:70}, 2:{cellWidth:20}, 3:{cellWidth:22}, 4:{cellWidth:30}, 5:{cellWidth:22}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:16,halign:'center'}, 8:{cellWidth:66} }
     )
   }
 
@@ -283,7 +289,8 @@ export async function generateListPDF(list, enrollments, opts) {
       curY = applyTableStyle(doc, curY,
         ['Nº', 'Nome', 'Assento', 'Nascimento', 'Nac.', 'Gênero', 'CPF', 'Tipo Alimentação'],
         body,
-        { 0: { cellWidth: 8 }, 1: { cellWidth: 72 }, 2: { cellWidth: 20 }, 3: { cellWidth: 22 }, 4: { cellWidth: 12 }, 5: { cellWidth: 14 }, 6: { cellWidth: 28 } }
+        // Nº(7)+Nome(76)+Assento(20)+Nasc(22)+Nac(16)+Gen(16)+CPF(30)+Alim(82)=269
+        { 0:{cellWidth:7}, 1:{cellWidth:76}, 2:{cellWidth:20}, 3:{cellWidth:22}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:30}, 7:{cellWidth:82} }
       )
       curY += 4
     })
@@ -303,7 +310,8 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['Nº', 'Nome', 'Adicionais', 'Observações', 'Alimentação'],
       body,
-      { 0: { cellWidth: 8 }, 1: { cellWidth: 60 }, 2: { cellWidth: 40 }, 3: { cellWidth: 100 } }
+      // Nº(7)+Nome(70)+Adicionais(50)+Obs(110)+Alim(32)=269
+      { 0:{cellWidth:7}, 1:{cellWidth:70}, 2:{cellWidth:50}, 3:{cellWidth:110}, 4:{cellWidth:32} }
     )
   }
 
@@ -321,7 +329,8 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['Nº', 'Nome', 'Telefone 1', 'Telefone 2', 'Telefone 3', 'Celular'],
       body,
-      { 0: { cellWidth: 8 }, 1: { cellWidth: 72 }, 2: { cellWidth: 34 }, 3: { cellWidth: 34 }, 4: { cellWidth: 34 } }
+      // Nº(7)+Nome(78)+Tel1(46)+Tel2(46)+Tel3(46)+Cel(46)=269
+      { 0:{cellWidth:7}, 1:{cellWidth:78}, 2:{cellWidth:46}, 3:{cellWidth:46}, 4:{cellWidth:46}, 5:{cellWidth:46} }
     )
   }
 
@@ -349,7 +358,8 @@ export async function generateListPDF(list, enrollments, opts) {
     applyTableStyle(doc, y,
       ['Nº', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereço', 'Celular', 'Agência'],
       body,
-      { 0: { cellWidth: 8 }, 1: { cellWidth: 48 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 30 }, 5: { cellWidth: 26 }, 6: { cellWidth: 50 }, 7: { cellWidth: 24 } }
+      // Nº(7)+Nome(54)+Apto(22)+NacGen(22)+Pass(32)+CPF(26)+End(60)+Cel(24)+Ag(22)=269
+      { 0:{cellWidth:7}, 1:{cellWidth:54}, 2:{cellWidth:22}, 3:{cellWidth:22}, 4:{cellWidth:32}, 5:{cellWidth:26}, 6:{cellWidth:60}, 7:{cellWidth:24}, 8:{cellWidth:22} }
     )
   }
 
