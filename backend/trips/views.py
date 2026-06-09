@@ -193,6 +193,9 @@ class PassengerListViewSet(viewsets.ModelViewSet):
 
         if request.method == 'GET':
             legs = e.passenger_flight_legs.select_related('origin_airport', 'destination_airport').all()
+            direction = request.query_params.get('direction')
+            if direction:
+                legs = legs.filter(direction=direction)
             return Response(PassengerFlightLegSerializer(legs, many=True).data)
 
         leg = PassengerFlightLeg(

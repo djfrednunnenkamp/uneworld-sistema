@@ -38,7 +38,7 @@ export const listsApi = {
   updatePassenger:  (id, eid, d)  => api.patch(`/trips/lists/${id}/passageiros/${eid}/`, d),
   removePassenger:  (id, eid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/`),
   // Trechos individuais por passageiro
-  listPassengerLegs:  (id, eid)          => api.get(`/trips/lists/${id}/passageiros/${eid}/legs/`),
+  listPassengerLegs:  (id, eid, dir)     => api.get(`/trips/lists/${id}/passageiros/${eid}/legs/`, dir ? { params: { direction: dir } } : {}),
   addPassengerLeg:    (id, eid, data)    => api.post(`/trips/lists/${id}/passageiros/${eid}/legs/`, data),
   updatePassengerLeg: (id, eid, lid, d)  => api.patch(`/trips/lists/${id}/passageiros/${eid}/legs/${lid}/`, d),
   removePassengerLeg: (id, eid, lid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/legs/${lid}/`),

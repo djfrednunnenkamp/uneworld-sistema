@@ -240,7 +240,7 @@ class FeederLeg(models.Model):
 
 
 class PassengerFlightLeg(models.Model):
-    DIRECTION_CHOICES = [('ida', 'Ida'), ('volta', 'Volta')]
+    DIRECTION_CHOICES = [('ida', 'Ida'), ('volta', 'Volta'), ('feeder', 'Acesso')]
 
     enrollment          = models.ForeignKey(ListEnrollment, on_delete=models.CASCADE, related_name='passenger_flight_legs')
     direction           = models.CharField('Direção', max_length=10, choices=DIRECTION_CHOICES, default='ida')

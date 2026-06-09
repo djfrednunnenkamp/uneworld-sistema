@@ -359,6 +359,9 @@ function AirportPicker({ value, onChange, placeholder }) {
 function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
 
+  const depAirport = enrollment.departure_airport_data || null
+  const hasFeeder  = depAirport && defaultAirport && depAirport.id !== defaultAirport.id
+
   const [status,  setStatus]  = useState(enrollment.ticket_status  || 'nao_emitida')
   const [number,  setNumber]  = useState(enrollment.ticket_number  || '')
   const [saving,  setSaving]  = useState(false)
@@ -369,30 +372,72 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
   const [pLegs,        setPLegs]        = useState([])
   const [pLegsLoaded,  setPLegsLoaded]  = useState(false)
   const [copying,      setCopying]      = useState(false)
-  const [legModal,     setLegModal]     = useState(null)  // null | { initial?, direction }
+  const [legModal,     setLegModal]     = useState(null)
   const [delLeg,       setDelLeg]       = useState(null)
+
+  // Voo de acesso (feeder)
+  const [feederStatus,     setFeederStatus]     = useState(enrollment.connection_ticket_status || 'nao_emitida')
+  const [feederNumber,     setFeederNumber]     = useState(enrollment.connection_ticket_number || '')
+  const [feederBlockLegs,  setFeederBlockLegs]  = useState([])
+  const [feederBlockLoaded, setFeederBlockLoaded] = useState(false)
+  const [pFeederLegs,      setPFeederLegs]      = useState([])
+  const [pFeederLoaded,    setPFeederLoaded]    = useState(false)
+  const [feederLegModal,   setFeederLegModal]   = useState(null)
+  const [delFeederLeg,     setDelFeederLeg]     = useState(null)
 
   useEffect(() => {
     listsApi.listFlights(listId).then(r => setBlockLegs(r.data)).catch(() => {})
   }, [listId])
 
   useEffect(() => {
+    if (hasFeeder && feederStatus === 'via_bloqueio' && !feederBlockLoaded) {
+      listsApi.listFeederLegs(listId, depAirport.id).then(r => {
+        setFeederBlockLegs(r.data)
+        setFeederBlockLoaded(true)
+      }).catch(() => {})
+    }
+  }, [feederStatus, feederBlockLoaded, hasFeeder])
+
+  useEffect(() => {
+    if (hasFeeder && !feederBlockLoaded) {
+      listsApi.listFeederLegs(listId, depAirport.id).then(r => {
+        setFeederBlockLegs(r.data)
+        setFeederBlockLoaded(true)
+      }).catch(() => {})
+    }
+  }, [hasFeeder])
+
+  useEffect(() => {
     if (status === 'fora_bloqueio' && !pLegsLoaded) {
       listsApi.listPassengerLegs(listId, enrollment.id).then(r => {
-        setPLegs(r.data)
+        setPLegs(r.data.filter(l => l.direction !== 'feeder'))
         setPLegsLoaded(true)
       }).catch(() => {})
     }
   }, [status, pLegsLoaded, listId, enrollment.id])
 
+  useEffect(() => {
+    if (hasFeeder && feederStatus === 'fora_bloqueio' && !pFeederLoaded) {
+      listsApi.listPassengerLegs(listId, enrollment.id, 'feeder').then(r => {
+        setPFeederLegs(r.data)
+        setPFeederLoaded(true)
+      }).catch(() => {})
+    }
+  }, [feederStatus, pFeederLoaded, hasFeeder])
+
   const reloadPLegs = () =>
-    listsApi.listPassengerLegs(listId, enrollment.id).then(r => setPLegs(r.data)).catch(() => {})
+    listsApi.listPassengerLegs(listId, enrollment.id).then(r => {
+      setPLegs(r.data.filter(l => l.direction !== 'feeder'))
+    }).catch(() => {})
+
+  const reloadPFeederLegs = () =>
+    listsApi.listPassengerLegs(listId, enrollment.id, 'feeder').then(r => setPFeederLegs(r.data)).catch(() => {})
 
   const handleCopyFromBlock = async () => {
     setCopying(true)
     try {
       const r = await listsApi.copyLegsFromBlock(listId, enrollment.id)
-      setPLegs(r.data)
+      setPLegs(r.data.filter(l => l.direction !== 'feeder'))
       toast.success('Voos copiados do bloqueio.')
     } catch { toast.error('Erro ao copiar.') }
     finally { setCopying(false) }
@@ -415,6 +460,25 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
     reloadPLegs()
   }
 
+  const handleSaveFeederLeg = async (data) => {
+    const payload = { ...data, direction: 'feeder' }
+    if (feederLegModal.initial) {
+      await listsApi.updatePassengerLeg(listId, enrollment.id, feederLegModal.initial.id, payload)
+      toast.success('Trecho atualizado.')
+    } else {
+      await listsApi.addPassengerLeg(listId, enrollment.id, payload)
+      toast.success('Trecho adicionado.')
+    }
+    setFeederLegModal(null)
+    reloadPFeederLegs()
+  }
+
+  const handleDeleteFeederLeg = async (leg) => {
+    await listsApi.removePassengerLeg(listId, enrollment.id, leg.id)
+    setDelFeederLeg(null)
+    reloadPFeederLegs()
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -422,8 +486,8 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
         ticket_status: status,
         ticket_number: status === 'nao_emitida' ? '' : number,
         ticket_seat:   '',
-        connection_ticket_status: 'nao_emitida',
-        connection_ticket_number: '',
+        connection_ticket_status: hasFeeder ? feederStatus : 'nao_emitida',
+        connection_ticket_number: hasFeeder && feederStatus !== 'nao_emitida' ? feederNumber : '',
         connection_ticket_seat:   '',
       })
       toast.success('Passagem atualizada.')
@@ -624,6 +688,128 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
               )}
             </div>
           )}
+
+          {/* ── Voo de acesso (só aparece quando aeroporto individual diferente do padrão) ── */}
+          {hasFeeder && (
+            <div style={{ borderTop:'2px dashed #e2e8f0', paddingTop:14 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 7px', borderRadius:5 }}>
+                  {depAirport.iata_code || depAirport.name.slice(0,3).toUpperCase()}
+                </span>
+                <p style={{ margin:0, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>
+                  Voo de acesso — {depAirport.city || depAirport.name}
+                </p>
+              </div>
+
+              {/* Seletor feeder */}
+              <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden', marginBottom:12 }}>
+                {[
+                  { v:'nao_emitida',   label:'Nenhum voo'      },
+                  ...(feederBlockLegs.length > 0 ? [{ v:'via_bloqueio', label:'Via bloqueio' }] : []),
+                  { v:'fora_bloqueio', label:'Roteiro próprio' },
+                ].map(({ v, label }, i, arr) => {
+                  const sel = feederStatus === v
+                  const col = COLORS[v] || COLORS.nao_emitida
+                  return (
+                    <button key={v} type="button" onClick={() => setFeederStatus(v)}
+                      style={{
+                        flex:1, padding:'8px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
+                        fontSize:12, fontWeight: sel ? 700 : 500, transition:'all .12s',
+                        borderRight: i < arr.length-1 ? '1px solid #e2e8f0' : 'none',
+                        background:  sel ? col.bg  : '#fff',
+                        color:       sel ? col.fg  : '#94a3b8',
+                        boxShadow:   sel ? `inset 0 -2px 0 ${col.accent}` : 'none',
+                      }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Número da reserva feeder */}
+              {feederStatus !== 'nao_emitida' && (
+                <div className="ff" style={{ margin:'0 0 10px' }}>
+                  <label className="fl">Número da reserva (acesso)</label>
+                  <input className="fi" value={feederNumber} onChange={e => setFeederNumber(e.target.value)} placeholder="Ex: ABC123" />
+                </div>
+              )}
+
+              {/* Via bloqueio feeder — leitura */}
+              {feederStatus === 'via_bloqueio' && (
+                feederBlockLegs.length === 0 ? (
+                  <p style={{ margin:0, fontSize:12, color:'#94a3b8', padding:'10px 14px', background:'#fffbeb', borderRadius:7, border:'1px solid #fde68a' }}>
+                    Nenhum voo de acesso configurado para este aeroporto.
+                  </p>
+                ) : (
+                  <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden' }}>
+                    {feederBlockLegs.map(l => <LegReadRow key={l.id} leg={l}/>)}
+                  </div>
+                )
+              )}
+
+              {/* Roteiro próprio feeder — edição */}
+              {feederStatus === 'fora_bloqueio' && (
+                !pFeederLoaded ? (
+                  <p style={{ color:'#94a3b8', fontSize:12 }}>Carregando…</p>
+                ) : (
+                  <div>
+                    {pFeederLegs.length === 0 ? (
+                      <p style={{ margin:'0 0 6px', fontSize:12, color:'#94a3b8', padding:'8px 12px', background:'#f8fafc', borderRadius:6, border:'1px dashed #e2e8f0' }}>
+                        Nenhum trecho cadastrado.
+                      </p>
+                    ) : (
+                      <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden', marginBottom:6 }}>
+                        {pFeederLegs.map(l => (
+                          <div key={l.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#fff', borderBottom:'1px solid #f1f5f9' }}
+                            onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+                            onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+                            {[l.origin_airport_data, l.destination_airport_data].map((ap, i) => (
+                              <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                                {i===1 && <span style={{ color:'#cbd5e1', fontSize:13 }}>→</span>}
+                                {ap ? (
+                                  <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+                                    <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
+                                      {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+                                    </span>
+                                    <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
+                                  </span>
+                                ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
+                              </span>
+                            ))}
+                            <span style={{ flex:1 }}/>
+                            {l.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{l.flight_number}</span>}
+                            <button type="button" onClick={() => setFeederLegModal({ initial: l })}
+                              style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer', flexShrink:0 }}>
+                              <Ic n="edit" s={11}/>
+                            </button>
+                            <button type="button" onClick={() => setDelFeederLeg(l)}
+                              style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer', flexShrink:0 }}>
+                              <Ic n="trash" s={11}/>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button type="button"
+                      onClick={() => {
+                        const last = pFeederLegs.length > 0 ? pFeederLegs[pFeederLegs.length-1] : null
+                        setFeederLegModal({
+                          initial: null,
+                          prefill: last ? {
+                            origin_airport_data: last.destination_airport_data,
+                            departure_date: last.arrival_date || '',
+                            departure_time: last.arrival_time ? last.arrival_time.slice(0,5) : '',
+                          } : { origin_airport_data: depAirport },
+                        })
+                      }}
+                      style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                      <Ic n="plus" s={10}/> Adicionar trecho
+                    </button>
+                  </div>
+                )
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mfoot">
@@ -652,6 +838,26 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           message={`Remover trecho ${delLeg.origin_airport_data?.iata_code || '?'} → ${delLeg.destination_airport_data?.iata_code || '?'}?`}
           onOk={() => handleDeleteLeg(delLeg)}
           onCancel={() => setDelLeg(null)}
+        />
+      )}
+
+      {feederLegModal && (
+        <FlightLegModal
+          initial={feederLegModal.initial}
+          prefill={feederLegModal.prefill}
+          direction="feeder"
+          zIndex={820}
+          hideBlockedSeats
+          onSave={handleSaveFeederLeg}
+          onClose={() => setFeederLegModal(null)}
+        />
+      )}
+
+      {delFeederLeg && (
+        <ConfirmModal
+          message={`Remover trecho de acesso ${delFeederLeg.origin_airport_data?.iata_code || '?'} → ${delFeederLeg.destination_airport_data?.iata_code || '?'}?`}
+          onOk={() => handleDeleteFeederLeg(delFeederLeg)}
+          onCancel={() => setDelFeederLeg(null)}
         />
       )}
     </div>
@@ -3215,7 +3421,7 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, 
     finally { setSaving(false) }
   }
 
-  const dirLabel = direction === 'ida' ? 'Ida' : 'Volta'
+  const dirLabel = direction === 'ida' ? 'Ida' : direction === 'volta' ? 'Volta' : 'Acesso'
 
   return (
     <div className="overlay" style={{ zIndex: zIndex ?? 810 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
