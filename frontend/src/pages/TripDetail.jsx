@@ -718,7 +718,7 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
                   <label style={LBL}>Data de nascimento</label>
                   <DatePicker value={form?.birth_date || ''} onChange={v => upd('birth_date', v)} placeholder="DD/MM/AAAA" />
                 </div>
-                <SelectField label="Gênero" field="gender"
+                <QESelect label="Gênero" value={form?.gender} onChange={v => upd('gender', v)}
                   options={genders.map(g => ({ value: g.name, label: g.name }))} />
               </div>
 
