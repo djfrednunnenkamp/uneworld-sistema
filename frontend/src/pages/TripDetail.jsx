@@ -587,7 +587,7 @@ function AirportPopover({ enrollment, rect, listId, defaultAirport, onSaved, onC
 }
 
 /* ── Modal de impressão / download da lista ── */
-function PrintModal({ list, enrollments, onClose }) {
+function PrintModal({ list, enrollments, accomTypes, onClose }) {
   const [formato, setFormato] = useState('pdf')
   const [generating, setGenerating] = useState(false)
   const [opts, setOpts] = useState({
@@ -606,7 +606,7 @@ function PrintModal({ list, enrollments, onClose }) {
     if (generating) return
     setGenerating(true)
     try {
-      await generateListPDF(list, enrollments, opts)
+      await generateListPDF(list, enrollments, opts, accomTypes)
     } catch (err) {
       console.error(err)
       toast.error('Erro ao gerar PDF.')
@@ -4352,6 +4352,7 @@ export default function TripDetail() {
         <PrintModal
           list={list}
           enrollments={paxData.enrolled}
+          accomTypes={paxData.accomTypes}
           onClose={() => setShowPrint(false)}
         />
       )}

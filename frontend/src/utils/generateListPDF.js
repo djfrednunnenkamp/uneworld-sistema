@@ -29,6 +29,20 @@ function passportRg(e) {
   return pp || e.passenger_rg || ''
 }
 
+// Encontra o tipo de acomodacao pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
+function findAccomType(types, roomName) {
+  if (!roomName) return null
+  return [...types].sort((a, b) => b.name.length - a.name.length)
+    .find(t => roomName === t.name || roomName.startsWith(t.name + ' ')) || null
+}
+
+// Rotulo "Apto. <Tipo>" para a coluna Tipo Apto. — mesmo tipo para todos os ocupantes da mesma acomodacao
+function accomTypeLabel(types, roomName) {
+  if (!roomName) return ''
+  const type = findAccomType(types, roomName)
+  return type ? `Apto. ${type.name}` : roomName
+}
+
 function hasBirthdayInTrip(birthDate, startDate, endDate) {
   if (!birthDate || !startDate || !endDate) return false
   try {
@@ -166,7 +180,7 @@ function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export async function generateListPDF(list, enrollments, opts) {
+export async function generateListPDF(list, enrollments, opts, accomTypes = []) {
   let logoDataUrl = null
   try {
     const resp = await fetch('/logo.png')
@@ -311,7 +325,7 @@ export async function generateListPDF(list, enrollments, opts) {
       i + 1,
       e.ticket_status === 'via_bloqueio' ? 'Sim' : 'Nao',
       e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
-      e.accommodation || '',
+      accomTypeLabel(accomTypes, e.accommodation),
       fmtDate(e.passenger_birth_date),          // sem prefixo — o bolo e desenhado via didDrawCell
       fmtNat(e.passenger_nationality),
       fmtGender(e.passenger_gender),
@@ -468,7 +482,7 @@ export async function generateListPDF(list, enrollments, opts) {
       return [
         i + 1,
         e.passenger_name + (e.passenger_is_guide ? '\n(Guia acompanhante)' : ''),
-        e.accommodation || '',
+        accomTypeLabel(accomTypes, e.accommodation),
         nacGen,
         passport,
         e.passenger_cpf || '',
