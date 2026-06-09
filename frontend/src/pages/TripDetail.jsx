@@ -2774,15 +2774,19 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       const ts1 = e.ticket_status || 'nao_emitida'
                       const hasFeederIcon = !e.is_block && e.departure_airport_data && defaultAirport && e.departure_airport_data.id !== defaultAirport.id
                       const ts2 = e.connection_ticket_status || 'nao_emitida'
-                      const tBg = ts => ts === 'nao_emitida' ? 'rgba(203,213,225,.25)' : ts === 'via_bloqueio' ? 'rgba(245,158,11,.18)' : 'rgba(147,66,171,.15)'
+                      const tGrad = ts => {
+                        const c = ts === 'nao_emitida' ? '148,163,184' : ts === 'via_bloqueio' ? '245,158,11' : '147,66,171'
+                        const a = ts === 'nao_emitida' ? '.22' : '.38'
+                        return `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
+                      }
                       const TicketIcon = ({ ts, num }) => (
                         <button type="button" onClick={() => setTicketModal(e)} title={tTitle(ts, num)}
-                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:26, height:26, borderRadius:'50%', background:tBg(ts), border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
-                          <span style={{ fontSize:13, lineHeight:1, color:tColor(ts) }}>✈</span>
+                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:tGrad(ts), border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
+                          <span style={{ fontSize:11, lineHeight:1, color:tColor(ts) }}>✈</span>
                         </button>
                       )
                       return (
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, paddingRight:2 }}>
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}>
                           <TicketIcon ts={ts1} num={e.ticket_number}/>
                           {hasFeederIcon && <TicketIcon ts={ts2} num={e.connection_ticket_number}/>}
                         </div>
