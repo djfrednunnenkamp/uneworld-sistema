@@ -3129,6 +3129,32 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                     })() : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
                     }
 
+                    {/* Embarque — aeroporto de saída, logo antes do nome */}
+                    {isAereo && (() => {
+                      const ap = e.departure_airport_data || defaultAirport
+                      const isIndividual = !!e.departure_airport_data
+                      const code = ap?.iata_code || (ap?.name?.slice(0,3).toUpperCase())
+                      return (
+                        <span title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (embarque individual)' : ' (padrão da lista)'}` : 'Não definido'}
+                          style={{ display:'flex', justifyContent:'center', flexShrink:0 }}>
+                          {ap ? (
+                            <span style={{
+                              fontSize:11, fontWeight:700, fontFamily:'monospace', letterSpacing:'.03em',
+                              padding:'2px 7px', borderRadius:5,
+                              color:      isIndividual ? '#92400e' : '#64748b',
+                              background: isIndividual ? '#fef3c7' : '#f1f5f9',
+                              border:     isIndividual ? '1.5px solid #f59e0b' : '1px solid transparent',
+                              boxShadow:  isIndividual ? '0 0 0 2px #fde68a55' : 'none',
+                            }}>
+                              {code}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
+                          )}
+                        </span>
+                      )
+                    })()}
+
                     {/* Nome / Bloqueio */}
                     <div style={{ minWidth:0 }}>
                       {e.is_block ? (
@@ -3214,32 +3240,6 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       style={{ fontSize:11, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
                       {e.agency_name || '—'}
                     </span>
-
-                    {/* Embarque — aeroporto de saída (individual ou padrão da lista) */}
-                    {isAereo && (() => {
-                      const ap = e.departure_airport_data || defaultAirport
-                      const isIndividual = !!e.departure_airport_data
-                      const code = ap?.iata_code || (ap?.name?.slice(0,3).toUpperCase())
-                      return (
-                        <span title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (embarque individual)' : ' (padrão da lista)'}` : 'Não definido'}
-                          style={{ display:'flex', justifyContent:'center' }}>
-                          {ap ? (
-                            <span style={{
-                              fontSize:11, fontWeight:700, fontFamily:'monospace', letterSpacing:'.03em',
-                              padding:'2px 7px', borderRadius:5,
-                              color:      isIndividual ? '#92400e' : '#64748b',
-                              background: isIndividual ? '#fef3c7' : '#f1f5f9',
-                              border:     isIndividual ? '1.5px solid #f59e0b' : '1px solid transparent',
-                              boxShadow:  isIndividual ? '0 0 0 2px #fde68a55' : 'none',
-                            }}>
-                              {code}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
-                          )}
-                        </span>
-                      )
-                    })()}
 
                     {/* Ações */}
                     <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
