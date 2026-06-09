@@ -612,6 +612,7 @@ function TicketModal({ enrollment, listId, defaultAirport, onSaved, onClose }) {
           prefill={legModal.prefill}
           direction={legModal.direction}
           zIndex={820}
+          hideBlockedSeats
           onSave={handleSaveLeg}
           onClose={() => setLegModal(null)}
         />
@@ -2937,7 +2938,7 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
 }
 
 /* ── Modal criar/editar trecho de voo ── */
-function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex }) {
+function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, hideBlockedSeats }) {
   const isEdit = !!initial
   const [origin,      setOrigin]      = useState(initial?.origin_airport_data      || prefill?.origin_airport_data || null)
   const [dest,        setDest]        = useState(initial?.destination_airport_data || null)
@@ -3027,12 +3028,14 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex }
             </div>
           </div>
           {/* Lugares bloqueados */}
-          <div className="ff" style={{ margin:0 }}>
-            <label className="fl">Lugares bloqueados</label>
-            <input className="fi" type="number" min="0" max="999" value={blockedSeats}
-              onChange={e => setBlockedSeats(e.target.value)}
-              placeholder="Qtd. de assentos reservados no bloqueio" />
-          </div>
+          {!hideBlockedSeats && (
+            <div className="ff" style={{ margin:0 }}>
+              <label className="fl">Lugares bloqueados</label>
+              <input className="fi" type="number" min="0" max="999" value={blockedSeats}
+                onChange={e => setBlockedSeats(e.target.value)}
+                placeholder="Qtd. de assentos reservados no bloqueio" />
+            </div>
+          )}
         </div>
         <div className="mfoot">
           <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
