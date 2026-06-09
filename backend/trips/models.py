@@ -171,7 +171,8 @@ class ListEnrollment(models.Model):
         ('via_bloqueio',   'Via bloqueio'),
         ('fora_bloqueio',  'Voo individual'),
     ]
-    ticket_status      = models.CharField('Status da passagem', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
+    ticket_status            = models.CharField('Status da passagem', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
+    connection_ticket_status = models.CharField('Status da passagem de conexão', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
     order_in_list      = models.PositiveIntegerField('Ordem', default=0)
     enrolled_at        = models.DateTimeField('Adicionado em', auto_now_add=True)
     notes              = models.TextField('Observações', blank=True)

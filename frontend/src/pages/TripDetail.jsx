@@ -383,9 +383,10 @@ function AirportPicker({ value, onChange, placeholder }) {
 }
 
 /* ── Modal de passagem aérea ── */
-function TicketModal({ enrollment, listId, onSaved, onClose }) {
+function TicketModal({ enrollment, listId, field = 'ticket_status', onSaved, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
-  const [status, setStatus] = useState(enrollment.ticket_status || 'nao_emitida')
+  const isConnection = field === 'connection_ticket_status'
+  const [status, setStatus] = useState(enrollment[field] || 'nao_emitida')
   const [saving, setSaving] = useState(false)
 
   const OPTS = [
@@ -397,7 +398,7 @@ function TicketModal({ enrollment, listId, onSaved, onClose }) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await listsApi.updatePassenger(listId, enrollment.id, { ticket_status: status })
+      await listsApi.updatePassenger(listId, enrollment.id, { [field]: status })
       toast.success('Passagem atualizada.')
       onSaved(); onClose()
     } catch { toast.error('Erro ao salvar.') }
@@ -409,7 +410,7 @@ function TicketModal({ enrollment, listId, onSaved, onClose }) {
       <div className="mbox" style={{ maxWidth:380 }}>
         <div className="mhead">
           <div style={{ minWidth:0 }}>
-            <span className="mtitle">Passagem aérea</span>
+            <span className="mtitle">{isConnection ? 'Passagem — voo de acesso' : 'Passagem aérea'}</span>
             <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
           </div>
           <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
@@ -2926,17 +2927,26 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
                     {/* ✈ passagem — clicável em listas aéreas */}
                     {isAereo ? (() => {
-                      const ts = e.ticket_status || 'nao_emitida'
-                      const tColor = ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#f59e0b' : 'rgb(147,66,171)'
-                      const tTitle = ts === 'nao_emitida' ? 'Não emitida' : ts === 'via_bloqueio' ? 'Via bloqueio' : 'Voo individual'
-                      const c = ts === 'nao_emitida' ? '148,163,184' : ts === 'via_bloqueio' ? '245,158,11' : '147,66,171'
-                      const a = ts === 'nao_emitida' ? '.22' : '.38'
-                      const tGrad = `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
+                      const hasConnAirport = !e.is_block && e.departure_airport_data && defaultAirport && e.departure_airport_data.id !== defaultAirport.id
+                      const mkBtn = (ticketStatus, fieldName) => {
+                        const ts = ticketStatus || 'nao_emitida'
+                        const tColor = ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#f59e0b' : 'rgb(147,66,171)'
+                        const tTitle = ts === 'nao_emitida' ? 'Não emitida' : ts === 'via_bloqueio' ? 'Via bloqueio' : 'Voo individual'
+                        const c = ts === 'nao_emitida' ? '148,163,184' : ts === 'via_bloqueio' ? '245,158,11' : '147,66,171'
+                        const a = ts === 'nao_emitida' ? '.22' : '.38'
+                        const tGrad = `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
+                        return (
+                          <button key={fieldName} type="button" onClick={() => setTicketModal({ enrollment: e, field: fieldName })} title={tTitle}
+                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:tGrad, border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
+                            <span style={{ fontSize:11, lineHeight:1, color:tColor }}>✈</span>
+                          </button>
+                        )
+                      }
                       return (
-                        <button type="button" onClick={() => setTicketModal(e)} title={tTitle}
-                          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:tGrad, border:'none', cursor:'pointer', padding:0, flexShrink:0, margin:'0 auto' }}>
-                          <span style={{ fontSize:11, lineHeight:1, color:tColor }}>✈</span>
-                        </button>
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
+                          {mkBtn(e.ticket_status, 'ticket_status')}
+                          {hasConnAirport && mkBtn(e.connection_ticket_status, 'connection_ticket_status')}
+                        </div>
                       )
                     })() : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
                     }
@@ -3131,8 +3141,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
       {/* Popup passagem aérea */}
       {ticketModal && (
         <TicketModal
-          enrollment={ticketModal}
+          enrollment={ticketModal.enrollment}
           listId={listId}
+          field={ticketModal.field}
           onSaved={load}
           onClose={() => setTicketModal(null)}
         />

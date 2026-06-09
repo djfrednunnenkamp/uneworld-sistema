@@ -231,7 +231,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
-            'ticket_status',
+            'ticket_status', 'connection_ticket_status',
             'order_in_list', 'enrolled_at', 'notes',
         ]
         read_only_fields = ['enrolled_at']
