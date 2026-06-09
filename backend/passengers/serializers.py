@@ -29,7 +29,7 @@ class PassengerSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_agency_names(self, obj):
-        return [{'id': a.id, 'name': a.name} for a in obj.agencies.all()]
+        return [{'id': a.id, 'name': a.company_name or a.name or str(a)} for a in obj.agencies.all()]
 
     def create(self, validated_data):
         agencies = validated_data.pop('agencies', [])
