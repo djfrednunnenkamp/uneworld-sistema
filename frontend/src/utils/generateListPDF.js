@@ -43,6 +43,23 @@ function accomTypeLabel(types, roomName) {
   return type ? `Apto. ${type.name}` : roomName
 }
 
+// Mescla verticalmente (rowSpan) a coluna Tipo Apto. quando passageiros consecutivos
+// dividem a mesma acomodacao — eles aparecem como uma unica celula combinada
+function mergeAccomCells(body, pax, colIndex) {
+  let i = 0
+  while (i < body.length) {
+    const room = pax[i].accommodation
+    if (!room) { i++; continue }
+    let j = i + 1
+    while (j < body.length && pax[j].accommodation === room) j++
+    if (j - i > 1) {
+      body[i][colIndex] = { content: body[i][colIndex], rowSpan: j - i, styles: { valign: 'middle' } }
+      for (let k = i + 1; k < j; k++) body[k].splice(colIndex, 1)
+    }
+    i = j
+  }
+}
+
 function hasBirthdayInTrip(birthDate, startDate, endDate) {
   if (!birthDate || !startDate || !endDate) return false
   try {
@@ -333,6 +350,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       e.passenger_cpf || '',
       e.agency_name || '',
     ])
+    mergeAccomCells(body, pax, 3)   // Tipo Apto. = coluna 3
 
     // N(7)+Bloq(22)+Nome(58)+Apto(26)+Nasc(28)+Nac(16)+Gen(16)+Pass(24)+CPF(28)+Ag(44)=269
     applyTableStyle(doc, y,
@@ -491,6 +509,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         e.agency_name || '',
       ]
     })
+    mergeAccomCells(body, pax, 2)   // Tipo Apto. = coluna 2
     // N(7)+Nome(54)+Apto(22)+NacGen(22)+Pass(32)+CPF(26)+End(60)+Cel(24)+Ag(22)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereco', 'Celular', 'Agencia'],
