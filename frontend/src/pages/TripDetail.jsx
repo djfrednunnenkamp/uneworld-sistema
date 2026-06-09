@@ -1492,7 +1492,7 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
                 <col style={{ width:32 }} />
                 <col style={{ width:'22%' }} />
                 <col style={{ width:'19%' }} />
-                <col style={{ width:106 }} />
+                <col style={{ width:148 }} />
                 <col style={{ width:118 }} />
                 <col />
                 <col style={{ width:'18%' }} />
@@ -1548,17 +1548,26 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
                         {row.agency && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.agency.company_name || row.agency.name}</p>}
                       </td>
 
-                      {/* Status */}
+                      {/* Status — segmented control */}
                       <td style={{ padding:'5px 6px' }}>
-                        <div style={{ position:'relative' }}>
-                          <input value={row.statusInput}
-                            onChange={e => { upd(rid, { statusInput: e.target.value }); setOpenDrop(d => d?.rid===rid&&d?.field==='status' ? {...d,hover:0} : d) }}
-                            onFocus={e => openDropFor(e, rid, 'status')}
-                            onBlur={() => restoreOnBlur(rid, 'status')}
-                            onKeyDown={e => handleKey(e, rid, 'status')}
-                            placeholder="Status…" className="fi"
-                            style={{ ...cellInput, paddingRight:22 }} />
-                          <span style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', width:8, height:8, borderRadius:'50%', background: ENROLLMENT_STATUS_OPTS.find(o=>o.value===row.status)?.color || '#94a3b8', pointerEvents:'none', flexShrink:0 }} />
+                        <div style={{ display:'flex', background:'#f1f5f9', borderRadius:7, padding:2, gap:1 }}>
+                          {ENROLLMENT_STATUS_OPTS.filter(o => o.value !== 'cancelado').map(opt => {
+                            const sel = row.status === opt.value
+                            return (
+                              <button key={opt.value} type="button"
+                                onClick={() => upd(rid, { status: opt.value, statusInput: opt.label })}
+                                title={opt.label}
+                                style={{ flex:1, padding:'4px 0', borderRadius:5, border:'none', cursor:'pointer', fontFamily:'inherit',
+                                  fontSize:11, fontWeight: sel ? 700 : 400, transition:'all .12s',
+                                  background: sel ? '#fff' : 'transparent',
+                                  color: sel ? opt.color : '#94a3b8',
+                                  boxShadow: sel ? `0 1px 3px rgba(0,0,0,.10)` : 'none',
+                                  display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}>
+                                <span style={{ width:6, height:6, borderRadius:'50%', background: sel ? opt.color : '#cbd5e1', flexShrink:0 }} />
+                                {opt.label.slice(0,4)}.
+                              </button>
+                            )
+                          })}
                         </div>
                       </td>
 
