@@ -2996,7 +2996,9 @@ function FeederLegsModal({ listId, airport, onClose }) {
                   origin_airport_data: last.destination_airport_data,
                   departure_date: last.arrival_date || '',
                   departure_time: last.arrival_time ? last.arrival_time.slice(0,5) : '',
-                } : null,
+                } : {
+                  origin_airport_data: airport,
+                },
               })
             }}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
