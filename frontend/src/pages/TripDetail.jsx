@@ -12,6 +12,7 @@ import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
 import { Ic } from '../components/Icon'
 import AirlinePicker from '../components/AirlinePicker'
+import CpfInput from '../components/CpfInput'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -1624,6 +1625,9 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
 
 /* ── Popup para atribuir passageiro a um bloco ── */
 function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }) {
+  const navigate = useNavigate()
+
+  // ── Busca passageiro existente ──
   const [search,    setSearch]    = useState('')
   const [results,   setResults]   = useState([])
   const [searching, setSearching] = useState(false)
@@ -1632,7 +1636,13 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
   const [open,      setOpen]      = useState(false)
   const [dropPos,   setDropPos]   = useState({})
   const inputRef = useRef(null)
-  const debRef = useRef(null)
+  const debRef   = useRef(null)
+
+  // ── Cadastrar novo ──
+  const [mode,       setMode]       = useState('assign') // 'assign' | 'new'
+  const [cpf,        setCpf]        = useState('')
+  const [cpfError,   setCpfError]   = useState('')
+  const [cpfChecking,setCpfChecking]= useState(false)
 
   const handleSearch = (q) => {
     setSearch(q); setSelected(null); setOpen(true)
@@ -1660,63 +1670,156 @@ function AssignPassengerPopup({ enrollment, listId, enrolled, onSaved, onClose }
     if (!selected) return
     setSaving(true)
     try {
-      await listsApi.updatePassenger(listId, enrollment.id, { passenger: selected.id })
-      toast.success(`${selected.full_name} atribuído ao bloco.`)
+      await listsApi.updatePassenger(listId, enrollment.id, { passenger: selected.id, is_provisional: false })
+      toast.success(`${selected.full_name} vinculado.`)
       onSaved(); onClose()
     } catch (err) {
       toast.error(err.response?.data?.error ?? 'Erro ao atribuir.')
     } finally { setSaving(false) }
   }
 
+  const handleUnlink = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, { passenger: null })
+      toast.success('Passageiro desvinculado.')
+      onSaved(); onClose()
+    } catch (err) {
+      toast.error(err.response?.data?.error ?? 'Erro ao desvincular.')
+    } finally { setSaving(false) }
+  }
+
+  const validateCpf = (c) => {
+    const d = c.replace(/\D/g, '')
+    if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false
+    let s = 0
+    for (let i = 0; i < 9; i++) s += +d[i] * (10 - i)
+    let r = (s * 10) % 11; if (r === 10 || r === 11) r = 0
+    if (r !== +d[9]) return false
+    s = 0
+    for (let i = 0; i < 10; i++) s += +d[i] * (11 - i)
+    r = (s * 10) % 11; if (r === 10 || r === 11) r = 0
+    return r === +d[10]
+  }
+
+  const handleGoNew = async () => {
+    const digits = cpf.replace(/\D/g, '')
+    if (digits.length !== 11) { setCpfError('Digite o CPF completo (11 dígitos).'); return }
+    if (!validateCpf(cpf))    { setCpfError('CPF inválido. Verifique os dígitos.'); return }
+    setCpfChecking(true); setCpfError('')
+    try {
+      const r = await passengersApi.checkCpf(cpf)
+      if (r.data.exists) {
+        setCpfError(`CPF já cadastrado: ${r.data.name}. Busque pelo nome acima.`)
+        setCpfChecking(false); return
+      }
+      navigate(`/passageiros/novo?cpf=${encodeURIComponent(digits)}`)
+    } catch { setCpfError('Erro ao verificar CPF. Tente novamente.') }
+    finally { setCpfChecking(false) }
+  }
+
+  const isProvisional = enrollment.is_provisional
+  const hasPassenger  = !!enrollment.passenger
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:460, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
-        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:480, boxShadow:'0 32px 80px rgba(0,0,0,.25)', display:'flex', flexDirection:'column' }}>
+
+        {/* Header */}
+        <div className="mhead">
           <div>
-            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Atribuir passageiro ao bloco</p>
-            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>Agência: {enrollment.block_agency}</p>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>
+              {isProvisional ? 'Vincular passageiro' : 'Atribuir passageiro ao bloco'}
+            </p>
+            <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>
+              {isProvisional ? `Reserva provisória: ${enrollment.block_agency}` : `Agência: ${enrollment.block_agency}`}
+            </p>
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
         </div>
-        <div style={{ padding:'18px 22px 20px', display:'flex', flexDirection:'column', gap:14 }}>
-          <div>
-            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>Passageiro</label>
-            <div style={{ position:'relative' }}>
-              <input ref={inputRef} value={search} onChange={e => handleSearch(e.target.value)}
-                onFocus={handleFocus}
-                onBlur={() => setTimeout(() => setOpen(false), 200)}
-                autoComplete="new-password"
-                placeholder="Buscar por nome, CPF ou e-mail…"
-                style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:`1.5px solid ${selected ? '#16a34a' : '#e2e8f0'}`, borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }} />
-              {open && (
-                <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
-                  {searching
-                    ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
-                    : results.length === 0
-                    ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Nenhum resultado.</p>
-                    : results.map(p => (
-                      <div key={p.id}
-                        style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#f0fdf4' : 'transparent' }}
-                        onMouseDown={() => { setSelected(p); setSearch(p.full_name); setOpen(false) }}
-                        onMouseEnter={ev => { if (selected?.id!==p.id) ev.currentTarget.style.background='#f8fafc' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#f0fdf4' : 'transparent' }}>
-                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
-                        <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
-                      </div>
-                    ))}
+
+        {/* Tabs */}
+        <div style={{ display:'flex', borderBottom:'1.5px solid #e2e8f0' }}>
+          {[{k:'assign', label:'Buscar cadastrado'}, {k:'new', label:'Cadastrar novo'}].map(t => (
+            <button key={t.k} type="button" onClick={() => { setMode(t.k); setCpfError('') }}
+              style={{ flex:1, padding:'11px 0', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight: mode===t.k ? 600 : 400, fontSize:13,
+                color: mode===t.k ? '#1a2d4f' : '#94a3b8', background:'transparent',
+                borderBottom: mode===t.k ? '2px solid #1a2d4f' : '2px solid transparent', marginBottom:'-1.5px' }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+          {mode === 'assign' && (
+            <>
+              <div className="ff" style={{ margin:0 }}>
+                <label className="fl">Passageiro</label>
+                <input ref={inputRef} value={search} onChange={e => handleSearch(e.target.value)}
+                  onFocus={handleFocus} onBlur={() => setTimeout(() => setOpen(false), 200)}
+                  autoComplete="new-password" placeholder="Buscar por nome, CPF ou e-mail…" className="fi" />
+                {open && createPortal(
+                  <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:9999, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+                    {searching
+                      ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Buscando…</p>
+                      : results.length === 0
+                      ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'12px 0', margin:0 }}>Nenhum resultado.</p>
+                      : results.map(p => (
+                        <div key={p.id}
+                          style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: selected?.id===p.id ? '#f0fdf4' : 'transparent' }}
+                          onMouseDown={() => { setSelected(p); setSearch(p.full_name); setOpen(false) }}
+                          onMouseEnter={ev => { if (selected?.id!==p.id) ev.currentTarget.style.background='#f8fafc' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.background = selected?.id===p.id ? '#f0fdf4' : 'transparent' }}>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
+                          <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
+                        </div>
+                      ))}
+                  </div>,
+                  document.body
+                )}
+                {selected && <p style={{ margin:'5px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selected.full_name} selecionado</p>}
+              </div>
+
+              {hasPassenger && (
+                <div style={{ padding:'10px 14px', background:'#fff7ed', borderRadius:8, border:'1px solid #fed7aa', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+                  <p style={{ margin:0, fontSize:12, color:'#92400e' }}>Passageiro atual: <strong>{enrollment.passenger_name}</strong></p>
+                  <button type="button" onClick={handleUnlink} disabled={saving}
+                    style={{ padding:'4px 12px', borderRadius:6, border:'1.5px solid #fb923c', background:'#fff', color:'#ea580c', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                    Desvincular
+                  </button>
                 </div>
               )}
+            </>
+          )}
+
+          {mode === 'new' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <p style={{ margin:0, fontSize:13, color:'#475569' }}>Informe o CPF do novo passageiro para iniciar o cadastro.</p>
+              <div className="ff" style={{ margin:0 }}>
+                <label className="fl">CPF</label>
+                <CpfInput value={cpf} onChange={v => { setCpf(v); setCpfError('') }} />
+                {cpfError && <p style={{ margin:'5px 0 0', fontSize:12, color:'#dc2626' }}>{cpfError}</p>}
+              </div>
             </div>
-            {selected && <p style={{ margin:'6px 0 0', fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {selected.full_name} selecionado</p>}
-          </div>
+          )}
+
         </div>
-        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
-          <button onClick={onClose} style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
-          <button onClick={handleAssign} disabled={!selected || saving}
-            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !selected||saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !selected||saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
-            {saving ? 'Atribuindo…' : 'Atribuir passageiro'}
-          </button>
+
+        {/* Footer */}
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+          {mode === 'assign'
+            ? <button className="btn btn-primary" onClick={handleAssign} disabled={!selected || saving}
+                style={{ opacity: !selected||saving ? .5 : 1 }}>
+                {saving ? 'Vinculando…' : 'Vincular passageiro'}
+              </button>
+            : <button className="btn btn-primary" onClick={handleGoNew} disabled={cpfChecking}
+                style={{ opacity: cpfChecking ? .5 : 1 }}>
+                {cpfChecking ? 'Verificando…' : 'Ir para cadastro →'}
+              </button>
+          }
         </div>
       </div>
     </div>
