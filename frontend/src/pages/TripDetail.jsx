@@ -2921,7 +2921,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 60px 1fr 100px 52px 40px 130px 130px 120px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 60px 1fr 100px 52px 40px 115px 105px 105px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 115px 105px 105px 102px', columnGap:8, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {/* Checkbox select-all */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
               <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -2941,7 +2941,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
               {h:'Agência',   align:'left'},
               {h:'Ações',     align:'center'},
             ].map(({h, align}, i) => (
-              <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: align }}>{h}</span>
+              <span key={i} style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: align }}>{h}</span>
             ))}
           </div>
 
@@ -3086,7 +3086,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 60px 1fr 100px 52px 40px 130px 130px 120px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 60px 1fr 100px 52px 40px 115px 105px 105px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 115px 105px 105px 102px', columnGap:8, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -3097,7 +3097,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                     </div>
 
                     {/* Nº */}
-                    <span style={{ textAlign:'center', fontSize:12, fontWeight:600, color:'#94a3b8' }}>{seqMap[e.id] ?? '—'}</span>
+                    <span style={{ textAlign:'center', fontSize:13, fontWeight:600, color:'#94a3b8' }}>{seqMap[e.id] ?? '—'}</span>
 
                     {/* Status — clique abre popup com Confirmado / Pendente / Cancelado */}
                     <EnrollmentStatusDot value={e.enrollment_status} onClick={() => setStatusModal(e)} />
@@ -3162,27 +3162,27 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                           onClick={() => setAssignBlk(e)}>
                           {e.is_provisional ? (
                             <>
-                              <span style={{ fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.block_agency}</span>
-                              <span title="Passageiro não cadastrado — clique para vincular" style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0, cursor:'pointer' }}>⚠ vincular</span>
+                              <span style={{ fontSize:14, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.block_agency}</span>
+                              <span title="Passageiro não cadastrado — clique para vincular" style={{ fontSize:11, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0, cursor:'pointer' }}>⚠ vincular</span>
                             </>
                           ) : (
                             <>
-                              <span style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0 }}>VAGA</span>
-                              <span style={{ fontSize:12, color:'#78350f', fontStyle:'italic' }}>Clique para atribuir passageiro</span>
+                              <span style={{ fontSize:11, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0 }}>VAGA</span>
+                              <span style={{ fontSize:13, color:'#78350f', fontStyle:'italic' }}>Clique para atribuir passageiro</span>
                             </>
                           )}
                         </div>
                       ) : (
                         <>
                           <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
-                            style={{ margin:0, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer',
+                            style={{ margin:0, fontSize:14, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer',
                               color:     e.enrollment_status === 'pendente' ? '#92400e' : '#1e293b',
                               fontStyle: e.enrollment_status === 'pendente' ? 'italic'  : 'normal',
                             }}>
                             {e.passenger_name}
                           </p>
                           {isCancelled && e.notes && (
-                            <p title={e.notes} style={{ margin:'2px 0 0', fontSize:11, color:'#b91c1c', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            <p title={e.notes} style={{ margin:'2px 0 0', fontSize:12, color:'#b91c1c', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                               💬 {e.notes}
                             </p>
                           )}
@@ -3195,37 +3195,37 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       <span onClick={() => copy(birth)} title="Aniversário durante a viagem — clique para copiar"
                         style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, cursor:'pointer' }}>
                         <span style={{ width:6, height:6, borderRadius:'50%', background:'#ec4899', flexShrink:0 }}/>
-                        <span style={{ fontSize:13, fontWeight:600, color:'#be185d' }}>{birth}</span>
+                        <span style={{ fontSize:14, fontWeight:600, color:'#be185d' }}>{birth}</span>
                         <span style={{ width:6, height:6, borderRadius:'50%', background:'#ec4899', flexShrink:0 }}/>
                       </span>
                     ) : (
                       <span onClick={() => copy(birth)} title="Clique para copiar"
-                        style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : birth}</span>
+                        style={{ fontSize:13, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : birth}</span>
                     )}
 
                     {/* Nac. */}
                     <div style={{ display:'flex', justifyContent:'center' }}>
                       {e.is_block
-                        ? <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
+                        ? <span style={{ fontSize:12, color:'#cbd5e1' }}>—</span>
                         : <span onClick={() => copy(e.passenger_nationality)} title="Clique para copiar"
-                            style={{ fontSize:11, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4, cursor:'pointer' }}>{nat}</span>
+                            style={{ fontSize:12, fontWeight:600, color:'#475569', background:'#f1f5f9', padding:'2px 6px', borderRadius:4, cursor:'pointer' }}>{nat}</span>
                       }
                     </div>
 
                     {/* Gênero */}
                     <span onClick={() => copy(e.passenger_gender)} title="Clique para copiar"
-                      style={{ fontSize:12, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : gen}</span>
+                      style={{ fontSize:13, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : gen}</span>
 
                     {/* Passaporte(s) — número + sigla do país, até 2 */}
                     <span style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1, overflow:'hidden' }}>
                       {e.is_block || passports.length === 0 ? (
-                        <span style={{ fontSize:12, color:'#475569' }}>—</span>
+                        <span style={{ fontSize:13, color:'#475569' }}>—</span>
                       ) : passports.map((p, pi) => (
                         <span key={pi} onClick={() => copy(p.number)} title="Clique para copiar"
-                          style={{ fontSize:11.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
+                          style={{ fontSize:12.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
                           {p.number}
                           {p.country && (
-                            <span style={{ fontSize:9.5, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{p.country.toUpperCase()}</span>
+                            <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{p.country.toUpperCase()}</span>
                           )}
                         </span>
                       ))}
@@ -3233,11 +3233,11 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
                     {/* CPF */}
                     <span onClick={() => copy(e.passenger_cpf)} title="Clique para copiar"
-                      style={{ fontSize:12, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : cpf}</span>
+                      style={{ fontSize:13, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : cpf}</span>
 
                     {/* Agência */}
                     <span onClick={() => copy(e.agency_name)} title="Clique para copiar"
-                      style={{ fontSize:11, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
+                      style={{ fontSize:12, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
                       {e.agency_name || '—'}
                     </span>
 
