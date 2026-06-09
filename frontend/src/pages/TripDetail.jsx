@@ -3078,6 +3078,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const isAereo = listType === 'aereo'
 
   const allSelected = enrolled.length > 0 && selected.size === enrolled.length
+  const allGroupsCollapsed = groups.length > 0 && groups.every(g => collapsed.has(g.key))
 
   return (
     <div>
@@ -3090,6 +3091,15 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
           )}
         </span>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {/* Toggle sanfona — recolher/expandir todos os grupos */}
+          <button type="button"
+            title={allGroupsCollapsed ? 'Expandir todas as seções' : 'Recolher todas as seções'}
+            onClick={() => setCollapsed(allGroupsCollapsed ? new Set() : new Set(groups.map(g => g.key)))}
+            style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:8, border:'1.5px solid #e2e8f0', background: allGroupsCollapsed ? '#f1f5f9' : '#fff', color: allGroupsCollapsed ? '#475569' : '#94a3b8', cursor:'pointer', fontSize:13, transition:'all .12s', flexShrink:0 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#94a3b8'; e.currentTarget.style.color='#475569' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color = allGroupsCollapsed ? '#475569' : '#94a3b8' }}>
+            {allGroupsCollapsed ? '▸' : '▾'}
+          </button>
           <button type="button" onClick={() => setRoomsModal(true)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             🛏 Gerenciar acomodações
