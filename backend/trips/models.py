@@ -160,6 +160,7 @@ class ListEnrollment(models.Model):
     # Bloqueio de agência (sem passageiro definido)
     is_block         = models.BooleanField('É bloqueio', default=False)
     block_agency     = models.CharField('Agência (bloqueio)', max_length=200, blank=True)
+    is_provisional   = models.BooleanField('É provisório', default=False)
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
     enrollment_status  = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente')
     pending_until      = models.DateField('Pendente até', null=True, blank=True)

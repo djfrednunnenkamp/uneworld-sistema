@@ -1320,6 +1320,7 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
         if (row.passenger.provisional) {
           await listsApi.addPassenger(listId, {
             is_block: true,
+            is_provisional: true,
             block_agency: row.passenger.full_name,
             block_quantity: 1,
             agency: row.agency?.id || null,
@@ -1327,7 +1328,7 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
             enrollment_status: row.status,
             pending_until: row.status !== 'confirmado' ? (row.prazo || null) : null,
             pending_reason: row.status !== 'confirmado' ? row.notes : '',
-            notes: 'Passageiro provisório — vincular quando cadastrado.',
+            notes: row.notes || '',
             ...(roomName ? { accommodation: roomName } : {}),
           })
         } else {
@@ -2912,8 +2913,17 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       {e.is_block ? (
                         <div style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}
                           onClick={() => setAssignBlk(e)}>
-                          <span style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0 }}>VAGA</span>
-                          <span style={{ fontSize:12, color:'#78350f', fontStyle:'italic' }}>Clique para atribuir passageiro</span>
+                          {e.is_provisional ? (
+                            <>
+                              <span style={{ fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.block_agency}</span>
+                              <span title="Passageiro não cadastrado — clique para vincular" style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0, cursor:'pointer' }}>⚠ vincular</span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ fontSize:10, fontWeight:700, background:'#fef3c7', color:'#92400e', padding:'1px 6px', borderRadius:4, flexShrink:0 }}>VAGA</span>
+                              <span style={{ fontSize:12, color:'#78350f', fontStyle:'italic' }}>Clique para atribuir passageiro</span>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <>

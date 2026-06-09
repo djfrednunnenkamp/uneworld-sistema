@@ -225,7 +225,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'passenger', 'agency', 'agency_name',
             'responsible_user', 'responsible_user_name',
-            'is_block', 'block_agency',
+            'is_block', 'block_agency', 'is_provisional',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
