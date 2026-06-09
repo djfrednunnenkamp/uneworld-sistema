@@ -944,35 +944,86 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
             </>
           ) : (
             /* Aba Documentos */
-            docs.length === 0
-              ? <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '40px 0' }}>Nenhum documento enviado.</p>
-              : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                      {['#', 'Tipo', 'Frente', 'Verso'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {docs.map(doc => (
-                      <tr key={doc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '8px 8px', color: '#94a3b8', fontWeight: 700 }}>{doc.id}</td>
-                        <td style={{ padding: '8px 8px', color: '#1e293b' }}>{doc.display_name || doc.doc_type_label || doc.doc_type}</td>
-                        <td style={{ padding: '8px 8px' }}>
+            (() => {
+              const today = new Date(); today.setHours(0,0,0,0)
+              const tripRef = startDate ? new Date(startDate + 'T00:00:00') : null
+
+              const DOC_ICON = { passport:'🛂', rg:'🪪', cnh:'🚗', visa:'📋', vaccine:'💉', default:'📄' }
+
+              const fmtDate = (iso) => {
+                if (!iso) return null
+                const [y, m, d] = iso.split('-')
+                return `${d}/${m}/${y}`
+              }
+
+              const expiryBadge = (iso) => {
+                if (!iso) return null
+                const exp = new Date(iso + 'T00:00:00')
+                const daysToday = Math.ceil((exp - today) / 86400000)
+                if (daysToday < 0) return { label: `Vencido há ${Math.abs(daysToday)}d`, color: '#dc2626', bg: '#fef2f2' }
+                if (tripRef) {
+                  const daysTrip = Math.ceil((exp - tripRef) / 86400000)
+                  if (daysTrip < 0)   return { label: 'Vence antes da viagem!', color: '#dc2626', bg: '#fef2f2' }
+                  if (daysTrip < 365) return { label: `Vence em ${daysTrip}d após viagem`, color: '#f59e0b', bg: '#fffbeb' }
+                  const months = Math.floor(daysTrip / 30)
+                  return { label: months >= 24 ? `${Math.floor(months/12)} anos após viagem` : `${months} meses após viagem`, color: '#16a34a', bg: '#f0fdf4' }
+                }
+                if (daysToday < 180) return { label: `${daysToday}d restantes`, color: '#f59e0b', bg: '#fffbeb' }
+                const months = Math.floor(daysToday / 30)
+                return { label: months >= 24 ? `${Math.floor(months/12)} anos` : `${months} meses`, color: '#16a34a', bg: '#f0fdf4' }
+              }
+
+              return docs.length === 0
+                ? <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '40px 0' }}>Nenhum documento enviado.</p>
+                : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {docs.map(doc => {
+                      const badge = expiryBadge(doc.expiry_date)
+                      const icon = DOC_ICON[doc.doc_type] || DOC_ICON.default
+                      const label = doc.display_name || doc.doc_type_label || doc.doc_type
+                      return (
+                        <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: `1px solid ${badge?.color === '#dc2626' ? '#fecaca' : '#e2e8f0'}`, background: badge?.color === '#dc2626' ? '#fff8f8' : '#fff' }}>
+                          {/* Thumbnail */}
+                          <div style={{ width: 52, height: 40, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
+                            {doc.preview_url
+                              ? <img src={doc.preview_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <span style={{ fontSize: 22 }}>{icon}</span>
+                            }
+                          </div>
+
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+                            {doc.doc_number && (
+                              <div style={{ fontSize: 12, color: '#475569', fontFamily: 'monospace', marginTop: 1 }}>Nº {doc.doc_number}</div>
+                            )}
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                              {fmtDate(doc.issued_date) ? `Emissão: ${fmtDate(doc.issued_date)}` : 'Sem data de emissão'}
+                              {fmtDate(doc.expiry_date) ? ` · Validade: ${fmtDate(doc.expiry_date)}` : ''}
+                            </div>
+                          </div>
+
+                          {/* Badge prazo */}
+                          {badge && (
+                            <span style={{ fontSize: 10, fontWeight: 700, flexShrink: 0, color: badge.color, background: badge.bg, padding: '2px 7px', borderRadius: 10, border: `1px solid ${badge.color}30`, whiteSpace: 'nowrap' }}>
+                              {badge.label}
+                            </span>
+                          )}
+
+                          {/* Abrir */}
                           <a href={doc.download_url} target="_blank" rel="noreferrer"
-                            style={{ color: '#0ea5e9', textDecoration: 'none', fontWeight: 500 }}>abrir</a>
-                        </td>
-                        <td style={{ padding: '8px 8px' }}>
-                          <a href={doc.download_url} target="_blank" rel="noreferrer"
-                            style={{ color: '#0ea5e9', textDecoration: 'none', fontWeight: 500 }}>abrir</a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )
+                            title="Abrir arquivo"
+                            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', color: '#64748b', textDecoration: 'none', fontSize: 13, background: '#f8fafc' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b' }}>
+                            ↗
+                          </a>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+            })()
           )}
         </div>
 
