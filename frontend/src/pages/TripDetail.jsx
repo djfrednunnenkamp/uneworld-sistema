@@ -1317,16 +1317,31 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
         roomName = accomType
       }
       for (const row of valid) {
-        await listsApi.addPassenger(listId, {
-          passenger: row.passenger.id,
-          agency: row.agency?.id || null,
-          responsible_user: row.responsible?.user_id || null,
-          enrollment_status: row.status,
-          pending_until: row.status === 'pendente' ? (row.prazo || null) : null,
-          pending_reason: row.status === 'pendente' ? row.notes : '',
-          notes: row.status !== 'pendente' ? row.notes : '',
-          ...(roomName ? { accommodation: roomName } : {}),
-        })
+        if (row.passenger.provisional) {
+          await listsApi.addPassenger(listId, {
+            is_block: true,
+            block_agency: row.passenger.full_name,
+            block_quantity: 1,
+            agency: row.agency?.id || null,
+            responsible_user: row.responsible?.user_id || null,
+            enrollment_status: row.status,
+            pending_until: row.status !== 'confirmado' ? (row.prazo || null) : null,
+            pending_reason: row.status !== 'confirmado' ? row.notes : '',
+            notes: 'Passageiro provisório — vincular quando cadastrado.',
+            ...(roomName ? { accommodation: roomName } : {}),
+          })
+        } else {
+          await listsApi.addPassenger(listId, {
+            passenger: row.passenger.id,
+            agency: row.agency?.id || null,
+            responsible_user: row.responsible?.user_id || null,
+            enrollment_status: row.status,
+            pending_until: row.status !== 'confirmado' ? (row.prazo || null) : null,
+            pending_reason: row.status !== 'confirmado' ? row.notes : '',
+            notes: row.status === 'confirmado' ? '' : row.notes,
+            ...(roomName ? { accommodation: roomName } : {}),
+          })
+        }
       }
       toast.success(`${valid.length} passageiro${valid.length>1?'s':''} adicionado${valid.length>1?'s':''}.`)
       onAdded(); onClose()
@@ -1413,7 +1428,8 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
                           onKeyDown={e => handleKey(e, rid, 'pax')}
                           placeholder="Passageiro…" className="fi"
                           style={{ ...cellInput, borderColor: row.passenger ? '#16a34a' : undefined }} />
-                        {row.passenger && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.passenger.full_name}</p>}
+                        {row.passenger && !row.passenger.provisional && <p style={{ margin:'2px 0 0', fontSize:10, color:'#16a34a', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>✓ {row.passenger.full_name}</p>}
+                        {row.passenger?.provisional && <p style={{ margin:'2px 0 0', fontSize:10, color:'#d97706', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>⚠ provisório — vincular depois</p>}
                       </td>
 
                       {/* Agência */}
@@ -1497,16 +1513,35 @@ function AddPassengerPopup({ listId, enrolled, onAdded, onClose }) {
 
                 if (field === 'pax') {
                   if (row.paxSearching) return DROP_EMPTY('Buscando…')
-                  if (!row.paxResults.length) return DROP_EMPTY('Nenhum passageiro encontrado.')
-                  return row.paxResults.map((p, i) => (
-                    <div key={p.id}
-                      style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: hover===i ? '#eff6ff' : 'transparent' }}
-                      onMouseDown={() => selectItem(rid, 'pax', p)}
-                      onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:i} : d)}>
-                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
-                      <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
-                    </div>
-                  ))
+                  const provIdx = row.paxResults.length
+                  const hasQuery = row.paxSearch.trim().length > 0
+                  return (
+                    <>
+                      {row.paxResults.length === 0 && !hasQuery && DROP_EMPTY('Digite para buscar…')}
+                      {row.paxResults.length === 0 && hasQuery && DROP_EMPTY('Nenhum resultado no cadastro.')}
+                      {row.paxResults.map((p, i) => (
+                        <div key={p.id}
+                          style={{ padding:'8px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: hover===i ? '#eff6ff' : 'transparent' }}
+                          onMouseDown={() => selectItem(rid, 'pax', p)}
+                          onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:i} : d)}>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.full_name}</p>
+                          <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{p.cpf || p.email || '—'}</p>
+                        </div>
+                      ))}
+                      {hasQuery && (
+                        <div
+                          style={{ padding:'9px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:9, background: hover===provIdx ? '#fffbeb' : '#fefce8', borderTop: row.paxResults.length ? '1px solid #fef3c7' : 'none' }}
+                          onMouseDown={() => selectItem(rid, 'pax', { id: null, full_name: row.paxSearch.trim(), provisional: true })}
+                          onMouseEnter={() => setOpenDrop(d => d ? {...d, hover:provIdx} : d)}>
+                          <span style={{ fontSize:14, color:'#d97706', flexShrink:0 }}>⚠</span>
+                          <div>
+                            <p style={{ margin:0, fontSize:13, fontWeight:700, color:'#92400e' }}>Reservar "{row.paxSearch.trim()}" como provisório</p>
+                            <p style={{ margin:0, fontSize:11, color:'#b45309' }}>Vincular ao cadastro do passageiro depois</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
                 }
 
                 if (field === 'ag') {
