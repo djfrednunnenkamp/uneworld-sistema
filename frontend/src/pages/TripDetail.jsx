@@ -2769,26 +2769,24 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
                     {/* ✈ passagem — clicável em listas aéreas */}
                     {isAereo ? (() => {
-                      const ticketColor = ts => ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#b45309' : 'rgb(147,66,171)'
-                      const ticketBg    = ts => ts === 'nao_emitida' ? 'transparent' : ts === 'via_bloqueio' ? '#fef3c7' : '#f5edfb'
-                      const ticketTitle = (ts, num) => ts === 'nao_emitida' ? 'Passagem não emitida' : ts === 'via_bloqueio' ? `Via bloqueio${num ? ' · ' + num : ''}` : `Voo individual${num ? ' · ' + num : ''}`
+                      const tColor = ts => ts === 'nao_emitida' ? '#cbd5e1' : ts === 'via_bloqueio' ? '#f59e0b' : 'rgb(147,66,171)'
+                      const tTitle = (ts, num) => ts === 'nao_emitida' ? 'Não emitida' : ts === 'via_bloqueio' ? `Via bloqueio${num ? ' · ' + num : ''}` : `Voo individual${num ? ' · ' + num : ''}`
                       const ts1 = e.ticket_status || 'nao_emitida'
                       const hasFeederIcon = !e.is_block && e.departure_airport_data && defaultAirport && e.departure_airport_data.id !== defaultAirport.id
                       const ts2 = e.connection_ticket_status || 'nao_emitida'
+                      const TicketIcon = ({ ts, num, size = 13 }) => (
+                        <button type="button" onClick={() => setTicketModal(e)} title={tTitle(ts, num)}
+                          style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:'none', border:'none', cursor:'pointer', padding:'2px 3px', borderRadius:5 }}>
+                          <span style={{ fontSize:size, lineHeight:1, color:tColor(ts) }}>✈</span>
+                          {ts !== 'nao_emitida'
+                            ? <span style={{ width:5, height:5, borderRadius:'50%', background:tColor(ts), flexShrink:0 }}/>
+                            : <span style={{ width:5, height:5 }}/>}
+                        </button>
+                      )
                       return (
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
-                          <button type="button" onClick={() => setTicketModal(e)}
-                            title={ticketTitle(ts1, e.ticket_number)}
-                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:26, height:26, borderRadius:6, border:'none', background:ticketBg(ts1), color:ticketColor(ts1), fontSize:13, cursor:'pointer', padding:0 }}>
-                            ✈
-                          </button>
-                          {hasFeederIcon && (
-                            <button type="button" onClick={() => setTicketModal(e)}
-                              title={`Acesso ${e.departure_airport_data.iata_code || ''}: ${ticketTitle(ts2, e.connection_ticket_number)}`}
-                              style={{ display:'flex', alignItems:'center', justifyContent:'center', width:26, height:26, borderRadius:6, border:`1.5px dashed ${ticketColor(ts2) === '#cbd5e1' ? '#e2e8f0' : ticketColor(ts2)}`, background:ticketBg(ts2), color:ticketColor(ts2), fontSize:11, cursor:'pointer', padding:0 }}>
-                              ✈
-                            </button>
-                          )}
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:3, paddingRight:4 }}>
+                          <TicketIcon ts={ts1} num={e.ticket_number} size={14}/>
+                          {hasFeederIcon && <TicketIcon ts={ts2} num={e.connection_ticket_number} size={11}/>}
                         </div>
                       )
                     })() : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
