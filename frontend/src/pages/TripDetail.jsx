@@ -13,6 +13,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import { Ic } from '../components/Icon'
 import AirlinePicker from '../components/AirlinePicker'
 import CpfInput from '../components/CpfInput'
+import PhoneInput from '../components/PhoneInput'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -534,6 +535,47 @@ function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose })
   )
 }
 
+/* ── Helpers de campo para QuickEditModal — definidos fora para evitar re-mount ao digitar ── */
+const QE_DISABLED_STYLE = { width:'100%', boxSizing:'border-box', padding:'8px 10px', borderRadius:7, fontSize:13, fontFamily:'inherit', border:'1px solid #f1f5f9', background:'#f8fafc', color:'#94a3b8', outline:'none' }
+const QE_INPUT_STYLE    = { width:'100%', boxSizing:'border-box', padding:'8px 10px', borderRadius:7, fontSize:13, fontFamily:'inherit', border:'1px solid #e2e8f0', background:'#fff', color:'#0f172a', outline:'none' }
+
+function QEField({ label, value, onChange, disabled, type = 'text', placeholder }) {
+  return (
+    <div>
+      <label style={LBL}>{label}</label>
+      <input type={type} value={value || ''} placeholder={placeholder || ''}
+        disabled={disabled} onChange={e => onChange && onChange(e.target.value)}
+        style={disabled ? QE_DISABLED_STYLE : QE_INPUT_STYLE} />
+    </div>
+  )
+}
+
+function QEToggle({ label, value, onChange }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0' }}>
+      <span style={{ fontSize:13, color:'#1e293b', fontWeight:500 }}>{label}</span>
+      <button type="button" onClick={() => onChange(!value)}
+        style={{ position:'relative', width:44, height:24, borderRadius:12, border:'none', background: value ? '#1a2d4f' : '#cbd5e1', cursor:'pointer', transition:'background .2s', flexShrink:0, padding:0 }}>
+        <span style={{ position:'absolute', top:2, left: value ? 22 : 2, width:20, height:20, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,.2)', transition:'left .2s', display:'block' }} />
+      </button>
+    </div>
+  )
+}
+
+function QESelect({ label, value, onChange, options, disabled, placeholder = 'Selecione…' }) {
+  return (
+    <div>
+      <label style={LBL}>{label}</label>
+      <select value={value || ''} disabled={disabled}
+        onChange={e => onChange && onChange(e.target.value)}
+        style={{ ...(disabled ? QE_DISABLED_STYLE : QE_INPUT_STYLE), appearance:'auto', paddingRight:10 }}>
+        <option value="">{placeholder}</option>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  )
+}
+
 /* ── Edição rápida do passageiro — popup com 2 abas: Informações e Documentos ── */
 function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
   const passengerId = enrollment.passenger
@@ -586,7 +628,6 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
         rne_expiry:      form.rne_expiry       || null,
         rne_issue:       form.rne_issue        || null,
         phone1:          form.phone1,
-        mobile:          form.mobile,
         seat_preference: form.seat_preference,
       })
       await listsApi.updatePassenger(listId, enrollment.id, { selected_passport: selectedPassport || null })
@@ -597,58 +638,11 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
     finally { setSaving(false) }
   }
 
-  /* ── helpers de campo ── */
-  const fldStyle = (disabled) => ({
-    width: '100%', boxSizing: 'border-box',
-    padding: '8px 10px', borderRadius: 7, fontSize: 13, fontFamily: 'inherit',
-    border: `1px solid ${disabled ? '#f1f5f9' : '#e2e8f0'}`,
-    background: disabled ? '#f8fafc' : '#fff',
-    color: disabled ? '#94a3b8' : '#0f172a',
-    outline: 'none',
-  })
-
-  const Field = ({ label, field, disabled, type = 'text', placeholder }) => (
-    <div>
-      <label style={LBL}>{label}</label>
-      <input type={type} value={(form && form[field]) || ''} placeholder={placeholder || ''}
-        disabled={disabled}
-        onChange={e => upd(field, e.target.value)}
-        style={fldStyle(disabled)} />
-    </div>
-  )
-
-  const Toggle = ({ label, field }) => {
-    const val = form ? !!form[field] : false
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-        <span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{label}</span>
-        <button type="button" onClick={() => upd(field, !val)}
-          style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: val ? '#1a2d4f' : '#cbd5e1', cursor: 'pointer', transition: 'background .2s', flexShrink: 0, padding: 0 }}>
-          <span style={{ position: 'absolute', top: 2, left: val ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.2)', transition: 'left .2s', display: 'block' }} />
-        </button>
-      </div>
-    )
-  }
-
-  const SelectField = ({ label, field, options, disabled, placeholder = 'Selecione…' }) => (
-    <div>
-      <label style={LBL}>{label}</label>
-      <select value={(form && form[field]) || ''} disabled={disabled}
-        onChange={e => upd(field, e.target.value)}
-        style={{ ...fldStyle(disabled), appearance: 'auto', paddingRight: 10 }}>
-        <option value="">{placeholder}</option>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  )
-
   const SEAT_OPTS = [
     { value: 'corredor', label: 'Corredor' },
     { value: 'janela',   label: 'Janela'   },
     { value: 'meio',     label: 'Meio'     },
   ]
-
-  const agencyDisplay = form?.agency_names?.map(a => a.name || a).join(', ') || '—'
 
   const TAB_BTN = (key, label) => (
     <button type="button" key={key} onClick={() => setActiveTab(key)}
@@ -707,15 +701,15 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
                 </div>
               </div>
 
-              <Toggle label="Estrangeiro?" field="is_foreign" />
-              <Toggle label="Cadastro verificado?" field="is_verified" />
+              <QEToggle label="Estrangeiro?" value={!!form?.is_foreign} onChange={v => upd('is_foreign', v)} />
+              <QEToggle label="Cadastro verificado?" value={!!form?.is_verified} onChange={v => upd('is_verified', v)} />
 
-              <Field label="CPF" field="cpf" />
+              <QEField label="CPF" value={form?.cpf} onChange={v => upd('cpf', v)} />
 
               {/* 2 colunas: Nome + Sobrenome */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <Field label="Nome" field="first_name" />
-                <Field label="Sobrenome" field="last_name" />
+                <QEField label="Nome"      value={form?.first_name} onChange={v => upd('first_name', v)} />
+                <QEField label="Sobrenome" value={form?.last_name}  onChange={v => upd('last_name',  v)} />
               </div>
 
               {/* 2 colunas: Nascimento + Gênero */}
@@ -728,8 +722,8 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
                   options={genders.map(g => ({ value: g.name, label: g.name }))} />
               </div>
 
-              <Field label="E-mail" field="email" type="email" />
-              <Field label="Nacionalidade" field="nationality" />
+              <QEField label="E-mail"       value={form?.email}       onChange={v => upd('email',       v)} type="email" />
+              <QEField label="Nacionalidade" value={form?.nationality} onChange={v => upd('nationality', v)} />
 
               {/* RGs registrados nos documentos */}
               {(() => {
@@ -934,19 +928,18 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
                 )
               })()}
 
-              {/* Telefones */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <Field label="Telefone" field="phone1" />
-                <Field label="Celular"  field="mobile" />
+              {/* Telefone */}
+              <div>
+                <label style={LBL}>Telefone</label>
+                <PhoneInput value={form?.phone1 || ''} onChange={v => upd('phone1', v)} />
               </div>
 
-              <SelectField label="Preferência de assento" field="seat_preference" options={SEAT_OPTS} placeholder="Sem preferência" />
+              <QESelect label="Preferência de assento" value={form?.seat_preference} onChange={v => upd('seat_preference', v)} options={SEAT_OPTS} placeholder="Sem preferência" />
 
               {/* Documento de preferência — não está no banco */}
               <div>
                 <label style={LBL}>Documento de preferência</label>
-                <input disabled value="" placeholder="Não disponível nesta versão"
-                  style={fldStyle(true)} />
+                <input disabled value="" placeholder="Não disponível nesta versão" style={QE_DISABLED_STYLE} />
               </div>
             </>
           ) : (
