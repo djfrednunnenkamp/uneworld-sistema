@@ -9,6 +9,7 @@ export const passengersApi = {
   get:      (id)     => api.get(`/passengers/${id}/`),
   create:   (data)   => api.post('/passengers/', data),
   update:   (id, data) => api.put(`/passengers/${id}/`, data),
+  patch:    (id, data) => api.patch(`/passengers/${id}/`, data),
   remove:   (id)     => api.delete(`/passengers/${id}/`),
   checkCpf:  (cpf)  => api.get('/passengers/check-cpf/', { params: { cpf } }),
   agencies:  (id)   => api.get(`/passengers/${id}/agencies/`),

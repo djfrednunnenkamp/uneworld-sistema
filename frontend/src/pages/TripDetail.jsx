@@ -4,7 +4,7 @@ import FormSelect from '../components/FormSelect'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { listsApi, passengersApi, agenciesApi, configApi } from '../api'
+import { listsApi, passengersApi, agenciesApi, configApi, documentsApi } from '../api'
 import DatePicker from '../components/DatePicker'
 import TimePicker from '../components/TimePicker'
 import ListModal from '../components/ListModal'
@@ -534,9 +534,318 @@ function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose })
   )
 }
 
+/* ── Edição rápida do passageiro — popup com 2 abas: Informações e Documentos ── */
+function QuickEditModal({ enrollment, onSaved, onClose }) {
+  const passengerId = enrollment.passenger
+  const [activeTab, setActiveTab] = useState('info')
+  const [form,    setForm]    = useState(null)
+  const [docs,    setDocs]    = useState([])
+  const [genders, setGenders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+
+  useEffect(() => {
+    Promise.all([
+      passengersApi.get(passengerId),
+      documentsApi.list(passengerId),
+      configApi.genders(),
+    ])
+    .then(([pRes, dRes, gRes]) => {
+      setForm(pRes.data)
+      setDocs(dRes.data)
+      setGenders(gRes.data)
+    })
+    .catch(() => toast.error('Erro ao carregar dados do passageiro.'))
+    .finally(() => setLoading(false))
+  }, [passengerId])
+
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSave = async () => {
+    if (!form) return
+    setSaving(true)
+    try {
+      const nameParts = (form.full_name || '').trim().split(/\s+/)
+      await passengersApi.patch(passengerId, {
+        first_name:      nameParts[0] || '',
+        last_name:       nameParts.slice(1).join(' '),
+        email:           form.email,
+        cpf:             form.cpf,
+        rg:              form.rg,
+        rg_issue_date:   form.rg_issue_date   || null,
+        rg_issuer:       form.rg_issuer,
+        birth_date:      form.birth_date       || null,
+        gender:          form.gender,
+        is_foreign:      form.is_foreign,
+        is_verified:     form.is_verified,
+        nationality:     form.nationality,
+        passport:        form.passport,
+        passport_issue:  form.passport_issue   || null,
+        passport_expiry: form.passport_expiry  || null,
+        rne:             form.rne,
+        rne_expiry:      form.rne_expiry       || null,
+        rne_issue:       form.rne_issue        || null,
+        phone1:          form.phone1,
+        mobile:          form.mobile,
+        seat_preference: form.seat_preference,
+      })
+      toast.success('Passageiro atualizado.')
+      onSaved()
+      onClose()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  /* ── helpers de campo ── */
+  const fldStyle = (disabled) => ({
+    width: '100%', boxSizing: 'border-box',
+    padding: '8px 10px', borderRadius: 7, fontSize: 13, fontFamily: 'inherit',
+    border: `1px solid ${disabled ? '#f1f5f9' : '#e2e8f0'}`,
+    background: disabled ? '#f8fafc' : '#fff',
+    color: disabled ? '#94a3b8' : '#0f172a',
+    outline: 'none',
+  })
+
+  const Field = ({ label, field, disabled, type = 'text', placeholder }) => (
+    <div>
+      <label style={LBL}>{label}</label>
+      <input type={type} value={(form && form[field]) || ''} placeholder={placeholder || ''}
+        disabled={disabled}
+        onChange={e => upd(field, e.target.value)}
+        style={fldStyle(disabled)} />
+    </div>
+  )
+
+  const Toggle = ({ label, field, disabled }) => {
+    const val = form ? !!form[field] : false
+    return (
+      <div>
+        <label style={LBL}>{label}</label>
+        <button type="button" disabled={disabled} onClick={() => !disabled && upd(field, !val)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 20, border: 'none',
+            background: val ? '#1a2d4f' : '#e2e8f0',
+            color: val ? '#fff' : '#64748b',
+            fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer',
+            fontFamily: 'inherit', opacity: disabled ? 0.5 : 1,
+          }}>
+          {val ? 'Sim' : 'Não'}
+        </button>
+      </div>
+    )
+  }
+
+  const SelectField = ({ label, field, options, disabled, placeholder = 'Selecione…' }) => (
+    <div>
+      <label style={LBL}>{label}</label>
+      <select value={(form && form[field]) || ''} disabled={disabled}
+        onChange={e => upd(field, e.target.value)}
+        style={{ ...fldStyle(disabled), appearance: 'auto', paddingRight: 10 }}>
+        <option value="">{placeholder}</option>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  )
+
+  const SEAT_OPTS = [
+    { value: 'corredor', label: 'Corredor' },
+    { value: 'janela',   label: 'Janela'   },
+    { value: 'meio',     label: 'Meio'     },
+  ]
+
+  const agencyDisplay = form?.agency_names?.map(a => a.name || a).join(', ') || '—'
+
+  const TAB_BTN = (key, label) => (
+    <button type="button" key={key} onClick={() => setActiveTab(key)}
+      style={{
+        padding: '8px 18px', border: 'none', background: 'transparent',
+        borderBottom: activeTab === key ? '2px solid #1a2d4f' : '2px solid transparent',
+        color: activeTab === key ? '#1a2d4f' : '#94a3b8',
+        fontSize: 13, fontWeight: activeTab === key ? 700 : 500,
+        cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+      }}>
+      {label}
+    </button>
+  )
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 750, padding: 20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,.25)' }}>
+
+        {/* Header */}
+        <div style={{ padding: '18px 22px 0', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Passageiro</p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {enrollment.passenger_name || enrollment.block_agency || '—'}
+              </p>
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 22, lineHeight: 1, padding: 2, flexShrink: 0 }}>×</button>
+          </div>
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 0 }}>
+            {TAB_BTN('info', 'Informações cadastrais')}
+            {TAB_BTN('docs', 'Documentos')}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
+          {loading ? (
+            <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '40px 0' }}>Carregando…</p>
+          ) : activeTab === 'info' ? (
+            <>
+              {/* Agências — somente leitura no popup */}
+              <div>
+                <label style={LBL}>Agências</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 36, alignItems: 'center' }}>
+                  {form?.agency_names?.length > 0
+                    ? form.agency_names.map(a => (
+                        <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 20, fontSize: 12, color: '#475569', fontWeight: 500 }}>
+                          {a.name}
+                        </span>
+                      ))
+                    : <span style={{ fontSize: 13, color: '#94a3b8' }}>Nenhuma agência vinculada</span>
+                  }
+                </div>
+              </div>
+
+              {/* ID do cliente — não está no banco */}
+              <div>
+                <label style={LBL}>ID do cliente</label>
+                <input disabled value="" placeholder="Não disponível nesta versão"
+                  style={fldStyle(true)} />
+              </div>
+
+              {/* 2 colunas: Estrangeiro + Cadastro verificado */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <Toggle label="Estrangeiro?" field="is_foreign" />
+                <Toggle label="Cadastro verificado?" field="is_verified" />
+              </div>
+
+              <Field label="CPF"  field="cpf" />
+              <Field label="Nome" field="full_name" />
+
+              {/* 2 colunas: Nascimento + Gênero */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={LBL}>Data de nascimento</label>
+                  <DatePicker value={form?.birth_date || ''} onChange={v => upd('birth_date', v)} placeholder="DD/MM/AAAA" />
+                </div>
+                <SelectField label="Gênero" field="gender"
+                  options={genders.map(g => ({ value: g.name, label: g.name }))} />
+              </div>
+
+              <Field label="E-mail" field="email" type="email" />
+              <Field label="Nacionalidade" field="nationality" />
+
+              {/* RG */}
+              <Field label="RG" field="rg" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={LBL}>Expedição do RG</label>
+                  <DatePicker value={form?.rg_issue_date || ''} onChange={v => upd('rg_issue_date', v)} placeholder="DD/MM/AAAA" />
+                </div>
+                <Field label="Órgão expedidor do RG" field="rg_issuer" />
+              </div>
+
+              {/* Passaporte */}
+              <Field label="Passaporte" field="passport" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={LBL}>Data de emissão do passaporte</label>
+                  <DatePicker value={form?.passport_issue || ''} onChange={v => upd('passport_issue', v)} placeholder="DD/MM/AAAA" />
+                </div>
+                <div>
+                  <label style={LBL}>Validade do passaporte</label>
+                  <DatePicker value={form?.passport_expiry || ''} onChange={v => upd('passport_expiry', v)} placeholder="DD/MM/AAAA" />
+                </div>
+              </div>
+
+              {/* RNE */}
+              <Field label="RNE" field="rne" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={LBL}>Validade do RNE</label>
+                  <DatePicker value={form?.rne_expiry || ''} onChange={v => upd('rne_expiry', v)} placeholder="DD/MM/AAAA" />
+                </div>
+                <div>
+                  <label style={LBL}>Data de emissão do RNE</label>
+                  <DatePicker value={form?.rne_issue || ''} onChange={v => upd('rne_issue', v)} placeholder="DD/MM/AAAA" />
+                </div>
+              </div>
+
+              {/* Telefones */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <Field label="Telefone" field="phone1" />
+                <Field label="Celular"  field="mobile" />
+              </div>
+
+              <SelectField label="Preferência de assento" field="seat_preference" options={SEAT_OPTS} placeholder="Sem preferência" />
+
+              {/* Documento de preferência — não está no banco */}
+              <div>
+                <label style={LBL}>Documento de preferência</label>
+                <input disabled value="" placeholder="Não disponível nesta versão"
+                  style={fldStyle(true)} />
+              </div>
+            </>
+          ) : (
+            /* Aba Documentos */
+            docs.length === 0
+              ? <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '40px 0' }}>Nenhum documento enviado.</p>
+              : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                      {['#', 'Tipo', 'Frente', 'Verso'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {docs.map(doc => (
+                      <tr key={doc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 8px', color: '#94a3b8', fontWeight: 700 }}>{doc.id}</td>
+                        <td style={{ padding: '8px 8px', color: '#1e293b' }}>{doc.display_name || doc.doc_type_label || doc.doc_type}</td>
+                        <td style={{ padding: '8px 8px' }}>
+                          <a href={doc.download_url} target="_blank" rel="noreferrer"
+                            style={{ color: '#0ea5e9', textDecoration: 'none', fontWeight: 500 }}>abrir</a>
+                        </td>
+                        <td style={{ padding: '8px 8px' }}>
+                          <a href={doc.download_url} target="_blank" rel="noreferrer"
+                            style={{ color: '#0ea5e9', textDecoration: 'none', fontWeight: 500 }}>abrir</a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '0 22px 18px', display: 'flex', gap: 8, justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: 14, flexShrink: 0 }}>
+          <button type="button" onClick={onClose}
+            style={{ padding: '8px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Fechar
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving || loading}
+            style={{ padding: '8px 22px', borderRadius: 8, border: 'none', background: saving || loading ? '#94a3b8' : '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving || loading ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Menu "mais ações" do passageiro — itens já existentes funcionam, os demais aparecem como "Em breve" ── */
 const PASSENGER_ACTIONS = [
-  { key:'quick_edit',  label:'Edição rápida do passageiro', icon:'list',     enabled:false },
+  { key:'quick_edit',  label:'Edição rápida do passageiro', icon:'list',     enabled:true  },
   { key:'edit',        label:'Editar o passageiro',         icon:'edit',     enabled:true  },
   { key:'notes',       label:'Observações',                 icon:'docs',     enabled:true  },
   { key:'extra_info',  label:'Informações adicionais',      icon:'plus',     enabled:false },
@@ -2497,6 +2806,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const [ticketModal,     setTicketModal]     = useState(null)
   // agencyModal: null | enrollment — popup "Vincular agência"
   const [agencyModal,     setAgencyModal]     = useState(null)
+  // quickEditModal: null | enrollment — popup "Edição rápida do passageiro"
+  const [quickEditModal,  setQuickEditModal]  = useState(null)
   // filterSearch — filtro de pesquisa na tabela de passageiros
   const [filterSearch,    setFilterSearch]    = useState('')
 
@@ -2618,6 +2929,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const handlePassengerAction = (action, enrollment) => {
     setActionsModal(null)
     switch (action) {
+      case 'quick_edit':
+        if (enrollment.passenger) setQuickEditModal(enrollment)
+        break
       case 'edit':
         if (enrollment.passenger) {
           // Sempre abrir na aba "Informações do cliente" — a aba persistida pode estar em "Documentos"
@@ -3193,6 +3507,15 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
           defaultAirport={defaultAirport}
           onSaved={load}
           onClose={() => setBoardingModal(null)}
+        />
+      )}
+
+      {/* Popup Edição rápida do passageiro */}
+      {quickEditModal && (
+        <QuickEditModal
+          enrollment={quickEditModal}
+          onSaved={load}
+          onClose={() => setQuickEditModal(null)}
         />
       )}
 
