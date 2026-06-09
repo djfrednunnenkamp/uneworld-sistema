@@ -1372,39 +1372,39 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
         {/* Body */}
         <div className="mbody" style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-          {/* Acomodação — 3 opções */}
+          {/* Acomodação — segmented control */}
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            <p style={{ margin:0, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>Acomodação</p>
-            <div style={{ display:'flex', gap:8 }}>
+            <div style={{ display:'inline-flex', background:'#f1f5f9', borderRadius:8, padding:3, gap:2 }}>
               {[
-                { k:'none',     icon:'—',  label:'Sem acomodação',      desc:'Atribuir depois'         },
-                { k:'new',      icon:'+',  label:'Nova acomodação',      desc:'Criar um novo quarto'    },
-                { k:'existing', icon:'→',  label:'Acomodação existente', desc:'Adicionar a quarto atual' },
+                { k:'none',     label:'Sem acomodação'      },
+                { k:'new',      label:'Nova acomodação'      },
+                { k:'existing', label:'Acomodação existente' },
               ].map(opt => {
                 const sel = accomMode === opt.k
                 return (
                   <button key={opt.k} type="button" onClick={() => setAccomMode(opt.k)}
-                    style={{ flex:1, padding:'10px 8px', borderRadius:10, border:`1.5px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`,
-                      background: sel ? '#f0f4ff' : '#fafafa', cursor:'pointer', fontFamily:'inherit', textAlign:'left', transition:'all .12s' }}>
-                    <p style={{ margin:0, fontSize:18, lineHeight:1, color: sel ? '#1a2d4f' : '#94a3b8' }}>{opt.icon}</p>
-                    <p style={{ margin:'5px 0 1px', fontSize:12, fontWeight:700, color: sel ? '#1a2d4f' : '#475569' }}>{opt.label}</p>
-                    <p style={{ margin:0, fontSize:10, color:'#94a3b8' }}>{opt.desc}</p>
+                    style={{ padding:'6px 14px', borderRadius:6, border:'none', cursor:'pointer', fontFamily:'inherit',
+                      fontSize:12.5, fontWeight: sel ? 600 : 400, transition:'all .15s',
+                      background: sel ? '#fff' : 'transparent',
+                      color: sel ? '#1a2d4f' : '#94a3b8',
+                      boxShadow: sel ? '0 1px 4px rgba(0,0,0,.10)' : 'none' }}>
+                    {opt.label}
                   </button>
                 )
               })}
             </div>
 
             {accomMode === 'new' && (
-              <select value={accomType} onChange={e => setAccomType(e.target.value)} className="fi" style={{ marginTop:2 }}>
-                <option value="">Selecione o tipo de acomodação…</option>
+              <select value={accomType} onChange={e => setAccomType(e.target.value)} className="fi">
+                <option value="">Selecione o tipo…</option>
                 {accomTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
               </select>
             )}
 
             {accomMode === 'existing' && (
-              <select value={existingRoom} onChange={e => setExistingRoom(e.target.value)} className="fi" style={{ marginTop:2 }}>
+              <select value={existingRoom} onChange={e => setExistingRoom(e.target.value)} className="fi">
                 <option value="">Selecione o quarto…</option>
-                {existingRooms.map(r => <option key={r.id} value={r.name}>{r.name}{r.occupant_count != null ? ` (${r.occupant_count} pax)` : ''}</option>)}
+                {existingRooms.map(r => <option key={r.id} value={r.name}>{r.name}{r.occupant_count != null ? ` · ${r.occupant_count} pax` : ''}</option>)}
               </select>
             )}
           </div>
