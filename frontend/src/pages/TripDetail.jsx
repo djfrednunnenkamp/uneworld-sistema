@@ -1470,15 +1470,28 @@ function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdde
                   const q = existingRoomInput.toLowerCase()
                   const items = existingRooms.filter(r => r.name.toLowerCase().includes(q))
                   if (!items.length) return <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Nenhum quarto encontrado.</p>
-                  return items.map((r, i) => (
-                    <div key={r.id}
-                      style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: accomDrop.hover===i ? '#eff6ff' : 'transparent' }}
-                      onMouseDown={() => { setExistingRoom(r.name); setExistingRoomInput(r.name); setAccomDrop(null) }}
-                      onMouseEnter={() => setAccomDrop(d => d ? {...d, hover:i} : d)}>
-                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{r.name}</p>
-                      {r.occupant_count != null && <p style={{ margin:0, fontSize:11, color:'#94a3b8' }}>{r.occupant_count} passageiro{r.occupant_count!==1?'s':''}</p>}
-                    </div>
-                  ))
+                  return items.map((r, i) => {
+                    const occupants = enrolled.filter(e => e.accommodation === r.name && e.enrollment_status !== 'cancelado')
+                    const names = occupants.map(e => e.passenger_name || e.block_agency).filter(Boolean)
+                    return (
+                      <div key={r.id}
+                        style={{ padding:'9px 14px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background: accomDrop.hover===i ? '#eff6ff' : 'transparent' }}
+                        onMouseDown={() => { setExistingRoom(r.name); setExistingRoomInput(r.name); setAccomDrop(null) }}
+                        onMouseEnter={() => setAccomDrop(d => d ? {...d, hover:i} : d)}>
+                        <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b' }}>{r.name}</p>
+                          <span style={{ fontSize:11, color:'#94a3b8' }}>{occupants.length} passageiro{occupants.length!==1?'s':''}</span>
+                        </div>
+                        {names.length > 0 && (
+                          <div style={{ marginTop:4, display:'flex', flexWrap:'wrap', gap:4 }}>
+                            {names.map((n, ni) => (
+                              <span key={ni} style={{ fontSize:11, color:'#475569', background:'#f1f5f9', padding:'1px 7px', borderRadius:10 }}>{n}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
                 })()}
               </div>,
               document.body
