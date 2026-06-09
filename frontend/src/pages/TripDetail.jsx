@@ -565,10 +565,9 @@ function QuickEditModal({ enrollment, onSaved, onClose }) {
     if (!form) return
     setSaving(true)
     try {
-      const nameParts = (form.full_name || '').trim().split(/\s+/)
       await passengersApi.patch(passengerId, {
-        first_name:      nameParts[0] || '',
-        last_name:       nameParts.slice(1).join(' '),
+        first_name:      form.first_name || '',
+        last_name:       form.last_name  || '',
         email:           form.email,
         cpf:             form.cpf,
         rg:              form.rg,
@@ -616,21 +615,14 @@ function QuickEditModal({ enrollment, onSaved, onClose }) {
     </div>
   )
 
-  const Toggle = ({ label, field, disabled }) => {
+  const Toggle = ({ label, field }) => {
     const val = form ? !!form[field] : false
     return (
-      <div>
-        <label style={LBL}>{label}</label>
-        <button type="button" disabled={disabled} onClick={() => !disabled && upd(field, !val)}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px', borderRadius: 20, border: 'none',
-            background: val ? '#1a2d4f' : '#e2e8f0',
-            color: val ? '#fff' : '#64748b',
-            fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer',
-            fontFamily: 'inherit', opacity: disabled ? 0.5 : 1,
-          }}>
-          {val ? 'Sim' : 'Não'}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+        <span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{label}</span>
+        <button type="button" onClick={() => upd(field, !val)}
+          style={{ position: 'relative', width: 44, height: 24, borderRadius: 12, border: 'none', background: val ? '#1a2d4f' : '#cbd5e1', cursor: 'pointer', transition: 'background .2s', flexShrink: 0, padding: 0 }}>
+          <span style={{ position: 'absolute', top: 2, left: val ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.2)', transition: 'left .2s', display: 'block' }} />
         </button>
       </div>
     )
@@ -713,21 +705,16 @@ function QuickEditModal({ enrollment, onSaved, onClose }) {
                 </div>
               </div>
 
-              {/* ID do cliente — não está no banco */}
-              <div>
-                <label style={LBL}>ID do cliente</label>
-                <input disabled value="" placeholder="Não disponível nesta versão"
-                  style={fldStyle(true)} />
-              </div>
+              <Toggle label="Estrangeiro?" field="is_foreign" />
+              <Toggle label="Cadastro verificado?" field="is_verified" />
 
-              {/* 2 colunas: Estrangeiro + Cadastro verificado */}
+              <Field label="CPF" field="cpf" />
+
+              {/* 2 colunas: Nome + Sobrenome */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <Toggle label="Estrangeiro?" field="is_foreign" />
-                <Toggle label="Cadastro verificado?" field="is_verified" />
+                <Field label="Nome" field="first_name" />
+                <Field label="Sobrenome" field="last_name" />
               </div>
-
-              <Field label="CPF"  field="cpf" />
-              <Field label="Nome" field="full_name" />
 
               {/* 2 colunas: Nascimento + Gênero */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
