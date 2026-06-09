@@ -2921,7 +2921,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 60px 1fr 100px 52px 40px 130px 130px 120px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {/* Checkbox select-all */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
               <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -2931,6 +2931,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
               {h:'Nº',        align:'center'},
               {h:'●',         align:'center'},
               {h:isAereo?'✈':'', align:'center'},
+              ...(isAereo ? [{h:'Emb.', align:'center'}] : []),
               {h:'Passageiro',align:'left'},
               {h:'Nasc.',     align:'center'},
               {h:'Nac.',      align:'center'},
@@ -2938,7 +2939,6 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
               {h:'Passaporte',align:'center'},
               {h:'CPF',       align:'center'},
               {h:'Agência',   align:'left'},
-              ...(isAereo ? [{h:'Emb.',     align:'center'}] : []),
               {h:'Ações',     align:'center'},
             ].map(({h, align}, i) => (
               <span key={i} style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em', textAlign: align }}>{h}</span>
@@ -3086,7 +3086,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 70px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 40px 24px 28px 60px 1fr 100px 52px 40px 130px 130px 120px 102px' : '32px 40px 24px 28px 1fr 100px 52px 40px 130px 130px 120px 102px', columnGap:10, padding:'9px 12px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
