@@ -4168,24 +4168,21 @@ export default function TripDetail() {
         )}
       </div>
 
-      {/* Log da lista — acima das tabs */}
-      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
-        <button type="button" onClick={() => navigate(`/log?list_id=${id}`)}
-          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#f8fafc', color:'#64748b', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f'; e.currentTarget.style.background='#f1f5f9' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b'; e.currentTarget.style.background='#f8fafc' }}>
-          📋 Log da lista
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:0, borderBottom:'2px solid #e2e8f0', marginBottom:20 }}>
+      {/* Tabs + Log da lista na mesma linha */}
+      <div style={{ display:'flex', alignItems:'center', borderBottom:'2px solid #e2e8f0', marginBottom:20 }}>
         {TABS.map(t => (
           <button key={t.key} type="button" onClick={() => setTab(t.key)}
             style={{ padding:'10px 22px', background:'none', border:'none', borderBottom: tab===t.key ? '2px solid #1a2d4f' : '2px solid transparent', marginBottom:-2, color: tab===t.key ? '#1a2d4f' : '#64748b', fontSize:14, fontWeight: tab===t.key ? 700 : 400, cursor:'pointer', fontFamily:'inherit', transition:'color .15s' }}>
             {t.label}
           </button>
         ))}
+        <div style={{ flex:1 }} />
+        <button type="button" onClick={() => navigate(`/log?list_id=${id}`)}
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', marginBottom:2, borderRadius:7, border:'1px solid #e2e8f0', background:'#f8fafc', color:'#64748b', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f'; e.currentTarget.style.background='#f1f5f9' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b'; e.currentTarget.style.background='#f8fafc' }}>
+          📋 Log da lista
+        </button>
       </div>
 
       {/* Conteúdo das abas */}
