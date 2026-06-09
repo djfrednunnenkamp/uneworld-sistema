@@ -2882,7 +2882,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const [accomModal,    setAccomModal]    = useState(null)
   // editAccomType: null | roomName (string)
   const [editAccomType, setEditAccomType] = useState(null)
-  const [collapsed,     setCollapsed]     = useState(new Set())
+  const [collapsed,       setCollapsed]       = useState(new Set())
+  const [accordionEnabled, setAccordionEnabled] = useState(false)
   // statusModal: null | enrollment (objeto) — popup para trocar status / observação de cancelamento
   const [statusModal,   setStatusModal]   = useState(null)
   // notesModal: null | enrollment (objeto) — popup "Observações" do menu de ações
@@ -2938,7 +2939,10 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
   const clearSelect   = ()   => setSelected(new Set())
 
-  const toggleGroup = (key) => setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
+  const toggleGroup = (key) => {
+    if (!accordionEnabled) return
+    setCollapsed(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
   const toggleGroupSelect = (rows) => setSelected(s => {
     const n = new Set(s)
     const allIn = rows.every(r => n.has(r.id))
@@ -3078,7 +3082,6 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const isAereo = listType === 'aereo'
 
   const allSelected = enrolled.length > 0 && selected.size === enrolled.length
-  const allGroupsCollapsed = groups.length > 0 && groups.every(g => collapsed.has(g.key))
 
   return (
     <div>
@@ -3091,14 +3094,14 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
           )}
         </span>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          {/* Toggle sanfona — recolher/expandir todos os grupos */}
+          {/* Toggle sanfona — habilita/desabilita recolher grupos */}
           <button type="button"
-            title={allGroupsCollapsed ? 'Expandir todas as seções' : 'Recolher todas as seções'}
-            onClick={() => setCollapsed(allGroupsCollapsed ? new Set() : new Set(groups.map(g => g.key)))}
-            style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:8, border:'1.5px solid #e2e8f0', background: allGroupsCollapsed ? '#f1f5f9' : '#fff', color: allGroupsCollapsed ? '#475569' : '#94a3b8', cursor:'pointer', fontSize:13, transition:'all .12s', flexShrink:0 }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='#94a3b8'; e.currentTarget.style.color='#475569' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color = allGroupsCollapsed ? '#475569' : '#94a3b8' }}>
-            {allGroupsCollapsed ? '▸' : '▾'}
+            title={accordionEnabled ? 'Desativar sanfona (manter tudo aberto)' : 'Ativar sanfona (permite recolher seções)'}
+            onClick={() => { setAccordionEnabled(v => !v); if (accordionEnabled) setCollapsed(new Set()) }}
+            style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:8, border:`1.5px solid ${accordionEnabled ? '#1a2d4f' : '#e2e8f0'}`, background: accordionEnabled ? '#1a2d4f' : '#fff', color: accordionEnabled ? '#fff' : '#cbd5e1', cursor:'pointer', fontSize:13, transition:'all .14s', flexShrink:0 }}
+            onMouseEnter={e => { if (!accordionEnabled) { e.currentTarget.style.borderColor='#94a3b8'; e.currentTarget.style.color='#475569' } }}
+            onMouseLeave={e => { if (!accordionEnabled) { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#cbd5e1' } }}>
+            ▾
           </button>
           <button type="button" onClick={() => setRoomsModal(true)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
@@ -3187,25 +3190,25 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
             const genders = rows.filter(e => !e.is_block && e.passenger_gender).map(e => e.passenger_gender)
             const sameSexCouple = accomType?.is_couple && genders.length >= 2
               && genders.every(g => g === genders[0])
-            const isCollapsed   = collapsed.has(key)
+            const isCollapsed   = accordionEnabled && collapsed.has(key)
             const groupAllSel   = rows.length > 0 && rows.every(r => selected.has(r.id))
             return (
             <div key={key}>
               {/* Header do grupo */}
               <div onClick={() => toggleGroup(key)}
-                title={isCollapsed ? 'Expandir' : 'Recolher'}
+                title={accordionEnabled ? (isCollapsed ? 'Expandir' : 'Recolher') : undefined}
                 style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px',
-                cursor: 'pointer',
+                cursor: accordionEnabled ? 'pointer' : 'default',
                 background: isCancelled ? '#fef2f2' : isUnassigned ? '#fffbeb' : '#f1f5f9',
                 borderBottom: `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
                 borderTop:    `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
               }}>
-                {/* Expandir/recolher grupo */}
+                {/* Expandir/recolher grupo — só visível quando accordion habilitado */}
                 <button type="button" onClick={(ev) => { ev.stopPropagation(); toggleGroup(key) }}
                   title={isCollapsed ? 'Expandir' : 'Recolher'}
-                  style={{ width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'none', background:'transparent', color:'#64748b', cursor:'pointer', fontSize:11, flexShrink:0, transition:'transform .15s', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }}
-                  onMouseEnter={ev => ev.currentTarget.style.color='#1a2d4f'}
-                  onMouseLeave={ev => ev.currentTarget.style.color='#64748b'}>
+                  style={{ width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'none', background:'transparent', color: accordionEnabled ? '#64748b' : '#cbd5e1', cursor: accordionEnabled ? 'pointer' : 'default', fontSize:11, flexShrink:0, transition:'transform .15s', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }}
+                  onMouseEnter={ev => { if (accordionEnabled) ev.currentTarget.style.color='#1a2d4f' }}
+                  onMouseLeave={ev => ev.currentTarget.style.color = accordionEnabled ? '#64748b' : '#cbd5e1'}>
                   ▾
                 </button>
 
