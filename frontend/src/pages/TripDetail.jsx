@@ -535,6 +535,77 @@ function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose })
   )
 }
 
+/* ── Visualizador de documento — abre sobre o QuickEditModal ── */
+function DocViewerModal({ doc, onClose }) {
+  const isImage = doc.mime_type?.startsWith('image/')
+  const isPdf   = doc.mime_type === 'application/pdf'
+
+  const fmtDate = (iso) => {
+    if (!iso) return null
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+  }
+
+  const infoItems = [
+    doc.issued_by   && { label: 'Emissor',   value: doc.issued_by },
+    fmtDate(doc.issued_date) && { label: 'Emissão',   value: fmtDate(doc.issued_date) },
+    fmtDate(doc.expiry_date) && { label: 'Validade',  value: fmtDate(doc.expiry_date) },
+    doc.doc_number  && { label: 'Número',    value: doc.doc_number },
+  ].filter(Boolean)
+
+  return createPortal(
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.72)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:900, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:700, maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 100px rgba(0,0,0,.5)' }}>
+
+        {/* Header */}
+        <div style={{ padding:'14px 18px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#0f172a', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {doc.display_name || doc.doc_type_label || doc.doc_type}
+            </p>
+            {doc.doc_number && (
+              <p style={{ margin:'2px 0 0', fontSize:12, color:'#64748b', fontFamily:'monospace' }}>Nº {doc.doc_number}</p>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2, flexShrink:0 }}>×</button>
+        </div>
+
+        {/* Preview */}
+        <div style={{ flex:1, overflow:'hidden', background:'#0f172a', display:'flex', alignItems:'center', justifyContent:'center', minHeight:200 }}>
+          {isImage && doc.preview_url ? (
+            <img src={doc.preview_url} alt="" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain' }} />
+          ) : isPdf ? (
+            <iframe src={doc.download_url} title="documento" style={{ width:'100%', height:'100%', minHeight:420, border:'none' }} />
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, color:'#94a3b8' }}>
+              <span style={{ fontSize:48 }}>📄</span>
+              <p style={{ margin:0, fontSize:13 }}>Pré-visualização não disponível</p>
+            </div>
+          )}
+        </div>
+
+        {/* Info + Download */}
+        <div style={{ padding:'12px 18px', borderTop:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:16, flexShrink:0, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:16, flex:1, flexWrap:'wrap' }}>
+            {infoItems.map(item => (
+              <div key={item.label}>
+                <p style={{ margin:0, fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>{item.label}</p>
+                <p style={{ margin:'1px 0 0', fontSize:12, fontWeight:600, color:'#1e293b' }}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+          <a href={doc.download_url} download target="_blank" rel="noreferrer"
+            style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, textDecoration:'none', flexShrink:0 }}>
+            ↓ Baixar
+          </a>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 /* ── Helpers de campo para QuickEditModal — definidos fora para evitar re-mount ao digitar ── */
 const QE_DISABLED_STYLE = { width:'100%', boxSizing:'border-box', padding:'8px 10px', borderRadius:7, fontSize:13, fontFamily:'inherit', border:'1px solid #f1f5f9', background:'#f8fafc', color:'#94a3b8', outline:'none' }
 const QE_INPUT_STYLE    = { width:'100%', boxSizing:'border-box', padding:'8px 10px', borderRadius:7, fontSize:13, fontFamily:'inherit', border:'1px solid #e2e8f0', background:'#fff', color:'#0f172a', outline:'none' }
@@ -586,6 +657,7 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
   const [selectedPassport, setSelectedPassport] = useState(enrollment.selected_passport || null)
+  const [viewingDoc,       setViewingDoc]       = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -1010,14 +1082,13 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
                             </span>
                           )}
 
-                          {/* Abrir */}
-                          <a href={doc.download_url} target="_blank" rel="noreferrer"
-                            title="Abrir arquivo"
-                            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', color: '#64748b', textDecoration: 'none', fontSize: 13, background: '#f8fafc' }}
+                          {/* Ver documento */}
+                          <button type="button" onClick={() => setViewingDoc(doc)} title="Ver documento"
+                            style={{ flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', width:28, height:28, borderRadius:6, border:'1px solid #e2e8f0', color:'#64748b', background:'#f8fafc', cursor:'pointer', fontSize:13 }}
                             onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#64748b' }}>
-                            ↗
-                          </a>
+                            🔍
+                          </button>
                         </div>
                       )
                     })}
@@ -1040,6 +1111,8 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
         </div>
       </div>
     </div>
+
+    {viewingDoc && <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />}
   )
 }
 
