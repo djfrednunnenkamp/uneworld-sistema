@@ -535,6 +535,56 @@ function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose })
   )
 }
 
+/* ── Popover rápido de aeroporto — abre perto do badge ao clicar ── */
+function AirportPopover({ enrollment, rect, listId, defaultAirport, onSaved, onClose }) {
+  const ref     = useRef(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const save = async (airport) => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, { departure_airport: airport?.id ?? null })
+      onSaved()
+      onClose()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  const fmtA = a => a ? (a.iata_code ? `${a.iata_code} — ${a.name}` : a.name) : null
+
+  // Ajusta para não sair da tela pela direita
+  const left = Math.min(rect.left, window.innerWidth - 330)
+
+  return createPortal(
+    <div ref={ref} style={{ position:'fixed', top: rect.bottom + 6, left, zIndex:9999, background:'#fff', borderRadius:10, boxShadow:'0 8px 32px rgba(0,0,0,.18)', border:'1.5px solid #e2e8f0', width:320, padding:'12px 14px' }}>
+      {defaultAirport && (
+        <p style={{ margin:'0 0 8px', fontSize:11, color:'#64748b', background:'#f8fafc', borderRadius:6, padding:'5px 8px' }}>
+          ✈ Padrão da lista: <strong>{fmtA(defaultAirport)}</strong>
+        </p>
+      )}
+      <AirportPicker
+        value={enrollment.departure_airport_data || null}
+        onChange={save}
+        placeholder="Buscar aeroporto de saída…"
+      />
+      {enrollment.departure_airport_data && (
+        <button type="button" onClick={() => save(null)}
+          style={{ marginTop:6, fontSize:11, color:'#64748b', background:'none', border:'none', cursor:'pointer', padding:0 }}>
+          ✕ Usar aeroporto padrão da lista
+        </button>
+      )}
+    </div>,
+    document.body
+  )
+}
+
 /* ── Visualizador de documento — abre sobre o QuickEditModal ── */
 function DocViewerModal({ doc, onClose }) {
   const isImage = doc.mime_type?.startsWith('image/')
@@ -3053,6 +3103,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const [moveRoomModal,   setMoveRoomModal]   = useState(null)
   // boardingModal: null | enrollment (objeto) — popup "Local de embarque" do passageiro
   const [boardingModal,   setBoardingModal]   = useState(null)
+  // airportPopover: null | { enrollment, rect } — popover rápido ao clicar no badge
+  const [airportPopover,  setAirportPopover]  = useState(null)
   // ticketModal: null | enrollment — popup "Passagem aérea"
   const [ticketModal,     setTicketModal]     = useState(null)
   // agencyModal: null | enrollment — popup "Vincular agência"
@@ -3548,8 +3600,10 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                       const isIndividual = !!e.departure_airport_data
                       const code = ap?.iata_code || (ap?.name?.slice(0,3).toUpperCase())
                       return (
-                        <span title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (embarque individual)' : ' (padrão da lista)'}` : 'Não definido'}
-                          style={{ display:'flex', justifyContent:'center', flexShrink:0 }}>
+                        <span
+                          title={ap ? `${ap.name}${ap.city ? ' — ' + ap.city : ''}${isIndividual ? ' (embarque individual)' : ' (padrão da lista)'}\nClique para alterar` : 'Clique para definir aeroporto'}
+                          onClick={ev => { const r = ev.currentTarget.getBoundingClientRect(); setAirportPopover({ enrollment: e, rect: r }) }}
+                          style={{ display:'flex', justifyContent:'center', flexShrink:0, cursor:'pointer' }}>
                           {ap ? (
                             <span style={{
                               fontSize:11, fontWeight:700, fontFamily:'monospace', letterSpacing:'.03em',
@@ -3562,7 +3616,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                               {code}
                             </span>
                           ) : (
-                            <span style={{ fontSize:11, color:'#cbd5e1' }}>—</span>
+                            <span style={{ fontSize:11, color:'#cbd5e1', cursor:'pointer' }}>—</span>
                           )}
                         </span>
                       )
@@ -3776,6 +3830,18 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
           defaultAirport={defaultAirport}
           onSaved={load}
           onClose={() => setBoardingModal(null)}
+        />
+      )}
+
+      {/* Popover rápido de aeroporto de embarque */}
+      {airportPopover && (
+        <AirportPopover
+          enrollment={airportPopover.enrollment}
+          rect={airportPopover.rect}
+          listId={listId}
+          defaultAirport={defaultAirport}
+          onSaved={load}
+          onClose={() => setAirportPopover(null)}
         />
       )}
 
