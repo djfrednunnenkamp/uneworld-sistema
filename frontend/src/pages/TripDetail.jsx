@@ -36,6 +36,24 @@ const fmt = (d) => {
   return `${dd}/${m}/${y}`
 }
 
+// Retorna o número do dia da viagem em que cai o aniversário (1-based), ou null
+function getBirthdayInTrip(birthDate, startDate, endDate) {
+  if (!birthDate || !startDate || !endDate) return null
+  const [,bm,bd] = birthDate.split('-').map(Number)
+  const start = new Date(startDate + 'T00:00:00')
+  const end   = new Date(endDate   + 'T00:00:00')
+  const cur = new Date(start)
+  let day = 1
+  while (cur <= end) {
+    if (cur.getMonth() + 1 === bm && cur.getDate() === bd) return day
+    cur.setDate(cur.getDate() + 1)
+    day++
+  }
+  return null
+}
+
+const ordinal = n => `${n}º`
+
 /* ── Chip de info ── */
 function Chip({ label, value }) {
   if (!value) return null
@@ -2091,7 +2109,7 @@ function MetricsPanel({ enrolled, accomTypes }) {
 }
 
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType, defaultAirport, onData }) {
+function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, onData }) {
   const navigate = useNavigate()
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
@@ -2507,6 +2525,7 @@ function PassengersTab({ listId, listType, defaultAirport, onData }) {
                 const passports = e.passenger_passports || []
                 const cpf = e.passenger_cpf || '—'
                 const birth = e.passenger_birth_date ? fmt(e.passenger_birth_date) : '—'
+                const bday  = !e.is_block ? getBirthdayInTrip(e.passenger_birth_date, startDate, endDate) : null
                 const copy = (text) => {
                   if (!text || text === '—') return
                   navigator.clipboard.writeText(String(text))
@@ -2557,10 +2576,18 @@ function PassengersTab({ listId, listType, defaultAirport, onData }) {
                         </div>
                       ) : (
                         <>
-                          <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
-                            style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
-                            {e.passenger_name}
-                          </p>
+                          <div style={{ display:'flex', alignItems:'center', gap:6, minWidth:0 }}>
+                            <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
+                              style={{ margin:0, fontSize:13, fontWeight:600, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer', flex:'0 1 auto', minWidth:0 }}>
+                              {e.passenger_name}
+                            </p>
+                            {bday && (
+                              <span title={`Faz aniversário no ${ordinal(bday)} dia da viagem`}
+                                style={{ flexShrink:0, display:'inline-flex', alignItems:'center', gap:3, fontSize:10, fontWeight:700, color:'#be185d', background:'#fdf2f8', border:'1px solid #fbcfe8', padding:'1px 6px', borderRadius:20, whiteSpace:'nowrap' }}>
+                                🎂 {ordinal(bday)} dia
+                              </span>
+                            )}
+                          </div>
                           {isCancelled && e.notes && (
                             <p title={e.notes} style={{ margin:'2px 0 0', fontSize:11, color:'#b91c1c', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                               💬 {e.notes}
@@ -3432,7 +3459,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} onData={setPaxData} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} onData={setPaxData} />}
 
 {tab === 'voos' && <FlightsTab listId={id} list={list} />}
 
