@@ -3587,13 +3587,25 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                         </div>
                       ) : (
                         <>
-                          <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
-                            style={{ margin:0, fontSize:14, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer',
-                              color:     e.enrollment_status === 'pendente' ? '#92400e' : '#1e293b',
-                              fontStyle: e.enrollment_status === 'pendente' ? 'italic'  : 'normal',
-                            }}>
-                            {e.passenger_name}
-                          </p>
+                          <div style={{ display:'flex', alignItems:'center', gap:5, minWidth:0 }}>
+                            <p onClick={() => copy(e.passenger_name)} title="Clique para copiar"
+                              style={{ margin:0, fontSize:14, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer',
+                                color:     e.enrollment_status === 'pendente' ? '#92400e' : '#1e293b',
+                                fontStyle: e.enrollment_status === 'pendente' ? 'italic'  : 'normal',
+                              }}>
+                              {e.passenger_name}
+                            </p>
+                            {e.notes && (
+                              <span
+                                title={e.notes}
+                                onClick={() => setNotesModal(e)}
+                                style={{ flexShrink:0, width:18, height:18, borderRadius:'50%', background:'#e0f2fe', border:'1.5px solid #7dd3fc', color:'#0369a1', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', lineHeight:1 }}
+                                onMouseEnter={ev => { ev.currentTarget.style.background='#bae6fd'; ev.currentTarget.style.borderColor='#38bdf8' }}
+                                onMouseLeave={ev => { ev.currentTarget.style.background='#e0f2fe'; ev.currentTarget.style.borderColor='#7dd3fc' }}>
+                                ?
+                              </span>
+                            )}
+                          </div>
                           {isCancelled && e.notes && (
                             <p title={e.notes} style={{ margin:'2px 0 0', fontSize:12, color:'#b91c1c', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                               💬 {e.notes}
