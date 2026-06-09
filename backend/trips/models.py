@@ -149,6 +149,7 @@ class ListEnrollment(models.Model):
     STATUS_CHOICES = [
         ('confirmado', 'Confirmado'),
         ('pendente',   'Pendente'),
+        ('reservado',  'Reservado'),
         ('cancelado',  'Cancelado'),
     ]
 
