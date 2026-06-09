@@ -3199,9 +3199,10 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                 title={accordionEnabled ? (isCollapsed ? 'Expandir' : 'Recolher') : undefined}
                 style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px',
                 cursor: accordionEnabled ? 'pointer' : 'default',
-                background: isCancelled ? '#fef2f2' : isUnassigned ? '#fffbeb' : '#f1f5f9',
-                borderBottom: `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
-                borderTop:    `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#e2e8f0'}`,
+                background: isCancelled ? '#fef2f2' : isUnassigned ? '#fffbeb' : '#dde6f5',
+                borderBottom: `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#b8cce8'}`,
+                borderTop:    `1px solid ${isCancelled ? '#fecaca' : isUnassigned ? '#fde68a' : '#b8cce8'}`,
+                borderLeft:   isCancelled ? '4px solid #ef4444' : isUnassigned ? '4px solid #f59e0b' : '4px solid #1a2d4f',
               }}>
                 {/* Expandir/recolher grupo — só visível quando accordion habilitado */}
                 <button type="button" onClick={(ev) => { ev.stopPropagation(); toggleGroup(key) }}
@@ -3243,8 +3244,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
                   </>
                 ) : (
                   <>
-                    <span style={{ fontSize:12, fontWeight:700, color:'#475569', letterSpacing:'.03em' }}>{key}</span>
-                    <span style={{ fontSize:11, color:'#94a3b8' }}>({rows.length} pax)</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:'#1a2d4f', letterSpacing:'.02em' }}>{key}</span>
+                    <span style={{ fontSize:11, fontWeight:600, color:'#fff', background:'#1a2d4f', padding:'1px 8px', borderRadius:20 }}>{rows.length} pax</span>
 
                     {/* Flag de capacidade */}
                     {capStatus === 'over' && (
