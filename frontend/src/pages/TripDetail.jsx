@@ -587,7 +587,7 @@ function AirportPopover({ enrollment, rect, listId, defaultAirport, onSaved, onC
 
 /* ── Modal de impressão / download da lista ── */
 function PrintModal({ listName, onClose }) {
-  const [formato,  setFormato]  = useState('pdf')
+  const [formato, setFormato] = useState('pdf')
   const [opts, setOpts] = useState({
     confirmados:    true,
     data_expedicao: false,
@@ -600,9 +600,6 @@ function PrintModal({ listName, onClose }) {
 
   const toggle = key => setOpts(o => ({ ...o, [key]: !o[key] }))
 
-  const BTN_ON  = { padding:'6px 18px', borderRadius:6, border:'none',           background:'#1a2d4f', color:'#fff',    fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }
-  const BTN_OFF = { padding:'6px 18px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff',  color:'#64748b', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }
-
   const rows = [
     { key:'confirmados',    label:'Exibir lista de passageiros confirmados' },
     { key:'data_expedicao', label:'Exibir lista com data de expedição' },
@@ -614,60 +611,48 @@ function PrintModal({ listName, onClose }) {
   ]
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+    <div className="overlay" style={{ zIndex:750 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:640, boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+      <div className="mbox" style={{ maxWidth:560, width:'100%' }}>
 
-        {/* Header */}
-        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Imprimir a lista de passageiros</p>
-          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        <div className="mhead">
+          <span className="mtitle">Imprimir lista de passageiros</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding:'20px 24px' }}>
-
-          {/* Botão de ação rápida no topo */}
-          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:20 }}>
-            <button type="button" style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 20px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-              <Ic n="dl" s={15}/> Imprimir
-            </button>
-          </div>
+        <div className="mbody" style={{ maxHeight:'none' }}>
 
           {/* Formato */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:14, borderBottom:'1px solid #f1f5f9', marginBottom:12 }}>
-            <span style={{ fontSize:14, color:'#374151', fontWeight:500 }}>Formato</span>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 0 14px', borderBottom:'1px solid #f1f5f9', marginBottom:4 }}>
+            <span className="fl" style={{ margin:0 }}>Formato</span>
             <div style={{ display:'flex', gap:4 }}>
-              <button type="button" onClick={() => setFormato('pdf')}
-                style={formato === 'pdf' ? BTN_ON : BTN_OFF}>pdf</button>
-              <button type="button" onClick={() => setFormato('html')}
-                style={formato === 'html' ? BTN_ON : BTN_OFF}>ou HTML</button>
+              {['PDF','HTML'].map(f => (
+                <button key={f} type="button" className={`btn ${formato === f.toLowerCase() ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setFormato(f.toLowerCase())}>
+                  {f}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Opções booleanas */}
           {rows.map(({ key, label }) => (
             <div key={key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
-              <span style={{ fontSize:14, color:'#374151' }}>{label}</span>
+              <span style={{ fontSize:13, color:'#374151' }}>{label}</span>
               <div style={{ display:'flex', gap:4 }}>
-                <button type="button" onClick={() => opts[key] || toggle(key)}
-                  style={opts[key] ? BTN_ON : BTN_OFF}>Sim</button>
-                <button type="button" onClick={() => !opts[key] || toggle(key)}
-                  style={!opts[key] ? BTN_ON : BTN_OFF}>Não</button>
+                <button type="button" className={`btn ${opts[key] ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => { if (!opts[key]) toggle(key) }}>Sim</button>
+                <button type="button" className={`btn ${!opts[key] ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => { if (opts[key]) toggle(key) }}>Não</button>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Footer */}
-        <div style={{ padding:'8px 24px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
-          <button type="button" onClick={onClose}
-            style={{ padding:'8px 20px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            Fechar
-          </button>
-          <button type="button"
-            style={{ padding:'8px 24px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            Imprimir
+        <div className="mfoot">
+          <button type="button" className="btn btn-outline" onClick={onClose}>Fechar</button>
+          <button type="button" className="btn btn-primary">
+            <Ic n="dl" s={13}/> Baixar
           </button>
         </div>
       </div>
