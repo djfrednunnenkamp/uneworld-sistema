@@ -2860,17 +2860,16 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
 /* ── Aba "Local de Embarque" ── */
 /* ── Popup passageiros com embarque diferente do padrão ── */
-function FeederLegsSection({ listId, airport }) {
-  const [legs,      setLegs]      = useState([])
-  const [loaded,    setLoaded]    = useState(false)
-  const [open,      setOpen]      = useState(false)
-  const [legModal,  setLegModal]  = useState(null)
-  const [delLeg,    setDelLeg]    = useState(null)
+function FeederLegsModal({ listId, airport, onClose }) {
+  const [legs,     setLegs]     = useState([])
+  const [loaded,   setLoaded]   = useState(false)
+  const [legModal, setLegModal] = useState(null)
+  const [delLeg,   setDelLeg]   = useState(null)
 
   const load = () =>
     listsApi.listFeederLegs(listId, airport.id).then(r => { setLegs(r.data); setLoaded(true) }).catch(() => {})
 
-  useEffect(() => { if (open && !loaded) load() }, [open])
+  useEffect(() => { load() }, [])
 
   const handleSave = async (data) => {
     const payload = { ...data, departure_airport: airport.id }
@@ -2881,6 +2880,7 @@ function FeederLegsSection({ listId, airport }) {
       await listsApi.addFeederLeg(listId, payload)
       toast.success('Trecho adicionado.')
     }
+    setLegModal(null)
     load()
   }
 
@@ -2904,38 +2904,28 @@ function FeederLegsSection({ listId, airport }) {
     return { label, valid: diff > 0 }
   }
 
-  return (
-    <div style={{ marginTop:12, border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
-      {/* Header clicável */}
-      <button type="button" onClick={() => setOpen(o => !o)}
-        style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#f8fafc', border:'none', cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}>
-        <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 7px', borderRadius:5 }}>
-          {airport.iata_code || airport.name.slice(0,3).toUpperCase()}
-        </span>
-        <span style={{ flex:1, fontSize:13, fontWeight:600, color:'#1e293b' }}>
-          Voos de acesso — {airport.city || airport.name}
-        </span>
-        {legs.length > 0 && (
-          <span style={{ fontSize:11, fontWeight:700, color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:20 }}>
-            {legs.length} trecho{legs.length !== 1 ? 's' : ''}
-          </span>
-        )}
-        <span style={{ fontSize:12, color:'#94a3b8' }}>{open ? '▲' : '▼'}</span>
-      </button>
+  const iata = airport.iata_code || airport.name.slice(0,3).toUpperCase()
 
-      {open && (
-        <div style={{ padding:'12px 14px', background:'#fff' }}>
+  return (
+    <div className="overlay" style={{ zIndex:830 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="mbox" style={{ maxWidth:520 }}>
+        <div className="mhead">
+          <span className="mtitle" style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:12, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'2px 8px', borderRadius:5 }}>{iata}</span>
+            Voos de acesso — {airport.city || airport.name}
+          </span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
+        </div>
+        <div className="mbody">
           {!loaded ? (
-            <p style={{ color:'#94a3b8', fontSize:12, margin:0 }}>Carregando…</p>
+            <p style={{ color:'#94a3b8', fontSize:13, margin:0 }}>Carregando…</p>
           ) : legs.length === 0 ? (
-            <p style={{ color:'#94a3b8', fontSize:12, margin:'0 0 8px' }}>
-              Nenhum trecho cadastrado.
-            </p>
+            <p style={{ color:'#94a3b8', fontSize:13, margin:'0 0 12px' }}>Nenhum trecho cadastrado.</p>
           ) : (
-            <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden', marginBottom:8 }}>
+            <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', marginBottom:12 }}>
               {legs.map((leg, idx) => (
-                <>
-                  <div key={leg.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background: idx%2===0?'#fff':'#fafbfc', borderBottom: idx < legs.length-1 ? '1px solid #f1f5f9' : 'none' }}>
+                <React.Fragment key={leg.id}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', background: idx%2===0?'#fff':'#fafbfc', borderBottom: idx < legs.length-1 ? '1px solid #f1f5f9' : 'none' }}>
                     {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
                       <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
                         {i===1 && <span style={{ color:'#cbd5e1' }}>→</span>}
@@ -2954,12 +2944,12 @@ function FeederLegsSection({ listId, airport }) {
                     {leg.airline && <span style={{ fontSize:11, color:'#64748b' }}>{leg.airline}</span>}
                     {(leg.departure_date||leg.departure_time) && <span style={{ fontSize:11, color:'#94a3b8' }}>{[fmtDate(leg.departure_date),fmtTime(leg.departure_time)].filter(Boolean).join(' ')}</span>}
                     {leg.blocked_seats != null && <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', border:'1px solid #bfdbfe', padding:'1px 6px', borderRadius:20 }}>🔒 {leg.blocked_seats}</span>}
-                    <button type="button" onClick={() => setLegModal({ initial: leg, direction: 'ida' })}
-                      style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}>
+                    <button type="button" onClick={() => setLegModal({ initial: leg })}
+                      style={{ width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}>
                       <Ic n="edit" s={11}/>
                     </button>
                     <button type="button" onClick={() => setDelLeg(leg)}
-                      style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer' }}>
+                      style={{ width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer' }}>
                       <Ic n="trash" s={11}/>
                     </button>
                   </div>
@@ -2967,7 +2957,7 @@ function FeederLegsSection({ listId, airport }) {
                     const ly = calcLayover(leg, legs[idx+1])
                     const conAp = leg.destination_airport_data
                     return (
-                      <div key={`c-${leg.id}`} style={{ display:'flex', alignItems:'center', background:'#f8fafc', borderBottom:'1px solid #f1f5f9' }}>
+                      <div style={{ display:'flex', alignItems:'center', background:'#f8fafc', borderBottom:'1px solid #f1f5f9' }}>
                         <div style={{ flex:1, height:1, background:'#e2e8f0' }}/>
                         <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px', fontSize:11 }}>
                           <span style={{ color:'#94a3b8' }}>✈</span>
@@ -2982,7 +2972,7 @@ function FeederLegsSection({ listId, airport }) {
                       </div>
                     )
                   })()}
-                </>
+                </React.Fragment>
               ))}
             </div>
           )}
@@ -2991,7 +2981,6 @@ function FeederLegsSection({ listId, airport }) {
               const last = legs.length > 0 ? legs[legs.length-1] : null
               setLegModal({
                 initial: null,
-                direction: 'ida',
                 prefill: last ? {
                   origin_airport_data: last.destination_airport_data,
                   departure_date: last.arrival_date || '',
@@ -2999,18 +2988,21 @@ function FeederLegsSection({ listId, airport }) {
                 } : null,
               })
             }}
-            style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 11px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            <Ic n="plus" s={10}/> Adicionar trecho
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            <Ic n="plus" s={11}/> Adicionar trecho
           </button>
         </div>
-      )}
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
 
       {legModal && (
         <FlightLegModal
           initial={legModal.initial}
           prefill={legModal.prefill}
-          direction={legModal.direction || 'ida'}
-          zIndex={850}
+          direction="ida"
+          zIndex={860}
           onSave={handleSave}
           onClose={() => setLegModal(null)}
         />
@@ -3027,8 +3019,9 @@ function FeederLegsSection({ listId, airport }) {
 }
 
 function BoardingInfoModal({ listId, defAirport, onClose }) {
-  const [enrolled, setEnrolled] = useState([])
-  const [loading,  setLoading]  = useState(true)
+  const [enrolled,  setEnrolled]  = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [feederAp,  setFeederAp]  = useState(null)
 
   useEffect(() => {
     listsApi.listPassengers(listId)
@@ -3082,15 +3075,20 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
                     const isDefAp = defAirport && ap && ap.id === defAirport.id
                     return (
                       <div key={ap ? ap.id : '__none__'}
-                        style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom: idx < airportGroups.length-1 ? '1px solid #f1f5f9' : 'none', background: isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc' }}>
+                        onClick={() => ap && setFeederAp(ap)}
+                        style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom: idx < airportGroups.length-1 ? '1px solid #f1f5f9' : 'none', background: isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc', cursor: ap ? 'pointer' : 'default', transition:'background .12s' }}
+                        onMouseEnter={e => { if (ap) e.currentTarget.style.background = isDefAp ? '#dbeafe' : '#f1f5f9' }}
+                        onMouseLeave={e => { if (ap) e.currentTarget.style.background = isDefAp ? '#f0f7ff' : idx%2===0 ? '#fff' : '#fafbfc' }}>
                         {ap ? <IataChip ap={ap} amber={!isDefAp} /> : <span style={{ fontSize:12, color:'#cbd5e1' }}>—</span>}
                         <span style={{ flex:1, fontSize:13, color:'#1e293b' }}>{ap ? ap.name : 'Não definido'}</span>
                         {isDefAp && <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#dbeafe', padding:'1px 6px', borderRadius:4 }}>PADRÃO</span>}
                         <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>{count} pax</span>
+                        {ap && <span style={{ fontSize:11, color:'#94a3b8' }}>✈</span>}
                       </div>
                     )
                   })}
                 </div>
+                <p style={{ margin:'6px 0 0', fontSize:11, color:'#94a3b8' }}>Clique em um aeroporto para gerir os voos de acesso.</p>
               </div>
 
               {/* Passageiros fora do padrão */}
@@ -3121,18 +3119,6 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
                 )}
               </div>
 
-              {/* Trechos de acesso por aeroporto não-padrão */}
-              {airportGroups.filter(({ ap }) => ap && (!defAirport || ap.id !== defAirport.id)).length > 0 && (
-                <div>
-                  <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Voos de acesso</p>
-                  {airportGroups
-                    .filter(({ ap }) => ap && (!defAirport || ap.id !== defAirport.id))
-                    .map(({ ap }) => (
-                      <FeederLegsSection key={ap.id} listId={listId} airport={ap} />
-                    ))
-                  }
-                </div>
-              )}
             </>
           )}
         </div>
@@ -3140,6 +3126,9 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
           <button className="btn btn-outline" onClick={onClose}>Fechar</button>
         </div>
       </div>
+      {feederAp && (
+        <FeederLegsModal listId={listId} airport={feederAp} onClose={() => setFeederAp(null)} />
+      )}
     </div>
   )
 }
