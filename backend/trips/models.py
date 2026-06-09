@@ -218,6 +218,27 @@ class FlightLeg(models.Model):
         return f'{o} → {d} ({self.flight_number or "sem nº"})'
 
 
+class FeederLeg(models.Model):
+    """Trechos de voo de acesso para um grupo que embarca num aeroporto não-padrão."""
+    passenger_list      = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='feeder_legs', verbose_name='Lista')
+    departure_airport   = models.ForeignKey('config_api.Airport', on_delete=models.CASCADE, related_name='feeder_legs', verbose_name='Aeroporto de embarque do grupo')
+    order               = models.PositiveSmallIntegerField('Ordem', default=0)
+    origin_airport      = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Origem')
+    destination_airport = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Destino')
+    flight_number       = models.CharField('Número do voo', max_length=20, blank=True)
+    airline             = models.CharField('Companhia aérea', max_length=100, blank=True)
+    departure_date      = models.DateField('Data de partida', null=True, blank=True)
+    departure_time      = models.TimeField('Horário de partida', null=True, blank=True)
+    arrival_date        = models.DateField('Data de chegada', null=True, blank=True)
+    arrival_time        = models.TimeField('Horário de chegada', null=True, blank=True)
+    blocked_seats       = models.PositiveSmallIntegerField('Lugares bloqueados', null=True, blank=True)
+
+    class Meta:
+        ordering            = ['departure_airport', 'order', 'departure_date', 'departure_time']
+        verbose_name        = 'Trecho de acesso'
+        verbose_name_plural = 'Trechos de acesso'
+
+
 class PassengerFlightLeg(models.Model):
     DIRECTION_CHOICES = [('ida', 'Ida'), ('volta', 'Volta')]
 

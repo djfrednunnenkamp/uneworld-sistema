@@ -2860,6 +2860,172 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
 
 /* ── Aba "Local de Embarque" ── */
 /* ── Popup passageiros com embarque diferente do padrão ── */
+function FeederLegsSection({ listId, airport }) {
+  const [legs,      setLegs]      = useState([])
+  const [loaded,    setLoaded]    = useState(false)
+  const [open,      setOpen]      = useState(false)
+  const [legModal,  setLegModal]  = useState(null)
+  const [delLeg,    setDelLeg]    = useState(null)
+
+  const load = () =>
+    listsApi.listFeederLegs(listId, airport.id).then(r => { setLegs(r.data); setLoaded(true) }).catch(() => {})
+
+  useEffect(() => { if (open && !loaded) load() }, [open])
+
+  const handleSave = async (data) => {
+    const payload = { ...data, departure_airport: airport.id }
+    if (legModal.initial) {
+      await listsApi.updateFeederLeg(listId, legModal.initial.id, payload)
+      toast.success('Trecho atualizado.')
+    } else {
+      await listsApi.addFeederLeg(listId, payload)
+      toast.success('Trecho adicionado.')
+    }
+    load()
+  }
+
+  const handleDelete = async (leg) => {
+    await listsApi.removeFeederLeg(listId, leg.id)
+    setDelLeg(null)
+    load()
+  }
+
+  const fmtDate = d => { if (!d) return null; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}` }
+  const fmtTime = t => t ? t.slice(0,5) : null
+
+  const calcLayover = (prev, next) => {
+    if (!prev.arrival_date || !prev.arrival_time || !next.departure_date || !next.departure_time) return null
+    const from = new Date(`${prev.arrival_date}T${prev.arrival_time}`)
+    const to   = new Date(`${next.departure_date}T${next.departure_time}`)
+    const diff = to - from
+    const h = Math.floor(Math.abs(diff)/3600000)
+    const m = Math.floor((Math.abs(diff)%3600000)/60000)
+    const label = h > 0 ? (m > 0 ? `${h}h ${m}min` : `${h}h`) : `${m}min`
+    return { label, valid: diff > 0 }
+  }
+
+  return (
+    <div style={{ marginTop:12, border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
+      {/* Header clicável */}
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#f8fafc', border:'none', cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}>
+        <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', padding:'1px 7px', borderRadius:5 }}>
+          {airport.iata_code || airport.name.slice(0,3).toUpperCase()}
+        </span>
+        <span style={{ flex:1, fontSize:13, fontWeight:600, color:'#1e293b' }}>
+          Voos de acesso — {airport.city || airport.name}
+        </span>
+        {legs.length > 0 && (
+          <span style={{ fontSize:11, fontWeight:700, color:'#64748b', background:'#f1f5f9', padding:'1px 7px', borderRadius:20 }}>
+            {legs.length} trecho{legs.length !== 1 ? 's' : ''}
+          </span>
+        )}
+        <span style={{ fontSize:12, color:'#94a3b8' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding:'12px 14px', background:'#fff' }}>
+          {!loaded ? (
+            <p style={{ color:'#94a3b8', fontSize:12, margin:0 }}>Carregando…</p>
+          ) : legs.length === 0 ? (
+            <p style={{ color:'#94a3b8', fontSize:12, margin:'0 0 8px' }}>
+              Nenhum trecho cadastrado.
+            </p>
+          ) : (
+            <div style={{ border:'1px solid #e2e8f0', borderRadius:7, overflow:'hidden', marginBottom:8 }}>
+              {legs.map((leg, idx) => (
+                <>
+                  <div key={leg.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background: idx%2===0?'#fff':'#fafbfc', borderBottom: idx < legs.length-1 ? '1px solid #f1f5f9' : 'none' }}>
+                    {[leg.origin_airport_data, leg.destination_airport_data].map((ap, i) => (
+                      <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                        {i===1 && <span style={{ color:'#cbd5e1' }}>→</span>}
+                        {ap ? (
+                          <span style={{ display:'flex', alignItems:'center', gap:3 }}>
+                            <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:11, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>
+                              {ap.iata_code || ap.name.slice(0,3).toUpperCase()}
+                            </span>
+                            <span style={{ fontSize:12, color:'#1e293b', fontWeight:500 }}>{ap.city || ap.name}</span>
+                          </span>
+                        ) : <span style={{ fontSize:12, color:'#cbd5e1', fontStyle:'italic' }}>—</span>}
+                      </span>
+                    ))}
+                    <span style={{ flex:1 }}/>
+                    {leg.flight_number && <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'#475569', background:'#f1f5f9', padding:'1px 6px', borderRadius:4 }}>{leg.flight_number}</span>}
+                    {leg.airline && <span style={{ fontSize:11, color:'#64748b' }}>{leg.airline}</span>}
+                    {(leg.departure_date||leg.departure_time) && <span style={{ fontSize:11, color:'#94a3b8' }}>{[fmtDate(leg.departure_date),fmtTime(leg.departure_time)].filter(Boolean).join(' ')}</span>}
+                    {leg.blocked_seats != null && <span style={{ fontSize:10, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', border:'1px solid #bfdbfe', padding:'1px 6px', borderRadius:20 }}>🔒 {leg.blocked_seats}</span>}
+                    <button type="button" onClick={() => setLegModal({ initial: leg, direction: 'ida' })}
+                      style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', cursor:'pointer' }}>
+                      <Ic n="edit" s={11}/>
+                    </button>
+                    <button type="button" onClick={() => setDelLeg(leg)}
+                      style={{ width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:5, border:'1.5px solid #fee2e2', background:'#fff', color:'#dc2626', cursor:'pointer' }}>
+                      <Ic n="trash" s={11}/>
+                    </button>
+                  </div>
+                  {idx < legs.length - 1 && (() => {
+                    const ly = calcLayover(leg, legs[idx+1])
+                    const conAp = leg.destination_airport_data
+                    return (
+                      <div key={`c-${leg.id}`} style={{ display:'flex', alignItems:'center', background:'#f8fafc', borderBottom:'1px solid #f1f5f9' }}>
+                        <div style={{ flex:1, height:1, background:'#e2e8f0' }}/>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px', fontSize:11 }}>
+                          <span style={{ color:'#94a3b8' }}>✈</span>
+                          {ly ? (
+                            <span style={{ fontWeight:700, color: ly.valid ? '#0f766e' : '#b45309', background: ly.valid ? '#f0fdf4' : '#fffbeb', border:`1px solid ${ly.valid ? '#bbf7d0' : '#fde68a'}`, padding:'1px 7px', borderRadius:20 }}>
+                              {ly.valid ? '' : '⚠ '}{ly.label} de conexão
+                            </span>
+                          ) : null}
+                          {conAp && <span style={{ color:'#64748b' }}><strong>{conAp.city||conAp.name}</strong> <span style={{ fontFamily:'monospace', fontWeight:700, fontSize:10, color:'#1a2d4f', background:'#eff6ff', padding:'1px 5px', borderRadius:4, border:'1px solid #bfdbfe' }}>{conAp.iata_code}</span></span>}
+                        </div>
+                        <div style={{ flex:1, height:1, background:'#e2e8f0' }}/>
+                      </div>
+                    )
+                  })()}
+                </>
+              ))}
+            </div>
+          )}
+          <button type="button"
+            onClick={() => {
+              const last = legs.length > 0 ? legs[legs.length-1] : null
+              setLegModal({
+                initial: null,
+                direction: 'ida',
+                prefill: last ? {
+                  origin_airport_data: last.destination_airport_data,
+                  departure_date: last.arrival_date || '',
+                  departure_time: last.arrival_time ? last.arrival_time.slice(0,5) : '',
+                } : null,
+              })
+            }}
+            style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 11px', borderRadius:6, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            <Ic n="plus" s={10}/> Adicionar trecho
+          </button>
+        </div>
+      )}
+
+      {legModal && (
+        <FlightLegModal
+          initial={legModal.initial}
+          prefill={legModal.prefill}
+          direction={legModal.direction || 'ida'}
+          zIndex={850}
+          onSave={handleSave}
+          onClose={() => setLegModal(null)}
+        />
+      )}
+      {delLeg && (
+        <ConfirmModal
+          message={`Remover trecho ${delLeg.origin_airport_data?.iata_code||'?'} → ${delLeg.destination_airport_data?.iata_code||'?'}?`}
+          onOk={() => handleDelete(delLeg)}
+          onCancel={() => setDelLeg(null)}
+        />
+      )}
+    </div>
+  )
+}
+
 function BoardingInfoModal({ listId, defAirport, onClose }) {
   const [enrolled, setEnrolled] = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -2928,7 +3094,7 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
               </div>
 
               {/* Passageiros fora do padrão */}
-              <div>
+              <div style={{ marginBottom:20 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
                   <p style={{ margin:0, fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Embarques diferentes do padrão</p>
                   {nonDefault.length > 0 && (
@@ -2954,6 +3120,19 @@ function BoardingInfoModal({ listId, defAirport, onClose }) {
                   </div>
                 )}
               </div>
+
+              {/* Trechos de acesso por aeroporto não-padrão */}
+              {airportGroups.filter(({ ap }) => ap && (!defAirport || ap.id !== defAirport.id)).length > 0 && (
+                <div>
+                  <p style={{ margin:'0 0 8px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em' }}>Voos de acesso</p>
+                  {airportGroups
+                    .filter(({ ap }) => ap && (!defAirport || ap.id !== defAirport.id))
+                    .map(({ ap }) => (
+                      <FeederLegsSection key={ap.id} listId={listId} airport={ap} />
+                    ))
+                  }
+                </div>
+              )}
             </>
           )}
         </div>

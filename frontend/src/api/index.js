@@ -43,6 +43,11 @@ export const listsApi = {
   updatePassengerLeg: (id, eid, lid, d)  => api.patch(`/trips/lists/${id}/passageiros/${eid}/legs/${lid}/`, d),
   removePassengerLeg: (id, eid, lid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/legs/${lid}/`),
   copyLegsFromBlock:  (id, eid)          => api.post(`/trips/lists/${id}/passageiros/${eid}/legs/copy/`),
+  // Trechos de acesso por aeroporto de embarque não-padrão
+  listFeederLegs:    (id, airportId)     => api.get(`/trips/lists/${id}/feeder-legs/`, { params: airportId ? { airport: airportId } : {} }),
+  addFeederLeg:      (id, data)          => api.post(`/trips/lists/${id}/feeder-legs/`, data),
+  updateFeederLeg:   (id, lid, d)        => api.patch(`/trips/lists/${id}/feeder-legs/${lid}/`, d),
+  removeFeederLeg:   (id, lid)           => api.delete(`/trips/lists/${id}/feeder-legs/${lid}/`),
   // Acomodações (quartos) na lista
   listRooms:        (id)          => api.get(`/trips/lists/${id}/rooms/`),
   addRoom:          (id, name)     => api.post(`/trips/lists/${id}/rooms/`, { name }),
