@@ -1205,7 +1205,7 @@ function StatusToggle({ value, onChange }) {
 
 /* ── Popup de adicionar passageiro / bloqueio ── */
 function AddPassengerPopup({ listId, enrolled, rooms: existingRooms = [], onAdded, onClose }) {
-  const mkRow = () => ({ id: Date.now() + Math.random(), paxSearch:'', passenger:null, paxResults:[], paxSearching:false, agSearch:'', agency:null, agResults:[], agSearching:false, members:[], responsible:null, respInput:'', status:'pendente', statusInput:'Pendente', prazo:'', notes:'' })
+  const mkRow = () => ({ id: Date.now() + Math.random(), paxSearch:'', passenger:null, paxResults:[], paxSearching:false, agSearch:'', agency:null, agResults:[], agSearching:false, members:[], responsible:null, respInput:'', status:'reservado', statusInput:'Reservado', prazo:'', notes:'' })
   // accom: 'none' | 'new' | 'existing'
   const [accomMode,       setAccomMode]       = useState('none')
   const [accomType,       setAccomType]       = useState('')
