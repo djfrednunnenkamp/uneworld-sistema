@@ -6,6 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { listsApi, passengersApi, agenciesApi, configApi } from '../api'
 import DatePicker from '../components/DatePicker'
+import TimePicker from '../components/TimePicker'
 import ListModal from '../components/ListModal'
 import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
@@ -3496,7 +3497,7 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, 
             </div>
             <div className="ff" style={{ margin:0 }}>
               <label className="fl">Horário partida</label>
-              <input className="fi" type="time" value={time} onChange={e => setTime(e.target.value)} />
+              <TimePicker fixed value={time} onChange={setTime} />
             </div>
           </div>
           {/* Chegada */}
@@ -3507,7 +3508,7 @@ function FlightLegModal({ initial, prefill, direction, onSave, onClose, zIndex, 
             </div>
             <div className="ff" style={{ margin:0 }}>
               <label className="fl">Horário chegada</label>
-              <input className="fi" type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)} />
+              <TimePicker fixed value={arrivalTime} onChange={setArrivalTime} />
             </div>
           </div>
           {/* Lugares bloqueados */}
