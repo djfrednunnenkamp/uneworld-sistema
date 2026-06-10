@@ -422,21 +422,21 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       if (!groups[key]) groups[key] = []
       groups[key].push(e)
     })
-    const pw2 = doc.internal.pageSize.getWidth()
-    let curY = y, globalIdx = 1
-    Object.entries(groups).forEach(([airport, group]) => {
-      if (curY > doc.internal.pageSize.getHeight() - 40) {
-        doc.addPage()
-        curY = addPageHeader(doc, 'LISTA DE LOCAIS DE EMBARQUE', lname, lnum, dates, logoDataUrl)
-      }
-      doc.setFillColor(...BLUE)
-      doc.rect(14, curY, pw2 - 28, 7, 'F')
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(255, 255, 255)
-      doc.text('EMBARQUE: ' + airport, 17, curY + 4.5)
-      curY += 9
-      const body = group.map(e => [
+
+    // Aeroporto padrao da lista sempre aparece primeiro
+    const def    = list.default_airport_data
+    const defKey = def ? (def.name || '').toUpperCase() + (def.iata_code ? ' - ' + def.iata_code : '') : null
+    const groupKeys = Object.keys(groups)
+    if (defKey && groupKeys.includes(defKey)) {
+      groupKeys.splice(groupKeys.indexOf(defKey), 1)
+      groupKeys.unshift(defKey)
+    }
+
+    const body = []
+    let globalIdx = 1
+    groupKeys.forEach(airport => {
+      body.push([{ content: 'EMBARQUE: ' + airport, colSpan: 8, styles: { fillColor: BLUE, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left', valign: 'middle', cellPadding: { top: 1.5, right: 4, bottom: 1.5, left: 4 } } }])
+      groups[airport].forEach(e => body.push([
         globalIdx++,
         e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
         (e.passenger_seat_preference || '').toUpperCase(),
@@ -445,15 +445,20 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         fmtGender(e.passenger_gender),
         e.passenger_cpf || '',
         e.passenger_diet_type || '',
-      ])
-      // N(7)+Nome(76)+Ass(20)+Nasc(22)+Nac(16)+Gen(16)+CPF(30)+Alim(82)=269
-      curY = applyTableStyle(doc, curY,
-        ['N', 'Nome', 'Assento', 'Nascimento', 'Nac.', 'Genero', 'CPF', 'Tipo Alimentacao'],
-        body,
-        { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:20}, 3:{cellWidth:22}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:30}, 7:{cellWidth:82} }
-      )
-      curY += 4
+      ]))
     })
+    // N(7)+Nome(76)+Ass(20)+Nasc(22)+Nac(16)+Gen(16)+CPF(30)+Alim(82)=269
+    applyTableStyle(doc, y,
+      ['N', 'Nome', 'Assento', 'Nascimento', 'Nac.', 'Genero', 'CPF', 'Tipo Alimentacao'],
+      body,
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:20}, 3:{cellWidth:22}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:30}, 7:{cellWidth:82} },
+      {
+        margin: { top: 28, left: 14, right: 14 },
+        didDrawPage: data => {
+          if (data.pageNumber > 1) addPageHeader(doc, 'LISTA DE LOCAIS DE EMBARQUE', lname, lnum, dates, logoDataUrl)
+        },
+      }
+    )
   }
 
   // ── 5. Lista de Observacoes ──────────────────────────────────────────────────
