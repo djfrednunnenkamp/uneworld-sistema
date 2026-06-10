@@ -540,5 +540,6 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     )
   }
 
-  doc.save('lista-passageiros-' + String(lnum).padStart(5, '0') + '.pdf')
+  const safeName = (list.name || '').trim().replace(/[\\/:*?"<>|]/g, '-')
+  doc.save((safeName || 'lista-passageiros-' + String(lnum).padStart(5, '0')) + '.pdf')
 }
