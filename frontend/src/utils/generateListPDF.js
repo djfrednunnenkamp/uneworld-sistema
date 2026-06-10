@@ -522,11 +522,12 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ]
     })
     mergeAccomCells(body, pax, 2)   // Tipo Apto. = coluna 2
-    // N(7)+Nome(54)+Apto(22)+NacGen(22)+Pass(32)+CPF(26)+End(60)+Cel(24)+Ag(22)=269
+    // N(7)+Nome(52)+Apto(22)+NacGen(22)+Pass(30)+CPF(30)+End(60)+Cel(24)+Ag(22)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereco', 'Celular', 'Agencia'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:54}, 2:{cellWidth:22}, 3:{cellWidth:22}, 4:{cellWidth:32}, 5:{cellWidth:26}, 6:{cellWidth:60}, 7:{cellWidth:24}, 8:{cellWidth:22} }
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:52}, 2:{cellWidth:22}, 3:{cellWidth:22}, 4:{cellWidth:30}, 5:{cellWidth:30}, 6:{cellWidth:60}, 7:{cellWidth:24}, 8:{cellWidth:22} },
+      { bodyStyles: { valign: 'middle' } }
     )
   }
 
