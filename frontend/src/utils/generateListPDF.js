@@ -152,7 +152,7 @@ function applyTableStyle(doc, startY, head, body, colStyles = {}, hooks = {}) {
     },
     alternateRowStyles: { fillColor: HEADER },
     columnStyles: colStyles,
-    margin: { left: 14, right: 14 },
+    margin: { left: 10, right: 10 },
     tableLineColor: BORDER,
     tableLineWidth: 0.2,
     ...hooks,
@@ -162,7 +162,7 @@ function applyTableStyle(doc, startY, head, body, colStyles = {}, hooks = {}) {
 
 function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
   const pw     = doc.internal.pageSize.getWidth()
-  const LOGO_W = 30, LOGO_H = 16, LOGO_X = 14, LOGO_Y = 6
+  const LOGO_W = 30, LOGO_H = 16, LOGO_X = 10, LOGO_Y = 6
   const NUM_W  = 60
 
   if (logoDataUrl) {
@@ -173,10 +173,10 @@ function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
   doc.setFontSize(8)
   doc.setTextColor(...NAV)
   const numStr = 'LISTA DE PASSAGEIROS N' + String.fromCharCode(186) + ' ' + String(listNumber).padStart(5, '0')
-  doc.text(numStr, pw - 14, 10, { align: 'right' })
+  doc.text(numStr, pw - 10, 10, { align: 'right' })
 
   const areaStart = LOGO_X + LOGO_W + 4
-  const areaEnd   = pw - 14 - NUM_W
+  const areaEnd   = pw - 10 - NUM_W
   const centerX   = areaStart + (areaEnd - areaStart) / 2
 
   doc.setFont('helvetica', 'bold')
@@ -191,7 +191,7 @@ function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
 
   doc.setDrawColor(...BLUE)
   doc.setLineWidth(0.5)
-  doc.line(14, 24, pw - 14, 24)
+  doc.line(10, 24, pw - 10, 24)
 
   return 28
 }
@@ -238,7 +238,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       doc.setTextColor(71, 85, 105)
-      doc.text(summaryLine, 14, y + 2)
+      doc.text(summaryLine, 10, y + 2)
       return y + 4
     }
     return y
@@ -351,11 +351,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     ])
     mergeAccomCells(body, pax, 3)   // Tipo Apto. = coluna 3
 
-    // N(7)+Bloq(22)+Nome(58)+Apto(26)+Nasc(28)+Nac(16)+Gen(16)+Pass(24)+CPF(28)+Ag(44)=269
+    // N(7)+Bloq(22)+Nome(66)+Apto(26)+Nasc(28)+Nac(16)+Gen(16)+Pass(24)+CPF(28)+Ag(44)=277
     applyTableStyle(doc, y,
       ['N', 'Bloqueio\naereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:22,halign:'center'}, 2:{cellWidth:58}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24,halign:'center'}, 8:{cellWidth:28}, 9:{cellWidth:44} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:22,halign:'center'}, 2:{cellWidth:66}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24,halign:'center'}, 8:{cellWidth:28}, 9:{cellWidth:44} },
       mergeHooks(birthdayHooks(bdaySet, 4), bloqueioHooks(1))   // Nascimento = coluna 4, Bloqueio = coluna 1
     )
   }
@@ -375,11 +375,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       fmtDate(e.passenger_passport_expiry),
       e.passenger_cpf || '',
     ])
-    // N(7)+Nome(102)+Nasc(28)+Nac(16)+Gen(16)+Pass(28)+Exp(22)+Val(22)+CPF(28)=269
+    // N(7)+Nome(110)+Nasc(28)+Nac(16)+Gen(16)+Pass(28)+Exp(22)+Val(22)+CPF(28)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'Expedicao', 'Validade', 'CPF'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:102}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28,halign:'center'}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:28} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:110}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28,halign:'center'}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:28} },
       birthdayHooks(bdaySet, 2)   // Nascimento = coluna 2
     )
   }
@@ -403,11 +403,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ]
     })
     mergeAccomCells(body, pax, 3)   // Assentos juntos = coluna 3
-    // N(7)+Nome(98)+Ass(25)+Juntos(22)+Alim(30)+Nasc(27)+Nac(16)+Gen(16)+CPF(28)=269
+    // N(7)+Nome(106)+Ass(25)+Juntos(22)+Alim(30)+Nasc(27)+Nac(16)+Gen(16)+CPF(28)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Assento', 'Assentos\njuntos', 'Tipo Alimentacao', 'Nascimento', 'Nac.', 'Genero', 'CPF'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:98}, 2:{cellWidth:25,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:27,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:16,halign:'center'}, 8:{cellWidth:28,halign:'center'} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:106}, 2:{cellWidth:25,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:27,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:16,halign:'center'}, 8:{cellWidth:28,halign:'center'} },
       birthdayHooks(bdaySet, 5)   // Nascimento = coluna 5
     )
   }
@@ -451,13 +451,13 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         ])
       })
     })
-    // N(7)+Nome(76)+Ass(25)+Nasc(27)+Nac(16)+Gen(16)+CPF(28)+Alim(74)=269
+    // N(7)+Nome(84)+Ass(25)+Nasc(27)+Nac(16)+Gen(16)+CPF(28)+Alim(74)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Assento', 'Nascimento', 'Nac.', 'Genero', 'CPF', 'Tipo Alimentacao'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:25,halign:'center'}, 3:{cellWidth:27,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:28}, 7:{cellWidth:74} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:84}, 2:{cellWidth:25,halign:'center'}, 3:{cellWidth:27,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:28}, 7:{cellWidth:74} },
       {
-        margin: { top: 28, left: 14, right: 14 },
+        margin: { top: 28, left: 10, right: 10 },
         didDrawPage: data => {
           if (data.pageNumber > 1) addPageHeader(doc, 'LISTA DE LOCAIS DE EMBARQUE', lname, lnum, dates, logoDataUrl)
         },
@@ -473,11 +473,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     const body = paxWithNotes.map((e, i) => [
       i + 1, e.passenger_name, '', e.notes || '', e.passenger_diet_type || '',
     ])
-    // N(7)+Nome(70)+Adic(50)+Obs(110)+Alim(32)=269
+    // N(7)+Nome(78)+Adic(50)+Obs(110)+Alim(32)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Adicionais', 'Observacoes', 'Alimentacao'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:70}, 2:{cellWidth:50}, 3:{cellWidth:110}, 4:{cellWidth:32} }
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:78}, 2:{cellWidth:50}, 3:{cellWidth:110}, 4:{cellWidth:32} }
     )
   }
 
@@ -492,11 +492,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       '',
       e.passenger_mobile || '',
     ])
-    // N(7)+Nome(122)+T1(35)+T2(35)+T3(35)+Cel(35)=269
+    // N(7)+Nome(130)+T1(35)+T2(35)+T3(35)+Cel(35)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Telefone 1', 'Telefone 2', 'Telefone 3', 'Celular'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:122}, 2:{cellWidth:35}, 3:{cellWidth:35}, 4:{cellWidth:35}, 5:{cellWidth:35} }
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:130}, 2:{cellWidth:35}, 3:{cellWidth:35}, 4:{cellWidth:35}, 5:{cellWidth:35} }
     )
   }
 
@@ -522,11 +522,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ]
     })
     mergeAccomCells(body, pax, 2)   // Tipo Apto. = coluna 2
-    // N(7)+Nome(52)+Apto(22)+NacGen(22)+Pass(30)+CPF(30)+End(60)+Cel(24)+Ag(22)=269
+    // N(7)+Nome(60)+Apto(22)+NacGen(22)+Pass(30)+CPF(30)+End(60)+Cel(24)+Ag(22)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereco', 'Celular', 'Agencia'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:52,valign:'top'}, 2:{cellWidth:22,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:30,halign:'center'}, 6:{cellWidth:60,halign:'center'}, 7:{cellWidth:24,halign:'center'}, 8:{cellWidth:22,halign:'center'} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:60,valign:'top'}, 2:{cellWidth:22,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:30,halign:'center'}, 6:{cellWidth:60,halign:'center'}, 7:{cellWidth:24,halign:'center'}, 8:{cellWidth:22,halign:'center'} },
       { bodyStyles: { valign: 'middle' } }
     )
   }
