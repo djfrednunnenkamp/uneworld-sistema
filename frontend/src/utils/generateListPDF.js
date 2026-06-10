@@ -216,6 +216,9 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
 
   const doc    = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pax    = enrollments.filter(e => !e.is_block && e.enrollment_status !== 'cancelado')
+  // Numero (N) fixo de cada passageiro = posicao na lista normal — usado em todas as secoes,
+  // mesmo nas que reagrupam (Embarque) ou filtram (Observacoes) o pax
+  const paxNumber = new Map(pax.map((e, i) => [e.id, i + 1]))
   const dates  = fmtDate(list.start_date) + ' A ' + fmtDate(list.end_date)
   const lname  = (list.name || '').toUpperCase()
   const lnum   = list.id
@@ -434,13 +437,12 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
 
     const body = []
     const bdaySet = new Set()
-    let globalIdx = 1
     groupKeys.forEach(airport => {
       body.push([{ content: 'EMBARQUE: ' + airport, colSpan: 8, styles: { fillColor: BLUE, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left', valign: 'middle', cellPadding: { top: 1.5, right: 4, bottom: 1.5, left: 4 } } }])
       groups[airport].forEach(e => {
         if (hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date)) bdaySet.add(body.length)
         body.push([
-          globalIdx++,
+          paxNumber.get(e.id),
           e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
           (e.passenger_seat_preference || '').toUpperCase(),
           fmtDate(e.passenger_birth_date),
@@ -470,8 +472,8 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
   if (opts.observacoes) {
     const paxWithNotes = pax.filter(e => e.notes)
     const y = newSection('LISTA DE OBSERVACOES', null)
-    const body = paxWithNotes.map((e, i) => [
-      i + 1, e.passenger_name, '', e.notes || '', e.passenger_diet_type || '',
+    const body = paxWithNotes.map(e => [
+      paxNumber.get(e.id), e.passenger_name, '', e.notes || '', e.passenger_diet_type || '',
     ])
     // N(7)+Nome(78)+Adic(50)+Obs(110)+Alim(32)=277
     applyTableStyle(doc, y,
