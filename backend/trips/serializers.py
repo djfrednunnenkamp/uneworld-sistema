@@ -205,7 +205,6 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_mobile          = serializers.SerializerMethodField()
     passenger_seat_preference = serializers.SerializerMethodField()
     passenger_diet_type       = serializers.SerializerMethodField()
-    passenger_diet_notes      = serializers.SerializerMethodField()
     passenger_passport_issue  = serializers.SerializerMethodField()
     passenger_passport_expiry = serializers.SerializerMethodField()
     passenger_is_guide        = serializers.SerializerMethodField()
@@ -215,7 +214,6 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_passenger_mobile(self, obj):           return obj.passenger.mobile          if obj.passenger else ''
     def get_passenger_seat_preference(self, obj):  return obj.passenger.seat_preference if obj.passenger else ''
     def get_passenger_diet_type(self, obj):        return obj.passenger.diet_type       if obj.passenger else ''
-    def get_passenger_diet_notes(self, obj):       return obj.passenger.diet_notes      if obj.passenger else ''
     def get_passenger_is_guide(self, obj):         return obj.passenger.is_guide        if obj.passenger else False
     def get_passenger_passport_issue(self, obj):
         p = obj.passenger
@@ -287,7 +285,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
             'passenger_is_verified',
             'passenger_phone2', 'passenger_mobile',
-            'passenger_seat_preference', 'passenger_diet_type', 'passenger_diet_notes',
+            'passenger_seat_preference', 'passenger_diet_type',
             'passenger_passport_issue', 'passenger_passport_expiry',
             'passenger_is_guide', 'passenger_address',
             'additionals', 'additionals_data',

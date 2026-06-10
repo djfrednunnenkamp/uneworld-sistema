@@ -25,8 +25,8 @@ function fmtNat(n) {
 }
 
 function fmtDiet(e) {
-  const tipo  = e.passenger_diet_type  || ''
-  const obs   = e.passenger_diet_notes || ''
+  const tipo = e.passenger_diet_type || ''
+  const obs  = e.notes || ''
   if (tipo && obs) return `${tipo} - ${obs}`
   return tipo || obs
 }
