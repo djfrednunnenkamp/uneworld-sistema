@@ -522,11 +522,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ]
     })
     mergeAccomCells(body, pax, 2)   // Tipo Apto. = coluna 2
-    // N(7)+Nome(51)+Apto(22)+NacGen(22)+Pass(30)+CPF(30)+End(58)+Cel(35)+Ag(22)=277
+    // N(7)+Nome(51)+Apto(22)+NacGen(22)+Pass(30)+CPF(25)+End(58)+Cel(32)+Ag(30)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereco', 'Celular', 'Agencia'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:51,valign:'top'}, 2:{cellWidth:22,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:30,halign:'center'}, 6:{cellWidth:58,halign:'center'}, 7:{cellWidth:35,halign:'center'}, 8:{cellWidth:22,halign:'center'} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:51,valign:'top'}, 2:{cellWidth:22,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:25,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 6:{cellWidth:58,halign:'center'}, 7:{cellWidth:32,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 8:{cellWidth:30,halign:'center'} },
       { bodyStyles: { valign: 'middle' } }
     )
   }
