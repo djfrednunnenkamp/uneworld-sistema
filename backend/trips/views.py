@@ -2,10 +2,10 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
-    SupplierSerializer, ListAdditionalSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
+    SupplierSerializer, ListAdditionalSerializer, CrewRoleSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
     RoomSerializer,
 )
 
@@ -57,6 +57,13 @@ class ListAdditionalViewSet(viewsets.ModelViewSet):
     search_fields    = ['name']
 
 
+class CrewRoleViewSet(viewsets.ModelViewSet):
+    queryset         = CrewRole.objects.all()
+    serializer_class = CrewRoleSerializer
+    filter_backends  = [filters.SearchFilter]
+    search_fields    = ['name']
+
+
 class RoteiroViewSet(viewsets.ModelViewSet):
     queryset         = Roteiro.objects.all()
     serializer_class = RoteiroSerializer
@@ -65,7 +72,7 @@ class RoteiroViewSet(viewsets.ModelViewSet):
 
 
 class PassengerListViewSet(viewsets.ModelViewSet):
-    queryset         = PassengerList.objects.prefetch_related('suppliers', 'additionals').all()
+    queryset         = PassengerList.objects.prefetch_related('suppliers', 'additionals', 'crew_roles').all()
     serializer_class = PassengerListSerializer
     filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
     search_fields    = ['name']
@@ -180,6 +187,9 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         if 'additionals' in request.data:
             from .models import ListAdditional
             e.additionals.set(ListAdditional.objects.filter(pk__in=request.data['additionals']))
+        if 'crew_roles' in request.data:
+            from .models import CrewRole
+            e.crew_roles.set(CrewRole.objects.filter(pk__in=request.data['crew_roles']))
         if 'agency' in request.data:
             from agencies.models import Agency
             ag_id = request.data['agency']

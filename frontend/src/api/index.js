@@ -51,6 +51,11 @@ export const listsApi = {
   addAdditional:    (name)        => api.post('/trips/list-additionals/', { name }),
   updateAdditional: (id, name)    => api.patch(`/trips/list-additionals/${id}/`, { name }),
   removeAdditional: (id)          => api.delete(`/trips/list-additionals/${id}/`),
+  // Equipe técnica
+  listCrewRoles:    ()            => api.get('/trips/crew-roles/'),
+  addCrewRole:      (name)        => api.post('/trips/crew-roles/', { name }),
+  updateCrewRole:   (id, name)    => api.patch(`/trips/crew-roles/${id}/`, { name }),
+  removeCrewRole:   (id)          => api.delete(`/trips/crew-roles/${id}/`),
   // Roteiros
   roteiros:         ()            => api.get('/trips/roteiros/'),
   addRoteiro:       (name)        => api.post('/trips/roteiros/', { name }),

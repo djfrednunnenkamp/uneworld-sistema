@@ -91,6 +91,17 @@ class ListAdditional(models.Model):
     def __str__(self): return self.name
 
 
+class CrewRole(models.Model):
+    name = models.CharField('Nome', max_length=200)
+
+    class Meta:
+        verbose_name        = 'Função da equipe técnica'
+        verbose_name_plural = 'Funções da equipe técnica'
+        ordering            = ['name']
+
+    def __str__(self): return self.name
+
+
 class Roteiro(models.Model):
     name = models.CharField('Nome', max_length=300)
 
@@ -122,6 +133,7 @@ class PassengerList(models.Model):
     end_date             = models.DateField('Data de término', null=True, blank=True)
     suppliers            = models.ManyToManyField(Supplier,       blank=True, related_name='passenger_lists', verbose_name='Fornecedores')
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
+    crew_roles           = models.ManyToManyField(CrewRole,       blank=True, related_name='passenger_lists', verbose_name='Funções da equipe técnica')
     roteiros             = models.ManyToManyField(Roteiro,        blank=True, related_name='passenger_lists', verbose_name='Roteiros')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     default_airport      = models.ForeignKey('config_api.Airport',       null=True, blank=True, on_delete=models.SET_NULL, related_name='default_lists', verbose_name='Aeroporto de saída padrão')
@@ -175,6 +187,7 @@ class ListEnrollment(models.Model):
     connection_ticket_status = models.CharField('Status da passagem de conexão', max_length=20, choices=TICKET_STATUS, default='nao_emitida')
     selected_passport  = models.ForeignKey('passengers.PassengerDocument', null=True, blank=True, on_delete=models.SET_NULL, related_name='selected_for_enrollments', verbose_name='Passaporte selecionado para a viagem')
     additionals        = models.ManyToManyField(ListAdditional, blank=True, related_name='enrollments', verbose_name='Adicionais')
+    crew_roles         = models.ManyToManyField(CrewRole,       blank=True, related_name='enrollments', verbose_name='Funções da equipe técnica')
     order_in_list      = models.PositiveIntegerField('Ordem', default=0)
     enrolled_at        = models.DateTimeField('Adicionado em', auto_now_add=True)
     notes              = models.TextField('Observações', blank=True)

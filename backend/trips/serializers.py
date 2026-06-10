@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Roteiro, PassengerList, ListEnrollment, Room
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -54,6 +54,12 @@ class ListAdditionalSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
+class CrewRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = CrewRole
+        fields = ['id', 'name']
+
+
 class RoteiroSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Roteiro
@@ -82,9 +88,11 @@ class AirportBriefSerializer(serializers.Serializer):
 class PassengerListSerializer(serializers.ModelSerializer):
     suppliers_data      = SupplierSerializer(source='suppliers',         many=True, read_only=True)
     additionals_data    = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
+    crew_roles_data     = CrewRoleSerializer(source='crew_roles',        many=True, read_only=True)
     roteiros_data       = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
     suppliers           = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
     additionals         = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
+    crew_roles          = serializers.PrimaryKeyRelatedField(queryset=CrewRole.objects.all(),       many=True, required=False)
     roteiros            = serializers.PrimaryKeyRelatedField(queryset=Roteiro.objects.all(),        many=True, required=False)
     enrolled_count      = serializers.IntegerField(read_only=True)
     start_date_br       = serializers.SerializerMethodField()
@@ -102,6 +110,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'start_date_br', 'end_date_br',
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
+            'crew_roles', 'crew_roles_data',
             'roteiros', 'roteiros_data',
             'required_documents',
             'default_airport', 'default_airport_data',
@@ -239,6 +248,8 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
 
     additionals_data         = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
     additionals              = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
+    crew_roles_data          = CrewRoleSerializer(source='crew_roles', many=True, read_only=True)
+    crew_roles               = serializers.PrimaryKeyRelatedField(queryset=CrewRole.objects.all(), many=True, required=False)
 
     agency_name              = serializers.SerializerMethodField()
     responsible_user_name    = serializers.SerializerMethodField()
@@ -289,6 +300,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_passport_issue', 'passenger_passport_expiry',
             'passenger_is_guide', 'passenger_address',
             'additionals', 'additionals_data',
+            'crew_roles', 'crew_roles_data',
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
             'ticket_status', 'connection_ticket_status',
