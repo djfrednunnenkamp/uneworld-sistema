@@ -492,11 +492,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       '',
       e.passenger_mobile || '',
     ])
-    // N(7)+Nome(78)+T1(46)+T2(46)+T3(46)+Cel(46)=269
+    // N(7)+Nome(122)+T1(35)+T2(35)+T3(35)+Cel(35)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Telefone 1', 'Telefone 2', 'Telefone 3', 'Celular'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:78}, 2:{cellWidth:46}, 3:{cellWidth:46}, 4:{cellWidth:46}, 5:{cellWidth:46} }
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:122}, 2:{cellWidth:35}, 3:{cellWidth:35}, 4:{cellWidth:35}, 5:{cellWidth:35} }
     )
   }
 
