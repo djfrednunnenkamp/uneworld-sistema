@@ -433,30 +433,35 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     }
 
     const body = []
+    const bdaySet = new Set()
     let globalIdx = 1
     groupKeys.forEach(airport => {
       body.push([{ content: 'EMBARQUE: ' + airport, colSpan: 8, styles: { fillColor: BLUE, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left', valign: 'middle', cellPadding: { top: 1.5, right: 4, bottom: 1.5, left: 4 } } }])
-      groups[airport].forEach(e => body.push([
-        globalIdx++,
-        e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
-        (e.passenger_seat_preference || '').toUpperCase(),
-        fmtDate(e.passenger_birth_date),
-        fmtNat(e.passenger_nationality),
-        fmtGender(e.passenger_gender),
-        e.passenger_cpf || '',
-        e.passenger_diet_type || '',
-      ]))
+      groups[airport].forEach(e => {
+        if (hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date)) bdaySet.add(body.length)
+        body.push([
+          globalIdx++,
+          e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
+          (e.passenger_seat_preference || '').toUpperCase(),
+          fmtDate(e.passenger_birth_date),
+          fmtNat(e.passenger_nationality),
+          fmtGender(e.passenger_gender),
+          e.passenger_cpf || '',
+          e.passenger_diet_type || '',
+        ])
+      })
     })
-    // N(7)+Nome(76)+Ass(25)+Nasc(22)+Nac(16)+Gen(16)+CPF(28)+Alim(79)=269
+    // N(7)+Nome(76)+Ass(25)+Nasc(27)+Nac(16)+Gen(16)+CPF(28)+Alim(74)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Assento', 'Nascimento', 'Nac.', 'Genero', 'CPF', 'Tipo Alimentacao'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:25}, 3:{cellWidth:22}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:28}, 7:{cellWidth:79} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:25,halign:'center'}, 3:{cellWidth:27,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:28}, 7:{cellWidth:74} },
       {
         margin: { top: 28, left: 14, right: 14 },
         didDrawPage: data => {
           if (data.pageNumber > 1) addPageHeader(doc, 'LISTA DE LOCAIS DE EMBARQUE', lname, lnum, dates, logoDataUrl)
         },
+        ...birthdayHooks(bdaySet, 3),   // Nascimento = coluna 3
       }
     )
   }
