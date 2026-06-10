@@ -24,6 +24,13 @@ function fmtNat(n) {
   return map[up] || up.slice(0, 3)
 }
 
+function fmtDiet(e) {
+  const tipo  = e.passenger_diet_type  || ''
+  const obs   = e.passenger_diet_notes || ''
+  if (tipo && obs) return `${tipo} - ${obs}`
+  return tipo || obs
+}
+
 function passportRg(e) {
   const pp = e.selected_passport_data?.doc_number || e.passenger_passport
   return pp || e.passenger_rg || ''
@@ -398,7 +405,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
         (e.passenger_seat_preference || '').toUpperCase(),
         sameRoom && sameRoom.length > 1 ? 'Juntos' : '',
-        e.passenger_diet_type || '',
+        fmtDiet(e),
         fmtDate(e.passenger_birth_date),
         fmtNat(e.passenger_nationality),
         fmtGender(e.passenger_gender),
@@ -449,7 +456,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
           fmtNat(e.passenger_nationality),
           fmtGender(e.passenger_gender),
           e.passenger_cpf || '',
-          e.passenger_diet_type || '',
+          fmtDiet(e),
         ])
       })
     })
@@ -473,7 +480,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     const paxWithNotes = pax.filter(e => e.notes || (e.additionals_data && e.additionals_data.length > 0))
     const y = newSection('LISTA DE OBSERVACOES', null)
     const body = paxWithNotes.map(e => [
-      paxNumber.get(e.id), e.passenger_name, (e.additionals_data || []).map(a => a.name).join(', '), e.notes || '', e.passenger_diet_type || '',
+      paxNumber.get(e.id), e.passenger_name, (e.additionals_data || []).map(a => a.name).join(', '), e.notes || '', fmtDiet(e),
     ])
     // N(7)+Nome(78)+Adic(50)+Obs(110)+Alim(32)=277
     applyTableStyle(doc, y,
