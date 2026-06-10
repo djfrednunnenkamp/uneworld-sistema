@@ -375,11 +375,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       fmtDate(e.passenger_passport_expiry),
       e.passenger_cpf || '',
     ])
-    // N(7)+Nome(76)+Nasc(28)+Nac(16)+Gen(16)+Pass(28)+Exp(22)+Val(22)+CPF(54)=269
+    // N(7)+Nome(102)+Nasc(28)+Nac(16)+Gen(16)+Pass(28)+Exp(22)+Val(22)+CPF(28)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'Expedicao', 'Validade', 'CPF'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28,halign:'center'}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:54} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:102}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28,halign:'center'}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:28} },
       birthdayHooks(bdaySet, 2)   // Nascimento = coluna 2
     )
   }
