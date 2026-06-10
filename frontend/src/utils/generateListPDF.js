@@ -447,11 +447,11 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         e.passenger_diet_type || '',
       ]))
     })
-    // N(7)+Nome(76)+Ass(20)+Nasc(22)+Nac(16)+Gen(16)+CPF(30)+Alim(82)=269
+    // N(7)+Nome(76)+Ass(25)+Nasc(22)+Nac(16)+Gen(16)+CPF(28)+Alim(79)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Assento', 'Nascimento', 'Nac.', 'Genero', 'CPF', 'Tipo Alimentacao'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:20}, 3:{cellWidth:22}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:30}, 7:{cellWidth:82} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:76}, 2:{cellWidth:25}, 3:{cellWidth:22}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:28}, 7:{cellWidth:79} },
       {
         margin: { top: 28, left: 14, right: 14 },
         didDrawPage: data => {
