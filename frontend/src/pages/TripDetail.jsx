@@ -1361,8 +1361,10 @@ const PASSENGER_ACTIONS = [
   { key:'delete',      label:'Excluir passageiro',          icon:'trash',    enabled:true, danger:true },
 ]
 
-function PassengerActionsModal({ enrollment, onAction, onClose }) {
+function PassengerActionsModal({ enrollment, listType, onAction, onClose }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+  // "Informar o assento" so faz sentido em viagens rodoviarias (assento de onibus)
+  const actions = PASSENGER_ACTIONS.filter(act => act.key !== 'seat' || listType === 'terrestre')
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -1379,7 +1381,7 @@ function PassengerActionsModal({ enrollment, onAction, onClose }) {
 
         {/* Opções */}
         <div style={{ padding:'8px 10px', overflowY:'auto' }}>
-          {PASSENGER_ACTIONS.map(act => (
+          {actions.map(act => (
             <button key={act.key} type="button" disabled={!act.enabled}
               onClick={() => { if (!act.enabled) return; onAction(act.key) }}
               style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
@@ -3967,6 +3969,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
       {actionsModal && (
         <PassengerActionsModal
           enrollment={actionsModal}
+          listType={listType}
           onAction={(action) => handlePassengerAction(action, actionsModal)}
           onClose={() => setActionsModal(null)}
         />
