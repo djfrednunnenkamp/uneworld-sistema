@@ -402,9 +402,10 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         e.passenger_cpf || '',
       ]
     })
+    mergeAccomCells(body, pax, 3)   // Assentos juntos = coluna 3
     // N(7)+Nome(103)+Ass(20)+Juntos(22)+Alim(30)+Nasc(27)+Nac(16)+Gen(16)+CPF(28)=269
     applyTableStyle(doc, y,
-      ['N', 'Nome', 'Assento', 'Assentos juntos', 'Tipo Alimentacao', 'Nascimento', 'Nac.', 'Genero', 'CPF'],
+      ['N', 'Nome', 'Assento', 'Assentos\njuntos', 'Tipo Alimentacao', 'Nascimento', 'Nac.', 'Genero', 'CPF'],
       body,
       { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:103}, 2:{cellWidth:20,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:27,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:16,halign:'center'}, 8:{cellWidth:28,halign:'center'} },
       birthdayHooks(bdaySet, 5)   // Nascimento = coluna 5
