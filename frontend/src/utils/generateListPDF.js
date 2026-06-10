@@ -526,7 +526,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereco', 'Celular', 'Agencia'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:52}, 2:{cellWidth:22}, 3:{cellWidth:22}, 4:{cellWidth:30}, 5:{cellWidth:30}, 6:{cellWidth:60}, 7:{cellWidth:24}, 8:{cellWidth:22} },
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:52,valign:'top'}, 2:{cellWidth:22,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:30,halign:'center'}, 6:{cellWidth:60,halign:'center'}, 7:{cellWidth:24,halign:'center'}, 8:{cellWidth:22,halign:'center'} },
       { bodyStyles: { valign: 'middle' } }
     )
   }
