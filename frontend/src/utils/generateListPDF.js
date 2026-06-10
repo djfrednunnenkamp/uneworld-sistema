@@ -387,6 +387,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
   // ── 3. Lista Aereo ───────────────────────────────────────────────────────────
   if (opts.aereo) {
     const y = newSection('LISTA AEREO', null)
+    const bdaySet = new Set(pax.map((e, i) => hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date) ? i : -1).filter(i => i >= 0))
     const body = pax.map((e, i) => {
       const sameRoom = accomPairs[e.accommodation]
       return [
@@ -401,11 +402,12 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         e.passenger_cpf || '',
       ]
     })
-    // N(7)+Nome(70)+Ass(20)+Juntos(22)+Alim(30)+Nasc(22)+Nac(16)+Gen(16)+CPF(66)=269
+    // N(7)+Nome(108)+Ass(20)+Juntos(22)+Alim(30)+Nasc(22)+Nac(16)+Gen(16)+CPF(28)=269
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Assento', 'Assentos juntos', 'Tipo Alimentacao', 'Nascimento', 'Nac.', 'Genero', 'CPF'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:70}, 2:{cellWidth:20}, 3:{cellWidth:22}, 4:{cellWidth:30}, 5:{cellWidth:22}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:16,halign:'center'}, 8:{cellWidth:66} }
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:108}, 2:{cellWidth:20}, 3:{cellWidth:22}, 4:{cellWidth:30}, 5:{cellWidth:22,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:16,halign:'center'}, 8:{cellWidth:28} },
+      birthdayHooks(bdaySet, 5)   // Nascimento = coluna 5
     )
   }
 
