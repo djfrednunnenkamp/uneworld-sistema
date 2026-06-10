@@ -177,6 +177,9 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             e.departure_airport_id = request.data['departure_airport'] or None
         if 'selected_passport' in request.data:
             e.selected_passport_id = request.data['selected_passport'] or None
+        if 'additionals' in request.data:
+            from .models import ListAdditional
+            e.additionals.set(ListAdditional.objects.filter(pk__in=request.data['additionals']))
         if 'agency' in request.data:
             from agencies.models import Agency
             ag_id = request.data['agency']

@@ -237,6 +237,9 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         city_line = ', '.join(filter(None, [p.neighborhood, p.city, p.state, p.cep]))
         return '\n'.join(filter(None, [addr, city_line]))
 
+    additionals_data         = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
+    additionals              = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
+
     agency_name              = serializers.SerializerMethodField()
     responsible_user_name    = serializers.SerializerMethodField()
     departure_airport_data   = serializers.SerializerMethodField()
@@ -285,6 +288,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_seat_preference', 'passenger_diet_type',
             'passenger_passport_issue', 'passenger_passport_expiry',
             'passenger_is_guide', 'passenger_address',
+            'additionals', 'additionals_data',
             'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
             'ticket_status', 'connection_ticket_status',

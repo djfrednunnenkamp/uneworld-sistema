@@ -314,6 +314,92 @@ function PassengerNotesModal({ enrollment, listId, onSaved, onClose }) {
   )
 }
 
+/* ── Popup "Informações adicionais" do passageiro — seleciona os adicionais configurados na lista ── */
+function PassengerExtraInfoModal({ enrollment, listId, additionals = [], onSaved, onClose }) {
+  const [selected, setSelected] = useState(() => new Set((enrollment.additionals_data || []).map(a => a.id)))
+  const [search,   setSearch]   = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+
+  const initial = new Set((enrollment.additionals_data || []).map(a => a.id))
+  const dirty = selected.size !== initial.size || [...selected].some(id => !initial.has(id))
+
+  const toggle = (id) => setSelected(s => {
+    const n = new Set(s)
+    n.has(id) ? n.delete(id) : n.add(id)
+    return n
+  })
+
+  const filtered = additionals.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, { additionals: [...selected] })
+      toast.success('Informações adicionais salvas.')
+      onSaved(); onClose()
+    } catch { toast.error('Erro ao salvar informações adicionais.') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:420, maxHeight:'85vh', display:'flex', flexDirection:'column', boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>Informações adicionais</p>
+            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2, flexShrink:0 }}>×</button>
+        </div>
+
+        <div style={{ padding:'16px 22px 0', flexShrink:0 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Pesquisar adicional…"
+            style={INP}
+            onFocus={e => e.target.style.borderColor='#2e6db4'}
+            onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+        </div>
+
+        <div style={{ padding:'12px 22px 20px', overflowY:'auto', flex:1 }}>
+          {additionals.length === 0 ? (
+            <p style={{ textAlign:'center', color:'#94a3b8', fontSize:13, padding:'18px 0', margin:0 }}>
+              Nenhum adicional configurado para esta lista.<br />Configure em "Editar lista" → Adicionais.
+            </p>
+          ) : filtered.length === 0 ? (
+            <p style={{ textAlign:'center', color:'#94a3b8', fontSize:13, padding:'18px 0', margin:0 }}>Nenhum resultado.</p>
+          ) : filtered.map(a => {
+            const checked = selected.has(a.id)
+            return (
+              <div key={a.id} onClick={() => toggle(a.id)}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 10px', borderRadius:8, marginBottom:2, cursor:'pointer', background: checked ? '#f0f9ff' : 'transparent' }}
+                onMouseEnter={e => { if (!checked) e.currentTarget.style.background='#f8fafc' }}
+                onMouseLeave={e => { e.currentTarget.style.background = checked ? '#f0f9ff' : 'transparent' }}>
+                <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${checked ? '#1a2d4f' : '#d1d5db'}`, background: checked ? '#1a2d4f' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {checked && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:13, color:'#1e293b' }}>{a.name}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end', borderTop:'1px solid #f1f5f9', paddingTop:14, flexShrink:0 }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={!dirty || saving}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: !dirty || saving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: !dirty || saving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Picker de aeroporto — busca por nome / IATA / cidade ── */
 function AirportPicker({ value, onChange, placeholder }) {
   const [query,   setQuery]   = useState('')
@@ -1263,7 +1349,7 @@ const PASSENGER_ACTIONS = [
   { key:'quick_edit',  label:'Edição rápida do passageiro', icon:'list',     enabled:true  },
   { key:'edit',        label:'Editar o passageiro',         icon:'edit',     enabled:true  },
   { key:'notes',       label:'Observações',                 icon:'docs',     enabled:true  },
-  { key:'extra_info',  label:'Informações adicionais',      icon:'plus',     enabled:false },
+  { key:'extra_info',  label:'Informações adicionais',      icon:'plus',     enabled:true  },
   { key:'seat',        label:'Informar o assento',          icon:'grid',     enabled:false },
   { key:'crew',        label:'Equipe técnica',              icon:'users',    enabled:false },
   { key:'pax_type',    label:'Tipo de passageiro',          icon:'settings', enabled:false },
@@ -3162,7 +3248,7 @@ function MetricsPanel({ enrolled, accomTypes }) {
 }
 
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, onData }) {
+function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, additionals = [], onData }) {
   const navigate = useNavigate()
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
@@ -3183,6 +3269,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
   const [statusModal,   setStatusModal]   = useState(null)
   // notesModal: null | enrollment (objeto) — popup "Observações" do menu de ações
   const [notesModal,    setNotesModal]    = useState(null)
+  // extraInfoModal: null | enrollment (objeto) — popup "Informações adicionais" do menu de ações
+  const [extraInfoModal, setExtraInfoModal] = useState(null)
   // actionsModal: null | enrollment (objeto) — popup "Ações do passageiro"
   const [actionsModal,  setActionsModal]  = useState(null)
   // roomsModal: bool — popup "Gerenciar acomodações"
@@ -3334,6 +3422,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
         break
       case 'notes':
         setNotesModal(enrollment)
+        break
+      case 'extra_info':
+        setExtraInfoModal(enrollment)
         break
       case 'boarding':
         setBoardingModal(enrollment)
@@ -3891,6 +3982,17 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, o
         />
       )}
 
+      {/* Popup Informações adicionais — acessado pelo menu de ações do passageiro */}
+      {extraInfoModal && (
+        <PassengerExtraInfoModal
+          enrollment={extraInfoModal}
+          listId={listId}
+          additionals={additionals}
+          onSaved={load}
+          onClose={() => setExtraInfoModal(null)}
+        />
+      )}
+
       {/* Popup passagem aérea */}
       {ticketModal && (
         <TicketModal
@@ -4343,7 +4445,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} onData={setPaxData} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
 
 {tab === 'voos' && <FlightsTab listId={id} list={list} />}
 
