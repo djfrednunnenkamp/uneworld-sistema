@@ -470,10 +470,10 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
 
   // ── 5. Lista de Observacoes ──────────────────────────────────────────────────
   if (opts.observacoes) {
-    const paxWithNotes = pax.filter(e => e.notes)
+    const paxWithNotes = pax.filter(e => e.notes || (e.additionals_data && e.additionals_data.length > 0))
     const y = newSection('LISTA DE OBSERVACOES', null)
     const body = paxWithNotes.map(e => [
-      paxNumber.get(e.id), e.passenger_name, '', e.notes || '', e.passenger_diet_type || '',
+      paxNumber.get(e.id), e.passenger_name, (e.additionals_data || []).map(a => a.name).join(', '), e.notes || '', e.passenger_diet_type || '',
     ])
     // N(7)+Nome(78)+Adic(50)+Obs(110)+Alim(32)=277
     applyTableStyle(doc, y,
