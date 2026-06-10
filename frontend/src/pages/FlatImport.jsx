@@ -67,6 +67,7 @@ const API_MAP = {
   genders:         { add: (name)         => configApi.addGender(name),        label: 'Gêneros' },
   prof_cards:      { add: (name)         => configApi.addProfCard(name),      label: 'Carteiras' },
   list_addits:     { add: (name)         => listsApi.addAdditional(name),     label: 'Adicionais de Lista' },
+  crew_roles:      { add: (name)         => listsApi.addCrewRole(name),       label: 'Equipe técnica' },
   list_categories: { add: (name)         => configApi.addListCategory(name),  label: 'Categoria de Acomodações' },
   accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), label: 'Acomodações' },
   countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), label: 'Países' },

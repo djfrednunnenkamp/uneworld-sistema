@@ -638,6 +638,7 @@ const LIST_DEFS = [
   { key:'genders',         label:'Gêneros' },
   { key:'prof_cards',      label:'Carteiras' },
   { key:'list_addits',     label:'Adicionais de Lista' },
+  { key:'crew_roles',      label:'Equipe técnica' },
   { key:'accommodations',  label:'Tipos de Acomodação' },
   { key:'list_categories', label:'Categoria de Acomodações' },
   { key:'countries',       label:'Países & Estados' },
@@ -659,6 +660,7 @@ export default function Settings() {
   const [listCats,   setListCats]   = useState([])
   const [profCards,    setProfCards]    = useState([])
   const [listAddits,   setListAddits]   = useState([])
+  const [crewRoles,    setCrewRoles]    = useState([])
   const [accoms,       setAccoms]       = useState([])
   const [airports,     setAirports]     = useState([])
   const [airlines,     setAirlines]     = useState([])
@@ -672,6 +674,7 @@ export default function Settings() {
   const [loadingLC,    setLoadingLC]    = useState(true)
   const [loadingPC,    setLoadingPC]    = useState(true)
   const [loadingLA,    setLoadingLA]    = useState(true)
+  const [loadingCR,    setLoadingCR]    = useState(true)
 
   useEffect(() => {
     configApi.professions().then(r => setProfessions(r.data)).catch(() => {}).finally(() => setLoadingP(false))
@@ -681,6 +684,7 @@ export default function Settings() {
     configApi.listCategories().then(r => setListCats(r.data)).catch(() => {}).finally(() => setLoadingLC(false))
     configApi.profCards().then(r => setProfCards(r.data)).catch(() => {}).finally(() => setLoadingPC(false))
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
+    listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingCR(false))
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
     configApi.airports().then(r => setAirports(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAir(false))
     configApi.airlines().then(r => setAirlines(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAirl(false))
@@ -811,6 +815,23 @@ export default function Settings() {
     catch { toast.error('Erro ao remover.') }
   }
 
+  const addCrewRole = async (name) => {
+    try {
+      const r = await listsApi.addCrewRole(name)
+      setCrewRoles(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar.') }
+  }
+  const updateCrewRole = async (id, name) => {
+    try {
+      const r = await listsApi.updateCrewRole(id, name)
+      setCrewRoles(p => p.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar função.') }
+  }
+  const delCrewRole = async (id) => {
+    try { await listsApi.removeCrewRole(id); setCrewRoles(p => p.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover.') }
+  }
+
   /* ── CSV combinado: exporta/importa todas as listas simples (nome único) de uma vez ── */
   const SIMPLE_LIST_GROUPS = [
     { key:'professions',     label:'Profissões',             items: professions },
@@ -819,6 +840,7 @@ export default function Settings() {
     { key:'genders',         label:'Gêneros',                items: genders     },
     { key:'prof_cards',      label:'Carteiras',              items: profCards   },
     { key:'list_addits',     label:'Adicionais de Lista',    items: listAddits  },
+    { key:'crew_roles',      label:'Equipe técnica',         items: crewRoles   },
     { key:'list_categories', label:'Categoria de Acomodações', items: listCats  },
   ]
 
@@ -931,6 +953,7 @@ export default function Settings() {
           {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={addGender}       onUpdate={updateGender}       onDelete={delGender}       placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
           {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={addProfCard}     onUpdate={updateProfCard}     onDelete={delProfCard}     placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
           {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={addListAddit}    onUpdate={updateListAddit}    onDelete={delListAddit}    placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
+          {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}  loading={loadingCR} onAdd={addCrewRole}     onUpdate={updateCrewRole}     onDelete={delCrewRole}     placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
           {activeDef.key === 'accommodations'  && <AccommodationManager items={accoms} loading={loadingAc} onRefresh={() => {
             setLoadingAc(true)
             configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
