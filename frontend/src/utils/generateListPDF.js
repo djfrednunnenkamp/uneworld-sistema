@@ -31,6 +31,15 @@ function fmtDiet(e) {
   return obs ? `${tipo} - ${obs}` : tipo
 }
 
+function hasCrew(e) {
+  return !!(e.crew_roles_data && e.crew_roles_data.length > 0)
+}
+
+function crewSuffix(e) {
+  if (!hasCrew(e)) return ''
+  return ' (' + e.crew_roles_data.map(r => r.name).join(', ') + ')'
+}
+
 function passportRg(e) {
   const pp = e.selected_passport_data?.doc_number || e.passenger_passport
   return pp || e.passenger_rg || ''
@@ -129,6 +138,7 @@ const NAV    = [26, 45, 79]      // #1a2d4f
 const BLUE   = [46, 109, 180]    // #2e6db4
 const HEADER = [248, 250, 252]   // #f8fafc
 const BORDER = [226, 232, 240]   // #e2e8f0
+const RED    = [220, 38, 38]     // #dc2626 — equipe tecnica
 const ROW_PAD_V = 1.5            // padding vertical das celulas do corpo (mm) — linhas mais finas
 
 // hooks: { didParseCell?, didDrawCell? }
@@ -294,6 +304,18 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     }
   }
 
+  // Hooks: pinta de vermelho o nome dos passageiros que fazem parte da equipe tecnica
+  function crewRoleHooks(crewSet, colIndex) {
+    if (crewSet.size === 0) return {}
+    return {
+      didParseCell: data => {
+        if (data.section === 'body' && data.column.index === colIndex && crewSet.has(data.row.index)) {
+          data.cell.styles.textColor = RED
+        }
+      },
+    }
+  }
+
   // Combina varios hooks didParseCell/didDrawCell numa unica chamada de tabela
   function mergeHooks(...hooksList) {
     const list = hooksList.filter(h => h && (h.didParseCell || h.didDrawCell))
@@ -346,11 +368,12 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     const y = newSection('LISTA DE PASSAGEIROS CONFIRMADOS', summary)
 
     const bdaySet = new Set(pax.map((e, i) => hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date) ? i : -1).filter(i => i >= 0))
+    const crewSet = new Set(pax.map((e, i) => hasCrew(e) ? i : -1).filter(i => i >= 0))
 
     const body = pax.map((e, i) => [
       i + 1,
       e.ticket_status === 'via_bloqueio' ? 'Sim' : 'Nao',
-      e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
+      e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : '') + crewSuffix(e),
       accomTypeLabel(accomTypes, e.accommodation),
       fmtDate(e.passenger_birth_date),          // sem prefixo — o bolo e desenhado via didDrawCell
       fmtNat(e.passenger_nationality),
@@ -366,7 +389,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ['N', 'Bloqueio\naereo', 'Nome', 'Tipo Apto.', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'CPF', 'Agencia'],
       body,
       { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:22,halign:'center'}, 2:{cellWidth:66}, 3:{cellWidth:26}, 4:{cellWidth:28,halign:'center'}, 5:{cellWidth:16,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:24,halign:'center'}, 8:{cellWidth:28}, 9:{cellWidth:44} },
-      mergeHooks(birthdayHooks(bdaySet, 4), bloqueioHooks(1))   // Nascimento = coluna 4, Bloqueio = coluna 1
+      mergeHooks(birthdayHooks(bdaySet, 4), bloqueioHooks(1), crewRoleHooks(crewSet, 2))   // Nascimento = coluna 4, Bloqueio = coluna 1, Nome = coluna 2
     )
   }
 
@@ -374,9 +397,10 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
   if (opts.data_expedicao) {
     const y = newSection('LISTA COM DATA DE EXPEDICAO', null)
     const bdaySet = new Set(pax.map((e, i) => hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date) ? i : -1).filter(i => i >= 0))
+    const crewSet = new Set(pax.map((e, i) => hasCrew(e) ? i : -1).filter(i => i >= 0))
     const body = pax.map((e, i) => [
       i + 1,
-      e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
+      e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : '') + crewSuffix(e),
       fmtDate(e.passenger_birth_date),
       fmtNat(e.passenger_nationality),
       fmtGender(e.passenger_gender),
@@ -390,7 +414,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ['N', 'Nome', 'Nascimento', 'Nac.', 'Genero', 'PASS / RG', 'Expedicao', 'Validade', 'CPF'],
       body,
       { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:110}, 2:{cellWidth:28,halign:'center'}, 3:{cellWidth:16,halign:'center'}, 4:{cellWidth:16,halign:'center'}, 5:{cellWidth:28,halign:'center'}, 6:{cellWidth:22}, 7:{cellWidth:22}, 8:{cellWidth:28} },
-      birthdayHooks(bdaySet, 2)   // Nascimento = coluna 2
+      mergeHooks(birthdayHooks(bdaySet, 2), crewRoleHooks(crewSet, 1))   // Nascimento = coluna 2, Nome = coluna 1
     )
   }
 
@@ -398,11 +422,12 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
   if (opts.aereo) {
     const y = newSection('LISTA AEREO', null)
     const bdaySet = new Set(pax.map((e, i) => hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date) ? i : -1).filter(i => i >= 0))
+    const crewSet = new Set(pax.map((e, i) => hasCrew(e) ? i : -1).filter(i => i >= 0))
     const body = pax.map((e, i) => {
       const sameRoom = accomPairs[e.accommodation]
       return [
         i + 1,
-        e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
+        e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : '') + crewSuffix(e),
         (e.passenger_seat_preference || '').toUpperCase(),
         sameRoom && sameRoom.length > 1 ? 'Juntos' : '',
         fmtDiet(e),
@@ -418,7 +443,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ['N', 'Nome', 'Assento', 'Assentos\njuntos', 'Tipo Alimentacao', 'Nascimento', 'Nac.', 'Genero', 'CPF'],
       body,
       { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:106}, 2:{cellWidth:25,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:30,halign:'center'}, 5:{cellWidth:27,halign:'center'}, 6:{cellWidth:16,halign:'center'}, 7:{cellWidth:16,halign:'center'}, 8:{cellWidth:28,halign:'center'} },
-      birthdayHooks(bdaySet, 5)   // Nascimento = coluna 5
+      mergeHooks(birthdayHooks(bdaySet, 5), crewRoleHooks(crewSet, 1))   // Nascimento = coluna 5, Nome = coluna 1
     )
   }
 
@@ -444,13 +469,15 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
 
     const body = []
     const bdaySet = new Set()
+    const crewSet = new Set()
     groupKeys.forEach(airport => {
       body.push([{ content: 'EMBARQUE: ' + airport, colSpan: 8, styles: { fillColor: BLUE, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left', valign: 'middle', cellPadding: { top: 1.5, right: 4, bottom: 1.5, left: 4 } } }])
       groups[airport].forEach(e => {
         if (hasBirthdayInTrip(e.passenger_birth_date, list.start_date, list.end_date)) bdaySet.add(body.length)
+        if (hasCrew(e)) crewSet.add(body.length)
         body.push([
           paxNumber.get(e.id),
-          e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
+          e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : '') + crewSuffix(e),
           (e.passenger_seat_preference || '').toUpperCase(),
           fmtDate(e.passenger_birth_date),
           fmtNat(e.passenger_nationality),
@@ -470,7 +497,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
         didDrawPage: data => {
           if (data.pageNumber > 1) addPageHeader(doc, 'LISTA DE LOCAIS DE EMBARQUE', lname, lnum, dates, logoDataUrl)
         },
-        ...birthdayHooks(bdaySet, 3),   // Nascimento = coluna 3
+        ...mergeHooks(birthdayHooks(bdaySet, 3), crewRoleHooks(crewSet, 1)),   // Nascimento = coluna 3, Nome = coluna 1
       }
     )
   }
@@ -479,23 +506,26 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
   if (opts.observacoes) {
     const paxWithNotes = pax.filter(e => e.notes || (e.additionals_data && e.additionals_data.length > 0))
     const y = newSection('LISTA DE OBSERVACOES', null)
+    const crewSet = new Set(paxWithNotes.map((e, i) => hasCrew(e) ? i : -1).filter(i => i >= 0))
     const body = paxWithNotes.map(e => [
-      paxNumber.get(e.id), e.passenger_name, (e.additionals_data || []).map(a => a.name).join(', '), e.notes || '', fmtDiet(e),
+      paxNumber.get(e.id), e.passenger_name + crewSuffix(e), (e.additionals_data || []).map(a => a.name).join(', '), e.notes || '', fmtDiet(e),
     ])
     // N(7)+Nome(78)+Adic(50)+Obs(110)+Alim(32)=277
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Adicionais', 'Observacoes', 'Alimentacao'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:78}, 2:{cellWidth:50}, 3:{cellWidth:110}, 4:{cellWidth:32} }
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:78}, 2:{cellWidth:50}, 3:{cellWidth:110}, 4:{cellWidth:32} },
+      crewRoleHooks(crewSet, 1)   // Nome = coluna 1
     )
   }
 
   // ── 6. Lista de Contatos ─────────────────────────────────────────────────────
   if (opts.contato) {
     const y = newSection('LISTA DE CONTATOS', null)
+    const crewSet = new Set(pax.map((e, i) => hasCrew(e) ? i : -1).filter(i => i >= 0))
     const body = pax.map((e, i) => [
       i + 1,
-      e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : ''),
+      e.passenger_name + (e.passenger_is_guide ? ' (Guia acompanhante)' : '') + crewSuffix(e),
       e.passenger_phone  || '',
       e.passenger_phone2 || '',
       '',
@@ -505,13 +535,15 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
     applyTableStyle(doc, y,
       ['N', 'Nome', 'Telefone 1', 'Telefone 2', 'Telefone 3', 'Celular'],
       body,
-      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:130}, 2:{cellWidth:35}, 3:{cellWidth:35}, 4:{cellWidth:35}, 5:{cellWidth:35} }
+      { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:130}, 2:{cellWidth:35}, 3:{cellWidth:35}, 4:{cellWidth:35}, 5:{cellWidth:35} },
+      crewRoleHooks(crewSet, 1)   // Nome = coluna 1
     )
   }
 
   // ── 7. Lista Completa ────────────────────────────────────────────────────────
   if (opts.completa) {
     const y = newSection('LISTA COMPLETA', null)
+    const crewSet = new Set(pax.map((e, i) => hasCrew(e) ? i : -1).filter(i => i >= 0))
     const body = pax.map((e, i) => {
       const docLine  = passportRg(e)
       const expLine  = e.passenger_passport_issue  ? 'EXP: ' + fmtDate(e.passenger_passport_issue)  : ''
@@ -520,7 +552,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       const nacGen   = [fmtDate(e.passenger_birth_date), fmtNat(e.passenger_nationality), fmtGender(e.passenger_gender)].filter(Boolean).join('\n')
       return [
         i + 1,
-        e.passenger_name + (e.passenger_is_guide ? '\n(Guia acompanhante)' : ''),
+        e.passenger_name + (e.passenger_is_guide ? '\n(Guia acompanhante)' : '') + (hasCrew(e) ? '\n' + crewSuffix(e).trim() : ''),
         accomTypeLabel(accomTypes, e.accommodation),
         nacGen,
         passport,
@@ -536,7 +568,7 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       ['N', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereco', 'Celular', 'Agencia'],
       body,
       { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:51,valign:'top'}, 2:{cellWidth:22,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:27,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 5:{cellWidth:25,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 6:{cellWidth:50,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 7:{cellWidth:32,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 8:{cellWidth:41,halign:'center'} },
-      { bodyStyles: { valign: 'middle' } }
+      { bodyStyles: { valign: 'middle' }, ...crewRoleHooks(crewSet, 1) }   // Nome = coluna 1
     )
   }
 
