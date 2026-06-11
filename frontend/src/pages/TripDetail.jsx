@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { generateListPDF } from '../utils/generateListPDF'
+import { generateListHTML } from '../utils/generateListHTML'
 import { createPortal } from 'react-dom'
 import FormSelect from '../components/FormSelect'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
@@ -801,12 +802,20 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
 
   const handleDownload = async () => {
     if (generating) return
+    if (!PRINT_ROWS.some(r => opts[r.key])) {
+      toast.error('Selecione ao menos uma seção para exportar.')
+      return
+    }
     setGenerating(true)
     try {
-      await generateListPDF(list, enrollments, opts, accomTypes)
+      if (formato === 'html') {
+        await generateListHTML(list, enrollments, opts, accomTypes)
+      } else {
+        await generateListPDF(list, enrollments, opts, accomTypes)
+      }
     } catch (err) {
       console.error(err)
-      toast.error('Erro ao gerar PDF.')
+      toast.error(`Erro ao gerar ${formato.toUpperCase()}.`)
     } finally {
       setGenerating(false)
     }
@@ -867,7 +876,7 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
         <div className="mfoot">
           <button type="button" className="btn btn-outline" onClick={onClose}>Fechar</button>
           <button type="button" className="btn btn-primary" onClick={handleDownload} disabled={generating}>
-            <Ic n="dl" s={13}/> {generating ? 'Gerando…' : 'Baixar PDF'}
+            <Ic n="dl" s={13}/> {generating ? 'Gerando…' : `Baixar ${formato.toUpperCase()}`}
           </button>
         </div>
       </div>
