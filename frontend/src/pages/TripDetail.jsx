@@ -16,6 +16,7 @@ import { Ic } from '../components/Icon'
 import AirlinePicker from '../components/AirlinePicker'
 import CpfInput from '../components/CpfInput'
 import PhoneInput from '../components/PhoneInput'
+import RichTextEditor from '../components/RichTextEditor'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -4301,10 +4302,13 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
 }
 
 /* ── Aba de Voos ── */
-function FlightsTab({ listId, list }) {
+function FlightsTab({ listId, list, onListUpdate }) {
   const [enrolled, setEnrolled] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [filterQ,  setFilterQ]  = useState('')
+  const [notes,       setNotes]       = useState(list.notes || '')
+  const [notesDirty,  setNotesDirty]  = useState(false)
+  const [notesSaving, setNotesSaving] = useState(false)
 
   const defAirport = list.default_airport_data || null
 
@@ -4318,14 +4322,52 @@ function FlightsTab({ listId, list }) {
 
   useEffect(() => { loadAll() }, [loadAll])
 
+  const saveNotes = () => {
+    setNotesSaving(true)
+    listsApi.patch(listId, { notes })
+      .then(r => {
+        setNotesDirty(false)
+        onListUpdate?.(l => ({ ...l, notes: r.data.notes }))
+        toast.success('Avisos salvos.')
+      })
+      .catch(() => toast.error('Erro ao salvar avisos.'))
+      .finally(() => setNotesSaving(false))
+  }
+
+  const notesBox = (
+    <div className="det-card">
+      <div className="section" style={{ marginBottom:0 }}>
+        <RichTextEditor
+          title="Avisos / Observações de Voo"
+          placeholder="Digite aqui avisos sobre voos, poltronas, embarque…"
+          value={notes}
+          onChange={v => { setNotes(v); setNotesDirty(true) }}
+        />
+        {notesDirty && (
+          <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}>
+            <button
+              onClick={saveNotes}
+              disabled={notesSaving}
+              style={{ padding:'8px 22px', borderRadius:8, border:'none', background: notesSaving ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: notesSaving ? 'default' : 'pointer', fontFamily:'inherit' }}>
+              {notesSaving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   if (list.list_type !== 'aereo') {
     return (
-      <div className="det-card">
-        <div className="section" style={{ textAlign:'center', padding:'48px 0' }}>
-          <p style={{ fontSize:32, marginBottom:8 }}>🚌</p>
-          <p style={{ color:'#94a3b8', fontSize:14, fontWeight:500 }}>Esta lista é via terrestre.</p>
+      <>
+        {notesBox}
+        <div className="det-card">
+          <div className="section" style={{ textAlign:'center', padding:'48px 0' }}>
+            <p style={{ fontSize:32, marginBottom:8 }}>🚌</p>
+            <p style={{ color:'#94a3b8', fontSize:14, fontWeight:500 }}>Esta lista é via terrestre.</p>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
@@ -4364,7 +4406,9 @@ function FlightsTab({ listId, list }) {
   const STATUS_LABEL = { confirmado:'Confirmado', pendente:'Pendente', reservado:'Reservado', cancelado:'Cancelado' }
 
   return (
-    <div className="det-card">
+    <>
+      {notesBox}
+      <div className="det-card">
       <div className="section">
         {/* Toolbar */}
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
@@ -4457,8 +4501,8 @@ function FlightsTab({ listId, list }) {
           </div>
         )}
       </div>
-
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -4603,7 +4647,7 @@ export default function TripDetail() {
       {/* Conteúdo das abas */}
       {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
 
-{tab === 'voos' && <FlightsTab listId={id} list={list} />}
+{tab === 'voos' && <FlightsTab listId={id} list={list} onListUpdate={setList} />}
 
       {/* Modal de impressão / download */}
       {showPrint && (
