@@ -662,11 +662,7 @@ export default function Settings() {
   const [listAddits,   setListAddits]   = useState([])
   const [crewRoles,    setCrewRoles]    = useState([])
   const [accoms,       setAccoms]       = useState([])
-  const [airports,     setAirports]     = useState([])
-  const [airlines,     setAirlines]     = useState([])
   const [loadingAc,    setLoadingAc]    = useState(true)
-  const [loadingAir,   setLoadingAir]   = useState(true)
-  const [loadingAirl,  setLoadingAirl]  = useState(true)
   const [loadingP,     setLoadingP]     = useState(true)
   const [loadingL,     setLoadingL]     = useState(true)
   const [loadingV,     setLoadingV]     = useState(true)
@@ -686,8 +682,6 @@ export default function Settings() {
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
     listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingCR(false))
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
-    configApi.airports().then(r => setAirports(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAir(false))
-    configApi.airlines().then(r => setAirlines(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAirl(false))
   }, [])
 
   const addProfession = async (name) => {
@@ -960,14 +954,8 @@ export default function Settings() {
           }} />}
           {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={addListCategory} onUpdate={updateListCategory} onDelete={delListCategory} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
           {activeDef.key === 'countries'       && <CountriesTab />}
-          {activeDef.key === 'airports'        && <AirportsManager items={airports} loading={loadingAir} onRefresh={() => {
-            setLoadingAir(true)
-            configApi.airports().then(r => setAirports(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAir(false))
-          }} />}
-          {activeDef.key === 'airlines'        && <AirlinesManager items={airlines} loading={loadingAirl} onRefresh={() => {
-            setLoadingAirl(true)
-            configApi.airlines().then(r => setAirlines(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAirl(false))
-          }} />}
+          {activeDef.key === 'airports'        && <AirportsManager />}
+          {activeDef.key === 'airlines'        && <AirlinesManager />}
         </ListDetailModal>
       )}
 

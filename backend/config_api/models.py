@@ -182,8 +182,8 @@ class ConfigListCategory(models.Model):
 
 
 class Airline(models.Model):
-    name      = models.CharField('Nome', max_length=200)
-    iata_code = models.CharField('Código IATA', max_length=10, blank=True)
+    name      = models.CharField('Nome', max_length=200, db_index=True)
+    iata_code = models.CharField('Código IATA', max_length=10, blank=True, db_index=True)
     country   = models.CharField('País', max_length=200, blank=True)
 
     class Meta:
@@ -197,9 +197,9 @@ class Airline(models.Model):
 
 
 class Airport(models.Model):
-    name      = models.CharField('Nome', max_length=200)
-    iata_code = models.CharField('Código IATA', max_length=10, blank=True)
-    city      = models.CharField('Cidade', max_length=200, blank=True)
+    name      = models.CharField('Nome', max_length=200, db_index=True)
+    iata_code = models.CharField('Código IATA', max_length=10, blank=True, db_index=True)
+    city      = models.CharField('Cidade', max_length=200, blank=True, db_index=True)
     country   = models.CharField('País', max_length=200, blank=True)
 
     class Meta:

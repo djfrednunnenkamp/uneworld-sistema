@@ -30,7 +30,7 @@ class Passenger(models.Model):
     # ── Dados básicos ──────────────────────────────────────────────
     first_name  = models.CharField('Primeiro nome', max_length=100, blank=True)
     last_name   = models.CharField('Sobrenome', max_length=100, blank=True)
-    full_name   = models.CharField('Nome completo', max_length=200, blank=True)
+    full_name   = models.CharField('Nome completo', max_length=200, blank=True, db_index=True)
     email             = models.EmailField('E-mail', unique=True)
     email_emergency1  = models.EmailField('E-mail contato de emergência 1', blank=True)
     email_emergency2  = models.EmailField('E-mail contato de emergência 2', blank=True)
@@ -51,7 +51,7 @@ class Passenger(models.Model):
     )
 
     # ── Documentos ─────────────────────────────────────────────────
-    cpf              = models.CharField('CPF', max_length=20, blank=True)
+    cpf              = models.CharField('CPF', max_length=20, blank=True, db_index=True)
     rg               = models.CharField('RG', max_length=30, blank=True)
     rg_issue_date    = models.DateField('Expedição do RG', null=True, blank=True)
     rg_issuer        = models.CharField('Órgão expedidor do RG', max_length=50, blank=True)

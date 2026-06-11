@@ -182,16 +182,24 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         p = obj.passenger
         if not p:
             return []
-        from config_api.models import ConfigCountry
-        docs = list(
-            p.documents
-             .filter(doc_type='passport')
-             .exclude(doc_number='')
-             .order_by('-expiry_date', 'id')[:2]
-        )
+        # Usa o prefetch (passport_docs) quando disponível; caso contrário
+        # (ex.: resposta de criação/edição de uma única inscrição), busca direto.
+        docs = getattr(p, 'passport_docs', None)
+        if docs is None:
+            docs = list(
+                p.documents
+                 .filter(doc_type='passport')
+                 .exclude(doc_number='')
+                 .order_by('-expiry_date', 'id')[:2]
+            )
+        else:
+            docs = docs[:2]
         if docs:
-            names = {d.issued_by for d in docs if d.issued_by}
-            codes = {c.name: c.code for c in ConfigCountry.objects.filter(name__in=names)}
+            codes = self.context.get('country_codes')
+            if codes is None:
+                from config_api.models import ConfigCountry
+                names = {d.issued_by for d in docs if d.issued_by}
+                codes = {c.name: c.code for c in ConfigCountry.objects.filter(name__in=names)}
             return [
                 {
                     'number': d.doc_number,

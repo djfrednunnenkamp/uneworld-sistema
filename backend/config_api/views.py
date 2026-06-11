@@ -1,9 +1,11 @@
 import csv
 import io
 import requests
+from django.db.models import Q
 from django.http import StreamingHttpResponse, HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import serializers
@@ -796,17 +798,29 @@ class AirportSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'iata_code', 'city', 'country']
 
 
+class ConfigListPagination(PageNumberPagination):
+    """Paginação para cadastros grandes (aeroportos, companhias aéreas, etc.).
+
+    page_size_query_param permite que ações administrativas (export CSV,
+    checagem de duplicidade na importação) peçam o conjunto completo via
+    ?page_size=<alto>, sem afetar o carregamento normal da tela (rápido,
+    50 itens por vez).
+    """
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 10000
+
+
 class AirportViewSet(viewsets.ModelViewSet):
     queryset           = Airport.objects.all()
     serializer_class   = AirportSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class   = None
+    pagination_class   = ConfigListPagination
 
     def get_queryset(self):
         qs = Airport.objects.all()
         q = self.request.query_params.get('q', '').strip()
         if q:
-            from django.db.models import Q
             qs = qs.filter(
                 Q(name__icontains=q) | Q(iata_code__icontains=q) | Q(city__icontains=q)
             )
@@ -815,7 +829,6 @@ class AirportViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='country-suggestions')
     def country_suggestions(self, request):
         """Países distintos com aeroportos cadastrados, filtrados por ?q=."""
-        from django.db.models import Q
         q = request.query_params.get('q', '').strip()
         qs = Airport.objects.exclude(country='')
         if q:
@@ -826,7 +839,6 @@ class AirportViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='city-suggestions')
     def city_suggestions(self, request):
         """Cidades distintas para um país, filtradas por ?q=. Requer ?country=."""
-        from django.db.models import Q
         country = request.query_params.get('country', '').strip()
         q       = request.query_params.get('q', '').strip()
         qs = Airport.objects.exclude(city='')
@@ -866,15 +878,13 @@ class AirlineViewSet(viewsets.ModelViewSet):
     queryset           = Airline.objects.all()
     serializer_class   = AirlineSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class   = None
+    pagination_class   = ConfigListPagination
 
     def get_queryset(self):
         qs = Airline.objects.all()
         q = self.request.query_params.get('q', '').strip()
         if q:
-            from django.db.models import Q
             qs = qs.filter(Q(name__icontains=q) | Q(iata_code__icontains=q))
-            return qs[:80]
         return qs
 
     @action(detail=False, methods=['post'])

@@ -188,10 +188,38 @@ function Row({ item, onEdit, onDelete }) {
   )
 }
 
-export default function AirlinesManager({ items, loading, onRefresh }) {
+const PAGE_SIZE = 50
+
+export default function AirlinesManager() {
+  const [items,    setItems]    = useState([])
+  const [count,    setCount]    = useState(0)
+  const [page,     setPage]     = useState(1)
   const [search,   setSearch]   = useState('')
+  const [debounced,setDebounced]= useState('')
+  const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [seeding,  setSeeding]  = useState(false)
+
+  // Busca com debounce — evita disparar uma requisição a cada tecla digitada
+  useEffect(() => {
+    const t = setTimeout(() => { setDebounced(search); setPage(1) }, 350)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const reload = () => {
+    setLoading(true)
+    configApi.airlines({ q: debounced, page, page_size: PAGE_SIZE })
+      .then(r => {
+        setItems(r.data.results ?? r.data)
+        setCount(r.data.count ?? (r.data.results ?? r.data).length)
+      })
+      .catch(() => toast.error('Erro ao carregar companhias aéreas.'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(reload, [debounced, page])
+
+  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
 
   const handleSeed = async () => {
     if (!window.confirm('Importar todas as companhias aéreas do mundo via OpenFlights?')) return
@@ -199,31 +227,25 @@ export default function AirlinesManager({ items, loading, onRefresh }) {
     try {
       await configApi.seedAirlines()
       toast.success('Importação iniciada! Recarregando em alguns segundos…', { duration: 5000 })
-      setTimeout(() => onRefresh(), 4000)
+      setTimeout(reload, 4000)
     } catch {
       toast.error('Erro ao iniciar importação.')
     } finally { setSeeding(false) }
   }
 
-  const filtered = items.filter(i =>
-    i.name.toLowerCase().includes(search.toLowerCase()) ||
-    (i.iata_code || '').toLowerCase().includes(search.toLowerCase()) ||
-    (i.country || '').toLowerCase().includes(search.toLowerCase())
-  )
-
   const create = async (data) => {
-    try { await configApi.addAirline(data); toast.success('Companhia adicionada.'); onRefresh() }
+    try { await configApi.addAirline(data); toast.success('Companhia adicionada.'); reload() }
     catch { toast.error('Erro ao adicionar.') }
   }
 
   const update = async (data) => {
-    try { await configApi.updateAirline(showForm.id, data); toast.success('Atualizado.'); onRefresh() }
+    try { await configApi.updateAirline(showForm.id, data); toast.success('Atualizado.'); reload() }
     catch { toast.error('Erro ao salvar.') }
   }
 
   const del = async (id) => {
     await configApi.delAirline(id).catch(() => toast.error('Erro ao remover.'))
-    onRefresh()
+    reload()
   }
 
   return (
@@ -244,20 +266,32 @@ export default function AirlinesManager({ items, loading, onRefresh }) {
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
-        {loading ? 'Carregando…' : `${filtered.length} de ${items.length} companhia${items.length !== 1 ? 's' : ''}`}
+        {loading ? 'Carregando…' : `${count} companhia${count !== 1 ? 's' : ''}${debounced ? ` (busca: "${debounced}")` : ''}`}
       </p>
 
       <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
         {loading ? (
           <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
-        ) : filtered.length === 0 ? (
+        ) : items.length === 0 ? (
           <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>
-            {items.length === 0 ? 'Nenhuma companhia cadastrada.' : 'Nenhum resultado.'}
+            {count === 0 ? 'Nenhuma companhia cadastrada.' : 'Nenhum resultado.'}
           </p>
-        ) : filtered.map(item => (
+        ) : items.map(item => (
           <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} />
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginTop:10 }}>
+          <button className="btn btn-outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ padding:'5px 12px' }}>
+            ‹ Anterior
+          </button>
+          <span style={{ fontSize:12, color:'#64748b' }}>Página {page} de {totalPages}</span>
+          <button className="btn btn-outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ padding:'5px 12px' }}>
+            Próxima ›
+          </button>
+        </div>
+      )}
 
       {showForm === true && (
         <AirlineFormModal title="Nova companhia aérea" onSave={create} onClose={() => setShowForm(false)} />

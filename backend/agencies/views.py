@@ -4,12 +4,14 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
+from core.pagination import StandardResultsPagination
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
 
 
 class AgencyViewSet(viewsets.ModelViewSet):
     queryset        = Agency.objects.all()
+    pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields   = ['name', 'company_name', 'email', 'cnpj', 'responsible']
     ordering_fields = ['name', 'created_at']

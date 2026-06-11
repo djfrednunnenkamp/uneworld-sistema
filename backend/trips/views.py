@@ -1,7 +1,9 @@
+from django.db.models import Prefetch
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from core.pagination import StandardResultsPagination
 from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
@@ -19,6 +21,7 @@ class DestinationViewSet(viewsets.ModelViewSet):
 
 class TripViewSet(viewsets.ModelViewSet):
     queryset        = Trip.objects.select_related('destination').all()
+    pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields   = ['title', 'destination__name', 'destination__country']
     ordering_fields = ['departure_date', 'created_at', 'price_per_person']
@@ -72,8 +75,11 @@ class RoteiroViewSet(viewsets.ModelViewSet):
 
 
 class PassengerListViewSet(viewsets.ModelViewSet):
-    queryset         = PassengerList.objects.prefetch_related('suppliers', 'additionals').all()
+    queryset         = PassengerList.objects.select_related(
+        'default_airport', 'departure_country', 'departure_state', 'departure_city'
+    ).prefetch_related('suppliers', 'additionals', 'roteiros').all()
     serializer_class = PassengerListSerializer
+    pagination_class = StandardResultsPagination
     filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
     search_fields    = ['name']
     ordering_fields  = ['name', 'start_date', 'created_at']
@@ -94,10 +100,35 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         pl = self.get_object()
 
         if request.method == 'GET':
-            entries = pl.list_enrollments.select_related(
-                'passenger', 'agency', 'responsible_user', 'departure_airport'
-            ).all()
-            return Response(ListEnrollmentSerializer(entries, many=True).data)
+            from passengers.models import PassengerDocument
+            from config_api.models import ConfigCountry
+
+            passport_docs_qs = PassengerDocument.objects.filter(
+                doc_type='passport'
+            ).exclude(doc_number='').order_by('-expiry_date', 'id')
+
+            entries = list(pl.list_enrollments.select_related(
+                'passenger', 'agency', 'responsible_user', 'departure_airport', 'selected_passport'
+            ).prefetch_related(
+                'additionals', 'crew_roles',
+                Prefetch('passenger__documents', queryset=passport_docs_qs, to_attr='passport_docs'),
+            ).all())
+
+            # Resolve códigos de país dos passaportes em UMA única consulta
+            # (em vez de 1 consulta a ConfigCountry por passageiro)
+            issued_by_names = set()
+            for e in entries:
+                if e.passenger:
+                    for d in e.passenger.passport_docs[:2]:
+                        if d.issued_by:
+                            issued_by_names.add(d.issued_by)
+            country_codes = dict(
+                ConfigCountry.objects.filter(name__in=issued_by_names).values_list('name', 'code')
+            )
+
+            return Response(ListEnrollmentSerializer(
+                entries, many=True, context={'country_codes': country_codes}
+            ).data)
 
         return self._add_passenger(request, pl)
 

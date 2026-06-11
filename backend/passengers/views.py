@@ -7,12 +7,14 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from core.pagination import StandardResultsPagination
 from .models import Passenger, PassengerDocument
 from .serializers import PassengerSerializer, PassengerListSerializer, PassengerDocumentSerializer
 
 
 class PassengerViewSet(viewsets.ModelViewSet):
-    queryset = Passenger.objects.all()
+    queryset = Passenger.objects.prefetch_related('agencies').all()
+    pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['full_name', 'email', 'cpf', 'city']
     ordering_fields = ['full_name', 'created_at', 'city']

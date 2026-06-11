@@ -198,11 +198,41 @@ function Row({ item, onEdit, onDelete }) {
   )
 }
 
-export default function AirportsManager({ items, loading, onRefresh }) {
+const PAGE_SIZE = 50
+
+export default function AirportsManager() {
+  const [items,    setItems]    = useState([])
+  const [count,    setCount]    = useState(0)
+  const [page,     setPage]     = useState(1)
   const [search,   setSearch]   = useState('')
+  const [debounced,setDebounced]= useState('')
+  const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [seeding,  setSeeding]  = useState(false)
+  const [exporting,setExporting]= useState(false)
+  const [importing,setImporting]= useState(false)
   const fileRef = useRef(null)
+
+  // Busca com debounce — evita disparar uma requisição a cada tecla digitada
+  useEffect(() => {
+    const t = setTimeout(() => { setDebounced(search); setPage(1) }, 350)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const reload = () => {
+    setLoading(true)
+    configApi.airports({ q: debounced, page, page_size: PAGE_SIZE })
+      .then(r => {
+        setItems(r.data.results ?? r.data)
+        setCount(r.data.count ?? (r.data.results ?? r.data).length)
+      })
+      .catch(() => toast.error('Erro ao carregar aeroportos.'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(reload, [debounced, page])
+
+  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
 
   const handleSeed = async () => {
     if (!window.confirm('Importar todos os aeroportos do mundo inteiro via OurAirports? Isso pode levar alguns segundos.')) return
@@ -210,7 +240,7 @@ export default function AirportsManager({ items, loading, onRefresh }) {
     try {
       await configApi.seedAirports()
       toast.success('Importação iniciada! Aguarde alguns segundos e recarregue a lista.', { duration: 5000 })
-      setTimeout(() => { onRefresh() }, 4000)
+      setTimeout(reload, 4000)
     } catch {
       toast.error('Erro ao iniciar importação.')
     } finally {
@@ -218,17 +248,11 @@ export default function AirportsManager({ items, loading, onRefresh }) {
     }
   }
 
-  const filtered = items.filter(i =>
-    i.name.toLowerCase().includes(search.toLowerCase()) ||
-    (i.iata_code || '').toLowerCase().includes(search.toLowerCase()) ||
-    (i.city || '').toLowerCase().includes(search.toLowerCase())
-  )
-
   const create = async (data) => {
     try {
       await configApi.addAirport(data)
       toast.success('Aeroporto adicionado.')
-      onRefresh()
+      reload()
     } catch { toast.error('Erro ao adicionar.') }
   }
 
@@ -236,27 +260,36 @@ export default function AirportsManager({ items, loading, onRefresh }) {
     try {
       await configApi.updateAirport(showForm.id, data)
       toast.success('Atualizado.')
-      onRefresh()
+      reload()
     } catch { toast.error('Erro ao salvar.') }
   }
 
   const del = async (id) => {
     await configApi.delAirport(id).catch(() => toast.error('Erro ao remover.'))
-    onRefresh()
+    reload()
   }
 
-  const exportCsv = () => {
-    const rows = ['nome,iata,cidade,pais', ...items.map(i =>
-      [`"${(i.name || '').replace(/"/g, '""')}"`,
-       `"${(i.iata_code || '').replace(/"/g, '""')}"`,
-       `"${(i.city || '').replace(/"/g, '""')}"`,
-       `"${(i.country || '').replace(/"/g, '""')}"`].join(',')
-    )]
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url; a.download = 'aeroportos.csv'; a.click()
-    URL.revokeObjectURL(url)
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const r = await configApi.airports({ page_size: 10000 })
+      const all = r.data.results ?? r.data
+      const rows = ['nome,iata,cidade,pais', ...all.map(i =>
+        [`"${(i.name || '').replace(/"/g, '""')}"`,
+         `"${(i.iata_code || '').replace(/"/g, '""')}"`,
+         `"${(i.city || '').replace(/"/g, '""')}"`,
+         `"${(i.country || '').replace(/"/g, '""')}"`].join(',')
+      )]
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url; a.download = 'aeroportos.csv'; a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Erro ao exportar.')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const handleFileChosen = async (e) => {
@@ -286,15 +319,25 @@ export default function AirportsManager({ items, loading, onRefresh }) {
       const cols = splitLine(l)
       return { name: cols[ni]||'', iata_code: (cols[ii]||'').toUpperCase(), city: cols[ci]||'', country: cols[pi]||'' }
     }).filter(r => r.name)
-    const existing = new Set(items.map(i => i.name.toLowerCase()))
-    const toAdd    = parsed.filter(r => !existing.has(r.name.toLowerCase()))
-    if (!toAdd.length) { toast.success('Nenhum aeroporto novo encontrado — tudo já estava cadastrado.'); return }
-    let added = 0, skipped = 0
-    for (const row of toAdd) {
-      try { await configApi.addAirport(row); added++ } catch { skipped++ }
+
+    setImporting(true)
+    try {
+      const resp = await configApi.airports({ page_size: 10000 })
+      const all = resp.data.results ?? resp.data
+      const existing = new Set(all.map(i => i.name.toLowerCase()))
+      const toAdd    = parsed.filter(p => !existing.has(p.name.toLowerCase()))
+      if (!toAdd.length) { toast.success('Nenhum aeroporto novo encontrado — tudo já estava cadastrado.'); return }
+      let added = 0, skipped = 0
+      for (const row of toAdd) {
+        try { await configApi.addAirport(row); added++ } catch { skipped++ }
+      }
+      toast.success(`${added} adicionado${added !== 1 ? 's' : ''}${skipped ? `, ${skipped} com erro` : ''}.`)
+      reload()
+    } catch {
+      toast.error('Erro ao importar.')
+    } finally {
+      setImporting(false)
     }
-    toast.success(`${added} adicionado${added !== 1 ? 's' : ''}${skipped ? `, ${skipped} com erro` : ''}.`)
-    onRefresh()
   }
 
   return (
@@ -306,8 +349,12 @@ export default function AirportsManager({ items, loading, onRefresh }) {
           style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
           + Adicionar
         </button>
-        <button style={btnCsv('#059669')} onClick={exportCsv} title="Exportar como CSV">⬇ Exportar</button>
-        <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">⬆ Importar</button>
+        <button style={btnCsv('#059669')} onClick={exportCsv} disabled={exporting} title="Exportar como CSV">
+          {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
+        </button>
+        <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} disabled={importing} title="Importar de CSV">
+          {importing ? '⏳ Importando…' : '⬆ Importar'}
+        </button>
         <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />
         <button style={btnCsv('#7c3aed')} onClick={handleSeed} disabled={seeding} title="Importar todos os aeroportos do mundo via OurAirports">
           {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
@@ -315,20 +362,32 @@ export default function AirportsManager({ items, loading, onRefresh }) {
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
-        {loading ? 'Carregando…' : `${filtered.length} de ${items.length} aeroporto${items.length !== 1 ? 's' : ''}`}
+        {loading ? 'Carregando…' : `${count} aeroporto${count !== 1 ? 's' : ''}${debounced ? ` (busca: "${debounced}")` : ''}`}
       </p>
 
       <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
         {loading ? (
           <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
-        ) : filtered.length === 0 ? (
+        ) : items.length === 0 ? (
           <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>
-            {items.length === 0 ? 'Nenhum aeroporto cadastrado.' : 'Nenhum resultado.'}
+            {count === 0 ? 'Nenhum aeroporto cadastrado.' : 'Nenhum resultado.'}
           </p>
-        ) : filtered.map(item => (
+        ) : items.map(item => (
           <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} />
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginTop:10 }}>
+          <button className="btn btn-outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ padding:'5px 12px' }}>
+            ‹ Anterior
+          </button>
+          <span style={{ fontSize:12, color:'#64748b' }}>Página {page} de {totalPages}</span>
+          <button className="btn btn-outline" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ padding:'5px 12px' }}>
+            Próxima ›
+          </button>
+        </div>
+      )}
 
       {showForm === true && (
         <AirportFormModal title="Novo aeroporto" onSave={create} onClose={() => setShowForm(false)} />
