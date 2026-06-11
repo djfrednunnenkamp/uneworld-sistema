@@ -88,11 +88,9 @@ class AirportBriefSerializer(serializers.Serializer):
 class PassengerListSerializer(serializers.ModelSerializer):
     suppliers_data      = SupplierSerializer(source='suppliers',         many=True, read_only=True)
     additionals_data    = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
-    crew_roles_data     = CrewRoleSerializer(source='crew_roles',        many=True, read_only=True)
     roteiros_data       = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
     suppliers           = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
     additionals         = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
-    crew_roles          = serializers.PrimaryKeyRelatedField(queryset=CrewRole.objects.all(),       many=True, required=False)
     roteiros            = serializers.PrimaryKeyRelatedField(queryset=Roteiro.objects.all(),        many=True, required=False)
     enrolled_count      = serializers.IntegerField(read_only=True)
     start_date_br       = serializers.SerializerMethodField()
@@ -110,7 +108,6 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'start_date_br', 'end_date_br',
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
-            'crew_roles', 'crew_roles_data',
             'roteiros', 'roteiros_data',
             'required_documents',
             'default_airport', 'default_airport_data',

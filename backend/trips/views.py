@@ -72,7 +72,7 @@ class RoteiroViewSet(viewsets.ModelViewSet):
 
 
 class PassengerListViewSet(viewsets.ModelViewSet):
-    queryset         = PassengerList.objects.prefetch_related('suppliers', 'additionals', 'crew_roles').all()
+    queryset         = PassengerList.objects.prefetch_related('suppliers', 'additionals').all()
     serializer_class = PassengerListSerializer
     filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
     search_fields    = ['name']

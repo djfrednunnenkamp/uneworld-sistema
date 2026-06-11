@@ -19,7 +19,7 @@ const EMPTY = {
   name: '', list_type: 'aereo', category: 'Internacional',
   block_capacity: 0, total_accommodations: 0,
   start_date: '', end_date: '',
-  suppliers: [], additionals: [], crew_roles: [], roteiros: [],
+  suppliers: [], additionals: [], roteiros: [],
   required_documents: [], status: 'aberta', notes: '',
   default_airport: null,
   departure_country: null, departure_state: null, departure_city: null,
@@ -250,7 +250,6 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     ...EMPTY, ...initial,
     suppliers:          (initial.suppliers   || []).map(s => typeof s === 'object' ? s.id : s),
     additionals:        (initial.additionals || []).map(a => typeof a === 'object' ? a.id : a),
-    crew_roles:         (initial.crew_roles  || []).map(c => typeof c === 'object' ? c.id : c),
     roteiros:           (initial.roteiros    || []).map(r => typeof r === 'object' ? r.id : r),
     required_documents: Array.isArray(initial.required_documents) ? initial.required_documents : [],
     default_airport:    initial.default_airport    || null,
@@ -261,7 +260,6 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   const [saving,      setSaving]      = useState(false)
   const [suppliers,   setSuppliers]   = useState([])
   const [additionals, setAdditionals] = useState([])
-  const [crewRoles,   setCrewRoles]   = useState([])
   const [roteiros,    setRoteiros]    = useState([])
   const [categories,  setCategories]  = useState([])
 
@@ -274,7 +272,6 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   useEffect(() => {
     listsApi.suppliers().then(r => setSuppliers(r.data.results ?? r.data)).catch(() => {})
     listsApi.listAdditionals().then(r => setAdditionals(r.data.results ?? r.data)).catch(() => {})
-    listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {})
     listsApi.roteiros().then(r => setRoteiros(r.data.results ?? r.data)).catch(() => {})
     configApi.listCategories().then(r => setCategories(r.data.results ?? r.data)).catch(() => {})
     configApi.countries().then(r => setCountries(r.data.results ?? r.data)).catch(() => {})
@@ -321,16 +318,6 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     await listsApi.removeAdditional(aid)
     setAdditionals(prev => prev.filter(a => a.id !== aid))
     setForm(f => ({ ...f, additionals: f.additionals.filter(x => x !== aid) }))
-  }
-  const handleAddCrewRole = async (name) => {
-    const r = await listsApi.addCrewRole(name)
-    setCrewRoles(prev => [...prev, r.data].sort((a,b) => a.name.localeCompare(b.name)))
-    return r.data.id
-  }
-  const handleDelCrewRole = async (cid) => {
-    await listsApi.removeCrewRole(cid)
-    setCrewRoles(prev => prev.filter(c => c.id !== cid))
-    setForm(f => ({ ...f, crew_roles: f.crew_roles.filter(x => x !== cid) }))
   }
   const handleAddRoteiro = async (name) => {
     const r = await listsApi.addRoteiro(name)
@@ -494,14 +481,6 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
               <MultiPicker label="Adicional" selected={form.additionals} options={additionals}
                 onToggle={id => toggleItem('additionals', id)}
                 onCreate={handleAddAdditional} onDelete={handleDelAdditional} />
-            </div>
-
-            {/* Equipe técnica */}
-            <div>
-              <label style={lbl}>Equipe técnica</label>
-              <MultiPicker label="Função" selected={form.crew_roles} options={crewRoles}
-                onToggle={id => toggleItem('crew_roles', id)}
-                onCreate={handleAddCrewRole} onDelete={handleDelCrewRole} />
             </div>
 
             {/* Documento requerido */}

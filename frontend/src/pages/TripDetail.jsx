@@ -451,7 +451,7 @@ function PassengerCrewModal({ enrollment, listId, crewRoles = [], onSaved, onClo
         <div style={{ padding:'12px 22px 20px', overflowY:'auto', flex:1 }}>
           {crewRoles.length === 0 ? (
             <p style={{ textAlign:'center', color:'#94a3b8', fontSize:13, padding:'18px 0', margin:0 }}>
-              Nenhuma função configurada para esta lista.<br />Configure em "Editar lista" → Equipe técnica.
+              Nenhuma função cadastrada.<br />Configure em Configurações → Listas → Equipe técnica.
             </p>
           ) : filtered.length === 0 ? (
             <p style={{ textAlign:'center', color:'#94a3b8', fontSize:13, padding:'18px 0', margin:0 }}>Nenhum resultado.</p>
@@ -3336,7 +3336,7 @@ function MetricsPanel({ enrolled, accomTypes }) {
 }
 
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, additionals = [], crewRoles = [], onData }) {
+function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, additionals = [], onData }) {
   const navigate = useNavigate()
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
@@ -3361,6 +3361,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
   const [extraInfoModal, setExtraInfoModal] = useState(null)
   // crewModal: null | enrollment (objeto) — popup "Equipe técnica" do menu de ações
   const [crewModal, setCrewModal] = useState(null)
+  const [crewRoles, setCrewRoles] = useState([])
   // actionsModal: null | enrollment (objeto) — popup "Ações do passageiro"
   const [actionsModal,  setActionsModal]  = useState(null)
   // roomsModal: bool — popup "Gerenciar acomodações"
@@ -3406,6 +3407,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
   useEffect(() => { load(); loadRooms() }, [load, loadRooms])
   useEffect(() => {
     configApi.accommodations().then(r => setAccomTypes(r.data.results ?? r.data)).catch(() => {})
+  }, [])
+  useEffect(() => {
+    listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {})
   }, [])
 
   // Repassa os dados ao componente pai — exibidos no painel de métricas, acima das abas
@@ -4560,7 +4564,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} crewRoles={list.crew_roles_data} onData={setPaxData} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
 
 {tab === 'voos' && <FlightsTab listId={id} list={list} />}
 

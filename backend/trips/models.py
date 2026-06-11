@@ -133,7 +133,6 @@ class PassengerList(models.Model):
     end_date             = models.DateField('Data de término', null=True, blank=True)
     suppliers            = models.ManyToManyField(Supplier,       blank=True, related_name='passenger_lists', verbose_name='Fornecedores')
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
-    crew_roles           = models.ManyToManyField(CrewRole,       blank=True, related_name='passenger_lists', verbose_name='Funções da equipe técnica')
     roteiros             = models.ManyToManyField(Roteiro,        blank=True, related_name='passenger_lists', verbose_name='Roteiros')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     default_airport      = models.ForeignKey('config_api.Airport',       null=True, blank=True, on_delete=models.SET_NULL, related_name='default_lists', verbose_name='Aeroporto de saída padrão')
