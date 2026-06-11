@@ -759,20 +759,45 @@ function AirportPopover({ enrollment, rect, listId, defaultAirport, onSaved, onC
 }
 
 /* ── Modal de impressão / download da lista ── */
-function PrintModal({ list, enrollments, accomTypes, onClose }) {
-  const [formato, setFormato] = useState('pdf')
-  const [generating, setGenerating] = useState(false)
-  const [opts, setOpts] = useState({
-    confirmados:    true,
-    data_expedicao: false,
-    aereo:          false,
-    embarque:       false,
-    observacoes:    false,
-    contato:        false,
-    completa:       false,
-  })
+const PRINT_OPTS_KEY    = 'uneworld:print-list-opts'
+const PRINT_FORMAT_KEY  = 'uneworld:print-list-formato'
 
-  const toggle = key => setOpts(o => ({ ...o, [key]: !o[key] }))
+const PRINT_ROWS = [
+  { key:'confirmados',    label:'Lista de passageiros confirmados' },
+  { key:'data_expedicao', label:'Lista com data de expedição' },
+  { key:'aereo',          label:'Lista aéreo' },
+  { key:'embarque',       label:'Lista de embarque' },
+  { key:'observacoes',    label:'Lista de observações' },
+  { key:'contato',        label:'Lista de contato' },
+  { key:'completa',       label:'Lista completa' },
+]
+
+const PRINT_OPTS_DEFAULT = Object.fromEntries(PRINT_ROWS.map(r => [r.key, false]))
+
+function loadPrintOpts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PRINT_OPTS_KEY))
+    if (saved && typeof saved === 'object') return { ...PRINT_OPTS_DEFAULT, ...saved }
+  } catch { /* localStorage indisponível ou JSON inválido */ }
+  return { ...PRINT_OPTS_DEFAULT }
+}
+
+function PrintModal({ list, enrollments, accomTypes, onClose }) {
+  const [formato, setFormato] = useState(() => localStorage.getItem(PRINT_FORMAT_KEY) || 'pdf')
+  const [generating, setGenerating] = useState(false)
+  const [opts, setOpts] = useState(loadPrintOpts)
+
+  useEffect(() => {
+    try { localStorage.setItem(PRINT_OPTS_KEY, JSON.stringify(opts)) } catch { /* localStorage indisponível */ }
+  }, [opts])
+
+  useEffect(() => {
+    try { localStorage.setItem(PRINT_FORMAT_KEY, formato) } catch { /* localStorage indisponível */ }
+  }, [formato])
+
+  const toggle  = key => setOpts(o => ({ ...o, [key]: !o[key] }))
+  const allOn   = PRINT_ROWS.every(r => opts[r.key])
+  const toggleAll = () => setOpts(Object.fromEntries(PRINT_ROWS.map(r => [r.key, !allOn])))
 
   const handleDownload = async () => {
     if (generating) return
@@ -787,20 +812,10 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
     }
   }
 
-  const rows = [
-    { key:'confirmados',    label:'Exibir lista de passageiros confirmados' },
-    { key:'data_expedicao', label:'Exibir lista com data de expedição' },
-    { key:'aereo',          label:'Exibir lista aéreo' },
-    { key:'embarque',       label:'Exibir lista de embarque' },
-    { key:'observacoes',    label:'Exibir lista de observações' },
-    { key:'contato',        label:'Exibir lista de contato' },
-    { key:'completa',       label:'Exibir lista completa' },
-  ]
-
   return (
     <div className="overlay" style={{ zIndex:750 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="mbox" style={{ maxWidth:560, width:'100%' }}>
+      <div className="mbox" style={{ maxWidth:480, width:'100%' }}>
 
         <div className="mhead">
           <span className="mtitle">Imprimir lista de passageiros</span>
@@ -810,7 +825,7 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
         <div className="mbody" style={{ maxHeight:'none' }}>
 
           {/* Formato */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 0 14px', borderBottom:'1px solid #f1f5f9', marginBottom:4 }}>
+          <div className="ff" style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span className="fl" style={{ margin:0 }}>Formato</span>
             <div style={{ display:'flex', gap:4 }}>
               {['PDF','HTML'].map(f => (
@@ -822,18 +837,31 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
             </div>
           </div>
 
-          {/* Opções booleanas */}
-          {rows.map(({ key, label }) => (
-            <div key={key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
-              <span style={{ fontSize:13, color:'#374151' }}>{label}</span>
-              <div style={{ display:'flex', gap:4 }}>
-                <button type="button" className={`btn ${opts[key] ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => { if (!opts[key]) toggle(key) }}>Sim</button>
-                <button type="button" className={`btn ${!opts[key] ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => { if (opts[key]) toggle(key) }}>Não</button>
-              </div>
-            </div>
-          ))}
+          {/* Cabecalho da lista de secoes + selecionar todos */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', margin:'4px 0 2px', paddingTop:14, borderTop:'1px solid #f1f5f9' }}>
+            <span className="fl" style={{ margin:0 }}>Seções a incluir</span>
+            <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12.5, fontWeight:600, color:'#2e6db4', cursor:'pointer' }}>
+              <input type="checkbox" className="chk" checked={allOn} onChange={toggleAll} />
+              Selecionar todas
+            </label>
+          </div>
+
+          {/* Secoes */}
+          <div>
+            {PRINT_ROWS.map(({ key, label }) => (
+              <label key={key}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 6px', marginInline:-6, borderRadius:6, cursor:'pointer', transition:'background .12s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <input type="checkbox" className="chk" checked={opts[key]} onChange={() => toggle(key)} />
+                <span style={{ fontSize:13, color:'#1e293b' }}>{label}</span>
+              </label>
+            ))}
+          </div>
+
+          <p style={{ margin:'10px 0 0', fontSize:11.5, color:'#94a3b8' }}>
+            Sua seleção de seções é lembrada neste navegador.
+          </p>
         </div>
 
         <div className="mfoot">
