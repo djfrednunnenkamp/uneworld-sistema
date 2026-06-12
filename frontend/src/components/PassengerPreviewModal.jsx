@@ -61,11 +61,12 @@ function Row({ label, value, copied, onCopy }) {
 
 /**
  * Props:
- *   passenger — objeto completo do passageiro
- *   onClose   — fecha o modal
- *   onEdit    — (opcional) navega para edição; se omitido, botão Editar não aparece
+ *   passenger     — objeto completo do passageiro
+ *   onClose       — fecha o modal
+ *   onOpenProfile — navega para a página de detalhes do passageiro (sempre disponível)
+ *   canEdit       — se true, o botão mostra "Editar"; caso contrário, "Ver perfil completo" (somente leitura)
  */
-export default function PassengerPreviewModal({ passenger, onClose, onEdit }) {
+export default function PassengerPreviewModal({ passenger, onClose, onOpenProfile, canEdit }) {
   const [copied, setCopied] = useState(null)
 
   if (!passenger) return null
@@ -146,15 +147,13 @@ export default function PassengerPreviewModal({ passenger, onClose, onEdit }) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding:'12px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent: onEdit ? 'space-between' : 'flex-end' }}>
-          {onEdit && (
-            <button onClick={onEdit}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-              <Ic n="edit" s={13} /> Editar
-            </button>
-          )}
+        <div style={{ padding:'12px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
+          <button onClick={onOpenProfile}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+            <Ic n={canEdit ? 'edit' : 'eye'} s={13} /> {canEdit ? 'Editar' : 'Ver perfil completo'}
+          </button>
           <button onClick={onClose}
             style={{ padding:'7px 24px', borderRadius:6, border:'none', background:'#2e6db4', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
             onMouseEnter={e => e.currentTarget.style.background='#275fa0'}

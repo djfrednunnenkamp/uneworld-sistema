@@ -73,6 +73,15 @@ function Toggle({ label, checked, onChange }) {
   )
 }
 
+/* ── Placeholder para campo sensível sem permissão de visualização completa ── */
+function Masked() {
+  return (
+    <div className="fi" style={{ display: 'flex', alignItems: 'center', color: '#cbd5e1', background: '#f8fafc', cursor: 'not-allowed', userSelect: 'none' }}>
+      —
+    </div>
+  )
+}
+
 /* ── Field wrapper ── */
 function F({ label, children, col }) {
   const style = col === 'full' ? { gridColumn: '1/-1' } : col === 2 ? { gridColumn: 'span 2' } : {}
@@ -996,14 +1005,16 @@ export default function PassengerDetail() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <label style={{ fontSize: 12, color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>Status:</label>
             <div style={{ width: 130 }}>
-              <FormSelect
-                value={form.status}
-                onChange={v => set('status')({ target: { value: v } })}
-                options={[
-                  { value: 'active',   label: '● Ativo'    },
-                  { value: 'inactive', label: '✕ Inativo'  },
-                ]}
-              />
+              <fieldset disabled={!canEdit} style={{ border: 'none', margin: 0, padding: 0, ...(!canEdit ? { pointerEvents: 'none' } : {}) }}>
+                <FormSelect
+                  value={form.status}
+                  onChange={v => set('status')({ target: { value: v } })}
+                  options={[
+                    { value: 'active',   label: '● Ativo'    },
+                    { value: 'inactive', label: '✕ Inativo'  },
+                  ]}
+                />
+              </fieldset>
             </div>
           </div>
           <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
@@ -1033,6 +1044,7 @@ export default function PassengerDetail() {
           TAB: Informações do cliente
       ═══════════════════════════════════════════════════════════ */}
       {tab === 'info' && (
+        <fieldset disabled={!canEdit} style={{ border: 'none', margin: 0, padding: 0, ...(!canEdit ? { pointerEvents: 'none' } : {}) }}>
         <div className="det-card">
 
           {/* ── Dados do cliente ── */}
@@ -1092,19 +1104,21 @@ export default function PassengerDetail() {
                 </div>
               </div>
 
-              {canFull && (
-                <F label="CPF">
-                  <div style={{ opacity: form.is_foreign ? 0.4 : 1, pointerEvents: form.is_foreign ? 'none' : 'auto', borderRadius: 8, boxShadow: fieldErrors.cpf && !form.is_foreign ? '0 0 0 2px #dc2626' : 'none' }}>
-                    <CpfInput
-                      value={form.cpf}
-                      onChange={(v) => { set('cpf')({ target: { value: v } }) }}
-                    />
-                  </div>
-                  {fieldErrors.cpf && !form.is_foreign && (
-                    <p style={{ fontSize: 11, color: '#dc2626', margin: '3px 0 0', fontWeight: 500 }}>CPF obrigatório</p>
-                  )}
-                </F>
-              )}
+              <F label="CPF">
+                {canFull ? (
+                  <>
+                    <div style={{ opacity: form.is_foreign ? 0.4 : 1, pointerEvents: form.is_foreign ? 'none' : 'auto', borderRadius: 8, boxShadow: fieldErrors.cpf && !form.is_foreign ? '0 0 0 2px #dc2626' : 'none' }}>
+                      <CpfInput
+                        value={form.cpf}
+                        onChange={(v) => { set('cpf')({ target: { value: v } }) }}
+                      />
+                    </div>
+                    {fieldErrors.cpf && !form.is_foreign && (
+                      <p style={{ fontSize: 11, color: '#dc2626', margin: '3px 0 0', fontWeight: 500 }}>CPF obrigatório</p>
+                    )}
+                  </>
+                ) : <Masked />}
+              </F>
 
               <F label="Gênero *">
                 <div style={fieldErrors.gender ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
@@ -1122,7 +1136,7 @@ export default function PassengerDetail() {
             <div className="grid3">
               <F label="Primeiro nome *">{fi('first_name', 'Primeiro nome')}</F>
               <F label="Sobrenome *">{fi('last_name', 'Sobrenome')}</F>
-              {canFull && <F label="Data de nascimento *">{fi('birth_date', '', 'date')}</F>}
+              <F label="Data de nascimento *">{canFull ? fi('birth_date', '', 'date') : <Masked />}</F>
             </div>
 
             <div className="grid3">
@@ -1134,14 +1148,14 @@ export default function PassengerDetail() {
                   onChangeOthers={(v) => { setForm((f) => ({ ...f, other_languages: v })); markDirty() }}
                 />
               </F>
-              {canFull && (
-                <F label="Local de nascimento">
+              <F label="Local de nascimento">
+                {canFull ? (
                   <LocationPicker
                     value={form.birth_place}
                     onChange={setBirthPlace}
                   />
-                </F>
-              )}
+                ) : <Masked />}
+              </F>
               <F label="Nacionalidade">
                 <NationalityPicker
                   primary={form.nationality}
@@ -1153,63 +1167,67 @@ export default function PassengerDetail() {
             </div>
 
             {/* Linha extra: Passaportes (até 2, número + sigla do país) */}
-            {canFull && (
             <div className="grid3">
               <F label="Passaporte">
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input className="fi" value={form.passport} onChange={set('passport')} placeholder="Número" style={{ flex: 1.5 }} />
-                  <div style={{ width: 110 }}>
-                    <FormSelect
-                      value={form.passport_country}
-                      onChange={(v) => { setForm((f) => ({ ...f, passport_country: v })); markDirty() }}
-                      options={countryOpts}
-                      placeholder="País"
-                    />
+                {canFull ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input className="fi" value={form.passport} onChange={set('passport')} placeholder="Número" style={{ flex: 1.5 }} />
+                    <div style={{ width: 110 }}>
+                      <FormSelect
+                        value={form.passport_country}
+                        onChange={(v) => { setForm((f) => ({ ...f, passport_country: v })); markDirty() }}
+                        options={countryOpts}
+                        placeholder="País"
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : <Masked />}
               </F>
               <F label="2º passaporte (opcional)">
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input className="fi" value={form.passport2} onChange={set('passport2')} placeholder="Número" style={{ flex: 1.5 }} />
-                  <div style={{ width: 110 }}>
-                    <FormSelect
-                      value={form.passport2_country}
-                      onChange={(v) => { setForm((f) => ({ ...f, passport2_country: v })); markDirty() }}
-                      options={countryOpts}
-                      placeholder="País"
-                    />
+                {canFull ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input className="fi" value={form.passport2} onChange={set('passport2')} placeholder="Número" style={{ flex: 1.5 }} />
+                    <div style={{ width: 110 }}>
+                      <FormSelect
+                        value={form.passport2_country}
+                        onChange={(v) => { setForm((f) => ({ ...f, passport2_country: v })); markDirty() }}
+                        options={countryOpts}
+                        placeholder="País"
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : <Masked />}
               </F>
             </div>
-            )}
           </div>
 
           {/* ── E-mail e Telefone ── */}
-          {canFull && (
           <div className="section">
             <div className="section-title">E-mail e Telefone</div>
             <div className="grid3">
-              <F label="E-mail *">{fi('email', 'email@exemplo.com', 'email')}</F>
-              <F label="E-mail de emergência 1">{fi('email_emergency1', 'email@exemplo.com', 'email')}</F>
-              <F label="E-mail de emergência 2">{fi('email_emergency2', 'email@exemplo.com', 'email')}</F>
+              <F label="E-mail *">{canFull ? fi('email', 'email@exemplo.com', 'email') : <Masked />}</F>
+              <F label="E-mail de emergência 1">{canFull ? fi('email_emergency1', 'email@exemplo.com', 'email') : <Masked />}</F>
+              <F label="E-mail de emergência 2">{canFull ? fi('email_emergency2', 'email@exemplo.com', 'email') : <Masked />}</F>
             </div>
             <div className="grid3">
               <F label="Telefone *">
-                <div style={fieldErrors.phone1 ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
-                  <PhoneInput value={form.phone1} onChange={(v) => set('phone1')({ target: { value: v } })} />
-                </div>
-                {fieldErrors.phone1 && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Telefone obrigatório</p>}
+                {canFull ? (
+                  <>
+                    <div style={fieldErrors.phone1 ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
+                      <PhoneInput value={form.phone1} onChange={(v) => set('phone1')({ target: { value: v } })} />
+                    </div>
+                    {fieldErrors.phone1 && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Telefone obrigatório</p>}
+                  </>
+                ) : <Masked />}
               </F>
               <F label="Contato de emergência 1">
-                <PhoneInput value={form.phone2} onChange={(v) => set('phone2')({ target: { value: v } })} />
+                {canFull ? <PhoneInput value={form.phone2} onChange={(v) => set('phone2')({ target: { value: v } })} /> : <Masked />}
               </F>
               <F label="Contato de emergência 2">
-                <PhoneInput value={form.mobile} onChange={(v) => set('mobile')({ target: { value: v } })} />
+                {canFull ? <PhoneInput value={form.mobile} onChange={(v) => set('mobile')({ target: { value: v } })} /> : <Masked />}
               </F>
             </div>
           </div>
-          )}
 
           {/* ── Informações adicionais ── */}
           <div className="section">
@@ -1243,48 +1261,53 @@ export default function PassengerDetail() {
           </div>
 
           {/* ── Endereço ── */}
-          {canFull && (
           <div className="section">
             <div className="section-title">Endereço</div>
             <div className="grid3">
               <F label="CEP *">
-                <div className="cep-wrap">
-                  <input
-                    className="fi" value={form.cep ?? ''} onChange={set('cep')}
-                    placeholder="00000-000"
-                    style={fieldErrors.cep ? errStyle : {}}
-                    onKeyDown={(e) => e.key === 'Enter' && lookupCep()}
-                  />
-                  <button className="cep-btn" onClick={lookupCep} disabled={cepLoading} title="Buscar CEP">
-                    <Ic n="search" s={13}/>
-                  </button>
-                </div>
+                {canFull ? (
+                  <div className="cep-wrap">
+                    <input
+                      className="fi" value={form.cep ?? ''} onChange={set('cep')}
+                      placeholder="00000-000"
+                      style={fieldErrors.cep ? errStyle : {}}
+                      onKeyDown={(e) => e.key === 'Enter' && lookupCep()}
+                    />
+                    <button className="cep-btn" onClick={lookupCep} disabled={cepLoading} title="Buscar CEP">
+                      <Ic n="search" s={13}/>
+                    </button>
+                  </div>
+                ) : <Masked />}
               </F>
-              <F label="Endereço *">{fi('street', 'Rua, Av…')}</F>
-              <F label="Número *">{fi('number', '0')}</F>
+              <F label="Endereço *">{canFull ? fi('street', 'Rua, Av…') : <Masked />}</F>
+              <F label="Número *">{canFull ? fi('number', '0') : <Masked />}</F>
             </div>
             <div className="grid3">
-              <F label="Complemento">{fi('complement', 'Apto, Sala…')}</F>
-              <F label="Bairro *">{fi('neighborhood', '')}</F>
-              <F label="Cidade *">{fi('city', '')}</F>
+              <F label="Complemento">{canFull ? fi('complement', 'Apto, Sala…') : <Masked />}</F>
+              <F label="Bairro *">{canFull ? fi('neighborhood', '') : <Masked />}</F>
+              <F label="Cidade *">{canFull ? fi('city', '') : <Masked />}</F>
             </div>
             <div className="grid3">
               <F label="País / Estado *">
-                <div style={fieldErrors.country ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
-                  <CountryStatePicker
-                    country={form.country}
-                    state={form.state}
-                    onChangeCountry={(v) => { setForm((f) => ({ ...f, country: v })); markDirty() }}
-                    onChangeState={(v)   => { setForm((f) => ({ ...f, state: v })); markDirty() }}
-                  />
-                </div>
-                {fieldErrors.country && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>País obrigatório</p>}
+                {canFull ? (
+                  <>
+                    <div style={fieldErrors.country ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
+                      <CountryStatePicker
+                        country={form.country}
+                        state={form.state}
+                        onChangeCountry={(v) => { setForm((f) => ({ ...f, country: v })); markDirty() }}
+                        onChangeState={(v)   => { setForm((f) => ({ ...f, state: v })); markDirty() }}
+                      />
+                    </div>
+                    {fieldErrors.country && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>País obrigatório</p>}
+                  </>
+                ) : <Masked />}
               </F>
             </div>
           </div>
-          )}
 
         </div>
+        </fieldset>
       )}
 
       {/* ═══════════════════════════════════════════════════════════

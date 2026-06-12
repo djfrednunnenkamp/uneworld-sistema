@@ -116,7 +116,11 @@ table.dt tbody tr:hover td { background: #fafbfd; }
 .fl { display: block; font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 5px; }
 .fi, .fs { width: 100%; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #1e293b; background: #fff; outline: none; font-family: inherit; transition: border-color .12s, box-shadow .12s; }
 .fi:focus, .fs:focus { border-color: #2e6db4; box-shadow: 0 0 0 3px rgba(46,109,180,.1); }
+.fi:disabled, .fs:disabled { background: #f8fafc; color: #94a3b8; cursor: not-allowed; }
 .fi-full { grid-column: 1 / -1; }
+
+/* ── Fieldset (campos somente leitura) ── */
+fieldset:disabled { opacity: .75; }
 
 /* ── Empty ── */
 .empty-state { text-align: center; padding: 52px 20px; }
