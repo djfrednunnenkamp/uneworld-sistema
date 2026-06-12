@@ -25,6 +25,35 @@ class PasswordResetToken(models.Model):
         return not self.used and timezone.now() < self.expires_at
 
 
+class UserPermissions(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='permissions')
+
+    # Passageiros
+    passengers_view_basic    = models.BooleanField(default=False)
+    passengers_view_full     = models.BooleanField(default=False)
+    passengers_edit          = models.BooleanField(default=False)
+    passengers_delete        = models.BooleanField(default=False)
+    passengers_download_docs = models.BooleanField(default=False)
+
+    # Listas de Passageiros
+    lists_view       = models.BooleanField(default=False)
+    lists_edit       = models.BooleanField(default=False)
+    lists_delete     = models.BooleanField(default=False)
+    lists_view_logs  = models.BooleanField(default=False)
+
+    # Administração
+    manage_users     = models.BooleanField(default=False)
+    manage_settings  = models.BooleanField(default=False)
+    view_audit_log   = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = 'Permissões de usuário'
+        verbose_name_plural = 'Permissões de usuários'
+
+    def __str__(self):
+        return f'Permissões de {self.user.username}'
+
+
 class InviteToken(models.Model):
     email       = models.EmailField()
     first_name  = models.CharField(max_length=100, blank=True)

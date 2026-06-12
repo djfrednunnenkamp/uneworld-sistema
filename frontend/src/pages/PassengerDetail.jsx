@@ -4,6 +4,7 @@ import usePersistedTab from '../hooks/usePersistedTab'
 import toast from 'react-hot-toast'
 import axios from 'axios'
 import { passengersApi, documentsApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
 import AgencyPicker from '../components/AgencyPicker'
@@ -205,7 +206,7 @@ function CopyRow({ label, value, extra }) {
 }
 
 /* ── Documents tab ── */
-function DocumentsTab({ passengerId, isNew }) {
+function DocumentsTab({ passengerId, isNew, canEdit, canDownload }) {
   const [docs,       setDocs]       = useState([])
   const [docTypes,   setDocTypes]   = useState(DOC_TYPES_FALLBACK)
   const [loading,    setLoading]    = useState(false)
@@ -381,7 +382,7 @@ function DocumentsTab({ passengerId, isNew }) {
               </button>
             ))}
           </div>
-          {!isNew && <DocTypePicker passengerId={passengerId} onUploaded={load} />}
+          {!isNew && canEdit && <DocTypePicker passengerId={passengerId} onUploaded={load} />}
           {isNew && (
             <span style={{ fontSize: 12, color: '#94a3b8', padding: '4px 10px', borderRadius: 6, border: '1px dashed #e2e8f0', background: '#fafafa' }}>
               Salve o passageiro para habilitar uploads
@@ -508,9 +509,9 @@ function DocumentsTab({ passengerId, isNew }) {
                   <div style={{ display:'flex', gap:3, padding:'9px 10px', flexShrink:0 }}>
                     {[
                       { fn:()=>setViewDoc(doc),     title:'Ver detalhes', icon:'eye',   hc:'#2e6db4' },
-                      { fn:()=>handleDownload(doc), title:'Baixar',       icon:'dl',    hc:'#059669' },
-                      { fn:()=>setConfirmDoc(doc),  title:'Remover',      icon:'trash', hc:'#dc2626', danger:true, dis:deleting===doc.id },
-                    ].map(({fn,title,icon,hc,danger,dis})=>(
+                      canDownload && { fn:()=>handleDownload(doc), title:'Baixar',  icon:'dl',    hc:'#059669' },
+                      canEdit     && { fn:()=>setConfirmDoc(doc),  title:'Remover', icon:'trash', hc:'#dc2626', danger:true, dis:deleting===doc.id },
+                    ].filter(Boolean).map(({fn,title,icon,hc,danger,dis})=>(
                       <button key={title} onClick={fn} disabled={dis} title={title}
                         style={{ width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #e2e8f0',background:'#fff',color:'#94a3b8',cursor:'pointer',transition:'all .12s',opacity:dis?.5:1 }}
                         onMouseEnter={e=>{e.currentTarget.style.borderColor=hc;e.currentTarget.style.color=hc;if(danger)e.currentTarget.style.background='#fee2e2'}}
@@ -581,15 +582,17 @@ function DocumentsTab({ passengerId, isNew }) {
               </div>
 
               {/* Rodapé — Editar (esq) + OK (dir) */}
-              <div style={{padding:'12px 20px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
-                <button
-                  onClick={() => { setViewDoc(null); openEdit(viewDoc) }}
-                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all .12s'}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor='#7c3aed';e.currentTarget.style.color='#7c3aed'}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#475569'}}
-                >
-                  <Ic n="edit" s={13}/> Editar
-                </button>
+              <div style={{padding:'12px 20px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent: canEdit ? 'space-between' : 'flex-end'}}>
+                {canEdit && (
+                  <button
+                    onClick={() => { setViewDoc(null); openEdit(viewDoc) }}
+                    style={{display:'flex',alignItems:'center',gap:6,padding:'7px 16px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all .12s'}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor='#7c3aed';e.currentTarget.style.color='#7c3aed'}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#475569'}}
+                  >
+                    <Ic n="edit" s={13}/> Editar
+                  </button>
+                )}
                 <button
                   onClick={() => setViewDoc(null)}
                   style={{padding:'7px 24px',borderRadius:6,border:'none',background:'#2e6db4',color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}
@@ -743,6 +746,14 @@ export default function PassengerDetail() {
   const navigate       = useNavigate()
   const [searchParams] = useSearchParams()
   const isNew          = id === 'novo'
+
+  const { user } = useAuth()
+  const perms   = user?.permissions ?? {}
+  const canEdit = !!user?.is_superuser || perms.passengers_edit
+  const canFull = !!user?.is_superuser || perms.passengers_view_full
+  const canDocs = !!user?.is_superuser || perms.passengers_download_docs
+  // Salvar exige ver os campos sensíveis (ex.: e-mail é obrigatório e fica oculto sem essa permissão)
+  const canSave = canEdit && canFull
 
   const [form,       setForm]       = useState(() => {
     if (isNew) {
@@ -997,9 +1008,11 @@ export default function PassengerDetail() {
           <button className="btn btn-outline" onClick={() => navigate('/passageiros')}>
             <Ic n="logout" s={13} />Voltar
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>
-            <Ic n="check" s={13} />{saving ? 'Salvando…' : 'Salvar'}
-          </button>
+          {canSave && (
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              <Ic n="check" s={13} />{saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1072,17 +1085,19 @@ export default function PassengerDetail() {
                 </div>
               </div>
 
-              <F label="CPF">
-                <div style={{ opacity: form.is_foreign ? 0.4 : 1, pointerEvents: form.is_foreign ? 'none' : 'auto', borderRadius: 8, boxShadow: fieldErrors.cpf && !form.is_foreign ? '0 0 0 2px #dc2626' : 'none' }}>
-                  <CpfInput
-                    value={form.cpf}
-                    onChange={(v) => { set('cpf')({ target: { value: v } }) }}
-                  />
-                </div>
-                {fieldErrors.cpf && !form.is_foreign && (
-                  <p style={{ fontSize: 11, color: '#dc2626', margin: '3px 0 0', fontWeight: 500 }}>CPF obrigatório</p>
-                )}
-              </F>
+              {canFull && (
+                <F label="CPF">
+                  <div style={{ opacity: form.is_foreign ? 0.4 : 1, pointerEvents: form.is_foreign ? 'none' : 'auto', borderRadius: 8, boxShadow: fieldErrors.cpf && !form.is_foreign ? '0 0 0 2px #dc2626' : 'none' }}>
+                    <CpfInput
+                      value={form.cpf}
+                      onChange={(v) => { set('cpf')({ target: { value: v } }) }}
+                    />
+                  </div>
+                  {fieldErrors.cpf && !form.is_foreign && (
+                    <p style={{ fontSize: 11, color: '#dc2626', margin: '3px 0 0', fontWeight: 500 }}>CPF obrigatório</p>
+                  )}
+                </F>
+              )}
 
               <F label="Gênero *">
                 <div style={fieldErrors.gender ? { boxShadow:'0 0 0 2px #dc2626', borderRadius:8 } : {}}>
@@ -1100,7 +1115,7 @@ export default function PassengerDetail() {
             <div className="grid3">
               <F label="Primeiro nome *">{fi('first_name', 'Primeiro nome')}</F>
               <F label="Sobrenome *">{fi('last_name', 'Sobrenome')}</F>
-              <F label="Data de nascimento *">{fi('birth_date', '', 'date')}</F>
+              {canFull && <F label="Data de nascimento *">{fi('birth_date', '', 'date')}</F>}
             </div>
 
             <div className="grid3">
@@ -1112,12 +1127,14 @@ export default function PassengerDetail() {
                   onChangeOthers={(v) => { setForm((f) => ({ ...f, other_languages: v })); markDirty() }}
                 />
               </F>
-              <F label="Local de nascimento">
-                <LocationPicker
-                  value={form.birth_place}
-                  onChange={setBirthPlace}
-                />
-              </F>
+              {canFull && (
+                <F label="Local de nascimento">
+                  <LocationPicker
+                    value={form.birth_place}
+                    onChange={setBirthPlace}
+                  />
+                </F>
+              )}
               <F label="Nacionalidade">
                 <NationalityPicker
                   primary={form.nationality}
@@ -1129,6 +1146,7 @@ export default function PassengerDetail() {
             </div>
 
             {/* Linha extra: Passaportes (até 2, número + sigla do país) */}
+            {canFull && (
             <div className="grid3">
               <F label="Passaporte">
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -1157,9 +1175,11 @@ export default function PassengerDetail() {
                 </div>
               </F>
             </div>
+            )}
           </div>
 
           {/* ── E-mail e Telefone ── */}
+          {canFull && (
           <div className="section">
             <div className="section-title">E-mail e Telefone</div>
             <div className="grid3">
@@ -1182,6 +1202,7 @@ export default function PassengerDetail() {
               </F>
             </div>
           </div>
+          )}
 
           {/* ── Informações adicionais ── */}
           <div className="section">
@@ -1215,6 +1236,7 @@ export default function PassengerDetail() {
           </div>
 
           {/* ── Endereço ── */}
+          {canFull && (
           <div className="section">
             <div className="section-title">Endereço</div>
             <div className="grid3">
@@ -1253,6 +1275,7 @@ export default function PassengerDetail() {
               </F>
             </div>
           </div>
+          )}
 
         </div>
       )}
@@ -1261,7 +1284,7 @@ export default function PassengerDetail() {
           TAB: Documentos
       ═══════════════════════════════════════════════════════════ */}
       {tab === 'docs' && (
-        <DocumentsTab passengerId={id} isNew={isNew} />
+        <DocumentsTab passengerId={id} isNew={isNew} canEdit={canEdit} canDownload={canDocs} />
       )}
 
       {/* ═══════════════════════════════════════════════════════════

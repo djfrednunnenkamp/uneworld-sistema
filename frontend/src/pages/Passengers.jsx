@@ -2,11 +2,15 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { passengersApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import NewPassengerModal from '../components/NewPassengerModal'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
+
+/* Colunas com dados sensíveis — só aparecem para quem tem passengers_view_full */
+const SENSITIVE_COLS = ['email', 'phone1', 'cpf', 'birth_date']
 
 /* ── Helpers ── */
 function calcAge(birthDate) {
@@ -156,6 +160,14 @@ export default function Passengers() {
   const [showNew,   setShowNew]   = useState(false)
   const [docsRow,   setDocsRow]   = useState(null)
   const navigate                  = useNavigate()
+  const { user } = useAuth()
+  const perms      = user?.permissions ?? {}
+  const canFull    = !!user?.is_superuser || perms.passengers_view_full
+  const canEdit    = !!user?.is_superuser || perms.passengers_edit
+  const canDelete  = !!user?.is_superuser || perms.passengers_delete
+  const canDocs    = !!user?.is_superuser || perms.passengers_download_docs
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log
+  const cols       = canFull ? COLS : COLS.filter(c => !SENSITIVE_COLS.includes(c.key))
 
   // Filtros
   const [statusF,   setStatusF]   = useState('all')
@@ -270,14 +282,14 @@ export default function Passengers() {
         title="Passageiros"
         addLabel="Adicionar Passageiro"
         data={filtered}
-        cols={COLS}
+        cols={cols}
         searchKeys={['full_name','email','cpf','phone1']}
         extraFilters={filterBar}
-        onAdd={() => setShowNew(true)}
-        onLog={() => navigate('/log?model=Passenger')}
-        onDocs={(row) => setDocsRow(row)}
+        onAdd={(canEdit && canFull) ? () => setShowNew(true) : undefined}
+        onLog={canViewLog ? () => navigate('/log?model=Passenger') : undefined}
+        onDocs={canDocs ? (row) => setDocsRow(row) : undefined}
         onView={(row) => setViewRow(row)}
-        onDelete={(row) => setDelRow(row)}
+        onDelete={canDelete ? (row) => setDelRow(row) : undefined}
         loading={loading}
       />
 

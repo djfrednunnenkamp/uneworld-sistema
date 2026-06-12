@@ -8,8 +8,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from core.pagination import StandardResultsPagination
+from users_api.permissions import RequirePermission, has_any_perm
 from .models import Passenger, PassengerDocument
 from .serializers import PassengerSerializer, PassengerListSerializer, PassengerDocumentSerializer
+
+VIEW_PERMS = ('passengers_view_basic', 'passengers_view_full')
 
 
 class PassengerViewSet(viewsets.ModelViewSet):
@@ -23,6 +26,18 @@ class PassengerViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return PassengerListSerializer
         return PassengerSerializer
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [RequirePermission('passengers_delete')()]
+        if self.action in ('create', 'update', 'partial_update'):
+            return [RequirePermission('passengers_edit')()]
+        if self.action in ('check_cpf', 'active'):
+            # Endpoints utilitários de leitura usados durante o fluxo de criação/edição
+            return [RequirePermission(*VIEW_PERMS, 'passengers_edit')()]
+        if self.action in ('list', 'retrieve', 'agencies'):
+            return [RequirePermission(*VIEW_PERMS)()]
+        return super().get_permissions()
 
     @action(detail=False, methods=['get'], url_path='check-cpf')
     def check_cpf(self, request):
@@ -43,10 +58,9 @@ class PassengerViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def active(self, request):
         qs = self.get_queryset().filter(status='active')
-        return Response(PassengerListSerializer(qs, many=True).data)
+        return Response(PassengerListSerializer(qs, many=True, context={'request': request}).data)
 
-    @action(detail=True, methods=['get'], url_path='agencies',
-            permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['get'], url_path='agencies')
     def agencies(self, request, pk=None):
         """Retorna as agências vinculadas a este passageiro."""
         passenger = self.get_object()
@@ -63,6 +77,12 @@ class PassengerViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'], url_path='documents',
             parser_classes=[MultiPartParser, FormParser])
     def documents(self, request, pk=None):
+        if request.method == 'GET':
+            if not has_any_perm(request.user, 'passengers_view_full'):
+                return Response({'error': 'Sem permissão.'}, status=403)
+        elif not has_any_perm(request.user, 'passengers_edit'):
+            return Response({'error': 'Sem permissão.'}, status=403)
+
         passenger = self.get_object()
         if request.method == 'GET':
             docs = passenger.documents.all()
@@ -79,6 +99,13 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
     queryset = PassengerDocument.objects.all()
     serializer_class = PassengerDocumentSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ('preview', 'download'):
+            return [RequirePermission('passengers_download_docs')()]
+        if self.action in ('partial_update', 'destroy'):
+            return [RequirePermission('passengers_edit')()]
+        return super().get_permissions()
 
     def partial_update(self, request, pk=None):
         """Atualiza metadados do documento (sem substituir o arquivo)."""

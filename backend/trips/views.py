@@ -1,9 +1,9 @@
 from django.db.models import Prefetch
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from core.pagination import StandardResultsPagination
+from users_api.permissions import RequirePermission
 from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
@@ -91,10 +91,24 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status)
         return qs
 
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [RequirePermission('lists_delete')()]
+        if self.action in ('create', 'update', 'partial_update'):
+            return [RequirePermission('lists_edit')()]
+        if self.action in ('list', 'retrieve'):
+            return [RequirePermission('lists_view')()]
+        if self.action in ('passageiros', 'rooms'):
+            if self.request.method == 'GET':
+                return [RequirePermission('lists_view')()]
+            return [RequirePermission('lists_edit')()]
+        if self.action in ('manage_passenger', 'manage_room'):
+            return [RequirePermission('lists_edit')()]
+        return super().get_permissions()
+
     # ── Passageiros na lista ─────────────────────────────────────────────────
 
-    @action(detail=True, methods=['get', 'post'], url_path='passageiros',
-            permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['get', 'post'], url_path='passageiros')
     def passageiros(self, request, pk=None):
         """GET: lista passageiros. POST: adiciona passageiro ou bloqueio."""
         pl = self.get_object()
@@ -189,8 +203,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         )
         return Response(ListEnrollmentSerializer(e).data, status=201)
 
-    @action(detail=True, methods=['patch', 'delete'], url_path=r'passageiros/(?P<enrollment_id>\d+)',
-            permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'passageiros/(?P<enrollment_id>\d+)')
     def manage_passenger(self, request, pk=None, enrollment_id=None):
         """PATCH: atualiza enrollment. DELETE: remove enrollment."""
         pl = self.get_object()
@@ -257,8 +270,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
 
     # ── Acomodações (quartos) ────────────────────────────────────────────────
 
-    @action(detail=True, methods=['get', 'post'], url_path='rooms',
-            permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['get', 'post'], url_path='rooms')
     def rooms(self, request, pk=None):
         """GET: lista acomodações (com backfill das que só existem como string nas inscrições). POST: cria acomodação vazia."""
         pl = self.get_object()
@@ -281,8 +293,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         room = Room.objects.create(passenger_list=pl, name=name)
         return Response(RoomSerializer(room).data, status=201)
 
-    @action(detail=True, methods=['patch', 'delete'], url_path=r'rooms/(?P<room_id>\d+)',
-            permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'rooms/(?P<room_id>\d+)')
     def manage_room(self, request, pk=None, room_id=None):
         """PATCH: renomeia acomodação (e sincroniza inscrições). DELETE: remove acomodação vazia."""
         pl = self.get_object()

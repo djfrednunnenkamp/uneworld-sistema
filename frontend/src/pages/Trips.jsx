@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { listsApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import DataTable from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import ListModal from '../components/ListModal'
@@ -82,6 +83,10 @@ const COLS = [
 
 export default function Trips() {
   const navigate  = useNavigate()
+  const { user } = useAuth()
+  const perms     = user?.permissions ?? {}
+  const canEdit   = !!user?.is_superuser || perms.lists_edit
+  const canDelete = !!user?.is_superuser || perms.lists_delete
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
@@ -155,9 +160,9 @@ export default function Trips() {
         cols={COLS}
         searchKeys={['name']}
         topBar={tabBar}
-        onAdd={() => setShowNew(true)}
+        onAdd={canEdit ? () => setShowNew(true) : undefined}
         onView={(row) => navigate(`/viagens/${row.id}`)}
-        onDelete={(row) => setDelRow(row)}
+        onDelete={canDelete ? (row) => setDelRow(row) : undefined}
         loading={loading}
       />
 

@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
+from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions
 
 
 def serialize_user(u):
@@ -23,7 +24,21 @@ def serialize_user(u):
         'is_active':    u.is_active,
         'date_joined':  u.date_joined,
         'last_login':   u.last_login,
+        'permissions':  permissions_dict(u),
     }
+
+
+def _apply_permissions(user, data):
+    """Atualiza UserPermissions a partir de data['permissions'] (dict de booleanos) e sincroniza is_staff."""
+    perms_data = data.get('permissions')
+    if perms_data is None:
+        return
+    perms = get_user_permissions(user)
+    for key in PERMISSION_FIELDS:
+        if key in perms_data:
+            setattr(perms, key, bool(perms_data[key]))
+    perms.save()
+    sync_is_staff(user)
 
 
 @api_view(['POST'])
@@ -99,7 +114,7 @@ def change_password(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_list(request):
-    if not request.user.is_staff:
+    if not has_any_perm(request.user, 'manage_users'):
         return Response({'error': 'Sem permissão.'}, status=403)
     users = User.objects.all().order_by('username')
     return Response([serialize_user(u) for u in users])
@@ -108,14 +123,13 @@ def user_list(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def user_create(request):
-    if not request.user.is_staff:
+    if not has_any_perm(request.user, 'manage_users'):
         return Response({'error': 'Sem permissão.'}, status=403)
     data       = request.data
     email      = data.get('email', '').strip().lower()
     password   = data.get('password', '')
     first_name = data.get('first_name', '').strip()
     last_name  = data.get('last_name', '').strip()
-    is_staff   = bool(data.get('is_staff', False))
 
     if not email:
         return Response({'error': 'E-mail é obrigatório.'}, status=400)
@@ -128,15 +142,17 @@ def user_create(request):
     # Sem senha: usuário é criado com senha inutilizável — define a sua via convite por e-mail
     user = User.objects.create_user(
         username=email, password=password or None, email=email,
-        first_name=first_name, last_name=last_name, is_staff=is_staff,
+        first_name=first_name, last_name=last_name,
     )
+    # Novos usuários começam sem nenhuma permissão até serem configurados aqui
+    _apply_permissions(user, data)
     return Response(serialize_user(user), status=201)
 
 
 @api_view(['PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_update(request, pk):
-    if not request.user.is_staff:
+    if not has_any_perm(request.user, 'manage_users'):
         return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
@@ -147,11 +163,12 @@ def user_update(request, pk):
     if 'first_name' in data: user.first_name = data['first_name']
     if 'last_name'  in data: user.last_name  = data['last_name']
     if 'email'      in data: user.email      = data['email']
-    if 'is_staff'   in data: user.is_staff   = bool(data['is_staff'])
     if 'is_active'  in data: user.is_active  = bool(data['is_active'])
     if 'password'   in data and data['password']:
         user.set_password(data['password'])
     user.save()
+    if not user.is_superuser:
+        _apply_permissions(user, data)
     return Response(serialize_user(user))
 
 
@@ -198,7 +215,7 @@ def reset_password(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def send_user_invite(request, pk):
-    if not request.user.is_staff:
+    if not has_any_perm(request.user, 'manage_users'):
         return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
@@ -253,7 +270,6 @@ def accept_invite(request):
     user.username   = invite.email.lower()
     user.first_name = invite.first_name
     user.last_name  = invite.last_name
-    user.is_staff   = invite.is_staff
     user.is_active  = True
     user.set_password(password)
     user.save()

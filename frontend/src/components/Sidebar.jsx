@@ -3,14 +3,14 @@ import { Ic } from './Icon'
 import { useAuth } from '../context/AuthContext'
 
 const NAV_BASE = [
-  { id: '/',           icon: 'grid',     label: 'Visão Geral', group: null,     adminOnly: false },
-  { id: '/passageiros',icon: 'users',    label: 'Passageiros', group: 'GESTÃO', adminOnly: false },
-  { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', adminOnly: false },
-  { id: '/viagens',    icon: 'plane',    label: 'Listas de Passageiros',      group: 'GESTÃO', adminOnly: false },
-  { id: '/reunioes',   icon: 'calendar', label: 'Reuniões',    group: 'GESTÃO', adminOnly: false },
-  { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA',adminOnly: true  },
-  { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA',adminOnly: true  },
-  { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA',adminOnly: true  },
+  { id: '/',           icon: 'grid',     label: 'Visão Geral', group: null,     perms: null },
+  { id: '/passageiros',icon: 'users',    label: 'Passageiros', group: 'GESTÃO', perms: ['passengers_view_basic', 'passengers_view_full'] },
+  { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', perms: null },
+  { id: '/viagens',    icon: 'plane',    label: 'Listas de Passageiros',      group: 'GESTÃO', perms: ['lists_view'] },
+  { id: '/reunioes',   icon: 'calendar', label: 'Reuniões',    group: 'GESTÃO', perms: null },
+  { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA', perms: ['manage_users']    },
+  { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA', perms: ['manage_settings'] },
+  { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA', perms: ['view_audit_log']  },
 ]
 
 export default function Sidebar() {
@@ -19,7 +19,10 @@ export default function Sidebar() {
   const { user } = useAuth()
   let lastGroup      = null
 
-  const NAV = NAV_BASE.filter(item => !item.adminOnly || user?.is_staff)
+  const hasAccess = (perms) =>
+    !perms || user?.is_superuser || perms.some(p => user?.permissions?.[p])
+
+  const NAV = NAV_BASE.filter(item => hasAccess(item.perms))
 
   return (
     <div className="sidebar">

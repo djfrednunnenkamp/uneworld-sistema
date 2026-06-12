@@ -76,7 +76,7 @@ export default function DataTable({
       <div className="ph">
         <h1 className="ph-title">{title}</h1>
         <div className="ph-actions">
-          <button className="btn btn-primary" onClick={onAdd}><Ic n="plus" s={13}/>{addLabel}</button>
+          {onAdd && <button className="btn btn-primary" onClick={onAdd}><Ic n="plus" s={13}/>{addLabel}</button>}
         </div>
       </div>
 
@@ -164,7 +164,7 @@ export default function DataTable({
                       {onEdit && <button className="r-btn edit" title="Editar"     onClick={() => onEdit(row)}><Ic n="edit" s={13}/></button>}
                       {onDocs  && <button className="r-btn view" title="Documentos" onClick={() => onDocs(row)}><Ic n="docs"  s={13}/></button>}
                       <button className="r-btn view" title="Visualizar" onClick={() => onView?.(row)}><Ic n="eye"  s={13}/></button>
-                      <button className="r-btn del"  title="Excluir"     onClick={() => onDelete?.(row)}><Ic n="trash" s={13}/></button>
+                      {onDelete && <button className="r-btn del" title="Excluir" onClick={() => onDelete(row)}><Ic n="trash" s={13}/></button>}
                     </div>
                   </td>
                 </tr>

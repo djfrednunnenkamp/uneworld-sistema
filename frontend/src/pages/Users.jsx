@@ -6,10 +6,48 @@ import DelModal from '../components/DelModal'
 import PasswordInput from '../components/PasswordInput'
 import { Ic } from '../components/Icon'
 
-const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_staff:false, is_active:true }
+const PERM_GROUPS = [
+  {
+    title: 'Passageiros',
+    items: [
+      ['passengers_view_basic',    'Ver dados básicos'],
+      ['passengers_view_full',     'Ver dados completos (sensíveis)'],
+      ['passengers_edit',          'Criar / Editar'],
+      ['passengers_delete',        'Excluir'],
+      ['passengers_download_docs', 'Baixar documentos'],
+    ],
+  },
+  {
+    title: 'Listas de Passageiros',
+    items: [
+      ['lists_view',      'Ver listas'],
+      ['lists_edit',      'Criar / Editar'],
+      ['lists_delete',    'Excluir lista'],
+      ['lists_view_logs', 'Ver log de atividades da lista'],
+    ],
+  },
+  {
+    title: 'Administração',
+    items: [
+      ['manage_users',    'Gerenciar usuários e permissões'],
+      ['manage_settings', 'Acessar Configurações'],
+      ['view_audit_log',  'Ver Log do Sistema (global)'],
+    ],
+  },
+]
+
+const ALL_PERM_KEYS   = PERM_GROUPS.flatMap(g => g.items.map(([k]) => k))
+const ADMIN_PERM_KEYS = PERM_GROUPS.find(g => g.title === 'Administração').items.map(([k]) => k)
+const EMPTY_PERMISSIONS = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, false]))
+const PRESET_ADMIN      = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, true]))
+const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !ADMIN_PERM_KEYS.includes(k)]))
+
+const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_active:true, permissions: { ...EMPTY_PERMISSIONS } }
 
 function UserModal({ user, onClose, onSaved }) {
-  const [form,       setForm]       = useState(user ? { ...user, password:'' } : { ...EMPTY })
+  const [form,       setForm]       = useState(user
+    ? { ...user, password:'', permissions: { ...EMPTY_PERMISSIONS, ...user.permissions } }
+    : { ...EMPTY })
   const [skipPwd,    setSkipPwd]    = useState(false)
   const [saving,     setSaving]     = useState(false)
   const isEdit = !!user
@@ -46,11 +84,11 @@ function UserModal({ user, onClose, onSaved }) {
     <div onClick={e=>{if(e.target===e.currentTarget)onClose()}}
       style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',backdropFilter:'blur(3px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,padding:20}}>
       <div onClick={e=>e.stopPropagation()}
-        style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:440,boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
-        <div style={{padding:'16px 20px 14px',borderBottom:'1px solid #e2e8f0'}}>
+        style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:560,maxHeight:'90vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
+        <div style={{padding:'16px 20px 14px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
           <p style={{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}}>{isEdit ? 'Editar usuário' : 'Novo usuário'}</p>
         </div>
-        <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
+        <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12,overflowY:'auto'}}>
           <div className="grid2">
             <div><label style={lbl}>Primeiro nome</label><input style={inp} value={form.first_name} onChange={set('first_name')} placeholder="Ana" /></div>
             <div><label style={lbl}>Sobrenome</label><input style={inp} value={form.last_name} onChange={set('last_name')} placeholder="Silva" /></div>
@@ -71,18 +109,37 @@ function UserModal({ user, onClose, onSaved }) {
             </div>
           )}
 
-          <div style={{display:'flex',gap:16}}>
+          {isEdit && (
             <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'#1e293b'}}>
-              <input type="checkbox" checked={form.is_staff} onChange={e=>setForm(f=>({...f,is_staff:e.target.checked}))} style={{accentColor:'#1a2d4f',width:15,height:15}} />
-              Administrador (staff)
+              <input type="checkbox" checked={form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))} style={{accentColor:'#1a2d4f',width:15,height:15}} />
+              Ativo
             </label>
-            {isEdit && (
-              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'#1e293b'}}>
-                <input type="checkbox" checked={form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))} style={{accentColor:'#1a2d4f',width:15,height:15}} />
-                Ativo
-              </label>
-            )}
-          </div>
+          )}
+
+          {isEdit && user?.is_superuser ? (
+            <div style={{padding:'10px 12px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',fontSize:12.5,color:'#1d4ed8'}}>
+              Superusuário: acesso total a todas as permissões do sistema.
+            </div>
+          ) : (
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              <label style={lbl}>Permissões</label>
+              {PERM_GROUPS.map(g => (
+                <div key={g.title} style={{border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
+                  <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 8px'}}>{g.title}</p>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {g.items.map(([key, label]) => (
+                      <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b'}}>
+                        <input type="checkbox" checked={!!form.permissions?.[key]}
+                          onChange={e=>setForm(f=>({...f,permissions:{...f.permissions,[key]:e.target.checked}}))}
+                          style={{accentColor:'#1a2d4f',width:15,height:15}} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{padding:'12px 20px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
           <button onClick={onClose} className="btn btn-outline">Cancelar</button>
@@ -185,9 +242,10 @@ export default function Users() {
 
   const bulkSetStaff = async (isStaff) => {
     setBulkBusy(true)
+    const permissions = isStaff ? PRESET_ADMIN : PRESET_USER
     let ok = 0, fail = 0
     for (const u of selUsers) {
-      try { await usersApi.update(u.id, { is_staff: isStaff }); ok++ }
+      try { await usersApi.update(u.id, { permissions }); ok++ }
       catch { fail++ }
     }
     setBulkBusy(false)

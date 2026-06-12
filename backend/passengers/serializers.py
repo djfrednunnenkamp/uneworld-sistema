@@ -1,10 +1,38 @@
 from rest_framework import serializers
 from agencies.models import Agency
+from users_api.permissions import has_any_perm
 from .models import Passenger, PassengerDocument
 from .validators import validate_document_file
 
 
-class PassengerListSerializer(serializers.ModelSerializer):
+# Campos sensíveis (documentos, contato, endereço, data de nascimento) — só
+# aparecem para usuários com a permissão `passengers_view_full`.
+SENSITIVE_FIELDS = {
+    'cpf', 'rg', 'rg_issue_date', 'rg_issuer',
+    'passport', 'passport_country', 'passport_issue', 'passport_expiry',
+    'passport2', 'passport2_country',
+    'rne', 'rne_expiry', 'rne_issue',
+    'birth_date', 'birth_place',
+    'email', 'email_emergency1', 'email_emergency2',
+    'phone1', 'phone2', 'mobile',
+    'cep', 'street', 'number', 'complement', 'neighborhood',
+}
+
+
+class SensitiveFieldsMixin:
+    """Remove SENSITIVE_FIELDS da representação para quem não tem passengers_view_full."""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not has_any_perm(user, 'passengers_view_full'):
+            for field in SENSITIVE_FIELDS:
+                data.pop(field, None)
+        return data
+
+
+class PassengerListSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
     agency_names = serializers.SerializerMethodField()
 
     class Meta:
@@ -18,7 +46,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
         return ', '.join(obj.agencies.values_list('name', flat=True))
 
 
-class PassengerSerializer(serializers.ModelSerializer):
+class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
     agencies = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Agency.objects.all(), required=False
     )

@@ -1,6 +1,6 @@
 from rest_framework import serializers, viewsets, filters
-from rest_framework.permissions import IsAdminUser
 from rest_framework.pagination import PageNumberPagination
+from users_api.permissions import RequirePermission, has_any_perm
 from .models import AuditLog
 
 
@@ -31,7 +31,7 @@ class AuditPagination(PageNumberPagination):
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditLogSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [RequirePermission('view_audit_log', 'lists_view_logs')]
     pagination_class = AuditPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user_display', 'object_repr', 'model_label']
@@ -46,6 +46,12 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         date_to   = self.request.query_params.get('date_to')
         object_id = self.request.query_params.get('object_id')
         list_id   = self.request.query_params.get('list_id')
+
+        has_global = has_any_perm(self.request.user, 'view_audit_log')
+        if not has_global and not list_id:
+            # Usuário só tem lists_view_logs: precisa informar de qual lista quer o log.
+            return qs.none()
+
         if action:    qs = qs.filter(action=action)
         if model:     qs = qs.filter(model_name=model)
         if object_id: qs = qs.filter(object_id=object_id)
