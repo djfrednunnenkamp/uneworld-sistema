@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '../api'
-import { StatusBadge } from '../components/DataTable'
+import { Ic } from '../components/Icon'
 
 const fmt = (d) => {
   if (!d) return ''
@@ -9,26 +9,14 @@ const fmt = (d) => {
   return `${dd}/${m}/${y}`
 }
 
-const STATS_CFG = [
-  { key: 'total_passengers', label: 'Passageiros', subKey: null,          nav: '/passageiros', color: '#e8f0fb', ico: '#2e6db4', icon: 'users'    },
-  { key: 'active_trips',     label: 'Viagens',     subKey: null,          nav: '/viagens',     color: '#dcfce7', ico: '#15803d', icon: 'plane'    },
-  { key: 'upcoming_meetings',label: 'Reuniões',    subKey: null,          nav: '/reunioes',    color: '#ede9fe', ico: '#7c3aed', icon: 'calendar' },
-  { key: 'total_enrollments',label: 'Inscrições',  subKey: null,          nav: '/viagens',     color: '#dbeafe', ico: '#1d4ed8', icon: 'users'    },
-]
+const TYPE_LABEL = { aereo: 'Via Aéreo', terrestre: 'Via Terrestre' }
 
-const Ic = ({ n, s = 18 }) => {
-  const PATHS = {
-    users:    ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2','M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8'],
-    plane:    ['M22 2L11 13','M22 2L15 22l-4-9-9-4 19-7z'],
-    calendar: ['M3 4h18v18H3z','M16 2v4','M8 2v4','M3 10h18'],
-    globe:    ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z','M2 12h20'],
-  }
-  return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-      {(PATHS[n] || []).map((d, i) => <path key={i} d={d}/>)}
-    </svg>
-  )
-}
+const STATS_CFG = [
+  { key: 'total_passengers', label: 'Passageiros',   nav: '/passageiros', color: '#e8f0fb', ico: '#2e6db4', icon: 'users'    },
+  { key: 'open_lists',       label: 'Listas Abertas', nav: '/viagens',    color: '#dcfce7', ico: '#15803d', icon: 'plane'    },
+  { key: 'upcoming_meetings',label: 'Reuniões',       nav: '/reunioes',   color: '#ede9fe', ico: '#7c3aed', icon: 'calendar' },
+  { key: 'total_enrollments',label: 'Inscrições',     nav: '/viagens',    color: '#dbeafe', ico: '#1d4ed8', icon: 'users'    },
+]
 
 export default function Dashboard() {
   const [data, setData]       = useState(null)
@@ -60,7 +48,7 @@ export default function Dashboard() {
     )
   }
 
-  const { stats, upcoming_meetings, active_trips } = data
+  const { stats, upcoming_meetings, recent_lists } = data
 
   return (
     <div>
@@ -79,10 +67,10 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── Recent trips ── */}
+      {/* ── Recent passenger lists ── */}
       <div className="tcard">
         <div className="tcard-head">
-          <span>Viagens recentes</span>
+          <span>Listas de Passageiros recentes</span>
           <button className="btn btn-outline" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => navigate('/viagens')}>
             Ver todas
           </button>
@@ -90,27 +78,37 @@ export default function Dashboard() {
         <table className="dt">
           <thead>
             <tr>
-              <th>Destino</th>
-              <th>Partida</th>
-              <th>Retorno</th>
+              <th>Nome</th>
+              <th>Tipo</th>
+              <th>Início</th>
+              <th>Término</th>
               <th>Passageiros</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {active_trips.length === 0 ? (
+            {recent_lists.length === 0 ? (
               <tr>
-                <td colSpan={5}>
-                  <div className="empty-state"><p>Nenhuma viagem ativa</p></div>
+                <td colSpan={6}>
+                  <div className="empty-state"><p>Nenhuma lista de passageiros criada</p></div>
                 </td>
               </tr>
-            ) : active_trips.slice(0, 5).map((t) => (
-              <tr key={t.id}>
-                <td><span className="t-name">{t.title}</span><br/><span className="t-muted">{t.destination}</span></td>
-                <td>{fmt(t.departure_date)}</td>
-                <td>{fmt(t.return_date)}</td>
-                <td>{t.enrolled_count} / {(t.enrolled_count ?? 0) + (t.available_spots ?? 0)}</td>
-                <td><StatusBadge value={t.status.toLowerCase().replace(' ', '_').replace('ç','c').replace('í','i').replace('â','a').replace('ã','a') || t.status} /></td>
+            ) : recent_lists.map((l) => (
+              <tr key={l.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/viagens/${l.id}`)}>
+                <td><span className="t-name">{l.name}</span><br/><span className="t-muted">{l.category}</span></td>
+                <td>{TYPE_LABEL[l.list_type] || l.list_type}</td>
+                <td>{fmt(l.start_date) || '—'}</td>
+                <td>{fmt(l.end_date) || '—'}</td>
+                <td>{l.enrolled_count} / {l.block_capacity}</td>
+                <td>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+                    background: l.status === 'aberta' ? '#dcfce7' : '#f1f5f9',
+                    color:      l.status === 'aberta' ? '#16a34a' : '#64748b',
+                  }}>
+                    {l.status === 'aberta' ? 'Aberta' : 'Fechada'}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
