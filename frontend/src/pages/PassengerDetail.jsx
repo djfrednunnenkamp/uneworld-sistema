@@ -206,7 +206,7 @@ function CopyRow({ label, value, extra }) {
 }
 
 /* ── Documents tab ── */
-function DocumentsTab({ passengerId, isNew, canEdit, canDownload }) {
+function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
   const [docs,       setDocs]       = useState([])
   const [docTypes,   setDocTypes]   = useState(DOC_TYPES_FALLBACK)
   const [loading,    setLoading]    = useState(false)
@@ -382,7 +382,7 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload }) {
               </button>
             ))}
           </div>
-          {!isNew && canEdit && <DocTypePicker passengerId={passengerId} onUploaded={load} />}
+          {!isNew && canUpload && <DocTypePicker passengerId={passengerId} onUploaded={load} />}
           {isNew && (
             <span style={{ fontSize: 12, color: '#94a3b8', padding: '4px 10px', borderRadius: 6, border: '1px dashed #e2e8f0', background: '#fafafa' }}>
               Salve o passageiro para habilitar uploads
@@ -749,9 +749,11 @@ export default function PassengerDetail() {
 
   const { user } = useAuth()
   const perms   = user?.permissions ?? {}
-  const canEdit = !!user?.is_superuser || perms.passengers_edit
-  const canFull = !!user?.is_superuser || perms.passengers_view_full
-  const canDocs = !!user?.is_superuser || perms.passengers_download_docs
+  const canEdit       = !!user?.is_superuser || perms.passengers_edit
+  const canFull       = !!user?.is_superuser || perms.passengers_view_full
+  const canDocs       = !!user?.is_superuser || perms.passengers_download_docs
+  const canUploadDocs = !!user?.is_superuser || perms.passengers_upload_docs
+  const canViewLog    = !!user?.is_superuser || perms.passengers_view_logs || perms.view_audit_log
   // Salvar exige ver os campos sensíveis (ex.: e-mail é obrigatório e fica oculto sem essa permissão)
   const canSave = canEdit && canFull
 
@@ -1005,6 +1007,11 @@ export default function PassengerDetail() {
             </div>
           </div>
           <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
+          {!isNew && canViewLog && (
+            <button className="btn btn-outline" onClick={() => navigate(`/log?passenger_id=${id}`)}>
+              📋 Log
+            </button>
+          )}
           <button className="btn btn-outline" onClick={() => navigate('/passageiros')}>
             <Ic n="logout" s={13} />Voltar
           </button>
@@ -1284,7 +1291,7 @@ export default function PassengerDetail() {
           TAB: Documentos
       ═══════════════════════════════════════════════════════════ */}
       {tab === 'docs' && (
-        <DocumentsTab passengerId={id} isNew={isNew} canEdit={canEdit} canDownload={canDocs} />
+        <DocumentsTab passengerId={id} isNew={isNew} canEdit={canEdit} canDownload={canDocs} canUpload={canUploadDocs} />
       )}
 
       {/* ═══════════════════════════════════════════════════════════

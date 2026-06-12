@@ -38,6 +38,8 @@ export const listsApi = {
   addPassenger:     (id, data)     => api.post(`/trips/lists/${id}/passageiros/`, data),
   updatePassenger:  (id, eid, d)  => api.patch(`/trips/lists/${id}/passageiros/${eid}/`, d),
   removePassenger:  (id, eid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/`),
+  importCsv:        (id, formData) => api.post(`/trips/lists/${id}/import-csv/`, formData,
+                       { headers: { 'Content-Type': 'multipart/form-data' } }),
   // Acomodações (quartos) na lista
   listRooms:        (id)          => api.get(`/trips/lists/${id}/rooms/`),
   addRoom:          (id, name)     => api.post(`/trips/lists/${id}/rooms/`, { name }),

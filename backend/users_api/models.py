@@ -34,17 +34,27 @@ class UserPermissions(models.Model):
     passengers_edit          = models.BooleanField(default=False)
     passengers_delete        = models.BooleanField(default=False)
     passengers_download_docs = models.BooleanField(default=False)
+    passengers_upload_docs   = models.BooleanField(default=False)
+    passengers_view_logs     = models.BooleanField(default=False)
 
     # Listas de Passageiros
     lists_view       = models.BooleanField(default=False)
     lists_edit       = models.BooleanField(default=False)
     lists_delete     = models.BooleanField(default=False)
     lists_view_logs  = models.BooleanField(default=False)
+    lists_download   = models.BooleanField(default=False)
+    lists_csv_upload = models.BooleanField(default=False)
+
+    # Passageiros na Lista
+    lists_passengers_add    = models.BooleanField(default=False)
+    lists_passengers_edit   = models.BooleanField(default=False)
+    lists_passengers_remove = models.BooleanField(default=False)
 
     # Agências
-    agencies_view    = models.BooleanField(default=False)
-    agencies_edit    = models.BooleanField(default=False)
-    agencies_delete  = models.BooleanField(default=False)
+    agencies_view      = models.BooleanField(default=False)
+    agencies_edit      = models.BooleanField(default=False)
+    agencies_delete    = models.BooleanField(default=False)
+    agencies_view_logs = models.BooleanField(default=False)
 
     # Administração
     manage_users     = models.BooleanField(default=False)

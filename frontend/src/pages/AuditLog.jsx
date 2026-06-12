@@ -5,9 +5,10 @@ import DatePicker from '../components/DatePicker'
 
 /* ── Estilos de ação ── */
 const ACTION_STYLE = {
-  create: { label: '✦ Criado',     bg: '#dcfce7', color: '#16a34a', border: '#bbf7d0' },
-  update: { label: '✎ Atualizado', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
-  delete: { label: '✕ Apagado',    bg: '#fee2e2', color: '#dc2626', border: '#fecaca' },
+  create:   { label: '✦ Criado',     bg: '#dcfce7', color: '#16a34a', border: '#bbf7d0' },
+  update:   { label: '✎ Atualizado', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
+  delete:   { label: '✕ Apagado',    bg: '#fee2e2', color: '#dc2626', border: '#fecaca' },
+  download: { label: '⬇ Baixado',    bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
 }
 
 const MODEL_OPTS = [
@@ -27,10 +28,11 @@ const MODEL_OPTS = [
 ]
 
 const ACTION_OPTS = [
-  { value: '',       label: 'Todas as ações' },
-  { value: 'create', label: '✦ Criado'       },
-  { value: 'update', label: '✎ Atualizado'   },
-  { value: 'delete', label: '✕ Apagado'      },
+  { value: '',         label: 'Todas as ações' },
+  { value: 'create',   label: '✦ Criado'       },
+  { value: 'update',   label: '✎ Atualizado'   },
+  { value: 'delete',   label: '✕ Apagado'      },
+  { value: 'download', label: '⬇ Baixado'      },
 ]
 
 /* ── Dropdown de filtro estilo Passageiros ── */
@@ -262,6 +264,8 @@ export default function AuditLog() {
   const [searchParams] = useSearchParams()
   const initModel      = searchParams.get('model') || ''
   const listId         = searchParams.get('list_id') || ''
+  const passengerId    = searchParams.get('passenger_id') || ''
+  const agencyId       = searchParams.get('agency_id') || ''
 
   const [logs,     setLogs]     = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -280,13 +284,15 @@ export default function AuditLog() {
       if (f.date_from) params.date_from = f.date_from
       if (f.date_to)   params.date_to   = f.date_to
       if (listId)      params.list_id   = listId
+      if (passengerId) params.passenger_id = passengerId
+      if (agencyId)    params.agency_id    = agencyId
       const r = await auditApi.list(params)
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
       setPage(p)
     } catch {}
     finally { setLoading(false) }
-  }, [filters, listId])
+  }, [filters, listId, passengerId, agencyId])
 
   useEffect(() => { load(1, filters) }, [])
 
@@ -314,7 +320,23 @@ export default function AuditLog() {
               ← Voltar para a lista de passageiros
             </button>
           )}
-          {!listId && ctx && (
+          {passengerId && (
+            <button onClick={() => navigate(`/passageiros/${passengerId}`)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+              ← Voltar para o passageiro
+            </button>
+          )}
+          {agencyId && (
+            <button onClick={() => navigate(`/agencias/${agencyId}`)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+              ← Voltar para a agência
+            </button>
+          )}
+          {!listId && !passengerId && !agencyId && ctx && (
             <button onClick={() => navigate(ctx.back)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
               onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
@@ -323,7 +345,10 @@ export default function AuditLog() {
             </button>
           )}
           <h1 className="ph-title">
-            {listId ? 'Log da Lista de Passageiros' : ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
+            {listId ? 'Log da Lista de Passageiros'
+              : passengerId ? 'Log do Passageiro'
+              : agencyId ? 'Log da Agência'
+              : ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
             {count.toLocaleString('pt-BR')} evento{count !== 1 ? 's' : ''} registrado{count !== 1 ? 's' : ''}

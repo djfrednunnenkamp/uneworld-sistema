@@ -1486,10 +1486,22 @@ const PASSENGER_ACTIONS = [
   { key:'delete',      label:'Excluir passageiro',          icon:'trash',    enabled:true, danger:true },
 ]
 
-function PassengerActionsModal({ enrollment, listType, onAction, onClose }) {
+// Ações que editam dados da inscrição (enrollment) na lista — exigem lists_passengers_edit
+const ENROLLMENT_EDIT_ACTIONS = new Set([
+  'quick_edit', 'notes', 'extra_info', 'seat', 'crew', 'pax_type',
+  'boarding', 'contracts', 'swap_room', 'link_client', 'link_agency',
+])
+
+function PassengerActionsModal({ enrollment, listType, onAction, onClose, canEdit, canRemove }) {
   const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
   // "Informar o assento" so faz sentido em viagens rodoviarias (assento de onibus)
-  const actions = PASSENGER_ACTIONS.filter(act => act.key !== 'seat' || listType === 'terrestre')
+  const actions = PASSENGER_ACTIONS
+    .filter(act => act.key !== 'seat' || listType === 'terrestre')
+    .filter(act => {
+      if (act.key === 'delete') return canRemove
+      if (ENROLLMENT_EDIT_ACTIONS.has(act.key)) return canEdit
+      return true
+    })
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -3374,9 +3386,110 @@ function MetricsPanel({ enrolled, accomTypes }) {
   )
 }
 
+/* ── Popup "Importar passageiros via CSV" ── */
+function CsvImportModal({ listId, onImported, onClose }) {
+  const [file, setFile]       = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult]   = useState(null)
+
+  const handleImport = async () => {
+    if (!file) {
+      toast.error('Selecione um arquivo CSV.')
+      return
+    }
+    setLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await listsApi.importCsv(listId, formData)
+      setResult(data)
+      if (data.added > 0) {
+        onImported?.()
+        toast.success(`${data.added} passageiro(s) adicionado(s) à lista.`)
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error(err?.response?.data?.error || 'Erro ao importar CSV.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="overlay" style={{ zIndex:750 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="mbox" style={{ maxWidth:540, width:'100%' }}>
+
+        <div className="mhead">
+          <span className="mtitle">Importar passageiros via CSV</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
+        </div>
+
+        <div className="mbody" style={{ maxHeight:'70vh' }}>
+          <p style={{ margin:'0 0 12px', fontSize:12.5, color:'#64748b', lineHeight:1.5 }}>
+            Envie um arquivo CSV com colunas como <b>nome</b>, <b>cpf</b>, <b>email</b>, <b>telefone</b>,{' '}
+            <b>genero</b>, <b>data_nascimento</b>, <b>nacionalidade</b>, <b>acomodacao</b>, <b>status</b> e{' '}
+            <b>observacoes</b>. Passageiros já cadastrados (por CPF ou e-mail) serão reaproveitados; os demais
+            serão criados (e-mail obrigatório nesse caso).
+          </p>
+
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={e => { setFile(e.target.files?.[0] || null); setResult(null) }}
+            style={{ fontSize:13 }}
+          />
+
+          {result && (
+            <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ display:'flex', gap:20, flexWrap:'wrap', padding:'12px 16px', background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0' }}>
+                <Chip label="Adicionados" value={result.added ?? 0} />
+                <Chip label="Novos cadastros" value={result.created_passengers ?? 0} />
+                <Chip label="Ignorados" value={result.skipped?.length ?? 0} />
+                <Chip label="Erros" value={result.errors?.length ?? 0} />
+              </div>
+
+              {result.skipped?.length > 0 && (
+                <div>
+                  <p style={{ margin:'4px 0', fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>Ignorados</p>
+                  <ul style={{ margin:0, paddingLeft:18, fontSize:12.5, color:'#64748b' }}>
+                    {result.skipped.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {result.errors?.length > 0 && (
+                <div>
+                  <p style={{ margin:'4px 0', fontSize:11, fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:'.05em' }}>Erros</p>
+                  <ul style={{ margin:0, paddingLeft:18, fontSize:12.5, color:'#dc2626' }}>
+                    {result.errors.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mfoot">
+          <button type="button" className="btn btn-outline" onClick={onClose}>Fechar</button>
+          <button type="button" className="btn btn-primary" onClick={handleImport} disabled={loading || !file}>
+            <Ic n="dl" s={13}/> {loading ? 'Importando…' : 'Importar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Aba de Passageiros ── */
 function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, additionals = [], onData }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const perms        = user?.permissions ?? {}
+  const canAddPax    = !!user?.is_superuser || perms.lists_passengers_add
+  const canEditPax   = !!user?.is_superuser || perms.lists_passengers_edit
+  const canRemovePax = !!user?.is_superuser || perms.lists_passengers_remove
+  const canCsvUpload = !!user?.is_superuser || perms.lists_csv_upload
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
   const [rooms,      setRooms]      = useState([])
@@ -3421,6 +3534,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
   const [quickEditModal,  setQuickEditModal]  = useState(null)
   // filterSearch — filtro de pesquisa na tabela de passageiros
   const [filterSearch,    setFilterSearch]    = useState('')
+  // showCsvImport — popup "Importar passageiros via CSV"
+  const [showCsvImport,   setShowCsvImport]   = useState(false)
 
   const firstLoad = useRef(true)
 
@@ -3663,10 +3778,18 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             🛏 Gerenciar acomodações
           </button>
-          <button type="button" onClick={() => setShowAdd(true)}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            + Adicionar passageiro
-          </button>
+          {canCsvUpload && (
+            <button type="button" onClick={() => setShowCsvImport(true)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              <Ic n="dl" s={13} /> Importar CSV
+            </button>
+          )}
+          {canAddPax && (
+            <button type="button" onClick={() => setShowAdd(true)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              + Adicionar passageiro
+            </button>
+          )}
         </div>
       </div>
 
@@ -3676,16 +3799,20 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
           <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
             {selected.size} selecionado{selected.size > 1 ? 's' : ''}
           </span>
-          <button type="button"
-            onClick={() => setAccomModal({ enrollmentIds: [...selected] })}
-            disabled={bulkSaving}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            🛏 Adicionar à acomodação
-          </button>
-          <button type="button" onClick={bulkDelete} disabled={bulkSaving}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            <Ic n="trash" s={12} /> Apagar selecionados
-          </button>
+          {canEditPax && (
+            <button type="button"
+              onClick={() => setAccomModal({ enrollmentIds: [...selected] })}
+              disabled={bulkSaving}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              🛏 Adicionar à acomodação
+            </button>
+          )}
+          {canRemovePax && (
+            <button type="button" onClick={bulkDelete} disabled={bulkSaving}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              <Ic n="trash" s={12} /> Apagar selecionados
+            </button>
+          )}
           <button type="button" onClick={clearSelect}
             style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
             Cancelar
@@ -4058,7 +4185,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
                       {/* Editar / mais ações — abre popup com todas as opções do passageiro */}
                       <PassengerActionsButton onClick={() => setActionsModal(e)} />
                       {/* Atribuir passageiro — só em bloqueios */}
-                      {e.is_block && (
+                      {e.is_block && canEditPax && (
                         <button type="button"
                           onClick={() => setAssignBlk(e)}
                           title="Atribuir passageiro ao bloco"
@@ -4070,7 +4197,7 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
                       )}
                       {/* Acomodação — só aparece enquanto o passageiro ainda não tem quarto;
                           depois de acomodado, a troca passa a ser feita por "Trocar de quarto" no popup de ações */}
-                      {isUnassigned && (
+                      {isUnassigned && canEditPax && (
                         <button type="button"
                           onClick={() => setAccomModal({ enrollmentIds: [e.id] })}
                           title="Adicionar à acomodação"
@@ -4080,14 +4207,16 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
                           🛏
                         </button>
                       )}
-                      <button type="button"
-                        onClick={() => setConfirm({ id:e.id, name: e.passenger_name || e.block_agency })}
-                        title="Remover"
-                        style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer' }}
-                        onMouseEnter={ev => { ev.currentTarget.style.background='#fee2e2'; ev.currentTarget.style.color='#dc2626'; ev.currentTarget.style.borderColor='#fecaca' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.background='#fff'; ev.currentTarget.style.color='#94a3b8'; ev.currentTarget.style.borderColor='#e2e8f0' }}>
-                        <Ic n="trash" s={12} />
-                      </button>
+                      {canRemovePax && (
+                        <button type="button"
+                          onClick={() => setConfirm({ id:e.id, name: e.passenger_name || e.block_agency })}
+                          title="Remover"
+                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer' }}
+                          onMouseEnter={ev => { ev.currentTarget.style.background='#fee2e2'; ev.currentTarget.style.color='#dc2626'; ev.currentTarget.style.borderColor='#fecaca' }}
+                          onMouseLeave={ev => { ev.currentTarget.style.background='#fff'; ev.currentTarget.style.color='#94a3b8'; ev.currentTarget.style.borderColor='#e2e8f0' }}>
+                          <Ic n="trash" s={12} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -4109,6 +4238,15 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
         />
       )}
 
+      {/* Popup "Importar passageiros via CSV" */}
+      {showCsvImport && (
+        <CsvImportModal
+          listId={listId}
+          onImported={load}
+          onClose={() => setShowCsvImport(false)}
+        />
+      )}
+
       {/* Popup "Ações do passageiro" — lista as 13 opções, abre os demais popups */}
       {actionsModal && (
         <PassengerActionsModal
@@ -4116,6 +4254,8 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
           listType={listType}
           onAction={(action) => handlePassengerAction(action, actionsModal)}
           onClose={() => setActionsModal(null)}
+          canEdit={canEditPax}
+          canRemove={canRemovePax}
         />
       )}
 
@@ -4515,9 +4655,10 @@ export default function TripDetail() {
   const navigate = useNavigate()
 
   const { user } = useAuth()
-  const perms       = user?.permissions ?? {}
-  const canEditList = !!user?.is_superuser || perms.lists_edit
-  const canViewLog  = !!user?.is_superuser || perms.lists_view_logs || perms.view_audit_log
+  const perms          = user?.permissions ?? {}
+  const canEditList    = !!user?.is_superuser || perms.lists_edit
+  const canViewLog     = !!user?.is_superuser || perms.lists_view_logs || perms.view_audit_log
+  const canDownloadList = !!user?.is_superuser || perms.lists_download
 
   const [list,      setList]      = useState(null)
   const [loading,   setLoading]   = useState(true)
@@ -4584,12 +4725,14 @@ export default function TripDetail() {
         <div className="ph-actions" style={{ alignItems:'center' }}>
           <TripPhaseBadge startDate={list.start_date} endDate={list.end_date} />
           <ListStatusBadge value={list.status} onChange={handleStatusChange} />
-          <button type="button" onClick={() => setShowPrint(true)}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-            <Ic n="dl" s={13} /> Baixar
-          </button>
+          {canDownloadList && (
+            <button type="button" onClick={() => setShowPrint(true)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+              <Ic n="dl" s={13} /> Baixar
+            </button>
+          )}
           {canEditList && (
             <button type="button" onClick={() => setShowEdit(true)}
               style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}

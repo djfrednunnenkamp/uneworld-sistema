@@ -352,6 +352,7 @@ export default function AgencyDetail() {
   const { user }       = useAuth()
   const perms          = user?.permissions ?? {}
   const canEdit        = !!user?.is_superuser || perms.agencies_edit
+  const canViewLog     = !!user?.is_superuser || perms.agencies_view_logs || perms.view_audit_log
 
   const [form,       setForm]       = useState(() => {
     if (isNew) {
@@ -600,6 +601,11 @@ export default function AgencyDetail() {
               />
             </div>
           </div>
+          {!isNew && canViewLog && (
+            <button className="btn btn-outline" onClick={() => navigate(`/log?agency_id=${id}`)}>
+              📋 Log
+            </button>
+          )}
           <button className="btn btn-outline" onClick={() => navigate('/agencias')}>
             <Ic n="logout" s={13} style={{ transform: 'rotate(180deg)' }} /> Voltar
           </button>

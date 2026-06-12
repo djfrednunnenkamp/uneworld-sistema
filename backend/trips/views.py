@@ -2,6 +2,7 @@ from django.db.models import Prefetch
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 from core.pagination import StandardResultsPagination
 from users_api.permissions import RequirePermission
 from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room
@@ -98,12 +99,22 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             return [RequirePermission('lists_edit')()]
         if self.action in ('list', 'retrieve'):
             return [RequirePermission('lists_view')()]
-        if self.action in ('passageiros', 'rooms'):
+        if self.action == 'passageiros':
+            if self.request.method == 'GET':
+                return [RequirePermission('lists_view')()]
+            return [RequirePermission('lists_passengers_add')()]
+        if self.action == 'rooms':
             if self.request.method == 'GET':
                 return [RequirePermission('lists_view')()]
             return [RequirePermission('lists_edit')()]
-        if self.action in ('manage_passenger', 'manage_room'):
+        if self.action == 'manage_passenger':
+            if self.request.method == 'DELETE':
+                return [RequirePermission('lists_passengers_remove')()]
+            return [RequirePermission('lists_passengers_edit')()]
+        if self.action == 'manage_room':
             return [RequirePermission('lists_edit')()]
+        if self.action == 'import_csv':
+            return [RequirePermission('lists_csv_upload')()]
         return super().get_permissions()
 
     # ── Passageiros na lista ─────────────────────────────────────────────────
@@ -202,6 +213,123 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             accommodation=accommodation, enrollment_status=estatus, notes=notes,
         )
         return Response(ListEnrollmentSerializer(e).data, status=201)
+
+    @action(detail=True, methods=['post'], url_path='import-csv',
+            parser_classes=[MultiPartParser, FormParser])
+    def import_csv(self, request, pk=None):
+        """Importa passageiros em massa via CSV e os adiciona à lista."""
+        import csv
+        import io
+        from datetime import datetime
+        from passengers.models import Passenger as PassengerModel
+
+        pl = self.get_object()
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'error': 'Arquivo CSV não enviado.'}, status=400)
+
+        try:
+            decoded = file.read().decode('utf-8-sig')
+        except UnicodeDecodeError:
+            decoded = file.read().decode('latin-1')
+
+        sample = decoded[:1024]
+        delimiter = ';' if sample.count(';') > sample.count(',') else ','
+        reader = csv.DictReader(io.StringIO(decoded), delimiter=delimiter)
+
+        def norm_key(k):
+            return (k or '').strip().lower()
+
+        def get_field(row, *names):
+            for k, v in row.items():
+                if norm_key(k) in names:
+                    return (v or '').strip()
+            return ''
+
+        def parse_date(s):
+            s = (s or '').strip()
+            if not s:
+                return None
+            for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except ValueError:
+                    continue
+            return None
+
+        valid_statuses = dict(ListEnrollment.STATUS_CHOICES)
+        created_passengers = 0
+        added = 0
+        skipped = []
+        errors = []
+        enrollments = []
+
+        for i, row in enumerate(reader, start=2):  # linha 1 = cabeçalho
+            full_name = get_field(row, 'nome', 'nome completo', 'nome_completo', 'passageiro')
+            cpf       = get_field(row, 'cpf')
+            email     = get_field(row, 'email', 'e-mail')
+            mobile    = get_field(row, 'telefone', 'celular')
+            gender    = get_field(row, 'genero', 'gênero', 'sexo')
+            birth     = parse_date(get_field(row, 'data_nascimento', 'data de nascimento', 'nascimento'))
+            nationality   = get_field(row, 'nacionalidade')
+            accommodation = get_field(row, 'acomodacao', 'acomodação', 'quarto')
+            notes         = get_field(row, 'observacoes', 'observações', 'notas')
+
+            status_raw = get_field(row, 'status').lower()
+            enrollment_status = status_raw if status_raw in valid_statuses else 'pendente'
+
+            if not full_name and not cpf and not email:
+                continue  # linha vazia
+
+            if not full_name:
+                errors.append(f'Linha {i}: nome é obrigatório.')
+                continue
+
+            passenger = None
+            if cpf:
+                passenger = PassengerModel.objects.filter(cpf=cpf).exclude(cpf='').first()
+            if not passenger and email:
+                passenger = PassengerModel.objects.filter(email=email).first()
+
+            if not passenger:
+                if not email:
+                    errors.append(f'Linha {i}: e-mail é obrigatório para cadastrar "{full_name}".')
+                    continue
+                try:
+                    passenger = PassengerModel.objects.create(
+                        full_name=full_name,
+                        email=email,
+                        cpf=cpf,
+                        mobile=mobile,
+                        gender=gender,
+                        birth_date=birth,
+                        nationality=nationality or 'BRASILEIRA',
+                    )
+                    created_passengers += 1
+                except Exception as exc:
+                    errors.append(f'Linha {i}: erro ao criar passageiro "{full_name}" ({exc}).')
+                    continue
+
+            if pl.list_enrollments.filter(passenger=passenger).exists():
+                skipped.append(f'{passenger.full_name}: já está nesta lista.')
+                continue
+
+            e = ListEnrollment.objects.create(
+                passenger_list=pl, passenger=passenger,
+                accommodation=accommodation,
+                enrollment_status=enrollment_status,
+                notes=notes,
+            )
+            added += 1
+            enrollments.append(ListEnrollmentSerializer(e).data)
+
+        return Response({
+            'added': added,
+            'created_passengers': created_passengers,
+            'skipped': skipped,
+            'errors': errors,
+            'enrollments': enrollments,
+        }, status=201)
 
     @action(detail=True, methods=['patch', 'delete'], url_path=r'passageiros/(?P<enrollment_id>\d+)')
     def manage_passenger(self, request, pk=None, enrollment_id=None):

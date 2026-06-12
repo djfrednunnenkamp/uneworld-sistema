@@ -8,15 +8,24 @@ PERMISSION_FIELDS = [
     'passengers_edit',
     'passengers_delete',
     'passengers_download_docs',
+    'passengers_upload_docs',
+    'passengers_view_logs',
     # Listas de Passageiros
     'lists_view',
     'lists_edit',
     'lists_delete',
     'lists_view_logs',
+    'lists_download',
+    'lists_csv_upload',
+    # Passageiros na Lista
+    'lists_passengers_add',
+    'lists_passengers_edit',
+    'lists_passengers_remove',
     # Agências
     'agencies_view',
     'agencies_edit',
     'agencies_delete',
+    'agencies_view_logs',
     # Administração
     'manage_users',
     'manage_settings',

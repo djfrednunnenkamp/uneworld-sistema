@@ -15,23 +15,36 @@ const PERM_GROUPS = [
       ['passengers_edit',          'Criar / Editar'],
       ['passengers_delete',        'Excluir'],
       ['passengers_download_docs', 'Baixar documentos'],
+      ['passengers_upload_docs',   'Enviar documentos'],
+      ['passengers_view_logs',     'Ver log de atividades do passageiro'],
     ],
   },
   {
     title: 'Listas de Passageiros',
     items: [
-      ['lists_view',      'Ver listas'],
-      ['lists_edit',      'Criar / Editar'],
-      ['lists_delete',    'Excluir lista'],
-      ['lists_view_logs', 'Ver log de atividades da lista'],
+      ['lists_view',       'Ver listas'],
+      ['lists_edit',       'Criar / Editar'],
+      ['lists_delete',     'Excluir lista'],
+      ['lists_view_logs',  'Ver log de atividades da lista'],
+      ['lists_download',   'Baixar / exportar lista'],
+      ['lists_csv_upload', 'Importar passageiros via CSV'],
+    ],
+  },
+  {
+    title: 'Passageiros na Lista',
+    items: [
+      ['lists_passengers_add',    'Adicionar passageiro à lista'],
+      ['lists_passengers_edit',   'Editar passageiro na lista'],
+      ['lists_passengers_remove', 'Remover passageiro da lista'],
     ],
   },
   {
     title: 'Agências',
     items: [
-      ['agencies_view',   'Ver agências'],
-      ['agencies_edit',   'Criar / Editar'],
-      ['agencies_delete', 'Excluir'],
+      ['agencies_view',      'Ver agências'],
+      ['agencies_edit',      'Criar / Editar'],
+      ['agencies_delete',    'Excluir'],
+      ['agencies_view_logs', 'Ver log de atividades da agência'],
     ],
   },
   {

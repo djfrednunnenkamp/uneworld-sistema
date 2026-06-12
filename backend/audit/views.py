@@ -31,7 +31,9 @@ class AuditPagination(PageNumberPagination):
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditLogSerializer
-    permission_classes = [RequirePermission('view_audit_log', 'lists_view_logs')]
+    permission_classes = [RequirePermission(
+        'view_audit_log', 'lists_view_logs', 'passengers_view_logs', 'agencies_view_logs',
+    )]
     pagination_class = AuditPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user_display', 'object_repr', 'model_label']
@@ -45,11 +47,13 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         date_from = self.request.query_params.get('date_from')
         date_to   = self.request.query_params.get('date_to')
         object_id = self.request.query_params.get('object_id')
-        list_id   = self.request.query_params.get('list_id')
+        list_id      = self.request.query_params.get('list_id')
+        passenger_id = self.request.query_params.get('passenger_id')
+        agency_id    = self.request.query_params.get('agency_id')
 
         has_global = has_any_perm(self.request.user, 'view_audit_log')
-        if not has_global and not list_id:
-            # Usuário só tem lists_view_logs: precisa informar de qual lista quer o log.
+        if not has_global and not (list_id or passenger_id or agency_id):
+            # Usuário só tem permissão de log restrito a uma entidade específica.
             return qs.none()
 
         if action:    qs = qs.filter(action=action)
@@ -69,4 +73,17 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 Q(model_name='ListEnrollment', object_id__in=[str(i) for i in enrollment_ids]) |
                 Q(model_name='PassengerList', object_id=str(list_id))
             )
+        if passenger_id:
+            from passengers.models import PassengerDocument
+            from django.db.models import Q
+            doc_ids = list(
+                PassengerDocument.objects.filter(passenger_id=passenger_id)
+                .values_list('id', flat=True)
+            )
+            qs = qs.filter(
+                Q(model_name='Passenger', object_id=str(passenger_id)) |
+                Q(model_name='PassengerDocument', object_id__in=[str(i) for i in doc_ids])
+            )
+        if agency_id:
+            qs = qs.filter(model_name='Agency', object_id=str(agency_id))
         return qs

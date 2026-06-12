@@ -80,7 +80,7 @@ class PassengerViewSet(viewsets.ModelViewSet):
         if request.method == 'GET':
             if not has_any_perm(request.user, 'passengers_view_full'):
                 return Response({'error': 'Sem permissão.'}, status=403)
-        elif not has_any_perm(request.user, 'passengers_edit'):
+        elif not has_any_perm(request.user, 'passengers_upload_docs'):
             return Response({'error': 'Sem permissão.'}, status=403)
 
         passenger = self.get_object()
@@ -210,4 +210,19 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
         )
         if doc.mime_type:
             response['Content-Type'] = doc.mime_type
+
+        from audit.models import AuditLog
+        from audit.middleware import get_current_user, get_current_ip
+        from audit.tracking import user_display
+        user = get_current_user()
+        AuditLog.objects.create(
+            user=user,
+            user_display=user_display(user),
+            action='download',
+            model_name='PassengerDocument',
+            model_label='Documento',
+            object_id=str(doc.pk),
+            object_repr=str(doc)[:500],
+            ip_address=get_current_ip(),
+        )
         return response
