@@ -117,22 +117,18 @@ function CopyCell({ value, muted, bold }) {
   )
 }
 
-/* ── Badge "Usuário" com tooltip mostrando as permissões concedidas ── */
-function UserPermsBadge({ permissions }) {
+/* ── Badge com tooltip (via portal), usado p/ os badges de perfil (Superusuário/Administrador/Usuário) ── */
+function BadgeTooltip({ badge, children }) {
   const [open, setOpen] = useState(false)
   const [rect, setRect] = useState(null)
   const ref = useRef(null)
-
-  const groups = PERM_GROUPS
-    .map(g => ({ ...g, granted: groupItems(g).filter(([key]) => !!permissions?.[key]) }))
-    .filter(g => g.granted.length > 0)
 
   const show = () => { setRect(ref.current.getBoundingClientRect()); setOpen(true) }
   const hide = () => setOpen(false)
 
   return (
     <span ref={ref} onMouseEnter={show} onMouseLeave={hide} style={{ display:'inline-block' }}>
-      <span className="badge bg-amber" style={{ cursor:'help' }}>Usuário</span>
+      {badge}
       {open && rect && createPortal(
         <div style={{
           position:'fixed',
@@ -142,27 +138,52 @@ function UserPermsBadge({ permissions }) {
           boxShadow:'0 12px 32px rgba(15,23,42,.18)', padding:'10px 12px',
           width:280, maxHeight:340, overflowY:'auto', pointerEvents:'none',
         }}>
-          <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 8px'}}>Permissões concedidas</p>
-          {groups.length === 0 ? (
-            <p style={{fontSize:12,color:'#94a3b8',margin:0}}>Nenhuma permissão concedida.</p>
-          ) : groups.map(g => (
-            <div key={g.title} style={{marginBottom:8}}>
-              <p style={{display:'flex',alignItems:'center',gap:6,fontSize:10.5,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 4px'}}>
-                {g.icon && <span style={{display:'flex'}}><Ic n={g.icon} s={11}/></span>}
-                {g.title}
-              </p>
-              {g.granted.map(([key, label]) => (
-                <p key={key} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#1e293b',margin:'2px 0'}}>
-                  <span style={{color:'#059669',display:'flex'}}><Ic n="check" s={12}/></span>
-                  {label}
-                </p>
-              ))}
-            </div>
-          ))}
+          {children}
         </div>,
         document.body
       )}
     </span>
+  )
+}
+
+/* ── Conteúdo do tooltip: lista de permissões concedidas, agrupadas ── */
+function PermsTooltipContent({ permissions }) {
+  const groups = PERM_GROUPS
+    .map(g => ({ ...g, granted: groupItems(g).filter(([key]) => !!permissions?.[key]) }))
+    .filter(g => g.granted.length > 0)
+
+  return (
+    <>
+      <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 8px'}}>Permissões concedidas</p>
+      {groups.length === 0 ? (
+        <p style={{fontSize:12,color:'#94a3b8',margin:0}}>Nenhuma permissão concedida.</p>
+      ) : groups.map(g => (
+        <div key={g.title} style={{marginBottom:8}}>
+          <p style={{display:'flex',alignItems:'center',gap:6,fontSize:10.5,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 4px'}}>
+            {g.icon && <span style={{display:'flex'}}><Ic n={g.icon} s={11}/></span>}
+            {g.title}
+          </p>
+          {g.granted.map(([key, label]) => (
+            <p key={key} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#1e293b',margin:'2px 0'}}>
+              <span style={{color:'#059669',display:'flex'}}><Ic n="check" s={12}/></span>
+              {label}
+            </p>
+          ))}
+        </div>
+      ))}
+    </>
+  )
+}
+
+/* ── Conteúdo do tooltip: superusuário tem acesso irrestrito, independente das permissões ── */
+function SuperuserTooltipContent() {
+  return (
+    <>
+      <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 8px'}}>Superusuário</p>
+      <p style={{fontSize:12,color:'#1e293b',margin:0,lineHeight:1.5}}>
+        Este usuário pode fazer qualquer coisa no sistema — tem acesso total, independente das permissões configuradas.
+      </p>
+    </>
   )
 }
 
@@ -558,10 +579,16 @@ export default function Users() {
                   <td className="t-muted"><CopyCell value={u.email} muted /></td>
                   <td>
                     {u.is_superuser
-                      ? <span className="badge bg-blue">Superusuário</span>
+                      ? <BadgeTooltip badge={<span className="badge bg-blue" style={{ cursor:'help' }}>Superusuário</span>}>
+                          <SuperuserTooltipContent />
+                        </BadgeTooltip>
                       : u.is_staff
-                        ? <span className="badge bg-green">Administrador</span>
-                        : <UserPermsBadge permissions={u.permissions} />
+                        ? <BadgeTooltip badge={<span className="badge bg-green" style={{ cursor:'help' }}>Administrador</span>}>
+                            <PermsTooltipContent permissions={u.permissions} />
+                          </BadgeTooltip>
+                        : <BadgeTooltip badge={<span className="badge bg-amber" style={{ cursor:'help' }}>Usuário</span>}>
+                            <PermsTooltipContent permissions={u.permissions} />
+                          </BadgeTooltip>
                     }
                   </td>
                   <td>
