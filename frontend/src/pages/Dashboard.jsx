@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import { Ic } from '../components/Icon'
 
 const fmt = (d) => {
@@ -12,16 +13,19 @@ const fmt = (d) => {
 const TYPE_LABEL = { aereo: 'Via Aéreo', terrestre: 'Via Terrestre' }
 
 const STATS_CFG = [
-  { key: 'total_passengers', label: 'Passageiros',   nav: '/passageiros', color: '#e8f0fb', ico: '#2e6db4', icon: 'users'    },
-  { key: 'open_lists',       label: 'Listas Abertas', nav: '/viagens',    color: '#dcfce7', ico: '#15803d', icon: 'plane'    },
-  { key: 'upcoming_meetings',label: 'Reuniões',       nav: '/reunioes',   color: '#ede9fe', ico: '#7c3aed', icon: 'calendar' },
-  { key: 'total_enrollments',label: 'Inscrições',     nav: '/viagens',    color: '#dbeafe', ico: '#1d4ed8', icon: 'users'    },
+  { key: 'total_passengers', label: 'Passageiros',   nav: '/passageiros', color: '#e8f0fb', ico: '#2e6db4', icon: 'users',    perm: 'dashboard_view_passengers'  },
+  { key: 'open_lists',       label: 'Listas Abertas', nav: '/viagens',    color: '#dcfce7', ico: '#15803d', icon: 'plane',    perm: 'dashboard_view_lists'       },
+  { key: 'upcoming_meetings',label: 'Reuniões',       nav: '/reunioes',   color: '#ede9fe', ico: '#7c3aed', icon: 'calendar', perm: 'dashboard_view_meetings'    },
+  { key: 'total_enrollments',label: 'Inscrições',     nav: '/viagens',    color: '#dbeafe', ico: '#1d4ed8', icon: 'users',    perm: 'dashboard_view_enrollments' },
 ]
 
 export default function Dashboard() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const navigate              = useNavigate()
+  const { user } = useAuth()
+  const perms    = user?.permissions ?? {}
+  const can = (key) => !!user?.is_superuser || !!perms[key]
 
   useEffect(() => {
     dashboardApi.getStats()
@@ -62,12 +66,13 @@ export default function Dashboard() {
               <span style={{ color: cfg.ico }}><Ic n={cfg.icon} s={18}/></span>
             </div>
             <div className="scard-label">{cfg.label}</div>
-            <div className="scard-val">{stats[cfg.key] ?? 0}</div>
+            <div className="scard-val">{can(cfg.perm) ? (stats[cfg.key] ?? 0) : '—'}</div>
           </div>
         ))}
       </div>
 
       {/* ── Recent passenger lists ── */}
+      {can('dashboard_view_lists') && (
       <div className="tcard">
         <div className="tcard-head">
           <span>Listas de Passageiros recentes</span>
@@ -114,9 +119,10 @@ export default function Dashboard() {
           </tbody>
         </table>
       </div>
+      )}
 
       {/* ── Upcoming meetings ── */}
-      {upcoming_meetings.length > 0 && (
+      {can('dashboard_view_meetings') && upcoming_meetings.length > 0 && (
         <div className="tcard" style={{ marginTop: 16 }}>
           <div className="tcard-head">
             <span>Próximas reuniões</span>

@@ -9,6 +9,16 @@ import { Ic } from '../components/Icon'
 
 const PERM_GROUPS = [
   {
+    title: 'Visão Geral',
+    icon: 'grid',
+    items: [
+      ['dashboard_view_passengers',  'Ver total de passageiros'],
+      ['dashboard_view_lists',       'Ver total de listas abertas'],
+      ['dashboard_view_meetings',    'Ver total de reuniões'],
+      ['dashboard_view_enrollments', 'Ver total de inscrições'],
+    ],
+  },
+  {
     title: 'Passageiros',
     icon: 'users',
     items: [

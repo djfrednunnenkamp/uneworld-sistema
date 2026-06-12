@@ -28,6 +28,12 @@ class PasswordResetToken(models.Model):
 class UserPermissions(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='permissions')
 
+    # Visão Geral (Dashboard)
+    dashboard_view_passengers  = models.BooleanField(default=False)
+    dashboard_view_lists       = models.BooleanField(default=False)
+    dashboard_view_meetings    = models.BooleanField(default=False)
+    dashboard_view_enrollments = models.BooleanField(default=False)
+
     # Passageiros
     passengers_view_basic    = models.BooleanField(default=False)
     passengers_view_full     = models.BooleanField(default=False)
