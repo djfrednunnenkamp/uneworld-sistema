@@ -167,7 +167,9 @@ export default function Passengers() {
   const canDelete  = !!user?.is_superuser || perms.passengers_delete
   const canDocs    = !!user?.is_superuser || perms.passengers_download_docs
   const canViewLog = !!user?.is_superuser || perms.view_audit_log
-  const cols       = canFull ? COLS : COLS.filter(c => !SENSITIVE_COLS.includes(c.key))
+  const cols       = canFull ? COLS : COLS.map(c => SENSITIVE_COLS.includes(c.key)
+    ? { ...c, render: () => <span style={{ color:'#cbd5e1' }}>—</span> }
+    : c)
 
   // Filtros
   const [statusF,   setStatusF]   = useState('all')
@@ -297,7 +299,7 @@ export default function Passengers() {
         <PassengerPreviewModal
           passenger={viewRow}
           onClose={() => setViewRow(null)}
-          onEdit={() => { setViewRow(null); navigate(`/passageiros/${viewRow.id}`) }}
+          onEdit={canEdit ? () => { setViewRow(null); navigate(`/passageiros/${viewRow.id}`) } : undefined}
         />
       )}
       {delRow && (

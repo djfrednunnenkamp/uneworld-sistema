@@ -24,16 +24,26 @@ const PERM_GROUPS = [
   {
     title: 'Listas de Passageiros',
     icon: 'plane',
-    items: [
-      ['lists_view',       'Ver listas'],
-      ['lists_edit',       'Criar / Editar'],
-      ['lists_delete',     'Excluir lista'],
-      ['lists_view_logs',  'Ver log de atividades da lista'],
-      ['lists_download',   'Baixar / exportar lista'],
-      ['lists_csv_upload', 'Importar passageiros via CSV'],
-      ['lists_passengers_add',    'Adicionar passageiro à lista'],
-      ['lists_passengers_edit',   'Editar passageiro na lista'],
-      ['lists_passengers_remove', 'Remover passageiro da lista'],
+    sections: [
+      {
+        label: 'Geral',
+        items: [
+          ['lists_view',       'Ver listas'],
+          ['lists_edit',       'Criar / Editar'],
+          ['lists_delete',     'Excluir lista'],
+          ['lists_view_logs',  'Ver log de atividades da lista'],
+          ['lists_download',   'Baixar / exportar lista'],
+          ['lists_csv_upload', 'Importar passageiros via CSV'],
+        ],
+      },
+      {
+        label: 'Passageiros na lista',
+        items: [
+          ['lists_passengers_add',    'Adicionar passageiro à lista'],
+          ['lists_passengers_edit',   'Editar passageiro na lista'],
+          ['lists_passengers_remove', 'Remover passageiro da lista'],
+        ],
+      },
     ],
   },
   {
@@ -57,10 +67,13 @@ const PERM_GROUPS = [
   },
 ]
 
-const ALL_PERM_KEYS   = PERM_GROUPS.flatMap(g => g.items.map(([k]) => k))
+/* Retorna a lista plana de [key, label, icon?] de um grupo, vindo de `items` ou de `sections` */
+const groupItems = g => g.items ?? g.sections.flatMap(s => s.items)
+
+const ALL_PERM_KEYS   = PERM_GROUPS.flatMap(g => groupItems(g).map(([k]) => k))
 const ADMIN_GROUP     = PERM_GROUPS.find(g => g.title === 'Administração')
 const GRID_GROUPS     = PERM_GROUPS.filter(g => g.title !== 'Administração')
-const ADMIN_PERM_KEYS = ADMIN_GROUP.items.map(([k]) => k)
+const ADMIN_PERM_KEYS = groupItems(ADMIN_GROUP).map(([k]) => k)
 const EMPTY_PERMISSIONS = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, false]))
 const PRESET_ADMIN      = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, true]))
 const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !ADMIN_PERM_KEYS.includes(k)]))
@@ -111,7 +124,7 @@ function UserPermsBadge({ permissions }) {
   const ref = useRef(null)
 
   const groups = PERM_GROUPS
-    .map(g => ({ ...g, granted: g.items.filter(([key]) => !!permissions?.[key]) }))
+    .map(g => ({ ...g, granted: groupItems(g).filter(([key]) => !!permissions?.[key]) }))
     .filter(g => g.granted.length > 0)
 
   const show = () => { setRect(ref.current.getBoundingClientRect()); setOpen(true) }
@@ -155,10 +168,28 @@ function UserPermsBadge({ permissions }) {
 
 /* ── Card de grupo de permissões, com "Marcar todos" ── */
 function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }) {
-  const keys         = group.items.map(([k]) => k)
+  const keys         = groupItems(group).map(([k]) => k)
   const checkedCount = keys.filter(k => permissions?.[k]).length
   const allChecked   = checkedCount === keys.length
   const someChecked  = checkedCount > 0 && !allChecked
+
+  const itemsStyle = horizontal
+    ? {display:'flex',flexDirection:'row',flexWrap:'wrap',gap:'8px 24px'}
+    : {display:'flex',flexDirection:'column',gap:6}
+
+  const renderItems = (items) => (
+    <div style={itemsStyle}>
+      {items.map(([key, label, icon]) => (
+        <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b',whiteSpace:horizontal ? 'nowrap' : undefined}}>
+          <input type="checkbox" checked={!!permissions?.[key]}
+            onChange={e => onToggle(key, e.target.checked)}
+            style={{accentColor:'#1a2d4f',width:15,height:15}} />
+          {icon && <span style={{color:'#64748b',display:'flex'}}><Ic n={icon} s={13}/></span>}
+          {label}
+        </label>
+      ))}
+    </div>
+  )
 
   return (
     <div style={{border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
@@ -175,19 +206,14 @@ function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }
           Marcar todos
         </label>
       </div>
-      <div style={horizontal
-        ? {display:'flex',flexDirection:'row',flexWrap:'wrap',gap:'8px 24px'}
-        : {display:'flex',flexDirection:'column',gap:6}}>
-        {group.items.map(([key, label, icon]) => (
-          <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b',whiteSpace:horizontal ? 'nowrap' : undefined}}>
-            <input type="checkbox" checked={!!permissions?.[key]}
-              onChange={e => onToggle(key, e.target.checked)}
-              style={{accentColor:'#1a2d4f',width:15,height:15}} />
-            {icon && <span style={{color:'#64748b',display:'flex'}}><Ic n={icon} s={13}/></span>}
-            {label}
-          </label>
-        ))}
-      </div>
+      {group.sections ? group.sections.map((section, i) => (
+        <div key={section.label} style={i > 0 ? {marginTop:10,paddingTop:10,borderTop:'1px dashed #e2e8f0'} : undefined}>
+          <p style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 0 6px'}}>
+            {section.label}
+          </p>
+          {renderItems(section.items)}
+        </div>
+      )) : renderItems(group.items)}
     </div>
   )
 }
