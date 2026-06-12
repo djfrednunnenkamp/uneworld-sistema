@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import toast from 'react-hot-toast'
 import { usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -9,6 +10,7 @@ import { Ic } from '../components/Icon'
 const PERM_GROUPS = [
   {
     title: 'Passageiros',
+    icon: 'users',
     items: [
       ['passengers_view_basic',    'Ver dados básicos'],
       ['passengers_view_full',     'Ver dados completos (sensíveis)'],
@@ -21,6 +23,7 @@ const PERM_GROUPS = [
   },
   {
     title: 'Listas de Passageiros',
+    icon: 'plane',
     items: [
       ['lists_view',       'Ver listas'],
       ['lists_edit',       'Criar / Editar'],
@@ -28,11 +31,6 @@ const PERM_GROUPS = [
       ['lists_view_logs',  'Ver log de atividades da lista'],
       ['lists_download',   'Baixar / exportar lista'],
       ['lists_csv_upload', 'Importar passageiros via CSV'],
-    ],
-  },
-  {
-    title: 'Passageiros na Lista',
-    items: [
       ['lists_passengers_add',    'Adicionar passageiro à lista'],
       ['lists_passengers_edit',   'Editar passageiro na lista'],
       ['lists_passengers_remove', 'Remover passageiro da lista'],
@@ -40,6 +38,7 @@ const PERM_GROUPS = [
   },
   {
     title: 'Agências',
+    icon: 'building',
     items: [
       ['agencies_view',      'Ver agências'],
       ['agencies_edit',      'Criar / Editar'],
@@ -49,10 +48,11 @@ const PERM_GROUPS = [
   },
   {
     title: 'Administração',
+    icon: 'settings',
     items: [
-      ['manage_users',    'Gerenciar usuários e permissões'],
-      ['manage_settings', 'Acessar Configurações'],
-      ['view_audit_log',  'Ver Log do Sistema (global)'],
+      ['manage_users',    'Gerenciar usuários e permissões', 'users'],
+      ['manage_settings', 'Acessar Configurações',           'settings'],
+      ['view_audit_log',  'Ver Log do Sistema (global)',     'list'],
     ],
   },
 ]
@@ -80,6 +80,79 @@ function Toggle({ checked, onChange, disabled }) {
   )
 }
 
+/* ── Célula com clique-para-copiar ── */
+function CopyCell({ value, muted, bold }) {
+  const [ok, setOk] = useState(false)
+  if (!value) return <span style={{ color:'#cbd5e1' }}>—</span>
+  const copy = async (e) => {
+    e.stopPropagation()
+    try { await navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1400) } catch {}
+  }
+  return (
+    <span onClick={copy} title={`Clique para copiar: ${value}`}
+      style={{ cursor:'pointer', position:'relative', display:'inline-block', maxWidth:'100%', verticalAlign:'bottom' }}>
+      <span style={{
+        display:'block', maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+        color:muted?'#94a3b8':'#1e293b', fontWeight:bold?500:400, fontSize:bold?13:11.5,
+      }}>
+        {value}
+      </span>
+      {ok && (
+        <span style={{ position:'absolute', top:-18, left:'50%', transform:'translateX(-50%)', background:'#059669', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none', animation:'fadeUp .2s ease' }}>✓ Copiado</span>
+      )}
+    </span>
+  )
+}
+
+/* ── Badge "Usuário" com tooltip mostrando as permissões concedidas ── */
+function UserPermsBadge({ permissions }) {
+  const [open, setOpen] = useState(false)
+  const [rect, setRect] = useState(null)
+  const ref = useRef(null)
+
+  const groups = PERM_GROUPS
+    .map(g => ({ ...g, granted: g.items.filter(([key]) => !!permissions?.[key]) }))
+    .filter(g => g.granted.length > 0)
+
+  const show = () => { setRect(ref.current.getBoundingClientRect()); setOpen(true) }
+  const hide = () => setOpen(false)
+
+  return (
+    <span ref={ref} onMouseEnter={show} onMouseLeave={hide} style={{ display:'inline-block' }}>
+      <span className="badge bg-amber" style={{ cursor:'help' }}>Usuário</span>
+      {open && rect && createPortal(
+        <div style={{
+          position:'fixed',
+          top: Math.min(rect.bottom + 6, window.innerHeight - 12),
+          left: Math.min(rect.left, window.innerWidth - 296),
+          zIndex:9999, background:'#fff', border:'1px solid #e2e8f0', borderRadius:8,
+          boxShadow:'0 12px 32px rgba(15,23,42,.18)', padding:'10px 12px',
+          width:280, maxHeight:340, overflowY:'auto', pointerEvents:'none',
+        }}>
+          <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 8px'}}>Permissões concedidas</p>
+          {groups.length === 0 ? (
+            <p style={{fontSize:12,color:'#94a3b8',margin:0}}>Nenhuma permissão concedida.</p>
+          ) : groups.map(g => (
+            <div key={g.title} style={{marginBottom:8}}>
+              <p style={{display:'flex',alignItems:'center',gap:6,fontSize:10.5,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 4px'}}>
+                {g.icon && <span style={{display:'flex'}}><Ic n={g.icon} s={11}/></span>}
+                {g.title}
+              </p>
+              {g.granted.map(([key, label]) => (
+                <p key={key} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#1e293b',margin:'2px 0'}}>
+                  <span style={{color:'#059669',display:'flex'}}><Ic n="check" s={12}/></span>
+                  {label}
+                </p>
+              ))}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </span>
+  )
+}
+
 /* ── Card de grupo de permissões, com "Marcar todos" ── */
 function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }) {
   const keys         = group.items.map(([k]) => k)
@@ -90,7 +163,10 @@ function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }
   return (
     <div style={{border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,gap:8}}>
-        <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:0}}>{group.title}</p>
+        <p style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:0}}>
+          {group.icon && <Ic n={group.icon} s={12}/>}
+          {group.title}
+        </p>
         <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:11,color:'#64748b',fontWeight:600,whiteSpace:'nowrap'}}>
           <input type="checkbox" checked={allChecked}
             ref={el => { if (el) el.indeterminate = someChecked }}
@@ -102,11 +178,12 @@ function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }
       <div style={horizontal
         ? {display:'flex',flexDirection:'row',flexWrap:'wrap',gap:'8px 24px'}
         : {display:'flex',flexDirection:'column',gap:6}}>
-        {group.items.map(([key, label]) => (
+        {group.items.map(([key, label, icon]) => (
           <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b',whiteSpace:horizontal ? 'nowrap' : undefined}}>
             <input type="checkbox" checked={!!permissions?.[key]}
               onChange={e => onToggle(key, e.target.checked)}
               style={{accentColor:'#1a2d4f',width:15,height:15}} />
+            {icon && <span style={{color:'#64748b',display:'flex'}}><Ic n={icon} s={13}/></span>}
             {label}
           </label>
         ))}
@@ -447,18 +524,18 @@ export default function Users() {
                         {initials(u)}
                       </div>
                       <div>
-                        <p className="t-name" style={{margin:0}}>{u.full_name || u.username}</p>
-                        <p style={{fontSize:11.5,color:'#94a3b8',margin:0}}>@{u.username}</p>
+                        <p className="t-name" style={{margin:0}}><CopyCell value={u.full_name || u.username} bold /></p>
+                        <CopyCell value={`@${u.username}`} muted />
                       </div>
                     </div>
                   </td>
-                  <td className="t-muted">{u.email || '—'}</td>
+                  <td className="t-muted"><CopyCell value={u.email} muted /></td>
                   <td>
                     {u.is_superuser
                       ? <span className="badge bg-blue">Superusuário</span>
                       : u.is_staff
                         ? <span className="badge bg-green">Administrador</span>
-                        : <span className="badge bg-amber">Usuário</span>
+                        : <UserPermsBadge permissions={u.permissions} />
                     }
                   </td>
                   <td>
