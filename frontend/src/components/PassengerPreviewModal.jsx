@@ -65,8 +65,10 @@ function Row({ label, value, copied, onCopy }) {
  *   onClose       — fecha o modal
  *   onOpenProfile — navega para a página de detalhes do passageiro (sempre disponível)
  *   canEdit       — se true, o botão mostra "Editar"; caso contrário, "Ver perfil completo" (somente leitura)
+ *   canViewLog    — se true, mostra o botão "Log" (log de atividades deste passageiro)
+ *   onViewLog     — navega para o log de atividades deste passageiro
  */
-export default function PassengerPreviewModal({ passenger, onClose, onOpenProfile, canEdit }) {
+export default function PassengerPreviewModal({ passenger, onClose, onOpenProfile, canEdit, canViewLog, onViewLog }) {
   const [copied, setCopied] = useState(null)
 
   if (!passenger) return null
@@ -148,12 +150,22 @@ export default function PassengerPreviewModal({ passenger, onClose, onOpenProfil
 
         {/* Footer */}
         <div style={{ padding:'12px 22px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
-          <button onClick={onOpenProfile}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-            <Ic n={canEdit ? 'edit' : 'eye'} s={13} /> {canEdit ? 'Editar' : 'Ver perfil completo'}
-          </button>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={onOpenProfile}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+              <Ic n={canEdit ? 'edit' : 'eye'} s={13} /> {canEdit ? 'Editar' : 'Ver perfil completo'}
+            </button>
+            {canViewLog && (
+              <button onClick={onViewLog} title="Ver log de atividades deste passageiro"
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor='#7c3aed'; e.currentTarget.style.color='#7c3aed' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+                <Ic n="list" s={13} /> Log
+              </button>
+            )}
+          </div>
           <button onClick={onClose}
             style={{ padding:'7px 24px', borderRadius:6, border:'none', background:'#2e6db4', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
             onMouseEnter={e => e.currentTarget.style.background='#275fa0'}

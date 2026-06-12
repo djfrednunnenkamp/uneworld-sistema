@@ -167,6 +167,7 @@ export default function Passengers() {
   const canDelete  = !!user?.is_superuser || perms.passengers_delete
   const canDocs    = !!user?.is_superuser || perms.passengers_download_docs
   const canViewLog = !!user?.is_superuser || perms.view_audit_log
+  const canViewPassengerLog = !!user?.is_superuser || perms.passengers_view_logs || perms.view_audit_log
   const cols       = canFull ? COLS : COLS.map(c => SENSITIVE_COLS.includes(c.key)
     ? { ...c, render: () => <span style={{ color:'#cbd5e1' }}>—</span> }
     : c)
@@ -301,6 +302,8 @@ export default function Passengers() {
           onClose={() => setViewRow(null)}
           onOpenProfile={() => { setViewRow(null); navigate(`/passageiros/${viewRow.id}`) }}
           canEdit={canEdit}
+          canViewLog={canViewPassengerLog}
+          onViewLog={() => { setViewRow(null); navigate(`/log?passenger_id=${viewRow.id}`) }}
         />
       )}
       {delRow && (

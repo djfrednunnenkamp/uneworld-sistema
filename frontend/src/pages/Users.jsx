@@ -72,10 +72,10 @@ const PERM_GROUPS = [
    A opção dependente fica oculta até que a permissão da qual ela depende seja marcada. */
 const PERM_DEPENDENCIES = {
   passengers_view_full:     'passengers_view_basic',
-  passengers_edit:          'passengers_view_basic',
+  passengers_edit:          'passengers_view_full',
   passengers_delete:        'passengers_view_basic',
-  passengers_download_docs: 'passengers_view_basic',
-  passengers_upload_docs:   'passengers_view_basic',
+  passengers_download_docs: 'passengers_view_full',
+  passengers_upload_docs:   'passengers_view_full',
   passengers_view_logs:     'passengers_view_basic',
 
   lists_edit:              'lists_view',
@@ -92,13 +92,35 @@ const PERM_DEPENDENCIES = {
   agencies_view_logs: 'agencies_view',
 }
 
-/* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente) */
+/* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente).
+   A ordem de PERM_DEPENDENCIES importa: "passengers_view_full" precisa ser avaliado antes de
+   "passengers_edit" etc., para que a cascata de 2 níveis funcione numa única passada. */
 const sanitizePerms = perms => {
   const out = { ...perms }
   for (const [depKey, baseKey] of Object.entries(PERM_DEPENDENCIES)) {
     if (!out[baseKey]) out[depKey] = false
   }
   return out
+}
+
+/* "Ver Log do Sistema (global)" implica acesso aos logs (e à visualização) de cada área */
+const AUDIT_LOG_IMPLIES = {
+  passengers_view_logs: 'passengers_view_basic',
+  lists_view_logs:      'lists_view',
+  agencies_view_logs:   'agencies_view',
+}
+
+/* Aplica um conjunto de mudanças de permissões, propagando dependências automáticas
+   (ex.: marcar "Ver Log do Sistema (global)" marca também os logs e a visualização de cada área) */
+const applyPermChanges = (permissions, changes) => {
+  const out = { ...permissions, ...changes }
+  if (changes.view_audit_log === true) {
+    for (const [logKey, baseKey] of Object.entries(AUDIT_LOG_IMPLIES)) {
+      out[logKey]  = true
+      out[baseKey] = true
+    }
+  }
+  return sanitizePerms(out)
 }
 
 /* Retorna a lista plana de [key, label, icon?] de um grupo, vindo de `items` ou de `sections` */
@@ -292,8 +314,8 @@ function UserModal({ user, onClose, onSaved }) {
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
-  const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: sanitizePerms({ ...f.permissions, [key]: val }) }))
-  const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: sanitizePerms({ ...f.permissions, ...Object.fromEntries(keys.map(k => [k, val])) }) }))
+  const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
+  const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, Object.fromEntries(keys.map(k => [k, val]))) }))
 
   const save = async () => {
     if (!form.email?.trim()) { toast.error('E-mail obrigatório.'); return }
