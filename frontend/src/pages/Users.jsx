@@ -58,7 +58,9 @@ const PERM_GROUPS = [
 ]
 
 const ALL_PERM_KEYS   = PERM_GROUPS.flatMap(g => g.items.map(([k]) => k))
-const ADMIN_PERM_KEYS = PERM_GROUPS.find(g => g.title === 'Administração').items.map(([k]) => k)
+const ADMIN_GROUP     = PERM_GROUPS.find(g => g.title === 'Administração')
+const GRID_GROUPS     = PERM_GROUPS.filter(g => g.title !== 'Administração')
+const ADMIN_PERM_KEYS = ADMIN_GROUP.items.map(([k]) => k)
 const EMPTY_PERMISSIONS = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, false]))
 const PRESET_ADMIN      = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, true]))
 const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !ADMIN_PERM_KEYS.includes(k)]))
@@ -79,7 +81,7 @@ function Toggle({ checked, onChange, disabled }) {
 }
 
 /* ── Card de grupo de permissões, com "Marcar todos" ── */
-function PermGroupCard({ group, permissions, onToggle, onToggleAll }) {
+function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }) {
   const keys         = group.items.map(([k]) => k)
   const checkedCount = keys.filter(k => permissions?.[k]).length
   const allChecked   = checkedCount === keys.length
@@ -97,9 +99,11 @@ function PermGroupCard({ group, permissions, onToggle, onToggleAll }) {
           Marcar todos
         </label>
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+      <div style={horizontal
+        ? {display:'flex',flexDirection:'row',flexWrap:'wrap',gap:'8px 24px'}
+        : {display:'flex',flexDirection:'column',gap:6}}>
         {group.items.map(([key, label]) => (
-          <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b'}}>
+          <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b',whiteSpace:horizontal ? 'nowrap' : undefined}}>
             <input type="checkbox" checked={!!permissions?.[key]}
               onChange={e => onToggle(key, e.target.checked)}
               style={{accentColor:'#1a2d4f',width:15,height:15}} />
@@ -208,12 +212,15 @@ function UserModal({ user, onClose, onSaved }) {
                   Superusuário tem acesso total e irrestrito a todo o sistema — as permissões abaixo não se aplicam.
                 </div>
               ) : (
-                <div>
-                  <label style={lbl}>Permissões</label>
-                  <div className="grid2" style={{marginBottom:0}}>
-                    {PERM_GROUPS.map(g => (
-                      <PermGroupCard key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
-                    ))}
+                <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                  <PermGroupCard group={ADMIN_GROUP} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} horizontal />
+                  <div>
+                    <label style={lbl}>Permissões</label>
+                    <div className="grid2" style={{marginBottom:0}}>
+                      {GRID_GROUPS.map(g => (
+                        <PermGroupCard key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -223,12 +230,15 @@ function UserModal({ user, onClose, onSaved }) {
               Superusuário: acesso total a todas as permissões do sistema.
             </div>
           ) : (
-            <div>
-              <label style={lbl}>Permissões</label>
-              <div className="grid2" style={{marginBottom:0}}>
-                {PERM_GROUPS.map(g => (
-                  <PermGroupCard key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
-                ))}
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <PermGroupCard group={ADMIN_GROUP} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} horizontal />
+              <div>
+                <label style={lbl}>Permissões</label>
+                <div className="grid2" style={{marginBottom:0}}>
+                  {GRID_GROUPS.map(g => (
+                    <PermGroupCard key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
+                  ))}
+                </div>
               </div>
             </div>
           )}
