@@ -6,6 +6,7 @@ import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import NewAgencyModal from '../components/NewAgencyModal'
 import { Ic } from '../components/Icon'
+import { useAuth } from '../context/AuthContext'
 
 /* ── CopyCell ── */
 function CopyCell({ value, muted, bold }) {
@@ -213,6 +214,11 @@ const STATUS_OPTS = [
 
 export default function Agencies() {
   const navigate  = useNavigate()
+  const { user }  = useAuth()
+  const perms     = user?.permissions ?? {}
+  const canEdit    = !!user?.is_superuser || perms.agencies_edit
+  const canDelete  = !!user?.is_superuser || perms.agencies_delete
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
@@ -251,10 +257,10 @@ export default function Agencies() {
         cols={COLS}
         searchKeys={['name', 'company_name', 'email', 'cnpj', 'city', 'phone']}
         extraFilters={filterBar}
-        onAdd={() => setShowNew(true)}
-        onLog={() => navigate('/log?model=Agency')}
+        onAdd={canEdit ? () => setShowNew(true) : undefined}
+        onLog={canViewLog ? () => navigate('/log?model=Agency') : undefined}
         onView={(row) => setViewRow(row)}
-        onDelete={(row) => setDelRow(row)}
+        onDelete={canDelete ? (row) => setDelRow(row) : undefined}
         loading={loading}
       />
 

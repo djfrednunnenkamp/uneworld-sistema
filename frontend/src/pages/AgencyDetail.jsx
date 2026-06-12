@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { agenciesApi, usersApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import CnpjInput from '../components/CnpjInput'
@@ -348,6 +349,9 @@ export default function AgencyDetail() {
   const navigate       = useNavigate()
   const [searchParams] = useSearchParams()
   const isNew          = id === 'nova'
+  const { user }       = useAuth()
+  const perms          = user?.permissions ?? {}
+  const canEdit        = !!user?.is_superuser || perms.agencies_edit
 
   const [form,       setForm]       = useState(() => {
     if (isNew) {
@@ -599,9 +603,11 @@ export default function AgencyDetail() {
           <button className="btn btn-outline" onClick={() => navigate('/agencias')}>
             <Ic n="logout" s={13} style={{ transform: 'rotate(180deg)' }} /> Voltar
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>
-            <Ic n="check" s={13} /> {saving ? 'Salvando…' : 'Salvar'}
-          </button>
+          {canEdit && (
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              <Ic n="check" s={13} /> {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          )}
         </div>
       </div>
 

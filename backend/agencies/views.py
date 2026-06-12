@@ -5,8 +5,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from core.pagination import StandardResultsPagination
+from users_api.permissions import RequirePermission
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
+
+# Quem pode editar passageiros/listas precisa enxergar/buscar agências
+# (AgencyPicker, autocomplete de agência responsável etc.), então essas
+# permissões também liberam list/retrieve, além de agencies_view.
+VIEW_PERMS = ['agencies_view', 'passengers_edit', 'passengers_view_full', 'lists_edit']
 
 
 class AgencyViewSet(viewsets.ModelViewSet):
@@ -19,8 +25,19 @@ class AgencyViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return AgencyListSerializer if self.action == 'list' else AgencySerializer
 
-    @action(detail=False, methods=['get'], url_path='check-cnpj',
-            permission_classes=[IsAuthenticated])
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [RequirePermission('agencies_delete')()]
+        if self.action in ('create', 'update', 'partial_update'):
+            return [RequirePermission('agencies_edit')()]
+        if self.action == 'check_cnpj':
+            # Endpoint utilitário usado durante o fluxo de criação/edição
+            return [RequirePermission(*VIEW_PERMS, 'agencies_edit')()]
+        if self.action in ('list', 'retrieve'):
+            return [RequirePermission(*VIEW_PERMS)()]
+        return super().get_permissions()
+
+    @action(detail=False, methods=['get'], url_path='check-cnpj')
     def check_cnpj(self, request):
         cnpj = request.query_params.get('cnpj', '').strip()
         if not cnpj:

@@ -27,6 +27,14 @@ const PERM_GROUPS = [
     ],
   },
   {
+    title: 'Agências',
+    items: [
+      ['agencies_view',   'Ver agências'],
+      ['agencies_edit',   'Criar / Editar'],
+      ['agencies_delete', 'Excluir'],
+    ],
+  },
+  {
     title: 'Administração',
     items: [
       ['manage_users',    'Gerenciar usuários e permissões'],
@@ -42,16 +50,67 @@ const EMPTY_PERMISSIONS = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, false]))
 const PRESET_ADMIN      = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, true]))
 const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !ADMIN_PERM_KEYS.includes(k)]))
 
-const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_active:true, permissions: { ...EMPTY_PERMISSIONS } }
+const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_active:true, is_superuser:false, permissions: { ...EMPTY_PERMISSIONS } }
+
+/* ── Toggle (switch) ── */
+function Toggle({ checked, onChange, disabled }) {
+  return (
+    <label className="toggle-wrap" style={disabled ? { opacity:.5, cursor:'not-allowed' } : undefined}>
+      <span className="toggle">
+        <input type="checkbox" checked={!!checked} disabled={disabled} onChange={e => onChange(e.target.checked)} />
+        <span className="toggle-slider" />
+      </span>
+      <span className="toggle-label">{checked ? 'Sim' : 'Não'}</span>
+    </label>
+  )
+}
+
+/* ── Card de grupo de permissões, com "Marcar todos" ── */
+function PermGroupCard({ group, permissions, onToggle, onToggleAll }) {
+  const keys         = group.items.map(([k]) => k)
+  const checkedCount = keys.filter(k => permissions?.[k]).length
+  const allChecked   = checkedCount === keys.length
+  const someChecked  = checkedCount > 0 && !allChecked
+
+  return (
+    <div style={{border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,gap:8}}>
+        <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:0}}>{group.title}</p>
+        <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:11,color:'#64748b',fontWeight:600,whiteSpace:'nowrap'}}>
+          <input type="checkbox" checked={allChecked}
+            ref={el => { if (el) el.indeterminate = someChecked }}
+            onChange={e => onToggleAll(keys, e.target.checked)}
+            style={{accentColor:'#1a2d4f',width:14,height:14}} />
+          Marcar todos
+        </label>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {group.items.map(([key, label]) => (
+          <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b'}}>
+            <input type="checkbox" checked={!!permissions?.[key]}
+              onChange={e => onToggle(key, e.target.checked)}
+              style={{accentColor:'#1a2d4f',width:15,height:15}} />
+            {label}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function UserModal({ user, onClose, onSaved }) {
+  const { user: me } = useAuth()
   const [form,       setForm]       = useState(user
-    ? { ...user, password:'', permissions: { ...EMPTY_PERMISSIONS, ...user.permissions } }
+    ? { ...user, password:'', is_superuser: !!user.is_superuser, permissions: { ...EMPTY_PERMISSIONS, ...user.permissions } }
     : { ...EMPTY })
   const [skipPwd,    setSkipPwd]    = useState(false)
   const [saving,     setSaving]     = useState(false)
-  const isEdit = !!user
+  const isEdit  = !!user
+  const isSelf  = isEdit && user?.id === me?.id
+  const targetIsSuperuser = isEdit && !!user?.is_superuser
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+  const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: { ...f.permissions, [key]: val } }))
+  const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: { ...f.permissions, ...Object.fromEntries(keys.map(k => [k, val])) } }))
 
   const save = async () => {
     if (!form.email?.trim()) { toast.error('E-mail obrigatório.'); return }
@@ -84,7 +143,7 @@ function UserModal({ user, onClose, onSaved }) {
     <div onClick={e=>{if(e.target===e.currentTarget)onClose()}}
       style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',backdropFilter:'blur(3px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,padding:20}}>
       <div onClick={e=>e.stopPropagation()}
-        style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:560,maxHeight:'90vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
+        style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:720,maxHeight:'90vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
         <div style={{padding:'16px 20px 14px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
           <p style={{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}}>{isEdit ? 'Editar usuário' : 'Novo usuário'}</p>
         </div>
@@ -116,28 +175,48 @@ function UserModal({ user, onClose, onSaved }) {
             </label>
           )}
 
-          {isEdit && user?.is_superuser ? (
+          {me?.is_superuser ? (
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'10px 12px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc'}}>
+                <div>
+                  <p style={{fontSize:13,fontWeight:700,color:'#1e293b',margin:'0 0 2px'}}>Super usuário</p>
+                  <p style={{fontSize:11.5,color:'#94a3b8',margin:0}}>
+                    {isSelf
+                      ? 'Você não pode alterar sua própria permissão de superusuário.'
+                      : 'Acesso total e irrestrito a todas as áreas do sistema, ignorando as permissões abaixo.'}
+                  </p>
+                </div>
+                <Toggle checked={form.is_superuser} disabled={isSelf}
+                  onChange={v => setForm(f => ({ ...f, is_superuser: v }))} />
+              </div>
+
+              {form.is_superuser ? (
+                <div style={{padding:'10px 12px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',fontSize:12.5,color:'#1d4ed8'}}>
+                  Superusuário tem acesso total e irrestrito a todo o sistema — as permissões abaixo não se aplicam.
+                </div>
+              ) : (
+                <div>
+                  <label style={lbl}>Permissões</label>
+                  <div className="grid2" style={{marginBottom:0}}>
+                    {PERM_GROUPS.map(g => (
+                      <PermGroupCard key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : targetIsSuperuser ? (
             <div style={{padding:'10px 12px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',fontSize:12.5,color:'#1d4ed8'}}>
               Superusuário: acesso total a todas as permissões do sistema.
             </div>
           ) : (
-            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div>
               <label style={lbl}>Permissões</label>
-              {PERM_GROUPS.map(g => (
-                <div key={g.title} style={{border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
-                  <p style={{fontSize:11,fontWeight:700,color:'#1a2d4f',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 8px'}}>{g.title}</p>
-                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                    {g.items.map(([key, label]) => (
-                      <label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12.5,color:'#1e293b'}}>
-                        <input type="checkbox" checked={!!form.permissions?.[key]}
-                          onChange={e=>setForm(f=>({...f,permissions:{...f.permissions,[key]:e.target.checked}}))}
-                          style={{accentColor:'#1a2d4f',width:15,height:15}} />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <div className="grid2" style={{marginBottom:0}}>
+                {PERM_GROUPS.map(g => (
+                  <PermGroupCard key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
+                ))}
+              </div>
             </div>
           )}
         </div>

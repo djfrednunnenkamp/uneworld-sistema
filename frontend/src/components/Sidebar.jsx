@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 const NAV_BASE = [
   { id: '/',           icon: 'grid',     label: 'Visão Geral', group: null,     perms: null },
   { id: '/passageiros',icon: 'users',    label: 'Passageiros', group: 'GESTÃO', perms: ['passengers_view_basic', 'passengers_view_full'] },
-  { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', perms: null },
+  { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', perms: ['agencies_view'] },
   { id: '/viagens',    icon: 'plane',    label: 'Listas de Passageiros',      group: 'GESTÃO', perms: ['lists_view'] },
   { id: '/reunioes',   icon: 'calendar', label: 'Reuniões',    group: 'GESTÃO', perms: null },
   { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA', perms: ['manage_users']    },

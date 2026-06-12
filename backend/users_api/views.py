@@ -144,8 +144,14 @@ def user_create(request):
         username=email, password=password or None, email=email,
         first_name=first_name, last_name=last_name,
     )
+    # Apenas superusuários existentes podem criar outro superusuário
+    if request.user.is_superuser and data.get('is_superuser'):
+        user.is_superuser = True
+        user.is_staff     = True
+        user.save()
     # Novos usuários começam sem nenhuma permissão até serem configurados aqui
-    _apply_permissions(user, data)
+    if not user.is_superuser:
+        _apply_permissions(user, data)
     return Response(serialize_user(user), status=201)
 
 
@@ -166,6 +172,16 @@ def user_update(request, pk):
     if 'is_active'  in data: user.is_active  = bool(data['is_active'])
     if 'password'   in data and data['password']:
         user.set_password(data['password'])
+
+    # Apenas superusuários existentes podem conceder/revogar superusuário
+    if request.user.is_superuser and 'is_superuser' in data:
+        new_is_superuser = bool(data['is_superuser'])
+        if user.pk == request.user.pk and user.is_superuser and not new_is_superuser:
+            return Response({'error': 'Não é possível remover sua própria permissão de superusuário.'}, status=400)
+        user.is_superuser = new_is_superuser
+        if new_is_superuser:
+            user.is_staff = True
+
     user.save()
     if not user.is_superuser:
         _apply_permissions(user, data)

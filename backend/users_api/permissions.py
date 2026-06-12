@@ -13,6 +13,10 @@ PERMISSION_FIELDS = [
     'lists_edit',
     'lists_delete',
     'lists_view_logs',
+    # Agências
+    'agencies_view',
+    'agencies_edit',
+    'agencies_delete',
     # Administração
     'manage_users',
     'manage_settings',
