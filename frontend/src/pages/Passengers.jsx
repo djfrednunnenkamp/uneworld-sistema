@@ -127,7 +127,17 @@ const DIET_PT = {
 
 /* ── Colunas da tabela ── */
 const COLS = [
-  { key:'full_name',  label:'Nome',        align:'center', render:(v) => <CopyCell value={v} name /> },
+  { key:'full_name',  label:'Nome',        align:'center', render:(v, row) => (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+      <CopyCell value={v} name />
+      {row.is_verified && (
+        <span title="Cadastro verificado"
+          style={{ flexShrink:0, width:18, height:18, borderRadius:'50%', background:'#dcfce7', border:'1.5px solid #4ade80', color:'#16a34a', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+          ✓
+        </span>
+      )}
+    </div>
+  ) },
   { key:'email',      label:'E-mail',      align:'center', render:(v) => <CopyCell value={v} muted /> },
   { key:'phone1',     label:'Telefone',    align:'center', render:(v) => <CopyCell value={v} muted /> },
   { key:'cpf',        label:'CPF',         align:'center', render:(v) => <CopyCell value={v} muted /> },
