@@ -40,6 +40,7 @@ export const listsApi = {
   removePassenger:  (id, eid)     => api.delete(`/trips/lists/${id}/passageiros/${eid}/`),
   importCsv:        (id, formData) => api.post(`/trips/lists/${id}/import-csv/`, formData,
                        { headers: { 'Content-Type': 'multipart/form-data' } }),
+  logDownload:      (id, format, sections) => api.post(`/trips/lists/${id}/log-download/`, { format, sections }),
   // Acomodações (quartos) na lista
   listRooms:        (id)          => api.get(`/trips/lists/${id}/rooms/`),
   addRoom:          (id, name)     => api.post(`/trips/lists/${id}/rooms/`, { name }),

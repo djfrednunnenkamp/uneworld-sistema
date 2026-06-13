@@ -815,6 +815,8 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
       } else {
         await generateListPDF(list, enrollments, opts, accomTypes)
       }
+      const sections = PRINT_ROWS.filter(r => opts[r.key]).map(r => r.label)
+      listsApi.logDownload(list.id, formato, sections).catch(() => {})
     } catch (err) {
       console.error(err)
       toast.error(`Erro ao gerar ${formato.toUpperCase()}.`)

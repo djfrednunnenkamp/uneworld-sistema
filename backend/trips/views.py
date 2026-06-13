@@ -115,6 +115,8 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             return [RequirePermission('lists_edit')()]
         if self.action == 'import_csv':
             return [RequirePermission('lists_csv_upload')()]
+        if self.action == 'log_download':
+            return [RequirePermission('lists_download')()]
         return super().get_permissions()
 
     # ── Passageiros na lista ─────────────────────────────────────────────────
@@ -457,4 +459,30 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         if old_name != new_name:
             pl.list_enrollments.filter(accommodation=old_name).update(accommodation=new_name)
         return Response(RoomSerializer(room).data)
+
+    # ── Log de download (PDF/HTML gerados no frontend) ───────────────────────
+
+    @action(detail=True, methods=['post'], url_path='log-download')
+    def log_download(self, request, pk=None):
+        """Registra no log de auditoria a exportação da lista (PDF/HTML), gerada no frontend."""
+        pl  = self.get_object()
+        fmt = (request.data.get('format') or '').upper()
+        section_labels = request.data.get('sections') or []
+
+        from audit.models import AuditLog
+        from audit.middleware import get_current_user, get_current_ip
+        from audit.tracking import user_display
+        user = get_current_user()
+        AuditLog.objects.create(
+            user=user,
+            user_display=user_display(user),
+            action='download',
+            model_name='PassengerList',
+            model_label='Lista de Passageiros',
+            object_id=str(pl.pk),
+            object_repr=str(pl)[:500],
+            changes={'Formato': fmt, 'Seções exportadas': ', '.join(section_labels)} if fmt else {},
+            ip_address=get_current_ip(),
+        )
+        return Response({'ok': True})
 
