@@ -24,6 +24,7 @@ def serialize_user(u):
         'is_active':    u.is_active,
         'date_joined':  u.date_joined,
         'last_login':   u.last_login,
+        'updated_at':   get_user_permissions(u).updated_at,
         'permissions':  permissions_dict(u),
     }
 
@@ -185,6 +186,8 @@ def user_update(request, pk):
     user.save()
     if not user.is_superuser:
         _apply_permissions(user, data)
+    else:
+        get_user_permissions(user).save()
     return Response(serialize_user(user))
 
 

@@ -255,6 +255,7 @@ const TH = ({ children }) => (
 const MODEL_CONTEXT = {
   Passenger: { label: 'Passageiros', back: '/passageiros' },
   Agency:    { label: 'Agências',    back: '/agencias'    },
+  User:      { label: 'Usuários',    back: '/usuarios'    },
 }
 
 /* ── Página principal ── */

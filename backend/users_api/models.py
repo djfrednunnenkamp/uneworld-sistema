@@ -26,7 +26,8 @@ class PasswordResetToken(models.Model):
 
 
 class UserPermissions(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='permissions')
+    user       = models.OneToOneField(User, on_delete=models.CASCADE, related_name='permissions')
+    updated_at = models.DateTimeField(auto_now=True)
 
     # Visão Geral (Dashboard)
     dashboard_view_passengers  = models.BooleanField(default=False)

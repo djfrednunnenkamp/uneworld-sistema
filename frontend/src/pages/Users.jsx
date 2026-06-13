@@ -1,11 +1,20 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import DelModal from '../components/DelModal'
 import PasswordInput from '../components/PasswordInput'
+import DatePicker from '../components/DatePicker'
 import { Ic } from '../components/Icon'
+
+const ROLE_OPTS = [
+  { value: '',           label: 'Todos os perfis' },
+  { value: 'superuser',  label: 'Superusuário'     },
+  { value: 'admin',      label: 'Administrador'    },
+  { value: 'user',       label: 'Usuário'          },
+]
 
 const PERM_GROUPS = [
   {
@@ -482,6 +491,187 @@ function PermModal({ count, onPick, onClose, saving }) {
   )
 }
 
+/* ── Dropdown de filtro simples (estilo Log/Passageiros) ── */
+function FDrop({ label, value, onChange, options }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const active = value !== options[0].value
+  const selected = options.find(o => o.value === value)
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7,
+          border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          background: active ? '#eff6ff' : '#fff',
+          color: active ? '#2e6db4' : '#475569',
+          fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
+          whiteSpace: 'nowrap', transition: 'all .12s',
+        }}>
+        {label}{active && selected ? `: ${selected.label}` : ''}
+        <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
+          background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0',
+          boxShadow: '0 8px 24px rgba(0,0,0,.10)', minWidth: 180, overflow: 'hidden',
+        }}>
+          {options.map(opt => {
+            const sel = value === opt.value
+            return (
+              <button key={opt.value} type="button"
+                onClick={() => { onChange(opt.value); setOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', padding: '9px 14px', gap: 10,
+                  background: sel ? '#eff6ff' : 'transparent', border: 'none',
+                  borderBottom: '1px solid #f8fafc', color: sel ? '#2e6db4' : '#1e293b',
+                  fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer',
+                  fontFamily: 'inherit', textAlign: 'left',
+                }}
+                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
+                onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}
+              >
+                <span>{opt.label}</span>
+                {sel && <span style={{ color: '#2e6db4' }}>✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Dropdown multi-seleção: filtra usuários que têm UMA ou VÁRIAS permissões específicas (AND) ── */
+function PermFilterDrop({ selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const active = selected.size > 0
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const toggle = key => {
+    const next = new Set(selected)
+    next.has(key) ? next.delete(key) : next.add(key)
+    onChange(next)
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7,
+          border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          background: active ? '#eff6ff' : '#fff',
+          color: active ? '#2e6db4' : '#475569',
+          fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
+          whiteSpace: 'nowrap', transition: 'all .12s',
+        }}>
+        Permissões{active ? `: ${selected.size}` : ''}
+        <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
+          background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0',
+          boxShadow: '0 8px 24px rgba(0,0,0,.10)', width: 300, maxHeight: 380,
+          overflowY: 'auto', padding: 10,
+        }}>
+          {active && (
+            <button type="button" onClick={() => onChange(new Set())}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 10px', marginBottom:8, fontSize:12, fontWeight:600, color:'#dc2626', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', fontFamily:'inherit' }}>
+              ✕ Limpar seleção
+            </button>
+          )}
+          {PERM_GROUPS.map(g => (
+            <div key={g.title} style={{ marginBottom: 10 }}>
+              <p style={{display:'flex',alignItems:'center',gap:6,fontSize:10.5,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 5px'}}>
+                {g.icon && <span style={{display:'flex'}}><Ic n={g.icon} s={11}/></span>}
+                {g.title}
+              </p>
+              {groupItems(g).map(([key, label]) => (
+                <label key={key} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 6px',fontSize:12.5,color:'#1e293b',cursor:'pointer',borderRadius:5}}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(key)}
+                    style={{ accentColor:'#2e6db4', width:14, height:14, flexShrink:0 }} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Dropdown de intervalo de datas (Criação / Modificação) ── */
+function DateRangeDrop({ label, from, to, onFrom, onTo }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const active = !!from || !!to
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7,
+          border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          background: active ? '#eff6ff' : '#fff',
+          color: active ? '#2e6db4' : '#475569',
+          fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
+          whiteSpace: 'nowrap', transition: 'all .12s',
+        }}>
+        {label}{active ? ': período' : ''}
+        <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
+          background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0',
+          boxShadow: '0 8px 24px rgba(0,0,0,.10)', width: 230, padding: 12,
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          <div>
+            <label style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.04em', display:'block', marginBottom:5 }}>De</label>
+            <DatePicker value={from} onChange={onFrom} placeholder="DD/MM/AAAA" />
+          </div>
+          <div>
+            <label style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.04em', display:'block', marginBottom:5 }}>Até</label>
+            <DatePicker value={to} onChange={onTo} placeholder="DD/MM/AAAA" />
+          </div>
+          {active && (
+            <button type="button" onClick={() => { onFrom(''); onTo('') }}
+              style={{ padding:'7px 10px', fontSize:12, fontWeight:600, color:'#dc2626', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', fontFamily:'inherit' }}>
+              ✕ Limpar
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Users() {
   const [users,   setUsers]   = useState([])
   const [loading, setLoading] = useState(true)
@@ -492,7 +682,15 @@ export default function Users() {
   const [permModal, setPermModal] = useState(false)
   const [bulkDel,   setBulkDel]   = useState(false)
   const [bulkBusy,  setBulkBusy]  = useState(false)
+  const [roleFilter,    setRoleFilter]    = useState('')
+  const [permFilter,    setPermFilter]    = useState(new Set())
+  const [createdFrom,   setCreatedFrom]   = useState('')
+  const [createdTo,     setCreatedTo]     = useState('')
+  const [modifiedFrom,  setModifiedFrom]  = useState('')
+  const [modifiedTo,    setModifiedTo]    = useState('')
   const { user: me } = useAuth()
+  const navigate = useNavigate()
+  const canViewLog = !!me?.is_superuser || !!me?.permissions?.view_audit_log
 
   const load = () => {
     setLoading(true)
@@ -514,12 +712,40 @@ export default function Users() {
   const initials = u => `${u.first_name?.[0]??''}${u.last_name?.[0]??''}`.toUpperCase() || u.username[0].toUpperCase()
   const PALETTE  = ['#2B3A8F','#0369A1','#0D6E6E','#6B3FA0','#B45309']
 
+  const roleOf = u => u.is_superuser ? 'superuser' : u.is_staff ? 'admin' : 'user'
+
+  const hasFilters = !!roleFilter || permFilter.size > 0 || createdFrom || createdTo || modifiedFrom || modifiedTo
+  const clearFilters = () => {
+    setRoleFilter('')
+    setPermFilter(new Set())
+    setCreatedFrom(''); setCreatedTo('')
+    setModifiedFrom(''); setModifiedTo('')
+  }
+
   const filtered = users.filter(u => {
     const s = q.trim().toLowerCase()
-    if (!s) return true
-    return (u.full_name || '').toLowerCase().includes(s)
-        || (u.username  || '').toLowerCase().includes(s)
-        || (u.email     || '').toLowerCase().includes(s)
+    if (s) {
+      const matchQ = (u.full_name || '').toLowerCase().includes(s)
+          || (u.username  || '').toLowerCase().includes(s)
+          || (u.email     || '').toLowerCase().includes(s)
+      if (!matchQ) return false
+    }
+    if (roleFilter && roleOf(u) !== roleFilter) return false
+    if (permFilter.size > 0) {
+      const ok = [...permFilter].every(k => u.is_superuser || !!u.permissions?.[k])
+      if (!ok) return false
+    }
+    if (createdFrom || createdTo) {
+      const d = (u.date_joined || '').slice(0, 10)
+      if (createdFrom && d < createdFrom) return false
+      if (createdTo   && d > createdTo)   return false
+    }
+    if (modifiedFrom || modifiedTo) {
+      const d = (u.updated_at || '').slice(0, 10)
+      if (modifiedFrom && d < modifiedFrom) return false
+      if (modifiedTo   && d > modifiedTo)   return false
+    }
+    return true
   })
 
   // Apenas usuários que podem ser alvo de ações em massa (nunca o próprio usuário logado)
@@ -584,6 +810,38 @@ export default function Users() {
           <span className="search-ico"><Ic n="search" s={14}/></span>
           <input className="search-in" placeholder="Buscar por nome, e-mail ou login…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
+
+        <FDrop label="Perfil" value={roleFilter} onChange={setRoleFilter} options={ROLE_OPTS} />
+        <PermFilterDrop selected={permFilter} onChange={setPermFilter} />
+        <DateRangeDrop label="Criado" from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
+        <DateRangeDrop label="Modificado" from={modifiedFrom} to={modifiedTo} onFrom={setModifiedFrom} onTo={setModifiedTo} />
+
+        {hasFilters && (
+          <button type="button" onClick={clearFilters}
+            style={{ padding:'7px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+            ✕ Limpar filtros
+          </button>
+        )}
+
+        {canViewLog && (
+          <button
+            type="button"
+            onClick={() => navigate('/log?model=User')}
+            title="Ver log de atividades"
+            style={{
+              marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 14px', borderRadius: 7,
+              border: '1.5px solid #e2e8f0', background: '#fff',
+              color: '#475569', fontSize: 13, fontWeight: 500,
+              cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'all .12s', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#1a2d4f'; e.currentTarget.style.color = '#1a2d4f' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}
+          >
+            <Ic n="list" s={13} /> Log
+          </button>
+        )}
       </div>
 
       {sel.size > 0 && (
@@ -645,7 +903,6 @@ export default function Users() {
                       </div>
                       <div>
                         <p className="t-name" style={{margin:0}}><CopyCell value={u.full_name || u.username} bold /></p>
-                        <CopyCell value={`@${u.username}`} muted />
                       </div>
                     </div>
                   </td>
