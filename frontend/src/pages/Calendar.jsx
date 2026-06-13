@@ -3,23 +3,30 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { agendaApi } from '../api'
 import { Ic } from '../components/Icon'
+import { useAuth } from '../context/AuthContext'
 
 const WEEKDAYS      = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const WEEKDAYS_FULL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 const MONTHS        = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 const TYPE_CFG = {
-  trip:     { label: 'Viagem',      bg: '#dbeafe', fg: '#1d4ed8' },
-  deadline: { label: 'Prazo',       bg: '#fef3c7', fg: '#b45309' },
-  birthday: { label: 'Aniversário', bg: '#ede9fe', fg: '#7c3aed' },
+  trip:     { label: 'Viagem',      bg: '#dbeafe', fg: '#1d4ed8', icon: 'plane' },
+  deadline: { label: 'Prazo',       bg: '#fef3c7', fg: '#b45309', icon: 'calendar' },
+  birthday: { label: 'Aniversário', bg: '#ede9fe', fg: '#7c3aed', icon: null },
 }
 const TYPE_ORDER = { trip: 0, deadline: 1, birthday: 2 }
+
+const DEFAULT_PREFS = {
+  digest_enabled: false, digest_frequency: 'daily', reminder_enabled: false, reminder_days_before: 3,
+  side_panel_enabled: true, side_panel_position: 'right',
+}
 
 const pad   = (n) => String(n).padStart(2, '0')
 const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 const fmtBR = (iso) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
 const startOfWeek = (d) => { const r = new Date(d); r.setDate(r.getDate() - r.getDay()); return r }
 const addDays      = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r }
+const dayOfTrip    = (iso, startIso) => Math.round((new Date(iso) - new Date(startIso)) / 86400000) + 1
 
 function Toggle({ label, value, onChange }) {
   return (
@@ -33,26 +40,34 @@ function Toggle({ label, value, onChange }) {
   )
 }
 
-function EventChip({ ev, onClick }) {
-  const cfg = TYPE_CFG[ev.type]
+function EventChip({ ev, iso, onClick }) {
+  const cfg  = TYPE_CFG[ev.type]
+  const dayN = ev.type === 'trip' && ev.start !== ev.end ? dayOfTrip(iso, ev.start) : null
   return (
-    <div onClick={onClick} title={ev.title}
-      style={{ fontSize:11, padding:'2px 6px', borderRadius:4, marginBottom:2, background:cfg.bg, color:cfg.fg, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', cursor:'pointer', fontWeight:500 }}>
-      {ev.title}
+    <div onClick={onClick} title={ev.title} className="cal-chip"
+      style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, padding:'2px 6px', borderRadius:4, marginBottom:2, background:cfg.bg, color:cfg.fg, whiteSpace:'nowrap', overflow:'hidden', cursor:'pointer', fontWeight:500 }}>
+      {cfg.icon && <Ic n={cfg.icon} s={10}/>}
+      <span style={{ overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}{dayN ? ` · Dia ${dayN}` : ''}</span>
     </div>
   )
 }
 
-function EventRow({ ev, onClick }) {
-  const cfg = TYPE_CFG[ev.type]
+function EventRow({ ev, iso, onClick, currentUserId }) {
+  const cfg    = TYPE_CFG[ev.type]
+  const dayN   = ev.type === 'trip' && ev.start !== ev.end && iso ? dayOfTrip(iso, ev.start) : null
+  const isMine = ev.type === 'deadline' && ev.created_by_id != null && ev.created_by_id === currentUserId
   return (
-    <div onClick={onClick}
-      style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:8, border:'1px solid #e2e8f0', cursor: onClick ? 'pointer' : 'default', marginBottom:8 }}>
+    <div onClick={onClick} className="cal-row"
+      style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:8, cursor: onClick ? 'pointer' : 'default', marginBottom:8,
+        border:'1px solid #e2e8f0', borderLeft: isMine ? '3px solid #2e6db4' : '1px solid #e2e8f0' }}>
       <span style={{ width:8, height:8, borderRadius:'50%', background:cfg.fg, flexShrink:0 }} />
+      {cfg.icon && <span style={{ color:cfg.fg, display:'flex', flexShrink:0 }}><Ic n={cfg.icon} s={14}/></span>}
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:13, fontWeight:500, color:'#1e293b', overflowWrap:'anywhere' }}>{ev.title}</div>
         {ev.subtitle && <div style={{ fontSize:12, color:'#64748b', overflowWrap:'anywhere' }}>{ev.subtitle}</div>}
       </div>
+      {isMine && <span className="cal-you-badge">Você</span>}
+      {dayN && <span className="cal-day-badge">Dia {dayN}</span>}
       {ev.type === 'trip' && (
         <span style={{ fontSize:11, color:'#94a3b8', whiteSpace:'nowrap' }}>{fmtBR(ev.start)} – {fmtBR(ev.end)}</span>
       )}
@@ -61,7 +76,7 @@ function EventRow({ ev, onClick }) {
   )
 }
 
-function DayView({ events, onEvent }) {
+function DayView({ events, iso, onEvent, currentUserId }) {
   return (
     <div className="tcard">
       <div className="tcard-head">
@@ -71,8 +86,46 @@ function DayView({ events, onEvent }) {
         {events.length === 0 ? (
           <div className="empty-state"><p>Nenhum evento neste dia</p></div>
         ) : events.map(ev => (
-          <EventRow key={ev.id} ev={ev} onClick={ev.url ? () => onEvent(ev) : undefined} />
+          <EventRow key={ev.id} ev={ev} iso={iso} onClick={ev.url ? () => onEvent(ev) : undefined} currentUserId={currentUserId} />
         ))}
+      </div>
+    </div>
+  )
+}
+
+function LiveClock() {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <div className="cal-clock">
+      <Ic n="clock" s={20}/>
+      <span className="cal-clock-time">{now.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}</span>
+      <span className="cal-clock-date">{now.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' })}</span>
+    </div>
+  )
+}
+
+function TodayPanel({ todayEvents, todayISO, position, onFlip, onEvent, currentUserId }) {
+  return (
+    <div className="cal-side">
+      <LiveClock />
+      <div className="tcard">
+        <div className="tcard-head">
+          <span>Hoje · {fmtBR(todayISO)}</span>
+          <button className="cal-side-flip" onClick={onFlip} title="Mover painel para o outro lado">
+            {position === 'right' ? '«' : '»'}
+          </button>
+        </div>
+        <div style={{ padding:16 }}>
+          {todayEvents.length === 0 ? (
+            <div className="empty-state"><p>Nada para hoje</p></div>
+          ) : todayEvents.map(ev => (
+            <EventRow key={ev.id} ev={ev} iso={todayISO} onClick={ev.url ? () => onEvent(ev) : undefined} currentUserId={currentUserId} />
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -80,6 +133,7 @@ function DayView({ events, onEvent }) {
 
 export default function CalendarPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [anchor, setAnchor]       = useState(new Date())
   const [view, setView]           = useState('month')
   const [events, setEvents]       = useState([])
@@ -115,6 +169,15 @@ export default function CalendarPage() {
       .catch(() => toast.error('Erro ao carregar eventos do calendário'))
       .finally(() => setLoading(false))
   }, [startISO, endISO])
+
+  useEffect(() => {
+    agendaApi.getPrefs()
+      .then(r => setPrefs(r.data))
+      .catch(() => {
+        toast.error('Erro ao carregar preferências')
+        setPrefs(DEFAULT_PREFS)
+      })
+  }, [])
 
   const days = useMemo(() => {
     const arr = []
@@ -156,13 +219,7 @@ export default function CalendarPage() {
     if (ev.url) navigate(ev.url)
   }
 
-  const openPrefs = () => {
-    setPrefsOpen(true)
-    setPrefs(null)
-    agendaApi.getPrefs()
-      .then(r => setPrefs(r.data))
-      .catch(() => toast.error('Erro ao carregar preferências'))
-  }
+  const openPrefs = () => setPrefsOpen(true)
 
   const savePrefs = () => {
     setSavingPrefs(true)
@@ -180,11 +237,31 @@ export default function CalendarPage() {
       .finally(() => setSending(false))
   }
 
+  const toggleSidePanel = () => {
+    if (!prefs) return
+    const next = !prefs.side_panel_enabled
+    setPrefs(p => ({ ...p, side_panel_enabled: next }))
+    agendaApi.updatePrefs({ side_panel_enabled: next })
+      .catch(() => { toast.error('Erro ao salvar preferência'); setPrefs(p => ({ ...p, side_panel_enabled: !next })) })
+  }
+
+  const flipSidePanel = () => {
+    if (!prefs) return
+    const current = prefs.side_panel_position
+    const next = current === 'right' ? 'left' : 'right'
+    setPrefs(p => ({ ...p, side_panel_position: next }))
+    agendaApi.updatePrefs({ side_panel_position: next })
+      .catch(() => { toast.error('Erro ao salvar preferência'); setPrefs(p => ({ ...p, side_panel_position: current })) })
+  }
+
   return (
     <div>
       <div className="ph">
         <h1 className="ph-title">Calendário</h1>
         <div className="ph-actions">
+          <button className={`btn btn-outline ${prefs?.side_panel_enabled ? 'active' : ''}`} onClick={toggleSidePanel} disabled={!prefs}>
+            <Ic n="grid" s={14}/> Painel lateral
+          </button>
           <button className="btn btn-outline" onClick={openPrefs}>
             <Ic n="settings" s={14}/> Notificações
           </button>
@@ -206,59 +283,71 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div style={{ display:'flex', gap:16, marginBottom:14, fontSize:12.5, color:'#64748b' }}>
-        {Object.entries(TYPE_CFG).map(([k, c]) => (
-          <span key={k} style={{ display:'flex', alignItems:'center', gap:6 }}>
-            <span style={{ width:10, height:10, borderRadius:3, background:c.fg, display:'inline-block' }} />
-            {c.label}
-          </span>
-        ))}
-      </div>
+      <div className="cal-layout">
+        {prefs?.side_panel_enabled && prefs.side_panel_position === 'left' && (
+          <TodayPanel todayEvents={eventsForDay(todayISO)} todayISO={todayISO} position="left" onFlip={flipSidePanel} onEvent={goToEvent} currentUserId={user?.id} />
+        )}
 
-      {loading ? (
-        <p style={{ color:'#94a3b8', fontSize:14 }}>Carregando…</p>
-      ) : view === 'day' ? (
-        <DayView events={eventsForDay(toISO(anchor))} onEvent={goToEvent} />
-      ) : (
-        <div className="tcard">
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', borderBottom:'1px solid #e2e8f0' }}>
-            {WEEKDAYS.map(w => (
-              <div key={w} style={{ padding:'10px', textAlign:'center', fontSize:12, fontWeight:600, color:'#64748b' }}>{w}</div>
+        <div className="cal-main">
+          {/* Legend */}
+          <div style={{ display:'flex', gap:16, marginBottom:14, fontSize:12.5, color:'#64748b' }}>
+            {Object.entries(TYPE_CFG).map(([k, c]) => (
+              <span key={k} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{ width:10, height:10, borderRadius:3, background:c.fg, display:'inline-block' }} />
+                {c.label}
+              </span>
             ))}
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
-            {days.map(d => {
-              const iso       = toISO(d)
-              const dayEvents = eventsForDay(iso)
-              const isToday   = iso === todayISO
-              const inMonth   = view === 'week' || d.getMonth() === anchor.getMonth()
-              const maxChips  = view === 'week' ? 6 : 3
-              return (
-                <div key={iso}
-                  onClick={() => setDayModal(iso)}
-                  style={{
-                    minHeight: view === 'week' ? 220 : 100, minWidth:0, padding:6,
-                    borderRight:'1px solid #f1f5f9', borderBottom:'1px solid #f1f5f9',
-                    background: isToday ? '#eff6ff' : '#fff',
-                    opacity: inMonth ? 1 : .4, cursor:'pointer', overflow:'hidden',
-                  }}>
-                  <div style={{ fontSize:12, fontWeight: isToday ? 700 : 500, color: isToday ? '#2e6db4' : '#1e293b', marginBottom:4 }}>
-                    {view === 'week' && <span style={{ marginRight:4, color:'#94a3b8' }}>{WEEKDAYS[d.getDay()]}</span>}
-                    {d.getDate()}
-                  </div>
-                  {dayEvents.slice(0, maxChips).map(ev => (
-                    <EventChip key={ev.id} ev={ev} onClick={(e) => { e.stopPropagation(); goToEvent(ev) }} />
-                  ))}
-                  {dayEvents.length > maxChips && (
-                    <div style={{ fontSize:11, color:'#94a3b8' }}>+{dayEvents.length - maxChips} mais</div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+
+          {loading ? (
+            <p style={{ color:'#94a3b8', fontSize:14 }}>Carregando…</p>
+          ) : view === 'day' ? (
+            <DayView events={eventsForDay(toISO(anchor))} iso={toISO(anchor)} onEvent={goToEvent} currentUserId={user?.id} />
+          ) : (
+            <div className="tcard">
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', borderBottom:'1px solid #e2e8f0' }}>
+                {WEEKDAYS.map(w => (
+                  <div key={w} style={{ padding:'10px', textAlign:'center', fontSize:12, fontWeight:600, color:'#64748b' }}>{w}</div>
+                ))}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
+                {days.map(d => {
+                  const iso       = toISO(d)
+                  const dayEvents = eventsForDay(iso)
+                  const isToday   = iso === todayISO
+                  const inMonth   = view === 'week' || d.getMonth() === anchor.getMonth()
+                  const maxChips  = view === 'week' ? 6 : 3
+                  return (
+                    <div key={iso}
+                      onClick={() => setDayModal(iso)}
+                      className={`cal-cell ${isToday ? 'today' : ''}`}
+                      style={{
+                        minHeight: view === 'week' ? 220 : 100, minWidth:0, padding:6,
+                        borderRight:'1px solid #f1f5f9', borderBottom:'1px solid #f1f5f9',
+                        opacity: inMonth ? 1 : .4, cursor:'pointer', overflow:'hidden',
+                      }}>
+                      <div style={{ fontSize:12, fontWeight: isToday ? 700 : 500, color: isToday ? '#2e6db4' : '#1e293b', marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
+                        {view === 'week' && <span style={{ color:'#94a3b8' }}>{WEEKDAYS[d.getDay()]}</span>}
+                        {isToday ? <span className="cal-today-badge">{d.getDate()}</span> : d.getDate()}
+                      </div>
+                      {dayEvents.slice(0, maxChips).map(ev => (
+                        <EventChip key={ev.id} ev={ev} iso={iso} onClick={(e) => { e.stopPropagation(); goToEvent(ev) }} />
+                      ))}
+                      {dayEvents.length > maxChips && (
+                        <div style={{ fontSize:11, color:'#94a3b8' }}>+{dayEvents.length - maxChips} mais</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {prefs?.side_panel_enabled && prefs.side_panel_position === 'right' && (
+          <TodayPanel todayEvents={eventsForDay(todayISO)} todayISO={todayISO} position="right" onFlip={flipSidePanel} onEvent={goToEvent} currentUserId={user?.id} />
+        )}
+      </div>
 
       {/* Detalhe do dia */}
       {dayModal && (
@@ -272,7 +361,7 @@ export default function CalendarPage() {
               {eventsForDay(dayModal).length === 0 ? (
                 <div className="empty-state"><p>Nenhum evento neste dia</p></div>
               ) : eventsForDay(dayModal).map(ev => (
-                <EventRow key={ev.id} ev={ev} onClick={ev.url ? () => goToEvent(ev) : undefined} />
+                <EventRow key={ev.id} ev={ev} iso={dayModal} onClick={ev.url ? () => goToEvent(ev) : undefined} currentUserId={user?.id} />
               ))}
             </div>
           </div>

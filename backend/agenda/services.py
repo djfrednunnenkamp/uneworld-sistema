@@ -57,6 +57,7 @@ def collect_events(start: date, end: date, user=None):
             'start':    en.pending_until.isoformat(),
             'end':      en.pending_until.isoformat(),
             'url':      f'/viagens/{en.passenger_list_id}',
+            'created_by_id': creator.id if creator else None,
         })
 
     # ── Aniversários dos passageiros ──

@@ -157,6 +157,60 @@ fieldset:disabled { opacity: .75; }
 .cep-btn:disabled { opacity: .6; cursor: not-allowed; }
 .det-card { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 22px 24px; margin-bottom: 18px; }
 
+/* ── Calendário ── */
+.cal-layout { display: flex; gap: 16px; align-items: flex-start; }
+.cal-main { flex: 1; min-width: 0; }
+
+.cal-cell { background: #fff; transition: background .12s; }
+.cal-cell.today { background: #eff6ff; }
+.cal-cell:hover { background: #f8fafc; }
+.cal-cell.today:hover { background: #e3edfb; }
+
+.cal-chip { transition: transform .12s, box-shadow .12s; }
+.cal-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.10); }
+
+.cal-row { transition: border-color .12s, background .12s; }
+.cal-row:hover { border-color: #cbd5e1; background: #f8fafc; }
+
+.cal-today-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #2e6db4; color: #fff; font-weight: 700;
+}
+
+/* Painel lateral */
+.cal-side { width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; animation: mIn .18s ease; }
+
+.cal-clock {
+  background: #1a2d4f; color: #fff; border-radius: 10px; padding: 18px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.cal-clock-time { font-size: 28px; font-weight: 700; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.cal-clock-date { font-size: 12px; color: rgba(255,255,255,.62); text-transform: capitalize; }
+
+.cal-side-flip {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; color: #94a3b8;
+  cursor: pointer; transition: all .12s; font-size: 13px; flex-shrink: 0;
+}
+.cal-side-flip:hover { border-color: #2e6db4; color: #2e6db4; background: #e8f0fb; }
+
+/* Badge "Você" / "Dia N" */
+.cal-you-badge {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; background: #e8f0fb; color: #2e6db4;
+  text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
+}
+.cal-day-badge {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; background: #f1f5f9; color: #475569; white-space: nowrap;
+}
+
+/* Toggle "Painel lateral" ativo no toolbar */
+.btn-outline.active { border-color: #2e6db4; color: #2e6db4; background: #e8f0fb; }
+.btn-outline.active:hover { border-color: #2e6db4; color: #2e6db4; background: #e0eafa; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+
 /* ── Animação do tooltip de cópia ── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateX(-50%) translateY(4px); }
