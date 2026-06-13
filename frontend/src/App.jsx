@@ -12,7 +12,6 @@ import Agencies        from './pages/Agencies'
 import AgencyDetail    from './pages/AgencyDetail'
 import Trips           from './pages/Trips'
 import TripDetail      from './pages/TripDetail'
-import Meetings        from './pages/Meetings'
 import Users           from './pages/Users'
 import Settings        from './pages/Settings'
 import GeoImport       from './pages/GeoImport'
@@ -48,7 +47,6 @@ function AppRoutes() {
         <Route path="agencias/:id"        element={<AgencyDetail    />} />
         <Route path="viagens"             element={<Trips           />} />
         <Route path="viagens/:id"         element={<TripDetail      />} />
-        <Route path="reunioes"            element={<Meetings        />} />
         <Route path="usuarios"            element={<Users           />} />
         <Route path="configuracoes"        element={<Settings        />} />
         <Route path="configuracoes/geo-import"   element={<GeoImport   />} />

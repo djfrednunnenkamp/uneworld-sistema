@@ -15,7 +15,6 @@ const TYPE_LABEL = { aereo: 'Via Aéreo', terrestre: 'Via Terrestre' }
 const STATS_CFG = [
   { key: 'total_passengers', label: 'Passageiros',   nav: '/passageiros', color: '#e8f0fb', ico: '#2e6db4', icon: 'users',    perm: 'dashboard_view_passengers'  },
   { key: 'open_lists',       label: 'Listas Abertas', nav: '/viagens',    color: '#dcfce7', ico: '#15803d', icon: 'plane',    perm: 'dashboard_view_lists'       },
-  { key: 'upcoming_meetings',label: 'Reuniões',       nav: '/reunioes',   color: '#ede9fe', ico: '#7c3aed', icon: 'calendar', perm: 'dashboard_view_meetings'    },
   { key: 'total_enrollments',label: 'Inscrições',     nav: '/viagens',    color: '#dbeafe', ico: '#1d4ed8', icon: 'users',    perm: 'dashboard_view_enrollments' },
 ]
 
@@ -52,7 +51,7 @@ export default function Dashboard() {
     )
   }
 
-  const { stats, upcoming_meetings, recent_lists } = data
+  const { stats, recent_lists } = data
 
   return (
     <div>
@@ -119,38 +118,6 @@ export default function Dashboard() {
           </tbody>
         </table>
       </div>
-      )}
-
-      {/* ── Upcoming meetings ── */}
-      {can('dashboard_view_meetings') && upcoming_meetings.length > 0 && (
-        <div className="tcard" style={{ marginTop: 16 }}>
-          <div className="tcard-head">
-            <span>Próximas reuniões</span>
-            <button className="btn btn-outline" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => navigate('/reunioes')}>
-              Ver todas
-            </button>
-          </div>
-          <table className="dt">
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Data</th>
-                <th>Local</th>
-                <th>Participantes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {upcoming_meetings.slice(0, 4).map((m) => (
-                <tr key={m.id}>
-                  <td><span className="t-name">{m.title}</span></td>
-                  <td>{new Date(m.scheduled_at).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className="t-muted">{m.location || '—'}</td>
-                  <td>{m.participant_count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
     </div>
   )

@@ -64,15 +64,6 @@ export const listsApi = {
   removeRoteiro:    (id)          => api.delete(`/trips/roteiros/${id}/`),
 }
 
-export const meetingsApi = {
-  list: (params) => api.get('/meetings/', { params }),
-  get: (id) => api.get(`/meetings/${id}/`),
-  create: (data) => api.post('/meetings/', data),
-  update: (id, data) => api.put(`/meetings/${id}/`, data),
-  remove: (id) => api.delete(`/meetings/${id}/`),
-  upcoming: () => api.get('/meetings/upcoming/'),
-}
-
 export const agenciesApi = {
   list:          (params) => api.get('/agencies/', { params }),
   get:           (id)     => api.get(`/agencies/${id}/`),

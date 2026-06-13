@@ -17,7 +17,6 @@ const MODEL_OPTS = [
   { value: 'PassengerDocument', label: 'Documento'         },
   { value: 'Agency',            label: 'Agência'           },
   { value: 'Trip',              label: 'Viagem'            },
-  { value: 'Meeting',           label: 'Reunião'           },
   { value: 'User',              label: 'Usuário'           },
   { value: 'CustomDocType',     label: 'Tipo de documento' },
   { value: 'ConfigProfession',  label: 'Profissão'         },

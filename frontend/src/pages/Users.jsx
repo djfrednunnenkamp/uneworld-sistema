@@ -14,7 +14,6 @@ const PERM_GROUPS = [
     items: [
       ['dashboard_view_passengers',  'Ver total de passageiros'],
       ['dashboard_view_lists',       'Ver total de listas abertas'],
-      ['dashboard_view_meetings',    'Ver total de reuniões'],
       ['dashboard_view_enrollments', 'Ver total de inscrições'],
     ],
   },

@@ -5,7 +5,6 @@ PERMISSION_FIELDS = [
     # Visão Geral (Dashboard)
     'dashboard_view_passengers',
     'dashboard_view_lists',
-    'dashboard_view_meetings',
     'dashboard_view_enrollments',
     # Passageiros
     'passengers_view_basic',

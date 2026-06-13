@@ -31,7 +31,6 @@ class UserPermissions(models.Model):
     # Visão Geral (Dashboard)
     dashboard_view_passengers  = models.BooleanField(default=False)
     dashboard_view_lists       = models.BooleanField(default=False)
-    dashboard_view_meetings    = models.BooleanField(default=False)
     dashboard_view_enrollments = models.BooleanField(default=False)
 
     # Passageiros

@@ -17,7 +17,6 @@ TRACKED_MODELS = {
     'ListEnrollment':     'Passageiro na lista',
     'Supplier':           'Fornecedor',
     'ListAdditional':     'Adicional',
-    'Meeting':            'Reunião',
     'CustomDocType':      'Tipo de documento',
     'CustomDocField':     'Campo de documento',
     'ConfigProfession':     'Profissão',
