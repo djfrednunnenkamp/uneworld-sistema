@@ -175,6 +175,7 @@ class ListEnrollment(models.Model):
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
     enrollment_status  = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente', db_index=True)
     pending_until      = models.DateField('Pendente até', null=True, blank=True)
+    pending_until_created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Prazo definido por')
     pending_reason     = models.TextField('Motivo da pendência', blank=True)
     departure_airport  = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='enrollments', verbose_name='Aeroporto de saída')
     TICKET_STATUS = [

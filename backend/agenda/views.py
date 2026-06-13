@@ -13,7 +13,7 @@ from .services import collect_events, send_digest_email
 
 
 @api_view(['GET'])
-@permission_classes([RequirePermission('lists_view')])
+@permission_classes([RequirePermission('calendar_view')])
 def calendar_events(request):
     start_str = request.query_params.get('start')
     end_str   = request.query_params.get('end')
@@ -25,7 +25,7 @@ def calendar_events(request):
     except ValueError:
         return Response({'detail': 'Datas inválidas. Use o formato YYYY-MM-DD.'}, status=400)
 
-    return Response({'events': collect_events(start, end)})
+    return Response({'events': collect_events(start, end, request.user)})
 
 
 class CalendarPreferenceView(APIView):

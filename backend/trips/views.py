@@ -189,7 +189,8 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                     is_block=True, is_provisional=bool(is_provisional), block_agency=agency_name,
                     agency=agency_obj, responsible_user=resp_user,
                     accommodation=accommodation, enrollment_status=estatus,
-                    pending_until=pending_until, pending_reason=pending_reason, notes=notes,
+                    pending_until=pending_until, pending_until_created_by=(request.user if pending_until else None),
+                    pending_reason=pending_reason, notes=notes,
                 )
                 created.append(ListEnrollmentSerializer(e).data)
             return Response(created, status=201)
@@ -353,7 +354,10 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                       'ticket_status', 'connection_ticket_status'):
             if field in request.data:
                 val = request.data[field]
-                setattr(e, field, (val or None) if field == 'pending_until' else val)
+                if field == 'pending_until':
+                    val = val or None
+                    e.pending_until_created_by = request.user if val else None
+                setattr(e, field, val)
         if 'departure_airport' in request.data:
             e.departure_airport_id = request.data['departure_airport'] or None
         if 'selected_passport' in request.data:

@@ -75,6 +75,15 @@ const PERM_GROUPS = [
     ],
   },
   {
+    title: 'Calendário',
+    icon: 'calendar',
+    items: [
+      ['calendar_view',               'Acessar o calendário'],
+      ['calendar_view_birthdays',     'Ver aniversários de passageiros'],
+      ['calendar_view_all_deadlines', 'Ver prazos de confirmação de todos os usuários'],
+    ],
+  },
+  {
     title: 'Administração',
     icon: 'settings',
     items: [
@@ -108,6 +117,9 @@ const PERM_DEPENDENCIES = {
   agencies_edit:      'agencies_view',
   agencies_delete:    'agencies_view',
   agencies_view_logs: 'agencies_view',
+
+  calendar_view_birthdays:     'calendar_view',
+  calendar_view_all_deadlines: 'calendar_view',
 }
 
 /* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente).
@@ -150,7 +162,9 @@ const GRID_GROUPS     = PERM_GROUPS.filter(g => g.title !== 'Administração')
 const ADMIN_PERM_KEYS = groupItems(ADMIN_GROUP).map(([k]) => k)
 const EMPTY_PERMISSIONS = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, false]))
 const PRESET_ADMIN      = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, true]))
-const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !ADMIN_PERM_KEYS.includes(k)]))
+/* "Ver prazos de todos" expõe dados de outras pessoas: mesmo no preset "Usuário" começa desligada */
+const PRESET_USER_OFF   = ['calendar_view_all_deadlines']
+const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !ADMIN_PERM_KEYS.includes(k) && !PRESET_USER_OFF.includes(k)]))
 
 const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_active:true, is_superuser:false, permissions: { ...EMPTY_PERMISSIONS } }
 

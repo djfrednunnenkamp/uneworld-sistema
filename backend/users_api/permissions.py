@@ -34,6 +34,10 @@ PERMISSION_FIELDS = [
     'manage_users',
     'manage_settings',
     'view_audit_log',
+    # Calendário
+    'calendar_view',
+    'calendar_view_birthdays',
+    'calendar_view_all_deadlines',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"

@@ -67,6 +67,11 @@ class UserPermissions(models.Model):
     manage_settings  = models.BooleanField(default=False)
     view_audit_log   = models.BooleanField(default=False)
 
+    # Calendário
+    calendar_view              = models.BooleanField(default=False)
+    calendar_view_birthdays    = models.BooleanField(default=False)
+    calendar_view_all_deadlines = models.BooleanField(default=False)
+
     class Meta:
         verbose_name = 'Permissões de usuário'
         verbose_name_plural = 'Permissões de usuários'
