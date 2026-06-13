@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'dashboard',
     'config_api',
     'audit',
+    'agenda',
 ]
 
 MIDDLEWARE = [

@@ -17,6 +17,7 @@ import Settings        from './pages/Settings'
 import GeoImport       from './pages/GeoImport'
 import AuditLog        from './pages/AuditLog'
 import FlatImport      from './pages/FlatImport'
+import CalendarPage    from './pages/Calendar'
 
 /* Protege rotas — redireciona para /login se não autenticado */
 function ProtectedRoute({ children }) {
@@ -47,6 +48,7 @@ function AppRoutes() {
         <Route path="agencias/:id"        element={<AgencyDetail    />} />
         <Route path="viagens"             element={<Trips           />} />
         <Route path="viagens/:id"         element={<TripDetail      />} />
+        <Route path="calendario"          element={<CalendarPage    />} />
         <Route path="usuarios"            element={<Users           />} />
         <Route path="configuracoes"        element={<Settings        />} />
         <Route path="configuracoes/geo-import"   element={<GeoImport   />} />

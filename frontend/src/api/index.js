@@ -107,6 +107,13 @@ export const auditApi = {
   list: (params) => api.get('/audit/logs/', { params }),
 }
 
+export const agendaApi = {
+  events:        (start, end) => api.get('/agenda/events/', { params: { start, end } }),
+  getPrefs:      ()           => api.get('/agenda/preferences/'),
+  updatePrefs:   (data)       => api.patch('/agenda/preferences/', data),
+  sendNow:       ()           => api.post('/agenda/send-now/'),
+}
+
 export const configApi = {
   // Profissões
   professions:       ()     => api.get('/config/professions/'),

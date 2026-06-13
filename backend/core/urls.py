@@ -13,4 +13,5 @@ urlpatterns = [
     path('api/trips/', include('trips.urls')),
     path('api/config/',   include('config_api.urls')),
     path('api/audit/',    include('audit.urls')),
+    path('api/agenda/',   include('agenda.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

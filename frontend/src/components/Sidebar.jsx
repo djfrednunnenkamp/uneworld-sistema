@@ -7,6 +7,7 @@ const NAV_BASE = [
   { id: '/passageiros',icon: 'users',    label: 'Passageiros', group: 'GESTÃO', perms: ['passengers_view_basic', 'passengers_view_full'] },
   { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', perms: ['agencies_view'] },
   { id: '/viagens',    icon: 'plane',    label: 'Listas de Passageiros',      group: 'GESTÃO', perms: ['lists_view'] },
+  { id: '/calendario', icon: 'calendar', label: 'Calendário',  group: 'GESTÃO', perms: ['lists_view'] },
   { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA', perms: ['manage_users']    },
   { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA', perms: ['manage_settings'] },
   { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA', perms: ['view_audit_log']  },
