@@ -498,7 +498,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
             {/* Capacidade + Acomodações */}
             <div style={row2}>
               <div>
-                <label style={lbl}>Capacidade do bloqueio</label>
+                <label style={lbl}>{form.list_type === 'terrestre' ? 'Capacidade do ônibus' : 'Capacidade do bloqueio'}</label>
                 <input type="number" min="0" value={form.block_capacity} onChange={set('block_capacity')} style={inp} />
               </div>
               <div>
