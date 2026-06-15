@@ -3718,6 +3718,8 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
   // seatMapModal: null | { enrollment: objeto | null } — popup "Mapa de ônibus" (null = visualização)
   const [seatMapModal,    setSeatMapModal]    = useState(null)
   const [busMap,          setBusMap]          = useState(null)
+  // busSeatTip: null | { text, rect } — tooltip do ícone de assento na lista de passageiros
+  const [busSeatTip,      setBusSeatTip]      = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -4234,15 +4236,18 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
                       )
                     })() : (() => {
                       const hasSeat = !!e.seat
-                      const c = hasSeat ? '22,163,74' : '148,163,184'
+                      const c = hasSeat ? '22,163,74' : '220,38,38'
                       const a = hasSeat ? '.38' : '.22'
                       const grad = `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
+                      const tipText = hasSeat ? `Assento ${e.seat}` : 'Sem assento'
                       return (
                         <div style={{ display:'flex', justifyContent:'center' }}>
                           <button type="button" onClick={() => setSeatMapModal({ enrollment: e })}
+                            onMouseEnter={ev => setBusSeatTip({ text: tipText, rect: ev.currentTarget.getBoundingClientRect() })}
+                            onMouseLeave={() => setBusSeatTip(null)}
                             title={hasSeat ? `Assento ${e.seat}` : 'Informar o assento'}
                             style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:grad, border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
-                            <span style={{ fontSize:11, lineHeight:1, color: hasSeat ? '#16a34a' : '#94a3b8' }}>🚌</span>
+                            <span style={{ fontSize:11, lineHeight:1, color: hasSeat ? '#16a34a' : '#dc2626' }}>🚌</span>
                           </button>
                         </div>
                       )
@@ -4544,6 +4549,24 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
           onSaved={load}
           onClose={() => setBoardingModal(null)}
         />
+      )}
+
+      {/* Tooltip do ícone de assento na lista de passageiros */}
+      {busSeatTip && createPortal(
+        <div style={{
+          position:'fixed', zIndex:9999, pointerEvents:'none',
+          top: busSeatTip.rect.top - 8, left: busSeatTip.rect.left + busSeatTip.rect.width / 2,
+          transform:'translate(-50%, -100%)',
+          background:'#1e293b', color:'#fff', fontSize:12, fontWeight:600,
+          padding:'5px 10px', borderRadius:6, whiteSpace:'nowrap',
+          boxShadow:'0 4px 12px rgba(0,0,0,.18)',
+        }}>
+          {busSeatTip.text}
+          <div style={{ position:'absolute', bottom:-4, left:'50%', transform:'translateX(-50%)', width:8, height:8, overflow:'hidden' }}>
+            <div style={{ width:8, height:8, background:'#1e293b', transform:'rotate(45deg) translateY(-50%)' }} />
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Popover rápido de aeroporto de embarque */}
