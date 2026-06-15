@@ -4991,6 +4991,110 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
   )
 }
 
+/* ── Aba de Origens (apenas terrestre) ── */
+function OriginGroupCard({ title, subtitle, count, passengers }) {
+  return (
+    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'12px 14px', background:'#fff' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: subtitle ? 2 : 8 }}>
+        <span style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{title}</span>
+        <span className="badge bg-green">{count}</span>
+      </div>
+      {subtitle && <div style={{ fontSize:12, color:'#64748b', marginBottom:8 }}>{subtitle}</div>}
+      <ul style={{ margin:0, paddingLeft:18, fontSize:12.5, color:'#475569', display:'flex', flexDirection:'column', gap:2 }}>
+        {passengers.map(p => <li key={p.id}>{p.passenger_name || '—'}</li>)}
+      </ul>
+    </div>
+  )
+}
+
+function OriginsTab({ enrolled, list }) {
+  const departureCity    = list.departure_city_data
+  const departureState   = list.departure_state_data
+  const departureCountry = list.departure_country_data
+
+  const withOrigin = enrolled.filter(e => !e.is_block && e.origin_mode)
+
+  const busGroups   = []
+  const planeGroups = []
+  withOrigin.forEach(e => {
+    if (e.origin_mode === 'bus') {
+      const city = e.origin_city_data
+      const key  = city ? `c${city.id}` : 'sem-cidade'
+      let g = busGroups.find(x => x.key === key)
+      if (!g) { g = { key, city, state: e.origin_state_data, country: e.origin_country_data, passengers: [] }; busGroups.push(g) }
+      g.passengers.push(e)
+    } else if (e.origin_mode === 'plane') {
+      const ap  = e.origin_airport_data
+      const key = ap ? `a${ap.id}` : 'sem-aeroporto'
+      let g = planeGroups.find(x => x.key === key)
+      if (!g) { g = { key, airport: ap, passengers: [] }; planeGroups.push(g) }
+      g.passengers.push(e)
+    }
+  })
+
+  busGroups.sort((a, b) => (a.city?.name || '').localeCompare(b.city?.name || ''))
+  planeGroups.sort((a, b) => (a.airport?.name || '').localeCompare(b.airport?.name || ''))
+
+  const departureLabel = departureCity
+    ? [departureCity.name, departureState?.name, departureCountry?.name].filter(Boolean).join(' — ')
+    : null
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'12px 20px', boxShadow:'0 1px 4px rgba(0,0,0,.04)', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+        <div>
+          <p style={{ margin:'0 0 2px', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.05em' }}>Saída padrão da lista</p>
+          <p style={{ margin:0, fontSize:14, fontWeight:600, color:'#1e293b' }}>{departureLabel || 'Não definida'}</p>
+        </div>
+        <div style={{ flex:1 }} />
+        <span className="badge bg-amber">{withOrigin.length} passageiro(s) com origem diferente</span>
+      </div>
+
+      {withOrigin.length === 0 ? (
+        <div className="tcard"><div className="empty-state"><p>Todos os passageiros saem da cidade padrão da lista.</p></div></div>
+      ) : (
+        <>
+          {busGroups.length > 0 && (
+            <div className="tcard">
+              <div className="tcard-head">
+                <span>🚌 Saindo de outras cidades</span>
+                <span className="badge bg-blue">{busGroups.reduce((s, g) => s + g.passengers.length, 0)}</span>
+              </div>
+              <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:12 }}>
+                {busGroups.map(g => (
+                  <OriginGroupCard key={g.key}
+                    title={g.city?.name || 'Cidade não informada'}
+                    subtitle={[g.state?.name, g.country?.name].filter(Boolean).join(' — ') || null}
+                    count={g.passengers.length}
+                    passengers={g.passengers} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {planeGroups.length > 0 && (
+            <div className="tcard">
+              <div className="tcard-head">
+                <span>✈ Saindo de outros aeroportos</span>
+                <span className="badge bg-blue">{planeGroups.reduce((s, g) => s + g.passengers.length, 0)}</span>
+              </div>
+              <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:12 }}>
+                {planeGroups.map(g => (
+                  <OriginGroupCard key={g.key}
+                    title={g.airport ? (g.airport.iata_code || g.airport.name) : 'Aeroporto não informado'}
+                    subtitle={g.airport ? [g.airport.name, [g.airport.city, g.airport.country].filter(Boolean).join(', ')].filter(Boolean).join(' — ') : null}
+                    count={g.passengers.length}
+                    passengers={g.passengers} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 /* ── Aba de Voos ── */
 function FlightsTab({ listId, list, onListUpdate }) {
   const [enrolled, setEnrolled] = useState([])
@@ -5252,6 +5356,7 @@ export default function TripDetail() {
   const TABS = [
     { key:'passengers', label:'Passageiros' },
     ...(list.list_type === 'aereo' ? [{ key:'voos', label:'Voos' }] : []),
+    ...(list.list_type === 'terrestre' ? [{ key:'origens', label:'Origens' }] : []),
   ]
 
   // Pode ficar negativo — significa que foram vendidas mais vagas do que o bloqueio permite
@@ -5350,6 +5455,8 @@ export default function TripDetail() {
       {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} busMapId={list.bus_map} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
 
 {tab === 'voos' && <FlightsTab listId={id} list={list} onListUpdate={setList} />}
+
+      {tab === 'origens' && <OriginsTab enrolled={paxData.enrolled} list={list} />}
 
       {/* Modal de impressão / download */}
       {showPrint && (
