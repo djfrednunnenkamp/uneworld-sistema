@@ -4992,22 +4992,52 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
 }
 
 /* ── Aba de Origens (apenas terrestre) ── */
-function OriginGroupCard({ title, subtitle, count, passengers }) {
+function OriginRow({ title, subtitle, count, passengers }) {
   return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'12px 14px', background:'#fff' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: subtitle ? 2 : 8 }}>
+    <div style={{ border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 12px' }}>
+      <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
         <span style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{title}</span>
+        {subtitle && <span style={{ fontSize:12, color:'#64748b' }}>{subtitle}</span>}
+        <div style={{ flex:1 }} />
         <span className="badge bg-green">{count}</span>
       </div>
-      {subtitle && <div style={{ fontSize:12, color:'#64748b', marginBottom:8 }}>{subtitle}</div>}
-      <ul style={{ margin:0, paddingLeft:18, fontSize:12.5, color:'#475569', display:'flex', flexDirection:'column', gap:2 }}>
-        {passengers.map(p => <li key={p.id}>{p.passenger_name || '—'}</li>)}
-      </ul>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:8 }}>
+        {passengers.map(p => (
+          <span key={p.id} className="badge bg-blue" style={{ fontWeight:500 }}>{p.passenger_name || '—'}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OriginColumn({ icon, title, total, search, onSearch, placeholder, rows, emptyText }) {
+  return (
+    <div className="tcard">
+      <div className="tcard-head">
+        <span>{icon} {title}</span>
+        <span className="badge bg-blue">{total}</span>
+      </div>
+      <div style={{ padding:'12px 16px', borderBottom:'1px solid #e2e8f0' }}>
+        <div className="search-wrap" style={{ maxWidth:'none' }}>
+          <span className="search-ico"><Ic n="search" s={14}/></span>
+          <input className="search-in" placeholder={placeholder} value={search} onChange={e => onSearch(e.target.value)} />
+        </div>
+      </div>
+      <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+        {rows.length === 0 ? (
+          <div className="empty-state" style={{ padding:'24px 0' }}><p>{emptyText}</p></div>
+        ) : rows.map(r => (
+          <OriginRow key={r.key} title={r.title} subtitle={r.subtitle} count={r.passengers.length} passengers={r.passengers} />
+        ))}
+      </div>
     </div>
   )
 }
 
 function OriginsTab({ enrolled, list }) {
+  const [busSearch, setBusSearch]     = useState('')
+  const [planeSearch, setPlaneSearch] = useState('')
+
   const departureCity    = list.departure_city_data
   const departureState   = list.departure_state_data
   const departureCountry = list.departure_country_data
@@ -5039,6 +5069,32 @@ function OriginsTab({ enrolled, list }) {
     ? [departureCity.name, departureState?.name, departureCountry?.name].filter(Boolean).join(' — ')
     : null
 
+  const matchesSearch = (query, title, subtitle, passengers) => {
+    if (!query) return true
+    const needle = query.toLowerCase()
+    if (title.toLowerCase().includes(needle)) return true
+    if (subtitle && subtitle.toLowerCase().includes(needle)) return true
+    return passengers.some(p => (p.passenger_name || '').toLowerCase().includes(needle))
+  }
+
+  const busRows = busGroups
+    .map(g => ({
+      key: g.key,
+      title: g.city?.name || 'Cidade não informada',
+      subtitle: [g.state?.name, g.country?.name].filter(Boolean).join(' — ') || null,
+      passengers: g.passengers,
+    }))
+    .filter(r => matchesSearch(busSearch, r.title, r.subtitle, r.passengers))
+
+  const planeRows = planeGroups
+    .map(g => ({
+      key: g.key,
+      title: g.airport ? (g.airport.iata_code || g.airport.name) : 'Aeroporto não informado',
+      subtitle: g.airport ? [g.airport.name, [g.airport.city, g.airport.country].filter(Boolean).join(', ')].filter(Boolean).join(' — ') : null,
+      passengers: g.passengers,
+    }))
+    .filter(r => matchesSearch(planeSearch, r.title, r.subtitle, r.passengers))
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'12px 20px', boxShadow:'0 1px 4px rgba(0,0,0,.04)', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
@@ -5053,43 +5109,24 @@ function OriginsTab({ enrolled, list }) {
       {withOrigin.length === 0 ? (
         <div className="tcard"><div className="empty-state"><p>Todos os passageiros saem da cidade padrão da lista.</p></div></div>
       ) : (
-        <>
-          {busGroups.length > 0 && (
-            <div className="tcard">
-              <div className="tcard-head">
-                <span>🚌 Saindo de outras cidades</span>
-                <span className="badge bg-blue">{busGroups.reduce((s, g) => s + g.passengers.length, 0)}</span>
-              </div>
-              <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:12 }}>
-                {busGroups.map(g => (
-                  <OriginGroupCard key={g.key}
-                    title={g.city?.name || 'Cidade não informada'}
-                    subtitle={[g.state?.name, g.country?.name].filter(Boolean).join(' — ') || null}
-                    count={g.passengers.length}
-                    passengers={g.passengers} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {planeGroups.length > 0 && (
-            <div className="tcard">
-              <div className="tcard-head">
-                <span>✈ Saindo de outros aeroportos</span>
-                <span className="badge bg-blue">{planeGroups.reduce((s, g) => s + g.passengers.length, 0)}</span>
-              </div>
-              <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:12 }}>
-                {planeGroups.map(g => (
-                  <OriginGroupCard key={g.key}
-                    title={g.airport ? (g.airport.iata_code || g.airport.name) : 'Aeroporto não informado'}
-                    subtitle={g.airport ? [g.airport.name, [g.airport.city, g.airport.country].filter(Boolean).join(', ')].filter(Boolean).join(' — ') : null}
-                    count={g.passengers.length}
-                    passengers={g.passengers} />
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, alignItems:'start' }}>
+          <OriginColumn
+            icon="🚌" title="Saindo de outras cidades"
+            total={busGroups.reduce((s, g) => s + g.passengers.length, 0)}
+            search={busSearch} onSearch={setBusSearch}
+            placeholder="Buscar cidade ou passageiro…"
+            rows={busRows}
+            emptyText={busGroups.length === 0 ? 'Nenhum passageiro saindo de outra cidade.' : 'Nenhum resultado encontrado'}
+          />
+          <OriginColumn
+            icon="✈" title="Saindo de outros aeroportos"
+            total={planeGroups.reduce((s, g) => s + g.passengers.length, 0)}
+            search={planeSearch} onSearch={setPlaneSearch}
+            placeholder="Buscar aeroporto ou passageiro…"
+            rows={planeRows}
+            emptyText={planeGroups.length === 0 ? 'Nenhum passageiro saindo de outro aeroporto.' : 'Nenhum resultado encontrado'}
+          />
+        </div>
       )}
     </div>
   )
