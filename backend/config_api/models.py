@@ -221,7 +221,6 @@ class BusMap(models.Model):
     order      = models.PositiveIntegerField('Ordem', default=0)
     is_active  = models.BooleanField('Ativo', default=True)
     deck_count = models.PositiveSmallIntegerField('Andares do ônibus', choices=DECK_COUNT_CHOICES, default=1)
-    deck       = models.PositiveSmallIntegerField('Andar', default=1)
 
     class Meta:
         ordering = ['order', 'label']
@@ -233,8 +232,12 @@ class BusMap(models.Model):
 
 
 class BusMapRow(models.Model):
-    """Fileira de assentos de um mapa de ônibus: N à esquerda do corredor, M à direita."""
+    """Fileira de assentos de um mapa de ônibus: N à esquerda do corredor, M à direita.
+    Quando o mapa tem dois andares (BusMap.deck_count == 2), cada fileira pertence a um deles."""
+    DECK_CHOICES = [(1, '1º andar'), (2, '2º andar')]
+
     bus_map      = models.ForeignKey(BusMap, on_delete=models.CASCADE, related_name='rows')
+    deck         = models.PositiveSmallIntegerField('Andar', choices=DECK_CHOICES, default=1)
     order        = models.PositiveIntegerField('Ordem', default=0)
     left_seats   = models.PositiveSmallIntegerField('Assentos à esquerda', default=2)
     right_seats  = models.PositiveSmallIntegerField('Assentos à direita', default=2)

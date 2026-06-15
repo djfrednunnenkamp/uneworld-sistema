@@ -910,7 +910,7 @@ class AirlineViewSet(viewsets.ModelViewSet):
 class BusMapRowSerializer(serializers.ModelSerializer):
     class Meta:
         model  = BusMapRow
-        fields = ['id', 'order', 'left_seats', 'right_seats', 'left_labels', 'right_labels']
+        fields = ['id', 'deck', 'order', 'left_seats', 'right_seats', 'left_labels', 'right_labels']
 
 
 class BusMapSerializer(serializers.ModelSerializer):
@@ -918,12 +918,12 @@ class BusMapSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = BusMap
-        fields = ['id', 'key', 'label', 'order', 'is_active', 'deck_count', 'deck', 'rows']
+        fields = ['id', 'key', 'label', 'order', 'is_active', 'deck_count', 'rows']
 
     def _save_rows(self, bus_map, rows_data):
         bus_map.rows.all().delete()
         BusMapRow.objects.bulk_create([
-            BusMapRow(bus_map=bus_map, order=i,
+            BusMapRow(bus_map=bus_map, order=i, deck=row.get('deck', 1),
                       left_seats=row.get('left_seats', 0), right_seats=row.get('right_seats', 0),
                       left_labels=row.get('left_labels', []), right_labels=row.get('right_labels', []))
             for i, row in enumerate(rows_data)

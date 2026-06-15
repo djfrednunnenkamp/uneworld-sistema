@@ -124,9 +124,13 @@ function RowEditor({ row, index, total, onUpdate, onRemove, onMoveUp, onMoveDown
 /* ── Tooltip flutuante de pré-visualização — abre ao passar o mouse sobre um mapa ── */
 function MapPreviewTooltip({ busMap, anchorRect }) {
   if (!anchorRect) return null
-  const width = 320
+  const twoDecks = busMap.deck_count === 2
+  const width = twoDecks ? 580 : 320
   const top  = Math.min(anchorRect.bottom + 6, window.innerHeight - 12)
   const left = Math.min(Math.max(anchorRect.left, 12), window.innerWidth - width - 12)
+  const rowsDeck1 = (busMap.rows ?? []).filter(r => (r.deck ?? 1) === 1)
+  const rowsDeck2 = (busMap.rows ?? []).filter(r => r.deck === 2)
+  const deckLabel = { fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 6px' }
 
   return createPortal(
     <div style={{
@@ -139,7 +143,14 @@ function MapPreviewTooltip({ busMap, anchorRect }) {
       <p style={{ fontSize:11, fontWeight:700, color:'#1a2d4f', textTransform:'uppercase', letterSpacing:'.04em', margin:'0 0 10px' }}>
         {busMap.label}
       </p>
-      <BusLayoutPreview rows={busMap.rows ?? []} seatSize={22} />
+      {twoDecks ? (
+        <div style={{ display:'flex', gap:16 }}>
+          <div><p style={deckLabel}>1º andar</p><BusLayoutPreview rows={rowsDeck1} seatSize={22} /></div>
+          <div><p style={deckLabel}>2º andar</p><BusLayoutPreview rows={rowsDeck2} seatSize={22} /></div>
+        </div>
+      ) : (
+        <BusLayoutPreview rows={rowsDeck1} seatSize={22} />
+      )}
     </div>,
     document.body
   )
@@ -169,36 +180,57 @@ function resizeLabels(labels, count, counter) {
 /* ── Modal de criação / edição de um mapa ── */
 function BusMapModal({ busMap, onSave, onClose }) {
   const isEdit = !!busMap
-  const [name,      setName]      = useState(busMap?.label ?? '')
-  const [deckCount, setDeckCount] = useState(busMap?.deck_count ?? 1)
-  const [deck,      setDeck]      = useState(busMap?.deck ?? 1)
-  const [rows,      setRows]      = useState((busMap?.rows ?? []).map(r => ({
-    left_seats: r.left_seats, right_seats: r.right_seats,
-    left_labels: r.left_labels ?? [], right_labels: r.right_labels ?? [],
-  })))
+  const [name,       setName]       = useState(busMap?.label ?? '')
+  const [deckCount,  setDeckCount]  = useState(busMap?.deck_count ?? 1)
+  const [activeDeck, setActiveDeck] = useState(1)
+  const [rowsByDeck, setRowsByDeck] = useState(() => {
+    const grouped = { 1: [], 2: [] }
+    ;(busMap?.rows ?? []).forEach(r => {
+      const deck = r.deck === 2 ? 2 : 1
+      grouped[deck].push({
+        left_seats: r.left_seats, right_seats: r.right_seats,
+        left_labels: r.left_labels ?? [], right_labels: r.right_labels ?? [],
+      })
+    })
+    return grouped
+  })
   const [saving,    setSaving]    = useState(false)
   const [nameError, setNameError] = useState(false)
 
-  const addRow = () => setRows(prev => {
-    const last = prev[prev.length - 1]
+  const currentDeck = deckCount === 2 ? activeDeck : 1
+  const rows = rowsByDeck[currentDeck]
+  const setRows = updater => setRowsByDeck(prev => ({
+    ...prev,
+    [currentDeck]: typeof updater === 'function' ? updater(prev[currentDeck]) : updater,
+  }))
+
+  const addRow = () => setRowsByDeck(prev => {
+    const list = prev[currentDeck]
+    const last = list[list.length - 1]
     const left_seats  = last?.left_seats  ?? 2
     const right_seats = last?.right_seats ?? 2
-    const counter = { value: maxLabelNum(prev) }
-    return [...prev, {
-      left_seats, right_seats,
-      left_labels:  resizeLabels([], left_seats, counter),
-      right_labels: resizeLabels([], right_seats, counter),
-    }]
+    const counter = { value: maxLabelNum([...prev[1], ...prev[2]]) }
+    return {
+      ...prev,
+      [currentDeck]: [...list, {
+        left_seats, right_seats,
+        left_labels:  resizeLabels([], left_seats, counter),
+        right_labels: resizeLabels([], right_seats, counter),
+      }],
+    }
   })
-  const updateRow = (idx, patch) => setRows(prev => {
-    const counter = { value: maxLabelNum(prev) }
-    return prev.map((r, i) => {
-      if (i !== idx) return r
-      const next = { ...r, ...patch }
-      if ('left_seats'  in patch) next.left_labels  = resizeLabels(r.left_labels,  patch.left_seats,  counter)
-      if ('right_seats' in patch) next.right_labels = resizeLabels(r.right_labels, patch.right_seats, counter)
-      return next
-    })
+  const updateRow = (idx, patch) => setRowsByDeck(prev => {
+    const counter = { value: maxLabelNum([...prev[1], ...prev[2]]) }
+    return {
+      ...prev,
+      [currentDeck]: prev[currentDeck].map((r, i) => {
+        if (i !== idx) return r
+        const next = { ...r, ...patch }
+        if ('left_seats'  in patch) next.left_labels  = resizeLabels(r.left_labels,  patch.left_seats,  counter)
+        if ('right_seats' in patch) next.right_labels = resizeLabels(r.right_labels, patch.right_seats, counter)
+        return next
+      }),
+    }
   })
   const updateLabel = (rowIdx, side, seatIdx, value) => setRows(prev => prev.map((r, i) => {
     if (i !== rowIdx) return r
@@ -224,7 +256,11 @@ function BusMapModal({ busMap, onSave, onClose }) {
     if (!name.trim()) { setNameError(true); return }
     setSaving(true)
     try {
-      await onSave({ label: name.trim(), deck_count: deckCount, deck: deckCount === 2 ? deck : 1, rows })
+      const allRows = [
+        ...rowsByDeck[1].map((r, i) => ({ ...r, deck: 1, order: i })),
+        ...(deckCount === 2 ? rowsByDeck[2].map((r, i) => ({ ...r, deck: 2, order: i })) : []),
+      ]
+      await onSave({ label: name.trim(), deck_count: deckCount, rows: allRows })
       onClose()
     } catch { toast.error('Erro ao salvar.') }
     finally { setSaving(false) }
@@ -279,12 +315,12 @@ function BusMapModal({ busMap, onSave, onClose }) {
 
             {deckCount === 2 && (
               <div>
-                <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:4 }}>Este mapa representa</label>
+                <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:4 }}>Editando o andar</label>
                 <div style={{ display:'inline-flex', border:'1.5px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
                   {[[1, '1º andar'], [2, '2º andar']].map(([val, lbl]) => (
-                    <button key={val} type="button" onClick={() => setDeck(val)}
-                      style={{ padding:'8px 14px', border:'none', background: deck === val ? '#1a2d4f' : '#fff', color: deck === val ? '#fff' : '#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                      {lbl}
+                    <button key={val} type="button" onClick={() => setActiveDeck(val)}
+                      style={{ padding:'8px 14px', border:'none', background: activeDeck === val ? '#1a2d4f' : '#fff', color: activeDeck === val ? '#fff' : '#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                      {lbl}{rowsByDeck[val].length > 0 ? ` (${rowsByDeck[val].length})` : ''}
                     </button>
                   ))}
                 </div>
@@ -293,7 +329,7 @@ function BusMapModal({ busMap, onSave, onClose }) {
           </div>
           {deckCount === 2 && (
             <p style={{ fontSize:11.5, color:'#94a3b8', margin:'-10px 0 0' }}>
-              Ônibus de dois andares precisam de um mapa para cada andar — crie outro mapa de ônibus para o {deck === 1 ? '2º' : '1º'} andar.
+              Ônibus de dois andares têm um mapa de assentos para cada andar — use o seletor acima para configurar as fileiras e a numeração de cada um separadamente.
             </p>
           )}
 
@@ -303,7 +339,7 @@ function BusMapModal({ busMap, onSave, onClose }) {
             <div style={{ flex:'1 1 380px', minWidth:320 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, gap:10, flexWrap:'wrap' }}>
                 <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', margin:0 }}>
-                  Fileiras ({rows.length}) · {totalSeats} assento{totalSeats !== 1 ? 's' : ''}
+                  Fileiras{deckCount === 2 ? ` do ${activeDeck}º andar` : ''} ({rows.length}) · {totalSeats} assento{totalSeats !== 1 ? 's' : ''}
                 </p>
                 <button onClick={addRow}
                   style={{ padding:'5px 12px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
@@ -328,7 +364,7 @@ function BusMapModal({ busMap, onSave, onClose }) {
             {/* Pré-visualização */}
             <div style={{ flexShrink:0 }}>
               <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 4px' }}>
-                Numeração dos assentos
+                Numeração dos assentos{deckCount === 2 ? ` · ${activeDeck}º andar` : ''}
               </p>
               <p style={{ fontSize:11.5, color:'#94a3b8', margin:'0 0 10px', maxWidth:200 }}>
                 Clique em cada assento e digite o número correspondente — a numeração varia de ônibus para ônibus.
@@ -369,12 +405,12 @@ export default function BusMapsManager() {
 
   useEffect(() => { load() }, [])
 
-  const handleSave = async ({ label, deck_count, deck, rows }) => {
+  const handleSave = async ({ label, deck_count, rows }) => {
     const busMap = modal?.busMap
     const payload = {
-      label, deck_count, deck,
-      rows: rows.map((r, i) => ({
-        order:i, left_seats:r.left_seats, right_seats:r.right_seats,
+      label, deck_count,
+      rows: rows.map(r => ({
+        order:r.order, deck:r.deck, left_seats:r.left_seats, right_seats:r.right_seats,
         left_labels:r.left_labels, right_labels:r.right_labels,
       })),
     }
@@ -433,7 +469,7 @@ export default function BusMapsManager() {
                 </div>
                 {bm.deck_count === 2 && (
                   <span style={{ padding:'2px 8px', borderRadius:20, background:'#ede9fe', color:'#7c3aed', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
-                    {bm.deck}º andar
+                    2 andares
                   </span>
                 )}
                 {!bm.is_active && (
