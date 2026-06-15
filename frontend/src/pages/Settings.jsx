@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import usePersistedTab from '../hooks/usePersistedTab'
 import toast from 'react-hot-toast'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
@@ -628,10 +627,9 @@ function CountriesTab() {
 }
 
 /* ── Página principal ── */
-/* Seção principal */
-const SECTIONS = ['Listas', 'Tipos de Documento']
-/* Sub-tabs da seção Listas */
+/* Listas configuráveis */
 const LIST_DEFS = [
+  { key:'doc_types',       label:'Documentos' },
   { key:'professions',     label:'Profissões' },
   { key:'languages',       label:'Idiomas' },
   { key:'vaccines',        label:'Vacinas' },
@@ -645,12 +643,11 @@ const LIST_DEFS = [
   { key:'airports',        label:'Aeroportos' },
   { key:'airlines',        label:'Companhias Aéreas' },
 ]
-const WIDE_LISTS = ['accommodations', 'countries', 'airports', 'airlines']
+const WIDE_LISTS = ['doc_types', 'accommodations', 'countries', 'airports', 'airlines']
 
 export default function Settings() {
   const navigate = useNavigate()
   const fileAllRef = useRef(null)
-  const [section, setSection]     = usePersistedTab('tab_settings_section', 0)
   const [listSearch, setListSearch] = useState('')
   const [activeList, setActiveList] = useState(null)
   const [professions, setProfessions] = useState([])
@@ -881,66 +878,52 @@ export default function Settings() {
         <h1 className="ph-title">Configurações</h1>
       </div>
 
-      {/* Seções principais */}
-      <div style={{ display:'flex', gap:2, padding:'0 24px', borderBottom:'2px solid #e2e8f0', marginBottom:0 }}>
-        {SECTIONS.map((s, i) => (
-          <button key={s} onClick={() => setSection(i)} style={{
-            padding:'10px 20px', border:'none', background:'none', cursor:'pointer',
-            fontSize:14, fontWeight:section===i?700:500, fontFamily:'inherit',
-            color:section===i?'#1a2d4f':'#64748b',
-            borderBottom:section===i?'3px solid #1a2d4f':'3px solid transparent',
-          }}>{s}</button>
-        ))}
-      </div>
-
-      {/* ── Seção: Listas ── */}
-      {section === 0 && (
-        <div style={{ padding:'24px' }}>
-          <div className="search-row">
-            <div className="search-wrap">
-              <span className="search-ico"><Ic n="search" s={14}/></span>
-              <input className="search-in" placeholder="Buscar lista…"
-                value={listSearch} onChange={e => setListSearch(e.target.value)} />
-            </div>
-            <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
-              <button style={btnCsv('#059669')} onClick={handleExportAll} title="Baixar CSV com todas as listas">
-                ⬇ Exportar tudo
-              </button>
-              <button style={btnCsv('#2e6db4')} onClick={() => fileAllRef.current?.click()} title="Importar CSV com todas as listas">
-                ⬆ Importar tudo
-              </button>
-              <input ref={fileAllRef} type="file" accept=".csv,text/csv"
-                style={{ display:'none' }} onChange={handleImportAllFile} />
-            </div>
+      <div style={{ padding:'24px' }}>
+        <div className="search-row">
+          <div className="search-wrap">
+            <span className="search-ico"><Ic n="search" s={14}/></span>
+            <input className="search-in" placeholder="Buscar lista…"
+              value={listSearch} onChange={e => setListSearch(e.target.value)} />
           </div>
-
-          <div className="tcard">
-            {filteredListDefs.length === 0 ? (
-              <div className="empty-state">
-                <div style={{ color:'#cbd5e1' }}><Ic n="search" s={28}/></div>
-                <p>Nenhuma lista encontrada</p>
-              </div>
-            ) : filteredListDefs.map((d, idx) => (
-              <div key={d.key} onClick={() => setActiveList(d.key)}
-                style={{
-                  display:'flex', alignItems:'center', justifyContent:'space-between',
-                  padding:'13px 16px', fontSize:13, fontWeight:500, color:'#1e293b', cursor:'pointer',
-                  borderBottom: idx < filteredListDefs.length - 1 ? '1px solid #f1f5f9' : 'none',
-                  background:'#fff', transition:'background .1s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-              >
-                <span className="t-name">{d.label}</span>
-                <span style={{ color:'#cbd5e1', fontSize:17 }}>›</span>
-              </div>
-            ))}
+          <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+            <button style={btnCsv('#059669')} onClick={handleExportAll} title="Baixar CSV com todas as listas">
+              ⬇ Exportar tudo
+            </button>
+            <button style={btnCsv('#2e6db4')} onClick={() => fileAllRef.current?.click()} title="Importar CSV com todas as listas">
+              ⬆ Importar tudo
+            </button>
+            <input ref={fileAllRef} type="file" accept=".csv,text/csv"
+              style={{ display:'none' }} onChange={handleImportAllFile} />
           </div>
         </div>
-      )}
+
+        <div className="tcard">
+          {filteredListDefs.length === 0 ? (
+            <div className="empty-state">
+              <div style={{ color:'#cbd5e1' }}><Ic n="search" s={28}/></div>
+              <p>Nenhuma lista encontrada</p>
+            </div>
+          ) : filteredListDefs.map((d, idx) => (
+            <div key={d.key} onClick={() => setActiveList(d.key)}
+              style={{
+                display:'flex', alignItems:'center', justifyContent:'space-between',
+                padding:'13px 16px', fontSize:13, fontWeight:500, color:'#1e293b', cursor:'pointer',
+                borderBottom: idx < filteredListDefs.length - 1 ? '1px solid #f1f5f9' : 'none',
+                background:'#fff', transition:'background .1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+            >
+              <span className="t-name">{d.label}</span>
+              <span style={{ color:'#cbd5e1', fontSize:17 }}>›</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {activeDef && (
         <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>
+          {activeDef.key === 'doc_types'       && <DocTypesManager />}
           {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={addProfession}   onUpdate={updateProfession}   onDelete={delProfession}   placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
           {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={addLanguage}     onUpdate={updateLanguage}     onDelete={delLanguage}     placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
           {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={addVaccine}      onUpdate={updateVaccine}      onDelete={delVaccine}      placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
@@ -957,13 +940,6 @@ export default function Settings() {
           {activeDef.key === 'airports'        && <AirportsManager />}
           {activeDef.key === 'airlines'        && <AirlinesManager />}
         </ListDetailModal>
-      )}
-
-      {/* ── Seção: Tipos de Documento ── */}
-      {section === 1 && (
-        <div style={{ padding:'24px' }}>
-          <DocTypesManager />
-        </div>
       )}
     </div>
   )
