@@ -351,7 +351,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         # PATCH
         for field in ('accommodation', 'seat', 'enrollment_status', 'order_in_list', 'notes',
                       'pending_until', 'pending_reason',
-                      'ticket_status', 'connection_ticket_status'):
+                      'ticket_status', 'connection_ticket_status', 'origin_mode'):
             if field in request.data:
                 val = request.data[field]
                 if field == 'pending_until':
@@ -360,6 +360,14 @@ class PassengerListViewSet(viewsets.ModelViewSet):
                 setattr(e, field, val)
         if 'departure_airport' in request.data:
             e.departure_airport_id = request.data['departure_airport'] or None
+        if 'origin_country' in request.data:
+            e.origin_country_id = request.data['origin_country'] or None
+        if 'origin_state' in request.data:
+            e.origin_state_id = request.data['origin_state'] or None
+        if 'origin_city' in request.data:
+            e.origin_city_id = request.data['origin_city'] or None
+        if 'origin_airport' in request.data:
+            e.origin_airport_id = request.data['origin_airport'] or None
         if 'selected_passport' in request.data:
             e.selected_passport_id = request.data['selected_passport'] or None
         if 'additionals' in request.data:

@@ -267,6 +267,10 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     responsible_user_name    = serializers.SerializerMethodField()
     departure_airport_data   = serializers.SerializerMethodField()
     selected_passport_data   = serializers.SerializerMethodField()
+    origin_country_data      = serializers.SerializerMethodField()
+    origin_state_data        = serializers.SerializerMethodField()
+    origin_city_data         = serializers.SerializerMethodField()
+    origin_airport_data      = serializers.SerializerMethodField()
 
     def get_agency_name(self, obj):
         if obj.agency:
@@ -282,6 +286,30 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_departure_airport_data(self, obj):
         if obj.departure_airport_id:
             a = obj.departure_airport
+            return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
+        return None
+
+    def get_origin_country_data(self, obj):
+        if obj.origin_country_id:
+            c = obj.origin_country
+            return {'id': c.id, 'name': c.name}
+        return None
+
+    def get_origin_state_data(self, obj):
+        if obj.origin_state_id:
+            s = obj.origin_state
+            return {'id': s.id, 'name': s.name}
+        return None
+
+    def get_origin_city_data(self, obj):
+        if obj.origin_city_id:
+            c = obj.origin_city
+            return {'id': c.id, 'name': c.name}
+        return None
+
+    def get_origin_airport_data(self, obj):
+        if obj.origin_airport_id:
+            a = obj.origin_airport
             return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
         return None
 
@@ -315,6 +343,11 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'crew_roles', 'crew_roles_data',
             'accommodation', 'seat', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
+            'origin_mode',
+            'origin_country', 'origin_country_data',
+            'origin_state',   'origin_state_data',
+            'origin_city',    'origin_city_data',
+            'origin_airport', 'origin_airport_data',
             'ticket_status', 'connection_ticket_status',
             'selected_passport', 'selected_passport_data',
             'order_in_list', 'enrolled_at', 'notes',

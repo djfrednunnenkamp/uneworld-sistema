@@ -180,6 +180,15 @@ class ListEnrollment(models.Model):
     pending_until_created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Prazo definido por')
     pending_reason     = models.TextField('Motivo da pendência', blank=True)
     departure_airport  = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='enrollments', verbose_name='Aeroporto de saída')
+    ORIGIN_MODE_CHOICES = [
+        ('bus',   'Ônibus'),
+        ('plane', 'Avião'),
+    ]
+    origin_mode    = models.CharField('Modo de origem', max_length=10, choices=ORIGIN_MODE_CHOICES, blank=True)
+    origin_country = models.ForeignKey('config_api.ConfigCountry', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='País de origem')
+    origin_state   = models.ForeignKey('config_api.ConfigState',   null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Estado de origem')
+    origin_city    = models.ForeignKey('config_api.ConfigCity',    null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade de origem')
+    origin_airport = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de origem')
     TICKET_STATUS = [
         ('nao_emitida',    'Não emitida'),
         ('via_bloqueio',   'Via bloqueio'),

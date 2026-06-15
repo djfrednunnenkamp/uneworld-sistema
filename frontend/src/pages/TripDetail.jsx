@@ -712,6 +712,187 @@ function BoardingModal({ enrollment, listId, defaultAirport, onSaved, onClose })
   )
 }
 
+/* ── Campos de "Origem" do passageiro — meio de transporte + cidade/aeroporto ──
+   Reaproveitado no popup dedicado (OriginModal) e na aba "Editar perfil" (QuickEditModal). */
+function OriginFields({ mode, setMode, country, setCountry, state, setState, city, setCity, airport, setAirport, hasExisting, onClear, clearing }) {
+  const [countries, setCountries] = useState([])
+  const [states,    setStates]    = useState([])
+  const [cities,    setCities]    = useState([])
+
+  useEffect(() => {
+    configApi.countries().then(r => setCountries(r.data.results ?? r.data)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!country) { setStates([]); return }
+    configApi.states(country).then(r => setStates(r.data.results ?? r.data)).catch(() => {})
+  }, [country])
+
+  useEffect(() => {
+    if (!state) { setCities([]); return }
+    configApi.cities(state).then(r => setCities(r.data.results ?? r.data)).catch(() => {})
+  }, [state])
+
+  const MODES = [
+    { v:'bus',   label:'🚌 Vem de ônibus' },
+    { v:'plane', label:'✈ Vem de avião' },
+  ]
+
+  return (
+    <div>
+      <label style={LBL}>Meio de transporte até a viagem</label>
+      <div style={{ display:'flex', borderRadius:8, border:'1px solid #e2e8f0', overflow:'hidden', marginBottom:14 }}>
+        {MODES.map(({ v, label }, i) => {
+          const sel = mode === v
+          return (
+            <button key={v} type="button" onClick={() => setMode(v)}
+              style={{
+                flex:1, padding:'10px 4px', border:'none', cursor:'pointer', fontFamily:'inherit',
+                fontSize:13, fontWeight: sel ? 700 : 500, transition:'all .12s',
+                borderRight: i < MODES.length-1 ? '1px solid #e2e8f0' : 'none',
+                background:  sel ? '#dcfce7' : '#fff',
+                color:       sel ? '#15803d' : '#64748b',
+                boxShadow:   sel ? 'inset 0 -2px 0 #16a34a' : 'none',
+              }}>
+              {label}
+            </button>
+          )
+        })}
+      </div>
+
+      {mode === 'bus' && (
+        <div>
+          <label style={LBL}>Cidade de origem</label>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+            <div>
+              <label style={{ ...LBL, marginTop:0, fontSize:10 }}>País</label>
+              <FormSelect
+                value={country ?? ''}
+                onChange={v => { setCountry(v || null); setState(null); setCity(null) }}
+                options={[{ value: '', label: 'Selecionar…' }, ...countries.map(c => ({ value: c.id, label: c.name }))]}
+                placeholder="País…"
+              />
+            </div>
+            <div>
+              <label style={{ ...LBL, marginTop:0, fontSize:10 }}>Estado</label>
+              <FormSelect
+                value={state ?? ''}
+                onChange={v => { setState(v || null); setCity(null) }}
+                options={[{ value: '', label: country ? 'Selecionar…' : '—' }, ...states.map(s => ({ value: s.id, label: s.name }))]}
+                placeholder="Estado…"
+              />
+            </div>
+            <div>
+              <label style={{ ...LBL, marginTop:0, fontSize:10 }}>Cidade</label>
+              <FormSelect
+                value={city ?? ''}
+                onChange={v => setCity(v || null)}
+                options={[{ value: '', label: state ? 'Selecionar…' : '—' }, ...cities.map(c => ({ value: c.id, label: c.name }))]}
+                placeholder="Cidade…"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mode === 'plane' && (
+        <div>
+          <label style={LBL}>Aeroporto de origem</label>
+          <AirportPicker value={airport} onChange={setAirport} placeholder="Buscar aeroporto de origem…" />
+        </div>
+      )}
+
+      {hasExisting && (
+        <button type="button" onClick={onClear} disabled={clearing}
+          style={{ marginTop:14, fontSize:12, color:'#64748b', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline' }}>
+          ✕ Remover definição de origem
+        </button>
+      )}
+    </div>
+  )
+}
+
+/* ── Modal para definir a origem do passageiro (de onde ele vem até a viagem) ── */
+function OriginModal({ enrollment, listId, onSaved, onClose }) {
+  const name = enrollment.passenger_name || enrollment.block_agency || 'Passageiro'
+  const [mode,    setMode]    = useState(enrollment.origin_mode || '')
+  const [country, setCountry] = useState(enrollment.origin_country_data?.id ?? null)
+  const [state,   setState]   = useState(enrollment.origin_state_data?.id ?? null)
+  const [city,    setCity]    = useState(enrollment.origin_city_data?.id ?? null)
+  const [airport, setAirport] = useState(enrollment.origin_airport_data || null)
+  const [saving,  setSaving]  = useState(false)
+
+  const buildPayload = (m) => {
+    const payload = { origin_mode: m }
+    payload.origin_country = m === 'bus' ? (country || null) : null
+    payload.origin_state   = m === 'bus' ? (state   || null) : null
+    payload.origin_city    = m === 'bus' ? (city    || null) : null
+    payload.origin_airport = m === 'plane' ? (airport?.id ?? null) : null
+    return payload
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, buildPayload(mode))
+      toast.success('Origem atualizada.')
+      onSaved(); onClose()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  const handleClear = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, enrollment.id, buildPayload(''))
+      toast.success('Origem removida.')
+      onSaved(); onClose()
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:750, padding:20 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:440, boxShadow:'0 32px 80px rgba(0,0,0,.25)' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ minWidth:0 }}>
+            <p style={{ margin:0, fontSize:15, fontWeight:700, color:'#0f172a' }}>📍 Origem do passageiro</p>
+            <p title={name} style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
+        </div>
+
+        <div style={{ padding:'16px 22px 20px' }}>
+          <p style={{ fontSize:12, color:'#64748b', margin:'0 0 12px' }}>
+            Caso o passageiro não seja da cidade de saída, defina como ele chega até lá.
+          </p>
+          <OriginFields
+            mode={mode} setMode={setMode}
+            country={country} setCountry={setCountry}
+            state={state} setState={setState}
+            city={city} setCity={setCity}
+            airport={airport} setAirport={setAirport}
+            hasExisting={!!enrollment.origin_mode}
+            onClear={handleClear} clearing={saving}
+          />
+        </div>
+
+        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving || !mode}
+            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: (saving || !mode) ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: (saving || !mode) ? 'default' : 'pointer', fontFamily:'inherit' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Popover rápido de aeroporto — abre perto do badge ao clicar ── */
 function AirportPopover({ enrollment, rect, listId, defaultAirport, onSaved, onClose }) {
   const ref     = useRef(null)
@@ -1002,7 +1183,7 @@ function QESelect({ label, value, onChange, options, disabled, placeholder = 'Se
 }
 
 /* ── Edição rápida do passageiro — popup com 2 abas: Informações e Documentos ── */
-function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
+function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onClose }) {
   const passengerId = enrollment.passenger
   const [activeTab, setActiveTab] = useState('info')
   const [form,    setForm]    = useState(null)
@@ -1012,6 +1193,12 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
   const [saving,  setSaving]  = useState(false)
   const [selectedPassport, setSelectedPassport] = useState(enrollment.selected_passport || null)
   const [viewingDoc,       setViewingDoc]       = useState(null)
+  // Origem do passageiro (apenas listas terrestres)
+  const [originMode,    setOriginMode]    = useState(enrollment.origin_mode || '')
+  const [originCountry, setOriginCountry] = useState(enrollment.origin_country_data?.id ?? null)
+  const [originState,   setOriginState]   = useState(enrollment.origin_state_data?.id ?? null)
+  const [originCity,    setOriginCity]    = useState(enrollment.origin_city_data?.id ?? null)
+  const [originAirport, setOriginAirport] = useState(enrollment.origin_airport_data || null)
 
   useEffect(() => {
     Promise.all([
@@ -1056,7 +1243,15 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
         phone1:          form.phone1,
         seat_preference: form.seat_preference,
       })
-      await listsApi.updatePassenger(listId, enrollment.id, { selected_passport: selectedPassport || null })
+      const passengerPayload = { selected_passport: selectedPassport || null }
+      if (listType === 'terrestre') {
+        passengerPayload.origin_mode    = originMode
+        passengerPayload.origin_country = originMode === 'bus'   ? (originCountry || null)     : null
+        passengerPayload.origin_state   = originMode === 'bus'   ? (originState   || null)     : null
+        passengerPayload.origin_city    = originMode === 'bus'   ? (originCity    || null)     : null
+        passengerPayload.origin_airport = originMode === 'plane' ? (originAirport?.id ?? null) : null
+      }
+      await listsApi.updatePassenger(listId, enrollment.id, passengerPayload)
       toast.success('Passageiro atualizado.')
       onSaved()
       onClose()
@@ -1362,6 +1557,26 @@ function QuickEditModal({ enrollment, listId, startDate, onSaved, onClose }) {
               </div>
 
               <QESelect label="Preferência de assento" value={form?.seat_preference} onChange={v => upd('seat_preference', v)} options={SEAT_OPTS} placeholder="Sem preferência" />
+
+              {/* Origem — de onde o passageiro vem até a viagem (apenas listas terrestres) */}
+              {listType === 'terrestre' && (
+                <div>
+                  <label style={LBL}>📍 Origem (opcional)</label>
+                  <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 10px' }}>
+                    Caso o passageiro não seja da cidade de saída, defina como ele chega até lá.
+                  </p>
+                  <OriginFields
+                    mode={originMode} setMode={setOriginMode}
+                    country={originCountry} setCountry={setOriginCountry}
+                    state={originState} setState={setOriginState}
+                    city={originCity} setCity={setOriginCity}
+                    airport={originAirport} setAirport={setOriginAirport}
+                    hasExisting={!!originMode}
+                    onClear={() => { setOriginMode(''); setOriginCountry(null); setOriginState(null); setOriginCity(null); setOriginAirport(null) }}
+                    clearing={false}
+                  />
+                </div>
+              )}
 
               {/* Documento de preferência — não está no banco */}
               <div>
@@ -3748,6 +3963,10 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
   const [busMap,          setBusMap]          = useState(null)
   // busSeatTip: null | { text, rect } — tooltip do ícone de assento na lista de passageiros
   const [busSeatTip,      setBusSeatTip]      = useState(null)
+  // originModal: null | enrollment — popup "Origem do passageiro" (terrestre)
+  const [originModal,     setOriginModal]     = useState(null)
+  // originTip: null | { text, rect } — tooltip do ícone de origem na lista de passageiros
+  const [originTip,       setOriginTip]       = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -4058,7 +4277,7 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 105px 96px 90px 90px' : '32px 36px 22px 26px 1fr 90px 46px 36px 105px 96px 90px 90px', columnGap:6, padding:'8px 10px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 105px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 105px 96px 90px 90px', columnGap:6, padding:'8px 10px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {/* Checkbox select-all */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
               <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -4069,6 +4288,7 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
               {h:'●',         align:'center'},
               {h:isAereo?'✈':(listType==='terrestre'?'🚌':''), align:'center'},
               ...(isAereo ? [{h:'Emb.', align:'center'}] : []),
+              ...(listType==='terrestre' ? [{h:'📍', align:'center'}] : []),
               {h:'Passageiro',align:'left'},
               {h:'Nasc.',     align:'center'},
               {h:'Nac.',      align:'center'},
@@ -4224,7 +4444,7 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 105px 96px 90px 90px' : '32px 36px 22px 26px 1fr 90px 46px 36px 105px 96px 90px 90px', columnGap:6, padding:'8px 10px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 105px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 105px 96px 90px 90px', columnGap:6, padding:'8px 10px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -4279,6 +4499,31 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
                       )
                     })()
                     }
+
+                    {/* 📍 Origem — de onde o passageiro vem até a viagem (apenas terrestre) */}
+                    {listType === 'terrestre' && (() => {
+                      const hasOrigin = !!e.origin_mode
+                      const bg = hasOrigin ? '#16a34a' : 'transparent'
+                      let tipText = 'Definir origem do passageiro'
+                      if (e.origin_mode === 'bus') {
+                        const cityName = e.origin_city_data?.name
+                        tipText = cityName ? `Vem de ônibus — ${cityName}` : 'Vem de ônibus'
+                      } else if (e.origin_mode === 'plane') {
+                        const ap = e.origin_airport_data
+                        tipText = ap ? `Vem de avião — ${ap.iata_code || ap.name}` : 'Vem de avião'
+                      }
+                      return (
+                        <div style={{ display:'flex', justifyContent:'center' }}>
+                          <button type="button" onClick={() => setOriginModal(e)}
+                            onMouseEnter={ev => setOriginTip({ text: tipText, rect: ev.currentTarget.getBoundingClientRect() })}
+                            onMouseLeave={() => setOriginTip(null)}
+                            title={tipText}
+                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:bg, boxShadow: hasOrigin ? `0 0 0 3px ${bg}22` : 'none', border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
+                            <span style={{ fontSize:11, lineHeight:1 }}>📍</span>
+                          </button>
+                        </div>
+                      )
+                    })()}
 
                     {/* Embarque — aeroporto de saída, logo antes do nome */}
                     {isAereo && (() => {
@@ -4595,6 +4840,34 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
         document.body
       )}
 
+      {/* Tooltip do ícone de origem na lista de passageiros */}
+      {originTip && createPortal(
+        <div style={{
+          position:'fixed', zIndex:9999, pointerEvents:'none',
+          top: originTip.rect.top - 8, left: originTip.rect.left + originTip.rect.width / 2,
+          transform:'translate(-50%, -100%)',
+          background:'#1e293b', color:'#fff', fontSize:12, fontWeight:600,
+          padding:'5px 10px', borderRadius:6, whiteSpace:'nowrap',
+          boxShadow:'0 4px 12px rgba(0,0,0,.18)',
+        }}>
+          {originTip.text}
+          <div style={{ position:'absolute', bottom:-4, left:'50%', transform:'translateX(-50%)', width:8, height:8, overflow:'hidden' }}>
+            <div style={{ width:8, height:8, background:'#1e293b', transform:'rotate(45deg) translateY(-50%)' }} />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Popup Origem do passageiro — define se vem de ônibus/avião e de onde */}
+      {originModal && (
+        <OriginModal
+          enrollment={originModal}
+          listId={listId}
+          onSaved={load}
+          onClose={() => setOriginModal(null)}
+        />
+      )}
+
       {/* Popover rápido de aeroporto de embarque */}
       {airportPopover && (
         <AirportPopover
@@ -4612,6 +4885,7 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
         <QuickEditModal
           enrollment={quickEditModal}
           listId={listId}
+          listType={listType}
           startDate={startDate}
           onSaved={load}
           onClose={() => setQuickEditModal(null)}
