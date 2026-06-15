@@ -4286,9 +4286,9 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
             {[
               {h:'Nº',        align:'center'},
               {h:'●',         align:'center'},
+              ...(listType==='terrestre' ? [{h:'📍', align:'center'}] : []),
               {h:isAereo?'✈':(listType==='terrestre'?'🚌':''), align:'center'},
               ...(isAereo ? [{h:'Emb.', align:'center'}] : []),
-              ...(listType==='terrestre' ? [{h:'📍', align:'center'}] : []),
               {h:'Passageiro',align:'left'},
               {h:'Nasc.',     align:'center'},
               {h:'Nac.',      align:'center'},
@@ -4460,6 +4460,34 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
                     {/* Status — clique abre popup com Confirmado / Pendente / Cancelado */}
                     <EnrollmentStatusDot value={e.enrollment_status} onClick={() => setStatusModal(e)} />
 
+                    {/* 📍 Origem — de onde o passageiro vem até a viagem (apenas terrestre) */}
+                    {listType === 'terrestre' && (() => {
+                      const hasOrigin = !!e.origin_mode
+                      const bg = hasOrigin ? '#16a34a' : 'transparent'
+                      let tipText = 'Definir origem do passageiro'
+                      let icon = '📍'
+                      if (e.origin_mode === 'bus') {
+                        const cityName = e.origin_city_data?.name
+                        tipText = cityName ? `Vem de ônibus — ${cityName}` : 'Vem de ônibus'
+                        icon = '🚌'
+                      } else if (e.origin_mode === 'plane') {
+                        const ap = e.origin_airport_data
+                        tipText = ap ? `Vem de avião — ${ap.iata_code || ap.name}` : 'Vem de avião'
+                        icon = '✈'
+                      }
+                      return (
+                        <div style={{ display:'flex', justifyContent:'center' }}>
+                          <button type="button" onClick={() => setOriginModal(e)}
+                            onMouseEnter={ev => setOriginTip({ text: tipText, rect: ev.currentTarget.getBoundingClientRect() })}
+                            onMouseLeave={() => setOriginTip(null)}
+                            title={tipText}
+                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:bg, boxShadow: hasOrigin ? `0 0 0 3px ${bg}22` : 'none', border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
+                            <span style={{ fontSize:11, lineHeight:1 }}>{icon}</span>
+                          </button>
+                        </div>
+                      )
+                    })()}
+
                     {/* ✈ passagem — clicável em listas aéreas */}
                     {isAereo ? (() => {
                       const hasConnAirport = !e.is_block && e.departure_airport_data && defaultAirport && e.departure_airport_data.id !== defaultAirport.id
@@ -4499,31 +4527,6 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
                       )
                     })()
                     }
-
-                    {/* 📍 Origem — de onde o passageiro vem até a viagem (apenas terrestre) */}
-                    {listType === 'terrestre' && (() => {
-                      const hasOrigin = !!e.origin_mode
-                      const bg = hasOrigin ? '#16a34a' : 'transparent'
-                      let tipText = 'Definir origem do passageiro'
-                      if (e.origin_mode === 'bus') {
-                        const cityName = e.origin_city_data?.name
-                        tipText = cityName ? `Vem de ônibus — ${cityName}` : 'Vem de ônibus'
-                      } else if (e.origin_mode === 'plane') {
-                        const ap = e.origin_airport_data
-                        tipText = ap ? `Vem de avião — ${ap.iata_code || ap.name}` : 'Vem de avião'
-                      }
-                      return (
-                        <div style={{ display:'flex', justifyContent:'center' }}>
-                          <button type="button" onClick={() => setOriginModal(e)}
-                            onMouseEnter={ev => setOriginTip({ text: tipText, rect: ev.currentTarget.getBoundingClientRect() })}
-                            onMouseLeave={() => setOriginTip(null)}
-                            title={tipText}
-                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:bg, boxShadow: hasOrigin ? `0 0 0 3px ${bg}22` : 'none', border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
-                            <span style={{ fontSize:11, lineHeight:1 }}>📍</span>
-                          </button>
-                        </div>
-                      )
-                    })()}
 
                     {/* Embarque — aeroporto de saída, logo antes do nome */}
                     {isAereo && (() => {
