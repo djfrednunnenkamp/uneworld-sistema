@@ -4,6 +4,7 @@ import { listsApi, configApi } from '../api'
 import FormSelect from './FormSelect'
 import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
+import { BusLayoutPreview } from './BusLayoutPreview'
 
 /* ── Opções ── */
 const TYPE_OPTS = [
@@ -294,7 +295,31 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   }, [form.departure_state])
 
   const catOpts = categories.map(c => ({ value: c.name, label: c.name }))
-  const busMapOpts = [{ value: '', label: 'Nenhum' }, ...busMaps.map(m => ({ value: m.id, label: m.label }))]
+  const busMapOpts = [{ value: '', label: 'Nenhum' }, ...busMaps.map(m => ({ value: m.id, label: m.label, busMap: m }))]
+
+  const renderBusMapPreview = (opt) => {
+    const bm = opt.busMap
+    if (!bm) return null
+    const twoDecks  = bm.deck_count === 2
+    const rowsDeck1 = (bm.rows ?? []).filter(r => (r.deck ?? 1) === 1)
+    const rowsDeck2 = (bm.rows ?? []).filter(r => r.deck === 2)
+    const deckLabel = { fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 6px' }
+    return (
+      <>
+        <p style={{ fontSize:11, fontWeight:700, color:'#1a2d4f', textTransform:'uppercase', letterSpacing:'.04em', margin:'0 0 10px' }}>
+          {bm.label}
+        </p>
+        {twoDecks ? (
+          <div style={{ display:'flex', gap:16 }}>
+            <div><p style={deckLabel}>1º andar</p><BusLayoutPreview rows={rowsDeck1} seatSize={20} /></div>
+            <div><p style={deckLabel}>2º andar</p><BusLayoutPreview rows={rowsDeck2} seatSize={20} /></div>
+          </div>
+        ) : (
+          <BusLayoutPreview rows={rowsDeck1} seatSize={20} />
+        )}
+      </>
+    )
+  }
 
   const set  = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
   const setV = (k, v)     => setForm(f => ({ ...f, [k]: v }))
@@ -465,6 +490,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
                   onChange={v => setV('bus_map', v || null)}
                   options={busMapOpts}
                   placeholder="Selecionar mapa…"
+                  renderPreview={renderBusMapPreview}
                 />
               </div>
             )}

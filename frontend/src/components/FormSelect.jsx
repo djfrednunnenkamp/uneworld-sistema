@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 
 /**
  * FormSelect — combobox para campos de formulário.
@@ -6,20 +7,24 @@ import { useState, useRef, useEffect, useMemo } from 'react'
  * Abre para cima automaticamente quando não há espaço abaixo.
  *
  * Props:
- *   value       — valor selecionado
- *   onChange    — callback (value) => void
- *   options     — [{ value, label, icon? }]
- *   placeholder — texto quando nada selecionado
+ *   value         — valor selecionado
+ *   onChange      — callback (value) => void
+ *   options       — [{ value, label, icon? }]
+ *   placeholder   — texto quando nada selecionado
+ *   renderPreview — opcional: (option) => ReactNode | null — pré-visualização
+ *                   flutuante exibida ao passar o mouse sobre uma opção
  */
-export default function FormSelect({ value, onChange, options = [], placeholder = 'Selecione…' }) {
+export default function FormSelect({ value, onChange, options = [], placeholder = 'Selecione…', renderPreview }) {
   const [open,        setOpen]        = useState(false)
   const [query,       setQuery]       = useState('')
   const [highlighted, setHighlighted] = useState(-1)
+  const [hoverRect,   setHoverRect]   = useState(null)
   // top XOR bottom — quando abre pra cima usa bottom para grudar no input
   const [pos, setPos] = useState({ top: 'auto', bottom: 'auto', left: 0, width: 0 })
   const wrapRef  = useRef(null)
   const inputRef = useRef(null)
   const listRef  = useRef(null)
+  const dropRef  = useRef(null)
   const selected = options.find(o => o.value === value)
 
   /* Fecha ao clicar fora */
@@ -109,7 +114,7 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
 
       {/* Lista — position:fixed para escapar de overflow do modal */}
       {open && (
-        <div style={{
+        <div ref={dropRef} style={{
           position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 180),
           background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 8,
           boxShadow: '0 8px 28px rgba(0,0,0,.12)', zIndex: 9999,
@@ -125,8 +130,8 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
                 return (
                   <div key={opt.value}
                     onMouseDown={e => { e.preventDefault(); select(opt.value) }}
-                    onMouseEnter={() => setHighlighted(idx)}
-                    onMouseLeave={() => setHighlighted(-1)}
+                    onMouseEnter={e => { setHighlighted(idx); if (renderPreview) setHoverRect(e.currentTarget.getBoundingClientRect()) }}
+                    onMouseLeave={() => { setHighlighted(-1); if (renderPreview) setHoverRect(null) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '10px 14px', cursor: 'pointer', fontSize: 13,
@@ -147,6 +152,38 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
           )}
         </div>
       )}
+
+      {/* Pré-visualização flutuante da opção em destaque */}
+      {open && renderPreview && hoverRect && highlighted >= 0 && filtered[highlighted] && (
+        <OptionPreview anchorRect={hoverRect} dropRect={dropRef.current?.getBoundingClientRect()}>
+          {renderPreview(filtered[highlighted])}
+        </OptionPreview>
+      )}
     </div>
+  )
+}
+
+/* ── Pré-visualização flutuante ao lado do dropdown — escapa do modal via portal ── */
+function OptionPreview({ anchorRect, dropRect, children }) {
+  if (!children || !dropRect) return null
+  const maxWidth   = 480
+  const spaceRight = window.innerWidth - dropRect.right - 12
+  const placeRight = spaceRight >= 220
+  const left = placeRight
+    ? dropRect.right + 8
+    : Math.max(12, dropRect.left - 8 - maxWidth)
+  const top = Math.min(Math.max(anchorRect.top, 12), window.innerHeight - 12)
+
+  return createPortal(
+    <div style={{
+      position: 'fixed', top, left, width: 'max-content', maxWidth, zIndex: 9999,
+      background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+      boxShadow: '0 12px 32px rgba(15,23,42,.18)', padding: '12px 16px',
+      maxHeight: window.innerHeight - top - 12, overflowY: 'auto',
+      pointerEvents: 'none',
+    }}>
+      {children}
+    </div>,
+    document.body
   )
 }
