@@ -125,16 +125,16 @@ function RowEditor({ row, index, total, onUpdate, onRemove, onMoveUp, onMoveDown
 function MapPreviewTooltip({ busMap, anchorRect }) {
   if (!anchorRect) return null
   const twoDecks = busMap.deck_count === 2
-  const width = twoDecks ? 580 : 320
+  const maxWidth = twoDecks ? 480 : 260
   const top  = Math.min(anchorRect.bottom + 6, window.innerHeight - 12)
-  const left = Math.min(Math.max(anchorRect.left, 12), window.innerWidth - width - 12)
+  const left = Math.min(Math.max(anchorRect.left, 12), window.innerWidth - maxWidth - 12)
   const rowsDeck1 = (busMap.rows ?? []).filter(r => (r.deck ?? 1) === 1)
   const rowsDeck2 = (busMap.rows ?? []).filter(r => r.deck === 2)
   const deckLabel = { fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 6px' }
 
   return createPortal(
     <div style={{
-      position:'fixed', top, left, width, zIndex:9999,
+      position:'fixed', top, left, width:'max-content', maxWidth, zIndex:9999,
       background:'#fff', border:'1px solid #e2e8f0', borderRadius:10,
       boxShadow:'0 12px 32px rgba(15,23,42,.18)', padding:'12px 16px',
       maxHeight: window.innerHeight - top - 12, overflowY:'auto',
