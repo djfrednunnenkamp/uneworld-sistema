@@ -89,10 +89,6 @@ table.dt tbody tr:hover td { background: #fafbfd; }
 .r-btn.view:hover { border-color: #7c3aed; color: #7c3aed; background: #ede9fe; }
 .r-btn.del:hover  { border-color: #dc2626; color: #dc2626; background: #fee2e2; }
 
-/* ── Pré-visualização expansível (mapas de ônibus) ── */
-.busmap-preview { max-height: 0; overflow: hidden; opacity: 0; background: #fff; transition: max-height .25s ease, opacity .2s ease; }
-.busmap-preview.open { max-height: 680px; opacity: 1; }
-
 /* ── Stats grid ── */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
 .scard { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 20px; cursor: pointer; transition: box-shadow .15s, transform .15s; }

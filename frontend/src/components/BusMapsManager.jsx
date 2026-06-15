@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import toast from 'react-hot-toast'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
@@ -7,9 +8,10 @@ import { Ic } from './Icon'
 const MAX_SEATS_PER_SIDE = 4
 
 /* ── Pré-visualização visual do mapa de assentos ──
-   Numeração automática: começa no topo-esquerdo (1, 2, 3…) e segue
-   fileira a fileira, esquerda → corredor → direita. */
-function BusLayoutPreview({ rows, seatSize = 30 }) {
+   A numeração de cada assento é definida manualmente (left_labels/right_labels),
+   pois a convenção de numeração varia de ônibus para ônibus.
+   Em modo `editable`, cada assento vira um campo de texto editável. */
+function BusLayoutPreview({ rows, seatSize = 30, editable = false, onLabelChange }) {
   if (!rows || rows.length === 0) {
     return (
       <p style={{ fontSize:12, color:'#94a3b8', textAlign:'center', padding:'24px 0', margin:0 }}>
@@ -23,7 +25,12 @@ function BusLayoutPreview({ rows, seatSize = 30 }) {
   const gap      = Math.max(3, Math.round(seatSize * 0.13))
   const aisle    = Math.max(12, Math.round(seatSize * 0.7))
   const fontSize = Math.max(9, Math.round(seatSize * 0.36))
-  let n = 0
+
+  const seatStyle = {
+    width:seatSize, height:seatSize, borderRadius:6, background:'#e8f0fb', border:'1px solid #bfdbfe',
+    color:'#2e6db4', fontSize, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center',
+    boxSizing:'border-box', fontFamily:'inherit', textAlign:'center', padding:0,
+  }
 
   return (
     <div style={{ display:'inline-flex', flexDirection:'column', gap, padding:14, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:12 }}>
@@ -33,20 +40,27 @@ function BusLayoutPreview({ rows, seatSize = 30 }) {
       {rows.map((row, ri) => {
         const cells = []
         for (let i = 0; i < maxLeft; i++) {
-          cells.push(i < row.left_seats ? { key:`l${i}`, n: ++n } : { key:`l${i}`, n: null })
+          cells.push(i < row.left_seats ? { key:`l${i}`, side:'left', i, label: row.left_labels?.[i] ?? '' } : { key:`l${i}`, empty:true })
         }
         cells.push({ key:'aisle', aisle:true })
         for (let i = 0; i < maxRight; i++) {
-          cells.push(i < row.right_seats ? { key:`r${i}`, n: ++n } : { key:`r${i}`, n: null })
+          cells.push(i < row.right_seats ? { key:`r${i}`, side:'right', i, label: row.right_labels?.[i] ?? '' } : { key:`r${i}`, empty:true })
         }
         return (
           <div key={ri} style={{ display:'grid', gap, gridTemplateColumns:`repeat(${maxLeft}, ${seatSize}px) ${aisle}px repeat(${maxRight}, ${seatSize}px)` }}>
-            {cells.map(c => c.aisle
-              ? <div key={c.key} />
-              : c.n != null
-                ? <div key={c.key} style={{ width:seatSize, height:seatSize, borderRadius:6, background:'#e8f0fb', border:'1px solid #bfdbfe', color:'#2e6db4', fontSize, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{c.n}</div>
-                : <div key={c.key} style={{ width:seatSize, height:seatSize }} />
-            )}
+            {cells.map(c => {
+              if (c.aisle) return <div key={c.key} />
+              if (c.empty)  return <div key={c.key} style={{ width:seatSize, height:seatSize }} />
+              return editable ? (
+                <input key={c.key} value={c.label} maxLength={4}
+                  onChange={e => onLabelChange(ri, c.side, c.i, e.target.value)}
+                  style={{ ...seatStyle, cursor:'text', outline:'none' }}
+                  onFocus={e => e.target.style.borderColor = '#2e6db4'}
+                  onBlur={e  => e.target.style.borderColor = '#bfdbfe'} />
+              ) : (
+                <div key={c.key} style={seatStyle}>{c.label}</div>
+              )
+            })}
           </div>
         )
       })}
@@ -107,19 +121,92 @@ function RowEditor({ row, index, total, onUpdate, onRemove, onMoveUp, onMoveDown
   )
 }
 
+/* ── Tooltip flutuante de pré-visualização — abre ao passar o mouse sobre um mapa ── */
+function MapPreviewTooltip({ busMap, anchorRect }) {
+  if (!anchorRect) return null
+  const width = 320
+  const top  = Math.min(anchorRect.bottom + 6, window.innerHeight - 12)
+  const left = Math.min(Math.max(anchorRect.left, 12), window.innerWidth - width - 12)
+
+  return createPortal(
+    <div style={{
+      position:'fixed', top, left, width, zIndex:9999,
+      background:'#fff', border:'1px solid #e2e8f0', borderRadius:10,
+      boxShadow:'0 12px 32px rgba(15,23,42,.18)', padding:'12px 16px',
+      maxHeight: window.innerHeight - top - 12, overflowY:'auto',
+      pointerEvents:'none',
+    }}>
+      <p style={{ fontSize:11, fontWeight:700, color:'#1a2d4f', textTransform:'uppercase', letterSpacing:'.04em', margin:'0 0 10px' }}>
+        {busMap.label}
+      </p>
+      <BusLayoutPreview rows={busMap.rows ?? []} seatSize={22} />
+    </div>,
+    document.body
+  )
+}
+
+/* Maior número (numérico) já usado entre as numerações de assento de todas as fileiras. */
+function maxLabelNum(rows) {
+  let max = 0
+  rows.forEach(r => {
+    [...(r.left_labels ?? []), ...(r.right_labels ?? [])].forEach(l => {
+      const n = parseInt(l, 10)
+      if (!isNaN(n) && n > max) max = n
+    })
+  })
+  return max
+}
+
+/* Ajusta o tamanho do array de numeração para acompanhar o nº de assentos do lado,
+   completando novos assentos com a próxima numeração sugerida (editável depois). */
+function resizeLabels(labels, count, counter) {
+  const arr = [...(labels ?? [])]
+  while (arr.length < count) { counter.value += 1; arr.push(String(counter.value)) }
+  while (arr.length > count) arr.pop()
+  return arr
+}
+
 /* ── Modal de criação / edição de um mapa ── */
 function BusMapModal({ busMap, onSave, onClose }) {
   const isEdit = !!busMap
-  const [name,    setName]    = useState(busMap?.label ?? '')
-  const [rows,    setRows]    = useState((busMap?.rows ?? []).map(r => ({ left_seats: r.left_seats, right_seats: r.right_seats })))
+  const [name,      setName]      = useState(busMap?.label ?? '')
+  const [deckCount, setDeckCount] = useState(busMap?.deck_count ?? 1)
+  const [deck,      setDeck]      = useState(busMap?.deck ?? 1)
+  const [rows,      setRows]      = useState((busMap?.rows ?? []).map(r => ({
+    left_seats: r.left_seats, right_seats: r.right_seats,
+    left_labels: r.left_labels ?? [], right_labels: r.right_labels ?? [],
+  })))
   const [saving,    setSaving]    = useState(false)
   const [nameError, setNameError] = useState(false)
 
-  const addRow = () => {
-    const last = rows[rows.length - 1]
-    setRows(prev => [...prev, { left_seats: last?.left_seats ?? 2, right_seats: last?.right_seats ?? 2 }])
-  }
-  const updateRow = (idx, patch) => setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const addRow = () => setRows(prev => {
+    const last = prev[prev.length - 1]
+    const left_seats  = last?.left_seats  ?? 2
+    const right_seats = last?.right_seats ?? 2
+    const counter = { value: maxLabelNum(prev) }
+    return [...prev, {
+      left_seats, right_seats,
+      left_labels:  resizeLabels([], left_seats, counter),
+      right_labels: resizeLabels([], right_seats, counter),
+    }]
+  })
+  const updateRow = (idx, patch) => setRows(prev => {
+    const counter = { value: maxLabelNum(prev) }
+    return prev.map((r, i) => {
+      if (i !== idx) return r
+      const next = { ...r, ...patch }
+      if ('left_seats'  in patch) next.left_labels  = resizeLabels(r.left_labels,  patch.left_seats,  counter)
+      if ('right_seats' in patch) next.right_labels = resizeLabels(r.right_labels, patch.right_seats, counter)
+      return next
+    })
+  })
+  const updateLabel = (rowIdx, side, seatIdx, value) => setRows(prev => prev.map((r, i) => {
+    if (i !== rowIdx) return r
+    const key = side === 'left' ? 'left_labels' : 'right_labels'
+    const arr = [...r[key]]
+    arr[seatIdx] = value
+    return { ...r, [key]: arr }
+  }))
   const removeRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx))
   const moveRow = (from, to) => {
     if (to < 0 || to >= rows.length) return
@@ -137,7 +224,7 @@ function BusMapModal({ busMap, onSave, onClose }) {
     if (!name.trim()) { setNameError(true); return }
     setSaving(true)
     try {
-      await onSave({ label: name.trim(), rows })
+      await onSave({ label: name.trim(), deck_count: deckCount, deck: deckCount === 2 ? deck : 1, rows })
       onClose()
     } catch { toast.error('Erro ao salvar.') }
     finally { setSaving(false) }
@@ -176,6 +263,40 @@ function BusMapModal({ busMap, onSave, onClose }) {
             {nameError && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Informe o nome do mapa</p>}
           </div>
 
+          {/* Andares do ônibus */}
+          <div style={{ display:'flex', gap:24, flexWrap:'wrap' }}>
+            <div>
+              <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:4 }}>Andares do ônibus</label>
+              <div style={{ display:'inline-flex', border:'1.5px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
+                {[[1, 'Andar único'], [2, 'Dois andares']].map(([val, lbl]) => (
+                  <button key={val} type="button" onClick={() => setDeckCount(val)}
+                    style={{ padding:'8px 14px', border:'none', background: deckCount === val ? '#1a2d4f' : '#fff', color: deckCount === val ? '#fff' : '#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {deckCount === 2 && (
+              <div>
+                <label style={{ display:'block', fontSize:11, color:'#94a3b8', marginBottom:4 }}>Este mapa representa</label>
+                <div style={{ display:'inline-flex', border:'1.5px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
+                  {[[1, '1º andar'], [2, '2º andar']].map(([val, lbl]) => (
+                    <button key={val} type="button" onClick={() => setDeck(val)}
+                      style={{ padding:'8px 14px', border:'none', background: deck === val ? '#1a2d4f' : '#fff', color: deck === val ? '#fff' : '#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {deckCount === 2 && (
+            <p style={{ fontSize:11.5, color:'#94a3b8', margin:'-10px 0 0' }}>
+              Ônibus de dois andares precisam de um mapa para cada andar — crie outro mapa de ônibus para o {deck === 1 ? '2º' : '1º'} andar.
+            </p>
+          )}
+
           {/* Fileiras + pré-visualização */}
           <div style={{ display:'flex', gap:24, alignItems:'flex-start', flexWrap:'wrap' }}>
             {/* Editor de fileiras */}
@@ -206,10 +327,13 @@ function BusMapModal({ busMap, onSave, onClose }) {
 
             {/* Pré-visualização */}
             <div style={{ flexShrink:0 }}>
-              <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 10px' }}>
-                Pré-visualização
+              <p style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 4px' }}>
+                Numeração dos assentos
               </p>
-              <BusLayoutPreview rows={rows} />
+              <p style={{ fontSize:11.5, color:'#94a3b8', margin:'0 0 10px', maxWidth:200 }}>
+                Clique em cada assento e digite o número correspondente — a numeração varia de ônibus para ônibus.
+              </p>
+              <BusLayoutPreview rows={rows} seatSize={36} editable onLabelChange={updateLabel} />
             </div>
           </div>
         </div>
@@ -236,7 +360,7 @@ export default function BusMapsManager() {
   const [loading, setLoading] = useState(true)
   const [modal,   setModal]   = useState(null) // null | { busMap?: obj }
   const [confirm, setConfirm] = useState(null) // { id, name }
-  const [hoverId, setHoverId] = useState(null)
+  const [hover,   setHover]   = useState(null) // { id, rect }
 
   const load = () => {
     setLoading(true)
@@ -245,9 +369,15 @@ export default function BusMapsManager() {
 
   useEffect(() => { load() }, [])
 
-  const handleSave = async ({ label, rows }) => {
+  const handleSave = async ({ label, deck_count, deck, rows }) => {
     const busMap = modal?.busMap
-    const payload = { label, rows: rows.map((r, i) => ({ order:i, left_seats:r.left_seats, right_seats:r.right_seats })) }
+    const payload = {
+      label, deck_count, deck,
+      rows: rows.map((r, i) => ({
+        order:i, left_seats:r.left_seats, right_seats:r.right_seats,
+        left_labels:r.left_labels, right_labels:r.right_labels,
+      })),
+    }
 
     if (busMap) {
       await configApi.updateBusMap(busMap.id, payload)
@@ -287,36 +417,35 @@ export default function BusMapsManager() {
       ) : (
         <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden', background:'#fff' }}>
           {busMaps.map((bm, idx) => {
-            const total  = (bm.rows ?? []).reduce((s, r) => s + r.left_seats + r.right_seats, 0)
-            const isOpen = hoverId === bm.id
+            const total   = (bm.rows ?? []).reduce((s, r) => s + r.left_seats + r.right_seats, 0)
+            const isOpen  = hover?.id === bm.id
             return (
               <div key={bm.id}
-                style={{ borderBottom: idx < busMaps.length - 1 ? '1px solid #f1f5f9' : 'none' }}
-                onMouseEnter={() => setHoverId(bm.id)}
-                onMouseLeave={() => setHoverId(null)}
+                style={{ display:'flex', alignItems:'center', gap:14, padding:'13px 18px', background: isOpen ? '#f8fafc' : '#fff', transition:'background .12s', borderBottom: idx < busMaps.length - 1 ? '1px solid #f1f5f9' : 'none' }}
+                onMouseEnter={e => setHover({ id: bm.id, rect: e.currentTarget.getBoundingClientRect() })}
+                onMouseLeave={() => setHover(null)}
               >
-                <div style={{ display:'flex', alignItems:'center', gap:14, padding:'13px 18px', background: isOpen ? '#f8fafc' : '#fff', transition:'background .12s' }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ fontSize:14, fontWeight:600, color:'#0f172a', margin:'0 0 2px' }}>{bm.label}</p>
-                    <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>
-                      {bm.rows?.length ?? 0} fileira{(bm.rows?.length ?? 0) !== 1 ? 's' : ''} · {total} assento{total !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                  {!bm.is_active && (
-                    <span style={{ padding:'2px 8px', borderRadius:20, background:'#fee2e2', color:'#dc2626', fontSize:11, fontWeight:600 }}>Inativo</span>
-                  )}
-                  <div className="r-acts">
-                    <button className="r-btn edit" title="Editar" onClick={() => setModal({ busMap: bm })}><Ic n="edit" s={13}/></button>
-                    <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id: bm.id, name: bm.label })}><Ic n="trash" s={13}/></button>
-                  </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ fontSize:14, fontWeight:600, color:'#0f172a', margin:'0 0 2px' }}>{bm.label}</p>
+                  <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>
+                    {bm.rows?.length ?? 0} fileira{(bm.rows?.length ?? 0) !== 1 ? 's' : ''} · {total} assento{total !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                {bm.deck_count === 2 && (
+                  <span style={{ padding:'2px 8px', borderRadius:20, background:'#ede9fe', color:'#7c3aed', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+                    {bm.deck}º andar
+                  </span>
+                )}
+                {!bm.is_active && (
+                  <span style={{ padding:'2px 8px', borderRadius:20, background:'#fee2e2', color:'#dc2626', fontSize:11, fontWeight:600 }}>Inativo</span>
+                )}
+                <div className="r-acts">
+                  <button className="r-btn edit" title="Editar" onClick={() => setModal({ busMap: bm })}><Ic n="edit" s={13}/></button>
+                  <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id: bm.id, name: bm.label })}><Ic n="trash" s={13}/></button>
                 </div>
 
-                {/* Pré-visualização — abre ao passar o mouse */}
-                <div className={`busmap-preview ${isOpen ? 'open' : ''}`}>
-                  <div style={{ padding:'4px 18px 16px' }}>
-                    <BusLayoutPreview rows={bm.rows ?? []} seatSize={24} />
-                  </div>
-                </div>
+                {/* Pré-visualização flutuante — aparece ao passar o mouse */}
+                {isOpen && <MapPreviewTooltip busMap={bm} anchorRect={hover.rect} />}
               </div>
             )
           })}

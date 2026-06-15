@@ -214,10 +214,14 @@ class Airport(models.Model):
 
 class BusMap(models.Model):
     """Mapa de assentos de um ônibus, configurável fileira a fileira."""
-    key       = models.SlugField('Chave', max_length=60, unique=True)
-    label     = models.CharField('Nome', max_length=100)
-    order     = models.PositiveIntegerField('Ordem', default=0)
-    is_active = models.BooleanField('Ativo', default=True)
+    DECK_COUNT_CHOICES = [(1, 'Andar único'), (2, 'Dois andares')]
+
+    key        = models.SlugField('Chave', max_length=60, unique=True)
+    label      = models.CharField('Nome', max_length=100)
+    order      = models.PositiveIntegerField('Ordem', default=0)
+    is_active  = models.BooleanField('Ativo', default=True)
+    deck_count = models.PositiveSmallIntegerField('Andares do ônibus', choices=DECK_COUNT_CHOICES, default=1)
+    deck       = models.PositiveSmallIntegerField('Andar', default=1)
 
     class Meta:
         ordering = ['order', 'label']
@@ -230,10 +234,12 @@ class BusMap(models.Model):
 
 class BusMapRow(models.Model):
     """Fileira de assentos de um mapa de ônibus: N à esquerda do corredor, M à direita."""
-    bus_map     = models.ForeignKey(BusMap, on_delete=models.CASCADE, related_name='rows')
-    order       = models.PositiveIntegerField('Ordem', default=0)
-    left_seats  = models.PositiveSmallIntegerField('Assentos à esquerda', default=2)
-    right_seats = models.PositiveSmallIntegerField('Assentos à direita', default=2)
+    bus_map      = models.ForeignKey(BusMap, on_delete=models.CASCADE, related_name='rows')
+    order        = models.PositiveIntegerField('Ordem', default=0)
+    left_seats   = models.PositiveSmallIntegerField('Assentos à esquerda', default=2)
+    right_seats  = models.PositiveSmallIntegerField('Assentos à direita', default=2)
+    left_labels  = models.JSONField('Numeração à esquerda', default=list, blank=True)
+    right_labels = models.JSONField('Numeração à direita', default=list, blank=True)
 
     class Meta:
         ordering = ['order', 'id']
