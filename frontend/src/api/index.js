@@ -183,6 +183,11 @@ export const configApi = {
   addAccommodation:     (data)        => api.post('/config/accommodations/', data),
   updateAccommodation:  (id, data)    => api.patch(`/config/accommodations/${id}/`, data),
   delAccommodation:     (id)          => api.delete(`/config/accommodations/${id}/`),
+  // Mapas de ônibus
+  busMaps:       ()       => api.get('/config/bus-maps/'),
+  addBusMap:     (data)   => api.post('/config/bus-maps/', data),
+  updateBusMap:  (id, d)  => api.patch(`/config/bus-maps/${id}/`, d),
+  delBusMap:     (id)     => api.delete(`/config/bus-maps/${id}/`),
   // Gêneros
   genders:    () => api.get('/config/genders/'),
   addGender:  (name) => api.post('/config/genders/', { name }),

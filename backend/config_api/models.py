@@ -210,3 +210,35 @@ class Airport(models.Model):
     def __str__(self):
         parts = [self.iata_code, self.name]
         return ' — '.join(p for p in parts if p)
+
+
+class BusMap(models.Model):
+    """Mapa de assentos de um ônibus, configurável fileira a fileira."""
+    key       = models.SlugField('Chave', max_length=60, unique=True)
+    label     = models.CharField('Nome', max_length=100)
+    order     = models.PositiveIntegerField('Ordem', default=0)
+    is_active = models.BooleanField('Ativo', default=True)
+
+    class Meta:
+        ordering = ['order', 'label']
+        verbose_name = 'Mapa de ônibus'
+        verbose_name_plural = 'Mapas de ônibus'
+
+    def __str__(self):
+        return self.label
+
+
+class BusMapRow(models.Model):
+    """Fileira de assentos de um mapa de ônibus: N à esquerda do corredor, M à direita."""
+    bus_map     = models.ForeignKey(BusMap, on_delete=models.CASCADE, related_name='rows')
+    order       = models.PositiveIntegerField('Ordem', default=0)
+    left_seats  = models.PositiveSmallIntegerField('Assentos à esquerda', default=2)
+    right_seats = models.PositiveSmallIntegerField('Assentos à direita', default=2)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Fileira de ônibus'
+        verbose_name_plural = 'Fileiras de ônibus'
+
+    def __str__(self):
+        return f'{self.bus_map.label} · fileira {self.order + 1}'

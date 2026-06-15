@@ -13,7 +13,8 @@ from rest_framework.parsers import MultiPartParser
 from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
-                     ConfigAccommodation, ConfigListCategory, Airport, Airline)
+                     ConfigAccommodation, ConfigListCategory, Airport, Airline,
+                     BusMap, BusMapRow)
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -902,3 +903,54 @@ class AirlineViewSet(viewsets.ModelViewSet):
         t = threading.Thread(target=run, daemon=True)
         t.start()
         return Response({'status': 'Importação iniciada.'}, status=status.HTTP_202_ACCEPTED)
+
+
+# ── Mapas de Ônibus ────────────────────────────────────────────────────────
+
+class BusMapRowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = BusMapRow
+        fields = ['id', 'order', 'left_seats', 'right_seats']
+
+
+class BusMapSerializer(serializers.ModelSerializer):
+    rows = BusMapRowSerializer(many=True, required=False)
+
+    class Meta:
+        model  = BusMap
+        fields = ['id', 'key', 'label', 'order', 'is_active', 'rows']
+
+    def _save_rows(self, bus_map, rows_data):
+        bus_map.rows.all().delete()
+        BusMapRow.objects.bulk_create([
+            BusMapRow(bus_map=bus_map, order=i,
+                      left_seats=row.get('left_seats', 0), right_seats=row.get('right_seats', 0))
+            for i, row in enumerate(rows_data)
+        ])
+
+    def create(self, validated_data):
+        rows_data = validated_data.pop('rows', [])
+        bus_map = BusMap.objects.create(**validated_data)
+        if rows_data:
+            self._save_rows(bus_map, rows_data)
+        return bus_map
+
+    def update(self, instance, validated_data):
+        rows_data = validated_data.pop('rows', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if rows_data is not None:
+            self._save_rows(instance, rows_data)
+        return instance
+
+
+class BusMapViewSet(viewsets.ModelViewSet):
+    queryset         = BusMap.objects.prefetch_related('rows').all()
+    serializer_class = BusMapSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]

@@ -7,6 +7,7 @@ import DocTypesManager from '../components/DocTypesManager'
 import AccommodationManager from '../components/AccommodationManager'
 import AirportsManager from '../components/AirportsManager'
 import AirlinesManager from '../components/AirlinesManager'
+import BusMapsManager from '../components/BusMapsManager'
 import { Ic } from '../components/Icon'
 
 /* ── CSV global: Países → Estados → Cidades ── */
@@ -642,8 +643,9 @@ const LIST_DEFS = [
   { key:'countries',       label:'Países & Estados' },
   { key:'airports',        label:'Aeroportos' },
   { key:'airlines',        label:'Companhias Aéreas' },
+  { key:'bus_maps',        label:'Mapas de Ônibus' },
 ]
-const WIDE_LISTS = ['doc_types', 'accommodations', 'countries', 'airports', 'airlines']
+const WIDE_LISTS = ['doc_types', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -939,6 +941,7 @@ export default function Settings() {
           {activeDef.key === 'countries'       && <CountriesTab />}
           {activeDef.key === 'airports'        && <AirportsManager />}
           {activeDef.key === 'airlines'        && <AirlinesManager />}
+          {activeDef.key === 'bus_maps'        && <BusMapsManager />}
         </ListDetailModal>
       )}
     </div>
