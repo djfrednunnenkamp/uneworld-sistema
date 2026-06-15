@@ -65,8 +65,14 @@ export function BusLayoutPreview({ rows, seatSize = 30, editable = false, onLabe
                     cursor:     info.onClick ? 'pointer' : 'default',
                     transition: 'transform .1s, box-shadow .1s',
                   }}
-                  onMouseEnter={e => { if (info.onClick) { e.currentTarget.style.transform='scale(1.08)'; e.currentTarget.style.boxShadow='0 2px 6px rgba(0,0,0,.18)' } }}
-                  onMouseLeave={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none' }}>
+                  onMouseEnter={e => {
+                    if (info.onClick) { e.currentTarget.style.transform='scale(1.08)'; e.currentTarget.style.boxShadow='0 2px 6px rgba(0,0,0,.18)' }
+                    info.onMouseEnter?.(e)
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none'
+                    info.onMouseLeave?.(e)
+                  }}>
                   {c.label}
                 </div>
               )

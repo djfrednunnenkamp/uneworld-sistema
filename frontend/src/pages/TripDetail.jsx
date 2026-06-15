@@ -2856,6 +2856,7 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, rooms, onConfir
 function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, onClose }) {
   const [saving,    setSaving]    = useState(false)
   const [swapTarget, setSwapTarget] = useState(null) // { label, occupant }
+  const [hoverSeat,  setHoverSeat]  = useState(null) // { name, rect }
 
   const interactive = !!currentEnrollment
   const currentName = currentEnrollment ? (currentEnrollment.passenger_name || currentEnrollment.block_agency || '') : ''
@@ -2896,16 +2897,21 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
     else assignSeat(label)
   }
 
+  const seatHoverHandlers = (name) => ({
+    onMouseEnter: ev => setHoverSeat({ name, rect: ev.currentTarget.getBoundingClientRect() }),
+    onMouseLeave: () => setHoverSeat(null),
+  })
+
   const getSeatInfo = (label) => {
     if (!label) return {}
     const occupant  = seatOf[label]
     const isCurrent = occupant && currentEnrollment && occupant.id === currentEnrollment.id
     if (isCurrent) {
-      return { background:'#dcfce7', border:'1px solid #16a34a', color:'#15803d', title:`${currentName} (assento atual)` }
+      return { background:'#dcfce7', border:'1px solid #16a34a', color:'#15803d', title:`${currentName} (assento atual)`, ...seatHoverHandlers(`${currentName} (seu assento)`) }
     }
     if (occupant) {
       const name = occupant.passenger_name || occupant.block_agency || 'Ocupado'
-      return { background:'#fef9c3', border:'1px solid #fde68a', color:'#92400e', title:name, onClick: interactive ? () => handleSeatClick(label) : undefined }
+      return { background:'#fef9c3', border:'1px solid #fde68a', color:'#92400e', title:name, onClick: interactive ? () => handleSeatClick(label) : undefined, ...seatHoverHandlers(name) }
     }
     return { title: interactive ? 'Disponível — clique para atribuir' : 'Disponível', onClick: interactive ? () => handleSeatClick(label) : undefined }
   }
@@ -3001,6 +3007,23 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
           </>
         )}
       </div>
+
+      {hoverSeat && createPortal(
+        <div style={{
+          position:'fixed', zIndex:9999, pointerEvents:'none',
+          top: hoverSeat.rect.top - 8, left: hoverSeat.rect.left + hoverSeat.rect.width / 2,
+          transform:'translate(-50%, -100%)',
+          background:'#1e293b', color:'#fff', fontSize:12, fontWeight:600,
+          padding:'5px 10px', borderRadius:6, whiteSpace:'nowrap',
+          boxShadow:'0 4px 12px rgba(0,0,0,.18)',
+        }}>
+          {hoverSeat.name}
+          <div style={{ position:'absolute', bottom:-4, left:'50%', transform:'translateX(-50%)', width:8, height:8, overflow:'hidden' }}>
+            <div style={{ width:8, height:8, background:'#1e293b', transform:'rotate(45deg) translateY(-50%)' }} />
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
@@ -4014,7 +4037,7 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
             {[
               {h:'Nº',        align:'center'},
               {h:'●',         align:'center'},
-              {h:isAereo?'✈':'', align:'center'},
+              {h:isAereo?'✈':(listType==='terrestre'?'🚌':''), align:'center'},
               ...(isAereo ? [{h:'Emb.', align:'center'}] : []),
               {h:'Passageiro',align:'left'},
               {h:'Nasc.',     align:'center'},
@@ -4209,7 +4232,21 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
                           {hasConnAirport && mkBtn(e.connection_ticket_status)}
                         </div>
                       )
-                    })() : <span style={{ fontSize:14, textAlign:'center' }}>🚌</span>
+                    })() : (() => {
+                      const hasSeat = !!e.seat
+                      const c = hasSeat ? '22,163,74' : '148,163,184'
+                      const a = hasSeat ? '.38' : '.22'
+                      const grad = `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
+                      return (
+                        <div style={{ display:'flex', justifyContent:'center' }}>
+                          <button type="button" onClick={() => setSeatMapModal({ enrollment: e })}
+                            title={hasSeat ? `Assento ${e.seat}` : 'Informar o assento'}
+                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:grad, border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
+                            <span style={{ fontSize:11, lineHeight:1, color: hasSeat ? '#16a34a' : '#94a3b8' }}>🚌</span>
+                          </button>
+                        </div>
+                      )
+                    })()
                     }
 
                     {/* Embarque — aeroporto de saída, logo antes do nome */}
