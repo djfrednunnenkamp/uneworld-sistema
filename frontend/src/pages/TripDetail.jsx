@@ -18,6 +18,7 @@ import AirlinePicker from '../components/AirlinePicker'
 import CpfInput from '../components/CpfInput'
 import PhoneInput from '../components/PhoneInput'
 import RichTextEditor from '../components/RichTextEditor'
+import { BusLayoutPreview } from '../components/BusLayoutPreview'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -1477,7 +1478,7 @@ const PASSENGER_ACTIONS = [
   { key:'edit',        label:'Editar o passageiro',         icon:'edit',     enabled:true  },
   { key:'notes',       label:'Observações',                 icon:'docs',     enabled:true  },
   { key:'extra_info',  label:'Informações adicionais',      icon:'plus',     enabled:true  },
-  { key:'seat',        label:'Informar o assento',          icon:'grid',     enabled:false },
+  { key:'seat',        label:'Informar o assento',          icon:'grid',     enabled:true  },
   { key:'crew',        label:'Equipe técnica',              icon:'users',    enabled:true  },
   { key:'pax_type',    label:'Tipo de passageiro',          icon:'settings', enabled:false },
   { key:'boarding',    label:'Local de embarque',           icon:'globe',    enabled:true  },
@@ -2851,6 +2852,159 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, rooms, onConfir
   )
 }
 
+/* ── Mapa de assentos do ônibus — visualização e marcação de assento do passageiro ── */
+function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, onClose }) {
+  const [saving,    setSaving]    = useState(false)
+  const [swapTarget, setSwapTarget] = useState(null) // { label, occupant }
+
+  const interactive = !!currentEnrollment
+  const currentName = currentEnrollment ? (currentEnrollment.passenger_name || currentEnrollment.block_agency || '') : ''
+
+  const seatOf = {}
+  enrolled.forEach(e => { if (e.seat) seatOf[e.seat] = e })
+
+  const assignSeat = async (label) => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, currentEnrollment.id, { seat: label })
+      toast.success(`Assento ${label} atribuído a ${currentName}.`)
+      onSaved()
+      onClose()
+    } catch { toast.error('Erro ao atribuir assento.') }
+    finally { setSaving(false) }
+  }
+
+  const handleSwapConfirm = async () => {
+    if (!swapTarget) return
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, swapTarget.occupant.id, { seat: '' })
+      await listsApi.updatePassenger(listId, currentEnrollment.id, { seat: swapTarget.label })
+      toast.success(`Assento ${swapTarget.label} atribuído a ${currentName}.`)
+      setSwapTarget(null)
+      onSaved()
+      onClose()
+    } catch { toast.error('Erro ao trocar assentos.') }
+    finally { setSaving(false) }
+  }
+
+  const handleSeatClick = (label) => {
+    if (!interactive || saving) return
+    const occupant = seatOf[label]
+    if (occupant && occupant.id === currentEnrollment.id) return
+    if (occupant) setSwapTarget({ label, occupant })
+    else assignSeat(label)
+  }
+
+  const getSeatInfo = (label) => {
+    if (!label) return {}
+    const occupant  = seatOf[label]
+    const isCurrent = occupant && currentEnrollment && occupant.id === currentEnrollment.id
+    if (isCurrent) {
+      return { background:'#dcfce7', border:'1px solid #16a34a', color:'#15803d', title:`${currentName} (assento atual)` }
+    }
+    if (occupant) {
+      const name = occupant.passenger_name || occupant.block_agency || 'Ocupado'
+      return { background:'#fef9c3', border:'1px solid #fde68a', color:'#92400e', title:name, onClick: interactive ? () => handleSeatClick(label) : undefined }
+    }
+    return { title: interactive ? 'Disponível — clique para atribuir' : 'Disponível', onClick: interactive ? () => handleSeatClick(label) : undefined }
+  }
+
+  if (!busMap) {
+    return (
+      <div className="overlay" style={{ zIndex:700 }} onClick={onClose}>
+        <div className="mbox" style={{ maxWidth:420 }} onClick={e => e.stopPropagation()}>
+          <div className="mhead">
+            <span className="mtitle">Mapa de ônibus</span>
+            <button className="mclose" onClick={onClose}><Ic n="x" s={15}/></button>
+          </div>
+          <div className="mbody">
+            <div className="empty-state"><p>Nenhum mapa de ônibus configurado para esta lista.</p></div>
+          </div>
+          <div className="mfoot">
+            <button className="btn btn-outline" onClick={onClose}>Fechar</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const twoDecks  = busMap.deck_count === 2
+  const rowsDeck1 = (busMap.rows ?? []).filter(r => (r.deck ?? 1) === 1)
+  const rowsDeck2 = (busMap.rows ?? []).filter(r => r.deck === 2)
+  const seatSize  = 34
+  const legendItem = (bg, border, color, label) => (
+    <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#64748b' }}>
+      <span style={{ width:16, height:16, borderRadius:4, background:bg, border:`1px solid ${border}`, color, flexShrink:0 }} />
+      {label}
+    </div>
+  )
+
+  return (
+    <div className="overlay" style={{ zIndex:700 }} onClick={onClose}>
+      <div className="mbox" style={{ maxWidth: twoDecks ? 720 : 460, width:'100%' }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <div>
+            <span className="mtitle">{busMap.label}</span>
+            {interactive
+              ? <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>{currentName}</p>
+              : <p style={{ margin:'2px 0 0', fontSize:12, color:'#94a3b8' }}>Visualização do mapa de assentos</p>}
+          </div>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={15}/></button>
+        </div>
+
+        {swapTarget ? (
+          <>
+            <div className="mbody">
+              <p style={{ margin:'0 0 6px', fontSize:14, color:'#1e293b' }}>
+                O assento <strong>{swapTarget.label}</strong> já está ocupado por{' '}
+                <strong>{swapTarget.occupant.passenger_name || swapTarget.occupant.block_agency}</strong>.
+              </p>
+              <p style={{ margin:0, fontSize:13, color:'#64748b' }}>
+                Deseja trocar? {swapTarget.occupant.passenger_name || swapTarget.occupant.block_agency} ficará sem assento atribuído
+                e {currentName} passará a ocupar o assento {swapTarget.label}.
+              </p>
+            </div>
+            <div className="mfoot">
+              <button className="btn btn-outline" onClick={() => setSwapTarget(null)} disabled={saving}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleSwapConfirm} disabled={saving}>Trocar assento</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mbody">
+              <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:16 }}>
+                {legendItem('#fff', '#bfdbfe', '#2e6db4', 'Disponível')}
+                {legendItem('#fef9c3', '#fde68a', '#92400e', 'Ocupado')}
+                {interactive && legendItem('#dcfce7', '#16a34a', '#15803d', 'Seu assento')}
+              </div>
+              <div style={{ display:'flex', gap:24, justifyContent:'center', flexWrap:'wrap' }}>
+                {twoDecks ? (
+                  <>
+                    <div>
+                      <p style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 8px', textAlign:'center' }}>1º andar</p>
+                      <BusLayoutPreview rows={rowsDeck1} seatSize={seatSize} getSeatInfo={getSeatInfo} />
+                    </div>
+                    <div>
+                      <p style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.06em', margin:'0 0 8px', textAlign:'center' }}>2º andar</p>
+                      <BusLayoutPreview rows={rowsDeck2} seatSize={seatSize} getSeatInfo={getSeatInfo} />
+                    </div>
+                  </>
+                ) : (
+                  <BusLayoutPreview rows={rowsDeck1} seatSize={seatSize} getSeatInfo={getSeatInfo} />
+                )}
+              </div>
+            </div>
+            <div className="mfoot">
+              <button className="btn btn-outline" onClick={onClose}>Fechar</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /* ── Modal de edição de tipo da acomodação (não remove passageiros) ── */
 function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onDelete, onClose }) {
   const navigate    = useNavigate()
@@ -3484,7 +3638,7 @@ function CsvImportModal({ listId, onImported, onClose }) {
 }
 
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, additionals = [], onData }) {
+function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, endDate, additionals = [], onData }) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const perms        = user?.permissions ?? {}
@@ -3538,6 +3692,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
   const [filterSearch,    setFilterSearch]    = useState('')
   // showCsvImport — popup "Importar passageiros via CSV"
   const [showCsvImport,   setShowCsvImport]   = useState(false)
+  // seatMapModal: null | { enrollment: objeto | null } — popup "Mapa de ônibus" (null = visualização)
+  const [seatMapModal,    setSeatMapModal]    = useState(null)
+  const [busMap,          setBusMap]          = useState(null)
 
   const firstLoad = useRef(true)
 
@@ -3567,6 +3724,12 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
   useEffect(() => {
     listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {})
   }, [])
+  useEffect(() => {
+    if (listType !== 'terrestre' || !busMapId) { setBusMap(null); return }
+    configApi.busMaps()
+      .then(r => setBusMap((r.data.results ?? r.data).find(m => m.id === busMapId) || null))
+      .catch(() => setBusMap(null))
+  }, [listType, busMapId])
 
   // Repassa os dados ao componente pai — exibidos no painel de métricas, acima das abas
   // (cancelados não contam mais como vaga ocupada nem entram nas métricas)
@@ -3685,6 +3848,9 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
       case 'swap_room':
         setAccomModal({ enrollmentIds: [enrollment.id] })
         break
+      case 'seat':
+        setSeatMapModal({ enrollment })
+        break
       case 'link_client':
         setAssignBlk(enrollment)
         break
@@ -3780,6 +3946,12 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             🛏 Gerenciar acomodações
           </button>
+          {listType === 'terrestre' && busMap && (
+            <button type="button" onClick={() => setSeatMapModal({ enrollment: null })}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              🚌 Mapa de ônibus
+            </button>
+          )}
           {canCsvUpload && (
             <button type="button" onClick={() => setShowCsvImport(true)}
               style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#1a2d4f', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
@@ -4237,6 +4409,18 @@ function PassengersTab({ listId, listType, defaultAirport, startDate, endDate, a
           rooms={rooms}
           onConfirm={handleAccomConfirm}
           onClose={() => setAccomModal(null)}
+        />
+      )}
+
+      {/* Popup "Mapa de ônibus" — visualização e/ou marcação de assento */}
+      {seatMapModal && (
+        <SeatMapModal
+          busMap={busMap}
+          enrolled={enrolled}
+          currentEnrollment={seatMapModal.enrollment}
+          listId={listId}
+          onSaved={load}
+          onClose={() => setSeatMapModal(null)}
         />
       )}
 
@@ -4800,7 +4984,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} busMapId={list.bus_map} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
 
 {tab === 'voos' && <FlightsTab listId={id} list={list} onListUpdate={setList} />}
 

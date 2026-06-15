@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
    A numeração de cada assento é definida manualmente (left_labels/right_labels),
    pois a convenção de numeração varia de ônibus para ônibus.
    Em modo `editable`, cada assento vira um campo de texto editável. */
-export function BusLayoutPreview({ rows, seatSize = 30, editable = false, onLabelChange }) {
+export function BusLayoutPreview({ rows, seatSize = 30, editable = false, onLabelChange, getSeatInfo }) {
   if (!rows || rows.length === 0) {
     return (
       <p style={{ fontSize:12, color:'#94a3b8', textAlign:'center', padding:'24px 0', margin:0 }}>
@@ -44,14 +44,31 @@ export function BusLayoutPreview({ rows, seatSize = 30, editable = false, onLabe
             {cells.map(c => {
               if (c.aisle) return <div key={c.key} />
               if (c.empty)  return <div key={c.key} style={{ width:seatSize, height:seatSize }} />
-              return editable ? (
-                <input key={c.key} value={c.label} maxLength={4}
-                  onChange={e => onLabelChange(ri, c.side, c.i, e.target.value)}
-                  style={{ ...seatStyle, cursor:'text', outline:'none' }}
-                  onFocus={e => e.target.style.borderColor = '#2e6db4'}
-                  onBlur={e  => e.target.style.borderColor = '#bfdbfe'} />
-              ) : (
-                <div key={c.key} style={seatStyle}>{c.label}</div>
+              if (editable) {
+                return (
+                  <input key={c.key} value={c.label} maxLength={4}
+                    onChange={e => onLabelChange(ri, c.side, c.i, e.target.value)}
+                    style={{ ...seatStyle, cursor:'text', outline:'none' }}
+                    onFocus={e => e.target.style.borderColor = '#2e6db4'}
+                    onBlur={e  => e.target.style.borderColor = '#bfdbfe'} />
+                )
+              }
+              const info = getSeatInfo ? (getSeatInfo(c.label) || {}) : {}
+              return (
+                <div key={c.key} title={info.title}
+                  onClick={info.onClick}
+                  style={{
+                    ...seatStyle,
+                    background: info.background ?? seatStyle.background,
+                    border:     info.border     ?? seatStyle.border,
+                    color:      info.color      ?? seatStyle.color,
+                    cursor:     info.onClick ? 'pointer' : 'default',
+                    transition: 'transform .1s, box-shadow .1s',
+                  }}
+                  onMouseEnter={e => { if (info.onClick) { e.currentTarget.style.transform='scale(1.08)'; e.currentTarget.style.boxShadow='0 2px 6px rgba(0,0,0,.18)' } }}
+                  onMouseLeave={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none' }}>
+                  {c.label}
+                </div>
               )
             })}
           </div>

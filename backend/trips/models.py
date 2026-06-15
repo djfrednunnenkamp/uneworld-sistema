@@ -174,6 +174,7 @@ class ListEnrollment(models.Model):
     block_agency     = models.CharField('Agência (bloqueio)', max_length=200, blank=True)
     is_provisional   = models.BooleanField('É provisório', default=False)
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
+    seat             = models.CharField('Assento', max_length=10, blank=True)
     enrollment_status  = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='pendente', db_index=True)
     pending_until      = models.DateField('Pendente até', null=True, blank=True)
     pending_until_created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Prazo definido por')

@@ -313,7 +313,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_is_guide', 'passenger_address',
             'additionals', 'additionals_data',
             'crew_roles', 'crew_roles_data',
-            'accommodation', 'enrollment_status', 'pending_until', 'pending_reason',
+            'accommodation', 'seat', 'enrollment_status', 'pending_until', 'pending_reason',
             'departure_airport', 'departure_airport_data',
             'ticket_status', 'connection_ticket_status',
             'selected_passport', 'selected_passport_data',

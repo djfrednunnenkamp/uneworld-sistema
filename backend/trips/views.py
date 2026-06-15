@@ -349,7 +349,7 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         # PATCH
-        for field in ('accommodation', 'enrollment_status', 'order_in_list', 'notes',
+        for field in ('accommodation', 'seat', 'enrollment_status', 'order_in_list', 'notes',
                       'pending_until', 'pending_reason',
                       'ticket_status', 'connection_ticket_status'):
             if field in request.data:
