@@ -2857,6 +2857,7 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
   const [saving,    setSaving]    = useState(false)
   const [swapTarget, setSwapTarget] = useState(null) // { label, occupant }
   const [hoverSeat,  setHoverSeat]  = useState(null) // { name, rect }
+  const [unassignConfirm, setUnassignConfirm] = useState(false)
 
   const interactive = !!currentEnrollment
   const currentName = currentEnrollment ? (currentEnrollment.passenger_name || currentEnrollment.block_agency || '') : ''
@@ -2889,10 +2890,22 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
     finally { setSaving(false) }
   }
 
+  const handleUnassignConfirm = async () => {
+    setSaving(true)
+    try {
+      await listsApi.updatePassenger(listId, currentEnrollment.id, { seat: '' })
+      toast.success(`Assento de ${currentName} desmarcado.`)
+      setUnassignConfirm(false)
+      onSaved()
+      onClose()
+    } catch { toast.error('Erro ao desmarcar assento.') }
+    finally { setSaving(false) }
+  }
+
   const handleSeatClick = (label) => {
     if (!interactive || saving) return
     const occupant = seatOf[label]
-    if (occupant && occupant.id === currentEnrollment.id) return
+    if (occupant && occupant.id === currentEnrollment.id) { setUnassignConfirm(true); return }
     if (occupant) setSwapTarget({ label, occupant })
     else assignSeat(label)
   }
@@ -2907,7 +2920,7 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
     const occupant  = seatOf[label]
     const isCurrent = occupant && currentEnrollment && occupant.id === currentEnrollment.id
     if (isCurrent) {
-      return { background:'#dcfce7', border:'1px solid #16a34a', color:'#15803d', title:`${currentName} (assento atual)`, ...seatHoverHandlers(`${currentName} (seu assento)`) }
+      return { background:'#dcfce7', border:'1px solid #16a34a', color:'#15803d', title:`${currentName} — clique para desmarcar`, onClick: () => handleSeatClick(label), ...seatHoverHandlers(`${currentName} (seu assento) — clique para desmarcar`) }
     }
     if (occupant) {
       const name = occupant.passenger_name || occupant.block_agency || 'Ocupado'
@@ -2974,6 +2987,21 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
             <div className="mfoot">
               <button className="btn btn-outline" onClick={() => setSwapTarget(null)} disabled={saving}>Cancelar</button>
               <button className="btn btn-primary" onClick={handleSwapConfirm} disabled={saving}>Trocar assento</button>
+            </div>
+          </>
+        ) : unassignConfirm ? (
+          <>
+            <div className="mbody">
+              <p style={{ margin:0, fontSize:14, color:'#1e293b' }}>
+                Deseja desmarcar o assento <strong>{currentEnrollment.seat}</strong> de <strong>{currentName}</strong>?
+              </p>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'#64748b' }}>
+                {currentName} ficará sem assento atribuído.
+              </p>
+            </div>
+            <div className="mfoot">
+              <button className="btn btn-outline" onClick={() => setUnassignConfirm(false)} disabled={saving}>Cancelar</button>
+              <button className="btn btn-danger" onClick={handleUnassignConfirm} disabled={saving}>Desmarcar assento</button>
             </div>
           </>
         ) : (
@@ -4236,9 +4264,7 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
                       )
                     })() : (() => {
                       const hasSeat = !!e.seat
-                      const c = hasSeat ? '22,163,74' : '220,38,38'
-                      const a = hasSeat ? '.38' : '.22'
-                      const grad = `radial-gradient(circle at center, rgba(${c},${a}) 0%, rgba(${c},.08) 60%, rgba(${c},0) 100%)`
+                      const bg = hasSeat ? '#16a34a' : '#dc2626'
                       const tipText = hasSeat ? `Assento ${e.seat}` : 'Sem assento'
                       return (
                         <div style={{ display:'flex', justifyContent:'center' }}>
@@ -4246,8 +4272,8 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
                             onMouseEnter={ev => setBusSeatTip({ text: tipText, rect: ev.currentTarget.getBoundingClientRect() })}
                             onMouseLeave={() => setBusSeatTip(null)}
                             title={hasSeat ? `Assento ${e.seat}` : 'Informar o assento'}
-                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:grad, border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
-                            <span style={{ fontSize:11, lineHeight:1, color: hasSeat ? '#16a34a' : '#dc2626' }}>🚌</span>
+                            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:bg, boxShadow:`0 0 0 3px ${bg}22`, border:'none', cursor:'pointer', padding:0, flexShrink:0 }}>
+                            <span style={{ fontSize:11, lineHeight:1 }}>🚌</span>
                           </button>
                         </div>
                       )
