@@ -99,6 +99,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
     departure_country_data = serializers.SerializerMethodField()
     departure_state_data   = serializers.SerializerMethodField()
     departure_city_data    = serializers.SerializerMethodField()
+    bus_map_data            = serializers.SerializerMethodField()
 
     class Meta:
         model  = PassengerList
@@ -114,6 +115,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'departure_country', 'departure_country_data',
             'departure_state',   'departure_state_data',
             'departure_city',    'departure_city_data',
+            'bus_map', 'bus_map_data',
             'status', 'notes',
             'enrolled_count', 'created_at', 'updated_at',
         ]
@@ -140,6 +142,11 @@ class PassengerListSerializer(serializers.ModelSerializer):
         if obj.departure_city_id:
             c = obj.departure_city
             return {'id': c.id, 'name': c.name}
+        return None
+
+    def get_bus_map_data(self, obj):
+        if obj.bus_map_id:
+            return {'id': obj.bus_map_id, 'label': obj.bus_map.label}
         return None
 
     def get_start_date_br(self, obj):

@@ -23,6 +23,7 @@ const EMPTY = {
   required_documents: [], status: 'aberta', notes: '',
   default_airport: null,
   departure_country: null, departure_state: null, departure_city: null,
+  bus_map: null,
 }
 
 
@@ -256,12 +257,14 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     departure_country:  initial.departure_country  || null,
     departure_state:    initial.departure_state    || null,
     departure_city:     initial.departure_city     || null,
+    bus_map:            initial.bus_map            || null,
   } : { ...EMPTY })
   const [saving,      setSaving]      = useState(false)
   const [suppliers,   setSuppliers]   = useState([])
   const [additionals, setAdditionals] = useState([])
   const [roteiros,    setRoteiros]    = useState([])
   const [categories,  setCategories]  = useState([])
+  const [busMaps,     setBusMaps]     = useState([])
 
   // Dados para exibição do aeroporto e da localização terrestre
   const [airportData,  setAirportData]  = useState(initial?.default_airport_data  || null)
@@ -275,6 +278,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     listsApi.roteiros().then(r => setRoteiros(r.data.results ?? r.data)).catch(() => {})
     configApi.listCategories().then(r => setCategories(r.data.results ?? r.data)).catch(() => {})
     configApi.countries().then(r => setCountries(r.data.results ?? r.data)).catch(() => {})
+    configApi.busMaps().then(r => setBusMaps((r.data.results ?? r.data).filter(m => m.is_active))).catch(() => {})
   }, [])
 
   // Carrega estados quando o país muda
@@ -290,6 +294,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   }, [form.departure_state])
 
   const catOpts = categories.map(c => ({ value: c.name, label: c.name }))
+  const busMapOpts = [{ value: '', label: 'Nenhum' }, ...busMaps.map(m => ({ value: m.id, label: m.label }))]
 
   const set  = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
   const setV = (k, v)     => setForm(f => ({ ...f, [k]: v }))
@@ -342,7 +347,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
         total_accommodations: Number(form.total_accommodations) || 0,
         // limpa campos do tipo oposto
         ...(form.list_type === 'aereo'
-          ? { departure_country: null, departure_state: null, departure_city: null }
+          ? { departure_country: null, departure_state: null, departure_city: null, bus_map: null }
           : { default_airport: null }),
       }
       const r = isEdit
@@ -448,6 +453,19 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Mapa de assentos de ônibus (apenas terrestre) */}
+            {form.list_type === 'terrestre' && (
+              <div>
+                <label style={lbl}>Mapa de assentos de ônibus</label>
+                <FormSelect
+                  value={form.bus_map ?? ''}
+                  onChange={v => setV('bus_map', v || null)}
+                  options={busMapOpts}
+                  placeholder="Selecionar mapa…"
+                />
               </div>
             )}
 
