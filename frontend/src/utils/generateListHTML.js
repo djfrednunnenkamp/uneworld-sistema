@@ -100,7 +100,7 @@ export async function generateListHTML(list, enrollments, opts, accomTypes = [],
   const paxNumber = new Map(pax.map((e, i) => [e.id, i + 1]))
   const dates  = fmtDate(list.start_date) + ' a ' + fmtDate(list.end_date)
   const lname  = (list.name || '').toUpperCase()
-  const lnum   = list.id
+  const lnum   = list.revision ?? list.id
 
   const accomPairs = {}
   pax.forEach(e => {

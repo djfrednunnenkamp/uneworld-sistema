@@ -142,6 +142,7 @@ class PassengerList(models.Model):
     bus_map              = models.ForeignKey('config_api.BusMap',        null=True, blank=True, on_delete=models.SET_NULL, related_name='passenger_lists', verbose_name='Mapa de assentos de ônibus')
     status               = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta', db_index=True)
     notes                = models.TextField('Observações', blank=True)
+    revision             = models.PositiveIntegerField('Revisão', default=1)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at           = models.DateTimeField('Atualizado em', auto_now=True)
 
