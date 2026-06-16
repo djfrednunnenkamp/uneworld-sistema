@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { agendaApi } from '../api'
 import { Ic } from '../components/Icon'
@@ -13,9 +13,10 @@ const MONTHS        = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho
 const TYPE_CFG = {
   trip:     { label: 'Viagem',      bg: '#dbeafe', fg: '#1d4ed8', icon: 'plane' },
   deadline: { label: 'Prazo',       bg: '#fef3c7', fg: '#b45309', icon: 'calendar' },
+  pendency: { label: 'Pendência',   bg: '#dcfce7', fg: '#16a34a', icon: 'list' },
   birthday: { label: 'Aniversário', bg: '#ede9fe', fg: '#7c3aed', icon: null },
 }
-const TYPE_ORDER = { trip: 0, deadline: 1, birthday: 2 }
+const TYPE_ORDER = { trip: 0, deadline: 1, pendency: 2, birthday: 3 }
 
 const DEFAULT_PREFS = {
   digest_enabled: false, digest_frequency: 'daily', reminder_enabled: false, reminder_days_before: 3,
@@ -134,8 +135,19 @@ function TodayPanel({ todayEvents, todayISO, position, onFlip, onEvent, currentU
 
 export default function CalendarPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
-  const [anchor, setAnchor]       = useState(new Date())
+
+  const filterListId = searchParams.get('list_id') || null
+
+  // Se vier com ?date=YYYY-MM-DD, pula para aquele mês
+  const initDate = useMemo(() => {
+    const d = searchParams.get('date')
+    if (d) { const p = new Date(d + 'T00:00:00'); if (!isNaN(p)) return p }
+    return new Date()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [anchor, setAnchor]       = useState(initDate)
   const [view, setView]           = useState('month')
   const [events, setEvents]       = useState([])
   const [loading, setLoading]     = useState(true)
@@ -165,11 +177,11 @@ export default function CalendarPage() {
 
   useEffect(() => {
     setLoading(true)
-    agendaApi.events(startISO, endISO)
+    agendaApi.events(startISO, endISO, filterListId)
       .then(r => setEvents(r.data.events || []))
       .catch(() => toast.error('Erro ao carregar eventos do calendário'))
       .finally(() => setLoading(false))
-  }, [startISO, endISO])
+  }, [startISO, endISO, filterListId])
 
   useEffect(() => {
     agendaApi.getPrefs()
@@ -285,6 +297,18 @@ export default function CalendarPage() {
           <button className={`chip ${view === 'day' ? 'on' : ''}`} onClick={() => setView('day')}>Dia</button>
         </div>
       </div>
+
+      {/* Banner de filtro por lista */}
+      {filterListId && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'8px 14px', marginBottom:14, fontSize:13, color:'#1d4ed8' }}>
+          <span style={{ fontWeight:600 }}>Filtrando por lista</span>
+          <span style={{ color:'#3b82f6' }}>— mostrando apenas eventos desta lista de passageiros</span>
+          <button onClick={() => setSearchParams({})}
+            style={{ marginLeft:'auto', padding:'3px 10px', borderRadius:6, border:'1px solid #93c5fd', background:'#fff', color:'#1d4ed8', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Limpar filtro
+          </button>
+        </div>
+      )}
 
       <div className="cal-layout">
         {prefs?.side_panel_enabled && prefs.side_panel_position === 'left' && (

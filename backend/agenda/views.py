@@ -25,7 +25,9 @@ def calendar_events(request):
     except ValueError:
         return Response({'detail': 'Datas inválidas. Use o formato YYYY-MM-DD.'}, status=400)
 
-    return Response({'events': collect_events(start, end, request.user)})
+    list_id_str = request.query_params.get('list_id')
+    list_id = int(list_id_str) if list_id_str and list_id_str.isdigit() else None
+    return Response({'events': collect_events(start, end, request.user, list_id=list_id)})
 
 
 class CalendarPreferenceView(APIView):

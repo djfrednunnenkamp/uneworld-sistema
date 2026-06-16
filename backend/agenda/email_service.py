@@ -184,3 +184,65 @@ def send_deadline_reminder(emails: list, deadline_date, entries: list) -> bool:
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
         return False
+
+
+def send_task_reminder(emails: list, deadline_date, entries: list) -> bool:
+    """Envia lembrete de tarefas/pendências de lista que vencem hoje."""
+    if not emails:
+        return False
+
+    date_str = deadline_date.strftime('%d/%m/%Y') if hasattr(deadline_date, 'strftime') else str(deadline_date)
+    subject  = f'Pendências que vencem hoje — {date_str}'
+
+    rows_html = ''
+    for e in entries:
+        rows_html += f"""
+        <div style="padding:14px 0;border-bottom:1px solid #f1f5f9">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-size:15px">📋</span>
+            <span style="font-weight:600;color:#1e293b;font-size:14px">{e['title']}</span>
+          </div>
+          <div style="color:#64748b;font-size:13px;padding-left:23px">
+            Lista: <strong>{e['list_name']}</strong> · Criado por {e['created_by']}
+          </div>
+        </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;font-family:Inter,Arial,sans-serif;background:#f8fafc">
+  <div style="max-width:600px;margin:40px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+    <div style="background:#1a2d4f;padding:24px 32px">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">UneWorld Turismo</h1>
+      <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:13px">Sistema de Gestão</p>
+    </div>
+    <div style="padding:28px 32px">
+      <div style="display:flex;align-items:center;gap:10px;margin:0 0 8px">
+        <span style="font-size:20px">✅</span>
+        <p style="margin:0;font-size:18px;font-weight:700;color:#1e293b">Pendências que vencem hoje</p>
+      </div>
+      <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px">
+        As seguintes tarefas têm prazo em <strong>{date_str}</strong> e ainda não foram concluídas.
+      </p>
+      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:0 16px">
+        {rows_html}
+        <div style="padding-bottom:2px"></div>
+      </div>
+    </div>
+    <div style="background:#f8fafc;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0">
+      <p style="color:#94a3b8;font-size:12px;margin:0">UneWorld Turismo · Sistema de Gestão</p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    try:
+        resend.Emails.send({
+            "from":    settings.RESEND_FROM,
+            "to":      emails,
+            "subject": subject,
+            "html":    html,
+        })
+        return True
+    except Exception as e:
+        print(f"[RESEND ERROR] {e}")
+        return False

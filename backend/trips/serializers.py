@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room, ListTask
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -75,6 +75,20 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def get_occupant_count(self, obj):
         return ListEnrollment.objects.filter(passenger_list=obj.passenger_list, accommodation=obj.name).count()
+
+
+class ListTaskSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model  = ListTask
+        fields = ['id', 'title', 'due_date', 'done', 'created_by_name', 'created_at']
+        read_only_fields = ['created_at']
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return None
 
 
 class AirportBriefSerializer(serializers.Serializer):

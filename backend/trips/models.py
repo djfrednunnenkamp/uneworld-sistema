@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from passengers.models import Passenger
 
@@ -226,3 +227,19 @@ class Room(models.Model):
         ordering            = ['name']
 
     def __str__(self): return f'{self.name} ({self.passenger_list})'
+
+
+class ListTask(models.Model):
+    passenger_list = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='tasks', verbose_name='Lista')
+    title          = models.CharField('Tarefa', max_length=300)
+    due_date       = models.DateField('Prazo', null=True, blank=True)
+    created_by     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Criado por')
+    done           = models.BooleanField('Concluída', default=False)
+    created_at     = models.DateTimeField('Criado em', auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Tarefa da lista'
+        verbose_name_plural = 'Tarefas da lista'
+        ordering            = ['due_date', 'created_at']
+
+    def __str__(self): return f'{self.title} ({self.passenger_list})'

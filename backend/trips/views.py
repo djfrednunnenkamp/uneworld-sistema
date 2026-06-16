@@ -1,15 +1,16 @@
 from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from core.pagination import StandardResultsPagination
 from users_api.permissions import RequirePermission
-from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room
+from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room, ListTask
 from .serializers import (
     DestinationSerializer, TripSerializer, TripListSerializer, EnrollmentSerializer,
     SupplierSerializer, ListAdditionalSerializer, CrewRoleSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
-    RoomSerializer,
+    RoomSerializer, ListTaskSerializer,
 )
 
 
@@ -117,6 +118,8 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             return [RequirePermission('lists_csv_upload')()]
         if self.action == 'log_download':
             return [RequirePermission('lists_download')()]
+        if self.action in ('tasks', 'manage_task'):
+            return [RequirePermission('lists_view')()]
         return super().get_permissions()
 
     # ── Passageiros na lista ─────────────────────────────────────────────────
@@ -473,6 +476,31 @@ class PassengerListViewSet(viewsets.ModelViewSet):
         return Response(RoomSerializer(room).data)
 
     # ── Log de download (PDF/HTML gerados no frontend) ───────────────────────
+
+    # ── Tarefas / Pendências da lista ─────────────────────────────────────────
+
+    @action(detail=True, methods=['get', 'post'], url_path='tasks')
+    def tasks(self, request, pk=None):
+        pl = self.get_object()
+        if request.method == 'GET':
+            qs = pl.tasks.select_related('created_by').all()
+            return Response(ListTaskSerializer(qs, many=True).data)
+        ser = ListTaskSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        ser.save(passenger_list=pl, created_by=request.user)
+        return Response(ListTaskSerializer(ser.instance).data, status=201)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'tasks/(?P<task_id>\d+)')
+    def manage_task(self, request, pk=None, task_id=None):
+        pl   = self.get_object()
+        task = get_object_or_404(ListTask, pk=task_id, passenger_list=pl)
+        if request.method == 'PATCH':
+            ser = ListTaskSerializer(task, data=request.data, partial=True)
+            ser.is_valid(raise_exception=True)
+            ser.save()
+            return Response(ListTaskSerializer(ser.instance).data)
+        task.delete()
+        return Response(status=204)
 
     @action(detail=True, methods=['post'], url_path='log-download')
     def log_download(self, request, pk=None):

@@ -4190,7 +4190,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   // (cancelados não contam mais como vaga ocupada nem entram nas métricas)
   useEffect(() => {
     onData?.({ enrolled: enrolled.filter(e => e.enrollment_status !== 'cancelado'), accomTypes, loading, busMap, revision: listRevision })
-  }, [enrolled, accomTypes, loading, onData, busMap, listRevision])
+  }, [enrolled, accomTypes, loading, busMap, listRevision]) // onData é intencionalmente omitido — função inline muda referência a cada render e causaria loop
 
   const toggleSelect  = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
@@ -5523,6 +5523,213 @@ function FlightsTab({ listId, list, onListUpdate }) {
 
 
 
+/* ── Popup de Pendências da Lista ── */
+function PendenciesPanel({ listId, listName, listStartDate, onClose }) {
+  const navigate = useNavigate()
+  const [tasks,       setTasks]       = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [addTitle,    setAddTitle]    = useState('')
+  const [addDate,     setAddDate]     = useState('')
+  const [saving,      setSaving]      = useState(false)
+  const [showAdd,     setShowAdd]     = useState(false)
+  const [deleteId,    setDeleteId]    = useState(null)
+  const [showDatePick, setShowDatePick] = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    listsApi.listTasks(listId)
+      .then(r => setTasks(r.data))
+      .catch(() => toast.error('Erro ao carregar pendências.'))
+      .finally(() => setLoading(false))
+  }, [listId])
+
+  useEffect(() => {
+    if (showAdd && inputRef.current) inputRef.current.focus()
+  }, [showAdd])
+
+  const handleAdd = async () => {
+    if (!addTitle.trim()) return
+    setSaving(true)
+    try {
+      const r = await listsApi.addTask(listId, { title: addTitle.trim(), due_date: addDate || null })
+      setTasks(t => [...t, r.data])
+      setAddTitle('')
+      setAddDate('')
+      setShowAdd(false)
+    } catch {
+      toast.error('Erro ao adicionar pendência.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleDone = async (task) => {
+    const prev = tasks
+    setTasks(t => t.map(tk => tk.id === task.id ? { ...tk, done: !tk.done } : tk))
+    try {
+      await listsApi.updateTask(listId, task.id, { done: !task.done })
+    } catch {
+      setTasks(prev)
+      toast.error('Erro ao atualizar pendência.')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteId) return
+    try {
+      await listsApi.deleteTask(listId, deleteId)
+      setTasks(t => t.filter(tk => tk.id !== deleteId))
+      setDeleteId(null)
+    } catch {
+      toast.error('Erro ao remover pendência.')
+    }
+  }
+
+  const goToCalendar = () => {
+    const date = listStartDate || new Date().toISOString().slice(0, 10)
+    navigate(`/calendario?list_id=${listId}&date=${date}`)
+    onClose()
+  }
+
+  const fmtDate = (d) => {
+    if (!d) return null
+    const [y, m, dd] = d.split('-')
+    return `${dd}/${m}/${y}`
+  }
+
+  const pending = tasks.filter(t => !t.done)
+  const done    = tasks.filter(t => t.done)
+
+  return createPortal(
+    <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:520, maxHeight:'85vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 40px rgba(0,0,0,.18)', overflow:'hidden' }}>
+        {/* Header */}
+        <div style={{ padding:'18px 24px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:10 }}>
+          <Ic n="list" s={18} />
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:16, fontWeight:700, color:'#1e293b' }}>Pendências</div>
+            <div style={{ fontSize:12, color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{listName}</div>
+          </div>
+          <button onClick={goToCalendar}
+            title="Ver no calendário"
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#f8fafc', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s', flexShrink:0 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4'; e.currentTarget.style.background='#e8f0fb' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569'; e.currentTarget.style.background='#f8fafc' }}>
+            <Ic n="calendar" s={12}/> Ver no calendário
+          </button>
+          <button onClick={onClose}
+            style={{ width:32, height:32, borderRadius:8, border:'1px solid #e2e8f0', background:'#f8fafc', color:'#64748b', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <Ic n="x" s={14}/>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 24px' }}>
+          {loading ? (
+            <div style={{ textAlign:'center', color:'#94a3b8', padding:32 }}>Carregando…</div>
+          ) : (
+            <>
+              {/* Pendentes */}
+              {pending.length === 0 && !showAdd && (
+                <div style={{ textAlign:'center', color:'#94a3b8', padding:'24px 0', fontSize:14 }}>
+                  Nenhuma pendência. Clique em "+ Adicionar" para criar uma.
+                </div>
+              )}
+              {pending.map(task => (
+                <div key={task.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 0', borderBottom:'1px solid #f1f5f9' }}>
+                  <button onClick={() => handleToggleDone(task)}
+                    style={{ width:20, height:20, borderRadius:5, border:'2px solid #cbd5e1', background:'#fff', cursor:'pointer', flexShrink:0, marginTop:2, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  </button>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:14, color:'#1e293b', fontWeight:500 }}>{task.title}</div>
+                    {task.due_date && (
+                      <div style={{ fontSize:12, color: task.due_date <= new Date().toISOString().slice(0,10) ? '#ef4444' : '#64748b', marginTop:2 }}>
+                        Prazo: {fmtDate(task.due_date)}
+                      </div>
+                    )}
+                    {task.created_by_name && (
+                      <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>Criado por {task.created_by_name}</div>
+                    )}
+                  </div>
+                  <button onClick={() => setDeleteId(task.id)}
+                    style={{ padding:4, border:'none', background:'none', color:'#cbd5e1', cursor:'pointer', borderRadius:5, transition:'color .12s' }}
+                    onMouseEnter={e => e.currentTarget.style.color='#ef4444'}
+                    onMouseLeave={e => e.currentTarget.style.color='#cbd5e1'}>
+                    <Ic n="trash" s={14}/>
+                  </button>
+                </div>
+              ))}
+
+              {/* Formulário de adição */}
+              {showAdd && (
+                <div style={{ padding:'12px 0', borderBottom:'1px solid #f1f5f9' }}>
+                  <input ref={inputRef} value={addTitle} onChange={e => setAddTitle(e.target.value)}
+                    placeholder="Descreva a pendência…"
+                    onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setShowAdd(false) }}
+                    style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box', marginBottom:8 }} />
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <DatePicker value={addDate} onChange={setAddDate} placeholder="Prazo (opcional)" />
+                    <div style={{ flex:1 }} />
+                    <button onClick={() => { setShowAdd(false); setAddTitle(''); setAddDate('') }}
+                      style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#f8fafc', color:'#64748b', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                      Cancelar
+                    </button>
+                    <button onClick={handleAdd} disabled={saving || !addTitle.trim()}
+                      style={{ padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', opacity: saving || !addTitle.trim() ? .5 : 1 }}>
+                      {saving ? 'Salvando…' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Concluídas */}
+              {done.length > 0 && (
+                <div style={{ marginTop:16 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>Concluídas ({done.length})</div>
+                  {done.map(task => (
+                    <div key={task.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 0', opacity:.55 }}>
+                      <button onClick={() => handleToggleDone(task)}
+                        style={{ width:20, height:20, borderRadius:5, border:'2px solid #22c55e', background:'#22c55e', cursor:'pointer', flexShrink:0, marginTop:2, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <Ic n="check" s={10} />
+                      </button>
+                      <div style={{ flex:1, fontSize:14, color:'#64748b', textDecoration:'line-through' }}>{task.title}</div>
+                      <button onClick={() => setDeleteId(task.id)}
+                        style={{ padding:4, border:'none', background:'none', color:'#e2e8f0', cursor:'pointer', borderRadius:5 }}>
+                        <Ic n="trash" s={14}/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:'12px 24px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end' }}>
+          <button onClick={() => setShowAdd(true)} disabled={showAdd}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #1a2d4f', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', opacity: showAdd ? .5 : 1 }}>
+            + Adicionar pendência
+          </button>
+        </div>
+      </div>
+
+      {/* Confirm delete */}
+      {deleteId && (
+        <ConfirmModal
+          title="Remover pendência"
+          message="Tem certeza que deseja remover esta pendência?"
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteId(null)}
+        />
+      )}
+    </div>,
+    document.body
+  )
+}
+
+
 /* ── Página principal ── */
 export default function TripDetail() {
   const { id }   = useParams()
@@ -5534,10 +5741,11 @@ export default function TripDetail() {
   const canViewLog     = !!user?.is_superuser || perms.lists_view_logs || perms.view_audit_log
   const canDownloadList = !!user?.is_superuser || perms.lists_download
 
-  const [list,      setList]      = useState(null)
-  const [loading,   setLoading]   = useState(true)
-  const [showEdit,  setShowEdit]  = useState(false)
-  const [showPrint, setShowPrint] = useState(false)
+  const [list,       setList]      = useState(null)
+  const [loading,    setLoading]   = useState(true)
+  const [showEdit,   setShowEdit]  = useState(false)
+  const [showPrint,  setShowPrint] = useState(false)
+  const [showTasks,  setShowTasks] = useState(false)
   const [tab, setTab] = usePersistedTab('tab_list_detail', 'passengers')
   const [paxData, setPaxData] = useState({ enrolled: [], accomTypes: [], loading: true, busMap: null })
 
@@ -5600,6 +5808,12 @@ export default function TripDetail() {
         <div className="ph-actions" style={{ alignItems:'center' }}>
           <TripPhaseBadge startDate={list.start_date} endDate={list.end_date} />
           <ListStatusBadge value={list.status} onChange={handleStatusChange} />
+          <button type="button" onClick={() => setShowTasks(true)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+            <Ic n="list" s={13}/> Pendências
+          </button>
           {canDownloadList && (
             <button type="button" onClick={() => setShowPrint(true)}
               style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
@@ -5696,6 +5910,16 @@ export default function TripDetail() {
           initial={list}
           onClose={() => setShowEdit(false)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Popup de pendências */}
+      {showTasks && (
+        <PendenciesPanel
+          listId={id}
+          listName={list.name}
+          listStartDate={list.start_date}
+          onClose={() => setShowTasks(false)}
         />
       )}
     </div>

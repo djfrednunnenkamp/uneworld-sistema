@@ -49,6 +49,7 @@ def run_once():
                 pref.save(update_fields=['last_reminder_sent'])
 
     _send_list_deadline_reminders(today)
+    _send_task_reminders(today)
 
 
 def _send_list_deadline_reminders(today):
@@ -91,3 +92,35 @@ def _send_list_deadline_reminders(today):
     recipient_emails = [e for e in recipient_emails if e and '@' in e]
     if recipient_emails and all_entries:
         send_deadline_reminder(recipient_emails, today, all_entries)
+
+
+def _send_task_reminders(today):
+    """Envia e-mails de lembrete para tarefas de lista que vencem hoje."""
+    from trips.models import ListTask
+    from config_api.models import SystemSettings
+    from .email_service import send_task_reminder
+
+    global_emails = list(SystemSettings.get().deadline_notification_emails or [])
+
+    tasks = (
+        ListTask.objects
+        .filter(due_date=today, done=False)
+        .select_related('passenger_list', 'created_by')
+    )
+    if not tasks:
+        return
+
+    recipient_emails = set(global_emails)
+    entries = []
+    for task in tasks:
+        if task.created_by and task.created_by.email:
+            recipient_emails.add(task.created_by.email)
+        entries.append({
+            'title':     task.title,
+            'list_name': task.passenger_list.name,
+            'created_by': (task.created_by.get_full_name() or task.created_by.username) if task.created_by else '—',
+        })
+
+    recipient_emails = [e for e in recipient_emails if e and '@' in e]
+    if recipient_emails and entries:
+        send_task_reminder(recipient_emails, today, entries)

@@ -41,6 +41,11 @@ export const listsApi = {
   importCsv:        (id, formData) => api.post(`/trips/lists/${id}/import-csv/`, formData,
                        { headers: { 'Content-Type': 'multipart/form-data' } }),
   logDownload:      (id, format, sections) => api.post(`/trips/lists/${id}/log-download/`, { format, sections }),
+  // Tarefas / Pendências da lista
+  listTasks:    (id)          => api.get(`/trips/lists/${id}/tasks/`),
+  addTask:      (id, data)    => api.post(`/trips/lists/${id}/tasks/`, data),
+  updateTask:   (id, tid, d)  => api.patch(`/trips/lists/${id}/tasks/${tid}/`, d),
+  deleteTask:   (id, tid)     => api.delete(`/trips/lists/${id}/tasks/${tid}/`),
   // Acomodações (quartos) na lista
   listRooms:        (id)          => api.get(`/trips/lists/${id}/rooms/`),
   addRoom:          (id, name)     => api.post(`/trips/lists/${id}/rooms/`, { name }),
@@ -108,7 +113,7 @@ export const auditApi = {
 }
 
 export const agendaApi = {
-  events:        (start, end) => api.get('/agenda/events/', { params: { start, end } }),
+  events:        (start, end, list_id) => api.get('/agenda/events/', { params: { start, end, ...(list_id ? { list_id } : {}) } }),
   getPrefs:      ()           => api.get('/agenda/preferences/'),
   updatePrefs:   (data)       => api.patch('/agenda/preferences/', data),
   sendNow:       ()           => api.post('/agenda/send-now/'),
