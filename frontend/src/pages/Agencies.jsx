@@ -140,8 +140,8 @@ function AgencyPreview({ agency, onClose, onEdit }) {
           <p style={{ fontSize: 10, fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '.05em', margin: '0 10px 4px', paddingTop: 4 }}>
             Clique em qualquer linha para copiar
           </p>
-          <Row label="Razão Social"  value={agency.company_name} />
-          <Row label="Nome Fantasma" value={agency.name !== agency.company_name ? agency.name : null} />
+          <Row label="Razão Social"  value={agency.person_type === 'fisica' ? [agency.name, agency.last_name].filter(Boolean).join(' ') : agency.company_name} />
+          <Row label="Nome Fantasma" value={agency.person_type === 'fisica' ? agency.company_name : agency.name} />
           {agency.person_type === 'fisica'
             ? <Row label="CPF" value={agency.cpf} />
             : <Row label="CNPJ" value={agency.cnpj} />
@@ -198,8 +198,8 @@ function PersonCell({ row }) {
 
 /* ── Colunas ── */
 const COLS = [
-  { key: 'company_name', label: 'Razão Social',  align: 'center', render: (v, row) => <CopyCell value={v || row.name} bold /> },
-  { key: 'name',         label: 'Nome Fantasma', align: 'center', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'company_name', label: 'Razão Social',  align: 'center', render: (v, row) => <CopyCell value={row.person_type === 'fisica' ? [row.name, row.last_name].filter(Boolean).join(' ') : (v || row.name)} bold /> },
+  { key: 'name',         label: 'Nome Fantasma', align: 'center', render: (v, row) => <CopyCell value={row.person_type === 'fisica' ? row.company_name : v} muted /> },
   { key: 'cnpj',         label: 'CNPJ / CPF',   align: 'center', render: (_, row) => <PersonCell row={row} /> },
   { key: 'phone',        label: 'Telefone',      align: 'center', render: (v) => <CopyCell value={v} muted /> },
   { key: 'email',        label: 'E-mail',        align: 'center', render: (v) => <CopyCell value={v} muted /> },
