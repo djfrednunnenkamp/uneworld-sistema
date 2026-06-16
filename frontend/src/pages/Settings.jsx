@@ -659,11 +659,11 @@ function exportEmailsCsv(emails) {
 
 function AutoEmailsManager() {
   const fileRef = useRef(null)
-  const [emails,   setEmails]   = useState(null)
-  const [search,   setSearch]   = useState('')
-  const [inputVal, setInputVal] = useState('')
-  const [saving,   setSaving]   = useState(false)
-  const [confirm,  setConfirm]  = useState(null)
+  const [emails,   setEmails]  = useState(null)
+  const [search,   setSearch]  = useState('')
+  const [showAdd,  setShowAdd] = useState(false)
+  const [saving,   setSaving]  = useState(false)
+  const [confirm,  setConfirm] = useState(null)
 
   useEffect(() => {
     configApi.systemSettings()
@@ -680,12 +680,11 @@ function AutoEmailsManager() {
     finally { setSaving(false) }
   }
 
-  const addEmail = () => {
-    const v = inputVal.trim().toLowerCase()
+  const addEmail = async (val) => {
+    const v = val.trim().toLowerCase()
     if (!v || !v.includes('@')) { toast.error('E-mail inválido.'); return }
     if ((emails || []).includes(v)) { toast.error('E-mail já adicionado.'); return }
-    setInputVal('')
-    save([...(emails || []), v])
+    await save([...(emails || []), v])
   }
 
   const handleImport = async (e) => {
@@ -700,7 +699,7 @@ function AutoEmailsManager() {
     const current = emails || []
     const merged  = [...new Set([...current, ...imported])]
     if (merged.length === current.length) { toast.success('Nenhum e-mail novo.'); return }
-    save(merged)
+    await save(merged)
     toast.success(`${merged.length - current.length} e-mail(s) importado(s).`)
   }
 
@@ -714,15 +713,14 @@ function AutoEmailsManager() {
           independentemente das configurações de cada lista.
         </p>
 
-        {/* Toolbar */}
+        {/* Toolbar — mesmo padrão de ItemList */}
         <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
             style={{ ...inp, flex:1, minWidth:160 }}
             onFocus={e => e.target.style.borderColor='#1a2d4f'}
             onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
-          <button onClick={() => { setInputVal(''); setTimeout(() => document.getElementById('auto-email-input')?.focus(), 50) }}
-            style={btnPri}>+ Adicionar</button>
-          <button style={btnCsv('#059669')} disabled={!emails?.length} onClick={() => exportEmailsCsv(emails)}>
+          <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>
+          <button style={btnCsv('#059669')} disabled={!emails?.length} onClick={() => exportEmailsCsv(emails || [])}>
             <Ic n="dl" s={12}/> CSV
           </button>
           <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()}>
@@ -731,25 +729,11 @@ function AutoEmailsManager() {
           <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleImport} />
         </div>
 
-        {/* Add row */}
-        <div style={{ display:'flex', gap:8, marginBottom:10 }}>
-          <input id="auto-email-input" type="email" value={inputVal}
-            onChange={e => setInputVal(e.target.value)}
-            placeholder="novo@email.com"
-            onKeyDown={e => e.key === 'Enter' && addEmail()}
-            style={{ ...inp, flex:1 }}
-            onFocus={e => e.target.style.borderColor='#1a2d4f'}
-            onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
-          <button onClick={addEmail} disabled={saving || !inputVal.trim()} style={{ ...btnPri, opacity: (saving || !inputVal.trim()) ? .6 : 1 }}>
-            Adicionar
-          </button>
-        </div>
-
         <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
           {emails === null ? 'Carregando…' : `${filtered.length} de ${emails.length} ${emails.length !== 1 ? 'endereços' : 'endereço'}`}
         </p>
 
-        <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', maxHeight:400, overflowY:'auto' }}>
+        <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', maxHeight:460, overflowY:'auto' }}>
           {emails === null ? (
             <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
           ) : filtered.length === 0 ? (
@@ -776,6 +760,14 @@ function AutoEmailsManager() {
         </div>
       </div>
 
+      {showAdd && (
+        <AddItemModal
+          title="Adicionar e-mail"
+          placeholder="exemplo@email.com"
+          onAdd={addEmail}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
       {confirm && (
         <ConfirmModal
           message={`Remover "${confirm}"?`}

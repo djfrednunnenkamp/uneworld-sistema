@@ -4152,20 +4152,20 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([
-      listsApi.listPassengers(listId),
-      listsApi.get(listId),
-    ]).then(([paxRes, listRes]) => {
-        setEnrolled(paxRes.data)
-        setListRevision(listRes.data.revision ?? null)
+    listsApi.listPassengers(listId)
+      .then(r => {
+        setEnrolled(r.data)
         if (firstLoad.current) {
           firstLoad.current = false
-          const keys = paxRes.data.map(e => e.enrollment_status === 'cancelado' ? '(cancelados)' : (e.accommodation || '(sem acomodação)'))
+          const keys = r.data.map(e => e.enrollment_status === 'cancelado' ? '(cancelados)' : (e.accommodation || '(sem acomodação)'))
           setCollapsed(new Set(keys))
         }
       })
       .catch(() => toast.error('Erro ao carregar passageiros.'))
       .finally(() => setLoading(false))
+    listsApi.get(listId)
+      .then(r => setListRevision(r.data.revision ?? null))
+      .catch(() => {})
   }, [listId])
 
   const loadRooms = useCallback(() => {

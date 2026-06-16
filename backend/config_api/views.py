@@ -6,7 +6,7 @@ from django.http import StreamingHttpResponse, HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser
@@ -964,8 +964,13 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
         model  = SystemSettings
         fields = ['deadline_notification_emails']
 
+class _IsStaffOrSuper(BasePermission):
+    def has_permission(self, request, view):
+        u = request.user
+        return bool(u and u.is_authenticated and (u.is_staff or u.is_superuser))
+
 @api_view(['GET', 'PATCH'])
-@permission_classes([IsAdminUser])
+@permission_classes([_IsStaffOrSuper])
 def system_settings(request):
     obj = SystemSettings.get()
     if request.method == 'PATCH':
