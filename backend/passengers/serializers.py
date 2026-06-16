@@ -43,7 +43,10 @@ class PassengerListSerializer(SensitiveFieldsMixin, serializers.ModelSerializer)
                   'city', 'state', 'status', 'agency_names']
 
     def get_agency_names(self, obj):
-        return ', '.join(obj.agencies.values_list('name', flat=True))
+        names = []
+        for a in obj.agencies.all():
+            names.append(a.company_name or a.name if a.person_type == 'fisica' else a.name or a.company_name or str(a))
+        return ', '.join(filter(None, names))
 
 
 class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
@@ -57,7 +60,11 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         fields = '__all__'
 
     def get_agency_names(self, obj):
-        return [{'id': a.id, 'name': a.company_name or a.name or str(a)} for a in obj.agencies.all()]
+        def _name(a):
+            if a.person_type == 'fisica':
+                return a.company_name or a.name or str(a)
+            return a.name or a.company_name or str(a)
+        return [{'id': a.id, 'name': _name(a)} for a in obj.agencies.all()]
 
     def create(self, validated_data):
         agencies = validated_data.pop('agencies', [])

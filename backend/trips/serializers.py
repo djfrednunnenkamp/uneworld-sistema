@@ -288,7 +288,10 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
 
     def get_agency_name(self, obj):
         if obj.agency:
-            return obj.agency.name or obj.agency.company_name or ''
+            a = obj.agency
+            if a.person_type == 'fisica':
+                return a.company_name or a.name or ''
+            return a.name or a.company_name or ''
         return obj.block_agency or ''
 
     def get_responsible_user_name(self, obj):
