@@ -4148,15 +4148,19 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   const [originTip,       setOriginTip]       = useState(null)
 
   const firstLoad = useRef(true)
+  const [listRevision, setListRevision] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
-    listsApi.listPassengers(listId)
-      .then(r => {
-        setEnrolled(r.data)
+    Promise.all([
+      listsApi.listPassengers(listId),
+      listsApi.get(listId),
+    ]).then(([paxRes, listRes]) => {
+        setEnrolled(paxRes.data)
+        setListRevision(listRes.data.revision ?? null)
         if (firstLoad.current) {
           firstLoad.current = false
-          const keys = r.data.map(e => e.enrollment_status === 'cancelado' ? '(cancelados)' : (e.accommodation || '(sem acomodação)'))
+          const keys = paxRes.data.map(e => e.enrollment_status === 'cancelado' ? '(cancelados)' : (e.accommodation || '(sem acomodação)'))
           setCollapsed(new Set(keys))
         }
       })
@@ -4185,8 +4189,8 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   // Repassa os dados ao componente pai — exibidos no painel de métricas, acima das abas
   // (cancelados não contam mais como vaga ocupada nem entram nas métricas)
   useEffect(() => {
-    onData?.({ enrolled: enrolled.filter(e => e.enrollment_status !== 'cancelado'), accomTypes, loading, busMap })
-  }, [enrolled, accomTypes, loading, onData])
+    onData?.({ enrolled: enrolled.filter(e => e.enrollment_status !== 'cancelado'), accomTypes, loading, busMap, revision: listRevision })
+  }, [enrolled, accomTypes, loading, onData, busMap, listRevision])
 
   const toggleSelect  = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const toggleAll     = ()   => setSelected(s => s.size === enrolled.length ? new Set() : new Set(enrolled.map(e => e.id)))
@@ -5669,7 +5673,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} busMapId={list.bus_map} listName={list.name} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} busMapId={list.bus_map} listName={list.name} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={data => { setPaxData(data); if (data.revision != null) setList(l => l ? { ...l, revision: data.revision } : l) }} />}
 
 {tab === 'voos' && <FlightsTab listId={id} list={list} onListUpdate={setList} />}
 
