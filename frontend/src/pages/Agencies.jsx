@@ -141,7 +141,7 @@ function AgencyPreview({ agency, onClose, onEdit }) {
             Clique em qualquer linha para copiar
           </p>
           <Row label="Razão Social"  value={agency.company_name} />
-          <Row label="Nome Fantasia" value={agency.name !== agency.company_name ? agency.name : null} />
+          <Row label="Nome Fantasma" value={agency.name !== agency.company_name ? agency.name : null} />
           {agency.person_type === 'fisica'
             ? <Row label="CPF" value={agency.cpf} />
             : <Row label="CNPJ" value={agency.cnpj} />
@@ -199,7 +199,7 @@ function PersonCell({ row }) {
 /* ── Colunas ── */
 const COLS = [
   { key: 'company_name', label: 'Razão Social',  align: 'center', render: (v, row) => <CopyCell value={v || row.name} bold /> },
-  { key: 'name',         label: 'Nome Fantasia', align: 'center', render: (v) => <CopyCell value={v} muted /> },
+  { key: 'name',         label: 'Nome Fantasma', align: 'center', render: (v) => <CopyCell value={v} muted /> },
   { key: 'cnpj',         label: 'CNPJ / CPF',   align: 'center', render: (_, row) => <PersonCell row={row} /> },
   { key: 'phone',        label: 'Telefone',      align: 'center', render: (v) => <CopyCell value={v} muted /> },
   { key: 'email',        label: 'E-mail',        align: 'center', render: (v) => <CopyCell value={v} muted /> },

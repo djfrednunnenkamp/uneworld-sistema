@@ -666,8 +666,8 @@ export default function AgencyDetail() {
               <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
             </div>
           </div>
-          {/* Col 2 — Nome fantasia (company_name para física, name para jurídica) */}
-          <F label="Nome fantasia">{fi(isFisica ? 'company_name' : 'name')}</F>
+          {/* Col 2 — Nome fantasma (company_name para física, name para jurídica) */}
+          <F label="Nome fantasma">{fi(isFisica ? 'company_name' : 'name')}</F>
           {/* Col 3 */}
           <F label="Tipo de pessoa">
             <FormSelect value={form.person_type} onChange={v => { setForm(f => ({...f, person_type: v})); setIsDirty(true) }} options={PERSON_TYPE_OPTS} />

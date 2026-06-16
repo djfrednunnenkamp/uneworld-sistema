@@ -37,7 +37,7 @@ class Agency(models.Model):
     cnpj                  = models.CharField('CNPJ', max_length=20, blank=True)
     cpf                   = models.CharField('CPF', max_length=20, blank=True)   # pessoa física
     company_name          = models.CharField('Razão social', max_length=200, blank=True)
-    name                  = models.CharField('Nome / Nome fantasia', max_length=200, blank=True)
+    name                  = models.CharField('Nome / Nome fantasma', max_length=200, blank=True)
     last_name             = models.CharField('Sobrenome', max_length=200, blank=True)  # pessoa física
     state_registration    = models.CharField('Inscrição estadual',   max_length=50, blank=True)
     municipal_registration= models.CharField('Inscrição municipal',  max_length=50, blank=True)
