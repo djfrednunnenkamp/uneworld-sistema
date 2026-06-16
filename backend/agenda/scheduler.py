@@ -1,7 +1,7 @@
 """Loop em background que envia os e-mails de resumo/lembrete agendados pelos usuários."""
 import threading
 import time
-from datetime import date
+from datetime import date, timedelta
 
 CHECK_INTERVAL = 3600  # 1 hora
 
@@ -48,28 +48,34 @@ def run_once():
                 pref.last_reminder_sent = today
                 pref.save(update_fields=['last_reminder_sent'])
 
-    _send_list_deadline_reminders(today)
+    # Sempre envia lembrete no dia do vencimento e 2 dias antes (para todos os usuários)
+    _send_list_deadline_reminders(today, days_ahead=0)
+    _send_list_deadline_reminders(today, days_ahead=2)
     _send_task_reminders(today)
 
 
-def _send_list_deadline_reminders(today):
-    """Envia e-mails de lembrete de prazo para os e-mails configurados nas listas."""
+def _send_list_deadline_reminders(today, days_ahead=0):
+    """Envia e-mails de lembrete de prazo para os e-mails configurados nas listas.
+
+    days_ahead=0 → prazos que vencem HOJE
+    days_ahead=2 → prazos que vencem em exatamente 2 dias
+    """
     from trips.models import ListEnrollment
     from config_api.models import SystemSettings
     from .email_service import send_deadline_reminder
 
+    target_date = today + timedelta(days=days_ahead)
     global_emails = list(SystemSettings.get().deadline_notification_emails or [])
 
     enrollments = (
         ListEnrollment.objects
-        .filter(pending_until=today)
+        .filter(pending_until=target_date)
         .exclude(enrollment_status='confirmado')
         .select_related('passenger', 'passenger_list', 'pending_until_created_by')
     )
     if not enrollments:
         return
 
-    # Agrupa por lista para montar o e-mail
     by_list = {}
     for en in enrollments:
         by_list.setdefault(en.passenger_list_id, {'list': en.passenger_list, 'entries': []})
@@ -81,7 +87,6 @@ def _send_list_deadline_reminders(today):
             'created_by':     (creator.get_full_name() or creator.username) if creator else '—',
         })
 
-    # Um único e-mail por destinatário com todos os prazos do dia
     all_entries = []
     recipient_emails = set(global_emails)
     for data in by_list.values():
@@ -91,7 +96,7 @@ def _send_list_deadline_reminders(today):
 
     recipient_emails = [e for e in recipient_emails if e and '@' in e]
     if recipient_emails and all_entries:
-        send_deadline_reminder(recipient_emails, today, all_entries)
+        send_deadline_reminder(recipient_emails, target_date, all_entries, days_ahead=days_ahead)
 
 
 def _send_task_reminders(today):

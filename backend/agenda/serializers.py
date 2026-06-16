@@ -10,6 +10,6 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'side_panel_enabled', 'side_panel_position']
 
     def validate_reminder_days_before(self, value):
-        if value < 1 or value > 30:
-            raise serializers.ValidationError('Informe um valor entre 1 e 30 dias.')
+        if value < 0 or value > 30:
+            raise serializers.ValidationError('Informe um valor entre 0 e 30 dias.')
         return value

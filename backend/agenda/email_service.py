@@ -105,7 +105,7 @@ def _fmt_date(iso_str):
     return str(iso_str)
 
 
-def send_deadline_reminder(emails: list, deadline_date, entries: list) -> bool:
+def send_deadline_reminder(emails: list, deadline_date, entries: list, days_ahead: int = 0) -> bool:
     """
     Envia lembrete de prazos de confirmação.
 
@@ -114,13 +114,17 @@ def send_deadline_reminder(emails: list, deadline_date, entries: list) -> bool:
         list_name       — nome da lista de passageiros
         pending_reason  — motivo da pendência (pode ser vazio)
         created_by      — nome de quem definiu o prazo
+    days_ahead: 0 = vence hoje, 2 = vence em 2 dias
     """
     if not emails:
         return False
 
     resend.api_key = settings.RESEND_API_KEY
     date_str = _fmt_date(deadline_date)
-    subject = f'Prazos de hoje ({date_str}) — UneWorld Turismo'
+    if days_ahead == 0:
+        subject = f'Prazos de hoje ({date_str}) — UneWorld Turismo'
+    else:
+        subject = f'Prazos em {days_ahead} dias ({date_str}) — UneWorld Turismo'
 
     if not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave'):
         print(f"[EMAIL SIMULADO] {subject} para {emails}: {len(entries)} prazo(s)")
@@ -156,7 +160,7 @@ def send_deadline_reminder(emails: list, deadline_date, entries: list) -> bool:
     <div style="padding:32px">
       <div style="display:flex;align-items:center;gap:10px;margin:0 0 8px">
         <span style="font-size:20px">⏰</span>
-        <p style="margin:0;font-size:18px;font-weight:700;color:#1e293b">Prazos que vencem hoje</p>
+        <p style="margin:0;font-size:18px;font-weight:700;color:#1e293b">{"Prazos que vencem hoje" if days_ahead == 0 else f"Prazos que vencem em {days_ahead} dias"}</p>
       </div>
       <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px">
         Os seguintes passageiros têm prazo de confirmação vencendo em <strong>{date_str}</strong> e ainda não confirmaram.

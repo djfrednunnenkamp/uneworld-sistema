@@ -426,8 +426,9 @@ export default function CalendarPage() {
                   {prefs.reminder_enabled && (
                     <div className="ff">
                       <label className="fl">Avisar com quantos dias de antecedência</label>
-                      <input className="fi" type="number" min={1} max={30} value={prefs.reminder_days_before}
-                        onChange={e => setPrefs({ ...prefs, reminder_days_before: Number(e.target.value) })} />
+                      <input className="fi" type="number" min={0} max={30} value={prefs.reminder_days_before}
+                        onChange={e => setPrefs({ ...prefs, reminder_days_before: Math.max(0, Number(e.target.value)) })} />
+                      <span style={{ fontSize:12, color:'#94a3b8', marginTop:4, display:'block' }}>0 = avisa apenas no dia. O sistema sempre envia também 2 dias antes e no dia do vencimento.</span>
                     </div>
                   )}
 
