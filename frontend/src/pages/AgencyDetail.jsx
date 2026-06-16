@@ -367,9 +367,10 @@ export default function AgencyDetail() {
   const [saving,     setSaving]     = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
   const [cnpjLoading,setCnpjLoading]= useState(false)
-  const [isDirty,     setIsDirty]    = useState(false)
-  const [notesOpen,   setNotesOpen]  = useState(false)
-  const [fieldErrors, setFieldErrors]= useState({})
+  const [isDirty,      setIsDirty]     = useState(false)
+  const [notesOpen,    setNotesOpen]   = useState(false)
+  const [fieldErrors,  setFieldErrors] = useState({})
+  const [showConvert,  setShowConvert] = useState(false)
   const [tab, setTab] = usePersistedTab('tab_agency_detail', 'info')
 
   useEffect(() => {
@@ -677,7 +678,15 @@ export default function AgencyDetail() {
           </F>
           {/* Col 3 */}
           <F label="Tipo de pessoa">
-            <FormSelect value={form.person_type} onChange={v => { setForm(f => ({...f, person_type: v})); setIsDirty(true) }} options={PERSON_TYPE_OPTS} />
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <FormSelect value={form.person_type} onChange={v => { setForm(f => ({...f, person_type: v})); setIsDirty(true) }} options={PERSON_TYPE_OPTS} />
+              <button type="button" onClick={() => setShowConvert(true)}
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'6px 12px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#f8fafc', color:'#475569', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+                {isFisica ? '↔ Converter para CNPJ' : '↔ Converter para CPF'}
+              </button>
+            </div>
           </F>
         </div>
 
@@ -901,6 +910,36 @@ export default function AgencyDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de conversão CPF ↔ CNPJ */}
+      {showConvert && (
+        <ConfirmModal
+          title={isFisica ? 'Converter para CNPJ (Jurídica)?' : 'Converter para CPF (Física)?'}
+          message={
+            isFisica
+              ? 'O CPF e o nome/sobrenome serão limpos. Você precisará preencher o CNPJ e a Razão Social. Deseja continuar?'
+              : 'O CNPJ, Razão Social e Nome Fantasia serão limpos. Você precisará preencher o CPF e o Nome. Deseja continuar?'
+          }
+          onConfirm={() => {
+            setForm(f => ({
+              ...f,
+              person_type: isFisica ? 'juridica' : 'fisica',
+              // Limpa os campos do tipo anterior
+              cpf:                  isFisica ? f.cpf          : '',
+              cnpj:                 isFisica ? ''             : f.cnpj,
+              company_name:         isFisica ? ''             : f.company_name,
+              state_registration:   isFisica ? ''             : f.state_registration,
+              municipal_registration: isFisica ? ''           : f.municipal_registration,
+              responsible:          isFisica ? ''             : f.responsible,
+              name:                 '',
+              last_name:            isFisica ? f.last_name    : '',
+            }))
+            setIsDirty(true)
+            setShowConvert(false)
+          }}
+          onCancel={() => setShowConvert(false)}
+        />
       )}
     </>
   )
