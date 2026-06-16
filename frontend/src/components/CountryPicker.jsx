@@ -1,19 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import axios from 'axios'
 import { Ic } from './Icon'
+import { configApi } from '../api'
 
-const RCOUNTRIES = 'https://restcountries.com/v3.1/all?fields=name,cca2,translations'
 let cachedCountries = null
 
 async function getCountries() {
   if (cachedCountries) return cachedCountries
-  const r = await axios.get(RCOUNTRIES)
+  const r = await configApi.countries()
   cachedCountries = r.data
-    .map((c) => ({
-      name_pt: c.translations?.por?.common || c.name.common,
-      name_en: c.name.common,
-      code:    c.cca2,
-    }))
+    .map((c) => ({ name_pt: c.name, code: c.code || c.id }))
     .sort((a, b) => a.name_pt.localeCompare(b.name_pt, 'pt'))
   return cachedCountries
 }
@@ -56,7 +51,7 @@ export default function CountryPicker({ value, onChange }) {
 
   const filtered = countries.filter((c) => {
     const q = search.toLowerCase()
-    return c.name_pt.toLowerCase().includes(q) || c.name_en.toLowerCase().includes(q)
+    return c.name_pt.toLowerCase().includes(q)
   })
 
   return (
@@ -175,14 +170,9 @@ function CountryRow({ country, selected, onClick }) {
         transition: 'background .1s',
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, color: '#1e293b', margin: 0, fontWeight: selected ? 600 : 400 }}>
-          {country.name_pt}
-        </p>
-        {country.name_en !== country.name_pt && (
-          <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, marginTop: 1 }}>{country.name_en}</p>
-        )}
-      </div>
+      <p style={{ flex: 1, minWidth: 0, fontSize: 13, color: '#1e293b', margin: 0, fontWeight: selected ? 600 : 400 }}>
+        {country.name_pt}
+      </p>
       {selected && <span style={{ color: '#2e6db4', flexShrink: 0 }}><Ic n="check" s={14} /></span>}
     </div>
   )
