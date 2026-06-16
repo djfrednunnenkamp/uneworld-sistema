@@ -169,7 +169,7 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
             position: fixed ? 'fixed' : 'absolute',
             top:  fixed ? popupPos.top  : 'calc(100% + 6px)',
             left: fixed ? popupPos.left : 0,
-            zIndex:600,
+            zIndex: fixed ? 9999 : 600,
             background:'#fff', borderRadius:10, border:'1px solid #e2e8f0',
             boxShadow:'0 10px 32px rgba(0,0,0,.13)', width:272,
             overflow:'hidden', animation:'mIn .12s ease',

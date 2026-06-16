@@ -5669,7 +5669,7 @@ function PendenciesPanel({ listId, listName, listStartDate, onClose }) {
                     onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setShowAdd(false) }}
                     style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box', marginBottom:8 }} />
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <DatePicker value={addDate} onChange={setAddDate} placeholder="Prazo (opcional)" />
+                    <DatePicker value={addDate} onChange={setAddDate} placeholder="Prazo (opcional)" fixed />
                     <div style={{ flex:1 }} />
                     <button onClick={() => { setShowAdd(false); setAddTitle(''); setAddDate('') }}
                       style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#f8fafc', color:'#64748b', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
