@@ -63,6 +63,7 @@ export function BusLayoutPreview({ rows, seatSize = 30, editable = false, onLabe
                     }} />
                 )
               }
+              if (!c.label) return <div key={c.key} style={{ width:seatSize, height:seatSize }} />
               const info = getSeatInfo ? (getSeatInfo(c.label) || {}) : {}
               return (
                 <div key={c.key} title={info.title}
