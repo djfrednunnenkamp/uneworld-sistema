@@ -290,7 +290,8 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         if obj.agency:
             a = obj.agency
             if a.person_type == 'fisica':
-                return a.company_name or a.name or ''
+                full_name = f'{a.name} {a.last_name}'.strip()
+                return a.company_name or full_name or ''
             return a.name or a.company_name or ''
         return obj.block_agency or ''
 
