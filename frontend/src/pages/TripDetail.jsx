@@ -3162,8 +3162,13 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, listName, o
       if (occupant) {
         doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(146,64,14)
         doc.text(label, x + sW/2, y + 4, { align:'center' })
-        const firstName = (occupant.passenger_name || occupant.block_agency || '').split(' ')[0]
         doc.setFontSize(5.5); doc.setFont('helvetica','normal')
+        let firstName = (occupant.passenger_name || occupant.block_agency || '').split(' ')[0]
+        const maxSeatW = sW - 2
+        if (doc.getTextWidth(firstName) > maxSeatW) {
+          while (firstName.length > 1 && doc.getTextWidth(firstName + '…') > maxSeatW) firstName = firstName.slice(0, -1)
+          firstName += '…'
+        }
         doc.text(firstName, x + sW/2, y + sH - 2.5, { align:'center' })
       } else {
         doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(46,109,180)
@@ -3250,7 +3255,13 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, listName, o
         doc.setTextColor(46,109,180); doc.setFont('helvetica','bold'); doc.setFontSize(9)
         doc.text(e.seat, tX + cW1/2, curY + 4.8, { align:'center' })
         doc.setTextColor(30,41,59); doc.setFont('helvetica','normal')
-        const name = doc.splitTextToSize(e.passenger_name || e.block_agency || '—', cW2 - 8)[0]
+        const rawName = e.passenger_name || e.block_agency || '—'
+        const maxNameW = cW2 - 8
+        let name = rawName
+        if (doc.getTextWidth(name) > maxNameW) {
+          while (name.length > 1 && doc.getTextWidth(name + '…') > maxNameW) name = name.slice(0, -1)
+          name = name + '…'
+        }
         doc.text(name, tX + cW1 + 4, curY + 4.8)
         curY += rH
       })
