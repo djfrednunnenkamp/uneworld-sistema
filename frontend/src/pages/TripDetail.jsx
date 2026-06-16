@@ -955,6 +955,7 @@ const PRINT_ROWS = [
   { key:'observacoes',    label:'Lista de observações' },
   { key:'contato',        label:'Lista de contato' },
   { key:'completa',       label:'Lista completa' },
+  { key:'mapa_assentos',  label:'Mapa de assentos', busMapOnly: true },
 ]
 
 const PRINT_OPTS_DEFAULT = Object.fromEntries(PRINT_ROWS.map(r => [r.key, false]))
@@ -967,7 +968,7 @@ function loadPrintOpts() {
   return { ...PRINT_OPTS_DEFAULT }
 }
 
-function PrintModal({ list, enrollments, accomTypes, onClose }) {
+function PrintModal({ list, enrollments, accomTypes, busMap, onClose }) {
   const [formato, setFormato] = useState(() => localStorage.getItem(PRINT_FORMAT_KEY) || 'pdf')
   const [generating, setGenerating] = useState(false)
   const [opts, setOpts] = useState(loadPrintOpts)
@@ -980,24 +981,25 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
     try { localStorage.setItem(PRINT_FORMAT_KEY, formato) } catch { /* localStorage indisponível */ }
   }, [formato])
 
-  const toggle  = key => setOpts(o => ({ ...o, [key]: !o[key] }))
-  const allOn   = PRINT_ROWS.every(r => opts[r.key])
-  const toggleAll = () => setOpts(Object.fromEntries(PRINT_ROWS.map(r => [r.key, !allOn])))
+  const availableRows = PRINT_ROWS.filter(r => !r.busMapOnly || busMap)
+  const toggle     = key => setOpts(o => ({ ...o, [key]: !o[key] }))
+  const allOn      = availableRows.every(r => opts[r.key])
+  const toggleAll  = () => setOpts(p => Object.fromEntries(availableRows.map(r => [r.key, !allOn])))
 
   const handleDownload = async () => {
     if (generating) return
-    if (!PRINT_ROWS.some(r => opts[r.key])) {
+    if (!availableRows.some(r => opts[r.key])) {
       toast.error('Selecione ao menos uma seção para exportar.')
       return
     }
     setGenerating(true)
     try {
       if (formato === 'html') {
-        await generateListHTML(list, enrollments, opts, accomTypes)
+        await generateListHTML(list, enrollments, opts, accomTypes, busMap)
       } else {
-        await generateListPDF(list, enrollments, opts, accomTypes)
+        await generateListPDF(list, enrollments, opts, accomTypes, busMap)
       }
-      const sections = PRINT_ROWS.filter(r => opts[r.key]).map(r => r.label)
+      const sections = availableRows.filter(r => opts[r.key]).map(r => r.label)
       listsApi.logDownload(list.id, formato, sections).catch(() => {})
     } catch (err) {
       console.error(err)
@@ -1043,7 +1045,7 @@ function PrintModal({ list, enrollments, accomTypes, onClose }) {
 
           {/* Secoes */}
           <div>
-            {PRINT_ROWS.map(({ key, label }) => (
+            {availableRows.map(({ key, label }) => (
               <label key={key}
                 style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 6px', marginInline:-6, borderRadius:6, cursor:'pointer', transition:'background .12s' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
@@ -4183,7 +4185,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   // Repassa os dados ao componente pai — exibidos no painel de métricas, acima das abas
   // (cancelados não contam mais como vaga ocupada nem entram nas métricas)
   useEffect(() => {
-    onData?.({ enrolled: enrolled.filter(e => e.enrollment_status !== 'cancelado'), accomTypes, loading })
+    onData?.({ enrolled: enrolled.filter(e => e.enrollment_status !== 'cancelado'), accomTypes, loading, busMap })
   }, [enrolled, accomTypes, loading, onData])
 
   const toggleSelect  = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -5533,7 +5535,7 @@ export default function TripDetail() {
   const [showEdit,  setShowEdit]  = useState(false)
   const [showPrint, setShowPrint] = useState(false)
   const [tab, setTab] = usePersistedTab('tab_list_detail', 'passengers')
-  const [paxData, setPaxData] = useState({ enrolled: [], accomTypes: [], loading: true })
+  const [paxData, setPaxData] = useState({ enrolled: [], accomTypes: [], loading: true, busMap: null })
 
   const load = useCallback(() => {
     listsApi.get(id)
@@ -5679,6 +5681,7 @@ export default function TripDetail() {
           list={list}
           enrollments={paxData.enrolled}
           accomTypes={paxData.accomTypes}
+          busMap={paxData.busMap}
           onClose={() => setShowPrint(false)}
         />
       )}

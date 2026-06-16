@@ -86,7 +86,7 @@ function nameCell(text, crew) {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export async function generateListHTML(list, enrollments, opts, accomTypes = []) {
+export async function generateListHTML(list, enrollments, opts, accomTypes = [], busMap = null) {
   let logoDataUrl = null
   try {
     const resp = await fetch('/logo.png')
@@ -298,6 +298,67 @@ export async function generateListHTML(list, enrollments, opts, accomTypes = [])
     sections.push(
       sectionTitle('LISTA COMPLETA') +
       renderTable(['N', 'Nome', 'Tipo Apto.', 'Nasc / Nac / Gen', 'PASS / RG', 'CPF', 'Endereço', 'Celular', 'Agência'], body)
+    )
+  }
+
+  // ── 8. Mapa de Assentos ─────────────────────────────────────────────────────
+  if (opts.mapa_assentos && busMap) {
+    const seatOf = {}
+    enrollments.forEach(e => { if (e.seat) seatOf[e.seat] = e })
+
+    const sz = 44  // px por assento
+    const gap = 4, aisle = 16
+
+    const renderSeat = (label, occupant) => {
+      if (!label) return `<div style="width:${sz}px;height:${sz}px;flex-shrink:0;"></div>`
+      const bg  = occupant ? '#fef9c3' : '#e8f0fb'
+      const bdr = occupant ? '#fde68a' : '#bfdbfe'
+      const fg  = occupant ? '#92400e' : '#2e6db4'
+      const fn  = occupant ? esc((occupant.passenger_name || occupant.block_agency || '').split(' ')[0]) : ''
+      return `<div style="width:${sz}px;height:${sz}px;border-radius:6px;background:${bg};border:1px solid ${bdr};display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">
+        <span style="font-size:12px;font-weight:700;color:${fg};">${esc(label)}</span>
+        ${fn ? `<span style="font-size:9px;color:${fg};margin-top:2px;max-width:${sz-4}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${fn}</span>` : ''}
+      </div>`
+    }
+
+    const renderDeck = (rows, deckLabel) => {
+      const maxLeft  = Math.max(0, ...rows.map(r => r.left_seats  ?? 0))
+      const maxRight = Math.max(0, ...rows.map(r => r.right_seats ?? 0))
+      const rowsHtml = rows.map(row => {
+        const left  = Array.from({ length: maxLeft  }, (_, i) => renderSeat((row.left_labels?.[i]  ?? '').toString(), seatOf[row.left_labels?.[i]  ?? ''])).join('')
+        const right = Array.from({ length: maxRight }, (_, i) => renderSeat((row.right_labels?.[i] ?? '').toString(), seatOf[row.right_labels?.[i] ?? ''])).join('')
+        return `<div style="display:flex;gap:${gap}px;margin-bottom:${gap}px;">${left}<div style="width:${aisle}px;flex-shrink:0;"></div>${right}</div>`
+      }).join('')
+      const deckHead = deckLabel ? `<div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">${esc(deckLabel)}</div>` : ''
+      return `<div>${deckHead}<div style="font-size:9px;font-weight:700;color:#94a3b8;letter-spacing:.08em;text-align:center;margin-bottom:6px;">FRENTE</div>${rowsHtml}</div>`
+    }
+
+    const twoDecks  = busMap.deck_count === 2
+    const rowsDeck1 = (busMap.rows ?? []).filter(r => (r.deck ?? 1) === 1)
+    const rowsDeck2 = (busMap.rows ?? []).filter(r => r.deck === 2)
+    const mapHtml = twoDecks
+      ? `<div style="display:flex;gap:32px;justify-content:center;">${renderDeck(rowsDeck1,'1º Andar')}${renderDeck(rowsDeck2,'2º Andar')}</div>`
+      : `<div style="display:flex;justify-content:center;">${renderDeck(rowsDeck1,'')}</div>`
+
+    const seated = enrollments.filter(e => e.seat).sort((a,b) => {
+      const n = parseInt(a.seat)||0, m = parseInt(b.seat)||0
+      return n - m || a.seat.localeCompare(b.seat)
+    })
+    const seatedTable = seated.length === 0 ? '' : (
+      `<h3 style="margin:20px 0 8px;font-size:13px;color:${NAV};">Passageiros com assento atribuído</h3>` +
+      renderTable(['Assento', 'Passageiro'], seated.map(e => [
+        { text: e.seat,  align:'center', bold:true, color:BLUE },
+        { text: e.passenger_name || e.block_agency || '—' },
+      ]))
+    )
+
+    sections.push(
+      sectionTitle('MAPA DE ASSENTOS') +
+      `<div style="display:flex;gap:20px;align-items:center;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;"><div style="width:14px;height:14px;border-radius:3px;background:#e8f0fb;border:1px solid #bfdbfe;flex-shrink:0;"></div>Disponível</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;"><div style="width:14px;height:14px;border-radius:3px;background:#fef9c3;border:1px solid #fde68a;flex-shrink:0;"></div>Ocupado</div>
+      </div>` +
+      mapHtml + seatedTable
     )
   }
 

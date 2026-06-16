@@ -144,7 +144,7 @@ function addPageHeader(doc, title, listName, listNumber, dates, logoDataUrl) {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export async function generateListPDF(list, enrollments, opts, accomTypes = []) {
+export async function generateListPDF(list, enrollments, opts, accomTypes = [], busMap = null) {
   let logoDataUrl = null
   try {
     const resp = await fetch('/logo.png')
@@ -499,6 +499,101 @@ export async function generateListPDF(list, enrollments, opts, accomTypes = []) 
       { 0:{cellWidth:7,halign:'center',cellPadding:{top:ROW_PAD_V,right:1,bottom:ROW_PAD_V,left:1}}, 1:{cellWidth:51,valign:'top'}, 2:{cellWidth:22,halign:'center'}, 3:{cellWidth:22,halign:'center'}, 4:{cellWidth:27,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 5:{cellWidth:25,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 6:{cellWidth:50,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 7:{cellWidth:32,halign:'center',cellPadding:{top:ROW_PAD_V,right:2,bottom:ROW_PAD_V,left:2}}, 8:{cellWidth:41,halign:'center'} },
       { bodyStyles: { valign: 'middle' }, ...crewRoleHooks(crewSet, 1) }   // Nome = coluna 1
     )
+  }
+
+  // ── 8. Mapa de Assentos ─────────────────────────────────────────────────────
+  if (opts.mapa_assentos && busMap) {
+    const seatOf = {}
+    enrollments.forEach(e => { if (e.seat) seatOf[e.seat] = e })
+
+    if (!isFirst) doc.addPage()
+    isFirst = false
+    const y0 = addPageHeader(doc, 'MAPA DE ASSENTOS', lname, lnum, dates, logoDataUrl)
+
+    const twoDecks  = busMap.deck_count === 2
+    const rowsDeck1 = (busMap.rows ?? []).filter(r => (r.deck ?? 1) === 1)
+    const rowsDeck2 = (busMap.rows ?? []).filter(r => r.deck === 2)
+    const sW = 18, sH = 14, gap = 2, aisle = 10
+    const pw = doc.internal.pageSize.getWidth()
+
+    const drawSeat = (x, y, label, occupant) => {
+      if (occupant) { doc.setFillColor(254,249,195); doc.setDrawColor(253,230,138) }
+      else          { doc.setFillColor(232,240,251); doc.setDrawColor(191,219,254) }
+      doc.setLineWidth(0.3)
+      doc.roundedRect(x, y, sW, sH, 2, 2, 'FD')
+      if (occupant) {
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(146,64,14)
+        doc.text(label, x + sW/2, y + 4.5, { align:'center' })
+        doc.setFontSize(5.5); doc.setFont('helvetica','normal')
+        let fn = (occupant.passenger_name || occupant.block_agency || '').split(' ')[0]
+        const mW = sW - 2
+        if (doc.getTextWidth(fn) > mW) { while (fn.length > 1 && doc.getTextWidth(fn+'…') > mW) fn = fn.slice(0,-1); fn += '…' }
+        doc.text(fn, x + sW/2, y + sH - 3, { align:'center' })
+      } else {
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(46,109,180)
+        doc.text(label, x + sW/2, y + sH/2 + 2.5, { align:'center' })
+      }
+    }
+
+    const drawDeck = (rows, startX, startY, deckLabel) => {
+      const maxLeft  = Math.max(0, ...rows.map(r => r.left_seats  ?? 0))
+      const maxRight = Math.max(0, ...rows.map(r => r.right_seats ?? 0))
+      const totalW   = maxLeft*(sW+gap) + aisle + maxRight*(sW+gap)
+      const usableW  = pw - 20
+      const offX     = twoDecks ? startX : 10 + (usableW - totalW) / 2
+      if (deckLabel) { doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(148,163,184); doc.text(deckLabel, offX, startY - 2) }
+      doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(148,163,184)
+      doc.text('FRENTE', offX + totalW/2, startY + (deckLabel ? 4 : 2), { align:'center' })
+      let y = startY + (deckLabel ? 8 : 5)
+      rows.forEach(row => {
+        for (let i = 0; i < maxLeft; i++) {
+          const lbl = (row.left_labels?.[i] ?? '').toString()
+          if (lbl) drawSeat(offX + i*(sW+gap), y, lbl, seatOf[lbl])
+        }
+        for (let i = 0; i < maxRight; i++) {
+          const lbl = (row.right_labels?.[i] ?? '').toString()
+          if (lbl) drawSeat(offX + maxLeft*(sW+gap) + aisle + i*(sW+gap), y, lbl, seatOf[lbl])
+        }
+        y += sH + gap
+      })
+      return y
+    }
+
+    let curY = y0
+    if (twoDecks) {
+      curY = Math.max(drawDeck(rowsDeck1, 10, curY, '1º Andar'), drawDeck(rowsDeck2, pw/2, curY, '2º Andar'))
+    } else {
+      curY = drawDeck(rowsDeck1, 10, curY, null)
+    }
+
+    // Legenda
+    curY += 4
+    const legBox = (x, fill, stroke, label) => {
+      doc.setFillColor(...fill); doc.setDrawColor(...stroke); doc.setLineWidth(0.3)
+      doc.roundedRect(x, curY, 5, 4, 1, 1, 'FD')
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139)
+      doc.text(label, x + 7, curY + 3)
+    }
+    legBox(10, [232,240,251],[191,219,254], 'Disponível')
+    legBox(44, [254,249,195],[253,230,138], 'Ocupado')
+    curY += 10
+
+    const seated = enrollments.filter(e => e.seat).sort((a,b) => {
+      const n = parseInt(a.seat)||0, m = parseInt(b.seat)||0
+      return n - m || a.seat.localeCompare(b.seat)
+    })
+    if (seated.length > 0) {
+      autoTable(doc, {
+        startY: curY,
+        head: [['Assento', 'Passageiro']],
+        body: seated.map(e => [e.seat, e.passenger_name || e.block_agency || '—']),
+        styles: { font:'helvetica', fontSize:9, cellPadding:{top:ROW_PAD_V,right:4,bottom:ROW_PAD_V,left:4}, lineColor:BORDER, lineWidth:0.2, textColor:[30,41,59] },
+        headStyles: { fillColor:NAV, textColor:[255,255,255], fontStyle:'bold', fontSize:9, halign:'center' },
+        alternateRowStyles: { fillColor:HEADER },
+        columnStyles: { 0:{ cellWidth:22, halign:'center', fontStyle:'bold', textColor:BLUE }, 1:{ cellWidth:'auto' } },
+        margin: { left:10, right:10 },
+      })
+    }
   }
 
   const safeName = (list.name || '').trim().replace(/[\\/:*?"<>|]/g, '-')
