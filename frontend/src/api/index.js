@@ -209,6 +209,9 @@ export const configApi = {
   geoImport:  (formData) => api.post('/config/geo/import/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   geoAnalyze: (rows) => api.post('/config/geo/analyze/', { rows }),
   geoAction:  (mode, rows) => api.post('/config/geo/action/', { mode, rows }),
+  // Configurações globais do sistema
+  systemSettings:       ()     => api.get('/config/system-settings/'),
+  updateSystemSettings: (data) => api.patch('/config/system-settings/', data),
 }
 
 export const usersApi = {

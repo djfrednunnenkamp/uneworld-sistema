@@ -140,9 +140,10 @@ class PassengerList(models.Model):
     departure_state      = models.ForeignKey('config_api.ConfigState',   null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Estado de saída')
     departure_city       = models.ForeignKey('config_api.ConfigCity',    null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade de saída')
     bus_map              = models.ForeignKey('config_api.BusMap',        null=True, blank=True, on_delete=models.SET_NULL, related_name='passenger_lists', verbose_name='Mapa de assentos de ônibus')
-    status               = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta', db_index=True)
-    notes                = models.TextField('Observações', blank=True)
-    revision             = models.PositiveIntegerField('Revisão', default=1)
+    status                    = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta', db_index=True)
+    notes                     = models.TextField('Observações', blank=True)
+    notification_emails       = models.JSONField('E-mails de notificação', default=list, blank=True)
+    revision                  = models.PositiveIntegerField('Revisão', default=1)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at           = models.DateTimeField('Atualizado em', auto_now=True)
 

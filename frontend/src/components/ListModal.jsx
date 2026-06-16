@@ -25,6 +25,7 @@ const EMPTY = {
   default_airport: null,
   departure_country: null, departure_state: null, departure_city: null,
   bus_map: null,
+  notification_emails: [],
 }
 
 
@@ -244,6 +245,51 @@ const lbl = {
 }
 const row2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }
 
+/* ── Campo de e-mails de notificação por lista ── */
+function NotificationEmailsField({ emails, onChange }) {
+  const [inputVal, setInputVal] = useState('')
+
+  const add = () => {
+    const v = inputVal.trim().toLowerCase()
+    if (!v || !v.includes('@')) { toast.error('E-mail inválido.'); return }
+    if (emails.includes(v)) { toast.error('E-mail já adicionado.'); return }
+    setInputVal('')
+    onChange([...emails, v])
+  }
+
+  return (
+    <div>
+      <label style={lbl}>E-mails de notificação desta lista</label>
+      <p style={{ margin:'-2px 0 8px', fontSize:11, color:'#94a3b8', lineHeight:1.5 }}>
+        Receberão lembretes de prazo para passageiros desta lista específica.
+      </p>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: emails.length ? 8 : 0 }}>
+        {emails.map(e => (
+          <span key={e} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', background:'#e8f0fb', borderRadius:20, fontSize:12, color:'#2e6db4', fontWeight:500 }}>
+            {e}
+            <button type="button" onClick={() => onChange(emails.filter(x => x !== e))}
+              style={{ background:'none', border:'none', cursor:'pointer', padding:0, color:'#94a3b8', display:'flex', lineHeight:1 }}>
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div style={{ display:'flex', gap:8 }}>
+        <input
+          type="email" value={inputVal} onChange={e => setInputVal(e.target.value)}
+          placeholder="Adicionar e-mail…"
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
+          style={{ flex:1, padding:'7px 10px', border:'1px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none' }}
+        />
+        <button type="button" onClick={add}
+          style={{ padding:'7px 14px', background:'#2e6db4', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /* ── Modal principal ── */
 export default function ListModal({ onClose, onSaved, initial = null }) {
   const isEdit = !!initial?.id
@@ -259,6 +305,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     departure_state:    initial.departure_state    || null,
     departure_city:     initial.departure_city     || null,
     bus_map:            initial.bus_map            || null,
+    notification_emails: Array.isArray(initial.notification_emails) ? initial.notification_emails : [],
   } : { ...EMPTY })
   const [saving,      setSaving]      = useState(false)
   const [suppliers,   setSuppliers]   = useState([])
@@ -538,6 +585,12 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
                 }}
               />
             </div>
+
+            {/* E-mails de notificação */}
+            <NotificationEmailsField
+              emails={form.notification_emails || []}
+              onChange={emails => setV('notification_emails', emails)}
+            />
 
           </div>
         </div>

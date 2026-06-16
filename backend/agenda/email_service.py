@@ -94,3 +94,93 @@ def send_calendar_summary(email: str, first_name: str, events: list, subject: st
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
         return False
+
+
+def _fmt_date(iso_str):
+    if not iso_str:
+        return ''
+    parts = str(iso_str).split('-')
+    if len(parts) == 3:
+        return f'{parts[2]}/{parts[1]}/{parts[0]}'
+    return str(iso_str)
+
+
+def send_deadline_reminder(emails: list, deadline_date, entries: list) -> bool:
+    """
+    Envia lembrete de prazos de confirmação.
+
+    entries: list of dicts com chaves:
+        passenger_name  — nome do passageiro / bloqueio
+        list_name       — nome da lista de passageiros
+        pending_reason  — motivo da pendência (pode ser vazio)
+        created_by      — nome de quem definiu o prazo
+    """
+    if not emails:
+        return False
+
+    resend.api_key = settings.RESEND_API_KEY
+    date_str = _fmt_date(deadline_date)
+    subject = f'Prazos de hoje ({date_str}) — UneWorld Turismo'
+
+    if not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave'):
+        print(f"[EMAIL SIMULADO] {subject} para {emails}: {len(entries)} prazo(s)")
+        return True
+
+    rows_html = ''
+    for e in entries:
+        reason_html = ''
+        if e.get('pending_reason'):
+            reason_html = f'<p style="margin:4px 0 0;font-size:12px;color:#64748b">{e["pending_reason"]}</p>'
+        rows_html += f"""
+        <div style="padding:14px 0;border-bottom:1px solid #f1f5f9">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div style="flex:1;min-width:0">
+              <p style="margin:0;font-size:14px;font-weight:600;color:#1e293b">{e['passenger_name']}</p>
+              <p style="margin:2px 0 0;font-size:12px;color:#64748b">{e['list_name']}</p>
+              {reason_html}
+            </div>
+            <span style="flex-shrink:0;padding:3px 10px;background:#fef3c7;color:#b45309;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">Vence hoje</span>
+          </div>
+          <p style="margin:6px 0 0;font-size:11px;color:#94a3b8">Prazo definido por {e.get('created_by','—')}</p>
+        </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f8;margin:0;padding:32px 16px">
+  <div style="max-width:540px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+    <div style="background:#1a2d4f;padding:24px 32px;text-align:center">
+      <p style="color:#fff;font-size:22px;font-weight:700;margin:0">Une<span style="color:#6BA3C8">World</span></p>
+      <p style="color:rgba(255,255,255,.5);font-size:12px;margin:4px 0 0;letter-spacing:.1em;text-transform:uppercase">Turismo</p>
+    </div>
+    <div style="padding:32px">
+      <div style="display:flex;align-items:center;gap:10px;margin:0 0 8px">
+        <span style="font-size:20px">⏰</span>
+        <p style="margin:0;font-size:18px;font-weight:700;color:#1e293b">Prazos que vencem hoje</p>
+      </div>
+      <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px">
+        Os seguintes passageiros têm prazo de confirmação vencendo em <strong>{date_str}</strong> e ainda não confirmaram.
+      </p>
+      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:0 16px">
+        {rows_html}
+        <div style="padding-bottom:2px"></div>
+      </div>
+    </div>
+    <div style="background:#f8fafc;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0">
+      <p style="color:#94a3b8;font-size:12px;margin:0">UneWorld Turismo · Sistema de Gestão</p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    try:
+        resend.Emails.send({
+            "from":    settings.RESEND_FROM,
+            "to":      emails,
+            "subject": subject,
+            "html":    html,
+        })
+        return True
+    except Exception as e:
+        print(f"[RESEND ERROR] {e}")
+        return False

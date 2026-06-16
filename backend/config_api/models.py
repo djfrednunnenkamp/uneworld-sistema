@@ -251,3 +251,20 @@ class BusMapRow(models.Model):
 
     def __str__(self):
         return f'{self.bus_map.label} · fileira {self.order + 1}'
+
+
+class SystemSettings(models.Model):
+    """Singleton de configurações globais do sistema."""
+    deadline_notification_emails = models.JSONField('E-mails de notificação de prazos', default=list, blank=True)
+
+    class Meta:
+        verbose_name = 'Configurações do sistema'
+        verbose_name_plural = 'Configurações do sistema'
+
+    def __str__(self):
+        return 'Configurações do sistema'
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

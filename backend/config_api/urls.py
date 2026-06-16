@@ -22,8 +22,9 @@ router.register('bus-maps',       views.BusMapViewSet,           basename='busma
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('geo/export/',  views.geo_export,        name='geo-export'),
-    path('geo/import/',  views.geo_import,         name='geo-import'),
-    path('geo/analyze/', views.geo_analyze,        name='geo-analyze'),
-    path('geo/action/',  views.geo_import_action,  name='geo-action'),
+    path('geo/export/',       views.geo_export,        name='geo-export'),
+    path('geo/import/',       views.geo_import,         name='geo-import'),
+    path('geo/analyze/',      views.geo_analyze,        name='geo-analyze'),
+    path('geo/action/',       views.geo_import_action,  name='geo-action'),
+    path('system-settings/',  views.system_settings,    name='system-settings'),
 ]

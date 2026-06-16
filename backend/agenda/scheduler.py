@@ -47,3 +47,47 @@ def run_once():
             if send_reminder_email(pref.user, pref.reminder_days_before):
                 pref.last_reminder_sent = today
                 pref.save(update_fields=['last_reminder_sent'])
+
+    _send_list_deadline_reminders(today)
+
+
+def _send_list_deadline_reminders(today):
+    """Envia e-mails de lembrete de prazo para os e-mails configurados nas listas."""
+    from trips.models import ListEnrollment
+    from config_api.models import SystemSettings
+    from .email_service import send_deadline_reminder
+
+    global_emails = list(SystemSettings.get().deadline_notification_emails or [])
+
+    enrollments = (
+        ListEnrollment.objects
+        .filter(pending_until=today)
+        .exclude(enrollment_status='confirmado')
+        .select_related('passenger', 'passenger_list', 'pending_until_created_by')
+    )
+    if not enrollments:
+        return
+
+    # Agrupa por lista para montar o e-mail
+    by_list = {}
+    for en in enrollments:
+        by_list.setdefault(en.passenger_list_id, {'list': en.passenger_list, 'entries': []})
+        creator = en.pending_until_created_by
+        by_list[en.passenger_list_id]['entries'].append({
+            'passenger_name': en.passenger.full_name if en.passenger else (en.block_agency or 'Bloqueio'),
+            'list_name':      en.passenger_list.name,
+            'pending_reason': en.pending_reason or '',
+            'created_by':     (creator.get_full_name() or creator.username) if creator else '—',
+        })
+
+    # Um único e-mail por destinatário com todos os prazos do dia
+    all_entries = []
+    recipient_emails = set(global_emails)
+    for data in by_list.values():
+        all_entries.extend(data['entries'])
+        list_emails = data['list'].notification_emails or []
+        recipient_emails.update(list_emails)
+
+    recipient_emails = [e for e in recipient_emails if e and '@' in e]
+    if recipient_emails and all_entries:
+        send_deadline_reminder(recipient_emails, today, all_entries)

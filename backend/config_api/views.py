@@ -14,7 +14,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
-                     BusMap, BusMapRow)
+                     BusMap, BusMapRow, SystemSettings)
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -955,3 +955,22 @@ class BusMapViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminUser()]
         return [IsAuthenticated()]
+
+
+# ── Configurações globais do sistema ─────────────────────────────────────────
+
+class SystemSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = SystemSettings
+        fields = ['deadline_notification_emails']
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAdminUser])
+def system_settings(request):
+    obj = SystemSettings.get()
+    if request.method == 'PATCH':
+        ser = SystemSettingsSerializer(obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+    return Response(SystemSettingsSerializer(obj).data)

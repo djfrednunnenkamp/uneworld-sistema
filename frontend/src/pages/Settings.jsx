@@ -647,6 +647,78 @@ const LIST_DEFS = [
 ]
 const WIDE_LISTS = ['doc_types', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
 
+function AutoEmailsCard() {
+  const [emails,   setEmails]   = useState(null)
+  const [inputVal, setInputVal] = useState('')
+  const [saving,   setSaving]   = useState(false)
+
+  useEffect(() => {
+    configApi.systemSettings()
+      .then(r => setEmails(r.data.deadline_notification_emails || []))
+      .catch(() => setEmails([]))
+  }, [])
+
+  const save = async (next) => {
+    setSaving(true)
+    try {
+      const r = await configApi.updateSystemSettings({ deadline_notification_emails: next })
+      setEmails(r.data.deadline_notification_emails || [])
+    } catch { toast.error('Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  const addEmail = () => {
+    const v = inputVal.trim().toLowerCase()
+    if (!v || !v.includes('@')) { toast.error('E-mail inválido.'); return }
+    if (emails.includes(v)) { toast.error('E-mail já adicionado.'); return }
+    setInputVal('')
+    save([...emails, v])
+  }
+
+  const removeEmail = (e) => save(emails.filter(x => x !== e))
+
+  return (
+    <div className="tcard" style={{ marginBottom:20, padding:'20px 20px 16px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
+        <Ic n="docs" s={16}/>
+        <span style={{ fontSize:14, fontWeight:700, color:'#1e293b' }}>E-mails automáticos</span>
+      </div>
+      <p style={{ margin:'0 0 14px', fontSize:13, color:'#64748b', lineHeight:1.6 }}>
+        Estes endereços receberão um e-mail toda vez que um passageiro tiver um prazo de confirmação vencendo no dia.
+        São enviados independentemente das configurações de cada lista.
+      </p>
+      {emails === null ? (
+        <p style={{ fontSize:12, color:'#94a3b8' }}>Carregando…</p>
+      ) : (
+        <>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:emails.length ? 12 : 0 }}>
+            {emails.map(e => (
+              <span key={e} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', background:'#e8f0fb', borderRadius:20, fontSize:12, color:'#2e6db4', fontWeight:500 }}>
+                {e}
+                <button onClick={() => removeEmail(e)} disabled={saving}
+                  style={{ background:'none', border:'none', cursor:'pointer', padding:0, color:'#94a3b8', display:'flex', lineHeight:1 }}>
+                  <Ic n="x" s={11}/>
+                </button>
+              </span>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <input
+              type="email" value={inputVal} onChange={e => setInputVal(e.target.value)}
+              placeholder="Adicionar e-mail…"
+              onKeyDown={e => e.key === 'Enter' && addEmail()}
+              style={{ flex:1, padding:'8px 12px', border:'1px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none' }}
+            />
+            <button className="btn btn-primary" onClick={addEmail} disabled={saving || !inputVal.trim()}>
+              Adicionar
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Settings() {
   const navigate = useNavigate()
   const fileAllRef = useRef(null)
@@ -898,6 +970,8 @@ export default function Settings() {
               style={{ display:'none' }} onChange={handleImportAllFile} />
           </div>
         </div>
+
+        <AutoEmailsCard />
 
         <div className="tcard">
           {filteredListDefs.length === 0 ? (
