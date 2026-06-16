@@ -3068,11 +3068,12 @@ function AccomPickerModal({ enrollmentIds, enrolled, accomTypes, rooms, onConfir
 }
 
 /* ── Mapa de assentos do ônibus — visualização e marcação de assento do passageiro ── */
-function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, onClose }) {
-  const [saving,    setSaving]    = useState(false)
-  const [swapTarget, setSwapTarget] = useState(null) // { label, occupant }
-  const [hoverSeat,  setHoverSeat]  = useState(null) // { name, rect }
+function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, listName, onSaved, onClose }) {
+  const [saving,          setSaving]          = useState(false)
+  const [swapTarget,      setSwapTarget]      = useState(null)
+  const [hoverSeat,       setHoverSeat]       = useState(null)
   const [unassignConfirm, setUnassignConfirm] = useState(false)
+  const [clearAllConfirm, setClearAllConfirm] = useState(false)
 
   const interactive = !!currentEnrollment
   const currentName = currentEnrollment ? (currentEnrollment.passenger_name || currentEnrollment.block_agency || '') : ''
@@ -3115,6 +3116,152 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
       onClose()
     } catch { toast.error('Erro ao desmarcar assento.') }
     finally { setSaving(false) }
+  }
+
+  const handleClearAllConfirm = async () => {
+    const withSeat = enrolled.filter(e => e.seat)
+    if (!withSeat.length) { setClearAllConfirm(false); return }
+    setSaving(true)
+    try {
+      await Promise.all(withSeat.map(e => listsApi.updatePassenger(listId, e.id, { seat: '' })))
+      toast.success(`${withSeat.length} assento(s) desalocado(s).`)
+      setClearAllConfirm(false)
+      onSaved()
+      onClose()
+    } catch { toast.error('Erro ao desalocar assentos.') }
+    finally { setSaving(false) }
+  }
+
+  const handleDownloadPDF = async () => {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+    const seatOf = {}
+    enrolled.forEach(e => { if (e.seat) seatOf[e.seat] = e })
+
+    const twoDecks  = busMap.deck_count === 2
+    const rowsDeck1 = (busMap.rows ?? []).filter(r => (r.deck ?? 1) === 1)
+    const rowsDeck2 = (busMap.rows ?? []).filter(r => r.deck === 2)
+
+    // ── Header ──
+    doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 41, 59)
+    doc.text(listName || busMap.label, 14, 18)
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139)
+    doc.text(`Mapa de ônibus: ${busMap.label}`, 14, 25)
+    doc.setFontSize(8)
+    doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' })}`, 14, 31)
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.4); doc.line(14, 34, 196, 34)
+
+    const sW = 15, sH = 13, gap = 1.5, aisle = 7
+
+    const drawSeat = (x, y, label, occupant) => {
+      if (occupant) { doc.setFillColor(254,249,195); doc.setDrawColor(253,230,138) }
+      else           { doc.setFillColor(232,240,251); doc.setDrawColor(191,219,254) }
+      doc.setLineWidth(0.3)
+      doc.roundedRect(x, y, sW, sH, 1.5, 1.5, 'FD')
+      if (occupant) {
+        doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(146,64,14)
+        doc.text(label, x + sW/2, y + 4, { align:'center' })
+        const firstName = (occupant.passenger_name || occupant.block_agency || '').split(' ')[0]
+        doc.setFontSize(5.5); doc.setFont('helvetica','normal')
+        doc.text(firstName, x + sW/2, y + sH - 2.5, { align:'center' })
+      } else {
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(46,109,180)
+        doc.text(label, x + sW/2, y + sH/2 + 2, { align:'center' })
+      }
+    }
+
+    const drawDeck = (rows, startX, startY, deckLabel) => {
+      if (deckLabel) {
+        doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(148,163,184)
+        doc.text(deckLabel, startX, startY - 2)
+      }
+      const maxLeft  = Math.max(0, ...rows.map(r => r.left_seats  ?? 0))
+      const maxRight = Math.max(0, ...rows.map(r => r.right_seats ?? 0))
+      const totalW   = maxLeft*(sW+gap) + aisle + maxRight*(sW+gap)
+      const offX     = twoDecks ? startX : 14 + (182 - totalW) / 2
+
+      doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(148,163,184)
+      doc.text('FRENTE', offX + totalW/2, startY + (deckLabel ? 4 : 2), { align:'center' })
+
+      let y = startY + (deckLabel ? 8 : 5)
+      rows.forEach(row => {
+        for (let i = 0; i < maxLeft; i++) {
+          const label = (row.left_labels?.[i] ?? '').toString()
+          if (label) drawSeat(offX + i*(sW+gap), y, label, seatOf[label])
+        }
+        for (let i = 0; i < maxRight; i++) {
+          const label = (row.right_labels?.[i] ?? '').toString()
+          if (label) drawSeat(offX + maxLeft*(sW+gap) + aisle + i*(sW+gap), y, label, seatOf[label])
+        }
+        y += sH + gap
+      })
+      return y
+    }
+
+    let curY = 38
+    if (twoDecks) {
+      const y1 = drawDeck(rowsDeck1, 14,  curY, '1º Andar')
+      const y2 = drawDeck(rowsDeck2, 110, curY, '2º Andar')
+      curY = Math.max(y1, y2)
+    } else {
+      curY = drawDeck(rowsDeck1, 14, curY, null)
+    }
+
+    // ── Legend ──
+    curY += 5
+    const legBox = (x, fill, stroke, label) => {
+      doc.setFillColor(...fill); doc.setDrawColor(...stroke); doc.setLineWidth(0.3)
+      doc.roundedRect(x, curY, 6, 5, 1, 1, 'FD')
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139)
+      doc.text(label, x + 8, curY + 3.8)
+    }
+    legBox(14,  [232,240,251],[191,219,254], 'Disponível')
+    legBox(52,  [254,249,195],[253,230,138], 'Ocupado')
+    curY += 12
+    doc.setDrawColor(226,232,240); doc.setLineWidth(0.4); doc.line(14, curY, 196, curY)
+    curY += 6
+
+    // ── Table ──
+    const seated = enrolled.filter(e => e.seat).sort((a,b) => {
+      const n = parseInt(a.seat)||0, m = parseInt(b.seat)||0
+      return n - m || a.seat.localeCompare(b.seat)
+    })
+    if (seated.length > 0) {
+      doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(30,41,59)
+      doc.text('Passageiros com assento atribuído', 14, curY)
+      curY += 5
+
+      const tX = 14, cW1 = 22, cW2 = 158, rH = 7
+      // Header row
+      doc.setFillColor(46,109,180); doc.setLineWidth(0)
+      doc.rect(tX, curY, cW1+cW2, rH, 'F')
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9)
+      doc.text('Assento', tX + cW1/2, curY + 4.8, { align:'center' })
+      doc.text('Passageiro', tX + cW1 + 4, curY + 4.8)
+      curY += rH
+
+      seated.forEach((e, idx) => {
+        if (curY + rH > 285) { doc.addPage(); curY = 15 }
+        if (idx % 2 === 0) { doc.setFillColor(248,250,252); doc.rect(tX, curY, cW1+cW2, rH, 'F') }
+        doc.setDrawColor(226,232,240); doc.setLineWidth(0.2)
+        doc.line(tX, curY+rH, tX+cW1+cW2, curY+rH)
+        doc.line(tX+cW1, curY, tX+cW1, curY+rH)
+        doc.setTextColor(46,109,180); doc.setFont('helvetica','bold'); doc.setFontSize(9)
+        doc.text(e.seat, tX + cW1/2, curY + 4.8, { align:'center' })
+        doc.setTextColor(30,41,59); doc.setFont('helvetica','normal')
+        const name = doc.splitTextToSize(e.passenger_name || e.block_agency || '—', cW2 - 8)[0]
+        doc.text(name, tX + cW1 + 4, curY + 4.8)
+        curY += rH
+      })
+      doc.setDrawColor(226,232,240); doc.setLineWidth(0.3)
+      doc.line(tX, curY, tX+cW1+cW2, curY)
+    } else {
+      doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(148,163,184)
+      doc.text('Nenhum passageiro com assento atribuído.', 14, curY)
+    }
+
+    doc.save(`mapa_assentos_${busMap.label.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`)
   }
 
   const handleSeatClick = (label) => {
@@ -3219,6 +3366,21 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
               <button className="btn btn-danger" onClick={handleUnassignConfirm} disabled={saving}>Desmarcar assento</button>
             </div>
           </>
+        ) : clearAllConfirm ? (
+          <>
+            <div className="mbody">
+              <p style={{ margin:0, fontSize:14, color:'#1e293b' }}>
+                Deseja desembarcar <strong>todos</strong> os passageiros?
+              </p>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'#64748b' }}>
+                Todos os {enrolled.filter(e => e.seat).length} assentos atribuídos serão liberados. Esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="mfoot">
+              <button className="btn btn-outline" onClick={() => setClearAllConfirm(false)} disabled={saving}>Cancelar</button>
+              <button className="btn btn-danger" onClick={handleClearAllConfirm} disabled={saving}>Desembarcar todos</button>
+            </div>
+          </>
         ) : (
           <>
             <div className="mbody">
@@ -3246,6 +3408,10 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, onSaved, on
             </div>
             <div className="mfoot">
               <button className="btn btn-outline" onClick={onClose}>Fechar</button>
+              <button className="btn btn-outline" onClick={handleDownloadPDF}><Ic n="dl" s={14}/> Baixar PDF</button>
+              {!interactive && enrolled.some(e => e.seat) && (
+                <button className="btn btn-danger" onClick={() => setClearAllConfirm(true)}>Desembarcar todos</button>
+              )}
             </div>
           </>
         )}
@@ -3904,7 +4070,7 @@ function CsvImportModal({ listId, onImported, onClose }) {
 }
 
 /* ── Aba de Passageiros ── */
-function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, endDate, additionals = [], onData }) {
+function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, startDate, endDate, additionals = [], onData }) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const perms        = user?.permissions ?? {}
@@ -4735,6 +4901,7 @@ function PassengersTab({ listId, listType, busMapId, defaultAirport, startDate, 
           enrolled={enrolled}
           currentEnrollment={seatMapModal.enrollment}
           listId={listId}
+          listName={listName}
           onSaved={load}
           onClose={() => setSeatMapModal(null)}
         />
@@ -5489,7 +5656,7 @@ export default function TripDetail() {
       </div>
 
       {/* Conteúdo das abas */}
-      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} busMapId={list.bus_map} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
+      {tab === 'passengers' && <PassengersTab listId={id} listType={list.list_type} busMapId={list.bus_map} listName={list.name} defaultAirport={list.default_airport_data} startDate={list.start_date} endDate={list.end_date} additionals={list.additionals_data} onData={setPaxData} />}
 
 {tab === 'voos' && <FlightsTab listId={id} list={list} onListUpdate={setList} />}
 
