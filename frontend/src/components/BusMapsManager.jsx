@@ -136,13 +136,39 @@ function BusMapModal({ busMap, onSave, onClose }) {
       }),
     }
   })
-  const updateLabel = (rowIdx, side, seatIdx, value) => setRows(prev => prev.map((r, i) => {
-    if (i !== rowIdx) return r
-    const key = side === 'left' ? 'left_labels' : 'right_labels'
-    const arr = [...r[key]]
-    arr[seatIdx] = value
-    return { ...r, [key]: arr }
-  }))
+  const updateLabel = (rowIdx, side, seatIdx, value) => {
+    setRowsByDeck(prev => {
+      const result = { 1: prev[1] ?? [], 2: prev[2] ?? [] }
+      // If setting a non-empty value, clear it from every other seat across all decks first
+      if (value) {
+        for (const dk of [1, 2]) {
+          result[dk] = result[dk].map((r, i) => {
+            const isEditedRow = dk === currentDeck && i === rowIdx
+            const dedupLabels = (labels, labelSide) =>
+              labels.map((l, j) =>
+                isEditedRow && labelSide === side && j === seatIdx
+                  ? l  // skip the seat being edited
+                  : l === value ? '' : l
+              )
+            return {
+              ...r,
+              left_labels:  dedupLabels(r.left_labels ?? [], 'left'),
+              right_labels: dedupLabels(r.right_labels ?? [], 'right'),
+            }
+          })
+        }
+      }
+      // Set the new value for the edited seat
+      result[currentDeck] = result[currentDeck].map((r, i) => {
+        if (i !== rowIdx) return r
+        const key = side === 'left' ? 'left_labels' : 'right_labels'
+        const arr = [...(r[key] ?? [])]
+        arr[seatIdx] = value
+        return { ...r, [key]: arr }
+      })
+      return result
+    })
+  }
   const removeRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx))
   const moveRow = (from, to) => {
     if (to < 0 || to >= rows.length) return

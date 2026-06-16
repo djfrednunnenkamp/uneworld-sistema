@@ -45,12 +45,22 @@ export function BusLayoutPreview({ rows, seatSize = 30, editable = false, onLabe
               if (c.aisle) return <div key={c.key} />
               if (c.empty)  return <div key={c.key} style={{ width:seatSize, height:seatSize }} />
               if (editable) {
+                const hasLabel = !!c.label
                 return (
                   <input key={c.key} value={c.label} maxLength={4}
                     onChange={e => onLabelChange(ri, c.side, c.i, e.target.value)}
-                    style={{ ...seatStyle, cursor:'text', outline:'none' }}
-                    onFocus={e => e.target.style.borderColor = '#2e6db4'}
-                    onBlur={e  => e.target.style.borderColor = '#bfdbfe'} />
+                    style={{
+                      ...seatStyle, cursor:'text', outline:'none',
+                      background: hasLabel ? '#e8f0fb' : '#f8fafc',
+                      border: `1px ${hasLabel ? 'solid #bfdbfe' : 'dashed #cbd5e1'}`,
+                      color: hasLabel ? '#2e6db4' : '#94a3b8',
+                    }}
+                    onFocus={e => { e.target.style.borderColor = '#2e6db4'; e.target.style.background = '#dbeafe' }}
+                    onBlur={e  => {
+                      const v = !!e.target.value
+                      e.target.style.borderColor = v ? '#bfdbfe' : '#cbd5e1'
+                      e.target.style.background  = v ? '#e8f0fb' : '#f8fafc'
+                    }} />
                 )
               }
               const info = getSeatInfo ? (getSeatInfo(c.label) || {}) : {}
