@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { canAccess } from '../utils/permissions'
 import { Ic } from '../components/Icon'
 
 const fmt = (d) => {
@@ -59,15 +60,20 @@ export default function Dashboard() {
 
       {/* ── Stats ── */}
       <div className="stats">
-        {STATS_CFG.map((cfg) => (
-          <div key={cfg.key} className="scard" onClick={() => navigate(cfg.nav)}>
-            <div className="scard-ico" style={{ background: cfg.color }}>
-              <span style={{ color: cfg.ico }}><Ic n={cfg.icon} s={18}/></span>
+        {STATS_CFG.map((cfg) => {
+          const navAllowed = canAccess(user, cfg.nav)
+          return (
+            <div key={cfg.key} className="scard"
+              onClick={navAllowed ? () => navigate(cfg.nav) : undefined}
+              style={{ cursor: navAllowed ? 'pointer' : 'default' }}>
+              <div className="scard-ico" style={{ background: cfg.color }}>
+                <span style={{ color: cfg.ico }}><Ic n={cfg.icon} s={18}/></span>
+              </div>
+              <div className="scard-label">{cfg.label}</div>
+              <div className="scard-val">{can(cfg.perm) ? (stats[cfg.key] ?? 0) : '—'}</div>
             </div>
-            <div className="scard-label">{cfg.label}</div>
-            <div className="scard-val">{can(cfg.perm) ? (stats[cfg.key] ?? 0) : '—'}</div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* ── Recent passenger lists ── */}
@@ -75,9 +81,11 @@ export default function Dashboard() {
       <div className="tcard">
         <div className="tcard-head">
           <span>Listas de Passageiros recentes</span>
-          <button className="btn btn-outline" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => navigate('/viagens')}>
-            Ver todas
-          </button>
+          {canAccess(user, '/viagens') && (
+            <button className="btn btn-outline" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => navigate('/viagens')}>
+              Ver todas
+            </button>
+          )}
         </div>
         <table className="dt">
           <thead>
@@ -97,8 +105,10 @@ export default function Dashboard() {
                   <div className="empty-state"><p>Nenhuma lista de passageiros criada</p></div>
                 </td>
               </tr>
-            ) : recent_lists.map((l) => (
-              <tr key={l.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/viagens/${l.id}`)}>
+            ) : recent_lists.map((l) => {
+              const rowNav = canAccess(user, `/viagens/${l.id}`)
+              return (
+              <tr key={l.id} style={{ cursor: rowNav ? 'pointer' : 'default' }} onClick={rowNav ? () => navigate(`/viagens/${l.id}`) : undefined}>
                 <td><span className="t-name">{l.name}</span><br/><span className="t-muted">{l.category}</span></td>
                 <td>{TYPE_LABEL[l.list_type] || l.list_type}</td>
                 <td>{fmt(l.start_date) || '—'}</td>
@@ -114,7 +124,8 @@ export default function Dashboard() {
                   </span>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

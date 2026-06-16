@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { agendaApi } from '../api'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
+import { canAccess } from '../utils/permissions'
 
 const WEEKDAYS      = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const WEEKDAYS_FULL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
@@ -45,7 +46,7 @@ function EventChip({ ev, iso, onClick }) {
   const dayN = ev.type === 'trip' && ev.start !== ev.end ? dayOfTrip(iso, ev.start) : null
   return (
     <div onClick={onClick} title={ev.title} className="cal-chip"
-      style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, padding:'2px 6px', borderRadius:4, marginBottom:2, background:cfg.bg, color:cfg.fg, whiteSpace:'nowrap', overflow:'hidden', cursor:'pointer', fontWeight:500 }}>
+      style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, padding:'2px 6px', borderRadius:4, marginBottom:2, background:cfg.bg, color:cfg.fg, whiteSpace:'nowrap', overflow:'hidden', cursor: onClick ? 'pointer' : 'default', fontWeight:500 }}>
       {cfg.icon && <Ic n={cfg.icon} s={10}/>}
       <span style={{ overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}{dayN ? ` · Dia ${dayN}` : ''}</span>
     </div>
@@ -76,7 +77,7 @@ function EventRow({ ev, iso, onClick, currentUserId }) {
   )
 }
 
-function DayView({ events, iso, onEvent, currentUserId }) {
+function DayView({ events, iso, onEvent, currentUserId, canNav }) {
   return (
     <div className="tcard">
       <div className="tcard-head">
@@ -86,7 +87,7 @@ function DayView({ events, iso, onEvent, currentUserId }) {
         {events.length === 0 ? (
           <div className="empty-state"><p>Nenhum evento neste dia</p></div>
         ) : events.map(ev => (
-          <EventRow key={ev.id} ev={ev} iso={iso} onClick={ev.url ? () => onEvent(ev) : undefined} currentUserId={currentUserId} />
+          <EventRow key={ev.id} ev={ev} iso={iso} onClick={canNav(ev) ? () => onEvent(ev) : undefined} currentUserId={currentUserId} />
         ))}
       </div>
     </div>
@@ -108,7 +109,7 @@ function LiveClock() {
   )
 }
 
-function TodayPanel({ todayEvents, todayISO, position, onFlip, onEvent, currentUserId }) {
+function TodayPanel({ todayEvents, todayISO, position, onFlip, onEvent, currentUserId, canNav }) {
   return (
     <div className="cal-side">
       <LiveClock />
@@ -123,7 +124,7 @@ function TodayPanel({ todayEvents, todayISO, position, onFlip, onEvent, currentU
           {todayEvents.length === 0 ? (
             <div className="empty-state"><p>Nada para hoje</p></div>
           ) : todayEvents.map(ev => (
-            <EventRow key={ev.id} ev={ev} iso={todayISO} onClick={ev.url ? () => onEvent(ev) : undefined} currentUserId={currentUserId} />
+            <EventRow key={ev.id} ev={ev} iso={todayISO} onClick={canNav(ev) ? () => onEvent(ev) : undefined} currentUserId={currentUserId} />
           ))}
         </div>
       </div>
@@ -215,8 +216,10 @@ export default function CalendarPage() {
     return `${WEEKDAYS_FULL[anchor.getDay()]}, ${anchor.getDate()} de ${MONTHS[anchor.getMonth()]} de ${anchor.getFullYear()}`
   }, [anchor, view, range])
 
+  const canNav = (ev) => !!ev.url && canAccess(user, ev.url)
+
   const goToEvent = (ev) => {
-    if (ev.url) navigate(ev.url)
+    if (canNav(ev)) navigate(ev.url)
   }
 
   const openPrefs = () => setPrefsOpen(true)
@@ -285,7 +288,7 @@ export default function CalendarPage() {
 
       <div className="cal-layout">
         {prefs?.side_panel_enabled && prefs.side_panel_position === 'left' && (
-          <TodayPanel todayEvents={eventsForDay(todayISO)} todayISO={todayISO} position="left" onFlip={flipSidePanel} onEvent={goToEvent} currentUserId={user?.id} />
+          <TodayPanel todayEvents={eventsForDay(todayISO)} todayISO={todayISO} position="left" onFlip={flipSidePanel} onEvent={goToEvent} currentUserId={user?.id} canNav={canNav} />
         )}
 
         <div className="cal-main">
@@ -302,7 +305,7 @@ export default function CalendarPage() {
           {loading ? (
             <p style={{ color:'#94a3b8', fontSize:14 }}>Carregando…</p>
           ) : view === 'day' ? (
-            <DayView events={eventsForDay(toISO(anchor))} iso={toISO(anchor)} onEvent={goToEvent} currentUserId={user?.id} />
+            <DayView events={eventsForDay(toISO(anchor))} iso={toISO(anchor)} onEvent={goToEvent} currentUserId={user?.id} canNav={canNav} />
           ) : (
             <div className="tcard">
               <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', borderBottom:'1px solid #e2e8f0' }}>
@@ -331,7 +334,7 @@ export default function CalendarPage() {
                         {isToday ? <span className="cal-today-badge">{d.getDate()}</span> : d.getDate()}
                       </div>
                       {dayEvents.slice(0, maxChips).map(ev => (
-                        <EventChip key={ev.id} ev={ev} iso={iso} onClick={(e) => { e.stopPropagation(); goToEvent(ev) }} />
+                        <EventChip key={ev.id} ev={ev} iso={iso} onClick={canNav(ev) ? (e) => { e.stopPropagation(); goToEvent(ev) } : undefined} />
                       ))}
                       {dayEvents.length > maxChips && (
                         <div style={{ fontSize:11, color:'#94a3b8' }}>+{dayEvents.length - maxChips} mais</div>
@@ -345,7 +348,7 @@ export default function CalendarPage() {
         </div>
 
         {prefs?.side_panel_enabled && prefs.side_panel_position === 'right' && (
-          <TodayPanel todayEvents={eventsForDay(todayISO)} todayISO={todayISO} position="right" onFlip={flipSidePanel} onEvent={goToEvent} currentUserId={user?.id} />
+          <TodayPanel todayEvents={eventsForDay(todayISO)} todayISO={todayISO} position="right" onFlip={flipSidePanel} onEvent={goToEvent} currentUserId={user?.id} canNav={canNav} />
         )}
       </div>
 
@@ -361,7 +364,7 @@ export default function CalendarPage() {
               {eventsForDay(dayModal).length === 0 ? (
                 <div className="empty-state"><p>Nenhum evento neste dia</p></div>
               ) : eventsForDay(dayModal).map(ev => (
-                <EventRow key={ev.id} ev={ev} iso={dayModal} onClick={ev.url ? () => goToEvent(ev) : undefined} currentUserId={user?.id} />
+                <EventRow key={ev.id} ev={ev} iso={dayModal} onClick={canNav(ev) ? () => goToEvent(ev) : undefined} currentUserId={user?.id} />
               ))}
             </div>
           </div>

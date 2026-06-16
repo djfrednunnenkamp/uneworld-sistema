@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { canAccess } from './utils/permissions'
 import Layout          from './components/Layout'
 import Login           from './pages/Login'
 import ForgotPassword  from './pages/ForgotPassword'
@@ -18,6 +19,14 @@ import GeoImport       from './pages/GeoImport'
 import AuditLog        from './pages/AuditLog'
 import FlatImport      from './pages/FlatImport'
 import CalendarPage    from './pages/Calendar'
+
+/* Bloqueia rotas por permissão — redireciona para / se sem acesso */
+function RequirePermission({ children }) {
+  const { user } = useAuth()
+  const { pathname } = useLocation()
+  if (user && !canAccess(user, pathname)) return <Navigate to="/" replace />
+  return children
+}
 
 /* Protege rotas — redireciona para /login se não autenticado */
 function ProtectedRoute({ children }) {
@@ -42,18 +51,18 @@ function AppRoutes() {
       <Route path="/aceitar-convite" element={<AcceptInvite />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index                      element={<Dashboard       />} />
-        <Route path="passageiros"         element={<Passengers      />} />
-        <Route path="passageiros/:id"     element={<PassengerDetail />} />
-        <Route path="agencias"            element={<Agencies        />} />
-        <Route path="agencias/:id"        element={<AgencyDetail    />} />
-        <Route path="viagens"             element={<Trips           />} />
-        <Route path="viagens/:id"         element={<TripDetail      />} />
-        <Route path="calendario"          element={<CalendarPage    />} />
-        <Route path="usuarios"            element={<Users           />} />
-        <Route path="configuracoes"        element={<Settings        />} />
-        <Route path="configuracoes/geo-import"   element={<GeoImport   />} />
-        <Route path="log"                        element={<AuditLog    />} />
-        <Route path="configuracoes/import"      element={<FlatImport  />} />
+        <Route path="passageiros"         element={<RequirePermission><Passengers      /></RequirePermission>} />
+        <Route path="passageiros/:id"     element={<RequirePermission><PassengerDetail /></RequirePermission>} />
+        <Route path="agencias"            element={<RequirePermission><Agencies        /></RequirePermission>} />
+        <Route path="agencias/:id"        element={<RequirePermission><AgencyDetail    /></RequirePermission>} />
+        <Route path="viagens"             element={<RequirePermission><Trips           /></RequirePermission>} />
+        <Route path="viagens/:id"         element={<RequirePermission><TripDetail      /></RequirePermission>} />
+        <Route path="calendario"          element={<RequirePermission><CalendarPage    /></RequirePermission>} />
+        <Route path="usuarios"            element={<RequirePermission><Users           /></RequirePermission>} />
+        <Route path="configuracoes"        element={<RequirePermission><Settings        /></RequirePermission>} />
+        <Route path="configuracoes/geo-import"   element={<RequirePermission><GeoImport   /></RequirePermission>} />
+        <Route path="log"                        element={<RequirePermission><AuditLog    /></RequirePermission>} />
+        <Route path="configuracoes/import"      element={<RequirePermission><FlatImport  /></RequirePermission>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
