@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { usersApi } from '../api'
+import { usersApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import DelModal from '../components/DelModal'
 import PasswordInput from '../components/PasswordInput'
@@ -342,6 +342,7 @@ function UserModal({ user, onClose, onSaved }) {
     : { ...EMPTY })
   const [skipPwd,    setSkipPwd]    = useState(false)
   const [saving,     setSaving]     = useState(false)
+  const [emailPrefs, setEmailPrefs] = useState({ receive_deadline_emails: false, receive_task_emails: false })
   const isEdit  = !!user
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
@@ -349,23 +350,36 @@ function UserModal({ user, onClose, onSaved }) {
   const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
   const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, Object.fromEntries(keys.map(k => [k, val]))) }))
 
+  useEffect(() => {
+    if (isEdit && user?.id) {
+      agendaApi.getUserPrefs(user.id)
+        .then(r => setEmailPrefs({ receive_deadline_emails: !!r.data.receive_deadline_emails, receive_task_emails: !!r.data.receive_task_emails }))
+        .catch(() => {})
+    }
+  }, [isEdit, user?.id])
+
   const save = async () => {
     if (!form.email?.trim()) { toast.error('E-mail obrigatório.'); return }
     if (!isEdit && !skipPwd && !form.password) { toast.error('Defina uma senha ou marque para enviar convite por e-mail.'); return }
     setSaving(true)
     try {
+      let savedId = user?.id
       if (isEdit) {
         await usersApi.update(user.id, form)
         toast.success('Usuário atualizado.')
       } else {
         const payload = { ...form, password: skipPwd ? '' : form.password }
         const r = await usersApi.create(payload)
+        savedId = r.data.id
         if (skipPwd) {
           try { await usersApi.sendInvite(r.data.id); toast.success('Usuário criado e convite enviado por e-mail.') }
           catch { toast.success('Usuário criado.'); toast.error('Não foi possível enviar o convite por e-mail.') }
         } else {
           toast.success('Usuário criado.')
         }
+      }
+      if (savedId) {
+        agendaApi.updateUserPrefs(savedId, emailPrefs).catch(() => {})
       }
       onSaved()
     } catch (e) {
@@ -411,6 +425,25 @@ function UserModal({ user, onClose, onSaved }) {
               Ativo
             </label>
           )}
+
+          {/* ── Notificações por e-mail ── */}
+          <div style={{borderTop:'1px solid #f1f5f9',paddingTop:12}}>
+            <label style={lbl}>Notificações por e-mail</label>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {[
+                { key:'receive_deadline_emails', label:'Prazos de confirmação', desc:'Recebe e-mail quando passageiros têm prazo vencendo hoje ou em 2 dias' },
+                { key:'receive_task_emails',     label:'Pendências',            desc:'Recebe e-mail quando tarefas têm prazo vencendo hoje' },
+              ].map(({ key, label, desc }) => (
+                <label key={key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'10px 12px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc',cursor:'pointer'}}>
+                  <div>
+                    <p style={{margin:'0 0 2px',fontSize:13,fontWeight:600,color:'#1e293b'}}>{label}</p>
+                    <p style={{margin:0,fontSize:11.5,color:'#94a3b8'}}>{desc}</p>
+                  </div>
+                  <Toggle checked={emailPrefs[key]} onChange={v => setEmailPrefs(p => ({ ...p, [key]: v }))} />
+                </label>
+              ))}
+            </div>
+          </div>
 
           {me?.is_superuser ? (
             <div style={{display:'flex',flexDirection:'column',gap:12}}>

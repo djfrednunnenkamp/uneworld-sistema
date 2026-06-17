@@ -113,10 +113,12 @@ export const auditApi = {
 }
 
 export const agendaApi = {
-  events:        (start, end, list_id) => api.get('/agenda/events/', { params: { start, end, ...(list_id ? { list_id } : {}) } }),
-  getPrefs:      ()           => api.get('/agenda/preferences/'),
-  updatePrefs:   (data)       => api.patch('/agenda/preferences/', data),
-  sendNow:       ()           => api.post('/agenda/send-now/'),
+  events:           (start, end, list_id) => api.get('/agenda/events/', { params: { start, end, ...(list_id ? { list_id } : {}) } }),
+  getPrefs:         ()           => api.get('/agenda/preferences/'),
+  updatePrefs:      (data)       => api.patch('/agenda/preferences/', data),
+  getUserPrefs:     (userId)     => api.get(`/agenda/preferences/${userId}/`),
+  updateUserPrefs:  (userId, d)  => api.patch(`/agenda/preferences/${userId}/`, d),
+  sendNow:          ()           => api.post('/agenda/send-now/'),
 }
 
 export const configApi = {

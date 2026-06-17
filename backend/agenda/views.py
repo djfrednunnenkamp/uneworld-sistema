@@ -45,6 +45,28 @@ class CalendarPreferenceView(APIView):
         return Response(serializer.data)
 
 
+class UserCalendarPreferenceView(APIView):
+    """Admin: lê/atualiza CalendarPreference de qualquer usuário."""
+    permission_classes = [IsAuthenticated]
+
+    def _get_pref(self, user_id):
+        from django.contrib.auth import get_user_model
+        from django.shortcuts import get_object_or_404
+        user = get_object_or_404(get_user_model(), pk=user_id)
+        pref, _ = CalendarPreference.objects.get_or_create(user=user)
+        return pref
+
+    def get(self, request, user_id):
+        return Response(CalendarPreferenceSerializer(self._get_pref(user_id)).data)
+
+    def patch(self, request, user_id):
+        pref = self._get_pref(user_id)
+        serializer = CalendarPreferenceSerializer(pref, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def send_now(request):

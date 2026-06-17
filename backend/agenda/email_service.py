@@ -1,252 +1,254 @@
-"""Envio do e-mail de resumo/lembrete do calendário via Resend."""
+"""Envio de e-mails transacionais do calendário via Resend."""
 import resend
 from django.conf import settings
 
-TYPE_LABELS = {
-    'trip':     ('✈️', 'Viagens',                '#1d4ed8', '#dbeafe'),
-    'deadline': ('⏰', 'Prazos de confirmação',   '#b45309', '#fef3c7'),
-    'birthday': ('🎂', 'Aniversários',            '#7c3aed', '#ede9fe'),
+
+# ── Helpers de template ───────────────────────────────────────────────────────
+
+def _header() -> str:
+    return """
+      <tr>
+        <td style="background:#1a2d4f;padding:22px 32px;text-align:center">
+          <p style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-.4px;font-family:Georgia,serif">
+            Une<span style="color:#6ba3c8">World</span>
+          </p>
+          <p style="margin:4px 0 0;font-size:9px;font-weight:700;color:rgba(255,255,255,.38);letter-spacing:.25em;text-transform:uppercase">
+            Turismo
+          </p>
+        </td>
+      </tr>"""
+
+
+def _accent(color: str) -> str:
+    return f'<tr><td style="background:{color};height:4px;font-size:0;line-height:0">&nbsp;</td></tr>'
+
+
+def _section_header(icon: str, title: str, subtitle: str, accent: str) -> str:
+    return f"""
+      <tr>
+        <td style="padding:28px 32px 0">
+          <table role="presentation" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:44px;height:44px;background:{accent}18;border-radius:12px;text-align:center;vertical-align:middle;font-size:22px">
+                {icon}
+              </td>
+              <td style="padding-left:14px;vertical-align:middle">
+                <p style="margin:0;font-size:20px;font-weight:700;color:#0f172a;line-height:1.2">{title}</p>
+                <p style="margin:3px 0 0;font-size:13px;color:#64748b">{subtitle}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>"""
+
+
+def _footer() -> str:
+    return """
+      <tr>
+        <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 32px;text-align:center">
+          <p style="margin:0;font-size:11px;color:#94a3b8;letter-spacing:.02em">
+            UneWorld Turismo &nbsp;&middot;&nbsp; Sistema de Gestão
+          </p>
+        </td>
+      </tr>"""
+
+
+def _wrap(rows: str, accent: str = '#2e6db4') -> str:
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;min-height:100vh">
+    <tr><td style="padding:36px 16px">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06),0 8px 32px rgba(0,0,0,.06)">
+        {_header()}
+        {_accent(accent)}
+        {rows}
+        {_footer()}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def _send(to, subject, html):
+    resend.api_key = settings.RESEND_API_KEY
+    if not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave'):
+        print(f"[EMAIL SIMULADO] {subject} → {to}")
+        return True
+    try:
+        resend.Emails.send({"from": settings.RESEND_FROM, "to": to if isinstance(to, list) else [to], "subject": subject, "html": html})
+        return True
+    except Exception as e:
+        print(f"[RESEND ERROR] {e}")
+        return False
+
+
+# ── Helpers de formatação ─────────────────────────────────────────────────────
+
+def _fmt(iso_str) -> str:
+    if not iso_str:
+        return ''
+    parts = str(iso_str).split('-')
+    return f'{parts[2]}/{parts[1]}/{parts[0]}' if len(parts) == 3 else str(iso_str)
+
+
+# ── Resumo do calendário ──────────────────────────────────────────────────────
+
+_TYPE_CFG = {
+    'trip':     ('✈',  'Viagens',               '#1d4ed8', '#dbeafe'),
+    'deadline': ('⏰', 'Prazos de confirmação',  '#b45309', '#fef3c7'),
+    'birthday': ('🎂', 'Aniversários',           '#7c3aed', '#ede9fe'),
 }
 
 
-def _format_date(iso_str):
-    y, m, d = iso_str.split('-')
-    return f'{d}/{m}/{y}'
-
-
-def _event_line(ev):
+def _event_row(ev) -> str:
     if ev['type'] == 'trip' and ev['start'] != ev['end']:
-        period = f"{_format_date(ev['start'])} – {_format_date(ev['end'])}"
+        period = f"{_fmt(ev['start'])} – {_fmt(ev['end'])}"
     else:
-        period = _format_date(ev['start'])
-    subtitle = f" <span style=\"color:#94a3b8\">· {ev['subtitle']}</span>" if ev.get('subtitle') else ''
+        period = _fmt(ev['start'])
+    sub = f'<span style="color:#94a3b8;font-size:12px"> &middot; {ev["subtitle"]}</span>' if ev.get('subtitle') else ''
     return f"""
         <tr>
-          <td style="padding:6px 0;color:#1e293b;font-size:13px">
-            <strong>{period}</strong> — {ev['title']}{subtitle}
+          <td style="padding:9px 0;border-bottom:1px solid #f1f5f9;color:#1e293b;font-size:13px">
+            <span style="font-weight:600;color:#64748b;min-width:80px;display:inline-block">{period}</span>
+            {ev['title']}{sub}
           </td>
         </tr>"""
 
 
-def _build_sections(events):
+def _calendar_sections(events) -> str:
     grouped = {}
     for ev in events:
         grouped.setdefault(ev['type'], []).append(ev)
 
-    sections = []
+    out = []
     for key in ('trip', 'deadline', 'birthday'):
         items = grouped.get(key)
         if not items:
             continue
-        icon, label, color, bg = TYPE_LABELS[key]
-        rows = ''.join(_event_line(e) for e in items)
-        sections.append(f"""
+        icon, label, color, bg = _TYPE_CFG[key]
+        rows = ''.join(_event_row(e) for e in items)
+        out.append(f"""
         <div style="margin:0 0 20px">
-          <p style="display:inline-block;padding:4px 12px;border-radius:20px;background:{bg};color:{color};font-size:12px;font-weight:700;margin:0 0 8px">
+          <p style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:999px;background:{bg};color:{color};font-size:12px;font-weight:700;margin:0 0 10px;letter-spacing:.02em">
             {icon} {label}
           </p>
-          <table role="presentation" style="width:100%;border-collapse:collapse">
-            {rows}
-          </table>
+          <table role="presentation" style="width:100%;border-collapse:collapse">{rows}</table>
         </div>""")
 
-    if not sections:
-        sections.append("""
-        <p style="color:#94a3b8;font-size:13px">Nenhum evento encontrado para o período.</p>""")
-
-    return ''.join(sections)
+    if not out:
+        return '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:16px 0">Nenhum evento encontrado para o período.</p>'
+    return ''.join(out)
 
 
 def send_calendar_summary(email: str, first_name: str, events: list, subject: str, intro: str) -> bool:
-    """Envia um e-mail com o resumo de eventos do calendário (viagens, prazos, aniversários)."""
-    resend.api_key = settings.RESEND_API_KEY
-    if not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave'):
-        print(f"[EMAIL SIMULADO] {subject} para {email}: {len(events)} evento(s)")
-        return True
-    try:
-        resend.Emails.send({
-            "from":    settings.RESEND_FROM,
-            "to":      [email],
-            "subject": f'{subject} — UneWorld Turismo',
-            "html": f"""
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="UTF-8"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f8;margin:0;padding:32px 16px">
-  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-    <div style="background:#1a2d4f;padding:24px 32px;text-align:center">
-      <p style="color:#fff;font-size:22px;font-weight:700;margin:0">Une<span style="color:#6BA3C8">World</span></p>
-      <p style="color:rgba(255,255,255,.5);font-size:12px;margin:4px 0 0;letter-spacing:.1em;text-transform:uppercase">Turismo</p>
-    </div>
-    <div style="padding:32px">
-      <p style="color:#1e293b;font-size:16px;font-weight:600;margin:0 0 12px">Olá{f', {first_name}' if first_name else ''}!</p>
-      <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px">{intro}</p>
-      {_build_sections(events)}
-    </div>
-    <div style="background:#f8fafc;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0">
-      <p style="color:#94a3b8;font-size:12px;margin:0">UneWorld Turismo · Sistema de Gestão</p>
-    </div>
-  </div>
-</body>
-</html>""",
-        })
-        return True
-    except Exception as e:
-        print(f"[RESEND ERROR] {e}")
-        return False
+    body = f"""
+      <tr><td style="padding:28px 32px">
+        <p style="margin:0 0 6px;font-size:17px;font-weight:700;color:#0f172a">
+          Olá{f', {first_name}' if first_name else ''}!
+        </p>
+        <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.65">{intro}</p>
+        {_calendar_sections(events)}
+      </td></tr>"""
+    return _send(email, f'{subject} — UneWorld Turismo', _wrap(body, '#2e6db4'))
 
 
-def _fmt_date(iso_str):
-    if not iso_str:
-        return ''
-    parts = str(iso_str).split('-')
-    if len(parts) == 3:
-        return f'{parts[2]}/{parts[1]}/{parts[0]}'
-    return str(iso_str)
-
+# ── Prazos de confirmação ─────────────────────────────────────────────────────
 
 def send_deadline_reminder(emails: list, deadline_date, entries: list, days_ahead: int = 0) -> bool:
-    """
-    Envia lembrete de prazos de confirmação.
-
-    entries: list of dicts com chaves:
-        passenger_name  — nome do passageiro / bloqueio
-        list_name       — nome da lista de passageiros
-        pending_reason  — motivo da pendência (pode ser vazio)
-        created_by      — nome de quem definiu o prazo
-    days_ahead: 0 = vence hoje, 2 = vence em 2 dias
-    """
     if not emails:
         return False
 
-    resend.api_key = settings.RESEND_API_KEY
-    date_str = _fmt_date(deadline_date)
+    date_str = _fmt(deadline_date)
     if days_ahead == 0:
-        subject = f'Prazos de hoje ({date_str}) — UneWorld Turismo'
+        subject  = f'Prazos que vencem hoje ({date_str})'
+        title    = 'Prazos que vencem hoje'
+        subtitle = f'Data limite: {date_str}'
+        badge    = 'Vence hoje'
+        badge_bg = '#fef3c7'
+        badge_fg = '#b45309'
     else:
-        subject = f'Prazos em {days_ahead} dias ({date_str}) — UneWorld Turismo'
+        subject  = f'Prazos que vencem em {days_ahead} dias ({date_str})'
+        title    = f'Prazos em {days_ahead} dias'
+        subtitle = f'Data limite: {date_str}'
+        badge    = f'Em {days_ahead} dias'
+        badge_bg = '#dbeafe'
+        badge_fg = '#1d4ed8'
 
-    if not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave'):
-        print(f"[EMAIL SIMULADO] {subject} para {emails}: {len(entries)} prazo(s)")
-        return True
-
-    rows_html = ''
+    cards = ''
     for e in entries:
-        reason_html = ''
-        if e.get('pending_reason'):
-            reason_html = f'<p style="margin:4px 0 0;font-size:12px;color:#64748b">{e["pending_reason"]}</p>'
-        rows_html += f"""
-        <div style="padding:14px 0;border-bottom:1px solid #f1f5f9">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-            <div style="flex:1;min-width:0">
-              <p style="margin:0;font-size:14px;font-weight:600;color:#1e293b">{e['passenger_name']}</p>
-              <p style="margin:2px 0 0;font-size:12px;color:#64748b">{e['list_name']}</p>
-              {reason_html}
-            </div>
-            <span style="flex-shrink:0;padding:3px 10px;background:#fef3c7;color:#b45309;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">Vence hoje</span>
-          </div>
-          <p style="margin:6px 0 0;font-size:11px;color:#94a3b8">Prazo definido por {e.get('created_by','—')}</p>
-        </div>"""
+        reason = f'<p style="margin:6px 0 0;font-size:12px;color:#64748b;font-style:italic">{e["pending_reason"]}</p>' if e.get('pending_reason') else ''
+        cards += f"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+          <tr>
+            <td style="padding:14px 16px">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:top">
+                    <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{e['passenger_name']}</p>
+                    <p style="margin:3px 0 0;font-size:12px;color:#64748b">{e['list_name']}</p>
+                    {reason}
+                  </td>
+                  <td style="vertical-align:top;text-align:right;padding-left:12px;white-space:nowrap">
+                    <span style="display:inline-block;padding:4px 12px;border-radius:999px;background:{badge_bg};color:{badge_fg};font-size:11px;font-weight:700">{badge}</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:8px 0 0;font-size:11px;color:#94a3b8">Prazo definido por {e.get('created_by', '—')}</p>
+            </td>
+          </tr>
+        </table>"""
 
-    html = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="UTF-8"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f8;margin:0;padding:32px 16px">
-  <div style="max-width:540px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-    <div style="background:#1a2d4f;padding:24px 32px;text-align:center">
-      <p style="color:#fff;font-size:22px;font-weight:700;margin:0">Une<span style="color:#6BA3C8">World</span></p>
-      <p style="color:rgba(255,255,255,.5);font-size:12px;margin:4px 0 0;letter-spacing:.1em;text-transform:uppercase">Turismo</p>
-    </div>
-    <div style="padding:32px">
-      <div style="display:flex;align-items:center;gap:10px;margin:0 0 8px">
-        <span style="font-size:20px">⏰</span>
-        <p style="margin:0;font-size:18px;font-weight:700;color:#1e293b">{"Prazos que vencem hoje" if days_ahead == 0 else f"Prazos que vencem em {days_ahead} dias"}</p>
-      </div>
-      <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px">
-        Os seguintes passageiros têm prazo de confirmação vencendo em <strong>{date_str}</strong> e ainda não confirmaram.
-      </p>
-      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:0 16px">
-        {rows_html}
-        <div style="padding-bottom:2px"></div>
-      </div>
-    </div>
-    <div style="background:#f8fafc;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0">
-      <p style="color:#94a3b8;font-size:12px;margin:0">UneWorld Turismo · Sistema de Gestão</p>
-    </div>
-  </div>
-</body>
-</html>"""
+    body = f"""
+      {_section_header('⏰', title, subtitle, '#b45309')}
+      <tr><td style="padding:20px 32px 28px">
+        <p style="margin:0 0 18px;font-size:14px;color:#64748b;line-height:1.65">
+          Os seguintes passageiros têm prazo de confirmação em <strong style="color:#0f172a">{date_str}</strong> e ainda não confirmaram.
+        </p>
+        {cards}
+      </td></tr>"""
 
-    try:
-        resend.Emails.send({
-            "from":    settings.RESEND_FROM,
-            "to":      emails,
-            "subject": subject,
-            "html":    html,
-        })
-        return True
-    except Exception as e:
-        print(f"[RESEND ERROR] {e}")
-        return False
+    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#b45309'))
 
+
+# ── Pendências / tarefas ──────────────────────────────────────────────────────
 
 def send_task_reminder(emails: list, deadline_date, entries: list) -> bool:
-    """Envia lembrete de tarefas/pendências de lista que vencem hoje."""
     if not emails:
         return False
 
     date_str = deadline_date.strftime('%d/%m/%Y') if hasattr(deadline_date, 'strftime') else str(deadline_date)
-    subject  = f'Pendências que vencem hoje — {date_str}'
+    subject  = f'Pendências que vencem hoje ({date_str})'
 
-    rows_html = ''
+    cards = ''
     for e in entries:
-        rows_html += f"""
-        <div style="padding:14px 0;border-bottom:1px solid #f1f5f9">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-size:15px">📋</span>
-            <span style="font-weight:600;color:#1e293b;font-size:14px">{e['title']}</span>
-          </div>
-          <div style="color:#64748b;font-size:13px;padding-left:23px">
-            Lista: <strong>{e['list_name']}</strong> · Criado por {e['created_by']}
-          </div>
-        </div>"""
+        cards += f"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;border:1px solid #e2e8f0;border-left:4px solid #059669;border-radius:10px;overflow:hidden">
+          <tr>
+            <td style="padding:14px 16px">
+              <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{e['title']}</p>
+              <p style="margin:4px 0 0;font-size:12px;color:#64748b">
+                Lista: <strong>{e['list_name']}</strong> &nbsp;&middot;&nbsp; Criado por {e['created_by']}
+              </p>
+            </td>
+            <td style="padding:14px 16px;text-align:right;vertical-align:middle;white-space:nowrap">
+              <span style="display:inline-block;padding:4px 12px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:11px;font-weight:700">Vence hoje</span>
+            </td>
+          </tr>
+        </table>"""
 
-    html = f"""<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;font-family:Inter,Arial,sans-serif;background:#f8fafc">
-  <div style="max-width:600px;margin:40px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-    <div style="background:#1a2d4f;padding:24px 32px">
-      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">UneWorld Turismo</h1>
-      <p style="color:rgba(255,255,255,.7);margin:4px 0 0;font-size:13px">Sistema de Gestão</p>
-    </div>
-    <div style="padding:28px 32px">
-      <div style="display:flex;align-items:center;gap:10px;margin:0 0 8px">
-        <span style="font-size:20px">✅</span>
-        <p style="margin:0;font-size:18px;font-weight:700;color:#1e293b">Pendências que vencem hoje</p>
-      </div>
-      <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0 0 24px">
-        As seguintes tarefas têm prazo em <strong>{date_str}</strong> e ainda não foram concluídas.
-      </p>
-      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:0 16px">
-        {rows_html}
-        <div style="padding-bottom:2px"></div>
-      </div>
-    </div>
-    <div style="background:#f8fafc;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0">
-      <p style="color:#94a3b8;font-size:12px;margin:0">UneWorld Turismo · Sistema de Gestão</p>
-    </div>
-  </div>
-</body>
-</html>"""
+    body = f"""
+      {_section_header('✅', 'Pendências que vencem hoje', date_str, '#059669')}
+      <tr><td style="padding:20px 32px 28px">
+        <p style="margin:0 0 18px;font-size:14px;color:#64748b;line-height:1.65">
+          As seguintes tarefas têm prazo em <strong style="color:#0f172a">{date_str}</strong> e ainda não foram concluídas.
+        </p>
+        {cards}
+      </td></tr>"""
 
-    try:
-        resend.Emails.send({
-            "from":    settings.RESEND_FROM,
-            "to":      emails,
-            "subject": subject,
-            "html":    html,
-        })
-        return True
-    except Exception as e:
-        print(f"[RESEND ERROR] {e}")
-        return False
+    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#059669'))

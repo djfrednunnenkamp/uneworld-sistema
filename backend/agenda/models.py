@@ -18,6 +18,8 @@ class CalendarPreference(models.Model):
     digest_frequency     = models.CharField('Frequência do resumo', max_length=10, choices=DIGEST_FREQ_CHOICES, default='daily')
     reminder_enabled     = models.BooleanField('Lembrete de prazos por e-mail', default=False)
     reminder_days_before = models.PositiveSmallIntegerField('Avisar com quantos dias de antecedência', default=3)
+    receive_deadline_emails = models.BooleanField('Receber e-mails de prazos de confirmação', default=False)
+    receive_task_emails     = models.BooleanField('Receber e-mails de pendências', default=False)
     side_panel_enabled   = models.BooleanField('Exibir painel lateral do calendário', default=True)
     side_panel_position  = models.CharField('Posição do painel lateral', max_length=5, choices=SIDE_PANEL_POSITION_CHOICES, default='right')
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)

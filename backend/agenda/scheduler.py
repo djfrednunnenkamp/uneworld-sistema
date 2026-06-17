@@ -55,17 +55,16 @@ def run_once():
 
 
 def _send_list_deadline_reminders(today, days_ahead=0):
-    """Envia e-mails de lembrete de prazo para os e-mails configurados nas listas.
+    """Envia e-mails de prazos para usuários com receive_deadline_emails=True.
 
     days_ahead=0 → prazos que vencem HOJE
     days_ahead=2 → prazos que vencem em exatamente 2 dias
     """
     from trips.models import ListEnrollment
-    from config_api.models import SystemSettings
+    from .models import CalendarPreference
     from .email_service import send_deadline_reminder
 
     target_date = today + timedelta(days=days_ahead)
-    global_emails = list(SystemSettings.get().deadline_notification_emails or [])
 
     enrollments = (
         ListEnrollment.objects
@@ -88,24 +87,29 @@ def _send_list_deadline_reminders(today, days_ahead=0):
         })
 
     all_entries = []
-    recipient_emails = set(global_emails)
+    recipient_emails = set()
+
+    # Usuários que optaram por receber e-mails de prazos
+    prefs = CalendarPreference.objects.filter(receive_deadline_emails=True).select_related('user')
+    for pref in prefs:
+        if pref.user.email and '@' in pref.user.email:
+            recipient_emails.add(pref.user.email)
+
     for data in by_list.values():
         all_entries.extend(data['entries'])
         list_emails = data['list'].notification_emails or []
-        recipient_emails.update(list_emails)
+        recipient_emails.update(e for e in list_emails if e and '@' in e)
 
-    recipient_emails = [e for e in recipient_emails if e and '@' in e]
+    recipient_emails = list(recipient_emails)
     if recipient_emails and all_entries:
         send_deadline_reminder(recipient_emails, target_date, all_entries, days_ahead=days_ahead)
 
 
 def _send_task_reminders(today):
-    """Envia e-mails de lembrete para tarefas de lista que vencem hoje."""
+    """Envia e-mails de pendências para usuários com receive_task_emails=True."""
     from trips.models import ListTask
-    from config_api.models import SystemSettings
+    from .models import CalendarPreference
     from .email_service import send_task_reminder
-
-    global_emails = list(SystemSettings.get().deadline_notification_emails or [])
 
     tasks = (
         ListTask.objects
@@ -115,17 +119,17 @@ def _send_task_reminders(today):
     if not tasks:
         return
 
-    recipient_emails = set(global_emails)
+    prefs = CalendarPreference.objects.filter(receive_task_emails=True).select_related('user')
+    recipient_emails = {p.user.email for p in prefs if p.user.email and '@' in p.user.email}
+
     entries = []
     for task in tasks:
-        if task.created_by and task.created_by.email:
-            recipient_emails.add(task.created_by.email)
         entries.append({
             'title':     task.title,
             'list_name': task.passenger_list.name,
             'created_by': (task.created_by.get_full_name() or task.created_by.username) if task.created_by else '—',
         })
 
-    recipient_emails = [e for e in recipient_emails if e and '@' in e]
+    recipient_emails = list(recipient_emails)
     if recipient_emails and entries:
         send_task_reminder(recipient_emails, today, entries)

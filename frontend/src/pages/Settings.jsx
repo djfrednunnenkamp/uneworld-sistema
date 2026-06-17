@@ -644,7 +644,6 @@ const LIST_DEFS = [
   { key:'airports',        label:'Aeroportos' },
   { key:'airlines',        label:'Companhias Aéreas' },
   { key:'bus_maps',        label:'Mapas de Ônibus' },
-  { key:'auto_emails',     label:'E-mails automáticos' },
 ]
 const WIDE_LISTS = ['doc_types', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
 
@@ -655,128 +654,6 @@ function exportEmailsCsv(emails) {
   const a    = document.createElement('a')
   a.href = url; a.download = 'emails_automaticos.csv'; a.click()
   URL.revokeObjectURL(url)
-}
-
-function AutoEmailsManager() {
-  const fileRef = useRef(null)
-  const [emails,   setEmails]  = useState(null)
-  const [search,   setSearch]  = useState('')
-  const [showAdd,  setShowAdd] = useState(false)
-  const [saving,   setSaving]  = useState(false)
-  const [confirm,  setConfirm] = useState(null)
-
-  useEffect(() => {
-    configApi.systemSettings()
-      .then(r => setEmails(r.data.deadline_notification_emails || []))
-      .catch(() => setEmails([]))
-  }, [])
-
-  const save = async (next) => {
-    setSaving(true)
-    try {
-      const r = await configApi.updateSystemSettings({ deadline_notification_emails: next })
-      setEmails(r.data.deadline_notification_emails || [])
-    } catch { toast.error('Erro ao salvar.') }
-    finally { setSaving(false) }
-  }
-
-  const addEmail = async (val) => {
-    const v = val.trim().toLowerCase()
-    if (!v || !v.includes('@')) { toast.error('E-mail inválido.'); return }
-    if ((emails || []).includes(v)) { toast.error('E-mail já adicionado.'); return }
-    await save([...(emails || []), v])
-  }
-
-  const handleImport = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return
-    e.target.value = ''
-    const text = await file.text()
-    const lines = text.split(/\r?\n/)
-    const start = lines[0]?.trim().toLowerCase() === 'email' ? 1 : 0
-    const imported = lines.slice(start)
-      .map(l => l.trim().replace(/^"|"$/g, '').replace(/""/g, '"').toLowerCase())
-      .filter(l => l && l.includes('@'))
-    const current = emails || []
-    const merged  = [...new Set([...current, ...imported])]
-    if (merged.length === current.length) { toast.success('Nenhum e-mail novo.'); return }
-    await save(merged)
-    toast.success(`${merged.length - current.length} e-mail(s) importado(s).`)
-  }
-
-  const filtered = (emails || []).filter(e => e.includes(search.toLowerCase()))
-
-  return (
-    <>
-      <div>
-        <p style={{ fontSize:12, color:'#64748b', margin:'0 0 10px', lineHeight:1.6 }}>
-          Estes endereços receberão um e-mail toda vez que um passageiro tiver um prazo de confirmação vencendo no dia,
-          independentemente das configurações de cada lista.
-        </p>
-
-        {/* Toolbar — mesmo padrão de ItemList */}
-        <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
-            style={{ ...inp, flex:1, minWidth:160 }}
-            onFocus={e => e.target.style.borderColor='#1a2d4f'}
-            onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
-          <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>
-          <button style={btnCsv('#059669')} disabled={!emails?.length} onClick={() => exportEmailsCsv(emails || [])}>
-            <Ic n="dl" s={12}/> CSV
-          </button>
-          <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()}>
-            <Ic n="ul" s={12}/> Importar
-          </button>
-          <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleImport} />
-        </div>
-
-        <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
-          {emails === null ? 'Carregando…' : `${filtered.length} de ${emails.length} ${emails.length !== 1 ? 'endereços' : 'endereço'}`}
-        </p>
-
-        <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', maxHeight:460, overflowY:'auto' }}>
-          {emails === null ? (
-            <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
-          ) : filtered.length === 0 ? (
-            <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>
-              {emails.length === 0 ? 'Nenhum e-mail cadastrado.' : 'Nenhum resultado.'}
-            </p>
-          ) : filtered.map((email, idx) => (
-            <div key={email} style={{
-              display:'flex', alignItems:'center', justifyContent:'space-between',
-              padding:'9px 14px', fontSize:13, color:'#0f172a', background:'#fff',
-              borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
-              onMouseLeave={e => e.currentTarget.style.background='#fff'}
-            >
-              <span>{email}</span>
-              <div className="r-acts">
-                <button className="r-btn del" title="Remover" onClick={() => setConfirm(email)}>
-                  <Ic n="trash" s={13}/>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {showAdd && (
-        <AddItemModal
-          title="Adicionar e-mail"
-          placeholder="exemplo@email.com"
-          onAdd={addEmail}
-          onClose={() => setShowAdd(false)}
-        />
-      )}
-      {confirm && (
-        <ConfirmModal
-          message={`Remover "${confirm}"?`}
-          onOk={() => { save((emails || []).filter(e => e !== confirm)); setConfirm(null) }}
-          onCancel={() => setConfirm(null)}
-        />
-      )}
-    </>
-  )
 }
 
 export default function Settings() {
@@ -1074,7 +951,6 @@ export default function Settings() {
           {activeDef.key === 'airports'        && <AirportsManager />}
           {activeDef.key === 'airlines'        && <AirlinesManager />}
           {activeDef.key === 'bus_maps'        && <BusMapsManager />}
-          {activeDef.key === 'auto_emails'     && <AutoEmailsManager />}
         </ListDetailModal>
       )}
     </div>
