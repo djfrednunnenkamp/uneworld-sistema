@@ -48,88 +48,123 @@ def run_once():
                 pref.last_reminder_sent = today
                 pref.save(update_fields=['last_reminder_sent'])
 
-    # Sempre envia lembrete no dia do vencimento e 2 dias antes (para todos os usuários)
-    _send_list_deadline_reminders(today, days_ahead=0)
-    _send_list_deadline_reminders(today, days_ahead=2)
-    _send_task_reminders(today)
+    # Um único e-mail consolidado por destinatário com todas as notificações do dia
+    _send_daily_notifications(today)
 
 
-def _send_list_deadline_reminders(today, days_ahead=0):
-    """Envia e-mails de prazos para usuários com receive_deadline_emails=True.
+# ── Coletores de dados ────────────────────────────────────────────────────────
 
-    days_ahead=0 → prazos que vencem HOJE
-    days_ahead=2 → prazos que vencem em exatamente 2 dias
-    """
+def _collect_deadline_entries(today, days_ahead):
+    """Retorna (entries_list, set_of_list_level_emails)."""
     from trips.models import ListEnrollment
-    from .models import CalendarPreference
-    from .email_service import send_deadline_reminder
 
     target_date = today + timedelta(days=days_ahead)
-
     enrollments = (
         ListEnrollment.objects
         .filter(pending_until=target_date)
         .exclude(enrollment_status='confirmado')
         .select_related('passenger', 'passenger_list', 'pending_until_created_by')
     )
-    if not enrollments:
-        return
-
-    by_list = {}
+    entries    = []
+    list_emails = set()
     for en in enrollments:
-        by_list.setdefault(en.passenger_list_id, {'list': en.passenger_list, 'entries': []})
         creator = en.pending_until_created_by
-        by_list[en.passenger_list_id]['entries'].append({
+        entries.append({
             'passenger_name': en.passenger.full_name if en.passenger else (en.block_agency or 'Bloqueio'),
             'list_name':      en.passenger_list.name,
             'pending_reason': en.pending_reason or '',
             'created_by':     (creator.get_full_name() or creator.username) if creator else '—',
         })
-
-    all_entries = []
-    recipient_emails = set()
-
-    # Usuários que optaram por receber e-mails de prazos
-    prefs = CalendarPreference.objects.filter(receive_deadline_emails=True).select_related('user')
-    for pref in prefs:
-        if pref.user.email and '@' in pref.user.email:
-            recipient_emails.add(pref.user.email)
-
-    for data in by_list.values():
-        all_entries.extend(data['entries'])
-        list_emails = data['list'].notification_emails or []
-        recipient_emails.update(e for e in list_emails if e and '@' in e)
-
-    recipient_emails = list(recipient_emails)
-    if recipient_emails and all_entries:
-        send_deadline_reminder(recipient_emails, target_date, all_entries, days_ahead=days_ahead)
+        for email in (en.passenger_list.notification_emails or []):
+            if email and '@' in email:
+                list_emails.add(email)
+    return entries, list_emails
 
 
-def _send_task_reminders(today):
-    """Envia e-mails de pendências para usuários com receive_task_emails=True."""
+def _collect_task_entries(today):
     from trips.models import ListTask
-    from .models import CalendarPreference
-    from .email_service import send_task_reminder
 
     tasks = (
         ListTask.objects
         .filter(due_date=today, done=False)
         .select_related('passenger_list', 'created_by')
     )
-    if not tasks:
+    return [
+        {
+            'title':      t.title,
+            'list_name':  t.passenger_list.name,
+            'created_by': (t.created_by.get_full_name() or t.created_by.username) if t.created_by else '—',
+        }
+        for t in tasks
+    ]
+
+
+def _collect_birthday_entries(today):
+    from passengers.models import Passenger
+
+    passengers = Passenger.objects.filter(
+        birth_date__month=today.month,
+        birth_date__day=today.day,
+    ).exclude(birth_date__isnull=True)
+    return [
+        {
+            'name':       p.full_name,
+            'birth_date': p.birth_date.strftime('%d/%m/%Y'),
+            'age':        today.year - p.birth_date.year,
+        }
+        for p in passengers
+    ]
+
+
+# ── Envio consolidado ─────────────────────────────────────────────────────────
+
+def _send_daily_notifications(today):
+    """Envia UM único e-mail por destinatário consolidando prazos, pendências e aniversários."""
+    from django.db.models import Q
+    from users_api.models import UserPermissions
+    from .models import CalendarPreference
+    from .email_service import send_daily_digest
+
+    # Coleta todos os dados do dia
+    deadline_today, list_emails_today = _collect_deadline_entries(today, days_ahead=0)
+    deadline_2d,    list_emails_2d    = _collect_deadline_entries(today, days_ahead=2)
+    tasks     = _collect_task_entries(today)
+    birthdays = _collect_birthday_entries(today)
+
+    # Sem nada para enviar, sai cedo
+    if not deadline_today and not deadline_2d and not tasks and not birthdays:
         return
 
-    prefs = CalendarPreference.objects.filter(receive_task_emails=True).select_related('user')
-    recipient_emails = {p.user.email for p in prefs if p.user.email and '@' in p.user.email}
+    # Usuários com permissão de dados sensíveis (aniversários)
+    eligible_birthday_ids = set(
+        UserPermissions.objects.filter(passengers_view_full=True).values_list('user_id', flat=True)
+    )
 
-    entries = []
-    for task in tasks:
-        entries.append({
-            'title':     task.title,
-            'list_name': task.passenger_list.name,
-            'created_by': (task.created_by.get_full_name() or task.created_by.username) if task.created_by else '—',
-        })
+    # Envia um e-mail por usuário com as seções que ele optou
+    prefs = CalendarPreference.objects.filter(
+        Q(receive_deadline_emails=True) | Q(receive_task_emails=True) | Q(receive_birthday_emails=True)
+    ).select_related('user')
 
-    recipient_emails = list(recipient_emails)
-    if recipient_emails and entries:
-        send_task_reminder(recipient_emails, today, entries)
+    user_emails = set()
+    for pref in prefs:
+        user = pref.user
+        if not user.email or '@' not in user.email:
+            continue
+        user_emails.add(user.email)
+
+        d_today = deadline_today if pref.receive_deadline_emails else []
+        d_2d    = deadline_2d    if pref.receive_deadline_emails else []
+        t       = tasks          if pref.receive_task_emails     else []
+        b = []
+        if pref.receive_birthday_emails and (user.is_superuser or user.id in eligible_birthday_ids):
+            b = birthdays
+
+        if d_today or d_2d or t or b:
+            send_daily_digest(user.email, today, d_today, d_2d, t, b)
+
+    # E-mails de lista (definidos diretamente na lista de passageiros, não vinculados a usuários)
+    # Recebem apenas prazos de confirmação
+    extra_emails = (list_emails_today | list_emails_2d) - user_emails
+    if extra_emails and (deadline_today or deadline_2d):
+        for email in extra_emails:
+            send_daily_digest(email, today, deadline_today, deadline_2d, [], [])
