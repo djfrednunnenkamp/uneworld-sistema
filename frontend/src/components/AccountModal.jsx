@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { authApi } from '../api'
+import { useState, useEffect } from 'react'
+import { authApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 const overlay = {
@@ -20,9 +20,26 @@ const inp = {
   borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit',
   color: '#0f172a', boxSizing: 'border-box', transition: 'border-color .15s',
 }
-const label = {
+const lbl = {
   display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b',
   textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5,
+}
+
+function Toggle({ checked, onChange }) {
+  return (
+    <label style={{ position: 'relative', display: 'inline-block', width: 36, height: 20, flexShrink: 0, cursor: 'pointer' }}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
+        style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
+      <span style={{
+        position: 'absolute', inset: 0, borderRadius: 20, transition: 'background .2s',
+        background: checked ? '#1a2d4f' : '#cbd5e1',
+      }} />
+      <span style={{
+        position: 'absolute', top: 3, left: checked ? 19 : 3, width: 14, height: 14,
+        borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+      }} />
+    </label>
+  )
 }
 
 export default function AccountModal({ onClose, onSaved }) {
@@ -34,12 +51,32 @@ export default function AccountModal({ onClose, onSaved }) {
   const [error,     setError]     = useState('')
   const [success,   setSuccess]   = useState(false)
 
+  const [prefs, setPrefs] = useState({
+    receive_deadline_emails: false,
+    receive_task_emails:     false,
+    receive_birthday_emails: false,
+  })
+
+  const canSeeSensitive = user?.is_superuser || !!user?.permissions?.passengers_view_full
+
+  useEffect(() => {
+    agendaApi.getPrefs()
+      .then(r => setPrefs(p => ({
+        ...p,
+        receive_deadline_emails: !!r.data.receive_deadline_emails,
+        receive_task_emails:     !!r.data.receive_task_emails,
+        receive_birthday_emails: !!r.data.receive_birthday_emails,
+      })))
+      .catch(() => {})
+  }, [])
+
   const handleSave = async (e) => {
     e.preventDefault()
     if (!email.trim()) { setError('O e-mail é obrigatório.'); return }
     setLoading(true); setError('')
     try {
       await authApi.updateMe({ first_name: firstName, last_name: lastName, email: email.trim().toLowerCase() })
+      await agendaApi.updatePrefs(prefs)
       await onSaved()
       setSuccess(true)
       setTimeout(onClose, 900)
@@ -48,6 +85,12 @@ export default function AccountModal({ onClose, onSaved }) {
     } finally { setLoading(false) }
   }
 
+  const EMAIL_OPTS = [
+    { key: 'receive_deadline_emails', label: 'Prazos de confirmação',      desc: 'E-mail quando passageiros têm prazo vencendo hoje ou em 2 dias' },
+    { key: 'receive_task_emails',     label: 'Pendências',                  desc: 'E-mail quando tarefas têm prazo vencendo hoje' },
+    ...(canSeeSensitive ? [{ key: 'receive_birthday_emails', label: 'Aniversários de passageiros', desc: 'E-mail com passageiros que fazem aniversário hoje' }] : []),
+  ]
+
   return (
     <div style={overlay} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={card}>
@@ -55,26 +98,43 @@ export default function AccountModal({ onClose, onSaved }) {
           <span style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Minha conta</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20, lineHeight: 1, padding: 2 }}>×</button>
         </div>
-        <form onSubmit={handleSave} style={{ padding: '20px 24px 24px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <form onSubmit={handleSave} style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={label}>Nome</label>
+              <label style={lbl}>Nome</label>
               <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Nome" style={inp}
                 onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
             </div>
             <div>
-              <label style={label}>Sobrenome</label>
+              <label style={lbl}>Sobrenome</label>
               <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Sobrenome" style={inp}
                 onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
             </div>
           </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={label}>E-mail</label>
+          <div>
+            <label style={lbl}>E-mail</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
+
+          {/* Notificações por e-mail */}
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
+            <label style={lbl}>Notificações por e-mail</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {EMAIL_OPTS.map(({ key, label, desc }) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer' }}>
+                  <div>
+                    <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{label}</p>
+                    <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>{desc}</p>
+                  </div>
+                  <Toggle checked={!!prefs[key]} onChange={v => setPrefs(p => ({ ...p, [key]: v }))} />
+                </label>
+              ))}
+            </div>
+          </div>
+
           {error && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '9px 12px', marginBottom: 16, color: '#dc2626', fontSize: 13 }}>
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '9px 12px', color: '#dc2626', fontSize: 13 }}>
               {error}
             </div>
           )}

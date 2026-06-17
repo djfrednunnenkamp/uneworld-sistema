@@ -342,7 +342,7 @@ function UserModal({ user, onClose, onSaved }) {
     : { ...EMPTY })
   const [skipPwd,    setSkipPwd]    = useState(false)
   const [saving,     setSaving]     = useState(false)
-  const [emailPrefs, setEmailPrefs] = useState({ receive_deadline_emails: false, receive_task_emails: false })
+  const [emailPrefs, setEmailPrefs] = useState({ receive_deadline_emails: false, receive_task_emails: false, receive_birthday_emails: false })
   const isEdit  = !!user
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
@@ -353,7 +353,7 @@ function UserModal({ user, onClose, onSaved }) {
   useEffect(() => {
     if (isEdit && user?.id) {
       agendaApi.getUserPrefs(user.id)
-        .then(r => setEmailPrefs({ receive_deadline_emails: !!r.data.receive_deadline_emails, receive_task_emails: !!r.data.receive_task_emails }))
+        .then(r => setEmailPrefs({ receive_deadline_emails: !!r.data.receive_deadline_emails, receive_task_emails: !!r.data.receive_task_emails, receive_birthday_emails: !!r.data.receive_birthday_emails }))
         .catch(() => {})
     }
   }, [isEdit, user?.id])
@@ -433,6 +433,7 @@ function UserModal({ user, onClose, onSaved }) {
               {[
                 { key:'receive_deadline_emails', label:'Prazos de confirmação', desc:'Recebe e-mail quando passageiros têm prazo vencendo hoje ou em 2 dias' },
                 { key:'receive_task_emails',     label:'Pendências',            desc:'Recebe e-mail quando tarefas têm prazo vencendo hoje' },
+                ...(targetIsSuperuser || form.permissions?.passengers_view_full ? [{ key:'receive_birthday_emails', label:'Aniversários de passageiros', desc:'Recebe e-mail com passageiros que fazem aniversário hoje' }] : []),
               ].map(({ key, label, desc }) => (
                 <label key={key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'10px 12px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc',cursor:'pointer'}}>
                   <div>
