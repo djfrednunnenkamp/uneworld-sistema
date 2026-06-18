@@ -204,7 +204,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Bottom row: listas + email log ── */}
-      <div style={{ display:'flex', gap:16, alignItems:'stretch' }}>
+      <div style={{ display:'flex', gap:16, alignItems:'stretch', maxHeight:480 }}>
 
         {/* Listas de passageiros recentes */}
         {can('dashboard_view_lists') && (
