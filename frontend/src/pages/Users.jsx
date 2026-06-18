@@ -1229,7 +1229,6 @@ export default function Users() {
                 <th>E-mail</th>
                 <th>Perfil</th>
                 <th>Status</th>
-                <th>Conta</th>
                 <th style={{width:110}}></th>
               </tr>
             </thead>
@@ -1267,15 +1266,11 @@ export default function Users() {
                     }
                   </td>
                   <td>
-                    {u.is_active
-                      ? <span className="badge bg-green">Ativo</span>
-                      : <span className="badge bg-red">Inativo</span>
-                    }
-                  </td>
-                  <td>
-                    {u.has_account
-                      ? <span className="badge bg-green">Sim</span>
-                      : <span className="badge bg-amber">Não</span>
+                    {!u.is_active
+                      ? <span className="badge bg-red">Bloqueada</span>
+                      : !u.has_account
+                        ? <span className="badge bg-amber">Aguardando</span>
+                        : <span className="badge bg-green">Ativa</span>
                     }
                   </td>
                   <td>
