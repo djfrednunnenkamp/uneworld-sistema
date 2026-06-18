@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { usersApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
 import PasswordInput from '../components/PasswordInput'
 import DatePicker from '../components/DatePicker'
@@ -767,6 +768,17 @@ export default function Users() {
   }
 
   useEffect(() => { load() }, [])
+
+  const silentReload = useCallback(() => {
+    usersApi.list()
+      .then(r => setUsers(r.data))
+      .catch(() => {})
+  }, [])
+
+  const wsUrl = me ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback(({ scope }) => {
+    if (scope === 'users' || scope === 'all') silentReload()
+  }, [silentReload]))
 
   const handleDelete = async () => {
     await usersApi.remove(delUser.id).catch(e => toast.error(e.response?.data?.error ?? 'Erro ao excluir.'))

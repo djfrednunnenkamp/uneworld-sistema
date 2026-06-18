@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { agenciesApi } from '../api'
@@ -7,6 +7,7 @@ import DelModal from '../components/DelModal'
 import NewAgencyModal from '../components/NewAgencyModal'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 /* ── CopyCell ── */
 function CopyCell({ value, muted, bold }) {
@@ -236,6 +237,17 @@ export default function Agencies() {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+
+  const silentReload = useCallback(() => {
+    agenciesApi.list()
+      .then(r => setRows(r.data.results ?? r.data))
+      .catch(() => {})
+  }, [])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback(({ scope }) => {
+    if (scope === 'agencies' || scope === 'all') silentReload()
+  }, [silentReload]))
 
   const handleDelete = async () => {
     await agenciesApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))

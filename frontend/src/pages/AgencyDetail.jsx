@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { toast } from 'sonner'
 import { agenciesApi, usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import CnpjInput from '../components/CnpjInput'
@@ -230,6 +231,7 @@ function AgencyUsersTab({ agencyId }) {
   const [showNew,  setShowNew]  = useState(false)
   const [editUser, setEditUser] = useState(null) // {id, first_name, last_name, email}
   const [confirm,  setConfirm]  = useState(null)
+  const { user } = useAuth()
 
   const load = useCallback(() => {
     setLoading(true)
@@ -240,6 +242,17 @@ function AgencyUsersTab({ agencyId }) {
   }, [agencyId])
 
   useEffect(() => { load() }, [load])
+
+  const silentReload = useCallback(() => {
+    agenciesApi.listMembers(agencyId)
+      .then(r => setMembers(r.data))
+      .catch(() => {})
+  }, [agencyId])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback(({ scope }) => {
+    if (scope === 'agencies' || scope === 'all') silentReload()
+  }, [silentReload]))
 
   const remove = async (mid) => {
     await agenciesApi.removeMember(agencyId, mid).catch(() => toast.error('Erro ao remover.'))
@@ -375,6 +388,22 @@ export default function AgencyDetail() {
         .finally(() => setLoading(false))
     }
   }, [id])
+
+  const isDirtyRef = useRef(isDirty)
+  useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
+
+  const silentLoad = useCallback(() => {
+    if (!isNew && !isDirtyRef.current) {
+      agenciesApi.get(id)
+        .then(r => setForm({ ...EMPTY, ...r.data }))
+        .catch(() => {})
+    }
+  }, [id, isNew])
+
+  const wsUrlMain = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrlMain, useCallback(({ scope }) => {
+    if (scope === 'agencies' || scope === 'all') silentLoad()
+  }, [silentLoad]))
 
   /* Auto-busca dados do CNPJ quando vem do popup de criação (só para jurídica) */
   useEffect(() => {

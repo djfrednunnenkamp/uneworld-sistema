@@ -34,3 +34,112 @@ def on_enrollment(sender, **kwargs):
 @receiver(post_save, sender='agenda.EmailLog')
 def on_email_log(sender, **kwargs):
     _broadcast('emails')
+
+
+# ── Agências ──────────────────────────────────────────────────────────────────
+
+@receiver([post_save, post_delete], sender='agencies.Agency')
+def on_agency(sender, **kwargs):
+    _broadcast('agencies')
+
+
+@receiver([post_save, post_delete], sender='agencies.AgencyMember')
+def on_agency_member(sender, **kwargs):
+    _broadcast('agencies')
+
+
+# ── Usuários ──────────────────────────────────────────────────────────────────
+
+@receiver([post_save, post_delete], sender='auth.User')
+def on_user(sender, **kwargs):
+    _broadcast('users')
+
+
+@receiver([post_save, post_delete], sender='users_api.UserPermissions')
+def on_user_permissions(sender, **kwargs):
+    _broadcast('users')
+
+
+# ── Auditoria ─────────────────────────────────────────────────────────────────
+
+@receiver([post_save, post_delete], sender='audit.AuditLog')
+def on_audit_log(sender, **kwargs):
+    _broadcast('audit')
+
+
+# ── Documentos de passageiro ──────────────────────────────────────────────────
+
+@receiver([post_save, post_delete], sender='passengers.PassengerDocument')
+def on_passenger_document(sender, **kwargs):
+    _broadcast('stats')
+
+
+# ── Configurações ─────────────────────────────────────────────────────────────
+
+@receiver([post_save, post_delete], sender='config_api.ConfigProfession')
+def on_config_profession(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='config_api.ConfigLanguage')
+def on_config_language(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='config_api.ConfigCountry')
+def on_config_country(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='config_api.ConfigState')
+def on_config_state(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='config_api.ConfigGender')
+def on_config_gender(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='config_api.ConfigVaccine')
+def on_config_vaccine(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='config_api.CustomDocType')
+def on_custom_doc_type(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='config_api.ConfigProfCard')
+def on_config_prof_card(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='trips.Destination')
+def on_destination(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='trips.ListAdditional')
+def on_list_additional(sender, **kwargs):
+    _broadcast('config')
+
+
+@receiver([post_save, post_delete], sender='trips.CrewRole')
+def on_crew_role(sender, **kwargs):
+    _broadcast('config')
+
+
+# ── Listas / Quartos ──────────────────────────────────────────────────────────
+
+@receiver([post_save, post_delete], sender='trips.Room')
+def on_room(sender, **kwargs):
+    _broadcast('lists')
+
+
+# ── Calendário ────────────────────────────────────────────────────────────────
+
+@receiver([post_save, post_delete], sender='agenda.CalendarPreference')
+def on_calendar_preference(sender, **kwargs):
+    _broadcast('calendar')

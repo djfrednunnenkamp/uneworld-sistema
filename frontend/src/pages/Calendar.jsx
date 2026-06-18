@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { agendaApi } from '../api'
 import { Ic } from '../components/Icon'
+import { useWebSocket } from '../hooks/useWebSocket'
 import { useAuth } from '../context/AuthContext'
 import { canAccess } from '../utils/permissions'
 
@@ -180,6 +181,17 @@ export default function CalendarPage() {
       .catch(() => toast.error('Erro ao carregar eventos do calendário'))
       .finally(() => setLoading(false))
   }, [startISO, endISO, filterListId])
+
+  const silentRefreshEvents = useCallback(() => {
+    agendaApi.events(startISO, endISO, filterListId)
+      .then(r => setEvents(r.data.events || []))
+      .catch(() => {})
+  }, [startISO, endISO, filterListId])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback(({ scope }) => {
+    if (scope === 'lists' || scope === 'stats' || scope === 'calendar' || scope === 'all') silentRefreshEvents()
+  }, [silentRefreshEvents]))
 
   useEffect(() => {
     agendaApi.getPrefs()

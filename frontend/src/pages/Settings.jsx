@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
+import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 import DocTypesManager from '../components/DocTypesManager'
 import AccommodationManager from '../components/AccommodationManager'
 import AirportsManager from '../components/AirportsManager'
@@ -658,6 +660,7 @@ function exportEmailsCsv(emails) {
 
 export default function Settings() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const fileAllRef = useRef(null)
   const [listSearch, setListSearch] = useState('')
   const [activeList, setActiveList] = useState(null)
@@ -691,6 +694,23 @@ export default function Settings() {
     listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingCR(false))
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
   }, [])
+
+  const silentReloadConfig = useCallback(() => {
+    configApi.professions().then(r => setProfessions(r.data)).catch(() => {})
+    configApi.languages().then(r => setLanguages(r.data)).catch(() => {})
+    configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {})
+    configApi.genders().then(r => setGenders(r.data)).catch(() => {})
+    configApi.listCategories().then(r => setListCats(r.data)).catch(() => {})
+    configApi.profCards().then(r => setProfCards(r.data)).catch(() => {})
+    listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {})
+    listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {})
+    configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {})
+  }, [])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback(({ scope }) => {
+    if (scope === 'config' || scope === 'all') silentReloadConfig()
+  }, [silentReloadConfig]))
 
   const addProfession = async (name) => {
     try {

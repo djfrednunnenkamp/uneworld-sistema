@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import clsx from 'clsx'
 import { Plus, Map, Search, Edit2, Trash2 } from 'lucide-react'
 import { tripsApi } from '../api'
 import Button from '../components/ui/Button'
 import Spinner from '../components/ui/Spinner'
+import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 export default function Destinations() {
   const [destinations, setDestinations] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
+  const { user } = useAuth()
+  const searchRef = useRef(search)
+  useEffect(() => { searchRef.current = search }, [search])
 
   const load = (q = '') => {
     setLoading(true)
@@ -26,6 +31,25 @@ export default function Destinations() {
   }
 
   useEffect(() => { load() }, [])
+
+  const silentReload = useCallback(() => {
+    const q = searchRef.current
+    tripsApi.destinations()
+      .then((r) => {
+        const all = r.data.results ?? r.data
+        setDestinations(q
+          ? all.filter((d) =>
+              d.name.toLowerCase().includes(q.toLowerCase()) ||
+              d.country.toLowerCase().includes(q.toLowerCase()))
+          : all)
+      })
+      .catch(() => {})
+  }, [])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback(({ scope }) => {
+    if (scope === 'config' || scope === 'all') silentReload()
+  }, [silentReload]))
 
   return (
     <div className="space-y-5">

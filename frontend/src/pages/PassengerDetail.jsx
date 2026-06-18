@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import usePersistedTab from '../hooks/usePersistedTab'
 import { toast } from 'sonner'
 import axios from 'axios'
 import { passengersApi, documentsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
 import AgencyPicker from '../components/AgencyPicker'
@@ -232,6 +233,7 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
+  const { user } = useAuth()
 
   const load = () => {
     if (isNew || !passengerId || passengerId === 'novo') return
@@ -243,6 +245,18 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
   }
 
   useEffect(() => { load() }, [passengerId])
+
+  const silentReload = useCallback(() => {
+    if (isNew || !passengerId || passengerId === 'novo') return
+    documentsApi.list(passengerId)
+      .then(r => setDocs(r.data))
+      .catch(() => {})
+  }, [passengerId, isNew])
+
+  const wsUrlDocs = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrlDocs, useCallback(({ scope }) => {
+    if (scope === 'stats' || scope === 'all') silentReload()
+  }, [silentReload]))
 
   // Carrega tipos do banco para exibir ícone/cor corretamente
   useEffect(() => {
@@ -799,6 +813,22 @@ export default function PassengerDetail() {
         .finally(() => setLoading(false))
     }
   }, [id])
+
+  const isDirtyRef = useRef(isDirty)
+  useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
+
+  const silentReload = useCallback(() => {
+    if (!isNew && !isDirtyRef.current) {
+      passengersApi.get(id)
+        .then((r) => { setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] }) })
+        .catch(() => {})
+    }
+  }, [id, isNew])
+
+  const wsUrlPassenger = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrlPassenger, useCallback(({ scope }) => {
+    if (scope === 'stats' || scope === 'all') silentReload()
+  }, [silentReload]))
 
   /* Auto-limpa erros de validação quando o campo é preenchido */
   useEffect(() => {

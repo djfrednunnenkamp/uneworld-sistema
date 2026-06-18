@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { auditApi } from '../api'
 import DatePicker from '../components/DatePicker'
+import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 /* ── Estilos de ação ── */
 const ACTION_STYLE = {
@@ -266,6 +268,7 @@ export default function AuditLog() {
   const listId         = searchParams.get('list_id') || ''
   const passengerId    = searchParams.get('passenger_id') || ''
   const agencyId       = searchParams.get('agency_id') || ''
+  const { user } = useAuth()
 
   const [logs,     setLogs]     = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -273,6 +276,9 @@ export default function AuditLog() {
   const [page,     setPage]     = useState(1)
   const [selected, setSelected] = useState(null)
   const [filters,  setFilters]  = useState({ action: '', model: initModel, search: '', date_from: '', date_to: '' })
+
+  const pageRef    = useRef(1)
+  const filtersRef = useRef(filters)
 
   const load = useCallback(async (p = 1, f = filters) => {
     setLoading(true)
@@ -290,6 +296,7 @@ export default function AuditLog() {
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
       setPage(p)
+      pageRef.current = p
     } catch {}
     finally { setLoading(false) }
   }, [filters, listId, passengerId, agencyId])
@@ -299,8 +306,33 @@ export default function AuditLog() {
   const setFilter = (key, val) => {
     const next = { ...filters, [key]: val }
     setFilters(next)
+    filtersRef.current = next
     load(1, next)
   }
+
+  const silentReload = useCallback(async () => {
+    try {
+      const f = filtersRef.current
+      const p = pageRef.current
+      const params = { page: p, page_size: 50 }
+      if (f.action)    params.action    = f.action
+      if (f.model)     params.model     = f.model
+      if (f.search)    params.search    = f.search
+      if (f.date_from) params.date_from = f.date_from
+      if (f.date_to)   params.date_to   = f.date_to
+      if (listId)      params.list_id   = listId
+      if (passengerId) params.passenger_id = passengerId
+      if (agencyId)    params.agency_id    = agencyId
+      const r = await auditApi.list(params)
+      setLogs(r.data.results ?? r.data)
+      setCount(r.data.count ?? (r.data.results ?? r.data).length)
+    } catch {}
+  }, [listId, passengerId, agencyId])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback(({ scope }) => {
+    if (scope === 'audit' || scope === 'all') silentReload()
+  }, [silentReload]))
 
   const hasFilter = filters.action || filters.model || filters.search || filters.date_from || filters.date_to
   const totalPages = Math.ceil(count / 50)
