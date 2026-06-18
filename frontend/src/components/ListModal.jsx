@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { listsApi, configApi } from '../api'
 import FormSelect from './FormSelect'
 import DatePicker from './DatePicker'
@@ -247,12 +247,14 @@ const row2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }
 
 /* ── Campo de e-mails de notificação por lista ── */
 function NotificationEmailsField({ emails, onChange }) {
-  const [inputVal, setInputVal] = useState('')
+  const [inputVal,   setInputVal]   = useState('')
+  const [emailError, setEmailError] = useState('')
 
   const add = () => {
     const v = inputVal.trim().toLowerCase()
-    if (!v || !v.includes('@')) { toast.error('E-mail inválido.'); return }
-    if (emails.includes(v)) { toast.error('E-mail já adicionado.'); return }
+    if (!v || !v.includes('@')) { setEmailError('E-mail inválido.'); return }
+    if (emails.includes(v)) { setEmailError('E-mail já adicionado.'); return }
+    setEmailError('')
     setInputVal('')
     onChange([...emails, v])
   }
@@ -276,16 +278,18 @@ function NotificationEmailsField({ emails, onChange }) {
       </div>
       <div style={{ display:'flex', gap:8 }}>
         <input
-          type="email" value={inputVal} onChange={e => setInputVal(e.target.value)}
+          type="email" value={inputVal}
+          onChange={e => { setInputVal(e.target.value); setEmailError('') }}
           placeholder="Adicionar e-mail…"
           onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
-          style={{ flex:1, padding:'7px 10px', border:'1px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none' }}
+          style={{ flex:1, padding:'7px 10px', border:`1px solid ${emailError ? '#ef4444' : '#e2e8f0'}`, borderRadius:8, fontSize:13, outline:'none', background: emailError ? '#fef2f2' : '#fff' }}
         />
         <button type="button" onClick={add}
           style={{ padding:'7px 14px', background:'#2e6db4', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
           +
         </button>
       </div>
+      {emailError && <p style={{ fontSize:11, color:'#dc2626', margin:'4px 0 0', fontWeight:500 }}>{emailError}</p>}
     </div>
   )
 }
@@ -308,6 +312,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     notification_emails: Array.isArray(initial.notification_emails) ? initial.notification_emails : [],
   } : { ...EMPTY })
   const [saving,      setSaving]      = useState(false)
+  const [fe,          setFe]          = useState({})
   const [suppliers,   setSuppliers]   = useState([])
   const [additionals, setAdditionals] = useState([])
   const [roteiros,    setRoteiros]    = useState([])
@@ -368,7 +373,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
     )
   }
 
-  const set  = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const set  = (k) => (e) => { setForm(f => ({ ...f, [k]: e.target.value })); setFe(p => { const n={...p}; delete n[k]; return n }) }
   const setV = (k, v)     => setForm(f => ({ ...f, [k]: v }))
 
   const toggleItem = (key, itemId) => setForm(f => {
@@ -408,7 +413,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
   }
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error('Nome da lista é obrigatório.'); return }
+    if (!form.name.trim()) { setFe({ name: true }); return }
     setSaving(true)
     try {
       const payload = {
@@ -453,8 +458,10 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
             {/* Nome */}
             <div>
               <label style={lbl}>Nome da Lista de Passageiros</label>
-              <input value={form.name} onChange={set('name')} style={inp}
+              <input value={form.name} onChange={set('name')}
+                style={{ ...inp, ...(fe.name ? { border:'1.5px solid #ef4444', background:'#fef2f2' } : {}) }}
                 placeholder="Ex: SUÍÇA MARAVILHOSA C/TREM GLACIER EXPRESS…" />
+              {fe.name && <p style={{ fontSize:11, color:'#dc2626', margin:'3px 0 0', fontWeight:500 }}>Campo obrigatório</p>}
             </div>
 
             {/* Roteiros */}

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { agenciesApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'

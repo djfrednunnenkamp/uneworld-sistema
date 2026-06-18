@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { documentsApi, configApi } from '../api'
 import { Ic } from './Icon'
 import CountryPicker from './CountryPicker'

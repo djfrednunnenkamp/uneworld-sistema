@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
+import { Toaster } from 'sonner'
 import Sidebar from './Sidebar'
 import AccountModal from './AccountModal'
 import ChangePasswordModal from './ChangePasswordModal'
@@ -105,7 +105,9 @@ export default function Layout() {
 
       <Toaster
         position="bottom-right"
-        toastOptions={{ duration: 4000, style: { borderRadius: 8, fontSize: 13, fontFamily: 'inherit' } }}
+        richColors
+        expand={false}
+        toastOptions={{ duration: 4000, style: { fontFamily: 'inherit', fontSize: 13 } }}
       />
 
       {showAccount  && <AccountModal        onClose={() => setShowAccount(false)}  onSaved={refreshUser} />}

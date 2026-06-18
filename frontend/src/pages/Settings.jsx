@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import DocTypesManager from '../components/DocTypesManager'

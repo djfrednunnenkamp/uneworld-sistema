@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { agenciesApi, usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { Ic } from '../components/Icon'
@@ -515,11 +515,6 @@ export default function AgencyDetail() {
 
     if (Object.keys(errs).length) {
       setFieldErrors(errs)
-      const missing = Object.keys(errs)
-        .map(k => REQUIRED_LABELS[k] || k)
-        .filter((v, i, a) => a.indexOf(v) === i)
-        .join(', ')
-      toast.error(`Campos obrigatórios em branco: ${missing}`, { duration: 5000 })
       setTimeout(() => {
         const first = document.querySelector('[data-err="true"] input, [data-err="true"] .fi, [data-err="true"]')
         if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' })

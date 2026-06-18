@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { usersApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import DelModal from '../components/DelModal'
@@ -352,11 +352,12 @@ function UserModal({ user, onClose, onSaved }) {
     : { ...EMPTY })
   const [skipPwd,    setSkipPwd]    = useState(false)
   const [saving,     setSaving]     = useState(false)
+  const [fe,         setFe]         = useState({})
   const [emailPrefs, setEmailPrefs] = useState({ receive_deadline_emails: false, receive_task_emails: false, receive_birthday_emails: false })
   const isEdit  = !!user
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
-  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+  const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setFe(p => { const n={...p}; delete n[k]; return n }) }
   const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
   const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, Object.fromEntries(keys.map(k => [k, val]))) }))
 
@@ -369,8 +370,10 @@ function UserModal({ user, onClose, onSaved }) {
   }, [isEdit, user?.id])
 
   const save = async () => {
-    if (!form.email?.trim()) { toast.error('E-mail obrigatório.'); return }
-    if (!isEdit && !skipPwd && !form.password) { toast.error('Defina uma senha ou marque para enviar convite por e-mail.'); return }
+    const errs = {}
+    if (!form.email?.trim()) errs.email = true
+    if (!isEdit && !skipPwd && !form.password) errs.password = true
+    if (Object.keys(errs).length) { setFe(errs); return }
     setSaving(true)
     try {
       let savedId = user?.id
@@ -413,7 +416,11 @@ function UserModal({ user, onClose, onSaved }) {
             <div><label style={lbl}>Primeiro nome</label><input style={inp} value={form.first_name} onChange={set('first_name')} placeholder="Ana" /></div>
             <div><label style={lbl}>Sobrenome</label><input style={inp} value={form.last_name} onChange={set('last_name')} placeholder="Silva" /></div>
           </div>
-          <div><label style={lbl}>E-mail * <span style={{fontWeight:400,textTransform:'none',color:'#94a3b8'}}>(será o login)</span></label><input style={inp} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" /></div>
+          <div>
+            <label style={lbl}>E-mail * <span style={{fontWeight:400,textTransform:'none',color:'#94a3b8'}}>(será o login)</span></label>
+            <input style={{...inp, ...(fe.email ? {border:'1px solid #ef4444',background:'#fef2f2'} : {})}} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" />
+            {fe.email && <p style={{fontSize:11,color:'#dc2626',margin:'3px 0 0',fontWeight:500}}>E-mail obrigatório</p>}
+          </div>
 
           {!isEdit && (
             <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer',fontSize:12.5,color:'#475569',padding:'9px 11px',borderRadius:7,border:'1px solid #e2e8f0',background:'#f8fafc'}}>
@@ -425,7 +432,8 @@ function UserModal({ user, onClose, onSaved }) {
           {!skipPwd && (
             <div>
               <label style={lbl}>{isEdit ? 'Nova senha (deixe vazio para manter)' : 'Senha *'}</label>
-              <PasswordInput style={inp} value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••••' : 'Mínimo 8 caracteres'} />
+              <PasswordInput style={{...inp, ...(fe.password ? {border:'1px solid #ef4444',background:'#fef2f2'} : {})}} value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••••' : 'Mínimo 8 caracteres'} />
+              {fe.password && <p style={{fontSize:11,color:'#dc2626',margin:'3px 0 0',fontWeight:500}}>Defina uma senha ou marque para enviar convite por e-mail</p>}
             </div>
           )}
 

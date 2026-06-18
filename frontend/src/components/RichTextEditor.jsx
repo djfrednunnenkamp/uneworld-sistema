@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import JoditEditor from 'jodit-react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Ic } from './Icon'
 
 const TOOLBAR_BUTTONS = [

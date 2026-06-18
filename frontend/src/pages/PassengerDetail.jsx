@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import usePersistedTab from '../hooks/usePersistedTab'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import axios from 'axios'
 import { passengersApi, documentsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -892,25 +892,6 @@ export default function PassengerDetail() {
     if (Object.keys(errs).length) {
       setFieldErrors(errs)
       setTab('info')
-
-      // Rótulos legíveis dos campos obrigatórios em falta
-      const LABELS = {
-        first_name:   'Primeiro nome',
-        last_name:    'Sobrenome',
-        email:        'E-mail',
-        cpf:          'CPF',
-        gender:       'Gênero',
-        birth_date:   'Data de nascimento',
-        phone1:       'Telefone',
-        street:       'Endereço',
-        city:         'Cidade',
-        cep:          'CEP',
-        number:       'Número',
-        neighborhood: 'Bairro',
-        country:      'País',
-      }
-      const missing = Object.keys(errs).map(k => LABELS[k] || k).join(', ')
-      toast.error(`Campos obrigatórios em branco: ${missing}`, { duration: 5000 })
 
       // Rola até o primeiro campo com erro após a re-renderização
       setTimeout(() => {
