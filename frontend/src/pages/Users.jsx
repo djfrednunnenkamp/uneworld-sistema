@@ -249,7 +249,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
         await usersApi.update(user.id, { ...form, permissions: undefined })
         toast.success('Perfil atualizado.')
       } else {
-        await usersApi.update(user.id, { permissions: form.permissions })
+        await usersApi.update(user.id, { permissions: form.permissions, is_superuser: form.is_superuser })
         toast.success('Permissões atualizadas.')
       }
       if (savedId || mode !== 'perms') {
