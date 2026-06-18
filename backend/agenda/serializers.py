@@ -6,15 +6,21 @@ from .models import CalendarPreference, EmailLog
 class CalendarPreferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model  = CalendarPreference
-        fields = ['digest_enabled', 'digest_frequency', 'reminder_enabled', 'reminder_days_before',
+        fields = ['digest_enabled', 'digest_frequency', 'digest_send_hour',
+                  'reminder_enabled', 'reminder_days_before',
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position']
 
-    def validate_send_hour(self, value):
-        allowed = [7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 20]
-        if value not in allowed:
+    def _validate_hour(self, value):
+        if value not in [7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 20]:
             raise serializers.ValidationError('Horário inválido.')
         return value
+
+    def validate_send_hour(self, value):
+        return self._validate_hour(value)
+
+    def validate_digest_send_hour(self, value):
+        return self._validate_hour(value)
 
     def validate_reminder_days_before(self, value):
         if value < 0 or value > 30:

@@ -2,22 +2,16 @@ import { useState, useEffect } from 'react'
 import { authApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 
+const HOURS = [7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 20]
+
 const overlay = {
-  position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   zIndex: 1000, padding: 20,
 }
-const card = {
-  background: '#fff', borderRadius: 14, width: '100%', maxWidth: 420,
-  boxShadow: '0 24px 60px rgba(0,0,0,.25)', overflow: 'hidden',
-}
-const header = {
-  padding: '20px 24px 16px', borderBottom: '1px solid #e2e8f0',
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-}
 const inp = {
   width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0',
-  borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit',
+  borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit',
   color: '#0f172a', boxSizing: 'border-box', transition: 'border-color .15s',
 }
 const lbl = {
@@ -27,18 +21,74 @@ const lbl = {
 
 function Toggle({ checked, onChange }) {
   return (
-    <label style={{ position: 'relative', display: 'inline-block', width: 36, height: 20, flexShrink: 0, cursor: 'pointer' }}>
+    <label style={{ position: 'relative', display: 'inline-block', width: 38, height: 22, flexShrink: 0, cursor: 'pointer' }}>
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
         style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
       <span style={{
-        position: 'absolute', inset: 0, borderRadius: 20, transition: 'background .2s',
+        position: 'absolute', inset: 0, borderRadius: 22, transition: 'background .2s',
         background: checked ? '#1a2d4f' : '#cbd5e1',
       }} />
       <span style={{
-        position: 'absolute', top: 3, left: checked ? 19 : 3, width: 14, height: 14,
-        borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+        position: 'absolute', top: 4, left: checked ? 20 : 4, width: 14, height: 14,
+        borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.25)',
       }} />
     </label>
+  )
+}
+
+function TimeGrid({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+      {HOURS.map(h => {
+        const active = value === h
+        return (
+          <button key={h} type="button" onClick={() => onChange(h)} style={{
+            padding: '5px 11px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 12, fontWeight: 600, transition: 'all .12s',
+            border: active ? '1.5px solid #1a2d4f' : '1.5px solid #e2e8f0',
+            background: active ? '#1a2d4f' : '#fff',
+            color: active ? '#fff' : '#64748b',
+          }}>
+            {String(h).padStart(2, '0')}h
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Section({ title, children }) {
+  return (
+    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 18 }}>
+      <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.08em' }}>{title}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function NotifCard({ label, desc, checked, onToggle, hour, onHour }) {
+  return (
+    <div style={{
+      borderRadius: 10, border: `1.5px solid ${checked ? '#c7d9f5' : '#e2e8f0'}`,
+      background: checked ? '#f0f5fe' : '#f8fafc',
+      transition: 'all .15s', overflow: 'hidden',
+    }}>
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 14px', cursor: 'pointer' }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{label}</p>
+          <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8', lineHeight: 1.4 }}>{desc}</p>
+        </div>
+        <Toggle checked={checked} onChange={onToggle} />
+      </label>
+      {checked && (
+        <div style={{ padding: '0 14px 12px', borderTop: '1px solid #dbeafe' }}>
+          <p style={{ margin: '10px 0 4px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em' }}>Horário de envio</p>
+          <TimeGrid value={hour} onChange={onHour} />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -54,9 +104,13 @@ export default function AccountModal({ onClose, onSaved }) {
   const [prefs, setPrefs] = useState({
     digest_enabled:          false,
     digest_frequency:        'daily',
+    digest_send_hour:        8,
     receive_deadline_emails: false,
+    deadline_send_hour:      8,
     receive_task_emails:     false,
+    task_send_hour:          8,
     receive_birthday_emails: false,
+    birthday_send_hour:      8,
     send_hour:               8,
   })
 
@@ -68,6 +122,7 @@ export default function AccountModal({ onClose, onSaved }) {
         ...p,
         digest_enabled:          !!r.data.digest_enabled,
         digest_frequency:        r.data.digest_frequency || 'daily',
+        digest_send_hour:        r.data.digest_send_hour ?? 8,
         receive_deadline_emails: !!r.data.receive_deadline_emails,
         receive_task_emails:     !!r.data.receive_task_emails,
         receive_birthday_emails: !!r.data.receive_birthday_emails,
@@ -76,13 +131,23 @@ export default function AccountModal({ onClose, onSaved }) {
       .catch(() => {})
   }, [])
 
+  const set = (key, val) => setPrefs(p => ({ ...p, [key]: val }))
+
   const handleSave = async (e) => {
     e.preventDefault()
     if (!email.trim()) { setError('O e-mail é obrigatório.'); return }
     setLoading(true); setError('')
     try {
       await authApi.updateMe({ first_name: firstName, last_name: lastName, email: email.trim().toLowerCase() })
-      await agendaApi.updatePrefs(prefs)
+      await agendaApi.updatePrefs({
+        digest_enabled:          prefs.digest_enabled,
+        digest_frequency:        prefs.digest_frequency,
+        digest_send_hour:        prefs.digest_send_hour,
+        receive_deadline_emails: prefs.receive_deadline_emails,
+        receive_task_emails:     prefs.receive_task_emails,
+        receive_birthday_emails: prefs.receive_birthday_emails,
+        send_hour:               prefs.send_hour,
+      })
       await onSaved()
       setSuccess(true)
       setTimeout(onClose, 900)
@@ -91,20 +156,26 @@ export default function AccountModal({ onClose, onSaved }) {
     } finally { setLoading(false) }
   }
 
-  const EMAIL_OPTS = [
-    { key: 'receive_deadline_emails', label: 'Prazos de confirmação',      desc: 'E-mail quando passageiros têm prazo vencendo hoje ou em 2 dias' },
-    { key: 'receive_task_emails',     label: 'Pendências',                  desc: 'E-mail quando tarefas têm prazo vencendo hoje' },
-    ...(canSeeSensitive ? [{ key: 'receive_birthday_emails', label: 'Aniversários de passageiros', desc: 'E-mail com passageiros que fazem aniversário hoje' }] : []),
-  ]
+  const selStyle = {
+    width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0',
+    borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#0f172a',
+    outline: 'none', background: '#fff',
+  }
 
   return (
     <div style={overlay} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={card}>
-        <div style={header}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 24px 60px rgba(0,0,0,.25)', display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
+
+        {/* Header */}
+        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Minha conta</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20, lineHeight: 1, padding: 2 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 22, lineHeight: 1, padding: 2 }}>×</button>
         </div>
-        <form onSubmit={handleSave} style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Scrollable body */}
+        <form onSubmit={handleSave} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
+
+          {/* Dados pessoais */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={lbl}>Nome</label>
@@ -123,76 +194,80 @@ export default function AccountModal({ onClose, onSaved }) {
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
 
-          {/* Resumo automático do calendário */}
-          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
-            <label style={lbl}>Resumo do calendário</label>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', marginBottom: 8 }}>
-              <div>
-                <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>Resumo automático periódico</p>
-                <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>Recebe um e-mail com seus próximos eventos e prazos</p>
-              </div>
-              <Toggle checked={!!prefs.digest_enabled} onChange={v => setPrefs(p => ({ ...p, digest_enabled: v }))} />
-            </label>
+          {/* Resumo do calendário */}
+          <Section title="Resumo do calendário">
+            <NotifCard
+              label="Resumo automático periódico"
+              desc="E-mail com seus próximos eventos e prazos do calendário"
+              checked={prefs.digest_enabled}
+              onToggle={v => set('digest_enabled', v)}
+              hour={prefs.digest_send_hour}
+              onHour={v => set('digest_send_hour', v)}
+            />
             {prefs.digest_enabled && (
-              <div style={{ padding: '0 4px 8px' }}>
+              <div style={{ padding: '2px 4px' }}>
                 <label style={lbl}>Frequência</label>
-                <select value={prefs.digest_frequency} onChange={e => setPrefs(p => ({ ...p, digest_frequency: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#0f172a', outline: 'none', background: '#fff' }}>
+                <select value={prefs.digest_frequency} onChange={e => set('digest_frequency', e.target.value)} style={selStyle}>
                   <option value="daily">Diário</option>
                   <option value="weekly">Semanal (segundas-feiras)</option>
                 </select>
               </div>
             )}
-          </div>
+          </Section>
 
-          {/* Notificações por e-mail */}
-          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
-            <label style={lbl}>Notificações por e-mail</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {EMAIL_OPTS.map(({ key, label, desc }) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer' }}>
-                  <div>
-                    <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{label}</p>
-                    <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>{desc}</p>
-                  </div>
-                  <Toggle checked={!!prefs[key]} onChange={v => setPrefs(p => ({ ...p, [key]: v }))} />
-                </label>
-              ))}
-            </div>
-
-            {/* Horário de envio — aparece se qualquer notificação ou resumo estiver ativo */}
-            {(prefs.digest_enabled || prefs.receive_deadline_emails || prefs.receive_task_emails || prefs.receive_birthday_emails) && (
-              <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                <label style={{ ...lbl, marginBottom: 6 }}>Horário de envio</label>
-                <p style={{ margin: '0 0 8px', fontSize: 11.5, color: '#94a3b8' }}>Os e-mails automáticos são enviados uma vez por dia neste horário</p>
-                <select
-                  value={prefs.send_hour}
-                  onChange={e => setPrefs(p => ({ ...p, send_hour: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#0f172a', outline: 'none', background: '#fff' }}>
-                  {[7,8,9,10,12,13,14,17,18,19,20].map(h => (
-                    <option key={h} value={h}>{String(h).padStart(2,'0')}:00</option>
-                  ))}
-                </select>
-              </div>
+          {/* Notificações diárias */}
+          <Section title="Notificações diárias">
+            <NotifCard
+              label="Prazos de confirmação"
+              desc="Passageiros com prazo vencendo hoje ou em 2 dias"
+              checked={prefs.receive_deadline_emails}
+              onToggle={v => set('receive_deadline_emails', v)}
+              hour={prefs.send_hour}
+              onHour={v => set('send_hour', v)}
+            />
+            <NotifCard
+              label="Pendências"
+              desc="Tarefas com prazo vencendo hoje"
+              checked={prefs.receive_task_emails}
+              onToggle={v => set('receive_task_emails', v)}
+              hour={prefs.send_hour}
+              onHour={v => set('send_hour', v)}
+            />
+            {canSeeSensitive && (
+              <NotifCard
+                label="Aniversários de passageiros"
+                desc="Passageiros que fazem aniversário hoje"
+                checked={prefs.receive_birthday_emails}
+                onToggle={v => set('receive_birthday_emails', v)}
+                hour={prefs.send_hour}
+                onHour={v => set('send_hour', v)}
+              />
             )}
-          </div>
+            {(prefs.receive_deadline_emails || prefs.receive_task_emails || prefs.receive_birthday_emails) && (
+              <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#94a3b8' }}>
+                As notificações diárias são enviadas em um único e-mail no horário acima.
+              </p>
+            )}
+          </Section>
 
           {error && (
             <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '9px 12px', color: '#dc2626', fontSize: 13 }}>
               {error}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button type="button" onClick={onClose}
-              style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Cancelar
-            </button>
-            <button type="submit" disabled={loading || success}
-              style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: success ? '#16a34a' : loading ? '#94a3b8' : '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (loading || success) ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'background .15s' }}>
-              {success ? '✓ Salvo' : loading ? 'Salvando…' : 'Salvar'}
-            </button>
-          </div>
         </form>
+
+        {/* Footer fixo */}
+        <div style={{ padding: '14px 24px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 10, justifyContent: 'flex-end', flexShrink: 0 }}>
+          <button type="button" onClick={onClose}
+            style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={loading || success}
+            style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: success ? '#16a34a' : loading ? '#94a3b8' : '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (loading || success) ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'background .15s' }}>
+            {success ? '✓ Salvo' : loading ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -38,17 +38,13 @@ def run_once():
     )
 
     for pref in prefs:
-        # Só envia a partir do horário configurado pelo usuário
-        if current_hour < pref.send_hour:
-            continue
-
-        if pref.digest_enabled and pref.last_digest_sent != today:
+        if pref.digest_enabled and pref.last_digest_sent != today and current_hour >= pref.digest_send_hour:
             is_due = pref.digest_frequency == 'daily' or today.weekday() == 0
             if is_due and send_digest_email(pref.user):
                 pref.last_digest_sent = today
                 pref.save(update_fields=['last_digest_sent'])
 
-        if pref.reminder_enabled and pref.last_reminder_sent != today:
+        if pref.reminder_enabled and pref.last_reminder_sent != today and current_hour >= pref.digest_send_hour:
             if send_reminder_email(pref.user, pref.reminder_days_before):
                 pref.last_reminder_sent = today
                 pref.save(update_fields=['last_reminder_sent'])
