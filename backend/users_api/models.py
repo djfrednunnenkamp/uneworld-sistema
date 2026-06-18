@@ -80,6 +80,7 @@ class UserPermissions(models.Model):
     # Usuários
     users_view               = models.BooleanField(default=False)
     users_edit               = models.BooleanField(default=False)
+    users_block              = models.BooleanField(default=False)
     users_delete             = models.BooleanField(default=False)
     users_manage_permissions = models.BooleanField(default=False)
     users_set_password       = models.BooleanField(default=False)

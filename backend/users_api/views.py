@@ -181,6 +181,7 @@ def user_update(request, pk):
         if 'first_name' in data: user.first_name = data['first_name']
         if 'last_name'  in data: user.last_name  = data['last_name']
         if 'email'      in data: user.email      = data['email']
+    if has_any_perm(request.user, 'manage_users', 'users_edit', 'users_block'):
         if 'is_active'  in data: user.is_active  = bool(data['is_active'])
 
     # Apenas superusuários existentes podem conceder/revogar superusuário

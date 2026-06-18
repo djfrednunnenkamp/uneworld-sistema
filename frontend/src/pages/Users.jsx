@@ -609,9 +609,9 @@ function BlockOrDeleteModal({ user, onBlock, onDelete, onClose, initialStep = 'c
               Tem certeza que deseja bloquear <b style={{ color:'#1e293b' }}>{name}</b>? O usuário perderá o acesso imediatamente.
             </p>
             <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button onClick={() => setStep('choose')} disabled={busy}
+              <button onClick={() => initialStep === 'block' ? onClose() : setStep('choose')} disabled={busy}
                 style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
-                Voltar
+                {initialStep === 'block' ? 'Cancelar' : 'Voltar'}
               </button>
               <button onClick={doBlock} disabled={busy}
                 style={{ padding:'8px 18px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
@@ -799,6 +799,7 @@ export default function Users() {
   const isSu       = !!me?.is_superuser
   const canCreate      = isSu || !!myP.manage_users || !!myP.users_edit
   const canManagePerms = isSu || !!myP.manage_users || !!myP.users_manage_permissions
+  const canBlockU      = isSu || !!myP.manage_users || !!myP.users_block
   const canDeleteU     = isSu || !!myP.manage_users || !!myP.users_delete
   const canSetPassword = isSu || !!myP.manage_users || !!myP.users_set_password
   const canViewLog     = isSu || !!myP.view_audit_log || !!myP.log_users || !!myP.log_view
@@ -1103,12 +1104,22 @@ export default function Users() {
                           </button>
                         )}
                       </>) : (
-                        <button className="r-btn" title="Desbloquear acesso" style={{color:'#16a34a'}} onClick={() => setUnblockUser(u)}>
+                        canBlockU && <button className="r-btn" title="Desbloquear acesso" style={{color:'#16a34a'}} onClick={() => setUnblockUser(u)}>
                           <Ic n="unlock" s={13}/>
                         </button>
                       )}
-                      {canDeleteU && u.id !== me?.id && (
-                        <button className="r-btn del" title={u.is_active ? 'Bloquear / Excluir' : 'Excluir permanentemente'} onClick={() => setActionUser(u)}><Ic n="trash" s={13}/></button>
+                      {(canBlockU || canDeleteU) && u.id !== me?.id && (
+                        <button className="r-btn del"
+                          title={
+                            u.is_active
+                              ? canBlockU && canDeleteU ? 'Bloquear / Excluir'
+                                : canBlockU ? 'Bloquear acesso'
+                                : 'Excluir permanentemente'
+                              : 'Excluir permanentemente'
+                          }
+                          onClick={() => setActionUser(u)}>
+                          <Ic n="trash" s={13}/>
+                        </button>
                       )}
                     </div>
                   </td>
@@ -1140,7 +1151,12 @@ export default function Users() {
           onBlock={handleBlock}
           onDelete={handleDelete}
           onClose={() => setActionUser(null)}
-          initialStep={actionUser.is_active ? 'choose' : 'delete'}
+          initialStep={
+            !actionUser.is_active ? 'delete'
+              : canBlockU && canDeleteU ? 'choose'
+              : canBlockU ? 'block'
+              : 'delete'
+          }
         />
       )}
       {permModal && (

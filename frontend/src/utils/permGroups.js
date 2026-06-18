@@ -84,7 +84,8 @@ export const PERM_GROUPS = [
     items: [
       ['users_view',               'Ver lista de usuários'],
       ['users_edit',               'Criar / Editar usuários'],
-      ['users_delete',             'Excluir usuários'],
+      ['users_block',              'Bloquear / Desbloquear usuários'],
+      ['users_delete',             'Excluir usuários permanentemente'],
       ['users_manage_permissions', 'Gerenciar permissões'],
       ['users_set_password',       'Definir senha via admin'],
     ],
@@ -169,6 +170,7 @@ export const PERM_DEPENDENCIES = {
   email_resend_actions: 'email_log_preview',
 
   users_edit:               'users_view',
+  users_block:              'users_view',
   users_delete:             'users_view',
   users_manage_permissions: 'users_view',
   users_set_password:       'users_view',
