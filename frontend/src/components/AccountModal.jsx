@@ -52,6 +52,8 @@ export default function AccountModal({ onClose, onSaved }) {
   const [success,   setSuccess]   = useState(false)
 
   const [prefs, setPrefs] = useState({
+    digest_enabled:          false,
+    digest_frequency:        'daily',
     receive_deadline_emails: false,
     receive_task_emails:     false,
     receive_birthday_emails: false,
@@ -63,6 +65,8 @@ export default function AccountModal({ onClose, onSaved }) {
     agendaApi.getPrefs()
       .then(r => setPrefs(p => ({
         ...p,
+        digest_enabled:          !!r.data.digest_enabled,
+        digest_frequency:        r.data.digest_frequency || 'daily',
         receive_deadline_emails: !!r.data.receive_deadline_emails,
         receive_task_emails:     !!r.data.receive_task_emails,
         receive_birthday_emails: !!r.data.receive_birthday_emails,
@@ -115,6 +119,28 @@ export default function AccountModal({ onClose, onSaved }) {
             <label style={lbl}>E-mail</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+          </div>
+
+          {/* Resumo automático do calendário */}
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
+            <label style={lbl}>Resumo do calendário</label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', marginBottom: 8 }}>
+              <div>
+                <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>Resumo automático periódico</p>
+                <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>Recebe um e-mail com seus próximos eventos e prazos</p>
+              </div>
+              <Toggle checked={!!prefs.digest_enabled} onChange={v => setPrefs(p => ({ ...p, digest_enabled: v }))} />
+            </label>
+            {prefs.digest_enabled && (
+              <div style={{ padding: '0 4px 8px' }}>
+                <label style={lbl}>Frequência</label>
+                <select value={prefs.digest_frequency} onChange={e => setPrefs(p => ({ ...p, digest_frequency: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#0f172a', outline: 'none', background: '#fff' }}>
+                  <option value="daily">Diário</option>
+                  <option value="weekly">Semanal (segundas-feiras)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Notificações por e-mail */}

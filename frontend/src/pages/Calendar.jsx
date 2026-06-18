@@ -152,10 +152,8 @@ export default function CalendarPage() {
   const [events, setEvents]       = useState([])
   const [loading, setLoading]     = useState(true)
   const [dayModal, setDayModal]   = useState(null)
-  const [prefsOpen, setPrefsOpen] = useState(false)
-  const [prefs, setPrefs]         = useState(null)
-  const [savingPrefs, setSavingPrefs] = useState(false)
-  const [sending, setSending]     = useState(false)
+  const [prefs, setPrefs]     = useState(null)
+  const [sending, setSending] = useState(false)
 
   const todayISO = toISO(new Date())
 
@@ -234,16 +232,6 @@ export default function CalendarPage() {
     if (canNav(ev)) navigate(ev.url)
   }
 
-  const openPrefs = () => setPrefsOpen(true)
-
-  const savePrefs = () => {
-    setSavingPrefs(true)
-    agendaApi.updatePrefs(prefs)
-      .then(r => { setPrefs(r.data); toast.success('Preferências salvas') })
-      .catch(() => toast.error('Erro ao salvar preferências'))
-      .finally(() => setSavingPrefs(false))
-  }
-
   const sendNow = () => {
     setSending(true)
     agendaApi.sendNow()
@@ -277,8 +265,8 @@ export default function CalendarPage() {
           <button className={`btn btn-outline ${prefs?.side_panel_enabled ? 'active' : ''}`} onClick={toggleSidePanel} disabled={!prefs}>
             <Ic n="grid" s={14}/> Painel lateral
           </button>
-          <button className="btn btn-outline" onClick={openPrefs}>
-            <Ic n="settings" s={14}/> Notificações
+          <button className="btn btn-outline" onClick={sendNow} disabled={sending}>
+            <Ic n="ul" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo'}
           </button>
         </div>
       </div>
@@ -395,49 +383,7 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Preferências de notificação */}
-      {prefsOpen && (
-        <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setPrefsOpen(false) }}>
-          <div className="mbox" style={{ maxWidth:440, width:'100%' }}>
-            <div className="mhead">
-              <span className="mtitle">Notificações do calendário</span>
-              <button className="mclose" onClick={() => setPrefsOpen(false)}><Ic n="x" s={14}/></button>
-            </div>
-            <div className="mbody">
-              {!prefs ? (
-                <p style={{ color:'#94a3b8', fontSize:14 }}>Carregando…</p>
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  <Toggle label="Resumo automático periódico" value={prefs.digest_enabled}
-                    onChange={(v) => setPrefs({ ...prefs, digest_enabled: v })} />
-                  {prefs.digest_enabled && (
-                    <div className="ff">
-                      <label className="fl">Frequência do resumo</label>
-                      <select className="fs" value={prefs.digest_frequency}
-                        onChange={e => setPrefs({ ...prefs, digest_frequency: e.target.value })}>
-                        <option value="daily">Diário</option>
-                        <option value="weekly">Semanal (segundas-feiras)</option>
-                      </select>
-                    </div>
-                  )}
 
-                  <div style={{ borderTop:'1px solid #e2e8f0', paddingTop:12 }}>
-                    <button className="btn btn-outline" onClick={sendNow} disabled={sending} style={{ width:'100%', justifyContent:'center' }}>
-                      <Ic n="ul" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo agora'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="mfoot">
-              <button className="btn btn-outline" onClick={() => setPrefsOpen(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={savePrefs} disabled={!prefs || savingPrefs}>
-                {savingPrefs ? 'Salvando…' : 'Salvar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
