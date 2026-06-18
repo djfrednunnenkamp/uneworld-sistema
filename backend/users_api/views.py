@@ -296,8 +296,7 @@ def accept_invite(request):
     invite.used = True
     invite.save()
 
-    login(request, user)
-    return Response(serialize_user(user))
+    return Response({'message': 'Conta ativada com sucesso.', 'email': user.email})
 
 
 @api_view(['DELETE'])
