@@ -37,6 +37,11 @@ function EmailPreviewModal({ log, onClose }) {
   const { timeFormat } = usePrefs()
   const fmtDt = (iso) => fmtDateTime(iso, timeFormat)
 
+  // Injeta <base target="_blank"> para que todos os links abram em nova aba
+  const srcDoc = log.html_body
+    ? log.html_body.replace(/(<head[^>]*>)/i, '$1<base target="_blank" rel="noreferrer">')
+    : ''
+
   const handleLoad = () => {
     const iframe = iframeRef.current
     if (!iframe) return
@@ -60,11 +65,11 @@ function EmailPreviewModal({ log, onClose }) {
         <div style={{ overflowY:'auto', borderRadius:'0 0 12px 12px' }}>
           <iframe
             ref={iframeRef}
-            srcDoc={log.html_body}
+            srcDoc={srcDoc}
             title="preview"
             onLoad={handleLoad}
             style={{ width:'100%', border:'none', display:'block' }}
-            sandbox="allow-same-origin"
+            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
           />
         </div>
       </div>
