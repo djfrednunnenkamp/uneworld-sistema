@@ -50,7 +50,6 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
   /* Inicializa view ao abrir e calcula posição fixed se necessário */
   useEffect(() => {
     if (open) {
-      // Abre no mês da data relacionada (par início/fim), senão na selecionada, senão hoje
       const d = related || selected || today
       setView({ year: d.getFullYear(), month: d.getMonth() })
       setDecadeStart(Math.floor(d.getFullYear() / 10) * 10)
@@ -78,7 +77,6 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
     if (raw.length > 4) fmt = raw.slice(0,2) + '/' + raw.slice(2,4) + '/' + raw.slice(4)
     setInputVal(fmt)
 
-    // Atualiza view do calendário conforme digita
     if (raw.length >= 4 && view) {
       const mm = parseInt(raw.slice(2,4))
       if (mm >= 1 && mm <= 12) setView(v => ({ ...v, month: mm-1 }))
@@ -91,7 +89,6 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
       }
     }
 
-    // Chama onChange quando a data for válida completa
     if (fmt.length === 10) {
       const iso = displayToIso(fmt)
       if (iso) onChange(iso)
@@ -100,12 +97,11 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
     }
   }
 
-  /* Clique num dia no calendário */
+  /* Seleciona um dia — popup permanece aberto para o usuário ver a seleção */
   const pick = (year, month, day) => {
     const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
     onChange(iso)
     setInputVal(isoToDisplay(iso))
-    setOpen(false)
   }
 
   const prevM = () => setView(v => v.month===0 ? {year:v.year-1,month:11} : {...v,month:v.month-1})
@@ -127,6 +123,36 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
   if (hoverDay != null && related && view) {
     const hovered = new Date(view.year, view.month, hoverDay)
     hoverDuration = Math.round(Math.abs(hovered - related) / 86400000) + 1
+  }
+
+  /* Computa estilo de cada célula de dia, incluindo range de hover */
+  const cellStyle = (day) => {
+    const sel = isSel(day)
+    const tod = isToday(day)
+    const rel = !sel && isRelated(day)
+
+    // Range: todos os dias entre relatedDate e hoverDay (inclusive)
+    let inRange = false
+    if (!sel && !rel && related && hoverDay != null) {
+      const cellTs = new Date(view.year, view.month, day).getTime()
+      const relTs  = related.getTime()
+      const hovTs  = new Date(view.year, view.month, hoverDay).getTime()
+      inRange = cellTs >= Math.min(relTs, hovTs) && cellTs <= Math.max(relTs, hovTs)
+    }
+
+    const isHovEndpoint = !sel && !rel && day === hoverDay && related
+
+    if (sel)           return { bg:'#2e6db4', color:'#fff',    border:'none',                  fw:600 }
+    if (rel)           return { bg:'#dcfce7', color:'#15803d', border:'1.5px solid #86efac',   fw:600 }
+    if (isHovEndpoint) return { bg:'#bfdbfe', color:'#1e40af', border:'none',                  fw:600 }
+    if (inRange)       return { bg:'#eff6ff', color:'#1d4ed8', border:'none',                  fw:400 }
+    if (day===hoverDay) return { bg:'#f1f5f9', color:'#1e293b', border:'none',                 fw:400 }
+    return {
+      bg:'transparent',
+      color: tod ? '#2e6db4' : '#1e293b',
+      border: tod ? '1.5px solid #2e6db4' : 'none',
+      fw: tod ? 600 : 400,
+    }
   }
 
   const decadeYears = decadeStart!==null ? Array.from({length:12},(_,i)=>decadeStart-1+i) : []
@@ -193,7 +219,6 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
               onClick={() => mode==='days' ? prevM() : mode==='years' ? setDecadeStart(d=>d-10) : null}
               onMouseEnter={e=>hov(e)} onMouseLeave={e=>unHov(e)}>‹</button>
 
-            {/* Mês */}
             {mode!=='years' && (
               <button style={{...btnBase,fontSize:13.5,fontWeight:600,color:'#1e293b',padding:'4px 8px'}}
                 onClick={() => setMode(m=>m==='days'?'months':'days')}
@@ -202,7 +227,6 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
               </button>
             )}
 
-            {/* Ano */}
             {mode!=='months' && (
               <button style={{...btnBase,fontSize:13.5,fontWeight:600,color:mode==='years'?'#2e6db4':'#1e293b',padding:'4px 8px'}}
                 onClick={() => setMode(m=>m==='years'?'days':'years')}
@@ -271,27 +295,16 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
               <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
                 {cells().map((day,i)=>{
                   if(!day) return <div key={`e${i}`}/>
-                  const sel = isSel(day)
-                  const tod = isToday(day)
-                  const rel = !sel && isRelated(day)
-                  const bg  = sel ? '#2e6db4' : rel ? '#dcfce7' : 'transparent'
+                  const { bg, color, border, fw } = cellStyle(day)
                   return (
                     <button key={day}
                       onClick={()=>pick(view.year,view.month,day)}
-                      onMouseEnter={e=>{
-                        setHoverDay(day)
-                        if (!sel) e.currentTarget.style.background = rel ? '#bbf7d0' : '#f1f5f9'
-                      }}
-                      onMouseLeave={e=>{
-                        setHoverDay(null)
-                        e.currentTarget.style.background = bg
-                      }}
+                      onMouseEnter={()=>setHoverDay(day)}
+                      onMouseLeave={()=>setHoverDay(null)}
                       style={{
-                        padding:'6px 0', borderRadius:6, cursor:'pointer', fontFamily:'inherit', transition:'background .1s',
-                        border: sel ? 'none' : rel ? '1.5px solid #86efac' : tod ? '1.5px solid #2e6db4' : 'none',
-                        background: bg,
-                        color: sel ? '#fff' : rel ? '#15803d' : tod ? '#2e6db4' : '#1e293b',
-                        fontSize:13, fontWeight: sel||tod||rel ? 600 : 400,
+                        padding:'6px 0', borderRadius:6, cursor:'pointer', fontFamily:'inherit',
+                        transition:'background .08s',
+                        border, background:bg, color, fontSize:13, fontWeight:fw,
                       }}
                     >{day}</button>)
                 })}
