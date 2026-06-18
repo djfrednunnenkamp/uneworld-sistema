@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { passengersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import NewPassengerModal from '../components/NewPassengerModal'
@@ -197,7 +198,21 @@ export default function Passengers() {
       .finally(() => setLoading(false))
   }
 
+  // Versão silenciosa para atualização via WebSocket (sem spinner)
+  const silentReload = useCallback(() => {
+    passengersApi.list()
+      .then(r => setRows(r.data.results ?? r.data))
+      .catch(() => {})
+  }, [])
+
   useEffect(() => { load() }, [])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback((msg) => {
+    if (msg.type !== 'refresh') return
+    const scope = msg.scope ?? 'all'
+    if (scope === 'stats' || scope === 'all') silentReload()
+  }, [silentReload]), { enabled: !!user })
 
   const handleDelete = async () => {
     await passengersApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
