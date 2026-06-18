@@ -59,8 +59,11 @@ function EmailPreviewModal({ log, onClose }) {
           // Link para página interna normal: abre na aba atual do app
           a.target = '_top'
           a.removeAttribute('rel')
+        } else if (isAuthFlow) {
+          // Nova aba com opener acessível para window.opener funcionar
+          a.target = '_blank'
+          a.setAttribute('rel', 'opener')
         }
-        // Links de auth e externos ficam com _blank (da base tag)
       })
       return doc.documentElement.outerHTML
     } catch {

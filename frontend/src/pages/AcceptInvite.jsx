@@ -8,17 +8,16 @@ export default function AcceptInvite() {
   const [params]  = useSearchParams()
   const token     = params.get('token') || ''
   const navigate  = useNavigate()
-  const { login } = useAuth()
+  const { user, login } = useAuth()
 
-  const [invite,    setInvite]    = useState(null)
-  const [password,  setPassword]  = useState('')
-  const [confirm,   setConfirm]   = useState('')
-  const [loading,   setLoading]   = useState(true)
-  const [saving,    setSaving]    = useState(false)
-  const [switching, setSwitching] = useState(false)
-  const [done,      setDone]      = useState(false)
-  const [error,     setError]     = useState('')
-  const hasOpener = typeof window !== 'undefined' && !!window.opener
+  const [invite,     setInvite]     = useState(null)
+  const [password,   setPassword]   = useState('')
+  const [confirm,    setConfirm]    = useState('')
+  const [loading,    setLoading]    = useState(true)
+  const [saving,     setSaving]     = useState(false)
+  const [switching,  setSwitching]  = useState(false)
+  const [done,       setDone]       = useState(false)
+  const [error,      setError]      = useState('')
 
   useEffect(() => {
     if (!token) { navigate('/login'); return }
@@ -35,11 +34,11 @@ export default function AcceptInvite() {
     setSaving(true); setError('')
     try {
       await usersApi.acceptInvite(token, password)
-      if (hasOpener) {
-        // Tem janela pai — mostra a tela de escolha
+      if (user) {
+        // Alguém está logado neste browser — mostra tela de escolha
         setDone(true)
       } else {
-        // Aberto diretamente — faz login e vai para a home
+        // Nenhuma sessão ativa — faz login direto e vai para a home
         await login(invite.email, password)
         navigate('/', { replace: true })
       }
@@ -48,27 +47,25 @@ export default function AcceptInvite() {
     } finally { setSaving(false) }
   }
 
-  /* Faz login, recarrega a janela pai (nova sessão) e fecha esta */
+  /* Faz login, recarrega a janela pai (nova sessão) e fecha esta aba */
   const handleSwitch = async () => {
     setSwitching(true)
     try {
       await login(invite.email, password)
-      if (window.opener) {
-        window.opener.location.reload()
-        window.close()
-      } else {
-        navigate('/', { replace: true })
-      }
+      try {
+        // window.opener.top acessa a janela principal mesmo se o link veio de um iframe
+        if (window.opener) window.opener.top.location.reload()
+      } catch {}
+      window.close()
     } catch {
-      if (window.opener) { window.opener.location.reload(); window.close() }
-      else navigate('/', { replace: true })
+      navigate('/', { replace: true })
     } finally { setSwitching(false) }
   }
 
-  /* Fecha esta aba; a janela pai fica inalterada */
+  /* Fecha esta aba sem trocar de usuário */
   const handleBack = () => {
-    if (window.opener) window.close()
-    else navigate('/login', { replace: true })
+    try { window.close() } catch {}
+    navigate('/login', { replace: true })
   }
 
   const cardStyle = { background:'#fff', borderRadius:14, padding:'36px 32px', boxShadow:'0 24px 60px rgba(0,0,0,.35)' }
@@ -92,7 +89,7 @@ export default function AcceptInvite() {
               <p style={{ color:'#dc2626', fontSize:14 }}>{error}</p>
             </div>
           ) : done ? (
-            /* Tela de escolha — só aparece quando veio de janela pai */
+            /* Tela de escolha — aparece quando havia sessão ativa ao ativar a conta */
             <div style={{ textAlign:'center' }}>
               <div style={{ fontSize:48, marginBottom:16 }}>🎉</div>
               <h2 style={{ fontSize:20, fontWeight:700, color:'#0f172a', margin:'0 0 8px' }}>Conta ativada!</h2>

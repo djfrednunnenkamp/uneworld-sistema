@@ -8,15 +8,15 @@ export default function ResetPassword() {
   const [params]   = useSearchParams()
   const token      = params.get('token') || ''
   const navigate   = useNavigate()
-  const { login }  = useAuth()
+  const { user, login }  = useAuth()
   const [password, setPassword]  = useState('')
   const [confirm,  setConfirm]   = useState('')
   const [done,     setDone]      = useState(false)
+  const [hadSession, setHadSession] = useState(false) // had a logged-in session at submit time
   const [loading,  setLoading]   = useState(false)
   const [switching, setSwitching] = useState(false)
   const [error,    setError]     = useState('')
   const [email,    setEmail]     = useState('')   // retornado pelo backend após reset
-  const hasOpener = typeof window !== 'undefined' && !!window.opener
 
   useEffect(() => { if (!token) navigate('/login') }, [token])
 
@@ -27,34 +27,41 @@ export default function ResetPassword() {
     setLoading(true); setError('')
     try {
       const r = await usersApi.resetPassword(token, password)
-      setEmail(r.data.email || '')
-      setDone(true)
+      const resetEmail = r.data.email || ''
+      setEmail(resetEmail)
+      if (user) {
+        // Alguém está logado neste browser — mostra tela de escolha
+        setHadSession(true)
+        setDone(true)
+      } else {
+        // Nenhuma sessão ativa — faz login direto e vai para a home
+        if (resetEmail) await login(resetEmail, password).catch(() => {})
+        navigate('/', { replace: true })
+      }
     } catch (err) {
       setError(err.response?.data?.error ?? 'Link inválido ou expirado.')
     } finally { setLoading(false) }
   }
 
-  /* Faz login nesta aba, recarrega a janela pai (nova sessão) e fecha esta */
+  /* Faz login nesta aba, recarrega a janela pai (nova sessão) e fecha esta aba */
   const handleSwitch = async () => {
     setSwitching(true)
     try {
       await login(email, password)
-      if (window.opener) {
-        window.opener.location.reload()
-        window.close()
-      } else {
-        navigate('/', { replace: true })
-      }
+      try {
+        // window.opener.top acessa a janela principal mesmo se o link veio de um iframe
+        if (window.opener) window.opener.top.location.reload()
+      } catch {}
+      window.close()
     } catch {
-      if (window.opener) { window.opener.location.reload(); window.close() }
-      else navigate('/', { replace: true })
+      navigate('/', { replace: true })
     } finally { setSwitching(false) }
   }
 
-  /* Fecha esta aba; a janela pai fica inalterada */
+  /* Fecha esta aba sem trocar de usuário */
   const handleBack = () => {
-    if (window.opener) window.close()
-    else navigate('/login', { replace: true })
+    try { window.close() } catch {}
+    navigate('/login', { replace: true })
   }
 
   const cardStyle = { background:'#fff', borderRadius:14, padding:'36px 32px', boxShadow:'0 24px 60px rgba(0,0,0,.35)' }
@@ -75,12 +82,12 @@ export default function ResetPassword() {
               <div style={{ fontSize:48, marginBottom:16 }}>✅</div>
               <h2 style={{ fontSize:20, fontWeight:700, color:'#0f172a', margin:'0 0 8px' }}>Senha redefinida!</h2>
               <p style={{ fontSize:14, color:'#64748b', margin:'0 0 28px', lineHeight:1.6 }}>
-                {hasOpener
+                {hadSession
                   ? 'O que você quer fazer agora?'
                   : 'Sua senha foi alterada com sucesso. Faça login com a nova senha.'}
               </p>
 
-              {hasOpener ? (
+              {hadSession ? (
                 <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                   {email && (
                     <button onClick={handleSwitch} disabled={switching}
