@@ -8,9 +8,9 @@ const NAV_BASE = [
   { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', perms: ['agencies_view'] },
   { id: '/viagens',    icon: 'plane',    label: 'Listas de Passageiros',      group: 'GESTÃO', perms: ['lists_view'] },
   { id: '/calendario', icon: 'calendar', label: 'Calendário',  group: 'GESTÃO', perms: ['calendar_view'] },
-  { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA', perms: ['manage_users']    },
-  { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA', perms: ['manage_settings'] },
-  { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA', perms: ['view_audit_log']  },
+  { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA', perms: ['manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'] },
+  { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA', perms: ['manage_settings', 'settings_view', 'settings_professions', 'settings_languages', 'settings_countries', 'settings_genders', 'settings_vaccines', 'settings_doc_types', 'settings_prof_cards', 'settings_destinations', 'settings_list_additionals', 'settings_crew_roles'] },
+  { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA', perms: ['view_audit_log', 'log_view', 'log_passengers', 'log_lists', 'log_agencies', 'log_users', 'log_settings'] },
 ]
 
 export default function Sidebar() {

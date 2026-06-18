@@ -38,9 +38,6 @@ def _apply_permissions(user, data):
     for key in PERMISSION_FIELDS:
         if key in perms_data:
             setattr(perms, key, bool(perms_data[key]))
-    # Zera campos legados substituídos pelos novos grupos granulares
-    for key in ('manage_users', 'manage_settings', 'view_audit_log'):
-        setattr(perms, key, False)
     perms.save()
     sync_is_staff(user)
 

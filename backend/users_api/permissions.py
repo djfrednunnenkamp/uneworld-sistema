@@ -2,6 +2,10 @@ from rest_framework.permissions import BasePermission
 from .models import UserPermissions
 
 PERMISSION_FIELDS = [
+    # Legado (mantidos para compatibilidade — não exibidos na UI de permissões)
+    'manage_users',
+    'manage_settings',
+    'view_audit_log',
     # Visão Geral (Dashboard)
     'dashboard_view_passengers',
     'dashboard_view_lists',
