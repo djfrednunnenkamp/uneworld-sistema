@@ -894,14 +894,21 @@ export default function Settings() {
     if (action === 'delete') return !!(myP[`${permBase}_delete`] || myP[permBase])
     return false
   }
+  /* Seções que fazem parte do CSV combinado — precisam de permissão de view/edit para liberar os botões */
   const CSV_SECTION_PERMS = [
     'settings_professions', 'settings_languages', 'settings_vaccines',
     'settings_genders', 'settings_prof_cards', 'settings_list_additionals',
     'settings_crew_roles', 'settings_list_categories',
     'settings_accommodations', 'settings_countries',
   ]
-  const canCsvExport = isSu || !!myP.manage_settings || CSV_SECTION_PERMS.some(p => can(p, 'view'))
-  const canCsvImport = isSu || !!myP.manage_settings || CSV_SECTION_PERMS.some(p => can(p, 'edit'))
+  /* Verificação direta (sem can()) para evitar dependência do campo legado manage_settings */
+  const csvCanViewAny = isSu || !!myP.manage_settings
+    || CSV_SECTION_PERMS.some(p => !!(myP[`${p}_view`] || myP[p]))
+  const csvCanEditAny = isSu || !!myP.manage_settings
+    || CSV_SECTION_PERMS.some(p => !!(myP[`${p}_edit`] || myP[p]))
+  /* Botão aparece somente se o usuário tem a permissão global de CSV E acesso a pelo menos uma seção */
+  const canCsvExport = (isSu || !!myP.manage_settings || !!myP.settings_csv_export) && csvCanViewAny
+  const canCsvImport = (isSu || !!myP.manage_settings || !!myP.settings_csv_import) && csvCanEditAny
 
   const fileAllRef = useRef(null)
   const [listSearch, setListSearch] = useState('')
