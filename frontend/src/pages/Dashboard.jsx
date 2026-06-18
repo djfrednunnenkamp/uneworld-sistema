@@ -92,7 +92,7 @@ function EmailLogWidget({ canView, canPreview }) {
           <Ic n="ul" s={14}/> E-mails enviados
         </span>
       </div>
-      <div style={{ overflowY:'auto', flex:1, maxHeight:400 }}>
+      <div style={{ overflowY:'auto', flex:1 }}>
         {loading ? (
           <p style={{ padding:'16px', fontSize:13, color:'#94a3b8', margin:0 }}>Carregando…</p>
         ) : logs.length === 0 ? (
@@ -204,11 +204,11 @@ export default function Dashboard() {
       </div>
 
       {/* ── Bottom row: listas + email log ── */}
-      <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
+      <div style={{ display:'flex', gap:16, alignItems:'stretch' }}>
 
         {/* Listas de passageiros recentes */}
         {can('dashboard_view_lists') && (
-        <div className="tcard" style={{ flex:1, minWidth:0 }}>
+        <div className="tcard" style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column' }}>
           <div className="tcard-head">
             <span>Listas de Passageiros recentes</span>
             {canAccess(user, '/viagens') && (
@@ -217,47 +217,59 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          <table className="dt">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Tipo</th>
-                <th>Início</th>
-                <th>Término</th>
-                <th>Passageiros</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent_lists.length === 0 ? (
+          <div style={{ flex:1, overflowY:'auto' }}>
+            <table className="dt">
+              <thead>
                 <tr>
-                  <td colSpan={6}>
-                    <div className="empty-state"><p>Nenhuma lista de passageiros criada</p></div>
-                  </td>
+                  <th>Nome</th>
+                  <th>Tipo</th>
+                  <th>Início</th>
+                  <th>Término</th>
+                  <th>Passageiros</th>
+                  <th>Status</th>
                 </tr>
-              ) : recent_lists.map((l) => {
-                const rowNav = canAccess(user, `/viagens/${l.id}`)
-                return (
-                <tr key={l.id} style={{ cursor: rowNav ? 'pointer' : 'default' }} onClick={rowNav ? () => navigate(`/viagens/${l.id}`) : undefined}>
-                  <td><span className="t-name">{l.name}</span><br/><span className="t-muted">{l.category}</span></td>
-                  <td>{TYPE_LABEL[l.list_type] || l.list_type}</td>
-                  <td>{fmt(l.start_date) || '—'}</td>
-                  <td>{fmt(l.end_date) || '—'}</td>
-                  <td>{l.enrolled_count} / {l.block_capacity}</td>
-                  <td>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-                      background: l.status === 'aberta' ? '#dcfce7' : '#f1f5f9',
-                      color:      l.status === 'aberta' ? '#16a34a' : '#64748b',
-                    }}>
-                      {l.status === 'aberta' ? 'Aberta' : 'Fechada'}
-                    </span>
-                  </td>
-                </tr>
-                )
-              })}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recent_lists.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="empty-state"><p>Nenhuma lista de passageiros criada</p></div>
+                    </td>
+                  </tr>
+                ) : recent_lists.map((l) => {
+                  const rowNav = canAccess(user, `/viagens/${l.id}`)
+                  return (
+                  <tr key={l.id} style={{ cursor: rowNav ? 'pointer' : 'default' }} onClick={rowNav ? () => navigate(`/viagens/${l.id}`) : undefined}>
+                    <td>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                        <span className="t-name">{l.name}</span>
+                        {l.is_ongoing && (
+                          <span style={{ fontSize:10, fontWeight:700, padding:'1px 7px', borderRadius:999, background:'#dbeafe', color:'#1d4ed8', whiteSpace:'nowrap' }}>
+                            Em andamento
+                          </span>
+                        )}
+                      </div>
+                      <span className="t-muted">{l.category}</span>
+                    </td>
+                    <td>{TYPE_LABEL[l.list_type] || l.list_type}</td>
+                    <td>{fmt(l.start_date) || '—'}</td>
+                    <td>{fmt(l.end_date) || '—'}</td>
+                    <td>{l.enrolled_count} / {l.block_capacity}</td>
+                    <td>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+                        background: l.status === 'aberta' ? '#dcfce7' : '#f1f5f9',
+                        color:      l.status === 'aberta' ? '#16a34a' : '#64748b',
+                      }}>
+                        {l.status === 'aberta' ? 'Aberta' : 'Fechada'}
+                      </span>
+                    </td>
+                  </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
         )}
 
