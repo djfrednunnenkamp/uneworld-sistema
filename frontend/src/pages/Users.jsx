@@ -19,21 +19,34 @@ const ROLE_OPTS = [
 
 const PERM_GROUPS = [
   {
-    title: 'Visão Geral',
-    icon: 'grid',
+    title: 'Administração',
+    icon: 'settings',
     items: [
-      ['dashboard_view_passengers',  'Ver total de passageiros'],
-      ['dashboard_view_lists',       'Ver total de listas abertas'],
-      ['dashboard_view_enrollments', 'Ver total de inscrições'],
+      ['manage_users',    'Gerenciar usuários e permissões', 'users'],
+      ['manage_settings', 'Acessar Configurações',           'settings'],
+      ['view_audit_log',  'Ver Log do Sistema (global)',     'list'],
     ],
   },
   {
-    title: 'Log de E-mails',
-    icon: 'mail',
-    items: [
-      ['email_log_view',       'Ver e-mails enviados pelo sistema'],
-      ['email_log_preview',    'Clicar para visualizar conteúdo do e-mail'],
-      ['email_resend_actions', 'Reenviar redefinição de senha / convite'],
+    title: 'Visão Geral',
+    icon: 'grid',
+    sections: [
+      {
+        label: 'Dashboard',
+        items: [
+          ['dashboard_view_passengers',  'Ver total de passageiros'],
+          ['dashboard_view_lists',       'Ver total de listas abertas'],
+          ['dashboard_view_enrollments', 'Ver total de inscrições'],
+        ],
+      },
+      {
+        label: 'Log de E-mails',
+        items: [
+          ['email_log_view',       'Ver e-mails enviados pelo sistema'],
+          ['email_log_preview',    'Clicar para visualizar conteúdo do e-mail'],
+          ['email_resend_actions', 'Reenviar redefinição de senha / convite'],
+        ],
+      },
     ],
   },
   {
@@ -47,6 +60,16 @@ const PERM_GROUPS = [
       ['passengers_download_docs', 'Baixar documentos'],
       ['passengers_upload_docs',   'Enviar documentos'],
       ['passengers_view_logs',     'Ver log de atividades do passageiro'],
+    ],
+  },
+  {
+    title: 'Agências',
+    icon: 'building',
+    items: [
+      ['agencies_view',      'Ver agências'],
+      ['agencies_edit',      'Criar / Editar'],
+      ['agencies_delete',    'Excluir'],
+      ['agencies_view_logs', 'Ver log de atividades da agência'],
     ],
   },
   {
@@ -75,31 +98,12 @@ const PERM_GROUPS = [
     ],
   },
   {
-    title: 'Agências',
-    icon: 'building',
-    items: [
-      ['agencies_view',      'Ver agências'],
-      ['agencies_edit',      'Criar / Editar'],
-      ['agencies_delete',    'Excluir'],
-      ['agencies_view_logs', 'Ver log de atividades da agência'],
-    ],
-  },
-  {
     title: 'Calendário',
     icon: 'calendar',
     items: [
       ['calendar_view',               'Acessar o calendário'],
       ['calendar_view_birthdays',     'Ver aniversários de passageiros'],
       ['calendar_view_all_deadlines', 'Ver prazos de confirmação de todos os usuários'],
-    ],
-  },
-  {
-    title: 'Administração',
-    icon: 'settings',
-    items: [
-      ['manage_users',    'Gerenciar usuários e permissões', 'users'],
-      ['manage_settings', 'Acessar Configurações',           'settings'],
-      ['view_audit_log',  'Ver Log do Sistema (global)',     'list'],
     ],
   },
 ]
