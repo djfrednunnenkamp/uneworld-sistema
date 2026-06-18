@@ -74,3 +74,56 @@ def send_now(request):
     if not ok:
         return Response({'detail': 'Não foi possível enviar o e-mail.'}, status=400)
     return Response({'ok': True})
+
+
+# ── Log de e-mails ─────────────────────────────────────────────────────────────
+
+from django.conf import settings
+from rest_framework.views import APIView
+from .models import EmailLog
+from .serializers import EmailLogListSerializer, EmailLogDetailSerializer
+
+
+def _can_email_log(user):
+    return user.is_superuser or getattr(getattr(user, 'permissions', None), 'email_log_view', False)
+
+def _can_email_preview(user):
+    return user.is_superuser or getattr(getattr(user, 'permissions', None), 'email_log_preview', False)
+
+
+class EmailLogListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _can_email_log(request.user):
+            return Response(status=403)
+        qs = EmailLog.objects.order_by('-sent_at')[:50]
+        return Response(EmailLogListSerializer(qs, many=True).data)
+
+
+class EmailLogDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        if not _can_email_log(request.user):
+            return Response(status=403)
+        if not settings.EMAIL_PREVIEW_ENABLED:
+            return Response({'detail': 'Preview desativado.'}, status=403)
+        if not _can_email_preview(request.user):
+            return Response(status=403)
+        try:
+            log = EmailLog.objects.get(pk=pk)
+        except EmailLog.DoesNotExist:
+            return Response(status=404)
+        return Response(EmailLogDetailSerializer(log).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def email_preview_enabled(request):
+    """Informa ao frontend se o preview está ativo e qual permissão o usuário tem."""
+    return Response({
+        'preview_enabled': settings.EMAIL_PREVIEW_ENABLED,
+        'can_view':    _can_email_log(request.user),
+        'can_preview': _can_email_preview(request.user) and settings.EMAIL_PREVIEW_ENABLED,
+    })

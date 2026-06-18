@@ -92,6 +92,14 @@ const PERM_GROUPS = [
       ['view_audit_log',  'Ver Log do Sistema (global)',     'list'],
     ],
   },
+  {
+    title: 'Log de E-mails',
+    icon: 'ul',
+    items: [
+      ['email_log_view',    'Ver e-mails enviados pelo sistema'],
+      ['email_log_preview', 'Clicar para visualizar conteúdo do e-mail'],
+    ],
+  },
 ]
 
 /* Algumas permissões só fazem sentido se a permissão "base" também estiver marcada
@@ -120,6 +128,8 @@ const PERM_DEPENDENCIES = {
 
   calendar_view_birthdays:     'calendar_view',
   calendar_view_all_deadlines: 'calendar_view',
+
+  email_log_preview: 'email_log_view',
 }
 
 /* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente).

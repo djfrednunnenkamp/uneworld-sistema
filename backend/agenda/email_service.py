@@ -88,15 +88,24 @@ def _wrap(rows: str, accent: str = '#2e6db4') -> str:
 </html>"""
 
 
-def _send(to, subject, html):
+def _send(to, subject, html, email_type='other'):
+    from .models import EmailLog
+    to_list = to if isinstance(to, list) else [to]
+    to_str  = ', '.join(to_list)
+
     resend.api_key = settings.RESEND_API_KEY
-    if not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave'):
-        print(f"[EMAIL SIMULADO] {subject} → {to}")
+    simulated = not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave')
+
+    if simulated:
+        print(f"[EMAIL SIMULADO] {subject} → {to_str}")
+        EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
+                                html_body=html, success=True)
         return True
+
     _, use_cid = get_logo_src()
     payload = {
         "from": settings.RESEND_FROM,
-        "to": to if isinstance(to, list) else [to],
+        "to": to_list,
         "subject": subject,
         "html": html,
     }
@@ -108,9 +117,13 @@ def _send(to, subject, html):
         }]
     try:
         resend.Emails.send(payload)
+        EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
+                                html_body=html, success=True)
         return True
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
+        EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
+                                html_body=html, success=False)
         return False
 
 
@@ -247,7 +260,7 @@ def send_daily_digest(
       {_section_header('📋', 'Resumo do dia', date_str, '#2e6db4')}
       <tr><td style="padding:20px 32px 28px">{inner}</td></tr>"""
 
-    return _send(email, f'{subject} — UneWorld Turismo', _wrap(body, '#2e6db4'))
+    return _send(email, f'{subject} — UneWorld Turismo', _wrap(body, '#2e6db4'), 'daily_digest')
 
 
 # ── Resumo do calendário ──────────────────────────────────────────────────────
@@ -308,7 +321,7 @@ def send_calendar_summary(email: str, first_name: str, events: list, subject: st
         <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.65">{intro}</p>
         {_calendar_sections(events)}
       </td></tr>"""
-    return _send(email, f'{subject} — UneWorld Turismo', _wrap(body, '#2e6db4'))
+    return _send(email, f'{subject} — UneWorld Turismo', _wrap(body, '#2e6db4'), 'digest')
 
 
 # ── Templates individuais (mantidos para compatibilidade) ─────────────────────
@@ -334,7 +347,7 @@ def send_deadline_reminder(emails: list, deadline_date, entries: list, days_ahea
         </p>
         {_deadline_cards(entries, badge, badge_bg, badge_fg)}
       </td></tr>"""
-    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#b45309'))
+    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#b45309'), 'deadline')
 
 
 def send_task_reminder(emails: list, deadline_date, entries: list) -> bool:
@@ -350,7 +363,7 @@ def send_task_reminder(emails: list, deadline_date, entries: list) -> bool:
         </p>
         {_task_cards(entries)}
       </td></tr>"""
-    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#059669'))
+    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#059669'), 'task')
 
 
 def send_birthday_reminder(emails: list, today_date, entries: list) -> bool:
@@ -366,4 +379,4 @@ def send_birthday_reminder(emails: list, today_date, entries: list) -> bool:
         </p>
         {_birthday_cards(entries)}
       </td></tr>"""
-    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#7c3aed'))
+    return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#7c3aed'), 'birthday')

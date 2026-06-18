@@ -119,6 +119,9 @@ export const agendaApi = {
   getUserPrefs:     (userId)     => api.get(`/agenda/preferences/${userId}/`),
   updateUserPrefs:  (userId, d)  => api.patch(`/agenda/preferences/${userId}/`, d),
   sendNow:          ()           => api.post('/agenda/send-now/'),
+  emailLogSettings: ()           => api.get('/agenda/email-log/settings/'),
+  emailLog:         ()           => api.get('/agenda/email-log/'),
+  emailLogDetail:   (id)         => api.get(`/agenda/email-log/${id}/`),
 }
 
 export const configApi = {
