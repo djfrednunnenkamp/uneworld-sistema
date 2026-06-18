@@ -513,8 +513,8 @@ function KeyMenuModal({ user, canSetPwd, onClose }) {
 }
 
 /* ── Modal de Bloquear / Excluir ── */
-function BlockOrDeleteModal({ user, onBlock, onDelete, onClose }) {
-  const [step,   setStep]   = useState('choose') // 'choose' | 'block' | 'delete'
+function BlockOrDeleteModal({ user, onBlock, onDelete, onClose, initialStep = 'choose' }) {
+  const [step,   setStep]   = useState(initialStep) // 'choose' | 'block' | 'delete'
   const [busy,   setBusy]   = useState(false)
   const name = user.full_name || user.username
 
@@ -586,7 +586,7 @@ function BlockOrDeleteModal({ user, onBlock, onDelete, onClose }) {
               Tem certeza que deseja excluir permanentemente <b style={{ color:'#1e293b' }}>{name}</b>? Esta ação não pode ser desfeita.
             </p>
             <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button onClick={() => setStep('choose')} disabled={busy}
+              <button onClick={() => initialStep === 'delete' ? onClose() : setStep('choose')} disabled={busy}
                 style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
                 Voltar
               </button>
@@ -845,6 +845,13 @@ export default function Users() {
     load()
   }
 
+  const handleUnblock = async (u) => {
+    await usersApi.update(u.id, { is_active: true })
+      .catch(e => { toast.error(e.response?.data?.error ?? 'Erro ao desbloquear.') })
+    toast.success(`${u.full_name || u.username} desbloqueado.`)
+    load()
+  }
+
   const initials = u => `${u.first_name?.[0]??''}${u.last_name?.[0]??''}`.toUpperCase() || u.username[0].toUpperCase()
   const PALETTE  = ['#2B3A8F','#0369A1','#0D6E6E','#6B3FA0','#B45309']
 
@@ -1074,15 +1081,21 @@ export default function Users() {
                   </td>
                   <td style={{textAlign:'center'}}>
                     <div className="r-acts">
-                      {canCreate && <button className="r-btn edit" title="Editar perfil" onClick={() => setModal({ user: u, mode: 'profile' })}><Ic n="edit" s={13}/></button>}
-                      {canManagePerms && <button className="r-btn" title="Editar permissões" style={{color:'#475569'}} onClick={() => setModal({ user: u, mode: 'perms' })}><Ic n="shield" s={13}/></button>}
-                      {canKeyMenu && (
-                        <button className="r-btn" title="Gerenciar senha" style={{color:'#475569'}} onClick={() => setKeyMenu(u)}>
-                          <Ic n="key" s={13}/>
+                      {u.is_active ? (<>
+                        {canCreate && <button className="r-btn edit" title="Editar perfil" onClick={() => setModal({ user: u, mode: 'profile' })}><Ic n="edit" s={13}/></button>}
+                        {canManagePerms && <button className="r-btn" title="Editar permissões" style={{color:'#475569'}} onClick={() => setModal({ user: u, mode: 'perms' })}><Ic n="shield" s={13}/></button>}
+                        {canKeyMenu && (
+                          <button className="r-btn" title="Gerenciar senha" style={{color:'#475569'}} onClick={() => setKeyMenu(u)}>
+                            <Ic n="key" s={13}/>
+                          </button>
+                        )}
+                      </>) : (
+                        <button className="r-btn" title="Desbloquear acesso" style={{color:'#16a34a'}} onClick={() => handleUnblock(u)}>
+                          <Ic n="unlock" s={13}/>
                         </button>
                       )}
                       {canDeleteU && u.id !== me?.id && (
-                        <button className="r-btn del" title="Bloquear / Excluir" onClick={() => setActionUser(u)}><Ic n="trash" s={13}/></button>
+                        <button className="r-btn del" title={u.is_active ? 'Bloquear / Excluir' : 'Excluir permanentemente'} onClick={() => setActionUser(u)}><Ic n="trash" s={13}/></button>
                       )}
                     </div>
                   </td>
@@ -1107,6 +1120,7 @@ export default function Users() {
           onBlock={handleBlock}
           onDelete={handleDelete}
           onClose={() => setActionUser(null)}
+          initialStep={actionUser.is_active ? 'choose' : 'delete'}
         />
       )}
       {permModal && (
