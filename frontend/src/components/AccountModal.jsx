@@ -3,7 +3,7 @@ import { authApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import FormSelect from './FormSelect'
 
-const HOUR_OPTS = [7,8,9,10,12,13,14,17,18,19,20].map(h => ({
+const HOUR_OPTS = Array.from({length: 24}, (_, h) => ({
   value: h,
   label: `${String(h).padStart(2,'0')}:00`,
 }))

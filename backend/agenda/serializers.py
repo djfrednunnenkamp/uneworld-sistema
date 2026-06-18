@@ -12,8 +12,8 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'send_hour', 'side_panel_enabled', 'side_panel_position']
 
     def _validate_hour(self, value):
-        if value not in [7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 20]:
-            raise serializers.ValidationError('Horário inválido.')
+        if not (0 <= value <= 23):
+            raise serializers.ValidationError('Horário inválido (0–23).')
         return value
 
     def validate_send_hour(self, value):
