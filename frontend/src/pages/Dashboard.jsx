@@ -240,29 +240,25 @@ export default function Dashboard() {
                   const rowNav = canAccess(user, `/viagens/${l.id}`)
                   return (
                   <tr key={l.id} style={{ cursor: rowNav ? 'pointer' : 'default' }} onClick={rowNav ? () => navigate(`/viagens/${l.id}`) : undefined}>
-                    <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        <span className="t-name">{l.name}</span>
-                        {l.is_ongoing && (
-                          <span style={{ fontSize:10, fontWeight:700, padding:'1px 7px', borderRadius:999, background:'#dbeafe', color:'#1d4ed8', whiteSpace:'nowrap' }}>
-                            Em andamento
-                          </span>
-                        )}
-                      </div>
-                      <span className="t-muted">{l.category}</span>
-                    </td>
+                    <td><span className="t-name">{l.name}</span><br/><span className="t-muted">{l.category}</span></td>
                     <td>{TYPE_LABEL[l.list_type] || l.list_type}</td>
                     <td>{fmt(l.start_date) || '—'}</td>
                     <td>{fmt(l.end_date) || '—'}</td>
                     <td>{l.enrolled_count} / {l.block_capacity}</td>
                     <td>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-                        background: l.status === 'aberta' ? '#dcfce7' : '#f1f5f9',
-                        color:      l.status === 'aberta' ? '#16a34a' : '#64748b',
-                      }}>
-                        {l.status === 'aberta' ? 'Aberta' : 'Fechada'}
-                      </span>
+                      {l.is_ongoing ? (
+                        <span style={{ fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:20, background:'#dbeafe', color:'#1d4ed8' }}>
+                          Em andamento
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize:11, fontWeight:700, padding:'2px 10px', borderRadius:20,
+                          background: l.status === 'aberta' ? '#dcfce7' : '#f1f5f9',
+                          color:      l.status === 'aberta' ? '#16a34a' : '#64748b',
+                        }}>
+                          {l.status === 'aberta' ? 'Aberta' : 'Fechada'}
+                        </span>
+                      )}
                     </td>
                   </tr>
                   )
