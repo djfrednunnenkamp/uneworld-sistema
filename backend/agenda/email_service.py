@@ -3,7 +3,7 @@ import resend
 from datetime import timedelta
 from django.conf import settings
 
-from ._logo import LOGO_B64
+from ._logo import LOGO_CID, LOGO_B64_CONTENT
 
 
 # ── Helpers de template ───────────────────────────────────────────────────────
@@ -12,7 +12,7 @@ def _header() -> str:
     return f"""
       <tr>
         <td style="background:#ffffff;padding:24px 32px 20px;text-align:center;border-bottom:3px solid #1a2d4f">
-          <img src="{LOGO_B64}" alt="UneWorld Turismo" width="160" height="104"
+          <img src="cid:{LOGO_CID}" alt="UneWorld Turismo" width="160" height="104"
                style="display:block;margin:0 auto;max-width:160px;height:auto;border:0" />
         </td>
       </tr>"""
@@ -93,7 +93,18 @@ def _send(to, subject, html):
         print(f"[EMAIL SIMULADO] {subject} → {to}")
         return True
     try:
-        resend.Emails.send({"from": settings.RESEND_FROM, "to": to if isinstance(to, list) else [to], "subject": subject, "html": html})
+        resend.Emails.send({
+            "from": settings.RESEND_FROM,
+            "to": to if isinstance(to, list) else [to],
+            "subject": subject,
+            "html": html,
+            "attachments": [{
+                "filename": "logo.png",
+                "content": LOGO_B64_CONTENT,
+                "content_id": LOGO_CID,
+                "inline": True,
+            }],
+        })
         return True
     except Exception as e:
         print(f"[RESEND ERROR] {e}")

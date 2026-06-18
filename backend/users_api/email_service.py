@@ -2,7 +2,7 @@
 import resend
 from django.conf import settings
 
-from agenda._logo import LOGO_B64
+from agenda._logo import LOGO_CID, LOGO_B64_CONTENT
 
 
 def _send(to: str, subject: str, html: str) -> bool:
@@ -11,7 +11,18 @@ def _send(to: str, subject: str, html: str) -> bool:
         print(f"[EMAIL SIMULADO] {subject} → {to}")
         return True
     try:
-        resend.Emails.send({"from": settings.RESEND_FROM, "to": [to], "subject": subject, "html": html})
+        resend.Emails.send({
+            "from": settings.RESEND_FROM,
+            "to": [to],
+            "subject": subject,
+            "html": html,
+            "attachments": [{
+                "filename": "logo.png",
+                "content": LOGO_B64_CONTENT,
+                "content_id": LOGO_CID,
+                "inline": True,
+            }],
+        })
         return True
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
@@ -32,7 +43,7 @@ def _wrap(body_rows: str, accent: str = '#2e6db4') -> str:
         <!-- Logo -->
         <tr>
           <td style="background:#ffffff;padding:24px 32px 20px;text-align:center;border-bottom:3px solid #1a2d4f">
-            <img src="{LOGO_B64}" alt="UneWorld Turismo" width="160" height="104"
+            <img src="cid:{LOGO_CID}" alt="UneWorld Turismo" width="160" height="104"
                  style="display:block;margin:0 auto;max-width:160px;height:auto;border:0" />
           </td>
         </tr>
