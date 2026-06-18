@@ -56,7 +56,7 @@ def _wrap(body_rows: str, accent: str = '#2e6db4') -> str:
 </head>
 <body style="margin:0;padding:0;background:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7">
-    <tr><td style="padding:16px">
+    <tr><td style="padding:6px 8px">
       <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06),0 8px 32px rgba(0,0,0,.06)">
         <!-- Logo -->
         <tr>
