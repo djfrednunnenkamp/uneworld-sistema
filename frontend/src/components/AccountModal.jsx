@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react'
 import { authApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import FormSelect from './FormSelect'
 
-const HOURS = [7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 20]
+const HOUR_OPTS = [7,8,9,10,12,13,14,17,18,19,20].map(h => ({
+  value: h,
+  label: `${String(h).padStart(2,'0')}:00`,
+}))
+
+const FREQ_OPTS = [
+  { value: 'daily',  label: 'Diário' },
+  { value: 'weekly', label: 'Semanal (toda segunda-feira)' },
+]
 
 const overlay = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
@@ -36,27 +45,6 @@ function Toggle({ checked, onChange }) {
   )
 }
 
-function TimeGrid({ value, onChange }) {
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-      {HOURS.map(h => {
-        const active = value === h
-        return (
-          <button key={h} type="button" onClick={() => onChange(h)} style={{
-            padding: '5px 11px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
-            fontSize: 12, fontWeight: 600, transition: 'all .12s',
-            border: active ? '1.5px solid #1a2d4f' : '1.5px solid #e2e8f0',
-            background: active ? '#1a2d4f' : '#fff',
-            color: active ? '#fff' : '#64748b',
-          }}>
-            {String(h).padStart(2, '0')}h
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 function Section({ title, children }) {
   return (
     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 18 }}>
@@ -68,7 +56,7 @@ function Section({ title, children }) {
   )
 }
 
-function NotifCard({ label, desc, checked, onToggle, hour, onHour }) {
+function NotifCard({ label, desc, checked, onToggle, hour, onHour, frequency, onFrequency }) {
   return (
     <div style={{
       borderRadius: 10, border: `1.5px solid ${checked ? '#c7d9f5' : '#e2e8f0'}`,
@@ -83,9 +71,17 @@ function NotifCard({ label, desc, checked, onToggle, hour, onHour }) {
         <Toggle checked={checked} onChange={onToggle} />
       </label>
       {checked && (
-        <div style={{ padding: '0 14px 12px', borderTop: '1px solid #dbeafe' }}>
-          <p style={{ margin: '10px 0 4px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em' }}>Horário de envio</p>
-          <TimeGrid value={hour} onChange={onHour} />
+        <div style={{ padding: '0 14px 12px', borderTop: '1px solid #dbeafe', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {frequency !== undefined && (
+            <div>
+              <p style={{ margin: '10px 0 4px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em' }}>Frequência</p>
+              <FormSelect value={frequency} onChange={onFrequency} options={FREQ_OPTS} placeholder="Selecione a frequência…" />
+            </div>
+          )}
+          <div>
+            <p style={{ margin: frequency !== undefined ? '0 0 4px' : '10px 0 4px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em' }}>Horário de envio</p>
+            <FormSelect value={hour} onChange={onHour} options={HOUR_OPTS} placeholder="Selecione o horário…" />
+          </div>
         </div>
       )}
     </div>
@@ -156,12 +152,6 @@ export default function AccountModal({ onClose, onSaved }) {
     } finally { setLoading(false) }
   }
 
-  const selStyle = {
-    width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0',
-    borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#0f172a',
-    outline: 'none', background: '#fff',
-  }
-
   return (
     <div style={overlay} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 24px 60px rgba(0,0,0,.25)', display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
@@ -203,16 +193,9 @@ export default function AccountModal({ onClose, onSaved }) {
               onToggle={v => set('digest_enabled', v)}
               hour={prefs.digest_send_hour}
               onHour={v => set('digest_send_hour', v)}
+              frequency={prefs.digest_frequency}
+              onFrequency={v => set('digest_frequency', v)}
             />
-            {prefs.digest_enabled && (
-              <div style={{ padding: '2px 4px' }}>
-                <label style={lbl}>Frequência</label>
-                <select value={prefs.digest_frequency} onChange={e => set('digest_frequency', e.target.value)} style={selStyle}>
-                  <option value="daily">Diário</option>
-                  <option value="weekly">Semanal (segundas-feiras)</option>
-                </select>
-              </div>
-            )}
           </Section>
 
           {/* Notificações diárias */}
