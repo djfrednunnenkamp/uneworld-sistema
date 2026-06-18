@@ -1137,6 +1137,7 @@ export default function Settings() {
   }
 
   const filteredListDefs = LIST_DEFS
+    .filter(d => can(d.perm, 'view'))
     .filter(d => d.label.toLowerCase().includes(listSearch.trim().toLowerCase()))
   const activeDef = LIST_DEFS.find(d => d.key === activeList)
 
