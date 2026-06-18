@@ -421,9 +421,6 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                  <Toggle label="Lembrete de prazos por e-mail" value={prefs.reminder_enabled}
-                    onChange={(v) => setPrefs({ ...prefs, reminder_enabled: v })} />
-
                   <div style={{ borderTop:'1px solid #e2e8f0', paddingTop:12 }}>
                     <button className="btn btn-outline" onClick={sendNow} disabled={sending} style={{ width:'100%', justifyContent:'center' }}>
                       <Ic n="ul" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo agora'}
