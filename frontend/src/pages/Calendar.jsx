@@ -423,16 +423,12 @@ export default function CalendarPage() {
 
                   <Toggle label="Lembrete de prazos por e-mail" value={prefs.reminder_enabled}
                     onChange={(v) => setPrefs({ ...prefs, reminder_enabled: v })} />
-                  {prefs.reminder_enabled && (
-                    <div className="ff">
-                      <label className="fl">Avisar com quantos dias de antecedência</label>
-                      <input className="fi" type="number" min={0} max={30} value={prefs.reminder_days_before}
-                        onChange={e => setPrefs({ ...prefs, reminder_days_before: Math.max(0, Number(e.target.value)) })} />
-                      <span style={{ fontSize:12, color:'#94a3b8', marginTop:4, display:'block' }}>0 = avisa apenas no dia. O sistema sempre envia também 2 dias antes e no dia do vencimento.</span>
-                    </div>
-                  )}
 
-
+                  <div style={{ borderTop:'1px solid #e2e8f0', paddingTop:12 }}>
+                    <button className="btn btn-outline" onClick={sendNow} disabled={sending} style={{ width:'100%', justifyContent:'center' }}>
+                      <Ic n="ul" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo agora'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
