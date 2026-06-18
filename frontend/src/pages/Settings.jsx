@@ -734,81 +734,136 @@ function ProfileModal({ profile, onClose, onSaved }) {
   )
 }
 
+function exportProfilesCsv(profiles) {
+  const rows = ['nome,permissoes']
+  for (const p of profiles) {
+    const active = Object.entries(p.permissions ?? {}).filter(([, v]) => v).map(([k]) => k).join('|')
+    rows.push(`"${p.name.replace(/"/g, '""')}","${active}"`)
+  }
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a'); a.href = url; a.download = 'perfis_permissao.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
 function PermissionProfilesManager() {
   const [profiles, setProfiles] = useState([])
   const [loading,  setLoading]  = useState(true)
+  const [search,   setSearch]   = useState('')
   const [modal,    setModal]    = useState(null)
-  const [delId,    setDelId]    = useState(null)
+  const [delItem,  setDelItem]  = useState(null)
+  const fileRef = useRef(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     configApi.permissionProfiles()
       .then(r => setProfiles(r.data))
       .catch(() => toast.error('Erro ao carregar perfis.'))
       .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
+  }, [])
+  useEffect(load, [load])
 
-  const handleDelete = async (id) => {
-    try { await configApi.delPermissionProfile(id); load() }
+  const handleDelete = async () => {
+    try { await configApi.delPermissionProfile(delItem.id); load() }
     catch { toast.error('Erro ao excluir perfil.') }
-    finally { setDelId(null) }
+    finally { setDelItem(null) }
   }
 
-  if (loading) return <div className="empty-state"><p style={{ color:'#94a3b8' }}>Carregando…</p></div>
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]; if (!file) return
+    e.target.value = ''
+    const text = await file.text()
+    const lines = text.split(/\r?\n/).filter(Boolean)
+    if (lines.length < 2) { toast.error('CSV vazio ou inválido.'); return }
+    let ok = 0, skip = 0
+    for (const line of lines.slice(1)) {
+      const m = line.match(/^"?([^",]*(?:""[^",]*)*)"?,"?([^"]*)"?$/)
+      if (!m) { skip++; continue }
+      const name  = m[1].replace(/""/g, '"').trim()
+      const keys  = m[2].split('|').filter(Boolean)
+      if (!name) { skip++; continue }
+      const permissions = Object.fromEntries(keys.map(k => [k, true]))
+      const existing = profiles.find(p => p.name.toLowerCase() === name.toLowerCase())
+      try {
+        if (existing) await configApi.updatePermissionProfile(existing.id, { name, permissions })
+        else          await configApi.addPermissionProfile({ name, permissions })
+        ok++
+      } catch { skip++ }
+    }
+    toast.success(`${ok} perfil${ok !== 1 ? 's' : ''} importado${ok !== 1 ? 's' : ''}.${skip ? ` ${skip} ignorado${skip !== 1 ? 's' : ''}.` : ''}`)
+    load()
+  }
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return profiles.filter(p => p.name.toLowerCase().includes(q))
+  }, [profiles, search])
 
   return (
-    <div style={{ padding:16 }}>
-      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
-        <button onClick={() => setModal('new')}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          <Ic n="plus" s={13}/> Novo perfil
-        </button>
+    <>
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
+          style={{ ...inp, flex:1, minWidth:160 }}
+          onFocus={e => e.target.style.borderColor='#1a2d4f'}
+          onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
+        <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>
+        <div style={{ display:'flex', gap:6 }}>
+          <button style={btnCsv('#059669')} onClick={() => exportProfilesCsv(profiles)} title="Exportar como CSV">⬇ Exportar</button>
+          <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">⬆ Importar</button>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleImport} />
+        </div>
       </div>
-      {profiles.length === 0 ? (
-        <div className="empty-state" style={{ padding:'24px 0' }}>
-          <div style={{ color:'#cbd5e1' }}><Ic n="shield" s={28}/></div>
-          <p>Nenhum perfil criado ainda</p>
-        </div>
-      ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {profiles.map(p => {
-            const count = Object.values(p.permissions ?? {}).filter(Boolean).length
-            return (
-              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#fff' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <p style={{ margin:'0 0 2px', fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.name}</p>
-                  <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>{count} permissão{count !== 1 ? 'ões' : ''} ativa{count !== 1 ? 's' : ''}</p>
-                </div>
-                <button onClick={() => setModal(p)} title="Editar"
-                  style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
-                  <Ic n="edit" s={12}/> Editar
-                </button>
-                <button onClick={() => setDelId(p.id)} title="Excluir"
-                  style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:6, border:'1px solid #fecaca', background:'#fff', color:'#dc2626', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
-                  <Ic n="trash" s={12}/>
-                </button>
+
+      <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
+        {loading ? 'Carregando…' : `${filtered.length} de ${profiles.length} ${profiles.length !== 1 ? 'perfis' : 'perfil'}`}
+      </p>
+
+      <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', maxHeight:460, overflowY:'auto' }}>
+        {loading ? (
+          <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
+        ) : filtered.length === 0 ? (
+          <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>
+            {profiles.length === 0 ? 'Nenhum perfil criado ainda.' : 'Nenhum resultado.'}
+          </p>
+        ) : filtered.map((p, idx) => {
+          const count = Object.values(p.permissions ?? {}).filter(Boolean).length
+          return (
+            <div key={p.id} style={{
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+              padding:'9px 14px', fontSize:13, color:'#0f172a',
+              borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none', background:'#fff',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+              <div>
+                <span style={{ fontWeight:500 }}>{p.name}</span>
+                <span style={{ marginLeft:10, fontSize:12, color:'#94a3b8' }}>{count} permiss{count !== 1 ? 'ões' : 'ão'}</span>
               </div>
-            )
-          })}
-        </div>
-      )}
-      {modal && (
-        <ProfileModal
-          profile={modal === 'new' ? null : modal}
-          onClose={() => setModal(null)}
-          onSaved={() => { setModal(null); load() }}
-        />
-      )}
-      {delId && (
-        <ConfirmModal
-          title="Excluir perfil"
-          message="Tem certeza que deseja excluir este perfil? Usuários com ele aplicado não serão alterados."
-          onConfirm={() => handleDelete(delId)}
-          onCancel={() => setDelId(null)}
-        />
-      )}
+              <div className="r-acts">
+                <button className="r-btn edit" title="Editar" onClick={() => setModal(p)}><Ic n="edit" s={13}/></button>
+                <button className="r-btn del"  title="Excluir" onClick={() => setDelItem(p)}><Ic n="trash" s={13}/></button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
+    {modal && (
+      <ProfileModal
+        profile={modal === 'new' ? null : modal}
+        onClose={() => setModal(null)}
+        onSaved={() => { setModal(null); load() }}
+      />
+    )}
+    {delItem && (
+      <ConfirmModal
+        message={`Excluir o perfil "${delItem.name}"? Usuários que o têm aplicado não serão alterados.`}
+        onOk={handleDelete}
+        onCancel={() => setDelItem(null)}
+      />
+    )}
+    </>
   )
 }
 
