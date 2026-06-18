@@ -125,28 +125,36 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
     hoverDuration = Math.round(Math.abs(hovered - related) / 86400000) + 1
   }
 
-  /* Computa estilo de cada célula de dia, incluindo range de hover */
+  /* Computa estilo de cada célula de dia, incluindo range */
   const cellStyle = (day) => {
     const sel = isSel(day)
     const tod = isToday(day)
     const rel = !sel && isRelated(day)
 
-    // Range: todos os dias entre relatedDate e hoverDay (inclusive)
     let inRange = false
-    if (!sel && !rel && related && hoverDay != null) {
+    let isHovEndpoint = false
+
+    if (!sel && !rel && related) {
       const cellTs = new Date(view.year, view.month, day).getTime()
       const relTs  = related.getTime()
-      const hovTs  = new Date(view.year, view.month, hoverDay).getTime()
-      inRange = cellTs >= Math.min(relTs, hovTs) && cellTs <= Math.max(relTs, hovTs)
+
+      if (hoverDay != null) {
+        // Hover em progresso: range candidato entre anchor e cursor
+        const hovTs = new Date(view.year, view.month, hoverDay).getTime()
+        inRange = cellTs >= Math.min(relTs, hovTs) && cellTs <= Math.max(relTs, hovTs)
+        isHovEndpoint = day === hoverDay
+      } else if (selected) {
+        // Sem hover, mas ambas datas definidas: range persistente
+        const selTs = selected.getTime()
+        inRange = cellTs >= Math.min(relTs, selTs) && cellTs <= Math.max(relTs, selTs)
+      }
     }
 
-    const isHovEndpoint = !sel && !rel && day === hoverDay && related
-
-    if (sel)           return { bg:'#2e6db4', color:'#fff',    border:'none',                  fw:600 }
-    if (rel)           return { bg:'#dcfce7', color:'#15803d', border:'1.5px solid #86efac',   fw:600 }
-    if (isHovEndpoint) return { bg:'#bfdbfe', color:'#1e40af', border:'none',                  fw:600 }
-    if (inRange)       return { bg:'#eff6ff', color:'#1d4ed8', border:'none',                  fw:400 }
-    if (day===hoverDay) return { bg:'#f1f5f9', color:'#1e293b', border:'none',                 fw:400 }
+    if (sel)            return { bg:'#2e6db4', color:'#fff',    border:'none',                fw:600 }
+    if (rel)            return { bg:'#dcfce7', color:'#15803d', border:'1.5px solid #86efac', fw:600 }
+    if (isHovEndpoint)  return { bg:'#bfdbfe', color:'#1e40af', border:'none',                fw:600 }
+    if (inRange)        return { bg:'#eff6ff', color:'#1d4ed8', border:'none',                fw:400 }
+    if (day===hoverDay) return { bg:'#f1f5f9', color:'#1e293b', border:'none',                fw:400 }
     return {
       bg:'transparent',
       color: tod ? '#2e6db4' : '#1e293b',
