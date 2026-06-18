@@ -132,7 +132,7 @@ const PERM_DEPENDENCIES = {
   calendar_view_all_deadlines: 'calendar_view',
 
   email_log_preview:    'email_log_view',
-  email_resend_actions: 'email_log_view',
+  email_resend_actions: 'email_log_preview',
 }
 
 /* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente).
