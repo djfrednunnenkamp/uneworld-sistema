@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -37,10 +37,21 @@ const STATS_CFG = [
 ]
 
 function EmailPreviewModal({ log, onClose }) {
+  const iframeRef = useRef(null)
+
+  const handleLoad = () => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+    try {
+      const h = iframe.contentDocument.body.scrollHeight
+      iframe.style.height = h + 'px'
+    } catch {}
+  }
+
   return (
     <div onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-      <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:620, height:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.3)' }}>
+      <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:620, maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.3)' }}>
         <div style={{ padding:'14px 20px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
           <div>
             <p style={{ margin:'0 0 2px', fontSize:13, fontWeight:700, color:'#0f172a' }}>{log.subject}</p>
@@ -48,11 +59,13 @@ function EmailPreviewModal({ log, onClose }) {
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:20, padding:4 }}>×</button>
         </div>
-        <div style={{ flex:1, overflow:'hidden', borderRadius:'0 0 12px 12px' }}>
+        <div style={{ overflowY:'auto', borderRadius:'0 0 12px 12px' }}>
           <iframe
+            ref={iframeRef}
             srcDoc={log.html_body}
             title="preview"
-            style={{ width:'100%', height:'100%', border:'none' }}
+            onLoad={handleLoad}
+            style={{ width:'100%', border:'none', display:'block' }}
             sandbox="allow-same-origin"
           />
         </div>
