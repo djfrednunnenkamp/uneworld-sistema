@@ -116,7 +116,7 @@ def change_password(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_list(request):
-    if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'):
+    if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_block', 'users_delete', 'users_manage_permissions'):
         return Response({'error': 'Sem permissão.'}, status=403)
     users = User.objects.all().order_by('username')
     return Response([serialize_user(u) for u in users])
@@ -169,7 +169,7 @@ def user_create(request):
 @api_view(['PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_update(request, pk):
-    if not has_any_perm(request.user, 'manage_users', 'users_edit', 'users_manage_permissions'):
+    if not has_any_perm(request.user, 'manage_users', 'users_edit', 'users_block', 'users_manage_permissions'):
         return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
