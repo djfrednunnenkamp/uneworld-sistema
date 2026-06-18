@@ -894,8 +894,14 @@ export default function Settings() {
     if (action === 'delete') return !!(myP[`${permBase}_delete`] || myP[permBase])
     return false
   }
-  const canCsvExport = isSu || !!myP.manage_settings || !!myP.settings_csv_export
-  const canCsvImport = isSu || !!myP.manage_settings || !!myP.settings_csv_import
+  const CSV_SECTION_PERMS = [
+    'settings_professions', 'settings_languages', 'settings_vaccines',
+    'settings_genders', 'settings_prof_cards', 'settings_list_additionals',
+    'settings_crew_roles', 'settings_list_categories',
+    'settings_accommodations', 'settings_countries',
+  ]
+  const canCsvExport = isSu || !!myP.manage_settings || CSV_SECTION_PERMS.some(p => can(p, 'view'))
+  const canCsvImport = isSu || !!myP.manage_settings || CSV_SECTION_PERMS.some(p => can(p, 'edit'))
 
   const fileAllRef = useRef(null)
   const [listSearch, setListSearch] = useState('')
@@ -1092,27 +1098,33 @@ export default function Settings() {
 
   /* ── CSV combinado: exporta/importa todas as listas simples (nome único) de uma vez ── */
   const SIMPLE_LIST_GROUPS = [
-    { key:'professions',     label:'Profissões',             items: professions },
-    { key:'languages',       label:'Idiomas',                items: languages   },
-    { key:'vaccines',        label:'Vacinas',                items: vaccines    },
-    { key:'genders',         label:'Gêneros',                items: genders     },
-    { key:'prof_cards',      label:'Carteiras',              items: profCards   },
-    { key:'list_addits',     label:'Adicionais de Lista',    items: listAddits  },
-    { key:'crew_roles',      label:'Equipe técnica',         items: crewRoles   },
-    { key:'list_categories', label:'Categoria de Acomodações', items: listCats  },
+    { key:'professions',     label:'Profissões',               perm:'settings_professions',       items: professions },
+    { key:'languages',       label:'Idiomas',                  perm:'settings_languages',         items: languages   },
+    { key:'vaccines',        label:'Vacinas',                  perm:'settings_vaccines',          items: vaccines    },
+    { key:'genders',         label:'Gêneros',                  perm:'settings_genders',           items: genders     },
+    { key:'prof_cards',      label:'Carteiras',                perm:'settings_prof_cards',        items: profCards   },
+    { key:'list_addits',     label:'Adicionais de Lista',      perm:'settings_list_additionals',  items: listAddits  },
+    { key:'crew_roles',      label:'Equipe técnica',           perm:'settings_crew_roles',        items: crewRoles   },
+    { key:'list_categories', label:'Categoria de Acomodações', perm:'settings_list_categories',   items: listCats    },
   ]
 
   const handleExportAll = async () => {
     try {
-      const [cRes, sRes, geoRes] = await Promise.all([
-        configApi.countries(),
-        configApi.allStates(),
-        configApi.geoExport(),
-      ])
-      // Extrai apenas linhas com cidade a partir do geo CSV
-      const geoText = await geoRes.data.text()
-      const cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
-      exportCombinedCsvFull(SIMPLE_LIST_GROUPS, accoms, cRes.data, sRes.data, cities, 'todas_as_listas.csv')
+      const viewableGroups = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'view'))
+      const viewCountries  = can('settings_countries',     'view')
+      const viewAccoms     = can('settings_accommodations', 'view')
+      let cRes = { data: [] }, sRes = { data: [] }, cities = []
+      if (viewCountries) {
+        const [cr, sr, geoRes] = await Promise.all([
+          configApi.countries(),
+          configApi.allStates(),
+          configApi.geoExport(),
+        ])
+        cRes = cr; sRes = sr
+        const geoText = await geoRes.data.text()
+        cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
+      }
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, 'todas_as_listas.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -1121,16 +1133,27 @@ export default function Settings() {
     if (!file) return
     e.target.value = ''
     const csvText = await file.text()
+    const editableGroups   = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'edit'))
+    const canEditCountries = can('settings_countries',     'edit')
+    const canEditAccoms    = can('settings_accommodations', 'edit')
     let allCountries = []
-    try { allCountries = (await configApi.countries()).data } catch {}
+    if (canEditCountries) {
+      try { allCountries = (await configApi.countries()).data } catch {}
+    }
+    const permittedKeys = [
+      ...editableGroups.map(g => g.key),
+      ...(canEditAccoms    ? ['accommodations']                   : []),
+      ...(canEditCountries ? ['countries', 'states', 'cities']   : []),
+    ]
     navigate('/configuracoes/import', {
       state: {
         csvText, filename: file.name, type: 'all',
         existingByType: {
-          ...Object.fromEntries(SIMPLE_LIST_GROUPS.map(g => [g.key, g.items.map(i => i.name)])),
-          accommodations: accoms.map(a => a.name),
-          countries: allCountries.map(c => c.name),
+          ...Object.fromEntries(editableGroups.map(g => [g.key, g.items.map(i => i.name)])),
+          ...(canEditAccoms    ? { accommodations: accoms.map(a => a.name) }         : {}),
+          ...(canEditCountries ? { countries: allCountries.map(c => c.name) }        : {}),
         },
+        permittedKeys,
         allCountries,
       }
     })

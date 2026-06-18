@@ -197,7 +197,7 @@ def geo_import_action(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([RequirePermission('manage_settings', 'settings_countries', 'settings_countries_view')])
 def geo_export(request):
     """
     Exporta todos os países, estados e cidades em um único CSV:

@@ -131,7 +131,7 @@ function Spin() {
 export default function FlatImport() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { csvText, filename, type, existingNames = [], existingByType = {}, allCountries = [] } = location.state || {}
+  const { csvText, filename, type, existingNames = [], existingByType = {}, allCountries = [], permittedKeys } = location.state || {}
   const isAll    = type === 'all'
   const apiDef   = API_MAP[type] || API_MAP.professions
   const backPath = '/configuracoes'
@@ -155,9 +155,15 @@ export default function FlatImport() {
     return { [type]: new Set(existingNames.map(n => n.toLowerCase())) }
   }, [isAll, existingByType, existingNames, type])
 
+  const permittedKeySet = useMemo(
+    () => (permittedKeys ? new Set(permittedKeys) : null),
+    [permittedKeys]
+  )
+
   const rowStatus = (name, listKey, extras = {}) => {
     if (!name.trim()) return 'error'
     if (isAll && !listKey) return 'error'
+    if (isAll && permittedKeySet && listKey && !permittedKeySet.has(listKey)) return 'error'
     if (listKey === 'states' && !extras.parent_country) return 'error'
     if (listKey === 'cities' && (!extras.parent_country || !extras.parent_state)) return 'error'
     const set = existingSets[listKey ?? type]
