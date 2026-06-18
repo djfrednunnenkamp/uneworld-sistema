@@ -22,6 +22,7 @@ def serialize_user(u):
         'is_staff':     u.is_staff,
         'is_superuser': u.is_superuser,
         'is_active':    u.is_active,
+        'has_account':  u.has_usable_password(),
         'date_joined':  u.date_joined,
         'last_login':   u.last_login,
         'updated_at':   get_user_permissions(u).updated_at,
@@ -348,9 +349,12 @@ def admin_set_password(request, pk):
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    admin_password = request.data.get('admin_password', '')
+    if not request.user.check_password(admin_password):
+        return Response({'error': 'Sua senha está incorreta.'}, status=400)
     password = request.data.get('password', '')
     if len(password) < 8:
-        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
+        return Response({'error': 'A nova senha deve ter pelo menos 8 caracteres.'}, status=400)
     user.set_password(password)
     user.save()
     return Response({'message': 'Senha definida com sucesso.'})

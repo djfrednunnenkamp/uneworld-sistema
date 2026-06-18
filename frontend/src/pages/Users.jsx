@@ -709,35 +709,34 @@ function PermModal({ count, onPick, onClose, saving }) {
 
 /* ── Modal de gerenciamento de senha ── */
 function KeyMenuModal({ user, canSetPwd, onClose }) {
-  const [step, setStep] = useState('menu')
-  const [pwd,  setPwd]  = useState('')
-  const [busy, setBusy] = useState(false)
+  const [step,       setStep]       = useState('menu')
+  const [pwd,        setPwd]        = useState('')
+  const [pwdConfirm, setPwdConfirm] = useState('')
+  const [adminPwd,   setAdminPwd]   = useState('')
+  const [busy,       setBusy]       = useState(false)
 
-  const sendReset = async () => {
+  const sendEmail = async () => {
     setBusy(true)
     try {
-      await usersApi.sendReset(user.id)
-      toast.success(`E-mail de redefinição enviado para ${user.email}.`)
-      onClose()
-    } catch (e) { toast.error(e.response?.data?.error ?? 'Erro ao enviar.') }
-    finally { setBusy(false) }
-  }
-
-  const sendInviteAgain = async () => {
-    setBusy(true)
-    try {
-      await usersApi.sendInvite(user.id)
-      toast.success(`Convite reenviado para ${user.email}.`)
+      if (user.has_account) {
+        await usersApi.sendReset(user.id)
+        toast.success(`E-mail de redefinição de senha enviado para ${user.email}.`)
+      } else {
+        await usersApi.sendInvite(user.id)
+        toast.success(`Convite enviado para ${user.email}.`)
+      }
       onClose()
     } catch (e) { toast.error(e.response?.data?.error ?? 'Erro ao enviar.') }
     finally { setBusy(false) }
   }
 
   const doSetPwd = async () => {
-    if (pwd.length < 8) { toast.error('Mínimo 8 caracteres.'); return }
+    if (pwd.length < 8)       { toast.error('A nova senha deve ter pelo menos 8 caracteres.'); return }
+    if (pwd !== pwdConfirm)   { toast.error('As senhas não coincidem.'); return }
+    if (!adminPwd)            { toast.error('Digite sua própria senha para confirmar.'); return }
     setBusy(true)
     try {
-      await usersApi.setPassword(user.id, pwd)
+      await usersApi.setPassword(user.id, pwd, adminPwd)
       toast.success('Senha definida com sucesso.')
       onClose()
     } catch (e) { toast.error(e.response?.data?.error ?? 'Erro.') }
@@ -749,6 +748,8 @@ function KeyMenuModal({ user, canSetPwd, onClose }) {
     border:'1px solid #e2e8f0', background:'#f8fafc', cursor:'pointer', textAlign:'left',
     fontSize:13, color:'#1e293b', fontFamily:'inherit', transition:'border-color .12s', width:'100%',
   }
+  const fldStyle = { width:'100%', padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:6, fontSize:13, fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box', outline:'none' }
+  const lbl = { fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', display:'block', marginBottom:4 }
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -763,22 +764,13 @@ function KeyMenuModal({ user, canSetPwd, onClose }) {
         </div>
         <div style={{ padding:16, display:'flex', flexDirection:'column', gap:8 }}>
           {step === 'menu' ? (<>
-            <button style={optBtn} onClick={sendReset} disabled={busy}
+            <button style={optBtn} onClick={sendEmail} disabled={busy}
               onMouseEnter={e => e.currentTarget.style.borderColor='#1a2d4f'}
               onMouseLeave={e => e.currentTarget.style.borderColor='#e2e8f0'}>
               <Ic n="mail" s={16}/>
               <span>
-                <b style={{display:'block'}}>Enviar e-mail de redefinição de senha</b>
-                <span style={{fontSize:11.5,color:'#94a3b8'}}>Para quem já criou a conta</span>
-              </span>
-            </button>
-            <button style={optBtn} onClick={sendInviteAgain} disabled={busy}
-              onMouseEnter={e => e.currentTarget.style.borderColor='#1a2d4f'}
-              onMouseLeave={e => e.currentTarget.style.borderColor='#e2e8f0'}>
-              <Ic n="mail" s={16}/>
-              <span>
-                <b style={{display:'block'}}>Reenviar convite por e-mail</b>
-                <span style={{fontSize:11.5,color:'#94a3b8'}}>Para quem ainda não criou a conta</span>
+                <b style={{display:'block'}}>{user.has_account ? 'Enviar e-mail de redefinição de senha' : 'Enviar convite por e-mail'}</b>
+                <span style={{fontSize:11.5,color:'#94a3b8'}}>{user.has_account ? 'Conta já criada — envia link para redefinir' : 'Conta ainda não criada — envia link para definir senha'}</span>
               </span>
             </button>
             {canSetPwd && (
@@ -793,10 +785,18 @@ function KeyMenuModal({ user, canSetPwd, onClose }) {
               </button>
             )}
           </>) : (<>
-            <PasswordInput
-              style={{ width:'100%', padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:6, fontSize:13, fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box', outline:'none' }}
-              value={pwd} onChange={e => setPwd(e.target.value)}
-              placeholder="Nova senha (mínimo 8 caracteres)" />
+            <div>
+              <label style={lbl}>Nova senha</label>
+              <PasswordInput style={fldStyle} value={pwd} onChange={e => setPwd(e.target.value)} placeholder="Mínimo 8 caracteres" />
+            </div>
+            <div>
+              <label style={lbl}>Confirmar nova senha</label>
+              <PasswordInput style={fldStyle} value={pwdConfirm} onChange={e => setPwdConfirm(e.target.value)} placeholder="Repita a nova senha" />
+            </div>
+            <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:10, marginTop:2 }}>
+              <label style={lbl}>Sua senha (confirmação)</label>
+              <PasswordInput style={fldStyle} value={adminPwd} onChange={e => setAdminPwd(e.target.value)} placeholder="Digite sua própria senha para confirmar" />
+            </div>
             <div style={{ display:'flex', gap:8, marginTop:4 }}>
               <button onClick={() => setStep('menu')} disabled={busy}
                 style={{ flex:1, padding:'8px 0', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
@@ -1229,6 +1229,7 @@ export default function Users() {
                 <th>E-mail</th>
                 <th>Perfil</th>
                 <th>Status</th>
+                <th>Conta</th>
                 <th style={{width:110}}></th>
               </tr>
             </thead>
@@ -1269,6 +1270,12 @@ export default function Users() {
                     {u.is_active
                       ? <span className="badge bg-green">Ativo</span>
                       : <span className="badge bg-red">Inativo</span>
+                    }
+                  </td>
+                  <td>
+                    {u.has_account
+                      ? <span className="badge bg-green">Sim</span>
+                      : <span className="badge bg-amber">Não</span>
                     }
                   </td>
                   <td>
