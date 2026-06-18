@@ -558,11 +558,11 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
             <div style={row2}>
               <div>
                 <label style={lbl}>Data de início</label>
-                <DatePicker fixed value={form.start_date} onChange={v => setV('start_date', v)} />
+                <DatePicker fixed value={form.start_date} onChange={v => setV('start_date', v)} relatedDate={form.end_date || null} />
               </div>
               <div>
                 <label style={lbl}>Data de término</label>
-                <DatePicker fixed value={form.end_date} onChange={v => setV('end_date', v)} />
+                <DatePicker fixed value={form.end_date} onChange={v => setV('end_date', v)} relatedDate={form.start_date || null} />
               </div>
             </div>
 

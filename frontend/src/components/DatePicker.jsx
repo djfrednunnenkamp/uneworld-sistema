@@ -29,17 +29,19 @@ const displayToIso = (str) => {
   return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`
 }
 
-export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA', errStyle, fixed = false }) {
+export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA', errStyle, fixed = false, relatedDate = null }) {
   const [open,        setOpen]        = useState(false)
   const [inputVal,    setInputVal]    = useState(isoToDisplay(value))
   const [view,        setView]        = useState(null)
   const [mode,        setMode]        = useState('days')
   const [decadeStart, setDecadeStart] = useState(null)
   const [popupPos,    setPopupPos]    = useState({})
+  const [hoverDay,    setHoverDay]    = useState(null)
   const ref    = useRef(null)
   const inpRef = useRef(null)
 
   const selected = value ? new Date(value + 'T00:00:00') : null
+  const related  = relatedDate ? new Date(relatedDate + 'T00:00:00') : null
   const today    = new Date(); today.setHours(0,0,0,0)
 
   /* Sync inputVal quando value muda externamente */
@@ -48,10 +50,12 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
   /* Inicializa view ao abrir e calcula posição fixed se necessário */
   useEffect(() => {
     if (open) {
-      const d = selected || today
+      // Abre no mês da data relacionada (par início/fim), senão na selecionada, senão hoje
+      const d = related || selected || today
       setView({ year: d.getFullYear(), month: d.getMonth() })
       setDecadeStart(Math.floor(d.getFullYear() / 10) * 10)
       setMode('days')
+      setHoverDay(null)
       if (fixed && ref.current) {
         const rect = ref.current.getBoundingClientRect()
         setPopupPos({ top: rect.bottom + 6, left: rect.left })
@@ -114,8 +118,16 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
     return [...Array(first).fill(null), ...Array.from({length:total},(_,i)=>i+1)]
   }
 
-  const isSel   = d => selected && d===selected.getDate() && view.month===selected.getMonth() && view.year===selected.getFullYear()
-  const isToday = d => d===today.getDate() && view.month===today.getMonth() && view.year===today.getFullYear()
+  const isSel     = d => selected && d===selected.getDate() && view.month===selected.getMonth() && view.year===selected.getFullYear()
+  const isToday   = d => d===today.getDate() && view.month===today.getMonth() && view.year===today.getFullYear()
+  const isRelated = d => related && d===related.getDate() && view.month===related.getMonth() && view.year===related.getFullYear()
+
+  /* Duração em dias entre o dia em hover e a data relacionada (contagem inclusiva) */
+  let hoverDuration = null
+  if (hoverDay != null && related && view) {
+    const hovered = new Date(view.year, view.month, hoverDay)
+    hoverDuration = Math.round(Math.abs(hovered - related) / 86400000) + 1
+  }
 
   const decadeYears = decadeStart!==null ? Array.from({length:12},(_,i)=>decadeStart-1+i) : []
 
@@ -259,18 +271,46 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
               <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
                 {cells().map((day,i)=>{
                   if(!day) return <div key={`e${i}`}/>
-                  const sel=isSel(day), tod=isToday(day)
+                  const sel = isSel(day)
+                  const tod = isToday(day)
+                  const rel = !sel && isRelated(day)
+                  const bg  = sel ? '#2e6db4' : rel ? '#dcfce7' : 'transparent'
                   return (
                     <button key={day}
                       onClick={()=>pick(view.year,view.month,day)}
-                      style={{padding:'6px 0',borderRadius:6,border:!sel&&tod?'1.5px solid #2e6db4':'none',
-                        background:sel?'#2e6db4':'transparent',
-                        color:sel?'#fff':tod?'#2e6db4':'#1e293b',
-                        fontSize:13,fontWeight:sel||tod?600:400,cursor:'pointer',fontFamily:'inherit',transition:'background .1s'}}
-                      onMouseEnter={e=>{if(!sel)hov(e)}} onMouseLeave={e=>{if(!sel)unHov(e,'transparent')}}
+                      onMouseEnter={e=>{
+                        setHoverDay(day)
+                        if (!sel) e.currentTarget.style.background = rel ? '#bbf7d0' : '#f1f5f9'
+                      }}
+                      onMouseLeave={e=>{
+                        setHoverDay(null)
+                        e.currentTarget.style.background = bg
+                      }}
+                      style={{
+                        padding:'6px 0', borderRadius:6, cursor:'pointer', fontFamily:'inherit', transition:'background .1s',
+                        border: sel ? 'none' : rel ? '1.5px solid #86efac' : tod ? '1.5px solid #2e6db4' : 'none',
+                        background: bg,
+                        color: sel ? '#fff' : rel ? '#15803d' : tod ? '#2e6db4' : '#1e293b',
+                        fontSize:13, fontWeight: sel||tod||rel ? 600 : 400,
+                      }}
                     >{day}</button>)
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Barra de duração — só exibida quando relatedDate está definida */}
+          {related && mode==='days' && (
+            <div style={{
+              padding:'5px 10px', borderTop:'1px solid #f1f5f9',
+              fontSize:11.5, textAlign:'center',
+              color: hoverDuration != null ? '#475569' : '#cbd5e1',
+              minHeight:26, display:'flex', alignItems:'center', justifyContent:'center',
+            }}>
+              {hoverDuration != null
+                ? (hoverDuration === 1 ? '1 dia de viagem' : `${hoverDuration} dias de viagem`)
+                : 'Passe o mouse para ver a duração'
+              }
             </div>
           )}
 
