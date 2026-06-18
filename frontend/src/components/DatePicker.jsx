@@ -97,8 +97,13 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
     }
   }
 
-  /* Seleciona um dia — popup permanece aberto para o usuário ver a seleção */
+  /* Seleciona um dia; clicar no dia já selecionado limpa o campo */
   const pick = (year, month, day) => {
+    if (selected && day === selected.getDate() && month === selected.getMonth() && year === selected.getFullYear()) {
+      onChange('')
+      setInputVal('')
+      return
+    }
     const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
     onChange(iso)
     setInputVal(isoToDisplay(iso))
