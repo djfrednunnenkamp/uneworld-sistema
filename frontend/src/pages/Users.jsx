@@ -17,6 +17,16 @@ import {
   sanitizePerms, applyPermChanges,
 } from '../utils/permGroups'
 
+const STATUS_OPTS = [
+  { value: '',            label: 'Todos os status' },
+  { value: 'ativa',       label: 'Ativa'           },
+  { value: 'configurada', label: 'Configurada'      },
+  { value: 'pendente',    label: 'Pendente'         },
+  { value: 'bloqueada',   label: 'Bloqueada'        },
+]
+
+const statusOf = u => !u.is_active ? 'bloqueada' : !u.has_account ? 'pendente' : !u.last_login ? 'configurada' : 'ativa'
+
 const ROLE_OPTS = [
   { value: '',           label: 'Todos os perfis' },
   { value: 'superuser',  label: 'Superusuário'     },
@@ -502,6 +512,96 @@ function KeyMenuModal({ user, canSetPwd, onClose }) {
   )
 }
 
+/* ── Modal de Bloquear / Excluir ── */
+function BlockOrDeleteModal({ user, onBlock, onDelete, onClose }) {
+  const [step,   setStep]   = useState('choose') // 'choose' | 'block' | 'delete'
+  const [busy,   setBusy]   = useState(false)
+  const name = user.full_name || user.username
+
+  const doBlock = async () => {
+    setBusy(true)
+    try { await onBlock(); onClose() }
+    catch { setBusy(false) }
+  }
+  const doDelete = async () => {
+    setBusy(true)
+    try { await onDelete(); onClose() }
+    catch { setBusy(false) }
+  }
+
+  const optBtn = active => ({
+    display:'flex', flexDirection:'column', alignItems:'flex-start', gap:3,
+    padding:'13px 16px', borderRadius:9, border:`1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`,
+    background: active ? '#f0f4ff' : '#fff', cursor: busy ? 'default' : 'pointer',
+    textAlign:'left', fontFamily:'inherit', transition:'all .12s', width:'100%',
+  })
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:400, padding:20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'#fff', borderRadius:12, width:380, boxShadow:'0 16px 48px rgba(0,0,0,.22)', animation:'mIn .15s ease' }}>
+        <div style={{ padding:'16px 20px 12px', borderBottom:'1px solid #f1f5f9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#1e293b' }}>
+            {step === 'choose' ? 'O que deseja fazer?' : step === 'block' ? 'Confirmar bloqueio' : 'Confirmar exclusão'}
+          </p>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4 }}><Ic n="x" s={15}/></button>
+        </div>
+
+        <div style={{ padding:'16px 20px' }}>
+          {step === 'choose' ? (<>
+            <p style={{ margin:'0 0 12px', fontSize:13, color:'#475569' }}>
+              <b style={{ color:'#1e293b' }}>{name}</b>
+            </p>
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <button style={optBtn(false)} disabled={busy} onClick={() => setStep('block')}
+                onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.background='#f0f4ff' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.background='#fff' }}>
+                <span style={{ fontSize:13, fontWeight:600, color:'#1e293b' }}>🚫 Bloquear acesso</span>
+                <span style={{ fontSize:12, color:'#64748b' }}>O usuário não consegue mais entrar, mas permanece no sistema</span>
+              </button>
+              <button style={optBtn(false)} disabled={busy} onClick={() => setStep('delete')}
+                onMouseEnter={e => { e.currentTarget.style.borderColor='#ef4444'; e.currentTarget.style.background='#fff5f5' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.background='#fff' }}>
+                <span style={{ fontSize:13, fontWeight:600, color:'#dc2626' }}>🗑️ Excluir permanentemente</span>
+                <span style={{ fontSize:12, color:'#64748b' }}>Remove o usuário do sistema (não pode ser desfeito)</span>
+              </button>
+            </div>
+          </>) : step === 'block' ? (<>
+            <p style={{ margin:'0 0 16px', fontSize:13, color:'#475569', lineHeight:1.5 }}>
+              Tem certeza que deseja bloquear <b style={{ color:'#1e293b' }}>{name}</b>? O usuário perderá o acesso imediatamente.
+            </p>
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button onClick={() => setStep('choose')} disabled={busy}
+                style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                Voltar
+              </button>
+              <button onClick={doBlock} disabled={busy}
+                style={{ padding:'8px 18px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                {busy ? 'Bloqueando…' : 'Sim, bloquear'}
+              </button>
+            </div>
+          </>) : (<>
+            <p style={{ margin:'0 0 16px', fontSize:13, color:'#475569', lineHeight:1.5 }}>
+              Tem certeza que deseja excluir permanentemente <b style={{ color:'#1e293b' }}>{name}</b>? Esta ação não pode ser desfeita.
+            </p>
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button onClick={() => setStep('choose')} disabled={busy}
+                style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                Voltar
+              </button>
+              <button onClick={doDelete} disabled={busy}
+                style={{ padding:'8px 18px', borderRadius:7, border:'none', background:'#dc2626', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                {busy ? 'Excluindo…' : 'Sim, excluir'}
+              </button>
+            </div>
+          </>)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Dropdown de filtro simples (estilo Log/Passageiros) ── */
 function FDrop({ label, value, onChange, options }) {
   const [open, setOpen] = useState(false)
@@ -686,15 +786,16 @@ function DateRangeDrop({ label, from, to, onFrom, onTo }) {
 export default function Users() {
   const [users,   setUsers]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal,   setModal]   = useState(null)
-  const [delUser, setDelUser] = useState(null)
-  const [keyMenu, setKeyMenu] = useState(null)
-  const [q,       setQ]       = useState('')
-  const [sel,     setSel]     = useState(new Set())
-  const [permModal, setPermModal] = useState(false)
-  const [bulkDel,   setBulkDel]   = useState(false)
-  const [bulkBusy,  setBulkBusy]  = useState(false)
+  const [modal,      setModal]      = useState(null)
+  const [actionUser, setActionUser] = useState(null)
+  const [keyMenu,    setKeyMenu]    = useState(null)
+  const [q,          setQ]          = useState('')
+  const [sel,        setSel]        = useState(new Set())
+  const [permModal,  setPermModal]  = useState(false)
+  const [bulkDel,    setBulkDel]    = useState(false)
+  const [bulkBusy,   setBulkBusy]   = useState(false)
   const [roleFilter,    setRoleFilter]    = useState('')
+  const [statusFilter,  setStatusFilter]  = useState('')
   const [permFilter,    setPermFilter]    = useState(new Set())
   const [createdFrom,   setCreatedFrom]   = useState('')
   const [createdTo,     setCreatedTo]     = useState('')
@@ -732,10 +833,15 @@ export default function Users() {
     if (scope === 'users' || scope === 'all') silentReload()
   }, [silentReload]))
 
+  const handleBlock = async () => {
+    await usersApi.update(actionUser.id, { is_active: false })
+    toast.success(`${actionUser.full_name || actionUser.username} bloqueado.`)
+    load()
+  }
+
   const handleDelete = async () => {
-    await usersApi.remove(delUser.id).catch(e => toast.error(e.response?.data?.error ?? 'Erro ao excluir.'))
+    await usersApi.remove(actionUser.id).catch(e => { toast.error(e.response?.data?.error ?? 'Erro ao excluir.'); throw e })
     toast.success('Usuário excluído.')
-    setDelUser(null)
     load()
   }
 
@@ -744,9 +850,10 @@ export default function Users() {
 
   const roleOf = u => u.is_superuser ? 'superuser' : u.is_staff ? 'admin' : 'user'
 
-  const hasFilters = !!roleFilter || permFilter.size > 0 || createdFrom || createdTo || modifiedFrom || modifiedTo
+  const hasFilters = !!roleFilter || !!statusFilter || permFilter.size > 0 || createdFrom || createdTo || modifiedFrom || modifiedTo
   const clearFilters = () => {
     setRoleFilter('')
+    setStatusFilter('')
     setPermFilter(new Set())
     setCreatedFrom(''); setCreatedTo('')
     setModifiedFrom(''); setModifiedTo('')
@@ -761,6 +868,7 @@ export default function Users() {
       if (!matchQ) return false
     }
     if (roleFilter && roleOf(u) !== roleFilter) return false
+    if (statusFilter && statusOf(u) !== statusFilter) return false
     if (permFilter.size > 0) {
       const ok = [...permFilter].every(k => u.is_superuser || !!u.permissions?.[k])
       if (!ok) return false
@@ -843,7 +951,8 @@ export default function Users() {
           <input className="search-in" placeholder="Buscar por nome, e-mail ou login…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
 
-        <FDrop label="Perfil" value={roleFilter} onChange={setRoleFilter} options={ROLE_OPTS} />
+        <FDrop label="Perfil"  value={roleFilter}   onChange={setRoleFilter}   options={ROLE_OPTS}   />
+        <FDrop label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTS} />
         <PermFilterDrop selected={permFilter} onChange={setPermFilter} />
         <DateRangeDrop label="Criado" from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
         <DateRangeDrop label="Modificado" from={modifiedFrom} to={modifiedTo} onFrom={setModifiedFrom} onTo={setModifiedTo} />
@@ -973,7 +1082,7 @@ export default function Users() {
                         </button>
                       )}
                       {canDeleteU && u.id !== me?.id && (
-                        <button className="r-btn del" title="Excluir" onClick={() => setDelUser(u)}><Ic n="trash" s={13}/></button>
+                        <button className="r-btn del" title="Bloquear / Excluir" onClick={() => setActionUser(u)}><Ic n="trash" s={13}/></button>
                       )}
                     </div>
                   </td>
@@ -992,8 +1101,13 @@ export default function Users() {
           onSaved={() => { setModal(null); load() }}
         />
       )}
-      {delUser && (
-        <DelModal name={delUser.full_name || delUser.username} onOk={handleDelete} onCancel={() => setDelUser(null)} />
+      {actionUser && (
+        <BlockOrDeleteModal
+          user={actionUser}
+          onBlock={handleBlock}
+          onDelete={handleDelete}
+          onClose={() => setActionUser(null)}
+        />
       )}
       {permModal && (
         <PermModal count={sel.size} saving={bulkBusy} onPick={bulkSetStaff} onClose={() => !bulkBusy && setPermModal(false)} />
