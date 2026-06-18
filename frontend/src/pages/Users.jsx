@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
 import PasswordInput from '../components/PasswordInput'
-import DatePicker from '../components/DatePicker'
+import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
 import {
@@ -28,10 +28,10 @@ const STATUS_OPTS = [
 const statusOf = u => !u.is_active ? 'bloqueada' : !u.has_account ? 'pendente' : !u.last_login ? 'configurada' : 'ativa'
 
 const ROLE_OPTS = [
-  { value: '',           label: 'Todos os perfis' },
-  { value: 'superuser',  label: 'Superusuário'     },
-  { value: 'admin',      label: 'Administrador'    },
-  { value: 'user',       label: 'Usuário'          },
+  { value: '',           label: 'Todos os perfis'               },
+  { value: 'superuser',  label: 'Superusuário', badge: 'bg-blue'   },
+  { value: 'admin',      label: 'Administrador', badge: 'bg-green'  },
+  { value: 'user',       label: 'Usuário',       badge: 'bg-amber'  },
 ]
 
 
@@ -773,59 +773,6 @@ function PermFilterDrop({ selected, onChange }) {
   )
 }
 
-/* ── Dropdown de intervalo de datas (Criação / Modificação) ── */
-function DateRangeDrop({ label, from, to, onFrom, onTo }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const active = !!from || !!to
-
-  useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7,
-          border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
-          background: active ? '#eff6ff' : '#fff',
-          color: active ? '#2e6db4' : '#475569',
-          fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
-          whiteSpace: 'nowrap', transition: 'all .12s',
-        }}>
-        {label}{active ? ': período' : ''}
-        <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
-          background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0',
-          boxShadow: '0 8px 24px rgba(0,0,0,.10)', width: 230, padding: 12,
-          display: 'flex', flexDirection: 'column', gap: 10,
-        }}>
-          <div>
-            <label style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.04em', display:'block', marginBottom:5 }}>De</label>
-            <DatePicker value={from} onChange={onFrom} placeholder="DD/MM/AAAA" />
-          </div>
-          <div>
-            <label style={{ fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.04em', display:'block', marginBottom:5 }}>Até</label>
-            <DatePicker value={to} onChange={onTo} placeholder="DD/MM/AAAA" />
-          </div>
-          {active && (
-            <button type="button" onClick={() => { onFrom(''); onTo('') }}
-              style={{ padding:'7px 10px', fontSize:12, fontWeight:600, color:'#dc2626', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, cursor:'pointer', fontFamily:'inherit' }}>
-              ✕ Limpar
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function Users() {
   const [users,   setUsers]   = useState([])
   const [loading, setLoading] = useState(true)
@@ -844,6 +791,7 @@ export default function Users() {
   const [createdFrom,   setCreatedFrom]   = useState('')
   const [createdTo,     setCreatedTo]     = useState('')
   const [modifiedFrom,  setModifiedFrom]  = useState('')
+  const [permProfiles,  setPermProfiles]  = useState([])
   const [modifiedTo,    setModifiedTo]    = useState('')
   const { user: me } = useAuth()
   const navigate = useNavigate()
@@ -865,6 +813,19 @@ export default function Users() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    configApi.permissionProfiles().then(r => setPermProfiles(r.data)).catch(() => {})
+  }, [])
+
+  const matchProfile = u =>
+    !u.is_superuser
+      ? permProfiles.find(p => ALL_PERM_KEYS.every(k => !!u.permissions?.[k] === !!(p.permissions?.[k])))
+      : null
+
+  const roleOpts = [
+    ...ROLE_OPTS,
+    ...permProfiles.map(p => ({ value: `profile:${p.id}`, label: p.name, badge: 'bg-purple' })),
+  ]
 
   const silentReload = useCallback(() => {
     usersApi.list()
@@ -899,7 +860,12 @@ export default function Users() {
   const initials = u => `${u.first_name?.[0]??''}${u.last_name?.[0]??''}`.toUpperCase() || u.username[0].toUpperCase()
   const PALETTE  = ['#2B3A8F','#0369A1','#0D6E6E','#6B3FA0','#B45309']
 
-  const roleOf = u => u.is_superuser ? 'superuser' : u.is_staff ? 'admin' : 'user'
+  const roleOf = u => {
+    if (u.is_superuser) return 'superuser'
+    const p = matchProfile(u)
+    if (p) return `profile:${p.id}`
+    return u.is_staff ? 'admin' : 'user'
+  }
 
   const hasFilters = !!roleFilter || !!statusFilter || permFilter.size > 0 || createdFrom || createdTo || modifiedFrom || modifiedTo
   const clearFilters = () => {
@@ -1002,7 +968,7 @@ export default function Users() {
           <input className="search-in" placeholder="Buscar por nome, e-mail ou login…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
 
-        <FDrop label="Perfil"  value={roleFilter}   onChange={setRoleFilter}   options={ROLE_OPTS}   />
+        <FDrop label="Perfil"  value={roleFilter}   onChange={setRoleFilter}   options={roleOpts}   />
         <FDrop label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTS} />
         <PermFilterDrop selected={permFilter} onChange={setPermFilter} />
         <DateRangeDrop label="Criado" from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
@@ -1104,13 +1070,16 @@ export default function Users() {
                       ? <BadgeTooltip badge={<span className="badge bg-blue" style={{ cursor:'help' }}>Superusuário</span>}>
                           <SuperuserTooltipContent />
                         </BadgeTooltip>
-                      : u.is_staff
-                        ? <BadgeTooltip badge={<span className="badge bg-green" style={{ cursor:'help' }}>Administrador</span>}>
-                            <PermsTooltipContent permissions={u.permissions} />
-                          </BadgeTooltip>
-                        : <BadgeTooltip badge={<span className="badge bg-amber" style={{ cursor:'help' }}>Usuário</span>}>
-                            <PermsTooltipContent permissions={u.permissions} />
-                          </BadgeTooltip>
+                      : (() => {
+                          const p = matchProfile(u)
+                          const label = p ? p.name : u.is_staff ? 'Administrador' : 'Usuário'
+                          const cls   = p ? 'bg-purple' : u.is_staff ? 'bg-green' : 'bg-amber'
+                          return (
+                            <BadgeTooltip badge={<span className={`badge ${cls}`} style={{ cursor:'help' }}>{label}</span>}>
+                              <PermsTooltipContent permissions={u.permissions} />
+                            </BadgeTooltip>
+                          )
+                        })()
                     }
                   </td>
                   <td style={{textAlign:'center'}}>

@@ -80,7 +80,8 @@ table.dt tbody tr:hover td { background: #fafbfd; }
 .bg-green { background: #dcfce7; color: #15803d; }
 .bg-amber { background: #fef3c7; color: #b45309; }
 .bg-red   { background: #fee2e2; color: #b91c1c; }
-.bg-blue  { background: #dbeafe; color: #1d4ed8; }
+.bg-blue   { background: #dbeafe; color: #1d4ed8; }
+.bg-purple { background: #ede9fe; color: #7c3aed; }
 
 /* ── Row actions ── */
 .r-acts { display: flex; gap: 4px; justify-content: flex-end; }

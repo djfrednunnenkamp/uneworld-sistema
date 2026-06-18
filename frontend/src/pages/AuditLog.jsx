@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { auditApi } from '../api'
-import DatePicker from '../components/DatePicker'
+import DateRangeDrop from '../components/DateRangeDrop'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 
@@ -406,22 +406,13 @@ export default function AuditLog() {
         <FDrop label="Ação"  value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS} />
         <FDrop label="Tipo"  value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS} />
 
-        {/* Datas — usa o DatePicker customizado (DD/MM/AAAA com calendário) */}
-        <div style={{ width: 150 }}>
-          <DatePicker
-            value={filters.date_from}
-            onChange={v => setFilter('date_from', v)}
-            placeholder="De: DD/MM/AAAA"
-          />
-        </div>
-        <span style={{ fontSize: 12, color: '#94a3b8' }}>até</span>
-        <div style={{ width: 150 }}>
-          <DatePicker
-            value={filters.date_to}
-            onChange={v => setFilter('date_to', v)}
-            placeholder="Até: DD/MM/AAAA"
-          />
-        </div>
+        <DateRangeDrop
+          label="Período"
+          from={filters.date_from}
+          to={filters.date_to}
+          onFrom={v => setFilter('date_from', v)}
+          onTo={v => setFilter('date_to', v)}
+        />
 
         {hasFilter && (
           <button onClick={() => { const c = { action:'',model:'',search:'',date_from:'',date_to:'' }; setFilters(c); load(1,c) }}
