@@ -512,6 +512,43 @@ function KeyMenuModal({ user, canSetPwd, onClose }) {
   )
 }
 
+/* ── Modal de confirmação de desbloqueio ── */
+function ConfirmUnblockModal({ user, onConfirm, onClose }) {
+  const [busy, setBusy] = useState(false)
+  const name = user.full_name || user.username
+  const doConfirm = async () => {
+    setBusy(true)
+    try { await onConfirm() } catch { setBusy(false) }
+  }
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:400, padding:20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'#fff', borderRadius:12, width:380, boxShadow:'0 16px 48px rgba(0,0,0,.22)', animation:'mIn .15s ease' }}>
+        <div style={{ padding:'16px 20px 12px', borderBottom:'1px solid #f1f5f9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#1e293b' }}>Desbloquear acesso</p>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4 }}><Ic n="x" s={15}/></button>
+        </div>
+        <div style={{ padding:'16px 20px' }}>
+          <p style={{ margin:'0 0 16px', fontSize:13, color:'#475569', lineHeight:1.5 }}>
+            Você realmente quer desbloquear <b style={{ color:'#1e293b' }}>{name}</b>? O usuário recuperará o acesso ao sistema imediatamente.
+          </p>
+          <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+            <button onClick={onClose} disabled={busy}
+              style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+              Cancelar
+            </button>
+            <button onClick={doConfirm} disabled={busy}
+              style={{ padding:'8px 18px', borderRadius:7, border:'none', background:'#16a34a', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              {busy ? 'Desbloqueando…' : 'Sim, desbloquear'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Modal de Bloquear / Excluir ── */
 function BlockOrDeleteModal({ user, onBlock, onDelete, onClose, initialStep = 'choose' }) {
   const [step,   setStep]   = useState(initialStep) // 'choose' | 'block' | 'delete'
@@ -793,7 +830,8 @@ export default function Users() {
   const [users,   setUsers]   = useState([])
   const [loading, setLoading] = useState(true)
   const [modal,      setModal]      = useState(null)
-  const [actionUser, setActionUser] = useState(null)
+  const [actionUser,  setActionUser]  = useState(null)
+  const [unblockUser, setUnblockUser] = useState(null)
   const [keyMenu,    setKeyMenu]    = useState(null)
   const [q,          setQ]          = useState('')
   const [sel,        setSel]        = useState(new Set())
@@ -1096,7 +1134,7 @@ export default function Users() {
                           </button>
                         )}
                       </>) : (
-                        <button className="r-btn" title="Desbloquear acesso" style={{color:'#16a34a'}} onClick={() => handleUnblock(u)}>
+                        <button className="r-btn" title="Desbloquear acesso" style={{color:'#16a34a'}} onClick={() => setUnblockUser(u)}>
                           <Ic n="unlock" s={13}/>
                         </button>
                       )}
@@ -1118,6 +1156,13 @@ export default function Users() {
           mode={modal === 'new' ? 'new' : modal.mode}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
+        />
+      )}
+      {unblockUser && (
+        <ConfirmUnblockModal
+          user={unblockUser}
+          onConfirm={async () => { await handleUnblock(unblockUser); setUnblockUser(null) }}
+          onClose={() => setUnblockUser(null)}
         />
       )}
       {actionUser && (
