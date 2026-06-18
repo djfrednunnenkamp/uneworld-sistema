@@ -2,13 +2,20 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { usersApi, agendaApi } from '../api'
+import { usersApi, agendaApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
 import PasswordInput from '../components/PasswordInput'
 import DatePicker from '../components/DatePicker'
 import { Ic } from '../components/Icon'
+import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
+import {
+  PERM_GROUPS, PERM_DEPENDENCIES, groupItems,
+  ALL_PERM_KEYS, ADMIN_PERM_KEYS,
+  EMPTY_PERMISSIONS, PRESET_ADMIN, PRESET_USER,
+  sanitizePerms, applyPermChanges,
+} from '../utils/permGroups'
 
 const ROLE_OPTS = [
   { value: '',           label: 'Todos os perfis' },
@@ -17,232 +24,6 @@ const ROLE_OPTS = [
   { value: 'user',       label: 'Usuário'          },
 ]
 
-const PERM_GROUPS = [
-  {
-    title: 'Visão Geral',
-    icon: 'grid',
-    sections: [
-      {
-        label: 'Dashboard',
-        items: [
-          ['dashboard_view_passengers',  'Ver total de passageiros'],
-          ['dashboard_view_lists',       'Ver total de listas abertas'],
-          ['dashboard_view_enrollments', 'Ver total de inscrições'],
-        ],
-      },
-      {
-        label: 'Log de E-mails',
-        items: [
-          ['email_log_view',       'Ver e-mails enviados pelo sistema'],
-          ['email_log_preview',    'Clicar para visualizar conteúdo do e-mail'],
-          ['email_resend_actions', 'Reenviar redefinição de senha / convite'],
-        ],
-      },
-    ],
-  },
-  {
-    title: 'Passageiros',
-    icon: 'users',
-    items: [
-      ['passengers_view_basic',    'Ver dados básicos'],
-      ['passengers_view_full',     'Ver dados completos (sensíveis)'],
-      ['passengers_edit',          'Criar / Editar'],
-      ['passengers_delete',        'Excluir'],
-      ['passengers_download_docs', 'Baixar documentos'],
-      ['passengers_upload_docs',   'Enviar documentos'],
-      ['passengers_view_logs',     'Ver log de atividades do passageiro'],
-    ],
-  },
-  {
-    title: 'Agências',
-    icon: 'building',
-    items: [
-      ['agencies_view',      'Ver agências'],
-      ['agencies_edit',      'Criar / Editar'],
-      ['agencies_delete',    'Excluir'],
-      ['agencies_view_logs', 'Ver log de atividades da agência'],
-    ],
-  },
-  {
-    title: 'Listas de Passageiros',
-    icon: 'plane',
-    sections: [
-      {
-        label: 'Geral',
-        items: [
-          ['lists_view',       'Ver listas'],
-          ['lists_edit',       'Criar / Editar'],
-          ['lists_delete',     'Excluir lista'],
-          ['lists_view_logs',  'Ver log de atividades da lista'],
-          ['lists_download',   'Baixar / exportar lista'],
-          ['lists_csv_upload', 'Importar passageiros via CSV'],
-        ],
-      },
-      {
-        label: 'Passageiros na lista',
-        items: [
-          ['lists_passengers_add',    'Adicionar passageiro à lista'],
-          ['lists_passengers_edit',   'Editar passageiro na lista'],
-          ['lists_passengers_remove', 'Remover passageiro da lista'],
-        ],
-      },
-    ],
-  },
-  {
-    title: 'Calendário',
-    icon: 'calendar',
-    items: [
-      ['calendar_view',               'Acessar o calendário'],
-      ['calendar_view_birthdays',     'Ver aniversários de passageiros'],
-      ['calendar_view_all_deadlines', 'Ver prazos de confirmação de todos os usuários'],
-    ],
-  },
-  {
-    title: 'Usuários',
-    icon: 'users',
-    items: [
-      ['users_view',               'Ver lista de usuários'],
-      ['users_edit',               'Criar / Editar usuários'],
-      ['users_delete',             'Excluir usuários'],
-      ['users_manage_permissions', 'Gerenciar permissões'],
-      ['users_set_password',       'Definir senha via admin'],
-    ],
-  },
-  {
-    title: 'Configurações',
-    icon: 'settings',
-    sections: [
-      {
-        label: 'Acesso',
-        items: [
-          ['settings_view', 'Acessar página de configurações'],
-        ],
-      },
-      {
-        label: 'Categorias',
-        items: [
-          ['settings_professions',      'Profissões'],
-          ['settings_languages',        'Idiomas'],
-          ['settings_countries',        'Países e Estados'],
-          ['settings_genders',          'Gêneros'],
-          ['settings_vaccines',         'Vacinas'],
-          ['settings_doc_types',        'Tipos de documento'],
-          ['settings_prof_cards',       'Carteiras profissionais'],
-          ['settings_destinations',     'Destinos de viagem'],
-          ['settings_list_additionals', 'Itens adicionais de lista'],
-          ['settings_crew_roles',       'Funções de tripulante'],
-        ],
-      },
-    ],
-  },
-  {
-    title: 'Log do Sistema',
-    icon: 'list',
-    sections: [
-      {
-        label: 'Acesso',
-        items: [
-          ['log_view', 'Ver log do sistema'],
-        ],
-      },
-      {
-        label: 'Por área',
-        items: [
-          ['log_passengers', 'Passageiros'],
-          ['log_lists',      'Listas de passageiros'],
-          ['log_agencies',   'Agências'],
-          ['log_users',      'Usuários'],
-          ['log_settings',   'Configurações'],
-        ],
-      },
-    ],
-  },
-]
-
-/* Algumas permissões só fazem sentido se a permissão "base" também estiver marcada
-   (ex.: não há como editar/excluir/baixar documentos de algo que não se pode ver).
-   A opção dependente fica oculta até que a permissão da qual ela depende seja marcada. */
-const PERM_DEPENDENCIES = {
-  passengers_view_full:     'passengers_view_basic',
-  passengers_edit:          'passengers_view_full',
-  passengers_delete:        'passengers_view_basic',
-  passengers_download_docs: 'passengers_view_full',
-  passengers_upload_docs:   'passengers_view_full',
-  passengers_view_logs:     'passengers_view_basic',
-
-  lists_edit:              'lists_view',
-  lists_delete:            'lists_view',
-  lists_view_logs:         'lists_view',
-  lists_download:          'lists_view',
-  lists_csv_upload:        'lists_view',
-  lists_passengers_add:    'lists_view',
-  lists_passengers_edit:   'lists_view',
-  lists_passengers_remove: 'lists_view',
-
-  agencies_edit:      'agencies_view',
-  agencies_delete:    'agencies_view',
-  agencies_view_logs: 'agencies_view',
-
-  calendar_view_birthdays:     'calendar_view',
-  calendar_view_all_deadlines: 'calendar_view',
-
-  email_log_preview:    'email_log_view',
-  email_resend_actions: 'email_log_preview',
-
-  users_edit:               'users_view',
-  users_delete:             'users_view',
-  users_manage_permissions: 'users_view',
-  users_set_password:       'users_view',
-
-  settings_professions:      'settings_view',
-  settings_languages:        'settings_view',
-  settings_countries:        'settings_view',
-  settings_genders:          'settings_view',
-  settings_vaccines:         'settings_view',
-  settings_doc_types:        'settings_view',
-  settings_prof_cards:       'settings_view',
-  settings_destinations:     'settings_view',
-  settings_list_additionals: 'settings_view',
-  settings_crew_roles:       'settings_view',
-
-  log_passengers: 'log_view',
-  log_lists:      'log_view',
-  log_agencies:   'log_view',
-  log_users:      'log_view',
-  log_settings:   'log_view',
-}
-
-/* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente).
-   A ordem de PERM_DEPENDENCIES importa: "passengers_view_full" precisa ser avaliado antes de
-   "passengers_edit" etc., para que a cascata de 2 níveis funcione numa única passada. */
-const sanitizePerms = perms => {
-  const out = { ...perms }
-  for (const [depKey, baseKey] of Object.entries(PERM_DEPENDENCIES)) {
-    if (!out[baseKey]) out[depKey] = false
-  }
-  return out
-}
-
-/* Aplica um conjunto de mudanças de permissões (sem propagações especiais — dependências
-   são controladas pelo accordion via sanitizePerms) */
-const applyPermChanges = (permissions, changes) => sanitizePerms({ ...permissions, ...changes })
-
-/* Retorna a lista plana de [key, label, icon?] de um grupo, vindo de `items` ou de `sections` */
-const groupItems = g => g.items ?? g.sections.flatMap(s => s.items)
-
-const ALL_PERM_KEYS = PERM_GROUPS.flatMap(g => groupItems(g).map(([k]) => k))
-
-/* Grupos administrativos — excluídos do preset "Usuário padrão" */
-const ADMIN_TITLES    = ['Usuários', 'Configurações', 'Log do Sistema']
-const ADMIN_PERM_KEYS = PERM_GROUPS
-  .filter(g => ADMIN_TITLES.includes(g.title))
-  .flatMap(g => groupItems(g).map(([k]) => k))
-
-const EMPTY_PERMISSIONS = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, false]))
-const PRESET_ADMIN      = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, true]))
-/* "Ver prazos de todos" expõe dados de outras pessoas: mesmo no preset "Usuário" começa desligada */
-const PRESET_USER_OFF   = ['calendar_view_all_deadlines']
-const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !ADMIN_PERM_KEYS.includes(k) && !PRESET_USER_OFF.includes(k)]))
 
 const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_active:true, is_superuser:false, permissions: { ...EMPTY_PERMISSIONS } }
 
@@ -353,109 +134,6 @@ function SuperuserTooltipContent() {
   )
 }
 
-/* ── Barra de presets de permissões ── */
-function PermPresetBar({ setForm }) {
-  const btnBase = { padding:'4px 11px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', paddingBottom:2 }}>
-      <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.04em', whiteSpace:'nowrap' }}>Preset:</span>
-      {[
-        { label:'Usuário padrão', perms: PRESET_USER },
-        { label:'Administrador',  perms: PRESET_ADMIN },
-      ].map(({ label, perms }) => (
-        <button key={label} type="button"
-          style={{ ...btnBase, color:'#475569' }}
-          onClick={() => setForm(f => ({ ...f, permissions: applyPermChanges(EMPTY_PERMISSIONS, perms) }))}
-          onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
-          {label}
-        </button>
-      ))}
-      <button type="button"
-        style={{ ...btnBase, color:'#94a3b8' }}
-        onClick={() => setForm(f => ({ ...f, permissions: { ...EMPTY_PERMISSIONS } }))}
-        onMouseEnter={e => { e.currentTarget.style.borderColor='#fecaca'; e.currentTarget.style.color='#dc2626' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#94a3b8' }}>
-        Limpar tudo
-      </button>
-    </div>
-  )
-}
-
-/* ── Accordion de grupo de permissões ── */
-function PermAccordionItem({ group, permissions, onToggle, onToggleAll }) {
-  const items = groupItems(group)
-  const checkedCount = items.filter(([k]) => permissions?.[k]).length
-  const [open, setOpen] = useState(checkedCount > 0)
-  const allChecked = checkedCount === items.length
-  const someChecked = checkedCount > 0 && !allChecked
-  const keys = items.map(([k]) => k)
-
-  const visibleItems = (its) => its.filter(([key]) => {
-    const baseKey = PERM_DEPENDENCIES[key]
-    return !baseKey || !!permissions?.[baseKey]
-  })
-
-  const renderCheckboxes = (its) => (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(210px, 1fr))', gap:'5px 16px' }}>
-      {visibleItems(its).map(([key, label, icon]) => (
-        <label key={key} style={{ display:'flex', alignItems:'center', gap:7, cursor:'pointer', fontSize:12.5, color:'#1e293b', padding:'4px 3px', borderRadius:4 }}>
-          <input type="checkbox" checked={!!permissions?.[key]}
-            onChange={e => onToggle(key, e.target.checked)}
-            style={{ accentColor:'#1a2d4f', width:14, height:14, flexShrink:0 }} />
-          {icon && <span style={{ color:'#64748b', display:'flex' }}><Ic n={icon} s={12}/></span>}
-          <span>{label}</span>
-        </label>
-      ))}
-    </div>
-  )
-
-  return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden' }}>
-      <div onClick={() => setOpen(o => !o)}
-        style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer', background: open ? '#f8fafc' : '#fff', userSelect:'none', transition:'background .1s' }}
-        onMouseEnter={e => { if (!open) e.currentTarget.style.background = '#f8fafc' }}
-        onMouseLeave={e => { if (!open) e.currentTarget.style.background = '#fff' }}>
-        <span style={{ color: checkedCount > 0 ? '#2e6db4' : '#cbd5e1', display:'flex', flexShrink:0, transition:'color .12s' }}>
-          <Ic n={group.icon} s={14}/>
-        </span>
-        <span style={{ flex:1, fontSize:13, fontWeight:600, color:'#1e293b' }}>{group.title}</span>
-        {checkedCount > 0 ? (
-          <span style={{ fontSize:11, fontWeight:700, padding:'2px 9px', borderRadius:999, background:'#e8f0fb', color:'#2e6db4', whiteSpace:'nowrap' }}>
-            {checkedCount}/{items.length}
-          </span>
-        ) : (
-          <span style={{ fontSize:11, color:'#cbd5e1', whiteSpace:'nowrap' }}>Nenhuma</span>
-        )}
-        <label style={{ display:'flex', alignItems:'center', gap:5, cursor:'pointer', fontSize:11, color:'#64748b', whiteSpace:'nowrap' }}
-          onClick={e => e.stopPropagation()}>
-          <input type="checkbox" checked={allChecked}
-            ref={el => { if (el) el.indeterminate = someChecked }}
-            onChange={e => onToggleAll(keys, e.target.checked)}
-            style={{ accentColor:'#1a2d4f', width:13, height:13 }} />
-          Todos
-        </label>
-        <span style={{ fontSize:10, color:'#94a3b8', transform: open ? 'rotate(180deg)' : 'none', transition:'transform .18s', flexShrink:0 }}>▼</span>
-      </div>
-
-      {open && (
-        <div style={{ padding:'10px 14px 14px', borderTop:'1px solid #f1f5f9' }}>
-          {group.sections
-            ? group.sections.map((sec, i) => (
-                visibleItems(sec.items).length === 0 ? null : (
-                  <div key={sec.label} style={i > 0 ? { marginTop:10, paddingTop:10, borderTop:'1px dashed #e2e8f0' } : undefined}>
-                    <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', margin:'0 0 7px' }}>{sec.label}</p>
-                    {renderCheckboxes(sec.items)}
-                  </div>
-                )
-              ))
-            : renderCheckboxes(group.items)
-          }
-        </div>
-      )}
-    </div>
-  )
-}
 
 /* ── Card de grupo de permissões, com "Marcar todos" ── */
 function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }) {
@@ -519,12 +197,13 @@ function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }
 
 function UserModal({ user, mode = 'new', onClose, onSaved }) {
   const { user: me } = useAuth()
-  const [form,       setForm]       = useState(user
+  const [form,         setForm]         = useState(user
     ? { ...user, password:'', is_superuser: !!user.is_superuser, permissions: sanitizePerms({ ...EMPTY_PERMISSIONS, ...user.permissions }) }
     : { ...EMPTY })
-  const [saving,     setSaving]     = useState(false)
-  const [fe,         setFe]         = useState({})
-  const [emailPrefs, setEmailPrefs] = useState({ receive_deadline_emails: false, receive_task_emails: false, receive_birthday_emails: false })
+  const [saving,       setSaving]       = useState(false)
+  const [fe,           setFe]           = useState({})
+  const [emailPrefs,   setEmailPrefs]   = useState({ receive_deadline_emails: false, receive_task_emails: false, receive_birthday_emails: false })
+  const [permProfiles, setPermProfiles] = useState([])
   const isEdit  = mode !== 'new'
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
@@ -541,6 +220,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
         .then(r => setEmailPrefs({ receive_deadline_emails: !!r.data.receive_deadline_emails, receive_task_emails: !!r.data.receive_task_emails, receive_birthday_emails: !!r.data.receive_birthday_emails }))
         .catch(() => {})
     }
+    configApi.permissionProfiles().then(r => setPermProfiles(r.data)).catch(() => {})
   }, [isEdit, user?.id])
 
   const save = async () => {
@@ -653,7 +333,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
                 </div>
               ) : (
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  <PermPresetBar setForm={setForm}/>
+                  <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>
                   {PERM_GROUPS.map(g => (
                     <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
                   ))}
@@ -666,7 +346,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
             </div>
           ) : canManagePerms ? (
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              <PermPresetBar setForm={setForm}/>
+              <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>
               {PERM_GROUPS.map(g => (
                 <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
               ))}

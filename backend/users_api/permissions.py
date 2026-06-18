@@ -57,6 +57,7 @@ PERMISSION_FIELDS = [
     'settings_vaccines',
     'settings_doc_types',
     'settings_prof_cards',
+    'settings_user_profiles',
     'settings_destinations',
     'settings_list_additionals',
     'settings_crew_roles',
@@ -79,7 +80,7 @@ STAFF_PERMISSION_FIELDS = [
     # Configurações
     'settings_view', 'settings_professions', 'settings_languages', 'settings_countries',
     'settings_genders', 'settings_vaccines', 'settings_doc_types', 'settings_prof_cards',
-    'settings_destinations', 'settings_list_additionals', 'settings_crew_roles',
+    'settings_user_profiles', 'settings_destinations', 'settings_list_additionals', 'settings_crew_roles',
     # Log do sistema
     'log_view', 'log_passengers', 'log_lists', 'log_agencies', 'log_users', 'log_settings',
 ]

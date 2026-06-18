@@ -204,6 +204,11 @@ export const configApi = {
   addGender:  (name) => api.post('/config/genders/', { name }),
   updateGender: (id, name) => api.patch(`/config/genders/${id}/`, { name }),
   delGender:  (id)   => api.delete(`/config/genders/${id}/`),
+  // Perfis de permissão
+  permissionProfiles:      ()       => api.get('/config/permission-profiles/'),
+  addPermissionProfile:    (data)   => api.post('/config/permission-profiles/', data),
+  updatePermissionProfile: (id, d)  => api.patch(`/config/permission-profiles/${id}/`, d),
+  delPermissionProfile:    (id)     => api.delete(`/config/permission-profiles/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

@@ -11,6 +11,8 @@ import AirportsManager from '../components/AirportsManager'
 import AirlinesManager from '../components/AirlinesManager'
 import BusMapsManager from '../components/BusMapsManager'
 import { Ic } from '../components/Icon'
+import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
+import { PERM_GROUPS, EMPTY_PERMISSIONS, sanitizePerms, applyPermChanges } from '../utils/permGroups'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -632,8 +634,9 @@ function CountriesTab() {
 /* ── Página principal ── */
 /* Listas configuráveis */
 const LIST_DEFS = [
-  { key:'doc_types',       label:'Documentos' },
-  { key:'professions',     label:'Profissões' },
+  { key:'doc_types',        label:'Documentos' },
+  { key:'perm_profiles',    label:'Perfis de permissão' },
+  { key:'professions',      label:'Profissões' },
   { key:'languages',       label:'Idiomas' },
   { key:'vaccines',        label:'Vacinas' },
   { key:'genders',         label:'Gêneros' },
@@ -647,7 +650,7 @@ const LIST_DEFS = [
   { key:'airlines',        label:'Companhias Aéreas' },
   { key:'bus_maps',        label:'Mapas de Ônibus' },
 ]
-const WIDE_LISTS = ['doc_types', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
+const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
 
 function exportEmailsCsv(emails) {
   const rows = ['email', ...emails.map(e => `"${e.replace(/"/g, '""')}"`)]
@@ -656,6 +659,157 @@ function exportEmailsCsv(emails) {
   const a    = document.createElement('a')
   a.href = url; a.download = 'emails_automaticos.csv'; a.click()
   URL.revokeObjectURL(url)
+}
+
+/* ── Gerenciador de Perfis de Permissão ─────────────────────────────────────── */
+
+function ProfileModal({ profile, onClose, onSaved }) {
+  const isEdit = !!profile
+  const [name,    setName]    = useState(profile?.name ?? '')
+  const [perms,   setPerms]   = useState(sanitizePerms({ ...EMPTY_PERMISSIONS, ...(profile?.permissions ?? {}) }))
+  const [saving,  setSaving]  = useState(false)
+
+  const setPerm    = (key, val)  => setPerms(p => applyPermChanges(p, { [key]: val }))
+  const setPermAll = (keys, val) => setPerms(p => applyPermChanges(p, Object.fromEntries(keys.map(k => [k, val]))))
+  const setFormForBar = fn => {
+    const prev = { permissions: perms }
+    const next = fn(prev)
+    setPerms(next.permissions)
+  }
+
+  const save = async () => {
+    if (!name.trim()) { toast.error('Informe um nome para o perfil.'); return }
+    setSaving(true)
+    try {
+      if (isEdit) {
+        await configApi.updatePermissionProfile(profile.id, { name: name.trim(), permissions: perms })
+        toast.success('Perfil atualizado.')
+      } else {
+        await configApi.addPermissionProfile({ name: name.trim(), permissions: perms })
+        toast.success('Perfil criado.')
+      }
+      onSaved()
+    } catch (e) { toast.error(e.response?.data?.name?.[0] ?? e.response?.data?.error ?? 'Erro ao salvar.') }
+    finally { setSaving(false) }
+  }
+
+  const lbl = { fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', display:'block', marginBottom:5 }
+  const inp = { width:'100%', padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:6, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box' }
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:760, maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .15s ease' }}>
+        <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
+          <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>
+            {isEdit ? 'Editar perfil' : 'Novo perfil de permissão'}
+            {isEdit && <span style={{ fontSize:12, fontWeight:400, color:'#94a3b8', marginLeft:8 }}>{profile.name}</span>}
+          </p>
+        </div>
+        <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:14, overflowY:'auto' }}>
+          <div>
+            <label style={lbl}>Nome do perfil</label>
+            <input style={inp} value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Vendedor, Atendente…" />
+          </div>
+          <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:12, display:'flex', flexDirection:'column', gap:6 }}>
+            <PermPresetBar setForm={setFormForBar} />
+            {PERM_GROUPS.map(g => (
+              <PermAccordionItem key={g.title} group={g} permissions={perms} onToggle={setPerm} onToggleAll={setPermAll} />
+            ))}
+          </div>
+        </div>
+        <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
+          <button onClick={onClose} disabled={saving}
+            style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={save} disabled={saving}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 18px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            <Ic n="check" s={13}/>{saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar perfil'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PermissionProfilesManager() {
+  const [profiles, setProfiles] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [modal,    setModal]    = useState(null)
+  const [delId,    setDelId]    = useState(null)
+
+  const load = () => {
+    setLoading(true)
+    configApi.permissionProfiles()
+      .then(r => setProfiles(r.data))
+      .catch(() => toast.error('Erro ao carregar perfis.'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const handleDelete = async (id) => {
+    try { await configApi.delPermissionProfile(id); load() }
+    catch { toast.error('Erro ao excluir perfil.') }
+    finally { setDelId(null) }
+  }
+
+  if (loading) return <div className="empty-state"><p style={{ color:'#94a3b8' }}>Carregando…</p></div>
+
+  return (
+    <div style={{ padding:16 }}>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button onClick={() => setModal('new')}
+          style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+          <Ic n="plus" s={13}/> Novo perfil
+        </button>
+      </div>
+      {profiles.length === 0 ? (
+        <div className="empty-state" style={{ padding:'24px 0' }}>
+          <div style={{ color:'#cbd5e1' }}><Ic n="shield" s={28}/></div>
+          <p>Nenhum perfil criado ainda</p>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {profiles.map(p => {
+            const count = Object.values(p.permissions ?? {}).filter(Boolean).length
+            return (
+              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#fff' }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ margin:'0 0 2px', fontSize:13, fontWeight:600, color:'#1e293b' }}>{p.name}</p>
+                  <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>{count} permissão{count !== 1 ? 'ões' : ''} ativa{count !== 1 ? 's' : ''}</p>
+                </div>
+                <button onClick={() => setModal(p)} title="Editar"
+                  style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                  <Ic n="edit" s={12}/> Editar
+                </button>
+                <button onClick={() => setDelId(p.id)} title="Excluir"
+                  style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:6, border:'1px solid #fecaca', background:'#fff', color:'#dc2626', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                  <Ic n="trash" s={12}/>
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {modal && (
+        <ProfileModal
+          profile={modal === 'new' ? null : modal}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load() }}
+        />
+      )}
+      {delId && (
+        <ConfirmModal
+          title="Excluir perfil"
+          message="Tem certeza que deseja excluir este perfil? Usuários com ele aplicado não serão alterados."
+          onConfirm={() => handleDelete(delId)}
+          onCancel={() => setDelId(null)}
+        />
+      )}
+    </div>
+  )
 }
 
 export default function Settings() {
@@ -955,6 +1109,7 @@ export default function Settings() {
       {activeDef && (
         <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>
           {activeDef.key === 'doc_types'       && <DocTypesManager />}
+          {activeDef.key === 'perm_profiles'  && <PermissionProfilesManager />}
           {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={addProfession}   onUpdate={updateProfession}   onDelete={delProfession}   placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
           {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={addLanguage}     onUpdate={updateLanguage}     onDelete={delLanguage}     placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
           {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={addVaccine}      onUpdate={updateVaccine}      onDelete={delVaccine}      placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}

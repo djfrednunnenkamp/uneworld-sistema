@@ -14,7 +14,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
-                     BusMap, BusMapRow, SystemSettings)
+                     BusMap, BusMapRow, SystemSettings, PermissionProfile)
+from users_api.permissions import RequirePermission
 
 
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
@@ -979,3 +980,22 @@ def system_settings(request):
         ser.save()
         return Response(ser.data)
     return Response(SystemSettingsSerializer(obj).data)
+
+
+# ── Perfis de permissão ───────────────────────────────────────────────────────
+
+class PermissionProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = PermissionProfile
+        fields = ['id', 'name', 'permissions', 'created_at', 'updated_at']
+
+
+class PermissionProfileViewSet(viewsets.ModelViewSet):
+    queryset         = PermissionProfile.objects.all()
+    serializer_class = PermissionProfileSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [RequirePermission('manage_settings', 'settings_user_profiles')()]

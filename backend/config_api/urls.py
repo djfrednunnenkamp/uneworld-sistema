@@ -18,7 +18,8 @@ router.register('accommodations', views.AccommodationViewSet,    basename='accom
 router.register('list-categories', views.ListCategoryViewSet,    basename='listcategory')
 router.register('airports',       views.AirportViewSet,          basename='airport')
 router.register('airlines',       views.AirlineViewSet,          basename='airline')
-router.register('bus-maps',       views.BusMapViewSet,           basename='busmap')
+router.register('bus-maps',            views.BusMapViewSet,              basename='busmap')
+router.register('permission-profiles', views.PermissionProfileViewSet,   basename='permission-profile')
 
 urlpatterns = [
     path('', include(router.urls)),
