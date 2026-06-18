@@ -527,6 +527,8 @@ function UserModal({ user, onClose, onSaved }) {
   const isEdit  = !!user
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
+  const myPeM = me?.permissions ?? {}
+  const canManagePerms = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_manage_permissions
   const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setFe(p => { const n={...p}; delete n[k]; return n }) }
   const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
   const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, Object.fromEntries(keys.map(k => [k, val]))) }))
@@ -548,10 +550,12 @@ function UserModal({ user, onClose, onSaved }) {
     try {
       let savedId = user?.id
       if (isEdit) {
-        await usersApi.update(user.id, form)
+        const payload = canManagePerms ? form : { ...form, permissions: undefined }
+        await usersApi.update(user.id, payload)
         toast.success('Usuário atualizado.')
       } else {
         const payload = { ...form, password: skipPwd ? '' : form.password }
+        if (!canManagePerms) delete payload.permissions
         const r = await usersApi.create(payload)
         savedId = r.data.id
         if (skipPwd) {
@@ -666,14 +670,14 @@ function UserModal({ user, onClose, onSaved }) {
             <div style={{padding:'10px 12px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',fontSize:12.5,color:'#1d4ed8'}}>
               Superusuário: acesso total a todas as permissões do sistema.
             </div>
-          ) : (
+          ) : canManagePerms ? (
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
               <PermPresetBar setForm={setForm}/>
               {PERM_GROUPS.map(g => (
                 <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
               ))}
             </div>
-          )}
+          ) : null}
         </div>
         <div style={{padding:'12px 20px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
           <button onClick={onClose} className="btn btn-outline">Cancelar</button>

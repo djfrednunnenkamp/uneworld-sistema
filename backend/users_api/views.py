@@ -152,7 +152,10 @@ def user_create(request):
         user.save()
     # Novos usuários começam sem nenhuma permissão até serem configurados aqui
     if not user.is_superuser:
-        _apply_permissions(user, data)
+        perm_data = dict(data)
+        if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
+            perm_data.pop('permissions', None)
+        _apply_permissions(user, perm_data)
     return Response(serialize_user(user), status=201)
 
 
@@ -185,7 +188,10 @@ def user_update(request, pk):
 
     user.save()
     if not user.is_superuser:
-        _apply_permissions(user, data)
+        perm_data = dict(data)
+        if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
+            perm_data.pop('permissions', None)
+        _apply_permissions(user, perm_data)
     else:
         get_user_permissions(user).save()
     return Response(serialize_user(user))
