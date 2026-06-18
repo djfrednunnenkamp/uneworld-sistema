@@ -95,25 +95,131 @@ export const PERM_GROUPS = [
     icon: 'settings',
     sections: [
       {
-        label: 'Acesso',
+        label: 'Acesso global',
         items: [
-          ['settings_view', 'Acessar página de configurações'],
+          ['settings_view',       'Acessar a aba Configurações'],
+          ['settings_csv_import', 'Importar CSV global'],
+          ['settings_csv_export', 'Exportar CSV global'],
         ],
       },
       {
-        label: 'Categorias',
+        label: 'Documentos',
         items: [
-          ['settings_professions',      'Profissões'],
-          ['settings_languages',        'Idiomas'],
-          ['settings_countries',        'Países e Estados'],
-          ['settings_genders',          'Gêneros'],
-          ['settings_vaccines',         'Vacinas'],
-          ['settings_doc_types',        'Tipos de documento'],
-          ['settings_prof_cards',       'Carteiras profissionais'],
-          ['settings_user_profiles',    'Perfis de permissão'],
-          ['settings_destinations',     'Destinos de viagem'],
-          ['settings_list_additionals', 'Itens adicionais de lista'],
-          ['settings_crew_roles',       'Funções de tripulante'],
+          ['settings_doc_types_view',   'Ver tipos de documento'],
+          ['settings_doc_types_edit',   'Criar / Editar tipos de documento'],
+          ['settings_doc_types_delete', 'Excluir tipos de documento'],
+        ],
+      },
+      {
+        label: 'Perfis de permissão',
+        items: [
+          ['settings_user_profiles_view',   'Ver perfis de permissão'],
+          ['settings_user_profiles_edit',   'Criar / Editar perfis de permissão'],
+          ['settings_user_profiles_delete', 'Excluir perfis de permissão'],
+        ],
+      },
+      {
+        label: 'Profissões',
+        items: [
+          ['settings_professions_view',   'Ver profissões'],
+          ['settings_professions_edit',   'Criar / Editar profissões'],
+          ['settings_professions_delete', 'Excluir profissões'],
+        ],
+      },
+      {
+        label: 'Idiomas',
+        items: [
+          ['settings_languages_view',   'Ver idiomas'],
+          ['settings_languages_edit',   'Criar / Editar idiomas'],
+          ['settings_languages_delete', 'Excluir idiomas'],
+        ],
+      },
+      {
+        label: 'Vacinas',
+        items: [
+          ['settings_vaccines_view',   'Ver vacinas'],
+          ['settings_vaccines_edit',   'Criar / Editar vacinas'],
+          ['settings_vaccines_delete', 'Excluir vacinas'],
+        ],
+      },
+      {
+        label: 'Gêneros',
+        items: [
+          ['settings_genders_view',   'Ver gêneros'],
+          ['settings_genders_edit',   'Criar / Editar gêneros'],
+          ['settings_genders_delete', 'Excluir gêneros'],
+        ],
+      },
+      {
+        label: 'Carteiras profissionais',
+        items: [
+          ['settings_prof_cards_view',   'Ver carteiras profissionais'],
+          ['settings_prof_cards_edit',   'Criar / Editar carteiras profissionais'],
+          ['settings_prof_cards_delete', 'Excluir carteiras profissionais'],
+        ],
+      },
+      {
+        label: 'Adicionais de lista',
+        items: [
+          ['settings_list_additionals_view',   'Ver itens adicionais de lista'],
+          ['settings_list_additionals_edit',   'Criar / Editar itens adicionais de lista'],
+          ['settings_list_additionals_delete', 'Excluir itens adicionais de lista'],
+        ],
+      },
+      {
+        label: 'Equipe técnica',
+        items: [
+          ['settings_crew_roles_view',   'Ver funções de tripulante'],
+          ['settings_crew_roles_edit',   'Criar / Editar funções de tripulante'],
+          ['settings_crew_roles_delete', 'Excluir funções de tripulante'],
+        ],
+      },
+      {
+        label: 'Tipos de Acomodação',
+        items: [
+          ['settings_accommodations_view',   'Ver tipos de acomodação'],
+          ['settings_accommodations_edit',   'Criar / Editar tipos de acomodação'],
+          ['settings_accommodations_delete', 'Excluir tipos de acomodação'],
+        ],
+      },
+      {
+        label: 'Categoria de Acomodações',
+        items: [
+          ['settings_list_categories_view',   'Ver categorias de acomodação'],
+          ['settings_list_categories_edit',   'Criar / Editar categorias de acomodação'],
+          ['settings_list_categories_delete', 'Excluir categorias de acomodação'],
+        ],
+      },
+      {
+        label: 'Países & Estados',
+        items: [
+          ['settings_countries_view',   'Ver países e estados'],
+          ['settings_countries_edit',   'Criar / Editar países, estados e cidades'],
+          ['settings_countries_delete', 'Excluir países, estados e cidades'],
+        ],
+      },
+      {
+        label: 'Aeroportos',
+        items: [
+          ['settings_airports_view',   'Ver aeroportos'],
+          ['settings_airports_edit',   'Criar / Editar aeroportos'],
+          ['settings_airports_delete', 'Excluir aeroportos'],
+        ],
+      },
+      {
+        label: 'Companhias Aéreas',
+        items: [
+          ['settings_airlines_view',   'Ver companhias aéreas'],
+          ['settings_airlines_edit',   'Criar / Editar companhias aéreas'],
+          ['settings_airlines_delete', 'Excluir companhias aéreas'],
+        ],
+      },
+      {
+        label: 'Mapas de Ônibus',
+        items: [
+          ['settings_bus_maps_view',   'Ver mapas de ônibus'],
+          ['settings_bus_maps_edit',   'Criar / Editar mapas de ônibus'],
+          ['settings_bus_maps_delete', 'Excluir mapas de ônibus'],
         ],
       },
     ],
@@ -175,17 +281,68 @@ export const PERM_DEPENDENCIES = {
   users_manage_permissions: 'users_view',
   users_set_password:       'users_view',
 
-  settings_professions:      'settings_view',
-  settings_languages:        'settings_view',
-  settings_countries:        'settings_view',
-  settings_genders:          'settings_view',
-  settings_vaccines:         'settings_view',
-  settings_doc_types:        'settings_view',
-  settings_prof_cards:       'settings_view',
-  settings_user_profiles:    'settings_view',
-  settings_destinations:     'settings_view',
-  settings_list_additionals: 'settings_view',
-  settings_crew_roles:       'settings_view',
+  settings_csv_import: 'settings_view',
+  settings_csv_export: 'settings_view',
+
+  settings_doc_types_view:   'settings_view',
+  settings_doc_types_edit:   'settings_doc_types_view',
+  settings_doc_types_delete: 'settings_doc_types_view',
+
+  settings_user_profiles_view:   'settings_view',
+  settings_user_profiles_edit:   'settings_user_profiles_view',
+  settings_user_profiles_delete: 'settings_user_profiles_view',
+
+  settings_professions_view:   'settings_view',
+  settings_professions_edit:   'settings_professions_view',
+  settings_professions_delete: 'settings_professions_view',
+
+  settings_languages_view:   'settings_view',
+  settings_languages_edit:   'settings_languages_view',
+  settings_languages_delete: 'settings_languages_view',
+
+  settings_vaccines_view:   'settings_view',
+  settings_vaccines_edit:   'settings_vaccines_view',
+  settings_vaccines_delete: 'settings_vaccines_view',
+
+  settings_genders_view:   'settings_view',
+  settings_genders_edit:   'settings_genders_view',
+  settings_genders_delete: 'settings_genders_view',
+
+  settings_prof_cards_view:   'settings_view',
+  settings_prof_cards_edit:   'settings_prof_cards_view',
+  settings_prof_cards_delete: 'settings_prof_cards_view',
+
+  settings_list_additionals_view:   'settings_view',
+  settings_list_additionals_edit:   'settings_list_additionals_view',
+  settings_list_additionals_delete: 'settings_list_additionals_view',
+
+  settings_crew_roles_view:   'settings_view',
+  settings_crew_roles_edit:   'settings_crew_roles_view',
+  settings_crew_roles_delete: 'settings_crew_roles_view',
+
+  settings_accommodations_view:   'settings_view',
+  settings_accommodations_edit:   'settings_accommodations_view',
+  settings_accommodations_delete: 'settings_accommodations_view',
+
+  settings_list_categories_view:   'settings_view',
+  settings_list_categories_edit:   'settings_list_categories_view',
+  settings_list_categories_delete: 'settings_list_categories_view',
+
+  settings_countries_view:   'settings_view',
+  settings_countries_edit:   'settings_countries_view',
+  settings_countries_delete: 'settings_countries_view',
+
+  settings_airports_view:   'settings_view',
+  settings_airports_edit:   'settings_airports_view',
+  settings_airports_delete: 'settings_airports_view',
+
+  settings_airlines_view:   'settings_view',
+  settings_airlines_edit:   'settings_airlines_view',
+  settings_airlines_delete: 'settings_airlines_view',
+
+  settings_bus_maps_view:   'settings_view',
+  settings_bus_maps_edit:   'settings_bus_maps_view',
+  settings_bus_maps_delete: 'settings_bus_maps_view',
 
   log_passengers: 'log_view',
   log_lists:      'log_view',

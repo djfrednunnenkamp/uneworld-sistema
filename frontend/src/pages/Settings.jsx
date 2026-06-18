@@ -118,7 +118,7 @@ const btnCsv = (color) => ({
 })
 
 /* ── CsvButtons — abre página de revisão antes de importar ── */
-function CsvButtons({ items, filename, type }) {
+function CsvButtons({ items, filename, type, showImport = true }) {
   const navigate = useNavigate()
   const fileRef  = useRef(null)
 
@@ -142,11 +142,15 @@ function CsvButtons({ items, filename, type }) {
       <button style={btnCsv('#059669')} onClick={() => exportCsv(items, filename)} title="Exportar como CSV">
         ⬇ Exportar
       </button>
-      <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">
-        ⬆ Importar
-      </button>
-      <input ref={fileRef} type="file" accept=".csv,text/csv"
-        style={{ display: 'none' }} onChange={handleFileChosen} />
+      {showImport && (
+        <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">
+          ⬆ Importar
+        </button>
+      )}
+      {showImport && (
+        <input ref={fileRef} type="file" accept=".csv,text/csv"
+          style={{ display: 'none' }} onChange={handleFileChosen} />
+      )}
     </div>
   )
 }
@@ -172,8 +176,8 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
           style={{ ...inp, flex: 1, minWidth: 160 }}
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-        <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>
-        <CsvButtons items={items} filename={filename} type={type} />
+        {onAdd && <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>}
+        <CsvButtons items={items} filename={filename} type={type} showImport={!!onAdd} />
       </div>
 
       <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
@@ -197,22 +201,24 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
             onMouseLeave={e => e.currentTarget.style.background = '#fff'}
           >
             <span>{item.name}</span>
-            <div className="r-acts">
-              <button className="r-btn edit" title="Editar" onClick={() => setEditing({ id: item.id, name: item.name })}><Ic n="edit" s={13}/></button>
-              <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id: item.id, name: item.name })}><Ic n="trash" s={13}/></button>
-            </div>
+            {(onUpdate || onDelete) && (
+              <div className="r-acts">
+                {onUpdate && <button className="r-btn edit" title="Editar" onClick={() => setEditing({ id: item.id, name: item.name })}><Ic n="edit" s={13}/></button>}
+                {onDelete && <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id: item.id, name: item.name })}><Ic n="trash" s={13}/></button>}
+              </div>
+            )}
           </div>
         ))}
       </div>
     </div>
-    {confirm && (
+    {confirm && onDelete && (
       <ConfirmModal
         message={`Remover "${confirm.name}"?`}
         onOk={() => { onDelete(confirm.id); setConfirm(null) }}
         onCancel={() => setConfirm(null)}
       />
     )}
-    {showAdd && (
+    {showAdd && onAdd && (
       <AddItemModal
         title={addTitle || 'Adicionar item'}
         placeholder={placeholder}
@@ -220,7 +226,7 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
         onClose={() => setShowAdd(false)}
       />
     )}
-    {editing && (
+    {editing && onUpdate && (
       <NameFormModal
         title={editTitle || 'Editar item'}
         placeholder={placeholder}
@@ -634,21 +640,21 @@ function CountriesTab() {
 /* ── Página principal ── */
 /* Listas configuráveis */
 const LIST_DEFS = [
-  { key:'doc_types',        label:'Documentos' },
-  { key:'perm_profiles',    label:'Perfis de permissão' },
-  { key:'professions',      label:'Profissões' },
-  { key:'languages',       label:'Idiomas' },
-  { key:'vaccines',        label:'Vacinas' },
-  { key:'genders',         label:'Gêneros' },
-  { key:'prof_cards',      label:'Carteiras' },
-  { key:'list_addits',     label:'Adicionais de Lista' },
-  { key:'crew_roles',      label:'Equipe técnica' },
-  { key:'accommodations',  label:'Tipos de Acomodação' },
-  { key:'list_categories', label:'Categoria de Acomodações' },
-  { key:'countries',       label:'Países & Estados' },
-  { key:'airports',        label:'Aeroportos' },
-  { key:'airlines',        label:'Companhias Aéreas' },
-  { key:'bus_maps',        label:'Mapas de Ônibus' },
+  { key:'doc_types',        label:'Documentos',               perm:'settings_doc_types' },
+  { key:'perm_profiles',    label:'Perfis de permissão',      perm:'settings_user_profiles' },
+  { key:'professions',      label:'Profissões',               perm:'settings_professions' },
+  { key:'languages',        label:'Idiomas',                  perm:'settings_languages' },
+  { key:'vaccines',         label:'Vacinas',                  perm:'settings_vaccines' },
+  { key:'genders',          label:'Gêneros',                  perm:'settings_genders' },
+  { key:'prof_cards',       label:'Carteiras',                perm:'settings_prof_cards' },
+  { key:'list_addits',      label:'Adicionais de Lista',      perm:'settings_list_additionals' },
+  { key:'crew_roles',       label:'Equipe técnica',           perm:'settings_crew_roles' },
+  { key:'accommodations',   label:'Tipos de Acomodação',      perm:'settings_accommodations' },
+  { key:'list_categories',  label:'Categoria de Acomodações', perm:'settings_list_categories' },
+  { key:'countries',        label:'Países & Estados',         perm:'settings_countries' },
+  { key:'airports',         label:'Aeroportos',               perm:'settings_airports' },
+  { key:'airlines',         label:'Companhias Aéreas',        perm:'settings_airlines' },
+  { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps' },
 ]
 const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
 
@@ -746,7 +752,7 @@ function exportProfilesCsv(profiles) {
   URL.revokeObjectURL(url)
 }
 
-function PermissionProfilesManager() {
+function PermissionProfilesManager({ canEdit = true, canDelete = true }) {
   const [profiles, setProfiles] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [search,   setSearch]   = useState('')
@@ -807,11 +813,11 @@ function PermissionProfilesManager() {
           style={{ ...inp, flex:1, minWidth:160 }}
           onFocus={e => e.target.style.borderColor='#1a2d4f'}
           onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
-        <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>
+        {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
         <div style={{ display:'flex', gap:6 }}>
           <button style={btnCsv('#059669')} onClick={() => exportProfilesCsv(profiles)} title="Exportar como CSV">⬇ Exportar</button>
-          <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">⬆ Importar</button>
-          <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleImport} />
+          {canEdit && <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">⬆ Importar</button>}
+          {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleImport} />}
         </div>
       </div>
 
@@ -840,10 +846,12 @@ function PermissionProfilesManager() {
                 <span style={{ fontWeight:500 }}>{p.name}</span>
                 <span style={{ marginLeft:10, fontSize:12, color:'#94a3b8' }}>{count} permiss{count !== 1 ? 'ões' : 'ão'}</span>
               </div>
-              <div className="r-acts">
-                <button className="r-btn edit" title="Editar" onClick={() => setModal(p)}><Ic n="edit" s={13}/></button>
-                <button className="r-btn del"  title="Excluir" onClick={() => setDelItem(p)}><Ic n="trash" s={13}/></button>
-              </div>
+              {(canEdit || canDelete) && (
+                <div className="r-acts">
+                  {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => setModal(p)}><Ic n="edit"  s={13}/></button>}
+                  {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setDelItem(p)}><Ic n="trash" s={13}/></button>}
+                </div>
+              )}
             </div>
           )
         })}
@@ -870,6 +878,18 @@ function PermissionProfilesManager() {
 export default function Settings() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const isSu = !!user?.is_superuser
+  const myP  = user?.permissions ?? {}
+  const can  = (permBase, action) => {
+    if (isSu || myP.manage_settings) return true
+    if (action === 'view')   return !!(myP[`${permBase}_view`]   || myP[permBase])
+    if (action === 'edit')   return !!(myP[`${permBase}_edit`]   || myP[permBase])
+    if (action === 'delete') return !!(myP[`${permBase}_delete`] || myP[permBase])
+    return false
+  }
+  const canCsvExport = isSu || !!myP.manage_settings || !!myP.settings_csv_export
+  const canCsvImport = isSu || !!myP.manage_settings || !!myP.settings_csv_import
+
   const fileAllRef = useRef(null)
   const [listSearch, setListSearch] = useState('')
   const [activeList, setActiveList] = useState(null)
@@ -1109,7 +1129,9 @@ export default function Settings() {
     })
   }
 
-  const filteredListDefs = LIST_DEFS.filter(d => d.label.toLowerCase().includes(listSearch.trim().toLowerCase()))
+  const filteredListDefs = LIST_DEFS
+    .filter(d => can(d.perm, 'view'))
+    .filter(d => d.label.toLowerCase().includes(listSearch.trim().toLowerCase()))
   const activeDef = LIST_DEFS.find(d => d.key === activeList)
 
   return (
@@ -1126,12 +1148,16 @@ export default function Settings() {
               value={listSearch} onChange={e => setListSearch(e.target.value)} />
           </div>
           <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
-            <button style={btnCsv('#059669')} onClick={handleExportAll} title="Baixar CSV com todas as listas">
-              ⬇ Exportar tudo
-            </button>
-            <button style={btnCsv('#2e6db4')} onClick={() => fileAllRef.current?.click()} title="Importar CSV com todas as listas">
-              ⬆ Importar tudo
-            </button>
+            {canCsvExport && (
+              <button style={btnCsv('#059669')} onClick={handleExportAll} title="Baixar CSV com todas as listas">
+                ⬇ Exportar tudo
+              </button>
+            )}
+            {canCsvImport && (
+              <button style={btnCsv('#2e6db4')} onClick={() => fileAllRef.current?.click()} title="Importar CSV com todas as listas">
+                ⬆ Importar tudo
+              </button>
+            )}
             <input ref={fileAllRef} type="file" accept=".csv,text/csv"
               style={{ display:'none' }} onChange={handleImportAllFile} />
           </div>
@@ -1163,20 +1189,20 @@ export default function Settings() {
 
       {activeDef && (
         <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>
-          {activeDef.key === 'doc_types'       && <DocTypesManager />}
-          {activeDef.key === 'perm_profiles'  && <PermissionProfilesManager />}
-          {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={addProfession}   onUpdate={updateProfession}   onDelete={delProfession}   placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
-          {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={addLanguage}     onUpdate={updateLanguage}     onDelete={delLanguage}     placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
-          {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={addVaccine}      onUpdate={updateVaccine}      onDelete={delVaccine}      placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
-          {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={addGender}       onUpdate={updateGender}       onDelete={delGender}       placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
-          {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={addProfCard}     onUpdate={updateProfCard}     onDelete={delProfCard}     placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
-          {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={addListAddit}    onUpdate={updateListAddit}    onDelete={delListAddit}    placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
-          {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}  loading={loadingCR} onAdd={addCrewRole}     onUpdate={updateCrewRole}     onDelete={delCrewRole}     placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
-          {activeDef.key === 'accommodations'  && <AccommodationManager items={accoms} loading={loadingAc} onRefresh={() => {
+          {activeDef.key === 'doc_types'       && <DocTypesManager canEdit={can('settings_doc_types','edit')} canDelete={can('settings_doc_types','delete')} />}
+          {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} />}
+          {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
+          {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
+          {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
+          {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
+          {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
+          {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
+          {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}   loading={loadingCR} onAdd={can('settings_crew_roles','edit') ? addCrewRole : undefined}          onUpdate={can('settings_crew_roles','edit') ? updateCrewRole : undefined}          onDelete={can('settings_crew_roles','delete') ? delCrewRole : undefined}          placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
+          {activeDef.key === 'accommodations'  && <AccommodationManager canEdit={can('settings_accommodations','edit')} canDelete={can('settings_accommodations','delete')} items={accoms} loading={loadingAc} onRefresh={() => {
             setLoadingAc(true)
             configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
           }} />}
-          {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={addListCategory} onUpdate={updateListCategory} onDelete={delListCategory} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
+          {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={can('settings_list_categories','edit') ? addListCategory : undefined} onUpdate={can('settings_list_categories','edit') ? updateListCategory : undefined} onDelete={can('settings_list_categories','delete') ? delListCategory : undefined} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
           {activeDef.key === 'countries'       && <CountriesTab />}
           {activeDef.key === 'airports'        && <AirportsManager />}
           {activeDef.key === 'airlines'        && <AirlinesManager />}

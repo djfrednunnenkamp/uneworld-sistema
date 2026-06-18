@@ -18,6 +18,20 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
 from users_api.permissions import RequirePermission
 
 
+def _settings_perm(perm_base, extra_write=None):
+    """Factory de get_permissions para ViewSets de configurações com permissões granulares."""
+    write_set = frozenset(['create', 'update', 'partial_update'] + (extra_write or []))
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [RequirePermission('manage_settings', perm_base, f'{perm_base}_delete')()]
+        if self.action in write_set:
+            return [RequirePermission('manage_settings', perm_base, f'{perm_base}_edit')()]
+        return [IsAuthenticated()]
+
+    return get_permissions
+
+
 # ── Exportação/Importação global de Países → Estados → Cidades ────────────
 
 @api_view(['POST'])
@@ -79,7 +93,7 @@ def geo_analyze(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([RequirePermission('manage_settings', 'settings_countries', 'settings_countries_edit')])
 def geo_import_action(request):
     """
     Executa a importação com um modo específico.
@@ -214,7 +228,7 @@ def _esc(s):
 
 
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([RequirePermission('manage_settings', 'settings_countries', 'settings_countries_edit')])
 def geo_import(request):
     """
     Importa CSV com colunas: pais,estado,cidade
@@ -317,11 +331,7 @@ class ProfessionViewSet(viewsets.ModelViewSet):
     queryset = ConfigProfession.objects.all()
     serializer_class = ProfessionSerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_professions', ['import_default'])
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -359,11 +369,7 @@ class LanguageViewSet(viewsets.ModelViewSet):
     queryset = ConfigLanguage.objects.all()
     serializer_class = LanguageSerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_languages', ['import_default'])
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -390,11 +396,7 @@ class CountryViewSet(viewsets.ModelViewSet):
     queryset = ConfigCountry.objects.all()
     serializer_class = CountrySerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_countries', ['import_default'])
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -438,11 +440,7 @@ class DocTypeViewSet(viewsets.ModelViewSet):
     queryset = CustomDocType.objects.prefetch_related('fields__options').all()
     serializer_class = DocTypeSerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'seed']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_doc_types', ['seed'])
 
     @action(detail=False, methods=['post'], url_path='seed')
     def seed(self, request):
@@ -528,7 +526,9 @@ class DocFieldViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_permissions(self):
-        return [IsAdminUser()]
+        if self.action == 'destroy':
+            return [RequirePermission('manage_settings', 'settings_doc_types', 'settings_doc_types_delete')()]
+        return [RequirePermission('manage_settings', 'settings_doc_types', 'settings_doc_types_edit')()]
 
     def perform_create(self, serializer):
         doc_type = CustomDocType.objects.get(pk=self.request.data['doc_type_id'])
@@ -547,7 +547,9 @@ class DocFieldOptionViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_permissions(self):
-        return [IsAdminUser()]
+        if self.action == 'destroy':
+            return [RequirePermission('manage_settings', 'settings_doc_types', 'settings_doc_types_delete')()]
+        return [RequirePermission('manage_settings', 'settings_doc_types', 'settings_doc_types_edit')()]
 
     def perform_create(self, serializer):
         field = CustomDocField.objects.get(pk=self.request.data['field_id'])
@@ -564,11 +566,7 @@ class ProfCardViewSet(viewsets.ModelViewSet):
     queryset = ConfigProfCard.objects.all()
     serializer_class = ProfCardSerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_prof_cards', ['import_default'])
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -611,6 +609,7 @@ class GenderViewSet(viewsets.ModelViewSet):
     queryset = ConfigGender.objects.all()
     serializer_class = GenderSerializer
     pagination_class = None
+    get_permissions = _settings_perm('settings_genders')
 
 
 class ListCategorySerializer(serializers.ModelSerializer):
@@ -623,11 +622,7 @@ class ListCategoryViewSet(viewsets.ModelViewSet):
     queryset = ConfigListCategory.objects.all()
     serializer_class = ListCategorySerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_list_categories')
 
 
 class VaccineSerializer(serializers.ModelSerializer):
@@ -640,11 +635,7 @@ class VaccineViewSet(viewsets.ModelViewSet):
     queryset = ConfigVaccine.objects.all()
     serializer_class = VaccineSerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_default']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_vaccines', ['import_default'])
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -719,10 +710,7 @@ class CityViewSet(viewsets.ModelViewSet):
             return ConfigCity.objects.filter(state_id=state_id)
         return ConfigCity.objects.none()
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_countries')
 
     def perform_create(self, serializer):
         state = ConfigState.objects.get(pk=self.request.data['state_id'])
@@ -741,10 +729,7 @@ class StateViewSet(viewsets.ModelViewSet):
             return ConfigState.objects.all().select_related('country').order_by('country__name', 'name')
         return ConfigState.objects.none()
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'import_for_country']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions = _settings_perm('settings_countries', ['import_for_country'])
 
     def perform_create(self, serializer):
         country = ConfigCountry.objects.get(pk=self.request.data['country_id'])
@@ -789,7 +774,7 @@ class AccommodationSerializer(serializers.ModelSerializer):
 class AccommodationViewSet(viewsets.ModelViewSet):
     queryset         = ConfigAccommodation.objects.all()
     serializer_class = AccommodationSerializer
-    permission_classes = [IsAuthenticated]
+    get_permissions  = _settings_perm('settings_accommodations')
 
 
 # ── Aeroportos ────────────────────────────────────────────────────────────
@@ -814,10 +799,10 @@ class ConfigListPagination(PageNumberPagination):
 
 
 class AirportViewSet(viewsets.ModelViewSet):
-    queryset           = Airport.objects.all()
-    serializer_class   = AirportSerializer
-    permission_classes = [IsAuthenticated]
-    pagination_class   = ConfigListPagination
+    queryset         = Airport.objects.all()
+    serializer_class = AirportSerializer
+    pagination_class = ConfigListPagination
+    get_permissions  = _settings_perm('settings_airports', ['seed'])
 
     def get_queryset(self):
         qs = Airport.objects.all()
@@ -877,10 +862,10 @@ class AirlineSerializer(serializers.ModelSerializer):
 
 
 class AirlineViewSet(viewsets.ModelViewSet):
-    queryset           = Airline.objects.all()
-    serializer_class   = AirlineSerializer
-    permission_classes = [IsAuthenticated]
-    pagination_class   = ConfigListPagination
+    queryset         = Airline.objects.all()
+    serializer_class = AirlineSerializer
+    pagination_class = ConfigListPagination
+    get_permissions  = _settings_perm('settings_airlines', ['seed'])
 
     def get_queryset(self):
         qs = Airline.objects.all()
@@ -951,11 +936,7 @@ class BusMapViewSet(viewsets.ModelViewSet):
     queryset         = BusMap.objects.prefetch_related('rows').all()
     serializer_class = BusMapSerializer
     pagination_class = None
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminUser()]
-        return [IsAuthenticated()]
+    get_permissions  = _settings_perm('settings_bus_maps')
 
 
 # ── Configurações globais do sistema ─────────────────────────────────────────
@@ -998,4 +979,6 @@ class PermissionProfileViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        return [RequirePermission('manage_settings', 'settings_user_profiles')()]
+        if self.action == 'destroy':
+            return [RequirePermission('manage_settings', 'settings_user_profiles', 'settings_user_profiles_delete')()]
+        return [RequirePermission('manage_settings', 'settings_user_profiles', 'settings_user_profiles_edit')()]
