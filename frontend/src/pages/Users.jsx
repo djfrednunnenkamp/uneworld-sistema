@@ -1270,7 +1270,9 @@ export default function Users() {
                       ? <span className="badge bg-red">Bloqueada</span>
                       : !u.has_account
                         ? <span className="badge bg-amber">Pendente</span>
-                        : <span className="badge bg-green">Ativa</span>
+                        : !u.last_login
+                          ? <span className="badge bg-blue">Configurada</span>
+                          : <span className="badge bg-green">Ativa</span>
                     }
                   </td>
                   <td style={{textAlign:'center'}}>
