@@ -28,6 +28,15 @@ const PERM_GROUPS = [
     ],
   },
   {
+    title: 'Log de E-mails',
+    icon: 'mail',
+    items: [
+      ['email_log_view',       'Ver e-mails enviados pelo sistema'],
+      ['email_log_preview',    'Clicar para visualizar conteúdo do e-mail'],
+      ['email_resend_actions', 'Reenviar redefinição de senha / convite'],
+    ],
+  },
+  {
     title: 'Passageiros',
     icon: 'users',
     items: [
@@ -91,15 +100,6 @@ const PERM_GROUPS = [
       ['manage_users',    'Gerenciar usuários e permissões', 'users'],
       ['manage_settings', 'Acessar Configurações',           'settings'],
       ['view_audit_log',  'Ver Log do Sistema (global)',     'list'],
-    ],
-  },
-  {
-    title: 'Log de E-mails',
-    icon: 'ul',
-    items: [
-      ['email_log_view',       'Ver e-mails enviados pelo sistema'],
-      ['email_log_preview',    'Clicar para visualizar conteúdo do e-mail'],
-      ['email_resend_actions', 'Reenviar redefinição de senha / convite'],
     ],
   },
 ]
