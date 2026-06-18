@@ -2,8 +2,16 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import FileResponse
+
+
+def _serve_email_logo(request):
+    logo_path = settings.BASE_DIR.parent / 'frontend' / 'public' / 'logo-email.png'
+    return FileResponse(open(logo_path, 'rb'), content_type='image/png')
+
 
 urlpatterns = [
+    path('assets/logo.png', _serve_email_logo, name='email-logo'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('django.contrib.auth.urls')),
     path('api/users/',     include('users_api.urls')),
