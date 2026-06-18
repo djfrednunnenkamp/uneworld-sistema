@@ -231,6 +231,8 @@ export const usersApi = {
   update:         (id, d)  => api.patch(`/users/${id}/`, d),
   remove:         (id)     => api.delete(`/users/${id}/delete/`),
   sendInvite:     (id)     => api.post(`/users/${id}/invite/`),
+  sendReset:      (id)     => api.post(`/users/${id}/send-reset/`),
+  setPassword:    (id, password) => api.post(`/users/${id}/set-password/`, { password }),
   forgotPassword: (email)  => api.post('/users/forgot-password/', { email }),
   resetPassword:  (token, password) => api.post('/users/reset-password/', { token, password }),
   validateInvite: (token)  => api.get(`/users/invite/validate/?token=${token}`),

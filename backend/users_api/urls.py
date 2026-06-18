@@ -13,7 +13,9 @@ urlpatterns = [
     path('',                      views.user_list,       name='user-list'),
     path('create/',               views.user_create,     name='user-create'),
     path('<int:pk>/',             views.user_update,     name='user-update'),
-    path('<int:pk>/invite/',      views.send_user_invite,name='send-invite'),
-    path('<int:pk>/delete/',      views.user_delete,     name='user-delete'),
+    path('<int:pk>/invite/',       views.send_user_invite, name='send-invite'),
+    path('<int:pk>/send-reset/',   views.admin_send_reset, name='admin-send-reset'),
+    path('<int:pk>/set-password/', views.admin_set_password, name='admin-set-password'),
+    path('<int:pk>/delete/',       views.user_delete,      name='user-delete'),
 ]
 

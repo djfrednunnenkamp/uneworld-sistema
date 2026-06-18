@@ -105,6 +105,7 @@ const PERM_GROUPS = [
       ['users_edit',               'Criar / Editar usuários'],
       ['users_delete',             'Excluir usuários'],
       ['users_manage_permissions', 'Gerenciar permissões'],
+      ['users_set_password',       'Definir senha via admin'],
     ],
   },
   {
@@ -191,6 +192,7 @@ const PERM_DEPENDENCIES = {
   users_edit:               'users_view',
   users_delete:             'users_view',
   users_manage_permissions: 'users_view',
+  users_set_password:       'users_view',
 
   settings_professions:      'settings_view',
   settings_languages:        'settings_view',
@@ -520,7 +522,6 @@ function UserModal({ user, onClose, onSaved }) {
   const [form,       setForm]       = useState(user
     ? { ...user, password:'', is_superuser: !!user.is_superuser, permissions: sanitizePerms({ ...EMPTY_PERMISSIONS, ...user.permissions }) }
     : { ...EMPTY })
-  const [skipPwd,    setSkipPwd]    = useState(false)
   const [saving,     setSaving]     = useState(false)
   const [fe,         setFe]         = useState({})
   const [emailPrefs, setEmailPrefs] = useState({ receive_deadline_emails: false, receive_task_emails: false, receive_birthday_emails: false })
@@ -544,7 +545,6 @@ function UserModal({ user, onClose, onSaved }) {
   const save = async () => {
     const errs = {}
     if (!form.email?.trim()) errs.email = true
-    if (!isEdit && !skipPwd && !form.password) errs.password = true
     if (Object.keys(errs).length) { setFe(errs); return }
     setSaving(true)
     try {
@@ -554,16 +554,10 @@ function UserModal({ user, onClose, onSaved }) {
         await usersApi.update(user.id, payload)
         toast.success('Usuário atualizado.')
       } else {
-        const payload = { ...form, password: skipPwd ? '' : form.password }
-        if (!canManagePerms) delete payload.permissions
+        const payload = canManagePerms ? { ...form } : { ...form, permissions: undefined }
         const r = await usersApi.create(payload)
         savedId = r.data.id
-        if (skipPwd) {
-          try { await usersApi.sendInvite(r.data.id); toast.success('Usuário criado e convite enviado por e-mail.') }
-          catch { toast.success('Usuário criado.'); toast.error('Não foi possível enviar o convite por e-mail.') }
-        } else {
-          toast.success('Usuário criado.')
-        }
+        toast.success('Usuário criado. Convite enviado por e-mail.')
       }
       if (savedId) {
         agendaApi.updateUserPrefs(savedId, emailPrefs).catch(() => {})
@@ -597,17 +591,9 @@ function UserModal({ user, onClose, onSaved }) {
           </div>
 
           {!isEdit && (
-            <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer',fontSize:12.5,color:'#475569',padding:'9px 11px',borderRadius:7,border:'1px solid #e2e8f0',background:'#f8fafc'}}>
-              <input type="checkbox" checked={skipPwd} onChange={e=>setSkipPwd(e.target.checked)} style={{accentColor:'#1a2d4f',width:15,height:15,marginTop:1,flexShrink:0}} />
-              <span>Não definir senha agora — enviar um convite por e-mail para a pessoa criar a própria senha</span>
-            </label>
-          )}
-
-          {!skipPwd && (
-            <div>
-              <label style={lbl}>{isEdit ? 'Nova senha (deixe vazio para manter)' : 'Senha *'}</label>
-              <PasswordInput style={{...inp, ...(fe.password ? {border:'1px solid #ef4444',background:'#fef2f2'} : {})}} value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••••' : 'Mínimo 8 caracteres'} />
-              {fe.password && <p style={{fontSize:11,color:'#dc2626',margin:'3px 0 0',fontWeight:500}}>Defina uma senha ou marque para enviar convite por e-mail</p>}
+            <div style={{padding:'9px 11px',borderRadius:7,border:'1px solid #e2e8f0',background:'#f0fdf4',fontSize:12.5,color:'#166534',display:'flex',alignItems:'center',gap:8}}>
+              <Ic n="mail" s={14}/>
+              Será enviado um convite por e-mail para a pessoa criar a própria senha.
             </div>
           )}
 
@@ -715,6 +701,113 @@ function PermModal({ count, onPick, onClose, saving }) {
         </div>
         <div className="mfoot">
           <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Modal de gerenciamento de senha ── */
+function KeyMenuModal({ user, canSetPwd, onClose }) {
+  const [step, setStep] = useState('menu')
+  const [pwd,  setPwd]  = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const sendReset = async () => {
+    setBusy(true)
+    try {
+      await usersApi.sendReset(user.id)
+      toast.success(`E-mail de redefinição enviado para ${user.email}.`)
+      onClose()
+    } catch (e) { toast.error(e.response?.data?.error ?? 'Erro ao enviar.') }
+    finally { setBusy(false) }
+  }
+
+  const sendInviteAgain = async () => {
+    setBusy(true)
+    try {
+      await usersApi.sendInvite(user.id)
+      toast.success(`Convite reenviado para ${user.email}.`)
+      onClose()
+    } catch (e) { toast.error(e.response?.data?.error ?? 'Erro ao enviar.') }
+    finally { setBusy(false) }
+  }
+
+  const doSetPwd = async () => {
+    if (pwd.length < 8) { toast.error('Mínimo 8 caracteres.'); return }
+    setBusy(true)
+    try {
+      await usersApi.setPassword(user.id, pwd)
+      toast.success('Senha definida com sucesso.')
+      onClose()
+    } catch (e) { toast.error(e.response?.data?.error ?? 'Erro.') }
+    finally { setBusy(false) }
+  }
+
+  const optBtn = {
+    display:'flex', alignItems:'center', gap:12, padding:'11px 14px', borderRadius:8,
+    border:'1px solid #e2e8f0', background:'#f8fafc', cursor:'pointer', textAlign:'left',
+    fontSize:13, color:'#1e293b', fontFamily:'inherit', transition:'border-color .12s', width:'100%',
+  }
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.4)', backdropFilter:'blur(2px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:400, padding:20 }}>
+      <div style={{ background:'#fff', borderRadius:12, width:370, boxShadow:'0 8px 32px rgba(0,0,0,.18)' }}>
+        <div style={{ padding:'16px 20px 12px', borderBottom:'1px solid #f1f5f9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <p style={{ margin:'0 0 2px', fontSize:14, fontWeight:700, color:'#1e293b' }}>Gerenciar senha</p>
+            <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>{user.full_name || user.email}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4 }}><Ic n="x" s={15}/></button>
+        </div>
+        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:8 }}>
+          {step === 'menu' ? (<>
+            <button style={optBtn} onClick={sendReset} disabled={busy}
+              onMouseEnter={e => e.currentTarget.style.borderColor='#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.borderColor='#e2e8f0'}>
+              <Ic n="mail" s={16}/>
+              <span>
+                <b style={{display:'block'}}>Enviar e-mail de redefinição de senha</b>
+                <span style={{fontSize:11.5,color:'#94a3b8'}}>Para quem já criou a conta</span>
+              </span>
+            </button>
+            <button style={optBtn} onClick={sendInviteAgain} disabled={busy}
+              onMouseEnter={e => e.currentTarget.style.borderColor='#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.borderColor='#e2e8f0'}>
+              <Ic n="mail" s={16}/>
+              <span>
+                <b style={{display:'block'}}>Reenviar convite por e-mail</b>
+                <span style={{fontSize:11.5,color:'#94a3b8'}}>Para quem ainda não criou a conta</span>
+              </span>
+            </button>
+            {canSetPwd && (
+              <button style={optBtn} onClick={() => setStep('setpwd')} disabled={busy}
+                onMouseEnter={e => e.currentTarget.style.borderColor='#1a2d4f'}
+                onMouseLeave={e => e.currentTarget.style.borderColor='#e2e8f0'}>
+                <Ic n="key" s={16}/>
+                <span>
+                  <b style={{display:'block'}}>Definir senha via admin</b>
+                  <span style={{fontSize:11.5,color:'#94a3b8'}}>Define sem notificar o usuário</span>
+                </span>
+              </button>
+            )}
+          </>) : (<>
+            <PasswordInput
+              style={{ width:'100%', padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:6, fontSize:13, fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box', outline:'none' }}
+              value={pwd} onChange={e => setPwd(e.target.value)}
+              placeholder="Nova senha (mínimo 8 caracteres)" />
+            <div style={{ display:'flex', gap:8, marginTop:4 }}>
+              <button onClick={() => setStep('menu')} disabled={busy}
+                style={{ flex:1, padding:'8px 0', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                Voltar
+              </button>
+              <button onClick={doSetPwd} disabled={busy}
+                style={{ flex:2, padding:'8px 0', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                {busy ? 'Salvando…' : 'Definir senha'}
+              </button>
+            </div>
+          </>)}
         </div>
       </div>
     </div>
@@ -907,6 +1000,7 @@ export default function Users() {
   const [loading, setLoading] = useState(true)
   const [modal,   setModal]   = useState(null)
   const [delUser, setDelUser] = useState(null)
+  const [keyMenu, setKeyMenu] = useState(null)
   const [q,       setQ]       = useState('')
   const [sel,     setSel]     = useState(new Set())
   const [permModal, setPermModal] = useState(false)
@@ -922,10 +1016,12 @@ export default function Users() {
   const navigate = useNavigate()
   const myP        = me?.permissions ?? {}
   const isSu       = !!me?.is_superuser
-  const canCreate  = isSu || !!myP.manage_users || !!myP.users_edit
-  const canEdit    = isSu || !!myP.manage_users || !!myP.users_edit || !!myP.users_manage_permissions
-  const canDeleteU = isSu || !!myP.manage_users || !!myP.users_delete
-  const canViewLog = isSu || !!myP.view_audit_log || !!myP.log_users || !!myP.log_view
+  const canCreate      = isSu || !!myP.manage_users || !!myP.users_edit
+  const canEdit        = isSu || !!myP.manage_users || !!myP.users_edit || !!myP.users_manage_permissions
+  const canDeleteU     = isSu || !!myP.manage_users || !!myP.users_delete
+  const canSetPassword = isSu || !!myP.manage_users || !!myP.users_set_password
+  const canViewLog     = isSu || !!myP.view_audit_log || !!myP.log_users || !!myP.log_view
+  const canKeyMenu     = canCreate || canSetPassword
 
   const load = () => {
     setLoading(true)
@@ -1178,17 +1274,9 @@ export default function Users() {
                   <td>
                     <div className="r-acts">
                       {canEdit && <button className="r-btn edit" title="Editar" onClick={() => setModal(u)}><Ic n="edit" s={13}/></button>}
-                      {canCreate && (
-                        <button className="r-btn view" title="Enviar convite por e-mail"
-                          onClick={async () => {
-                            try {
-                              await usersApi.sendInvite(u.id)
-                              toast.success(`Convite enviado para ${u.email}`)
-                            } catch (e) {
-                              toast.error(e.response?.data?.error ?? 'Erro ao enviar convite.')
-                            }
-                          }}>
-                          <Ic n="mail" s={13}/>
+                      {canKeyMenu && (
+                        <button className="r-btn" title="Gerenciar senha" style={{color:'#475569'}} onClick={() => setKeyMenu(u)}>
+                          <Ic n="key" s={13}/>
                         </button>
                       )}
                       {canDeleteU && u.id !== me?.id && (
@@ -1215,6 +1303,9 @@ export default function Users() {
       )}
       {permModal && (
         <PermModal count={sel.size} saving={bulkBusy} onPick={bulkSetStaff} onClose={() => !bulkBusy && setPermModal(false)} />
+      )}
+      {keyMenu && (
+        <KeyMenuModal user={keyMenu} canSetPwd={canSetPassword} onClose={() => setKeyMenu(null)} />
       )}
       {bulkDel && (
         <DelModal name={`${sel.size} usuário${sel.size !== 1 ? 's' : ''} selecionado${sel.size !== 1 ? 's' : ''}`} onOk={bulkDelete} onCancel={() => !bulkBusy && setBulkDel(false)} />

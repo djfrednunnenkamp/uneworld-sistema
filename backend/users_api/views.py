@@ -128,34 +128,40 @@ def user_create(request):
         return Response({'error': 'Sem permissão.'}, status=403)
     data       = request.data
     email      = data.get('email', '').strip().lower()
-    password   = data.get('password', '')
     first_name = data.get('first_name', '').strip()
     last_name  = data.get('last_name', '').strip()
 
     if not email:
         return Response({'error': 'E-mail é obrigatório.'}, status=400)
-    if password and len(password) < 8:
-        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
     if User.objects.filter(email__iexact=email).exists():
         return Response({'error': 'E-mail já cadastrado.'}, status=400)
 
-    # username = e-mail (identificador interno único)
-    # Sem senha: usuário é criado com senha inutilizável — define a sua via convite por e-mail
     user = User.objects.create_user(
-        username=email, password=password or None, email=email,
+        username=email, password=None, email=email,
         first_name=first_name, last_name=last_name,
     )
-    # Apenas superusuários existentes podem criar outro superusuário
     if request.user.is_superuser and data.get('is_superuser'):
         user.is_superuser = True
         user.is_staff     = True
         user.save()
-    # Novos usuários começam sem nenhuma permissão até serem configurados aqui
     if not user.is_superuser:
         perm_data = dict(data)
         if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
             perm_data.pop('permissions', None)
         _apply_permissions(user, perm_data)
+
+    # Sempre envia convite por e-mail para o novo usuário definir a própria senha
+    try:
+        invite     = InviteToken.objects.create(
+            email=user.email, first_name=user.first_name, last_name=user.last_name,
+            is_staff=user.is_staff, created_by=request.user,
+        )
+        url        = f"{settings.FRONTEND_URL}/aceitar-convite?token={invite.token}"
+        invited_by = request.user.get_full_name() or request.user.username
+        send_invite(user.email, user.first_name, url, invited_by)
+    except Exception:
+        pass  # Falha no envio não cancela a criação do usuário
+
     return Response(serialize_user(user), status=201)
 
 
@@ -174,8 +180,6 @@ def user_update(request, pk):
     if 'last_name'  in data: user.last_name  = data['last_name']
     if 'email'      in data: user.email      = data['email']
     if 'is_active'  in data: user.is_active  = bool(data['is_active'])
-    if 'password'   in data and data['password']:
-        user.set_password(data['password'])
 
     # Apenas superusuários existentes podem conceder/revogar superusuário
     if request.user.is_superuser and 'is_superuser' in data:
@@ -318,3 +322,35 @@ def user_delete(request, pk):
         return Response({'error': 'Não é possível excluir seu próprio usuário.'}, status=400)
     user.delete()
     return Response(status=204)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_send_reset(request, pk):
+    if not has_any_perm(request.user, 'manage_users', 'users_edit'):
+        return Response({'error': 'Sem permissão.'}, status=403)
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+    token = PasswordResetToken.objects.create(user=user)
+    url   = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
+    send_reset_password(user.email, user.first_name, url)
+    return Response({'message': f'E-mail de redefinição enviado para {user.email}.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_set_password(request, pk):
+    if not (request.user.is_superuser or has_any_perm(request.user, 'manage_users', 'users_set_password')):
+        return Response({'error': 'Sem permissão.'}, status=403)
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+    password = request.data.get('password', '')
+    if len(password) < 8:
+        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
+    user.set_password(password)
+    user.save()
+    return Response({'message': 'Senha definida com sucesso.'})

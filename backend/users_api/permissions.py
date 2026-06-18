@@ -47,6 +47,7 @@ PERMISSION_FIELDS = [
     'users_edit',
     'users_delete',
     'users_manage_permissions',
+    'users_set_password',
     # Configurações
     'settings_view',
     'settings_professions',
@@ -74,7 +75,7 @@ STAFF_PERMISSION_FIELDS = [
     # Legacy (mantidos para compatibilidade com usuários existentes)
     'manage_users', 'manage_settings', 'view_audit_log',
     # Usuários
-    'users_view', 'users_edit', 'users_delete', 'users_manage_permissions',
+    'users_view', 'users_edit', 'users_delete', 'users_manage_permissions', 'users_set_password',
     # Configurações
     'settings_view', 'settings_professions', 'settings_languages', 'settings_countries',
     'settings_genders', 'settings_vaccines', 'settings_doc_types', 'settings_prof_cards',
