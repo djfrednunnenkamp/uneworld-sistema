@@ -266,7 +266,7 @@ export default function CalendarPage() {
             <Ic n="grid" s={14}/> Painel lateral
           </button>
           <button className="btn btn-outline" onClick={sendNow} disabled={sending}>
-            <Ic n="ul" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo'}
+            <Ic n="mail" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo'}
           </button>
         </div>
       </div>

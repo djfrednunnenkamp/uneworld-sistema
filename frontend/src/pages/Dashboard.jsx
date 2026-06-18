@@ -102,7 +102,7 @@ function EmailLogWidget({ canView, canPreview }) {
     <div className="tcard" style={{ flex:'0 0 480px', minWidth:0, display:'flex', flexDirection:'column' }}>
       <div className="tcard-head">
         <span style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <Ic n="ul" s={14}/> E-mails enviados
+          <Ic n="mail" s={14}/> E-mails enviados
         </span>
       </div>
       <div style={{ overflowY:'auto', flex:1 }}>

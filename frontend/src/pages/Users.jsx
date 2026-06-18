@@ -997,7 +997,7 @@ export default function Users() {
                             toast.error(e.response?.data?.error ?? 'Erro ao enviar convite.')
                           }
                         }}>
-                        <Ic n="ul" s={13}/>
+                        <Ic n="mail" s={13}/>
                       </button>
                       {me?.is_superuser && u.id !== me?.id && (
                         <button className="r-btn del" title="Excluir" onClick={() => setDelUser(u)}><Ic n="trash" s={13}/></button>
