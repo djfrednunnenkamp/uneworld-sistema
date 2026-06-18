@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { PrefsProvider } from './context/PrefsContext'
 import { canAccess } from './utils/permissions'
 import Layout          from './components/Layout'
 import Login           from './pages/Login'
@@ -73,7 +74,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <PrefsProvider>
+          <AppRoutes />
+        </PrefsProvider>
       </AuthProvider>
     </BrowserRouter>
   )

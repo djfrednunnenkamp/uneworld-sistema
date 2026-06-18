@@ -6,7 +6,7 @@ from .models import CalendarPreference, EmailLog
 class CalendarPreferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model  = CalendarPreference
-        fields = ['digest_enabled', 'digest_frequency', 'digest_send_hour',
+        fields = ['time_format', 'digest_enabled', 'digest_frequency', 'digest_send_hour',
                   'reminder_enabled', 'reminder_days_before',
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position']

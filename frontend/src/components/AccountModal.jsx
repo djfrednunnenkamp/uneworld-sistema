@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { authApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { usePrefs } from '../context/PrefsContext'
 import FormSelect from './FormSelect'
-
-const HOUR_OPTS = Array.from({length: 24}, (_, h) => ({
-  value: h,
-  label: `${String(h).padStart(2,'0')}:00`,
-}))
+import { fmtHour } from '../utils/timeFormat'
 
 const FREQ_OPTS = [
   { value: 'daily',  label: 'Diário' },
   { value: 'weekly', label: 'Semanal (toda segunda-feira)' },
+]
+
+const FORMAT_OPTS = [
+  { value: '24h', label: '24 horas  —  13:00, 22:00' },
+  { value: '12h', label: '12 horas (AM/PM)  —  1:00 PM, 10:00 PM' },
 ]
 
 const overlay = {
@@ -80,7 +82,7 @@ function NotifCard({ label, desc, checked, onToggle, hour, onHour, frequency, on
           )}
           <div>
             <p style={{ margin: frequency !== undefined ? '0 0 4px' : '10px 0 4px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em' }}>Horário de envio</p>
-            <FormSelect value={hour} onChange={onHour} options={HOUR_OPTS} placeholder="Selecione o horário…" />
+            <FormSelect value={hour} onChange={onHour} options={hourOpts} placeholder="Selecione o horário…" />
           </div>
         </div>
       )}
@@ -90,6 +92,7 @@ function NotifCard({ label, desc, checked, onToggle, hour, onHour, frequency, on
 
 export default function AccountModal({ onClose, onSaved }) {
   const { user } = useAuth()
+  const { setTimeFormat } = usePrefs()
   const [firstName, setFirstName] = useState(user?.first_name || '')
   const [lastName,  setLastName]  = useState(user?.last_name  || '')
   const [email,     setEmail]     = useState(user?.email      || '')
@@ -98,17 +101,20 @@ export default function AccountModal({ onClose, onSaved }) {
   const [success,   setSuccess]   = useState(false)
 
   const [prefs, setPrefs] = useState({
+    time_format:             '24h',
     digest_enabled:          false,
     digest_frequency:        'daily',
     digest_send_hour:        8,
     receive_deadline_emails: false,
-    deadline_send_hour:      8,
     receive_task_emails:     false,
-    task_send_hour:          8,
     receive_birthday_emails: false,
-    birthday_send_hour:      8,
     send_hour:               8,
   })
+
+  const hourOpts = useMemo(() =>
+    Array.from({length: 24}, (_, h) => ({ value: h, label: fmtHour(h, prefs.time_format) })),
+    [prefs.time_format]
+  )
 
   const canSeeSensitive = user?.is_superuser || !!user?.permissions?.passengers_view_full
 
@@ -116,6 +122,7 @@ export default function AccountModal({ onClose, onSaved }) {
     agendaApi.getPrefs()
       .then(r => setPrefs(p => ({
         ...p,
+        time_format:             r.data.time_format    || '24h',
         digest_enabled:          !!r.data.digest_enabled,
         digest_frequency:        r.data.digest_frequency || 'daily',
         digest_send_hour:        r.data.digest_send_hour ?? 8,
@@ -136,6 +143,7 @@ export default function AccountModal({ onClose, onSaved }) {
     try {
       await authApi.updateMe({ first_name: firstName, last_name: lastName, email: email.trim().toLowerCase() })
       await agendaApi.updatePrefs({
+        time_format:             prefs.time_format,
         digest_enabled:          prefs.digest_enabled,
         digest_frequency:        prefs.digest_frequency,
         digest_send_hour:        prefs.digest_send_hour,
@@ -144,6 +152,7 @@ export default function AccountModal({ onClose, onSaved }) {
         receive_birthday_emails: prefs.receive_birthday_emails,
         send_hour:               prefs.send_hour,
       })
+      setTimeFormat(prefs.time_format)
       await onSaved()
       setSuccess(true)
       setTimeout(onClose, 900)
@@ -183,6 +192,18 @@ export default function AccountModal({ onClose, onSaved }) {
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
+
+          {/* Formato de horário */}
+          <Section title="Formato de horário">
+            <div style={{ padding: '2px 0' }}>
+              <FormSelect
+                value={prefs.time_format}
+                onChange={v => set('time_format', v)}
+                options={FORMAT_OPTS}
+                placeholder="Selecione o formato…"
+              />
+            </div>
+          </Section>
 
           {/* Resumo do calendário */}
           <Section title="Resumo do calendário">

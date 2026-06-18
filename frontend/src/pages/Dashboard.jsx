@@ -2,19 +2,15 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { usePrefs } from '../context/PrefsContext'
 import { canAccess } from '../utils/permissions'
 import { Ic } from '../components/Icon'
+import { fmtDateTime } from '../utils/timeFormat'
 
 const fmt = (d) => {
   if (!d) return ''
   const [y, m, dd] = d.split('-')
   return `${dd}/${m}/${y}`
-}
-
-const fmtDt = (iso) => {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 const TYPE_LABEL = { aereo: 'Via Aéreo', terrestre: 'Via Terrestre' }
@@ -38,6 +34,8 @@ const STATS_CFG = [
 
 function EmailPreviewModal({ log, onClose }) {
   const iframeRef = useRef(null)
+  const { timeFormat } = usePrefs()
+  const fmtDt = (iso) => fmtDateTime(iso, timeFormat)
 
   const handleLoad = () => {
     const iframe = iframeRef.current
@@ -74,11 +72,12 @@ function EmailPreviewModal({ log, onClose }) {
   )
 }
 
-function EmailLogWidget({ canView, canPreview }) {
+function EmailLogWidget({ canView, canPreview, timeFormat }) {
   const [logs, setLogs]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [preview, setPreview]   = useState(null)
   const [loadingId, setLoadingId] = useState(null)
+  const fmtDt = (iso) => fmtDateTime(iso, timeFormat)
 
   useEffect(() => {
     if (!canView) return
@@ -160,6 +159,7 @@ export default function Dashboard() {
   const [emailCfg, setEmailCfg]   = useState(null)
   const navigate                   = useNavigate()
   const { user } = useAuth()
+  const { timeFormat } = usePrefs()
   const perms    = user?.permissions ?? {}
   const can = (key) => !!user?.is_superuser || !!perms[key]
 
@@ -287,6 +287,7 @@ export default function Dashboard() {
           <EmailLogWidget
             canView={emailCfg.can_view}
             canPreview={emailCfg.can_preview}
+            timeFormat={timeFormat}
           />
         )}
       </div>

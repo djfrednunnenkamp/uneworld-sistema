@@ -23,6 +23,8 @@ class CalendarPreference(models.Model):
     receive_birthday_emails  = models.BooleanField('Receber e-mails de aniversários de passageiros', default=False)
     side_panel_enabled   = models.BooleanField('Exibir painel lateral do calendário', default=True)
     side_panel_position  = models.CharField('Posição do painel lateral', max_length=5, choices=SIDE_PANEL_POSITION_CHOICES, default='right')
+    TIME_FORMAT_CHOICES = [('24h', '24 horas'), ('12h', '12 horas (AM/PM)')]
+    time_format          = models.CharField('Formato de horário', max_length=3, choices=TIME_FORMAT_CHOICES, default='24h')
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)
