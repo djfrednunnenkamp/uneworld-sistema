@@ -6,6 +6,7 @@ import { usePrefs } from '../context/PrefsContext'
 import { canAccess } from '../utils/permissions'
 import { Ic } from '../components/Icon'
 import { fmtDateTime } from '../utils/timeFormat'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 const fmt = (d) => {
   if (!d) return ''
@@ -106,7 +107,7 @@ function EmailPreviewModal({ log, onClose }) {
   )
 }
 
-function EmailLogWidget({ canView, canPreview, timeFormat }) {
+function EmailLogWidget({ canView, canPreview, timeFormat, refreshKey }) {
   const [logs, setLogs]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [preview, setPreview]   = useState(null)
@@ -119,7 +120,7 @@ function EmailLogWidget({ canView, canPreview, timeFormat }) {
       .then(r => setLogs(r.data))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [canView])
+  }, [canView, refreshKey])
 
   const openPreview = useCallback(async (id) => {
     if (!canPreview) return
@@ -191,12 +192,14 @@ export default function Dashboard() {
   const [data, setData]           = useState(null)
   const [loading, setLoading]     = useState(true)
   const [emailCfg, setEmailCfg]   = useState(null)
+  const [refreshKey, setRefreshKey] = useState(0)
   const navigate                   = useNavigate()
   const { user } = useAuth()
   const { timeFormat } = usePrefs()
   const perms    = user?.permissions ?? {}
   const can = (key) => !!user?.is_superuser || !!perms[key]
 
+  // Fetch inicial
   useEffect(() => {
     dashboardApi.getStats()
       .then((r) => setData(r.data))
@@ -206,6 +209,28 @@ export default function Dashboard() {
       .then(r => setEmailCfg(r.data))
       .catch(() => {})
   }, [])
+
+  // Refetch silencioso quando WebSocket sinaliza mudança
+  const reloadStats = useCallback(() => {
+    dashboardApi.getStats()
+      .then((r) => setData(r.data))
+      .catch(() => {})
+  }, [])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+
+  useWebSocket(wsUrl, useCallback((msg) => {
+    if (msg.type !== 'refresh') return
+    const scope = msg.scope ?? 'all'
+    if (scope === 'emails') {
+      // só o widget de e-mails precisa atualizar
+      setRefreshKey(k => k + 1)
+    } else {
+      // stats, lists ou all — atualiza tudo
+      reloadStats()
+      setRefreshKey(k => k + 1)
+    }
+  }, [reloadStats]), { enabled: !!user })
 
   if (loading) {
     return (
@@ -322,6 +347,7 @@ export default function Dashboard() {
             canView={emailCfg.can_view}
             canPreview={emailCfg.can_preview}
             timeFormat={timeFormat}
+            refreshKey={refreshKey}
           />
         )}
       </div>
