@@ -115,7 +115,10 @@ class EmailLogDetailView(APIView):
             log = EmailLog.objects.get(pk=pk)
         except EmailLog.DoesNotExist:
             return Response(status=404)
-        return Response(EmailLogDetailSerializer(log).data)
+        from .email_service import _html_for_preview
+        data = EmailLogDetailSerializer(log).data
+        data['html_body'] = _html_for_preview(data.get('html_body') or '')
+        return Response(data)
 
 
 @api_view(['GET'])

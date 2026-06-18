@@ -104,39 +104,34 @@ function EmailLogWidget({ canView, canPreview }) {
             <div key={log.id}
               onClick={clickable ? () => openPreview(log.id) : undefined}
               style={{
-                padding:'10px 16px', borderBottom:'1px solid #f1f5f9', cursor: clickable ? 'pointer' : 'default',
-                transition:'background .1s', display:'flex', alignItems:'flex-start', gap:10,
+                padding:'10px 14px', borderBottom:'1px solid #f1f5f9', cursor: clickable ? 'pointer' : 'default',
+                transition:'background .1s',
               }}
               onMouseEnter={e => { if (clickable) e.currentTarget.style.background = '#f8fafc' }}
               onMouseLeave={e => { e.currentTarget.style.background = '' }}>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2, flexWrap:'wrap' }}>
-                  <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:999, background:cfg.color, color:cfg.fg, whiteSpace:'nowrap' }}>
-                    {cfg.label}
-                  </span>
-                  {!log.success && (
-                    <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:999, background:'#fee2e2', color:'#dc2626' }}>Falhou</span>
-                  )}
-                </div>
-                <p style={{ margin:'0 0 1px', fontSize:12.5, fontWeight:500, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {log.subject}
-                </p>
-                <p style={{ margin:0, fontSize:11.5, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {log.to}
-                </p>
-              </div>
-              <div style={{ fontSize:11, color:'#94a3b8', whiteSpace:'nowrap', flexShrink:0, marginTop:2 }}>
-                {fmtDt(log.sent_at)}
+              {/* top row: badge + time + eye */}
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:999, background:cfg.color, color:cfg.fg, whiteSpace:'nowrap' }}>
+                  {cfg.label}
+                </span>
+                {!log.success && (
+                  <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:999, background:'#fee2e2', color:'#dc2626' }}>Falhou</span>
+                )}
+                <span style={{ flex:1 }}/>
+                <span style={{ fontSize:11, color:'#94a3b8', whiteSpace:'nowrap' }}>{fmtDt(log.sent_at)}</span>
                 {canPreview && (
-                  <div style={{ marginTop:2, textAlign:'right' }}>
-                    {loadingId === log.id ? (
-                      <span style={{ fontSize:10, color:'#94a3b8' }}>…</span>
-                    ) : (
-                      <Ic n="eye" s={12}/>
-                    )}
-                  </div>
+                  loadingId === log.id
+                    ? <span style={{ fontSize:10, color:'#94a3b8' }}>…</span>
+                    : <span style={{ color:'#94a3b8', display:'flex' }}><Ic n="eye" s={13}/></span>
                 )}
               </div>
+              {/* bottom row: subject + recipient */}
+              <p style={{ margin:'0 0 2px', fontSize:12.5, fontWeight:500, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {log.subject}
+              </p>
+              <p style={{ margin:0, fontSize:11.5, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {log.to}
+              </p>
             </div>
           )
         })}
