@@ -1103,24 +1103,28 @@ export default function Users() {
                             <Ic n="key" s={13}/>
                           </button>
                         )}
-                      </>) : (
-                        canBlockU && <button className="r-btn" title="Desbloquear acesso" style={{color:'#16a34a'}} onClick={() => setUnblockUser(u)}>
-                          <Ic n="unlock" s={13}/>
-                        </button>
-                      )}
-                      {(canBlockU || canDeleteU) && u.id !== me?.id && (
-                        <button className="r-btn del"
-                          title={
-                            u.is_active
-                              ? canBlockU && canDeleteU ? 'Bloquear / Excluir'
-                                : canBlockU ? 'Bloquear acesso'
-                                : 'Excluir permanentemente'
-                              : 'Excluir permanentemente'
-                          }
-                          onClick={() => setActionUser(u)}>
-                          <Ic n="trash" s={13}/>
-                        </button>
-                      )}
+                        {u.id !== me?.id && canBlockU && !canDeleteU && (
+                          <button className="r-btn del" title="Bloquear acesso" onClick={() => setActionUser(u)}><Ic n="ban" s={13}/></button>
+                        )}
+                        {u.id !== me?.id && canDeleteU && (
+                          <button className="r-btn del"
+                            title={canBlockU ? 'Bloquear / Excluir' : 'Excluir permanentemente'}
+                            onClick={() => setActionUser(u)}>
+                            <Ic n="trash" s={13}/>
+                          </button>
+                        )}
+                      </>) : (<>
+                        {canBlockU && (
+                          <button className="r-btn" title="Desbloquear acesso" style={{color:'#16a34a'}} onClick={() => setUnblockUser(u)}>
+                            <Ic n="unlock" s={13}/>
+                          </button>
+                        )}
+                        {canDeleteU && u.id !== me?.id && (
+                          <button className="r-btn del" title="Excluir permanentemente" onClick={() => setActionUser(u)}>
+                            <Ic n="trash" s={13}/>
+                          </button>
+                        )}
+                      </>)}
                     </div>
                   </td>
                 </tr>
