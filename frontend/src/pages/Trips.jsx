@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { listsApi } from '../api'
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import DataTable from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import ListModal from '../components/ListModal'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 const fmt = (d) => {
   if (!d) return ''
@@ -101,6 +102,19 @@ export default function Trips() {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+
+  const silentReload = useCallback(() => {
+    listsApi.list()
+      .then(r => setRows(r.data.results ?? r.data))
+      .catch(() => {})
+  }, [])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback((msg) => {
+    if (msg.type !== 'refresh') return
+    const scope = msg.scope ?? 'all'
+    if (scope === 'lists' || scope === 'all') silentReload()
+  }, [silentReload]), { enabled: !!user })
 
   const handleDelete = async () => {
     await listsApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))

@@ -14,6 +14,7 @@ import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
+import { useWebSocket } from '../hooks/useWebSocket'
 import AirlinePicker from '../components/AirlinePicker'
 import CpfInput from '../components/CpfInput'
 import PhoneInput from '../components/PhoneInput'
@@ -4173,6 +4174,23 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   }, [listId])
 
   useEffect(() => { load(); loadRooms() }, [load, loadRooms])
+
+  const silentLoad = useCallback(() => {
+    listsApi.listPassengers(listId)
+      .then(r => setEnrolled(r.data))
+      .catch(() => {})
+    listsApi.get(listId)
+      .then(r => setListRevision(r.data.revision ?? null))
+      .catch(() => {})
+    listsApi.listRooms(listId).then(r => setRooms(r.data)).catch(() => {})
+  }, [listId])
+
+  const wsUrlPax = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrlPax, useCallback((msg) => {
+    if (msg.type !== 'refresh') return
+    const scope = msg.scope ?? 'all'
+    if (scope === 'stats' || scope === 'lists' || scope === 'all') silentLoad()
+  }, [silentLoad]), { enabled: !!user })
   useEffect(() => {
     configApi.accommodations().then(r => setAccomTypes(r.data.results ?? r.data)).catch(() => {})
   }, [])
@@ -5318,6 +5336,7 @@ function OriginsTab({ enrolled, list }) {
 
 /* ── Aba de Voos ── */
 function FlightsTab({ listId, list, onListUpdate }) {
+  const { user } = useAuth()
   const [enrolled, setEnrolled] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [filterQ,  setFilterQ]  = useState('')
@@ -5336,6 +5355,19 @@ function FlightsTab({ listId, list, onListUpdate }) {
   }, [listId])
 
   useEffect(() => { loadAll() }, [loadAll])
+
+  const silentLoadAll = useCallback(() => {
+    listsApi.listPassengers(listId)
+      .then(r => setEnrolled(r.data))
+      .catch(() => {})
+  }, [listId])
+
+  const wsUrlFlights = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrlFlights, useCallback((msg) => {
+    if (msg.type !== 'refresh') return
+    const scope = msg.scope ?? 'all'
+    if (scope === 'stats' || scope === 'all') silentLoadAll()
+  }, [silentLoadAll]), { enabled: !!user })
 
   const saveNotes = () => {
     setNotesSaving(true)
@@ -5757,6 +5789,19 @@ export default function TripDetail() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  const silentLoad = useCallback(() => {
+    listsApi.get(id)
+      .then(r => setList(r.data))
+      .catch(() => {})
+  }, [id])
+
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback((msg) => {
+    if (msg.type !== 'refresh') return
+    const scope = msg.scope ?? 'all'
+    if (scope === 'lists' || scope === 'all') silentLoad()
+  }, [silentLoad]), { enabled: !!user })
 
   const handleSaved = (data) => {
     setList(data)
