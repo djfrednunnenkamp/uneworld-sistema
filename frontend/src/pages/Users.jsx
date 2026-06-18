@@ -19,15 +19,6 @@ const ROLE_OPTS = [
 
 const PERM_GROUPS = [
   {
-    title: 'Administração',
-    icon: 'settings',
-    items: [
-      ['manage_users',    'Gerenciar usuários e permissões', 'users'],
-      ['manage_settings', 'Acessar Configurações',           'settings'],
-      ['view_audit_log',  'Ver Log do Sistema (global)',     'list'],
-    ],
-  },
-  {
     title: 'Visão Geral',
     icon: 'grid',
     sections: [
@@ -106,6 +97,65 @@ const PERM_GROUPS = [
       ['calendar_view_all_deadlines', 'Ver prazos de confirmação de todos os usuários'],
     ],
   },
+  {
+    title: 'Usuários',
+    icon: 'users',
+    items: [
+      ['users_view',               'Ver lista de usuários'],
+      ['users_edit',               'Criar / Editar usuários'],
+      ['users_delete',             'Excluir usuários'],
+      ['users_manage_permissions', 'Gerenciar permissões'],
+    ],
+  },
+  {
+    title: 'Configurações',
+    icon: 'settings',
+    sections: [
+      {
+        label: 'Acesso',
+        items: [
+          ['settings_view', 'Acessar página de configurações'],
+        ],
+      },
+      {
+        label: 'Categorias',
+        items: [
+          ['settings_professions',      'Profissões'],
+          ['settings_languages',        'Idiomas'],
+          ['settings_countries',        'Países e Estados'],
+          ['settings_genders',          'Gêneros'],
+          ['settings_vaccines',         'Vacinas'],
+          ['settings_doc_types',        'Tipos de documento'],
+          ['settings_prof_cards',       'Carteiras profissionais'],
+          ['settings_destinations',     'Destinos de viagem'],
+          ['settings_list_additionals', 'Itens adicionais de lista'],
+          ['settings_crew_roles',       'Funções de tripulante'],
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Log do Sistema',
+    icon: 'list',
+    sections: [
+      {
+        label: 'Acesso',
+        items: [
+          ['log_view', 'Ver log do sistema'],
+        ],
+      },
+      {
+        label: 'Por área',
+        items: [
+          ['log_passengers', 'Passageiros'],
+          ['log_lists',      'Listas de passageiros'],
+          ['log_agencies',   'Agências'],
+          ['log_users',      'Usuários'],
+          ['log_settings',   'Configurações'],
+        ],
+      },
+    ],
+  },
 ]
 
 /* Algumas permissões só fazem sentido se a permissão "base" também estiver marcada
@@ -137,6 +187,27 @@ const PERM_DEPENDENCIES = {
 
   email_log_preview:    'email_log_view',
   email_resend_actions: 'email_log_preview',
+
+  users_edit:               'users_view',
+  users_delete:             'users_view',
+  users_manage_permissions: 'users_view',
+
+  settings_professions:      'settings_view',
+  settings_languages:        'settings_view',
+  settings_countries:        'settings_view',
+  settings_genders:          'settings_view',
+  settings_vaccines:         'settings_view',
+  settings_doc_types:        'settings_view',
+  settings_prof_cards:       'settings_view',
+  settings_destinations:     'settings_view',
+  settings_list_additionals: 'settings_view',
+  settings_crew_roles:       'settings_view',
+
+  log_passengers: 'log_view',
+  log_lists:      'log_view',
+  log_agencies:   'log_view',
+  log_users:      'log_view',
+  log_settings:   'log_view',
 }
 
 /* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente).
@@ -150,33 +221,21 @@ const sanitizePerms = perms => {
   return out
 }
 
-/* "Ver Log do Sistema (global)" implica acesso aos logs (e à visualização) de cada área */
-const AUDIT_LOG_IMPLIES = {
-  passengers_view_logs: 'passengers_view_basic',
-  lists_view_logs:      'lists_view',
-  agencies_view_logs:   'agencies_view',
-}
-
-/* Aplica um conjunto de mudanças de permissões, propagando dependências automáticas
-   (ex.: marcar "Ver Log do Sistema (global)" marca também os logs e a visualização de cada área) */
-const applyPermChanges = (permissions, changes) => {
-  const out = { ...permissions, ...changes }
-  if (changes.view_audit_log === true) {
-    for (const [logKey, baseKey] of Object.entries(AUDIT_LOG_IMPLIES)) {
-      out[logKey]  = true
-      out[baseKey] = true
-    }
-  }
-  return sanitizePerms(out)
-}
+/* Aplica um conjunto de mudanças de permissões (sem propagações especiais — dependências
+   são controladas pelo accordion via sanitizePerms) */
+const applyPermChanges = (permissions, changes) => sanitizePerms({ ...permissions, ...changes })
 
 /* Retorna a lista plana de [key, label, icon?] de um grupo, vindo de `items` ou de `sections` */
 const groupItems = g => g.items ?? g.sections.flatMap(s => s.items)
 
-const ALL_PERM_KEYS   = PERM_GROUPS.flatMap(g => groupItems(g).map(([k]) => k))
-const ADMIN_GROUP     = PERM_GROUPS.find(g => g.title === 'Administração')
-const GRID_GROUPS     = PERM_GROUPS.filter(g => g.title !== 'Administração')
-const ADMIN_PERM_KEYS = groupItems(ADMIN_GROUP).map(([k]) => k)
+const ALL_PERM_KEYS = PERM_GROUPS.flatMap(g => groupItems(g).map(([k]) => k))
+
+/* Grupos administrativos — excluídos do preset "Usuário padrão" */
+const ADMIN_TITLES    = ['Usuários', 'Configurações', 'Log do Sistema']
+const ADMIN_PERM_KEYS = PERM_GROUPS
+  .filter(g => ADMIN_TITLES.includes(g.title))
+  .flatMap(g => groupItems(g).map(([k]) => k))
+
 const EMPTY_PERMISSIONS = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, false]))
 const PRESET_ADMIN      = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, true]))
 /* "Ver prazos de todos" expõe dados de outras pessoas: mesmo no preset "Usuário" começa desligada */

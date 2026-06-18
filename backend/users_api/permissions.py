@@ -6,6 +6,10 @@ PERMISSION_FIELDS = [
     'dashboard_view_passengers',
     'dashboard_view_lists',
     'dashboard_view_enrollments',
+    # Log de e-mails
+    'email_log_view',
+    'email_log_preview',
+    'email_resend_actions',
     # Passageiros
     'passengers_view_basic',
     'passengers_view_full',
@@ -14,6 +18,11 @@ PERMISSION_FIELDS = [
     'passengers_download_docs',
     'passengers_upload_docs',
     'passengers_view_logs',
+    # Agências
+    'agencies_view',
+    'agencies_edit',
+    'agencies_delete',
+    'agencies_view_logs',
     # Listas de Passageiros
     'lists_view',
     'lists_edit',
@@ -25,28 +34,50 @@ PERMISSION_FIELDS = [
     'lists_passengers_add',
     'lists_passengers_edit',
     'lists_passengers_remove',
-    # Agências
-    'agencies_view',
-    'agencies_edit',
-    'agencies_delete',
-    'agencies_view_logs',
-    # Administração
-    'manage_users',
-    'manage_settings',
-    'view_audit_log',
     # Calendário
     'calendar_view',
     'calendar_view_birthdays',
     'calendar_view_all_deadlines',
-    # Log de e-mails
-    'email_log_view',
-    'email_log_preview',
-    'email_resend_actions',
+    # Usuários
+    'users_view',
+    'users_edit',
+    'users_delete',
+    'users_manage_permissions',
+    # Configurações
+    'settings_view',
+    'settings_professions',
+    'settings_languages',
+    'settings_countries',
+    'settings_genders',
+    'settings_vaccines',
+    'settings_doc_types',
+    'settings_prof_cards',
+    'settings_destinations',
+    'settings_list_additionals',
+    'settings_crew_roles',
+    # Log do sistema
+    'log_view',
+    'log_passengers',
+    'log_lists',
+    'log_agencies',
+    'log_users',
+    'log_settings',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
 # (acesso administrativo — libera /usuarios, /configuracoes e /log no menu).
-STAFF_PERMISSION_FIELDS = ['manage_users', 'manage_settings', 'view_audit_log']
+STAFF_PERMISSION_FIELDS = [
+    # Legacy (mantidos para compatibilidade com usuários existentes)
+    'manage_users', 'manage_settings', 'view_audit_log',
+    # Usuários
+    'users_view', 'users_edit', 'users_delete', 'users_manage_permissions',
+    # Configurações
+    'settings_view', 'settings_professions', 'settings_languages', 'settings_countries',
+    'settings_genders', 'settings_vaccines', 'settings_doc_types', 'settings_prof_cards',
+    'settings_destinations', 'settings_list_additionals', 'settings_crew_roles',
+    # Log do sistema
+    'log_view', 'log_passengers', 'log_lists', 'log_agencies', 'log_users', 'log_settings',
+]
 
 
 def get_user_permissions(user):

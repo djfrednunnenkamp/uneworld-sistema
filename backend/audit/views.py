@@ -32,7 +32,8 @@ class AuditPagination(PageNumberPagination):
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditLogSerializer
     permission_classes = [RequirePermission(
-        'view_audit_log', 'lists_view_logs', 'passengers_view_logs', 'agencies_view_logs',
+        'view_audit_log', 'log_view', 'log_passengers', 'log_lists', 'log_agencies',
+        'log_users', 'log_settings', 'lists_view_logs', 'passengers_view_logs', 'agencies_view_logs',
     )]
     pagination_class = AuditPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -51,10 +52,39 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         passenger_id = self.request.query_params.get('passenger_id')
         agency_id    = self.request.query_params.get('agency_id')
 
-        has_global = has_any_perm(self.request.user, 'view_audit_log')
-        if not has_global and not (list_id or passenger_id or agency_id):
-            # Usuário só tem permissão de log restrito a uma entidade específica.
+        user = self.request.user
+        has_global = has_any_perm(user, 'view_audit_log', 'log_view')
+        has_log_passengers = has_global or has_any_perm(user, 'log_passengers')
+        has_log_lists      = has_global or has_any_perm(user, 'log_lists')
+        has_log_agencies   = has_global or has_any_perm(user, 'log_agencies')
+        has_log_users      = has_global or has_any_perm(user, 'log_users')
+        has_log_settings   = has_global or has_any_perm(user, 'log_settings')
+        has_any_area = (has_log_passengers or has_log_lists or has_log_agencies
+                        or has_log_users or has_log_settings)
+
+        if not has_any_area and not (list_id or passenger_id or agency_id):
             return qs.none()
+
+        # Se não tem acesso global, filtra apenas as áreas com permissão
+        if not has_global:
+            from django.db.models import Q as DQ
+            area_q = DQ()
+            if has_log_passengers:
+                area_q |= DQ(model_name__in=['Passenger', 'PassengerDocument'])
+            if has_log_lists:
+                area_q |= DQ(model_name__in=['PassengerList', 'ListEnrollment'])
+            if has_log_agencies:
+                area_q |= DQ(model_name='Agency')
+            if has_log_users:
+                area_q |= DQ(model_name__in=['User', 'UserPermissions'])
+            if has_log_settings:
+                area_q |= DQ(model_name__in=[
+                    'ConfigProfession', 'ConfigLanguage', 'ConfigCountry', 'ConfigState',
+                    'ConfigGender', 'ConfigVaccine', 'CustomDocType', 'ConfigProfCard',
+                    'Destination', 'ListAdditional', 'CrewRole',
+                ])
+            if area_q.children:
+                qs = qs.filter(area_q)
 
         if action:    qs = qs.filter(action=action)
         if model:     qs = qs.filter(model_name=model)

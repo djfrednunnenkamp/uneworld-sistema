@@ -38,6 +38,9 @@ def _apply_permissions(user, data):
     for key in PERMISSION_FIELDS:
         if key in perms_data:
             setattr(perms, key, bool(perms_data[key]))
+    # Zera campos legados substituídos pelos novos grupos granulares
+    for key in ('manage_users', 'manage_settings', 'view_audit_log'):
+        setattr(perms, key, False)
     perms.save()
     sync_is_staff(user)
 
@@ -115,7 +118,7 @@ def change_password(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_list(request):
-    if not has_any_perm(request.user, 'manage_users'):
+    if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'):
         return Response({'error': 'Sem permissão.'}, status=403)
     users = User.objects.all().order_by('username')
     return Response([serialize_user(u) for u in users])
@@ -124,7 +127,7 @@ def user_list(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def user_create(request):
-    if not has_any_perm(request.user, 'manage_users'):
+    if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'):
         return Response({'error': 'Sem permissão.'}, status=403)
     data       = request.data
     email      = data.get('email', '').strip().lower()
@@ -159,7 +162,7 @@ def user_create(request):
 @api_view(['PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_update(request, pk):
-    if not has_any_perm(request.user, 'manage_users'):
+    if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'):
         return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
@@ -234,7 +237,7 @@ def reset_password(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def send_user_invite(request, pk):
-    if not has_any_perm(request.user, 'manage_users'):
+    if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'):
         return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
@@ -302,8 +305,8 @@ def accept_invite(request):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def user_delete(request, pk):
-    if not request.user.is_superuser:
-        return Response({'error': 'Apenas superusuários podem excluir usuários.'}, status=403)
+    if not (request.user.is_superuser or has_any_perm(request.user, 'users_delete')):
+        return Response({'error': 'Sem permissão para excluir usuários.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:

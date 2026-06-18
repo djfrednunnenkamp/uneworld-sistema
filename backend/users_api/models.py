@@ -77,6 +77,33 @@ class UserPermissions(models.Model):
     email_log_preview    = models.BooleanField(default=False)
     email_resend_actions = models.BooleanField(default=False)
 
+    # Usuários
+    users_view               = models.BooleanField(default=False)
+    users_edit               = models.BooleanField(default=False)
+    users_delete             = models.BooleanField(default=False)
+    users_manage_permissions = models.BooleanField(default=False)
+
+    # Configurações
+    settings_view             = models.BooleanField(default=False)
+    settings_professions      = models.BooleanField(default=False)
+    settings_languages        = models.BooleanField(default=False)
+    settings_countries        = models.BooleanField(default=False)
+    settings_genders          = models.BooleanField(default=False)
+    settings_vaccines         = models.BooleanField(default=False)
+    settings_doc_types        = models.BooleanField(default=False)
+    settings_prof_cards       = models.BooleanField(default=False)
+    settings_destinations     = models.BooleanField(default=False)
+    settings_list_additionals = models.BooleanField(default=False)
+    settings_crew_roles       = models.BooleanField(default=False)
+
+    # Log do sistema
+    log_view       = models.BooleanField(default=False)
+    log_passengers = models.BooleanField(default=False)
+    log_lists      = models.BooleanField(default=False)
+    log_agencies   = models.BooleanField(default=False)
+    log_users      = models.BooleanField(default=False)
+    log_settings   = models.BooleanField(default=False)
+
     class Meta:
         verbose_name = 'Permissões de usuário'
         verbose_name_plural = 'Permissões de usuários'
