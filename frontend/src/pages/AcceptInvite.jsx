@@ -48,24 +48,24 @@ export default function AcceptInvite() {
     } finally { setSaving(false) }
   }
 
-  /* Faz login, navega a janela pai para '/' e fecha esta */
+  /* Faz login, recarrega a janela pai (nova sessão) e fecha esta */
   const handleSwitch = async () => {
     setSwitching(true)
     try {
       await login(invite.email, password)
       if (window.opener) {
-        window.opener.location.replace('/')
+        window.opener.location.reload()
         window.close()
       } else {
         navigate('/', { replace: true })
       }
     } catch {
-      if (window.opener) { window.opener.location.replace('/'); window.close() }
+      if (window.opener) { window.opener.location.reload(); window.close() }
       else navigate('/', { replace: true })
     } finally { setSwitching(false) }
   }
 
-  /* Fecha esta aba; a janela pai fica com o usuário atual */
+  /* Fecha esta aba; a janela pai fica inalterada */
   const handleBack = () => {
     if (window.opener) window.close()
     else navigate('/login', { replace: true })
@@ -103,12 +103,12 @@ export default function AcceptInvite() {
                   style={{ ...btnPri, background: switching ? '#94a3b8' : '#1a2d4f', cursor: switching ? 'not-allowed' : 'pointer' }}
                   onMouseEnter={e=>{if(!switching)e.currentTarget.style.background='#2e6db4'}}
                   onMouseLeave={e=>{if(!switching)e.currentTarget.style.background='#1a2d4f'}}>
-                  {switching ? 'Entrando…' : `Entrar como ${invite?.email}`}
+                  {switching ? 'Entrando…' : 'Continuar com esse usuário'}
                 </button>
                 <button onClick={handleBack} style={btnSec}
                   onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
                   onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                  Voltar à tela anterior
+                  Continuar com meu usuário atual
                 </button>
               </div>
             </div>

@@ -37,8 +37,11 @@ function EmailPreviewModal({ log, onClose }) {
   const { timeFormat } = usePrefs()
   const fmtDt = (iso) => fmtDateTime(iso, timeFormat)
 
-  // Processa o HTML: links internos (mesma origem) navegam na aba principal (_top);
-  // links externos abrem em nova aba (_blank via base tag).
+  // Processa o HTML do e-mail:
+  // - Links de fluxo de autenticação (reset/invite) → _blank (nova aba, isolada)
+  // - Outros links internos da app → _top (navega na mesma aba do app)
+  // - Links externos → _blank (via base tag)
+  const AUTH_PATHS = /\/(redefinir-senha|aceitar-convite)/
   const srcDoc = (() => {
     if (!log.html_body) return ''
     try {
@@ -50,10 +53,14 @@ function EmailPreviewModal({ log, onClose }) {
       const appOrigin = window.location.origin
       doc.querySelectorAll('a[href]').forEach(a => {
         const href = a.getAttribute('href') || ''
-        if (href.startsWith(appOrigin) || href.startsWith('/')) {
+        const isInternal = href.startsWith(appOrigin) || href.startsWith('/')
+        const isAuthFlow = AUTH_PATHS.test(href)
+        if (isInternal && !isAuthFlow) {
+          // Link para página interna normal: abre na aba atual do app
           a.target = '_top'
           a.removeAttribute('rel')
         }
+        // Links de auth e externos ficam com _blank (da base tag)
       })
       return doc.documentElement.outerHTML
     } catch {
