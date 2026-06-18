@@ -58,7 +58,7 @@ function Section({ title, children }) {
   )
 }
 
-function NotifCard({ label, desc, checked, onToggle, hour, onHour, frequency, onFrequency }) {
+function NotifCard({ label, desc, checked, onToggle, hour, onHour, hourOpts, frequency, onFrequency }) {
   return (
     <div style={{
       borderRadius: 10, border: `1.5px solid ${checked ? '#c7d9f5' : '#e2e8f0'}`,
@@ -218,6 +218,7 @@ export default function AccountModal({ onClose, onSaved }) {
               onToggle={v => set('digest_enabled', v)}
               hour={prefs.digest_send_hour}
               onHour={v => set('digest_send_hour', v)}
+              hourOpts={hourOpts}
               frequency={prefs.digest_frequency}
               onFrequency={v => set('digest_frequency', v)}
             />
@@ -232,6 +233,7 @@ export default function AccountModal({ onClose, onSaved }) {
               onToggle={v => set('receive_deadline_emails', v)}
               hour={prefs.send_hour}
               onHour={v => set('send_hour', v)}
+              hourOpts={hourOpts}
             />
             <NotifCard
               label="Pendências"
@@ -240,6 +242,7 @@ export default function AccountModal({ onClose, onSaved }) {
               onToggle={v => set('receive_task_emails', v)}
               hour={prefs.send_hour}
               onHour={v => set('send_hour', v)}
+              hourOpts={hourOpts}
             />
             {canSeeSensitive && (
               <NotifCard
@@ -249,6 +252,7 @@ export default function AccountModal({ onClose, onSaved }) {
                 onToggle={v => set('receive_birthday_emails', v)}
                 hour={prefs.send_hour}
                 onHour={v => set('send_hour', v)}
+                hourOpts={hourOpts}
               />
             )}
             {(prefs.receive_deadline_emails || prefs.receive_task_emails || prefs.receive_birthday_emails) && (
