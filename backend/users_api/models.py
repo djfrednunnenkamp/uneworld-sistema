@@ -93,6 +93,7 @@ class UserPermissions(models.Model):
     settings_vaccines         = models.BooleanField(default=False)
     settings_doc_types        = models.BooleanField(default=False)
     settings_prof_cards       = models.BooleanField(default=False)
+    settings_user_profiles    = models.BooleanField(default=False)
     settings_destinations     = models.BooleanField(default=False)
     settings_list_additionals = models.BooleanField(default=False)
     settings_crew_roles       = models.BooleanField(default=False)
