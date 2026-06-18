@@ -83,7 +83,7 @@ table.dt tbody tr:hover td { background: #fafbfd; }
 .bg-blue  { background: #dbeafe; color: #1d4ed8; }
 
 /* ── Row actions ── */
-.r-acts { display: flex; gap: 4px; }
+.r-acts { display: flex; gap: 4px; justify-content: flex-end; }
 .r-btn { width: 29px; height: 29px; display: flex; align-items: center; justify-content: center; border-radius: 5px; border: 1px solid #e2e8f0; background: #fff; color: #94a3b8; cursor: pointer; transition: all .12s; }
 .r-btn.edit:hover { border-color: #2e6db4; color: #2e6db4; background: #e8f0fb; }
 .r-btn.view:hover { border-color: #7c3aed; color: #7c3aed; background: #ede9fe; }

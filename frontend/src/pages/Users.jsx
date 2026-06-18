@@ -19,10 +19,10 @@ import {
 
 const STATUS_OPTS = [
   { value: '',            label: 'Todos os status' },
-  { value: 'ativa',       label: 'Ativa'           },
-  { value: 'configurada', label: 'Configurada'      },
-  { value: 'pendente',    label: 'Pendente'         },
-  { value: 'bloqueada',   label: 'Bloqueada'        },
+  { value: 'ativa',       label: 'Ativa',       badge: 'bg-green' },
+  { value: 'configurada', label: 'Configurada', badge: 'bg-blue'  },
+  { value: 'pendente',    label: 'Pendente',    badge: 'bg-amber' },
+  { value: 'bloqueada',   label: 'Bloqueada',   badge: 'bg-red'   },
 ]
 
 const statusOf = u => !u.is_active ? 'bloqueada' : !u.has_account ? 'pendente' : !u.last_login ? 'configurada' : 'ativa'
@@ -626,7 +626,11 @@ function FDrop({ label, value, onChange, options }) {
           fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
           whiteSpace: 'nowrap', transition: 'all .12s',
         }}>
-        {label}{active && selected ? `: ${selected.label}` : ''}
+        {label}{active && selected
+          ? selected.badge
+            ? <span className={`badge ${selected.badge}`} style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>{selected.label}</span>
+            : `: ${selected.label}`
+          : ''}
         <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
       </button>
       {open && (
@@ -651,7 +655,9 @@ function FDrop({ label, value, onChange, options }) {
                 onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
                 onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}
               >
-                <span>{opt.label}</span>
+                {opt.badge
+                  ? <span className={`badge ${opt.badge}`} style={{ fontSize: 11, padding: '2px 8px' }}>{opt.label}</span>
+                  : <span>{opt.label}</span>}
                 {sel && <span style={{ color: '#2e6db4' }}>✓</span>}
               </button>
             )
