@@ -517,7 +517,7 @@ function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }
   )
 }
 
-function UserModal({ user, onClose, onSaved }) {
+function UserModal({ user, mode = 'new', onClose, onSaved }) {
   const { user: me } = useAuth()
   const [form,       setForm]       = useState(user
     ? { ...user, password:'', is_superuser: !!user.is_superuser, permissions: sanitizePerms({ ...EMPTY_PERMISSIONS, ...user.permissions }) }
@@ -525,7 +525,7 @@ function UserModal({ user, onClose, onSaved }) {
   const [saving,     setSaving]     = useState(false)
   const [fe,         setFe]         = useState({})
   const [emailPrefs, setEmailPrefs] = useState({ receive_deadline_emails: false, receive_task_emails: false, receive_birthday_emails: false })
-  const isEdit  = !!user
+  const isEdit  = mode !== 'new'
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
   const myPeM = me?.permissions ?? {}
@@ -545,23 +545,25 @@ function UserModal({ user, onClose, onSaved }) {
 
   const save = async () => {
     const errs = {}
-    if (!form.email?.trim()) errs.email = true
+    if (mode !== 'perms' && !form.email?.trim()) errs.email = true
     if (Object.keys(errs).length) { setFe(errs); return }
     setSaving(true)
     try {
       let savedId = user?.id
-      if (isEdit) {
-        const payload = canManagePerms ? form : { ...form, permissions: undefined }
-        await usersApi.update(user.id, payload)
-        toast.success('Usuário atualizado.')
-      } else {
+      if (mode === 'new') {
         const payload = canManagePerms ? { ...form } : { ...form, permissions: undefined }
         const r = await usersApi.create(payload)
         savedId = r.data.id
         toast.success('Usuário criado. Convite enviado por e-mail.')
+      } else if (mode === 'profile') {
+        await usersApi.update(user.id, { ...form, permissions: undefined })
+        toast.success('Perfil atualizado.')
+      } else {
+        await usersApi.update(user.id, { permissions: form.permissions })
+        toast.success('Permissões atualizadas.')
       }
-      if (savedId) {
-        agendaApi.updateUserPrefs(savedId, emailPrefs).catch(() => {})
+      if (savedId || mode !== 'perms') {
+        agendaApi.updateUserPrefs(savedId ?? user?.id, emailPrefs).catch(() => {})
       }
       onSaved()
     } catch (e) {
@@ -578,9 +580,13 @@ function UserModal({ user, onClose, onSaved }) {
       <div onClick={e=>e.stopPropagation()}
         style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:760,maxHeight:'90vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 64px rgba(0,0,0,.24)',animation:'mIn .15s ease'}}>
         <div style={{padding:'16px 20px 14px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
-          <p style={{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}}>{isEdit ? 'Editar usuário' : 'Novo usuário'}</p>
+          <p style={{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}}>
+            {mode === 'perms' ? 'Editar permissões' : mode === 'profile' ? 'Editar perfil' : 'Novo usuário'}
+            {isEdit && <span style={{fontSize:12,fontWeight:400,color:'#94a3b8',marginLeft:8}}>{user?.full_name || user?.email}</span>}
+          </p>
         </div>
         <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12,overflowY:'auto'}}>
+          {mode !== 'perms' && (<>
           <div className="grid2">
             <div><label style={lbl}>Primeiro nome</label><input style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.first_name} onChange={set('first_name')} placeholder="Ana" /></div>
             <div><label style={lbl}>Sobrenome</label><input style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.last_name} onChange={set('last_name')} placeholder="Silva" /></div>
@@ -624,8 +630,9 @@ function UserModal({ user, onClose, onSaved }) {
               ))}
             </div>
           </div>
+          </>)}
 
-          {me?.is_superuser ? (
+          {mode !== 'profile' && (me?.is_superuser ? (
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'10px 12px',borderRadius:8,border:'1px solid #e2e8f0',background:'#f8fafc'}}>
                 <div>
@@ -664,7 +671,7 @@ function UserModal({ user, onClose, onSaved }) {
                 <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
               ))}
             </div>
-          ) : null}
+          ) : null)}
         </div>
         <div style={{padding:'12px 20px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
           <button onClick={onClose} className="btn btn-outline">Cancelar</button>
@@ -1018,7 +1025,7 @@ export default function Users() {
   const myP        = me?.permissions ?? {}
   const isSu       = !!me?.is_superuser
   const canCreate      = isSu || !!myP.manage_users || !!myP.users_edit
-  const canEdit        = isSu || !!myP.manage_users || !!myP.users_edit || !!myP.users_manage_permissions
+  const canManagePerms = isSu || !!myP.manage_users || !!myP.users_manage_permissions
   const canDeleteU     = isSu || !!myP.manage_users || !!myP.users_delete
   const canSetPassword = isSu || !!myP.manage_users || !!myP.users_set_password
   const canViewLog     = isSu || !!myP.view_audit_log || !!myP.log_users || !!myP.log_view
@@ -1230,7 +1237,7 @@ export default function Users() {
                 <th style={{textAlign:'center'}}>E-mail</th>
                 <th style={{textAlign:'center'}}>Perfil</th>
                 <th style={{textAlign:'center'}}>Status</th>
-                <th style={{width:110,textAlign:'center'}}></th>
+                <th style={{width:130,textAlign:'center'}}></th>
               </tr>
             </thead>
             <tbody>
@@ -1278,7 +1285,8 @@ export default function Users() {
                   </td>
                   <td style={{textAlign:'center'}}>
                     <div className="r-acts">
-                      {canEdit && <button className="r-btn edit" title="Editar" onClick={() => setModal(u)}><Ic n="edit" s={13}/></button>}
+                      {canCreate && <button className="r-btn edit" title="Editar perfil" onClick={() => setModal({ user: u, mode: 'profile' })}><Ic n="edit" s={13}/></button>}
+                      {canManagePerms && <button className="r-btn" title="Editar permissões" style={{color:'#475569'}} onClick={() => setModal({ user: u, mode: 'perms' })}><Ic n="shield" s={13}/></button>}
                       {canKeyMenu && (
                         <button className="r-btn" title="Gerenciar senha" style={{color:'#475569'}} onClick={() => setKeyMenu(u)}>
                           <Ic n="key" s={13}/>
@@ -1298,7 +1306,8 @@ export default function Users() {
 
       {modal && (
         <UserModal
-          user={modal === 'new' ? null : modal}
+          user={modal === 'new' ? null : modal.user}
+          mode={modal === 'new' ? 'new' : modal.mode}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
         />
