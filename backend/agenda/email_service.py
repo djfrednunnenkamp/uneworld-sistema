@@ -88,10 +88,19 @@ def _wrap(rows: str, accent: str = '#2e6db4') -> str:
 </html>"""
 
 
+def _html_for_preview(html: str) -> str:
+    """Substitui referência CID pelo base64 real para que o preview no browser funcione."""
+    return html.replace(
+        f'cid:{LOGO_CID}',
+        f'data:image/png;base64,{LOGO_B64_CONTENT}',
+    )
+
+
 def _send(to, subject, html, email_type='other'):
     from .models import EmailLog
     to_list = to if isinstance(to, list) else [to]
     to_str  = ', '.join(to_list)
+    html_preview = _html_for_preview(html)
 
     resend.api_key = settings.RESEND_API_KEY
     simulated = not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave')
@@ -99,7 +108,7 @@ def _send(to, subject, html, email_type='other'):
     if simulated:
         print(f"[EMAIL SIMULADO] {subject} → {to_str}")
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
-                                html_body=html, success=True)
+                                html_body=html_preview, success=True)
         return True
 
     _, use_cid = get_logo_src()
@@ -118,12 +127,12 @@ def _send(to, subject, html, email_type='other'):
     try:
         resend.Emails.send(payload)
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
-                                html_body=html, success=True)
+                                html_body=html_preview, success=True)
         return True
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
-                                html_body=html, success=False)
+                                html_body=html_preview, success=False)
         return False
 
 

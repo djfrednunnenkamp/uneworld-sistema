@@ -5,11 +5,25 @@ from django.conf import settings
 from agenda._logo import LOGO_CID, LOGO_B64_CONTENT, get_logo_src
 
 
-def _send(to: str, subject: str, html: str) -> bool:
+def _html_for_preview(html: str) -> str:
+    return html.replace(
+        f'cid:{LOGO_CID}',
+        f'data:image/png;base64,{LOGO_B64_CONTENT}',
+    )
+
+
+def _send(to: str, subject: str, html: str, email_type: str = 'other') -> bool:
+    from agenda.models import EmailLog
+    html_preview = _html_for_preview(html)
+
     resend.api_key = settings.RESEND_API_KEY
-    if not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave'):
+    simulated = not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave')
+
+    if simulated:
         print(f"[EMAIL SIMULADO] {subject} → {to}")
+        EmailLog.objects.create(to=to, subject=subject, email_type=email_type, html_body=html_preview, success=True)
         return True
+
     _, use_cid = get_logo_src()
     payload = {
         "from": settings.RESEND_FROM,
@@ -25,9 +39,11 @@ def _send(to: str, subject: str, html: str) -> bool:
         }]
     try:
         resend.Emails.send(payload)
+        EmailLog.objects.create(to=to, subject=subject, email_type=email_type, html_body=html_preview, success=True)
         return True
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
+        EmailLog.objects.create(to=to, subject=subject, email_type=email_type, html_body=html_preview, success=False)
         return False
 
 
@@ -107,7 +123,7 @@ def send_reset_password(email: str, first_name: str, reset_url: str) -> bool:
           </table>
         </td>
       </tr>"""
-    return _send(email, 'Redefinição de senha — UneWorld Turismo', _wrap(body, '#2e6db4'))
+    return _send(email, 'Redefinição de senha — UneWorld Turismo', _wrap(body, '#2e6db4'), 'reset_password')
 
 
 def send_invite(email: str, first_name: str, invite_url: str, invited_by: str) -> bool:
@@ -145,4 +161,4 @@ def send_invite(email: str, first_name: str, invite_url: str, invited_by: str) -
           </p>
         </td>
       </tr>"""
-    return _send(email, 'Convite — UneWorld Turismo', _wrap(body, '#059669'))
+    return _send(email, 'Convite — UneWorld Turismo', _wrap(body, '#059669'), 'invite')
