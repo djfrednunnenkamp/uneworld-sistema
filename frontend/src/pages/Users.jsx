@@ -1225,7 +1225,7 @@ export default function Users() {
                 <th style={{width:40,textAlign:'center'}}>
                   <input type="checkbox" className="chk" checked={allSel} onChange={togAll} disabled={selectable.length === 0} />
                 </th>
-                <th style={{textAlign:'center'}}>Usuário</th>
+                <th>Usuário</th>
                 <th style={{textAlign:'center'}}>E-mail</th>
                 <th style={{textAlign:'center'}}>Perfil</th>
                 <th style={{textAlign:'center'}}>Status</th>
@@ -1240,8 +1240,8 @@ export default function Users() {
                       <input type="checkbox" className="chk" checked={sel.has(u.id)} onChange={() => tog1(u.id)} />
                     )}
                   </td>
-                  <td style={{textAlign:'center'}}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
+                  <td>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
                       <div style={{width:32,height:32,borderRadius:'50%',background:PALETTE[i%PALETTE.length],display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:12,fontWeight:700,flexShrink:0}}>
                         {initials(u)}
                       </div>
