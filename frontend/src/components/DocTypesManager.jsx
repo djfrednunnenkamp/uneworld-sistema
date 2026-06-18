@@ -462,7 +462,7 @@ function FieldEditor({ field, index, total, hasError, onClearError, onUpdate, on
 }
 
 /* ── Componente principal ── */
-export default function DocTypesManager() {
+export default function DocTypesManager({ canEdit = true, canDelete = true }) {
   const [docTypes, setDocTypes] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [modal,    setModal]    = useState(null) // null | { docType?: obj }
@@ -553,10 +553,12 @@ export default function DocTypesManager() {
     <div>
       {/* Toolbar */}
       <div style={{ display:'flex', gap:10, marginBottom:18, alignItems:'center' }}>
-        <button onClick={() => setModal({})}
-          style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          + Novo tipo de documento
-        </button>
+        {canEdit && (
+          <button onClick={() => setModal({})}
+            style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            + Novo tipo de documento
+          </button>
+        )}
         <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>
           {docTypes.length} tipo{docTypes.length!==1?'s':''}
         </span>
@@ -603,10 +605,12 @@ export default function DocTypesManager() {
                 <span style={{ padding:'2px 8px', borderRadius:20, background:'#fee2e2', color:'#dc2626', fontSize:11, fontWeight:600 }}>Inativo</span>
               )}
               {/* Ações */}
-              <div className="r-acts">
-                <button className="r-btn edit" title="Editar" onClick={() => setModal({ docType: dt })}><Ic n="edit" s={13}/></button>
-                <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id:dt.id, name:dt.label })}><Ic n="trash" s={13}/></button>
-              </div>
+              {(canEdit || canDelete) && (
+                <div className="r-acts">
+                  {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => setModal({ docType: dt })}><Ic n="edit"  s={13}/></button>}
+                  {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id:dt.id, name:dt.label })}><Ic n="trash" s={13}/></button>}
+                </div>
+              )}
             </div>
           ))}
         </div>

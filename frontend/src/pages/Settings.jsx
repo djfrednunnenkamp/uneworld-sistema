@@ -302,7 +302,7 @@ function ListDetailModal({ title, onClose, wide, children }) {
 }
 
 /* ── Barra de CSV global da aba Países & Estados ── */
-function GeoCsvBar() {
+function GeoCsvBar({ canEdit = true }) {
   const navigate   = useNavigate()
   const fileRef    = useRef(null)
   const [exporting, setExporting] = useState(false)
@@ -331,12 +331,12 @@ function GeoCsvBar() {
         style={{ ...btnCsv('#059669'), opacity: exporting ? .6 : 1 }}>
         ⬇ {exporting ? 'Exportando…' : 'Exportar tudo'}
       </button>
-      <button onClick={() => fileRef.current?.click()}
-        style={btnCsv('#2e6db4')}>
-        ⬆ Importar CSV
-      </button>
-      <input ref={fileRef} type="file" accept=".csv,text/csv"
-        style={{ display: 'none' }} onChange={handleFileChosen} />
+      {canEdit && (
+        <button onClick={() => fileRef.current?.click()} style={btnCsv('#2e6db4')}>
+          ⬆ Importar CSV
+        </button>
+      )}
+      {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleFileChosen} />}
     </div>
   )
 }
@@ -387,7 +387,7 @@ function NameFormModal({ title, placeholder, initial, onSave, onClose }) {
 }
 
 /* Col é um componente de módulo (nunca redefinido dentro de CountriesTab) */
-function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading, children }) {
+function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading, canEdit = true, children }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -401,9 +401,11 @@ function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading,
           style={{ ...colAddInp }}
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-        <button onClick={onAddClick} disabled={addDisabled} style={{ ...colAddBtn, opacity: addDisabled ? .5 : 1, cursor: addDisabled ? 'default' : 'pointer' }}>
-          + Adicionar
-        </button>
+        {canEdit && (
+          <button onClick={onAddClick} disabled={addDisabled} style={{ ...colAddBtn, opacity: addDisabled ? .5 : 1, cursor: addDisabled ? 'default' : 'pointer' }}>
+            + Adicionar
+          </button>
+        )}
       </div>
       <div style={colBox}>
         {loading
@@ -415,7 +417,7 @@ function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading,
 }
 
 /* Linha de país/estado/cidade — com ações de editar/excluir no padrão do sistema */
-function GeoRow({ label, extra, selected, onClick, onEdit, onDelete }) {
+function GeoRow({ label, extra, selected, onClick, onEdit, onDelete, canEdit = true, canDelete = true }) {
   return (
     <div onClick={onClick}
       style={{
@@ -432,16 +434,18 @@ function GeoRow({ label, extra, selected, onClick, onEdit, onDelete }) {
         {label}
         {extra != null && <span style={{ color: '#94a3b8', marginLeft: 5, fontWeight: 400 }}>{extra}</span>}
       </span>
-      <div style={{ display:'flex', gap:3, flexShrink:0 }} onClick={e => e.stopPropagation()}>
-        <button className="r-btn edit" title="Editar" style={{ width:24, height:24 }} onClick={onEdit}><Ic n="edit" s={11}/></button>
-        <button className="r-btn del"  title="Excluir" style={{ width:24, height:24 }} onClick={onDelete}><Ic n="trash" s={11}/></button>
-      </div>
+      {(canEdit || canDelete) && (
+        <div style={{ display:'flex', gap:3, flexShrink:0 }} onClick={e => e.stopPropagation()}>
+          {canEdit   && <button className="r-btn edit" title="Editar"  style={{ width:24, height:24 }} onClick={onEdit}><Ic n="edit"  s={11}/></button>}
+          {canDelete && <button className="r-btn del"  title="Excluir" style={{ width:24, height:24 }} onClick={onDelete}><Ic n="trash" s={11}/></button>}
+        </div>
+      )}
     </div>
   )
 }
 
 /* ── CountriesTab ── */
-function CountriesTab() {
+function CountriesTab({ canEdit = true, canDelete = true }) {
   const [countries,  setCountries]  = useState([])
   const [selCountry, setSelCountry] = useState(null)
   const [states,     setStates]     = useState([])
@@ -541,13 +545,13 @@ function CountriesTab() {
 
   return (
     <>
-    <GeoCsvBar />
+    <GeoCsvBar canEdit={canEdit} />
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
       {/* ── Países ── */}
       <Col title="Países" count={countries.length}
         search={searchC} onSearch={setSearchC}
         onAddClick={() => setForm({ kind:'country' })}
-        loading={loadingC}
+        loading={loadingC} canEdit={canEdit}
       >
         {filteredC.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
@@ -559,6 +563,7 @@ function CountriesTab() {
               onClick={() => loadStates(c)}
               onEdit={() => setForm({ kind:'country', item:c })}
               onDelete={() => setConfirm({ action:'country', id:c.id, name:c.name })}
+              canEdit={canEdit} canDelete={canDelete}
             />
           ))
         }
@@ -570,7 +575,7 @@ function CountriesTab() {
         search={searchS} onSearch={setSearchS}
         onAddClick={() => setForm({ kind:'state' })}
         addDisabled={!selCountry}
-        loading={loadingS}
+        loading={loadingS} canEdit={canEdit}
       >
         {!selCountry
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um país</p>
@@ -584,6 +589,7 @@ function CountriesTab() {
               onClick={() => loadCities(s)}
               onEdit={() => setForm({ kind:'state', item:s })}
               onDelete={() => setConfirm({ action:'state', id:s.id, name:s.name })}
+              canEdit={canEdit} canDelete={canDelete}
             />
           ))
         }
@@ -595,7 +601,7 @@ function CountriesTab() {
         search={searchCi} onSearch={setSearchCi}
         onAddClick={() => setForm({ kind:'city' })}
         addDisabled={!selState}
-        loading={loadingCi}
+        loading={loadingCi} canEdit={canEdit}
       >
         {!selState
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um estado</p>
@@ -607,12 +613,13 @@ function CountriesTab() {
               selected={false}
               onEdit={() => setForm({ kind:'city', item:c })}
               onDelete={() => setConfirm({ action:'city', id:c.id, name:c.name })}
+              canEdit={canEdit} canDelete={canDelete}
             />
           ))
         }
       </Col>
     </div>
-    {form && (
+    {canEdit && form && (
       <NameFormModal
         title={formTitles[form.kind]}
         placeholder={formPlaceholders[form.kind]}
@@ -1203,10 +1210,10 @@ export default function Settings() {
             configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
           }} />}
           {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={can('settings_list_categories','edit') ? addListCategory : undefined} onUpdate={can('settings_list_categories','edit') ? updateListCategory : undefined} onDelete={can('settings_list_categories','delete') ? delListCategory : undefined} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
-          {activeDef.key === 'countries'       && <CountriesTab />}
-          {activeDef.key === 'airports'        && <AirportsManager />}
-          {activeDef.key === 'airlines'        && <AirlinesManager />}
-          {activeDef.key === 'bus_maps'        && <BusMapsManager />}
+          {activeDef.key === 'countries'       && <CountriesTab canEdit={can('settings_countries','edit')} canDelete={can('settings_countries','delete')} />}
+          {activeDef.key === 'airports'        && <AirportsManager canEdit={can('settings_airports','edit')} canDelete={can('settings_airports','delete')} />}
+          {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} />}
+          {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} />}
         </ListDetailModal>
       )}
     </div>

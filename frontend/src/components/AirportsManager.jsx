@@ -166,7 +166,7 @@ function AirportFormModal({ title, initial, onSave, onClose }) {
   )
 }
 
-function Row({ item, onEdit, onDelete }) {
+function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
   const [confirm, setConfirm] = useState(false)
   return (
     <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderBottom:'1px solid #f1f5f9', background:'#fff' }}
@@ -183,11 +183,13 @@ function Row({ item, onEdit, onDelete }) {
           {[item.city, item.country].filter(Boolean).join(', ')}
         </span>
       )}
-      <div className="r-acts">
-        <button className="r-btn edit" title="Editar"  onClick={() => onEdit(item)}><Ic n="edit"  s={13}/></button>
-        <button className="r-btn del"  title="Excluir" onClick={() => setConfirm(true)}><Ic n="trash" s={13}/></button>
-      </div>
-      {confirm && (
+      {(canEdit || canDelete) && (
+        <div className="r-acts">
+          {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => onEdit(item)}><Ic n="edit"  s={13}/></button>}
+          {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setConfirm(true)}><Ic n="trash" s={13}/></button>}
+        </div>
+      )}
+      {confirm && canDelete && (
         <ConfirmModal
           message={`Remover "${item.name}"?`}
           onOk={() => { onDelete(item.id); setConfirm(false) }}
@@ -200,7 +202,7 @@ function Row({ item, onEdit, onDelete }) {
 
 const PAGE_SIZE = 50
 
-export default function AirportsManager() {
+export default function AirportsManager({ canEdit = true, canDelete = true }) {
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
@@ -345,20 +347,26 @@ export default function AirportsManager() {
       <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, código IATA ou cidade…"
           style={{ ...inp, flex:1, minWidth:200 }} onFocus={onF} onBlur={onB} />
-        <button onClick={() => setShowForm(true)}
-          style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          + Adicionar
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowForm(true)}
+            style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            + Adicionar
+          </button>
+        )}
         <button style={btnCsv('#059669')} onClick={exportCsv} disabled={exporting} title="Exportar como CSV">
           {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
         </button>
-        <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} disabled={importing} title="Importar de CSV">
-          {importing ? '⏳ Importando…' : '⬆ Importar'}
-        </button>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />
-        <button style={btnCsv('#7c3aed')} onClick={handleSeed} disabled={seeding} title="Importar todos os aeroportos do mundo via OurAirports">
-          {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
-        </button>
+        {canEdit && (
+          <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} disabled={importing} title="Importar de CSV">
+            {importing ? '⏳ Importando…' : '⬆ Importar'}
+          </button>
+        )}
+        {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />}
+        {canEdit && (
+          <button style={btnCsv('#7c3aed')} onClick={handleSeed} disabled={seeding} title="Importar todos os aeroportos do mundo via OurAirports">
+            {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
+          </button>
+        )}
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
@@ -373,7 +381,7 @@ export default function AirportsManager() {
             {count === 0 ? 'Nenhum aeroporto cadastrado.' : 'Nenhum resultado.'}
           </p>
         ) : items.map(item => (
-          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} />
+          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} canEdit={canEdit} canDelete={canDelete} />
         ))}
       </div>
 
@@ -389,10 +397,10 @@ export default function AirportsManager() {
         </div>
       )}
 
-      {showForm === true && (
+      {canEdit && showForm === true && (
         <AirportFormModal title="Novo aeroporto" onSave={create} onClose={() => setShowForm(false)} />
       )}
-      {showForm && showForm !== true && (
+      {canEdit && showForm && showForm !== true && (
         <AirportFormModal title="Editar aeroporto" initial={showForm} onSave={update} onClose={() => setShowForm(false)} />
       )}
     </div>

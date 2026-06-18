@@ -158,7 +158,7 @@ function AirlineFormModal({ title, initial, onSave, onClose }) {
   )
 }
 
-function Row({ item, onEdit, onDelete }) {
+function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
   const [confirm, setConfirm] = useState(false)
   return (
     <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderBottom:'1px solid #f1f5f9', background:'#fff' }}
@@ -173,11 +173,13 @@ function Row({ item, onEdit, onDelete }) {
       {item.country && (
         <span style={{ fontSize:12, color:'#64748b' }}>{item.country}</span>
       )}
-      <div className="r-acts">
-        <button className="r-btn edit" title="Editar"  onClick={() => onEdit(item)}><Ic n="edit"  s={13}/></button>
-        <button className="r-btn del"  title="Excluir" onClick={() => setConfirm(true)}><Ic n="trash" s={13}/></button>
-      </div>
-      {confirm && (
+      {(canEdit || canDelete) && (
+        <div className="r-acts">
+          {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => onEdit(item)}><Ic n="edit"  s={13}/></button>}
+          {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setConfirm(true)}><Ic n="trash" s={13}/></button>}
+        </div>
+      )}
+      {confirm && canDelete && (
         <ConfirmModal
           message={`Remover "${item.name}"?`}
           onOk={() => { onDelete(item.id); setConfirm(false) }}
@@ -190,7 +192,7 @@ function Row({ item, onEdit, onDelete }) {
 
 const PAGE_SIZE = 50
 
-export default function AirlinesManager() {
+export default function AirlinesManager({ canEdit = true, canDelete = true }) {
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
@@ -254,15 +256,19 @@ export default function AirlinesManager() {
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por nome, código IATA ou país…"
           style={{ ...inp, flex:1, minWidth:200 }} onFocus={onF} onBlur={onB} />
-        <button onClick={() => setShowForm(true)}
-          style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          + Adicionar
-        </button>
-        <button
-          style={{ padding:'6px 11px', borderRadius:7, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}
-          onClick={handleSeed} disabled={seeding}>
-          {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowForm(true)}
+            style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            + Adicionar
+          </button>
+        )}
+        {canEdit && (
+          <button
+            style={{ padding:'6px 11px', borderRadius:7, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}
+            onClick={handleSeed} disabled={seeding}>
+            {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
+          </button>
+        )}
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
@@ -277,7 +283,7 @@ export default function AirlinesManager() {
             {count === 0 ? 'Nenhuma companhia cadastrada.' : 'Nenhum resultado.'}
           </p>
         ) : items.map(item => (
-          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} />
+          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} canEdit={canEdit} canDelete={canDelete} />
         ))}
       </div>
 
@@ -293,10 +299,10 @@ export default function AirlinesManager() {
         </div>
       )}
 
-      {showForm === true && (
+      {canEdit && showForm === true && (
         <AirlineFormModal title="Nova companhia aérea" onSave={create} onClose={() => setShowForm(false)} />
       )}
-      {showForm && showForm !== true && (
+      {canEdit && showForm && showForm !== true && (
         <AirlineFormModal title="Editar companhia" initial={showForm} onSave={update} onClose={() => setShowForm(false)} />
       )}
     </div>

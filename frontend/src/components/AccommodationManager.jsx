@@ -118,7 +118,7 @@ function parseAccomCsv(text) {
 }
 
 /* ── Linha da listagem ── */
-function Row({ item, onEdit, onDelete }) {
+function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
   const [confirm, setConfirm] = useState(false)
   return (
     <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', borderBottom:'1px solid #f1f5f9', background:'#fff' }}
@@ -133,11 +133,13 @@ function Row({ item, onEdit, onDelete }) {
           Casal
         </span>
       )}
-      <div className="r-acts">
-        <button className="r-btn edit" title="Editar"  onClick={() => onEdit(item)}><Ic n="edit"  s={13}/></button>
-        <button className="r-btn del"  title="Excluir" onClick={() => setConfirm(true)}><Ic n="trash" s={13}/></button>
-      </div>
-      {confirm && (
+      {(canEdit || canDelete) && (
+        <div className="r-acts">
+          {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => onEdit(item)}><Ic n="edit"  s={13}/></button>}
+          {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setConfirm(true)}><Ic n="trash" s={13}/></button>}
+        </div>
+      )}
+      {confirm && canDelete && (
         <ConfirmModal
           message={`Remover "${item.name}"?`}
           onOk={() => { onDelete(item.id); setConfirm(false) }}
@@ -148,7 +150,7 @@ function Row({ item, onEdit, onDelete }) {
   )
 }
 
-export default function AccommodationManager({ items, loading, onRefresh }) {
+export default function AccommodationManager({ items, loading, onRefresh, canEdit = true, canDelete = true }) {
   const [search,   setSearch]   = useState('')
   const [showForm, setShowForm] = useState(false) // false | true (novo) | item (edição)
   const fileRef = useRef(null)
@@ -199,17 +201,21 @@ export default function AccommodationManager({ items, loading, onRefresh }) {
       <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
           style={{ ...inp, flex:1, minWidth:160 }} onFocus={onF} onBlur={onB} />
-        <button onClick={() => setShowForm(true)}
-          style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          + Adicionar
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowForm(true)}
+            style={{ padding:'8px 16px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            + Adicionar
+          </button>
+        )}
         <button style={btnCsv('#059669')} onClick={() => exportAccomCsv(items)} title="Exportar como CSV">
           ⬇ Exportar
         </button>
-        <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">
-          ⬆ Importar
-        </button>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />
+        {canEdit && (
+          <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">
+            ⬆ Importar
+          </button>
+        )}
+        {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />}
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
@@ -224,14 +230,14 @@ export default function AccommodationManager({ items, loading, onRefresh }) {
             {items.length === 0 ? 'Nenhuma acomodação.' : 'Nenhum resultado.'}
           </p>
         ) : filtered.map(item => (
-          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} />
+          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} canEdit={canEdit} canDelete={canDelete} />
         ))}
       </div>
 
-      {showForm === true && (
+      {canEdit && showForm === true && (
         <AccomFormModal title="Nova acomodação" onSave={create} onClose={() => setShowForm(false)} />
       )}
-      {showForm && showForm !== true && (
+      {canEdit && showForm && showForm !== true && (
         <AccomFormModal title="Editar acomodação" initial={showForm} onSave={update} onClose={() => setShowForm(false)} />
       )}
     </div>

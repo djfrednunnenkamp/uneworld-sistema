@@ -321,7 +321,7 @@ function BusMapModal({ busMap, onSave, onClose }) {
 }
 
 /* ── Componente principal ── */
-export default function BusMapsManager() {
+export default function BusMapsManager({ canEdit = true, canDelete = true }) {
   const [busMaps, setBusMaps] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal,   setModal]   = useState(null) // null | { busMap?: obj }
@@ -364,10 +364,12 @@ export default function BusMapsManager() {
     <div>
       {/* Toolbar */}
       <div style={{ display:'flex', gap:10, marginBottom:18, alignItems:'center' }}>
-        <button onClick={() => setModal({})}
-          style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-          + Novo mapa de ônibus
-        </button>
+        {canEdit && (
+          <button onClick={() => setModal({})}
+            style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            + Novo mapa de ônibus
+          </button>
+        )}
         <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>
           {busMaps.length} mapa{busMaps.length !== 1 ? 's' : ''}
         </span>
@@ -405,10 +407,12 @@ export default function BusMapsManager() {
                 {!bm.is_active && (
                   <span style={{ padding:'2px 8px', borderRadius:20, background:'#fee2e2', color:'#dc2626', fontSize:11, fontWeight:600 }}>Inativo</span>
                 )}
-                <div className="r-acts">
-                  <button className="r-btn edit" title="Editar" onClick={() => setModal({ busMap: bm })}><Ic n="edit" s={13}/></button>
-                  <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id: bm.id, name: bm.label })}><Ic n="trash" s={13}/></button>
-                </div>
+                {(canEdit || canDelete) && (
+                  <div className="r-acts">
+                    {canEdit   && <button className="r-btn edit" title="Editar" onClick={() => setModal({ busMap: bm })}><Ic n="edit" s={13}/></button>}
+                    {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setConfirm({ id: bm.id, name: bm.label })}><Ic n="trash" s={13}/></button>}
+                  </div>
+                )}
 
                 {/* Pré-visualização flutuante — aparece ao passar o mouse */}
                 {isOpen && <MapPreviewTooltip busMap={bm} anchorRect={hover.rect} />}
@@ -419,7 +423,7 @@ export default function BusMapsManager() {
       )}
 
       {/* Popup criar / editar */}
-      {modal !== null && (
+      {canEdit && modal !== null && (
         <BusMapModal
           busMap={modal.busMap ?? null}
           onSave={handleSave}
