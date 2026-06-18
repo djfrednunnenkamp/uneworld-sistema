@@ -529,7 +529,8 @@ function UserModal({ user, onClose, onSaved }) {
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
   const myPeM = me?.permissions ?? {}
-  const canManagePerms = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_manage_permissions
+  const canManagePerms  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_manage_permissions
+  const canEditProfile  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_edit
   const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setFe(p => { const n={...p}; delete n[k]; return n }) }
   const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
   const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, Object.fromEntries(keys.map(k => [k, val]))) }))
@@ -581,12 +582,12 @@ function UserModal({ user, onClose, onSaved }) {
         </div>
         <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12,overflowY:'auto'}}>
           <div className="grid2">
-            <div><label style={lbl}>Primeiro nome</label><input style={inp} value={form.first_name} onChange={set('first_name')} placeholder="Ana" /></div>
-            <div><label style={lbl}>Sobrenome</label><input style={inp} value={form.last_name} onChange={set('last_name')} placeholder="Silva" /></div>
+            <div><label style={lbl}>Primeiro nome</label><input style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.first_name} onChange={set('first_name')} placeholder="Ana" /></div>
+            <div><label style={lbl}>Sobrenome</label><input style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.last_name} onChange={set('last_name')} placeholder="Silva" /></div>
           </div>
           <div>
             <label style={lbl}>E-mail * <span style={{fontWeight:400,textTransform:'none',color:'#94a3b8'}}>(será o login)</span></label>
-            <input style={{...inp, ...(fe.email ? {border:'1px solid #ef4444',background:'#fef2f2'} : {})}} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" />
+            <input style={{...inp,...(fe.email?{border:'1px solid #ef4444',background:'#fef2f2'}:{}),...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" />
             {fe.email && <p style={{fontSize:11,color:'#dc2626',margin:'3px 0 0',fontWeight:500}}>E-mail obrigatório</p>}
           </div>
 
@@ -598,8 +599,8 @@ function UserModal({ user, onClose, onSaved }) {
           )}
 
           {isEdit && (
-            <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'#1e293b'}}>
-              <input type="checkbox" checked={form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))} style={{accentColor:'#1a2d4f',width:15,height:15}} />
+            <label style={{display:'flex',alignItems:'center',gap:8,cursor:canEditProfile?'pointer':'not-allowed',fontSize:13,color:canEditProfile?'#1e293b':'#94a3b8'}}>
+              <input type="checkbox" checked={form.is_active} disabled={!canEditProfile} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))} style={{accentColor:'#1a2d4f',width:15,height:15}} />
               Ativo
             </label>
           )}

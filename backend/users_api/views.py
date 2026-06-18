@@ -177,10 +177,11 @@ def user_update(request, pk):
         return Response({'error': 'Usuário não encontrado.'}, status=404)
 
     data = request.data
-    if 'first_name' in data: user.first_name = data['first_name']
-    if 'last_name'  in data: user.last_name  = data['last_name']
-    if 'email'      in data: user.email      = data['email']
-    if 'is_active'  in data: user.is_active  = bool(data['is_active'])
+    if has_any_perm(request.user, 'manage_users', 'users_edit'):
+        if 'first_name' in data: user.first_name = data['first_name']
+        if 'last_name'  in data: user.last_name  = data['last_name']
+        if 'email'      in data: user.email      = data['email']
+        if 'is_active'  in data: user.is_active  = bool(data['is_active'])
 
     # Apenas superusuários existentes podem conceder/revogar superusuário
     if request.user.is_superuser and 'is_superuser' in data:
