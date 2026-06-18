@@ -195,13 +195,17 @@ export default function AccountModal({ onClose, onSaved }) {
 
           {/* Formato de horário */}
           <Section title="Formato de horário">
-            <div style={{ padding: '2px 0' }}>
-              <FormSelect
-                value={prefs.time_format}
-                onChange={v => set('time_format', v)}
-                options={FORMAT_OPTS}
-                placeholder="Selecione o formato…"
-              />
+            <div style={{ display:'flex', gap:0, borderRadius:8, border:'1.5px solid #e2e8f0', overflow:'hidden', alignSelf:'flex-start' }}>
+              {[{v:'24h', label:'24 horas'},{v:'12h', label:'AM / PM'}].map(({v, label}) => {
+                const active = prefs.time_format === v
+                return (
+                  <button key={v} type="button" onClick={() => set('time_format', v)} style={{
+                    padding:'8px 20px', border:'none', borderRight: v==='24h' ? '1.5px solid #e2e8f0' : 'none',
+                    background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#64748b',
+                    fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .15s',
+                  }}>{label}</button>
+                )
+              })}
             </div>
           </Section>
 
