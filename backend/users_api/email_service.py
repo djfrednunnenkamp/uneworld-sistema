@@ -2,6 +2,8 @@
 import resend
 from django.conf import settings
 
+from agenda._logo import LOGO_B64
+
 
 def _send(to: str, subject: str, html: str) -> bool:
     resend.api_key = settings.RESEND_API_KEY
@@ -29,11 +31,9 @@ def _wrap(body_rows: str, accent: str = '#2e6db4') -> str:
       <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06),0 8px 32px rgba(0,0,0,.06)">
         <!-- Logo -->
         <tr>
-          <td style="background:#1a2d4f;padding:22px 32px;text-align:center">
-            <p style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-.4px;font-family:Georgia,serif">
-              Une<span style="color:#6ba3c8">World</span>
-            </p>
-            <p style="margin:4px 0 0;font-size:9px;font-weight:700;color:rgba(255,255,255,.38);letter-spacing:.25em;text-transform:uppercase">Turismo</p>
+          <td style="background:#ffffff;padding:24px 32px 20px;text-align:center;border-bottom:3px solid #1a2d4f">
+            <img src="{LOGO_B64}" alt="UneWorld Turismo" width="160" height="104"
+                 style="display:block;margin:0 auto;max-width:160px;height:auto;border:0" />
           </td>
         </tr>
         <!-- Accent -->
