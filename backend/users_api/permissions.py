@@ -38,6 +38,10 @@ PERMISSION_FIELDS = [
     'calendar_view',
     'calendar_view_birthdays',
     'calendar_view_all_deadlines',
+    # Log de e-mails
+    'email_log_view',
+    'email_log_preview',
+    'email_resend_actions',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"

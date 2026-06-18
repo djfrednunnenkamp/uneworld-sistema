@@ -90,6 +90,9 @@ def _can_email_log(user):
 def _can_email_preview(user):
     return user.is_superuser or getattr(getattr(user, 'permissions', None), 'email_log_preview', False)
 
+def _can_email_resend(user):
+    return user.is_superuser or getattr(getattr(user, 'permissions', None), 'email_resend_actions', False)
+
 
 class EmailLogListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -129,4 +132,50 @@ def email_preview_enabled(request):
         'preview_enabled': settings.EMAIL_PREVIEW_ENABLED,
         'can_view':    _can_email_log(request.user),
         'can_preview': _can_email_preview(request.user) and settings.EMAIL_PREVIEW_ENABLED,
+        'can_resend':  _can_email_resend(request.user),
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def email_resend_action(request, pk):
+    """Reenvia redefinição de senha ou convite para o destinatário do e-mail original."""
+    if not _can_email_log(request.user):
+        return Response(status=403)
+    if not _can_email_resend(request.user):
+        return Response(status=403)
+    try:
+        log = EmailLog.objects.get(pk=pk)
+    except EmailLog.DoesNotExist:
+        return Response(status=404)
+
+    if log.email_type not in ('reset_password', 'invite'):
+        return Response({'detail': 'Reenvio disponível apenas para e-mails de redefinição de senha ou convite.'}, status=400)
+
+    from django.contrib.auth import get_user_model
+    from users_api.models import PasswordResetToken, InviteToken
+    from users_api.email_service import send_reset_password, send_invite
+
+    User = get_user_model()
+    try:
+        user = User.objects.get(email__iexact=log.to.strip())
+    except User.DoesNotExist:
+        return Response({'detail': f'Nenhum usuário encontrado com o e-mail "{log.to}".'}, status=404)
+    except User.MultipleObjectsReturned:
+        user = User.objects.filter(email__iexact=log.to.strip()).first()
+
+    if log.email_type == 'reset_password':
+        token = PasswordResetToken.objects.create(user=user)
+        url = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
+        send_reset_password(user.email, user.first_name, url)
+        return Response({'message': f'E-mail de redefinição de senha reenviado para {user.email}.'})
+
+    # invite
+    invite = InviteToken.objects.create(
+        email=user.email, first_name=user.first_name, last_name=user.last_name,
+        is_staff=user.is_staff, created_by=request.user,
+    )
+    url = f"{settings.FRONTEND_URL}/aceitar-convite?token={invite.token}"
+    invited_by = request.user.get_full_name() or request.user.username
+    send_invite(user.email, user.first_name, url, invited_by)
+    return Response({'message': f'Convite reenviado para {user.email}.'})

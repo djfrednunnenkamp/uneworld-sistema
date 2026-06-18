@@ -122,6 +122,7 @@ export const agendaApi = {
   emailLogSettings: ()           => api.get('/agenda/email-log/settings/'),
   emailLog:         ()           => api.get('/agenda/email-log/'),
   emailLogDetail:   (id)         => api.get(`/agenda/email-log/${id}/`),
+  emailLogResend:   (id)         => api.post(`/agenda/email-log/${id}/resend/`),
 }
 
 export const configApi = {

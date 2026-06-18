@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { dashboardApi, agendaApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
@@ -107,11 +108,12 @@ function EmailPreviewModal({ log, onClose }) {
   )
 }
 
-function EmailLogWidget({ canView, canPreview, timeFormat, refreshKey }) {
+function EmailLogWidget({ canView, canPreview, canResend, timeFormat, refreshKey }) {
   const [logs, setLogs]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [preview, setPreview]   = useState(null)
-  const [loadingId, setLoadingId] = useState(null)
+  const [loadingId, setLoadingId]     = useState(null)
+  const [resendingId, setResendingId] = useState(null)
   const fmtDt = (iso) => fmtDateTime(iso, timeFormat)
 
   useEffect(() => {
@@ -131,6 +133,21 @@ function EmailLogWidget({ canView, canPreview, timeFormat, refreshKey }) {
     } catch {}
     finally { setLoadingId(null) }
   }, [canPreview])
+
+  const handleResend = useCallback(async (e, id) => {
+    e.stopPropagation()
+    if (resendingId) return
+    setResendingId(id)
+    try {
+      const r = await agendaApi.emailLogResend(id)
+      toast.success(r.data.message ?? 'E-mail reenviado com sucesso.')
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? 'Erro ao reenviar o e-mail.'
+      toast.error(msg)
+    } finally {
+      setResendingId(null)
+    }
+  }, [resendingId])
 
   return (
     <div className="tcard" style={{ flex:'0 0 480px', minWidth:0, display:'flex', flexDirection:'column' }}>
@@ -166,6 +183,18 @@ function EmailLogWidget({ canView, canPreview, timeFormat, refreshKey }) {
                 )}
                 <span style={{ flex:1 }}/>
                 <span style={{ fontSize:11, color:'#94a3b8', whiteSpace:'nowrap' }}>{fmtDt(log.sent_at)}</span>
+                {canResend && (log.email_type === 'reset_password' || log.email_type === 'invite') && (
+                  <button
+                    onClick={e => handleResend(e, log.id)}
+                    disabled={!!resendingId}
+                    title="Reenviar e-mail"
+                    style={{ background:'none', border:'none', padding:'2px 4px', cursor: resendingId ? 'wait' : 'pointer', color: resendingId === log.id ? '#2563eb' : '#94a3b8', display:'flex', borderRadius:4, transition:'color .1s' }}
+                    onMouseEnter={e => { if (!resendingId) e.currentTarget.style.color = '#2563eb' }}
+                    onMouseLeave={e => { if (resendingId !== log.id) e.currentTarget.style.color = '#94a3b8' }}
+                  >
+                    <Ic n={resendingId === log.id ? 'clock' : 'rotate'} s={13}/>
+                  </button>
+                )}
                 {canPreview && (
                   loadingId === log.id
                     ? <span style={{ fontSize:10, color:'#94a3b8' }}>…</span>
@@ -346,6 +375,7 @@ export default function Dashboard() {
           <EmailLogWidget
             canView={emailCfg.can_view}
             canPreview={emailCfg.can_preview}
+            canResend={emailCfg.can_resend}
             timeFormat={timeFormat}
             refreshKey={refreshKey}
           />

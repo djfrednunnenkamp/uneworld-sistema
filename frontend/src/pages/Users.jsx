@@ -97,8 +97,9 @@ const PERM_GROUPS = [
     title: 'Log de E-mails',
     icon: 'ul',
     items: [
-      ['email_log_view',    'Ver e-mails enviados pelo sistema'],
-      ['email_log_preview', 'Clicar para visualizar conteúdo do e-mail'],
+      ['email_log_view',       'Ver e-mails enviados pelo sistema'],
+      ['email_log_preview',    'Clicar para visualizar conteúdo do e-mail'],
+      ['email_resend_actions', 'Reenviar redefinição de senha / convite'],
     ],
   },
 ]
@@ -130,7 +131,8 @@ const PERM_DEPENDENCIES = {
   calendar_view_birthdays:     'calendar_view',
   calendar_view_all_deadlines: 'calendar_view',
 
-  email_log_preview: 'email_log_view',
+  email_log_preview:    'email_log_view',
+  email_resend_actions: 'email_log_view',
 }
 
 /* Zera permissões dependentes cuja permissão base não está marcada (evita estado inconsistente).
