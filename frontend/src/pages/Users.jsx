@@ -1222,26 +1222,26 @@ export default function Users() {
           <table className="dt">
             <thead>
               <tr>
-                <th style={{width:40}}>
+                <th style={{width:40,textAlign:'center'}}>
                   <input type="checkbox" className="chk" checked={allSel} onChange={togAll} disabled={selectable.length === 0} />
                 </th>
-                <th>Usuário</th>
-                <th>E-mail</th>
-                <th>Perfil</th>
-                <th>Status</th>
-                <th style={{width:110}}></th>
+                <th style={{textAlign:'center'}}>Usuário</th>
+                <th style={{textAlign:'center'}}>E-mail</th>
+                <th style={{textAlign:'center'}}>Perfil</th>
+                <th style={{textAlign:'center'}}>Status</th>
+                <th style={{width:110,textAlign:'center'}}></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((u, i) => (
                 <tr key={u.id}>
-                  <td>
+                  <td style={{textAlign:'center'}}>
                     {u.id !== me?.id && (
                       <input type="checkbox" className="chk" checked={sel.has(u.id)} onChange={() => tog1(u.id)} />
                     )}
                   </td>
-                  <td>
-                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <td style={{textAlign:'center'}}>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
                       <div style={{width:32,height:32,borderRadius:'50%',background:PALETTE[i%PALETTE.length],display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:12,fontWeight:700,flexShrink:0}}>
                         {initials(u)}
                       </div>
@@ -1250,8 +1250,8 @@ export default function Users() {
                       </div>
                     </div>
                   </td>
-                  <td className="t-muted"><CopyCell value={u.email} muted /></td>
-                  <td>
+                  <td className="t-muted" style={{textAlign:'center'}}><CopyCell value={u.email} muted /></td>
+                  <td style={{textAlign:'center'}}>
                     {u.is_superuser
                       ? <BadgeTooltip badge={<span className="badge bg-blue" style={{ cursor:'help' }}>Superusuário</span>}>
                           <SuperuserTooltipContent />
@@ -1265,15 +1265,15 @@ export default function Users() {
                           </BadgeTooltip>
                     }
                   </td>
-                  <td>
+                  <td style={{textAlign:'center'}}>
                     {!u.is_active
                       ? <span className="badge bg-red">Bloqueada</span>
                       : !u.has_account
-                        ? <span className="badge bg-amber">Aguardando</span>
+                        ? <span className="badge bg-amber">Pendente</span>
                         : <span className="badge bg-green">Ativa</span>
                     }
                   </td>
-                  <td>
+                  <td style={{textAlign:'center'}}>
                     <div className="r-acts">
                       {canEdit && <button className="r-btn edit" title="Editar" onClick={() => setModal(u)}><Ic n="edit" s={13}/></button>}
                       {canKeyMenu && (
