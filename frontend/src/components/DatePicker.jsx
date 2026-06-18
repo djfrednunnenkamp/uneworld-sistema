@@ -118,11 +118,14 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
   const isToday   = d => d===today.getDate() && view.month===today.getMonth() && view.year===today.getFullYear()
   const isRelated = d => related && d===related.getDate() && view.month===related.getMonth() && view.year===related.getFullYear()
 
-  /* Duração em dias entre o dia em hover e a data relacionada (contagem inclusiva) */
+  /* Duração em dias: estática quando ambas datas definidas, dinâmica no hover caso contrário */
   let hoverDuration = null
-  if (hoverDay != null && related && view) {
-    const hovered = new Date(view.year, view.month, hoverDay)
-    hoverDuration = Math.round(Math.abs(hovered - related) / 86400000) + 1
+  if (related && view) {
+    if (selected) {
+      hoverDuration = Math.round(Math.abs(selected - related) / 86400000) + 1
+    } else if (hoverDay != null) {
+      hoverDuration = Math.round(Math.abs(new Date(view.year, view.month, hoverDay) - related) / 86400000) + 1
+    }
   }
 
   /* Computa estilo de cada célula de dia, incluindo range */
@@ -335,19 +338,15 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
             </div>
           )}
 
-          {/* Rodapé */}
-          <div style={{display:'flex',gap:6,padding:'8px 10px',borderTop:'1px solid #f1f5f9'}}>
-            <button
-              onClick={()=>{const t=today;pick(t.getFullYear(),t.getMonth(),t.getDate())}}
-              style={{flex:1,padding:'5px',border:'1px solid #e2e8f0',borderRadius:6,background:'#fff',color:'#2e6db4',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}
-            >Hoje</button>
-            {value && (
+          {/* Rodapé — só mostra quando há valor para limpar */}
+          {value && (
+            <div style={{display:'flex',gap:6,padding:'8px 10px',borderTop:'1px solid #f1f5f9'}}>
               <button
                 onClick={()=>{onChange('');setInputVal('');setOpen(false)}}
                 style={{flex:1,padding:'5px',border:'1px solid #e2e8f0',borderRadius:6,background:'#fff',color:'#94a3b8',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}
               >Limpar</button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
