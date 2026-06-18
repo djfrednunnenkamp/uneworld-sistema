@@ -916,7 +916,12 @@ export default function Users() {
   const [modifiedTo,    setModifiedTo]    = useState('')
   const { user: me } = useAuth()
   const navigate = useNavigate()
-  const canViewLog = !!me?.is_superuser || !!me?.permissions?.view_audit_log
+  const myP        = me?.permissions ?? {}
+  const isSu       = !!me?.is_superuser
+  const canCreate  = isSu || !!myP.manage_users || !!myP.users_edit
+  const canEdit    = isSu || !!myP.manage_users || !!myP.users_edit || !!myP.users_manage_permissions
+  const canDeleteU = isSu || !!myP.manage_users || !!myP.users_delete
+  const canViewLog = isSu || !!myP.view_audit_log || !!myP.log_users || !!myP.log_view
 
   const load = () => {
     setLoading(true)
@@ -1036,9 +1041,11 @@ export default function Users() {
       <div className="ph">
         <h1 className="ph-title">Usuários</h1>
         <div className="ph-actions">
-          <button className="btn btn-primary" onClick={() => setModal('new')}>
-            <Ic n="plus" s={13}/>Novo usuário
-          </button>
+          {canCreate && (
+            <button className="btn btn-primary" onClick={() => setModal('new')}>
+              <Ic n="plus" s={13}/>Novo usuário
+            </button>
+          )}
         </div>
       </div>
 
@@ -1166,19 +1173,21 @@ export default function Users() {
                   </td>
                   <td>
                     <div className="r-acts">
-                      <button className="r-btn edit" title="Editar" onClick={() => setModal(u)}><Ic n="edit" s={13}/></button>
-                      <button className="r-btn view" title="Enviar convite por e-mail"
-                        onClick={async () => {
-                          try {
-                            await usersApi.sendInvite(u.id)
-                            toast.success(`Convite enviado para ${u.email}`)
-                          } catch (e) {
-                            toast.error(e.response?.data?.error ?? 'Erro ao enviar convite.')
-                          }
-                        }}>
-                        <Ic n="mail" s={13}/>
-                      </button>
-                      {me?.is_superuser && u.id !== me?.id && (
+                      {canEdit && <button className="r-btn edit" title="Editar" onClick={() => setModal(u)}><Ic n="edit" s={13}/></button>}
+                      {canCreate && (
+                        <button className="r-btn view" title="Enviar convite por e-mail"
+                          onClick={async () => {
+                            try {
+                              await usersApi.sendInvite(u.id)
+                              toast.success(`Convite enviado para ${u.email}`)
+                            } catch (e) {
+                              toast.error(e.response?.data?.error ?? 'Erro ao enviar convite.')
+                            }
+                          }}>
+                          <Ic n="mail" s={13}/>
+                        </button>
+                      )}
+                      {canDeleteU && u.id !== me?.id && (
                         <button className="r-btn del" title="Excluir" onClick={() => setDelUser(u)}><Ic n="trash" s={13}/></button>
                       )}
                     </div>
