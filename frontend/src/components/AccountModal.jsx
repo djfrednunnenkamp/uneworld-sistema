@@ -57,6 +57,7 @@ export default function AccountModal({ onClose, onSaved }) {
     receive_deadline_emails: false,
     receive_task_emails:     false,
     receive_birthday_emails: false,
+    send_hour:               8,
   })
 
   const canSeeSensitive = user?.is_superuser || !!user?.permissions?.passengers_view_full
@@ -70,6 +71,7 @@ export default function AccountModal({ onClose, onSaved }) {
         receive_deadline_emails: !!r.data.receive_deadline_emails,
         receive_task_emails:     !!r.data.receive_task_emails,
         receive_birthday_emails: !!r.data.receive_birthday_emails,
+        send_hour:               r.data.send_hour ?? 8,
       })))
       .catch(() => {})
   }, [])
@@ -157,6 +159,22 @@ export default function AccountModal({ onClose, onSaved }) {
                 </label>
               ))}
             </div>
+
+            {/* Horário de envio — aparece se qualquer notificação ou resumo estiver ativo */}
+            {(prefs.digest_enabled || prefs.receive_deadline_emails || prefs.receive_task_emails || prefs.receive_birthday_emails) && (
+              <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                <label style={{ ...lbl, marginBottom: 6 }}>Horário de envio</label>
+                <p style={{ margin: '0 0 8px', fontSize: 11.5, color: '#94a3b8' }}>Os e-mails automáticos são enviados uma vez por dia neste horário</p>
+                <select
+                  value={prefs.send_hour}
+                  onChange={e => setPrefs(p => ({ ...p, send_hour: Number(e.target.value) }))}
+                  style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#0f172a', outline: 'none', background: '#fff' }}>
+                  {[7,8,9,10,12,13,14,17,18,19,20].map(h => (
+                    <option key={h} value={h}>{String(h).padStart(2,'0')}:00</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {error && (

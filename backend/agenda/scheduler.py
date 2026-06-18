@@ -1,7 +1,7 @@
 """Loop em background que envia os e-mails de resumo/lembrete agendados pelos usuários."""
 import threading
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 CHECK_INTERVAL = 3600  # 1 hora
 
@@ -27,18 +27,23 @@ def _loop():
 
 def run_once():
     from django.db.models import Q
-
     from .models import CalendarPreference
     from .services import send_digest_email, send_reminder_email
 
-    today = date.today()
+    today        = date.today()
+    current_hour = datetime.now().hour
+
     prefs = CalendarPreference.objects.select_related('user').filter(
         Q(digest_enabled=True) | Q(reminder_enabled=True)
     )
 
     for pref in prefs:
+        # Só envia a partir do horário configurado pelo usuário
+        if current_hour < pref.send_hour:
+            continue
+
         if pref.digest_enabled and pref.last_digest_sent != today:
-            is_due = pref.digest_frequency == 'daily' or today.weekday() == 0  # semanal -> segunda-feira
+            is_due = pref.digest_frequency == 'daily' or today.weekday() == 0
             if is_due and send_digest_email(pref.user):
                 pref.last_digest_sent = today
                 pref.save(update_fields=['last_digest_sent'])
@@ -48,8 +53,7 @@ def run_once():
                 pref.last_reminder_sent = today
                 pref.save(update_fields=['last_reminder_sent'])
 
-    # Um único e-mail consolidado por destinatário com todas as notificações do dia
-    _send_daily_notifications(today)
+    _send_daily_notifications(today, current_hour)
 
 
 # ── Coletores de dados ────────────────────────────────────────────────────────
@@ -118,31 +122,33 @@ def _collect_birthday_entries(today):
 
 # ── Envio consolidado ─────────────────────────────────────────────────────────
 
-def _send_daily_notifications(today):
-    """Envia UM único e-mail por destinatário consolidando prazos, pendências e aniversários."""
+def _send_daily_notifications(today, current_hour):
+    """Envia UM único e-mail por destinatário consolidando prazos, pendências e aniversários.
+    Respeita o horário configurado e não reenvia se já enviou hoje."""
     from django.db.models import Q
     from users_api.models import UserPermissions
     from .models import CalendarPreference
     from .email_service import send_daily_digest
 
-    # Coleta todos os dados do dia
     deadline_today, list_emails_today = _collect_deadline_entries(today, days_ahead=0)
     deadline_2d,    list_emails_2d    = _collect_deadline_entries(today, days_ahead=2)
     tasks     = _collect_task_entries(today)
     birthdays = _collect_birthday_entries(today)
 
-    # Sem nada para enviar, sai cedo
     if not deadline_today and not deadline_2d and not tasks and not birthdays:
         return
 
-    # Usuários com permissão de dados sensíveis (aniversários)
     eligible_birthday_ids = set(
         UserPermissions.objects.filter(passengers_view_full=True).values_list('user_id', flat=True)
     )
 
-    # Envia um e-mail por usuário com as seções que ele optou
+    # Apenas usuários cujo horário configurado já chegou E ainda não receberam hoje
     prefs = CalendarPreference.objects.filter(
         Q(receive_deadline_emails=True) | Q(receive_task_emails=True) | Q(receive_birthday_emails=True)
+    ).filter(
+        send_hour__lte=current_hour
+    ).exclude(
+        last_daily_sent=today
     ).select_related('user')
 
     user_emails = set()
@@ -160,10 +166,11 @@ def _send_daily_notifications(today):
             b = birthdays
 
         if d_today or d_2d or t or b:
-            send_daily_digest(user.email, today, d_today, d_2d, t, b)
+            if send_daily_digest(user.email, today, d_today, d_2d, t, b):
+                pref.last_daily_sent = today
+                pref.save(update_fields=['last_daily_sent'])
 
-    # E-mails de lista (definidos diretamente na lista de passageiros, não vinculados a usuários)
-    # Recebem apenas prazos de confirmação
+    # E-mails de lista (externos, sem controle de horário por usuário)
     extra_emails = (list_emails_today | list_emails_2d) - user_emails
     if extra_emails and (deadline_today or deadline_2d):
         for email in extra_emails:
