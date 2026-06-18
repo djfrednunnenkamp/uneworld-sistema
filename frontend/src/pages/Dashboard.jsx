@@ -37,10 +37,29 @@ function EmailPreviewModal({ log, onClose }) {
   const { timeFormat } = usePrefs()
   const fmtDt = (iso) => fmtDateTime(iso, timeFormat)
 
-  // Injeta <base target="_blank"> para que todos os links abram em nova aba
-  const srcDoc = log.html_body
-    ? log.html_body.replace(/(<head[^>]*>)/i, '$1<base target="_blank" rel="noreferrer">')
-    : ''
+  // Processa o HTML: links internos (mesma origem) navegam na aba principal (_top);
+  // links externos abrem em nova aba (_blank via base tag).
+  const srcDoc = (() => {
+    if (!log.html_body) return ''
+    try {
+      const doc = new DOMParser().parseFromString(log.html_body, 'text/html')
+      const base = doc.createElement('base')
+      base.target = '_blank'
+      base.rel = 'noreferrer'
+      doc.head.insertBefore(base, doc.head.firstChild)
+      const appOrigin = window.location.origin
+      doc.querySelectorAll('a[href]').forEach(a => {
+        const href = a.getAttribute('href') || ''
+        if (href.startsWith(appOrigin) || href.startsWith('/')) {
+          a.target = '_top'
+          a.removeAttribute('rel')
+        }
+      })
+      return doc.documentElement.outerHTML
+    } catch {
+      return log.html_body
+    }
+  })()
 
   const handleLoad = () => {
     const iframe = iframeRef.current
@@ -69,7 +88,7 @@ function EmailPreviewModal({ log, onClose }) {
             title="preview"
             onLoad={handleLoad}
             style={{ width:'100%', border:'none', display:'block' }}
-            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
           />
         </div>
       </div>

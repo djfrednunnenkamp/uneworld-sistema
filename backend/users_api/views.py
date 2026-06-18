@@ -228,7 +228,7 @@ def reset_password(request):
     token.user.save()
     token.used = True
     token.save()
-    return Response({'message': 'Senha redefinida com sucesso.'})
+    return Response({'message': 'Senha redefinida com sucesso.', 'email': token.user.email})
 
 
 @api_view(['POST'])
