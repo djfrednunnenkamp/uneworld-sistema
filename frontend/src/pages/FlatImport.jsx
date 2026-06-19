@@ -62,25 +62,25 @@ function parseCombinedCsv(text, labelToKey) {
 }
 
 const API_MAP = {
-  professions:     { add: (name)         => configApi.addProfession(name),    label: 'Profissões' },
-  languages:       { add: (name)         => configApi.addLanguage(name),      label: 'Idiomas' },
-  vaccines:        { add: (name)         => configApi.addVaccine(name),       label: 'Vacinas' },
-  genders:         { add: (name)         => configApi.addGender(name),        label: 'Gêneros' },
-  prof_cards:      { add: (name)         => configApi.addProfCard(name),      label: 'Carteiras' },
-  list_addits:     { add: (name)         => listsApi.addAdditional(name),     label: 'Adicionais de Lista' },
-  crew_roles:      { add: (name)         => listsApi.addCrewRole(name),       label: 'Equipe técnica' },
-  list_categories: { add: (name)         => configApi.addListCategory(name),  label: 'Categoria de Acomodações' },
-  accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), label: 'Acomodações' },
-  doc_types:       { add: (name, extras) => configApi.addDocType({ label: name, key: extras.code || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), icon: '📄', color: '#475569' }), label: 'Documentos' },
-  airports:        { add: (name, extras) => configApi.addAirport({ name, iata_code: extras.code || '', city: extras.parent_state || '', country: extras.parent_country || '' }), label: 'Aeroportos' },
-  airlines:        { add: (name, extras) => configApi.addAirline({ name, iata_code: extras.code || '', country: extras.parent_country || '' }), label: 'Companhias Aéreas' },
-  countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), label: 'Países' },
+  professions:     { add: (name)         => configApi.addProfession(name),    del: (id) => configApi.delProfession(id),    label: 'Profissões' },
+  languages:       { add: (name)         => configApi.addLanguage(name),      del: (id) => configApi.delLanguage(id),      label: 'Idiomas' },
+  vaccines:        { add: (name)         => configApi.addVaccine(name),       del: (id) => configApi.delVaccine(id),       label: 'Vacinas' },
+  genders:         { add: (name)         => configApi.addGender(name),        del: (id) => configApi.delGender(id),        label: 'Gêneros' },
+  prof_cards:      { add: (name)         => configApi.addProfCard(name),      del: (id) => configApi.delProfCard(id),      label: 'Carteiras' },
+  list_addits:     { add: (name)         => listsApi.addAdditional(name),     del: (id) => listsApi.removeAdditional(id),  label: 'Adicionais de Lista' },
+  crew_roles:      { add: (name)         => listsApi.addCrewRole(name),       del: (id) => listsApi.removeCrewRole(id),    label: 'Equipe técnica' },
+  list_categories: { add: (name)         => configApi.addListCategory(name),  del: (id) => configApi.delListCategory(id),  label: 'Categoria de Acomodações' },
+  accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), del: (id) => configApi.delAccommodation(id), label: 'Acomodações' },
+  doc_types:       { add: (name, extras) => configApi.addDocType({ label: name, key: extras.code || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), icon: '📄', color: '#475569' }), del: (id) => configApi.delDocType(id), label: 'Documentos' },
+  airports:        { add: (name, extras) => configApi.addAirport({ name, iata_code: extras.code || '', city: extras.parent_state || '', country: extras.parent_country || '' }), del: (id) => configApi.delAirport(id), label: 'Aeroportos' },
+  airlines:        { add: (name, extras) => configApi.addAirline({ name, iata_code: extras.code || '', country: extras.parent_country || '' }), del: (id) => configApi.delAirline(id), label: 'Companhias Aéreas' },
+  countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), del: (id) => configApi.delCountry(id), label: 'Países' },
   states:          { add: (name, extras, ctx) => {
     const c = (ctx?.allCountries || []).find(x => x.name.toLowerCase() === (extras.parent_country || '').toLowerCase())
     if (!c) return Promise.reject(new Error('País não encontrado'))
     return configApi.addState(c.id, name, extras.code || '')
-  }, label: 'Estados' },
-  cities:          { add: null, label: 'Cidades' }, // importadas em batch via geoImport
+  }, del: (id) => configApi.delState(id), label: 'Estados' },
+  cities:          { add: null, del: null, label: 'Cidades' }, // importadas em batch via geoImport
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -155,7 +155,7 @@ export default function FlatImport() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
-  const { csvText, filename, type, existingNames = [], existingByType = {}, allCountries = [], permittedKeys } = location.state || {}
+  const { csvText, filename, type, existingNames = [], existingByType = {}, existingItems = [], existingItemsByType = {}, allCountries = [], permittedKeys } = location.state || {}
   const isAll    = type === 'all'
   const apiDef   = API_MAP[type] || API_MAP.professions
   const backPath = '/configuracoes'
@@ -259,14 +259,61 @@ export default function FlatImport() {
   const toggleRow  = (id) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const doConfirm = async () => {
-    let toProcess = rows.filter(r => r.status !== 'error')
-    if (mode === 'new') toProcess = toProcess.filter(r => r.status === 'valid')
-    if (!toProcess.length) return
+    const nonError = rows.filter(r => r.status !== 'error')
+    let toAdd = mode === 'new' ? nonError.filter(r => r.status === 'valid') : nonError
+    if (!nonError.length) return
     setPhase('importing')
-    let added = 0, skipped = 0
+    let added = 0, deleted = 0, skipped = 0
 
-    const cityRows  = isAll ? toProcess.filter(r => r.listKey === 'cities') : []
-    const otherRows = toProcess.filter(r => r.listKey !== 'cities')
+    // ── Exclusão (modos 'delete' e 'all') ─────────────────────────────────
+    if (mode === 'delete' || mode === 'all') {
+      if (isAll) {
+        // Agrupa nomes do CSV por seção
+        const csvNamesByKey = {}
+        nonError.forEach(r => {
+          if (!r.listKey) return
+          if (!csvNamesByKey[r.listKey]) csvNamesByKey[r.listKey] = new Set()
+          csvNamesByKey[r.listKey].add(r.name.toLowerCase())
+        })
+        for (const [key, csvNames] of Object.entries(csvNamesByKey)) {
+          if (!canBulkDeleteKey(key)) continue
+          const delFn = API_MAP[key]?.del
+          if (!delFn) continue
+          const sectionItems = existingItemsByType[key] || []
+          const toDelete = mode === 'delete'
+            ? sectionItems.filter(i => csvNames.has((i.name || '').toLowerCase()))
+            : sectionItems.filter(i => !csvNames.has((i.name || '').toLowerCase()))
+          for (const item of toDelete) {
+            try { await delFn(item.id); deleted++ } catch { skipped++ }
+          }
+        }
+      } else {
+        const csvNames = new Set(nonError.map(r => r.name.toLowerCase()))
+        const delFn = API_MAP[type]?.del
+        if (delFn && canDestructive) {
+          const toDelete = mode === 'delete'
+            ? existingItems.filter(i => csvNames.has((i.name || '').toLowerCase()))
+            : existingItems.filter(i => !csvNames.has((i.name || '').toLowerCase()))
+          for (const item of toDelete) {
+            try { await delFn(item.id); deleted++ } catch { skipped++ }
+          }
+        }
+      }
+      // Modo 'delete' só exclui, não adiciona nada
+      if (mode === 'delete') {
+        setResult({ added, deleted, skipped })
+        setPhase('done')
+        return
+      }
+      // Modo 'all': após excluir, inserir apenas os válidos (ex-duplicados podem agora ser novos)
+      toAdd = nonError.filter(r => r.status === 'valid')
+    }
+
+    // ── Inserção ──────────────────────────────────────────────────────────
+    if (!toAdd.length) { setResult({ added, deleted, skipped }); setPhase('done'); return }
+
+    const cityRows  = isAll ? toAdd.filter(r => r.listKey === 'cities') : []
+    const otherRows = isAll ? toAdd.filter(r => r.listKey !== 'cities') : toAdd
 
     for (const row of otherRows) {
       try {
@@ -289,7 +336,7 @@ export default function FlatImport() {
       } catch { skipped += cityRows.length }
     }
 
-    setResult({ added, skipped })
+    setResult({ added, deleted, skipped })
     setPhase('done')
   }
 
@@ -298,14 +345,22 @@ export default function FlatImport() {
       <div style={{ fontSize:56 }}>✅</div>
       <h2 style={{ fontSize:22, fontWeight:700, color:'#0f172a', margin:0 }}>Importação concluída!</h2>
       <div style={{ display:'flex', gap:16 }}>
-        <div style={{ textAlign:'center', padding:'20px 32px', background:'#dcfce7', borderRadius:12, border:'1px solid #bbf7d0' }}>
-          <div style={{ fontSize:36, fontWeight:700, color:'#16a34a' }}>{result.added}</div>
-          <div style={{ fontSize:13, color:'#15803d', marginTop:4 }}>adicionados</div>
-        </div>
+        {result.added > 0 && (
+          <div style={{ textAlign:'center', padding:'20px 32px', background:'#dcfce7', borderRadius:12, border:'1px solid #bbf7d0' }}>
+            <div style={{ fontSize:36, fontWeight:700, color:'#16a34a' }}>{result.added}</div>
+            <div style={{ fontSize:13, color:'#15803d', marginTop:4 }}>adicionados</div>
+          </div>
+        )}
+        {result.deleted > 0 && (
+          <div style={{ textAlign:'center', padding:'20px 32px', background:'#fee2e2', borderRadius:12, border:'1px solid #fecaca' }}>
+            <div style={{ fontSize:36, fontWeight:700, color:'#dc2626' }}>{result.deleted}</div>
+            <div style={{ fontSize:13, color:'#b91c1c', marginTop:4 }}>excluídos</div>
+          </div>
+        )}
         {result.skipped > 0 && (
           <div style={{ textAlign:'center', padding:'20px 32px', background:'#fef9c3', borderRadius:12, border:'1px solid #fde68a' }}>
             <div style={{ fontSize:36, fontWeight:700, color:'#ca8a04' }}>{result.skipped}</div>
-            <div style={{ fontSize:13, color:'#a16207', marginTop:4 }}>já existiam</div>
+            <div style={{ fontSize:13, color:'#a16207', marginTop:4 }}>com erro</div>
           </div>
         )}
       </div>
@@ -348,32 +403,29 @@ export default function FlatImport() {
         </div>
 
         {/* Modo */}
-        {isAll ? (
-          <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 16px' }}>
-            <p style={{ fontSize:13, color:'#475569', margin:0 }}>
-              Como o arquivo combina várias listas, apenas itens novos (não duplicados) serão adicionados — cada um na lista indicada pela coluna <strong>Lista</strong>.
+        <div>
+          <p style={{ fontSize:11, fontWeight:700, color:'#64748b', margin:'0 0 8px', textTransform:'uppercase', letterSpacing:'.06em' }}>Modo de Importação:</p>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+            {MODES.map(m => {
+              const locked = (m.key === 'all' || m.key === 'delete') && !canDestructive
+              return (
+                <div key={m.key}
+                  onClick={() => !locked && setMode(m.key)}
+                  title={locked ? 'Você não tem permissão de exclusão em massa para nenhuma seção deste CSV' : undefined}
+                  style={{ border:`2px solid ${mode===m.key?'#2e6db4':locked?'#f1f5f9':'#e2e8f0'}`, borderRadius:10, padding:'12px 16px', cursor:locked?'not-allowed':'pointer',
+                    background: mode===m.key?'#f0f6ff':locked?'#f8fafc':'#fff', transition:'all .12s', opacity: locked ? .55 : 1 }}>
+                  <p style={{ fontSize:14, fontWeight:700, color:mode===m.key?'#1a2d4f':locked?'#94a3b8':'#1e293b', margin:'0 0 4px' }}>{m.label}</p>
+                  <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{locked ? 'Permissão necessária: exclusão em massa' : m.desc}</p>
+                </div>
+              )
+            })}
+          </div>
+          {isAll && (mode === 'all' || mode === 'delete') && (
+            <p style={{ fontSize:12, color:'#b45309', margin:'8px 0 0', background:'#fef9c3', border:'1px solid #fde68a', borderRadius:6, padding:'6px 12px' }}>
+              ⚠️ Para importação combinada, a exclusão aplica-se apenas às seções onde você tem permissão de exclusão em massa.
             </p>
-          </div>
-        ) : (
-          <div>
-            <p style={{ fontSize:11, fontWeight:700, color:'#64748b', margin:'0 0 8px', textTransform:'uppercase', letterSpacing:'.06em' }}>Modo de Importação:</p>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-              {MODES.map(m => {
-                const locked = (m.key === 'all' || m.key === 'delete') && !canDestructive
-                return (
-                  <div key={m.key}
-                    onClick={() => !locked && setMode(m.key)}
-                    title={locked ? 'Você não tem permissão de exclusão em massa para nenhuma seção deste CSV' : undefined}
-                    style={{ border:`2px solid ${mode===m.key?'#2e6db4':locked?'#f1f5f9':'#e2e8f0'}`, borderRadius:10, padding:'12px 16px', cursor:locked?'not-allowed':'pointer',
-                      background: mode===m.key?'#f0f6ff':locked?'#f8fafc':'#fff', transition:'all .12s', opacity: locked ? .55 : 1 }}>
-                    <p style={{ fontSize:14, fontWeight:700, color:mode===m.key?'#1a2d4f':locked?'#94a3b8':'#1e293b', margin:'0 0 4px' }}>{m.label}</p>
-                    <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{locked ? 'Permissão necessária: exclusão em massa' : m.desc}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Toolbar: busca + filtros + seleção */}
         <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>

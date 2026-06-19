@@ -143,6 +143,7 @@ function CsvButtons({ items, filename, type, showImport = true }) {
         filename:      file.name,
         type,
         existingNames: items.map(i => i.name),
+        existingItems: items,
       }
     })
   }
@@ -1206,6 +1207,14 @@ export default function Settings() {
           ...(canEditDocTypes  ? { doc_types: allDocTypes.map(d => d.label) }       : {}),
           ...(canEditAirports  ? { airports: allAirports.map(a => a.name) }         : {}),
           ...(canEditAirlines  ? { airlines: allAirlines.map(a => a.name) }         : {}),
+        },
+        existingItemsByType: {
+          ...Object.fromEntries(editableGroups.map(g => [g.key, g.items])),
+          ...(canEditAccoms    ? { accommodations: accoms }                                             : {}),
+          ...(canEditCountries ? { countries: allCountries }                                            : {}),
+          ...(canEditDocTypes  ? { doc_types: allDocTypes.map(d => ({ id: d.id, name: d.label })) }    : {}),
+          ...(canEditAirports  ? { airports: allAirports }                                              : {}),
+          ...(canEditAirlines  ? { airlines: allAirlines }                                              : {}),
         },
         permittedKeys,
         allCountries,
