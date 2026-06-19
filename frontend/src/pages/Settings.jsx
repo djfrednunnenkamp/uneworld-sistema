@@ -685,6 +685,24 @@ const LIST_DEFS = [
 ]
 const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
 
+const CARD_META = {
+  doc_types:       { icon: 'docs',      hue: 230, desc: 'Modelos e tipos de documentos do sistema.' },
+  perm_profiles:   { icon: 'shield',    hue: 252, desc: 'Perfis de acesso e permissões dos usuários.' },
+  professions:     { icon: 'briefcase', hue: 38,  desc: 'Profissões disponíveis no cadastro de passageiros.' },
+  languages:       { icon: 'globe',     hue: 150, desc: 'Idiomas disponíveis nos cadastros e materiais.' },
+  vaccines:        { icon: 'syringe',   hue: 18,  desc: 'Vacinas registradas para controle sanitário.' },
+  genders:         { icon: 'gender',    hue: 340, desc: 'Opções de gênero para o cadastro de pessoas.' },
+  prof_cards:      { icon: 'card',      hue: 285, desc: 'Tipos de carteiras e documentos de identificação.' },
+  list_addits:     { icon: 'listplus',  hue: 260, desc: 'Campos extras configuráveis nas listas de passageiros.' },
+  crew_roles:      { icon: 'wrench',    hue: 165, desc: 'Funções e membros da equipe técnica de viagem.' },
+  accommodations:  { icon: 'bed',       hue: 280, desc: 'Tipos de acomodação como single, duplo e triplo.' },
+  list_categories: { icon: 'grid',      hue: 300, desc: 'Categorias para classificar as acomodações.' },
+  countries:       { icon: 'pin',       hue: 130, desc: 'Países e seus respectivos estados e regiões.' },
+  airports:        { icon: 'plane',     hue: 218, desc: 'Aeroportos cadastrados para origens e destinos.' },
+  airlines:        { icon: 'ticket',    hue: 195, desc: 'Companhias aéreas disponíveis para voos.' },
+  bus_maps:        { icon: 'mapicon',   hue: 45,  desc: 'Mapas de assentos dos ônibus por empresa.' },
+}
+
 function exportEmailsCsv(emails) {
   const rows = ['email', ...emails.map(e => `"${e.replace(/"/g, '""')}"`)]
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
@@ -961,6 +979,12 @@ export default function Settings() {
   const [loadingPC,    setLoadingPC]    = useState(true)
   const [loadingLA,    setLoadingLA]    = useState(true)
   const [loadingCR,    setLoadingCR]    = useState(true)
+  const [cntDocTypes,     setCntDocTypes]     = useState(null)
+  const [cntPermProfiles, setCntPermProfiles] = useState(null)
+  const [cntCountries,    setCntCountries]    = useState(null)
+  const [cntAirports,     setCntAirports]     = useState(null)
+  const [cntAirlines,     setCntAirlines]     = useState(null)
+  const [cntBusMaps,      setCntBusMaps]      = useState(null)
 
   useEffect(() => {
     configApi.professions().then(r => setProfessions(r.data)).catch(() => {}).finally(() => setLoadingP(false))
@@ -972,6 +996,12 @@ export default function Settings() {
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
     listsApi.listCrewRoles().then(r => setCrewRoles(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingCR(false))
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
+    configApi.docTypes().then(r => setCntDocTypes(r.data.length)).catch(() => {})
+    configApi.permissionProfiles().then(r => setCntPermProfiles(r.data.length)).catch(() => {})
+    configApi.countries().then(r => setCntCountries(r.data.length)).catch(() => {})
+    configApi.airports({ page_size: 1 }).then(r => setCntAirports(r.data.count ?? (r.data.results ?? r.data).length)).catch(() => {})
+    configApi.airlines({ page_size: 1 }).then(r => setCntAirlines(r.data.count ?? (r.data.results ?? r.data).length)).catch(() => {})
+    configApi.busMaps?.().then(r => setCntBusMaps((r.data.results ?? r.data).length)).catch(() => {})
   }, [])
 
   const silentReloadConfig = useCallback(() => {
@@ -1226,63 +1256,105 @@ export default function Settings() {
 
   const filteredListDefs = LIST_DEFS
     .filter(d => can(d.perm, 'view'))
-    .filter(d => d.label.toLowerCase().includes(listSearch.trim().toLowerCase()))
+    .filter(d => {
+      const q = listSearch.trim().toLowerCase()
+      if (!q) return true
+      const meta = CARD_META[d.key]
+      return d.label.toLowerCase().includes(q) || (meta?.desc || '').toLowerCase().includes(q)
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt'))
   const activeDef = LIST_DEFS.find(d => d.key === activeList)
 
+  const cfgCount = {
+    professions: professions.length, languages: languages.length, vaccines: vaccines.length,
+    genders: genders.length, prof_cards: profCards.length, list_addits: listAddits.length,
+    crew_roles: crewRoles.length, accommodations: accoms.length, list_categories: listCats.length,
+    doc_types: cntDocTypes, perm_profiles: cntPermProfiles,
+    countries: cntCountries, airports: cntAirports, airlines: cntAirlines, bus_maps: cntBusMaps,
+  }
+
   return (
-    <div>
-      <div className="ph">
-        <h1 className="ph-title">Configurações</h1>
+    <div style={{ background:'#eef1f6', minHeight:'100%' }}>
+      <div className="ph" style={{ marginBottom:0, padding:'20px 24px' }}>
+        <div>
+          <h1 className="ph-title">Configurações</h1>
+          <p style={{ margin:'3px 0 0', fontSize:13.5, color:'#64748b' }}>
+            Gerencie os cadastros e parâmetros que alimentam o sistema.
+          </p>
+        </div>
+        <div className="ph-actions">
+          {canCsvExport && (
+            <button onClick={() => {
+              setShowExportModal(true)
+              if (can('settings_countries', 'view') && exportCountriesList.length === 0) {
+                configApi.countries().then(r => setExportCountriesList(r.data)).catch(() => {})
+              }
+            }} style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:9, border:'1px solid #cdebd9', background:'#f3fbf6', color:'#16a34a', fontFamily:'inherit', fontSize:13.5, fontWeight:600, cursor:'pointer' }}>
+              <Ic n="dl" s={16}/> Exportar tudo
+            </button>
+          )}
+          {canCsvImport && (
+            <button onClick={() => setShowImportAllPopup(true)} style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:9, border:'1px solid #2563eb', background:'#2563eb', color:'#fff', fontFamily:'inherit', fontSize:13.5, fontWeight:600, cursor:'pointer', boxShadow:'0 2px 8px rgba(37,99,235,.28)' }}>
+              <Ic n="ul" s={16}/> Importar tudo
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ padding:'24px' }}>
-        <div className="search-row">
-          <div className="search-wrap">
-            <span className="search-ico"><Ic n="search" s={14}/></span>
-            <input className="search-in" placeholder="Buscar lista…"
-              value={listSearch} onChange={e => setListSearch(e.target.value)} />
+        <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:22, flexWrap:'wrap' }}>
+          <div style={{ position:'relative', flex:1, minWidth:260, maxWidth:440 }}>
+            <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', display:'flex', alignItems:'center', pointerEvents:'none' }}>
+              <Ic n="search" s={17}/>
+            </span>
+            <input
+              value={listSearch}
+              onChange={e => setListSearch(e.target.value)}
+              placeholder="Buscar configuração..."
+              style={{ width:'100%', padding:'11px 14px 11px 42px', borderRadius:10, border:'1px solid #dbe2ec', background:'#fff', fontFamily:'inherit', fontSize:14, color:'#1e293b', outline:'none', boxSizing:'border-box' }}
+            />
           </div>
-          <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
-            {canCsvExport && (
-              <button style={btnCsv('#059669')} onClick={() => {
-                setShowExportModal(true)
-                if (can('settings_countries', 'view') && exportCountriesList.length === 0) {
-                  configApi.countries().then(r => setExportCountriesList(r.data)).catch(() => {})
-                }
-              }} title="Baixar CSV com todas as listas">
-                ⬇ Exportar tudo
-              </button>
-            )}
-            {canCsvImport && (
-              <button style={btnCsv('#2e6db4')} onClick={() => setShowImportAllPopup(true)} title="Importar CSV com todas as listas">
-                ⬆ Importar tudo
-              </button>
-            )}
-          </div>
+          <span style={{ fontSize:13, color:'#94a3b8', fontWeight:500 }}>{filteredListDefs.length} categorias</span>
         </div>
 
-        <div className="tcard">
-          {filteredListDefs.length === 0 ? (
-            <div className="empty-state">
-              <div style={{ color:'#cbd5e1' }}><Ic n="search" s={28}/></div>
-              <p>Nenhuma lista encontrada</p>
-            </div>
-          ) : filteredListDefs.map((d, idx) => (
-            <div key={d.key} onClick={() => setActiveList(d.key)}
-              style={{
-                display:'flex', alignItems:'center', justifyContent:'space-between',
-                padding:'13px 16px', fontSize:13, fontWeight:500, color:'#1e293b', cursor:'pointer',
-                borderBottom: idx < filteredListDefs.length - 1 ? '1px solid #f1f5f9' : 'none',
-                background:'#fff', transition:'background .1s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-              onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-            >
-              <span className="t-name">{d.label}</span>
-              <span style={{ color:'#cbd5e1', fontSize:17 }}>›</span>
-            </div>
-          ))}
-        </div>
+        {filteredListDefs.length === 0 ? (
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'80px 20px', color:'#94a3b8', textAlign:'center' }}>
+            <Ic n="search" s={42}/>
+            <div style={{ marginTop:16, fontSize:16, fontWeight:600, color:'#475569' }}>Nenhuma configuração encontrada</div>
+            <div style={{ marginTop:4, fontSize:14 }}>Tente outro termo de busca.</div>
+          </div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(284px,1fr))', gap:16 }}>
+            {filteredListDefs.map(d => {
+              const meta = CARD_META[d.key] || { icon:'list', hue:220, desc:'' }
+              const cnt = cfgCount[d.key] ?? null
+              const tileBg = `oklch(0.955 0.035 ${meta.hue})`
+              const tileFg = `oklch(0.52 0.15 ${meta.hue})`
+              return (
+                <button key={d.key} onClick={() => setActiveList(d.key)} className="cfg-card"
+                  style={{ textAlign:'left', background:'#fff', border:'1px solid #e6eaf1', borderRadius:15, padding:20, cursor:'pointer', fontFamily:'inherit', display:'flex', flexDirection:'column', gap:14, transition:'transform .15s ease,box-shadow .15s ease,border-color .15s ease', boxShadow:'0 1px 2px rgba(16,24,40,.04)', width:'100%' }}>
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+                    <div style={{ width:46, height:46, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', background:tileBg, color:tileFg, flexShrink:0 }}>
+                      <Ic n={meta.icon} s={22}/>
+                    </div>
+                    {cnt !== null && (
+                      <span style={{ fontSize:12, fontWeight:600, color:'#64748b', background:'#f1f5f9', padding:'4px 10px', borderRadius:20, whiteSpace:'nowrap' }}>
+                        {cnt} {cnt === 1 ? 'item' : 'itens'}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:16, fontWeight:700, color:'#0f172a', letterSpacing:'-.2px' }}>{d.label}</div>
+                    <div style={{ fontSize:13, color:'#64748b', lineHeight:1.45, marginTop:5 }}>{meta.desc}</div>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, fontWeight:600, color:'#2563eb', marginTop:2 }}>
+                    Gerenciar <Ic n="chevron" s={15}/>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {showExportModal && (() => {
@@ -1314,28 +1386,51 @@ export default function Settings() {
         />
       )}
 
-      {activeDef && (
-        <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>
-          {activeDef.key === 'doc_types'       && <DocTypesManager canEdit={can('settings_doc_types','edit')} canDelete={can('settings_doc_types','delete')} />}
-          {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} canImport={isSu || !!myP.manage_settings} />}
-          {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       canImport={can('settings_professions','bulk_import')}      placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
-          {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
-          {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
-          {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
-          {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
-          {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
-          {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}   loading={loadingCR} onAdd={can('settings_crew_roles','edit') ? addCrewRole : undefined}          onUpdate={can('settings_crew_roles','edit') ? updateCrewRole : undefined}          onDelete={can('settings_crew_roles','delete') ? delCrewRole : undefined}          canImport={can('settings_crew_roles','bulk_import')}       placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
-          {activeDef.key === 'accommodations'  && <AccommodationManager canEdit={can('settings_accommodations','edit')} canDelete={can('settings_accommodations','delete')} canImport={can('settings_accommodations','bulk_import')} items={accoms} loading={loadingAc} onRefresh={() => {
-            setLoadingAc(true)
-            configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
-          }} />}
-          {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={can('settings_list_categories','edit') ? addListCategory : undefined} onUpdate={can('settings_list_categories','edit') ? updateListCategory : undefined} onDelete={can('settings_list_categories','delete') ? delListCategory : undefined} canImport={can('settings_list_categories','bulk_import')} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
-          {activeDef.key === 'countries'       && <CountriesTab canEdit={can('settings_countries','edit')} canDelete={can('settings_countries','delete')} canImport={can('settings_countries','bulk_import')} />}
-          {activeDef.key === 'airports'        && <AirportsManager canEdit={can('settings_airports','edit')} canDelete={can('settings_airports','delete')} canImport={can('settings_airports','bulk_import')} />}
-          {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} />}
-          {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} />}
-        </ListDetailModal>
-      )}
+      {activeDef && (() => {
+        const meta = CARD_META[activeDef.key] || { icon:'list', hue:220, desc:'' }
+        const tileBg = `oklch(0.955 0.035 ${meta.hue})`
+        const tileFg = `oklch(0.52 0.15 ${meta.hue})`
+        const isWide = WIDE_LISTS.includes(activeDef.key)
+        return (
+          <div style={{ position:'fixed', inset:0, zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+            <div onClick={() => setActiveList(null)} style={{ position:'absolute', inset:0, background:'rgba(15,23,42,.4)', animation:'fadeIn .2s ease' }}/>
+            <div style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth: isWide ? 860 : 560, maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .18s ease' }}>
+              <div style={{ padding:'20px 24px', borderBottom:'1px solid #eef2f7', display:'flex', alignItems:'flex-start', gap:14, flexShrink:0 }}>
+                <div style={{ width:46, height:46, flexShrink:0, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', background:tileBg, color:tileFg }}>
+                  <Ic n={meta.icon} s={22}/>
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:18, fontWeight:800, color:'#0f172a' }}>{activeDef.label}</div>
+                  <div style={{ fontSize:13, color:'#64748b', lineHeight:1.45, marginTop:2 }}>{meta.desc}</div>
+                </div>
+                <button onClick={() => setActiveList(null)} style={{ flexShrink:0, width:32, height:32, borderRadius:8, border:'1px solid #e6eaf1', background:'#fff', color:'#64748b', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Ic n="x" s={16}/>
+                </button>
+              </div>
+              <div style={{ flex:1, overflowY:'auto', padding:'18px 24px' }}>
+                {activeDef.key === 'doc_types'       && <DocTypesManager canEdit={can('settings_doc_types','edit')} canDelete={can('settings_doc_types','delete')} />}
+                {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} canImport={isSu || !!myP.manage_settings} />}
+                {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       canImport={can('settings_professions','bulk_import')}      placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
+                {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
+                {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
+                {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
+                {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
+                {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
+                {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}   loading={loadingCR} onAdd={can('settings_crew_roles','edit') ? addCrewRole : undefined}          onUpdate={can('settings_crew_roles','edit') ? updateCrewRole : undefined}          onDelete={can('settings_crew_roles','delete') ? delCrewRole : undefined}          canImport={can('settings_crew_roles','bulk_import')}       placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
+                {activeDef.key === 'accommodations'  && <AccommodationManager canEdit={can('settings_accommodations','edit')} canDelete={can('settings_accommodations','delete')} canImport={can('settings_accommodations','bulk_import')} items={accoms} loading={loadingAc} onRefresh={() => {
+                  setLoadingAc(true)
+                  configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
+                }} />}
+                {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={can('settings_list_categories','edit') ? addListCategory : undefined} onUpdate={can('settings_list_categories','edit') ? updateListCategory : undefined} onDelete={can('settings_list_categories','delete') ? delListCategory : undefined} canImport={can('settings_list_categories','bulk_import')} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
+                {activeDef.key === 'countries'       && <CountriesTab canEdit={can('settings_countries','edit')} canDelete={can('settings_countries','delete')} canImport={can('settings_countries','bulk_import')} />}
+                {activeDef.key === 'airports'        && <AirportsManager canEdit={can('settings_airports','edit')} canDelete={can('settings_airports','delete')} canImport={can('settings_airports','bulk_import')} />}
+                {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} />}
+                {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} />}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
