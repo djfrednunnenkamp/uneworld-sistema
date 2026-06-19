@@ -403,12 +403,13 @@ export const PERM_DEPENDENCIES = {
     'settings_accommodations_view', 'settings_countries_view',
     'settings_airports_view', 'settings_airlines_view',
   ],
+  // "Importar CSV global" só aparece quando pelo menos um _bulk_import de seção está ativo
   settings_csv_import: [
-    'settings_doc_types_edit', 'settings_professions_edit', 'settings_languages_edit',
-    'settings_vaccines_edit', 'settings_genders_edit', 'settings_prof_cards_edit',
-    'settings_list_additionals_edit', 'settings_crew_roles_edit', 'settings_list_categories_edit',
-    'settings_accommodations_edit', 'settings_countries_edit',
-    'settings_airports_edit', 'settings_airlines_edit',
+    'settings_doc_types_bulk_import', 'settings_professions_bulk_import', 'settings_languages_bulk_import',
+    'settings_vaccines_bulk_import', 'settings_genders_bulk_import', 'settings_prof_cards_bulk_import',
+    'settings_list_additionals_bulk_import', 'settings_crew_roles_bulk_import', 'settings_list_categories_bulk_import',
+    'settings_accommodations_bulk_import', 'settings_countries_bulk_import',
+    'settings_airports_bulk_import', 'settings_airlines_bulk_import',
   ],
 
   log_passengers: 'log_view',
