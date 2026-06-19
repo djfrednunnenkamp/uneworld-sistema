@@ -960,10 +960,9 @@ export default function Settings() {
     'settings_airports', 'settings_airlines',
     'settings_user_profiles', 'settings_bus_maps',
   ]
-  /* Botão Exportar: visível se pode VER pelo menos uma seção do CSV
+  /* Botão Exportar: requer permissão explícita "Exportar CSV global" (settings_csv_export)
      Botão Importar tudo: visível se tem bulk_import em pelo menos uma seção */
-  const canCsvExport = isSu || !!myP.manage_settings
-    || CSV_SECTION_PERMS.some(p => !!(myP[`${p}_view`] || myP[p]))
+  const canCsvExport = isSu || !!myP.manage_settings || !!myP.settings_csv_export
   const canCsvImport = isSu || !!myP.manage_settings
     || CSV_SECTION_PERMS.some(p => !!(myP[`${p}_bulk_import`]))
 
