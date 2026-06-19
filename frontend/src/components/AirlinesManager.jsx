@@ -192,7 +192,7 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 
 const PAGE_SIZE = 50
 
-export default function AirlinesManager({ canEdit = true, canDelete = true }) {
+export default function AirlinesManager({ canEdit = true, canDelete = true, canExport = true }) {
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)

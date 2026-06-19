@@ -61,8 +61,9 @@ function splitCsvLineSettings(line) {
 
 /* CSV combinado — inclui listas simples + acomodações + países + estados + cidades
                   + tipos de documento + aeroportos + companhias aéreas
+                  + perfis de permissão + mapas de ônibus
    Formato: lista,nome,pessoas,casal,pais,estado,codigo */
-function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, filename) {
+function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
   const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
@@ -88,6 +89,13 @@ function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, 
   })
   cities.forEach(c => {
     rows.push(`${q('Cidades')},${q(c.name)},,,${q(c.country)},${q(c.state)},`)
+  })
+  permProfiles.forEach(p => {
+    const active = Object.entries(p.permissions ?? {}).filter(([, v]) => v).map(([k]) => k).join('|')
+    rows.push(`${q('Perfis de Permissão')},${q(p.name)},,,,,${q(active)}`)
+  })
+  busMaps.forEach(m => {
+    rows.push(`${q('Mapas de Ônibus')},${q(m.label)},${m.rows?.length ?? 0},,,,`)
   })
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
@@ -131,7 +139,7 @@ const btnCsv = (color) => ({
 })
 
 /* ── CsvButtons — abre popup de importação antes de navegar para revisão ── */
-function CsvButtons({ items, filename, type, canImport = false }) {
+function CsvButtons({ items, filename, type, canImport = false, canExport = true }) {
   const navigate    = useNavigate()
   const [showPopup, setShowPopup] = useState(false)
 
@@ -150,9 +158,11 @@ function CsvButtons({ items, filename, type, canImport = false }) {
 
   return (
     <div style={{ display: 'flex', gap: 6 }}>
-      <button style={btnCsv('#059669')} onClick={() => exportCsv(items, filename)} title="Exportar como CSV">
-        ⬇ Exportar
-      </button>
+      {canExport && (
+        <button style={btnCsv('#059669')} onClick={() => exportCsv(items, filename)} title="Exportar como CSV">
+          ⬇ Exportar
+        </button>
+      )}
       {canImport && (
         <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} title="Importar de CSV">
           ⬆ Importar
@@ -172,7 +182,7 @@ function CsvButtons({ items, filename, type, canImport = false }) {
 }
 
 /* ── ItemList (Profissões / Idiomas) ── */
-function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addTitle, editTitle, filename, type, canImport = false }) {
+function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addTitle, editTitle, filename, type, canImport = false, canExport = true }) {
   const [search,  setSearch]  = useState('')
   const [confirm, setConfirm] = useState(null) // {id, name}
   const [showAdd, setShowAdd] = useState(false)
@@ -193,7 +203,7 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
         {onAdd && <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>}
-        <CsvButtons items={items} filename={filename} type={type} canImport={canImport} />
+        <CsvButtons items={items} filename={filename} type={type} canImport={canImport} canExport={canExport} />
       </div>
 
       <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
@@ -797,7 +807,7 @@ function exportProfilesCsv(profiles) {
   URL.revokeObjectURL(url)
 }
 
-function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport = false }) {
+function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
   const [profiles,        setProfiles]        = useState([])
   const [loading,         setLoading]         = useState(true)
   const [search,          setSearch]          = useState('')
@@ -858,7 +868,7 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
           onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
         {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
         <div style={{ display:'flex', gap:6 }}>
-          <button style={btnCsv('#059669')} onClick={() => exportProfilesCsv(profiles)} title="Exportar como CSV">⬇ Exportar</button>
+          {canExport && <button style={btnCsv('#059669')} onClick={() => exportProfilesCsv(profiles)} title="Exportar como CSV">⬇ Exportar</button>}
           {canImport && <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>}
           {canImport && showImportPopup && (
             <CsvImportPopup
@@ -948,6 +958,7 @@ export default function Settings() {
     'settings_crew_roles', 'settings_list_categories',
     'settings_accommodations', 'settings_countries',
     'settings_airports', 'settings_airlines',
+    'settings_user_profiles', 'settings_bus_maps',
   ]
   /* Botão Exportar: visível se pode VER pelo menos uma seção do CSV
      Botão Importar tudo: visível se tem bulk_import em pelo menos uma seção */
@@ -1179,14 +1190,16 @@ export default function Settings() {
     try {
       const sel = selectedKeys ?? null
       const include = (key) => !sel || sel.has(key)
-      const viewableGroups = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'view') && include(g.key))
-      const viewCountries  = can('settings_countries',      'view') && include('countries')
-      const viewAccoms     = can('settings_accommodations', 'view') && include('accommodations')
-      const viewDocTypes   = can('settings_doc_types',      'view') && include('doc_types')
-      const viewAirports   = can('settings_airports',       'view') && include('airports')
-      const viewAirlines   = can('settings_airlines',       'view') && include('airlines')
+      const viewableGroups  = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'view') && include(g.key))
+      const viewCountries   = can('settings_countries',      'view') && include('countries')
+      const viewAccoms      = can('settings_accommodations', 'view') && include('accommodations')
+      const viewDocTypes    = can('settings_doc_types',      'view') && include('doc_types')
+      const viewAirports    = can('settings_airports',       'view') && include('airports')
+      const viewAirlines    = can('settings_airlines',       'view') && include('airlines')
+      const viewPermProfiles= can('settings_user_profiles',  'view') && include('perm_profiles')
+      const viewBusMaps     = can('settings_bus_maps',       'view') && include('bus_maps')
       let cRes = { data: [] }, sRes = { data: [] }, cities = []
-      let dtData = [], apData = [], alData = []
+      let dtData = [], apData = [], alData = [], ppData = [], bmData = []
       const fetches = []
       if (viewCountries) fetches.push(
         Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
@@ -1198,11 +1211,13 @@ export default function Settings() {
             cities = parsedCities
           })
       )
-      if (viewDocTypes) fetches.push(configApi.docTypes().then(r => { dtData = r.data }))
-      if (viewAirports) fetches.push(configApi.airports({ page_size: 10000 }).then(r => { apData = r.data.results ?? r.data }))
-      if (viewAirlines) fetches.push(configApi.airlines({ page_size: 10000 }).then(r => { alData = r.data.results ?? r.data }))
+      if (viewDocTypes)     fetches.push(configApi.docTypes().then(r => { dtData = r.data }))
+      if (viewAirports)     fetches.push(configApi.airports({ page_size: 10000 }).then(r => { apData = r.data.results ?? r.data }))
+      if (viewAirlines)     fetches.push(configApi.airlines({ page_size: 10000 }).then(r => { alData = r.data.results ?? r.data }))
+      if (viewPermProfiles) fetches.push(configApi.permissionProfiles().then(r => { ppData = r.data.results ?? r.data }))
+      if (viewBusMaps)      fetches.push(configApi.busMaps().then(r => { bmData = r.data.results ?? r.data }))
       await Promise.all(fetches)
-      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, 'todas_as_configuracoes.csv')
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, 'todas_as_configuracoes.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -1365,6 +1380,8 @@ export default function Settings() {
           ...(can('settings_airports',       'view') ? [{ key: 'airports',       label: 'Aeroportos' }] : []),
           ...(can('settings_airlines',       'view') ? [{ key: 'airlines',       label: 'Companhias Aéreas' }] : []),
           ...(can('settings_countries',      'view') ? [{ key: 'countries',      label: 'Países, Estados e Cidades' }] : []),
+          ...(can('settings_user_profiles',  'view') ? [{ key: 'perm_profiles',  label: 'Perfis de Permissão' }] : []),
+          ...(can('settings_bus_maps',       'view') ? [{ key: 'bus_maps',       label: 'Mapas de Ônibus' }] : []),
         ]
         return (
           <CsvExportModal
@@ -1409,22 +1426,22 @@ export default function Settings() {
               </div>
               <div style={{ flex:1, overflowY:'auto', padding:'18px 24px' }}>
                 {activeDef.key === 'doc_types'       && <DocTypesManager canEdit={can('settings_doc_types','edit')} canDelete={can('settings_doc_types','delete')} />}
-                {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} canImport={isSu || !!myP.manage_settings} />}
-                {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       canImport={can('settings_professions','bulk_import')}      placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
-                {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
-                {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
-                {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
-                {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
-                {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
-                {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}   loading={loadingCR} onAdd={can('settings_crew_roles','edit') ? addCrewRole : undefined}          onUpdate={can('settings_crew_roles','edit') ? updateCrewRole : undefined}          onDelete={can('settings_crew_roles','delete') ? delCrewRole : undefined}          canImport={can('settings_crew_roles','bulk_import')}       placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
-                {activeDef.key === 'accommodations'  && <AccommodationManager canEdit={can('settings_accommodations','edit')} canDelete={can('settings_accommodations','delete')} canImport={can('settings_accommodations','bulk_import')} items={accoms} loading={loadingAc} onRefresh={() => {
+                {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} canImport={isSu || !!myP.manage_settings} canExport={can('settings_user_profiles','view')} />}
+                {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       canImport={can('settings_professions','bulk_import')}      canExport={can('settings_professions','view')}      placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
+                {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        canExport={can('settings_languages','view')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
+                {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         canExport={can('settings_vaccines','view')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
+                {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          canExport={can('settings_genders','view')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
+                {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       canExport={can('settings_prof_cards','view')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
+                {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} canExport={can('settings_list_additionals','view')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
+                {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}   loading={loadingCR} onAdd={can('settings_crew_roles','edit') ? addCrewRole : undefined}          onUpdate={can('settings_crew_roles','edit') ? updateCrewRole : undefined}          onDelete={can('settings_crew_roles','delete') ? delCrewRole : undefined}          canImport={can('settings_crew_roles','bulk_import')}       canExport={can('settings_crew_roles','view')}       placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
+                {activeDef.key === 'accommodations'  && <AccommodationManager canEdit={can('settings_accommodations','edit')} canDelete={can('settings_accommodations','delete')} canImport={can('settings_accommodations','bulk_import')} canExport={can('settings_accommodations','view')} items={accoms} loading={loadingAc} onRefresh={() => {
                   setLoadingAc(true)
                   configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingAc(false))
                 }} />}
-                {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={can('settings_list_categories','edit') ? addListCategory : undefined} onUpdate={can('settings_list_categories','edit') ? updateListCategory : undefined} onDelete={can('settings_list_categories','delete') ? delListCategory : undefined} canImport={can('settings_list_categories','bulk_import')} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
+                {activeDef.key === 'list_categories' && <ItemList items={listCats}    loading={loadingLC} onAdd={can('settings_list_categories','edit') ? addListCategory : undefined} onUpdate={can('settings_list_categories','edit') ? updateListCategory : undefined} onDelete={can('settings_list_categories','delete') ? delListCategory : undefined} canImport={can('settings_list_categories','bulk_import')} canExport={can('settings_list_categories','view')} placeholder="Nome da categoria…" addTitle="Nova categoria" editTitle="Editar categoria" filename="categorias_lista.csv" type="list_categories" />}
                 {activeDef.key === 'countries'       && <CountriesTab canEdit={can('settings_countries','edit')} canDelete={can('settings_countries','delete')} canImport={can('settings_countries','bulk_import')} />}
-                {activeDef.key === 'airports'        && <AirportsManager canEdit={can('settings_airports','edit')} canDelete={can('settings_airports','delete')} canImport={can('settings_airports','bulk_import')} />}
-                {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} />}
+                {activeDef.key === 'airports'        && <AirportsManager canEdit={can('settings_airports','edit')} canDelete={can('settings_airports','delete')} canImport={can('settings_airports','bulk_import')} canExport={can('settings_airports','view')} />}
+                {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} canExport={can('settings_airlines','view')} />}
                 {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} />}
               </div>
             </div>

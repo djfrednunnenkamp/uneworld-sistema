@@ -204,7 +204,7 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 
 const PAGE_SIZE = 50
 
-export default function AirportsManager({ canEdit = true, canDelete = true, canImport = false }) {
+export default function AirportsManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
@@ -352,9 +352,11 @@ export default function AirportsManager({ canEdit = true, canDelete = true, canI
             + Adicionar
           </button>
         )}
-        <button style={btnCsv('#059669')} onClick={exportCsv} disabled={exporting} title="Exportar como CSV">
-          {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
-        </button>
+        {canExport && (
+          <button style={btnCsv('#059669')} onClick={exportCsv} disabled={exporting} title="Exportar como CSV">
+            {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
+          </button>
+        )}
         {canImport && (
           <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} disabled={importing} title="Importar de CSV">
             {importing ? '⏳ Importando…' : '⬆ Importar'}
