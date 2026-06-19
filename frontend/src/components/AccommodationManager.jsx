@@ -152,7 +152,7 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
   )
 }
 
-export default function AccommodationManager({ items, loading, onRefresh, canEdit = true, canDelete = true }) {
+export default function AccommodationManager({ items, loading, onRefresh, canEdit = true, canDelete = true, canImport = false }) {
   const [search,     setSearch]     = useState('')
   const [showForm,   setShowForm]   = useState(false) // false | true (novo) | item (edição)
   const [showPopup,  setShowPopup]  = useState(false)
@@ -209,12 +209,12 @@ export default function AccommodationManager({ items, loading, onRefresh, canEdi
         <button style={btnCsv('#059669')} onClick={() => exportAccomCsv(items)} title="Exportar como CSV">
           ⬇ Exportar
         </button>
-        {canEdit && (
+        {canImport && (
           <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} title="Importar de CSV">
             ⬆ Importar
           </button>
         )}
-        {canEdit && showPopup && (
+        {canImport && showPopup && (
           <CsvImportPopup
             title="Importar Acomodações"
             sampleContent={CSV_SAMPLES.accommodations.content}

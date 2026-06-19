@@ -109,6 +109,7 @@ export const PERM_GROUPS = [
           ['settings_doc_types_edit',         'Criar / Editar tipos de documento'],
           ['settings_doc_types_delete',       'Excluir tipos de documento'],
           ['settings_doc_types_bulk_delete',  'Exclusão em massa via CSV'],
+          ['settings_doc_types_bulk_import',  'Importação em massa via CSV'],
         ],
       },
       {
@@ -126,6 +127,7 @@ export const PERM_GROUPS = [
           ['settings_professions_edit',        'Criar / Editar profissões'],
           ['settings_professions_delete',      'Excluir profissões'],
           ['settings_professions_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_professions_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -135,6 +137,7 @@ export const PERM_GROUPS = [
           ['settings_languages_edit',        'Criar / Editar idiomas'],
           ['settings_languages_delete',      'Excluir idiomas'],
           ['settings_languages_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_languages_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -144,6 +147,7 @@ export const PERM_GROUPS = [
           ['settings_vaccines_edit',        'Criar / Editar vacinas'],
           ['settings_vaccines_delete',      'Excluir vacinas'],
           ['settings_vaccines_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_vaccines_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -153,6 +157,7 @@ export const PERM_GROUPS = [
           ['settings_genders_edit',        'Criar / Editar gêneros'],
           ['settings_genders_delete',      'Excluir gêneros'],
           ['settings_genders_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_genders_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -162,6 +167,7 @@ export const PERM_GROUPS = [
           ['settings_prof_cards_edit',        'Criar / Editar carteiras profissionais'],
           ['settings_prof_cards_delete',      'Excluir carteiras profissionais'],
           ['settings_prof_cards_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_prof_cards_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -171,6 +177,7 @@ export const PERM_GROUPS = [
           ['settings_list_additionals_edit',        'Criar / Editar itens adicionais de lista'],
           ['settings_list_additionals_delete',      'Excluir itens adicionais de lista'],
           ['settings_list_additionals_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_list_additionals_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -180,6 +187,7 @@ export const PERM_GROUPS = [
           ['settings_crew_roles_edit',        'Criar / Editar funções de tripulante'],
           ['settings_crew_roles_delete',      'Excluir funções de tripulante'],
           ['settings_crew_roles_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_crew_roles_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -189,6 +197,7 @@ export const PERM_GROUPS = [
           ['settings_accommodations_edit',        'Criar / Editar tipos de acomodação'],
           ['settings_accommodations_delete',      'Excluir tipos de acomodação'],
           ['settings_accommodations_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_accommodations_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -198,6 +207,7 @@ export const PERM_GROUPS = [
           ['settings_list_categories_edit',        'Criar / Editar categorias de acomodação'],
           ['settings_list_categories_delete',      'Excluir categorias de acomodação'],
           ['settings_list_categories_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_list_categories_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -207,6 +217,7 @@ export const PERM_GROUPS = [
           ['settings_countries_edit',        'Criar / Editar países, estados e cidades'],
           ['settings_countries_delete',      'Excluir países, estados e cidades'],
           ['settings_countries_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_countries_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -216,6 +227,7 @@ export const PERM_GROUPS = [
           ['settings_airports_edit',        'Criar / Editar aeroportos'],
           ['settings_airports_delete',      'Excluir aeroportos'],
           ['settings_airports_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_airports_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -225,6 +237,7 @@ export const PERM_GROUPS = [
           ['settings_airlines_edit',        'Criar / Editar companhias aéreas'],
           ['settings_airlines_delete',      'Excluir companhias aéreas'],
           ['settings_airlines_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_airlines_bulk_import', 'Importação em massa via CSV'],
         ],
       },
       {
@@ -366,6 +379,21 @@ export const PERM_DEPENDENCIES = {
   settings_bus_maps_view:   'settings_view',
   settings_bus_maps_edit:   'settings_bus_maps_view',
   settings_bus_maps_delete: 'settings_bus_maps_view',
+
+  // bulk_import depende de _edit (igual ao bulk_delete que depende de _delete)
+  settings_professions_bulk_import:      'settings_professions_edit',
+  settings_languages_bulk_import:        'settings_languages_edit',
+  settings_vaccines_bulk_import:         'settings_vaccines_edit',
+  settings_genders_bulk_import:          'settings_genders_edit',
+  settings_prof_cards_bulk_import:       'settings_prof_cards_edit',
+  settings_list_additionals_bulk_import: 'settings_list_additionals_edit',
+  settings_crew_roles_bulk_import:       'settings_crew_roles_edit',
+  settings_list_categories_bulk_import:  'settings_list_categories_edit',
+  settings_accommodations_bulk_import:   'settings_accommodations_edit',
+  settings_doc_types_bulk_import:        'settings_doc_types_edit',
+  settings_airports_bulk_import:         'settings_airports_edit',
+  settings_airlines_bulk_import:         'settings_airlines_edit',
+  settings_countries_bulk_import:        'settings_countries_edit',
 
   // CSV buttons appear only when at least one section view/edit perm is active
   settings_csv_export: [
