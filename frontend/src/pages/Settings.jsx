@@ -779,7 +779,7 @@ function exportProfilesCsv(profiles) {
   URL.revokeObjectURL(url)
 }
 
-function PermissionProfilesManager({ canEdit = true, canDelete = true }) {
+function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport = false }) {
   const [profiles,        setProfiles]        = useState([])
   const [loading,         setLoading]         = useState(true)
   const [search,          setSearch]          = useState('')
@@ -841,8 +841,8 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true }) {
         {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
         <div style={{ display:'flex', gap:6 }}>
           <button style={btnCsv('#059669')} onClick={() => exportProfilesCsv(profiles)} title="Exportar como CSV">⬇ Exportar</button>
-          {canEdit && <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>}
-          {canEdit && showImportPopup && (
+          {canImport && <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>}
+          {canImport && showImportPopup && (
             <CsvImportPopup
               title="Importar Perfis de Permissão"
               sampleContent={CSV_SAMPLES.perm_profiles?.content}
@@ -1317,7 +1317,7 @@ export default function Settings() {
       {activeDef && (
         <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>
           {activeDef.key === 'doc_types'       && <DocTypesManager canEdit={can('settings_doc_types','edit')} canDelete={can('settings_doc_types','delete')} />}
-          {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} />}
+          {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} canImport={isSu || !!myP.manage_settings} />}
           {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       canImport={can('settings_professions','bulk_import')}      placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
           {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
           {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
