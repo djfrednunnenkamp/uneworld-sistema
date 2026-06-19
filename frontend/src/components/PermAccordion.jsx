@@ -47,7 +47,9 @@ export function PermAccordionItem({ group, permissions, onToggle, onToggleAll })
 
   const visibleItems = (its) => its.filter(([key]) => {
     const baseKey = PERM_DEPENDENCIES[key]
-    return !baseKey || !!permissions?.[baseKey]
+    if (!baseKey) return true
+    if (Array.isArray(baseKey)) return baseKey.some(k => !!permissions?.[k])
+    return !!permissions?.[baseKey]
   })
 
   const renderCheckboxes = (its) => (

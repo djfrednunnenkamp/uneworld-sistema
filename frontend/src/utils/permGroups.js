@@ -281,9 +281,6 @@ export const PERM_DEPENDENCIES = {
   users_manage_permissions: 'users_view',
   users_set_password:       'users_view',
 
-  settings_csv_import: 'settings_view',
-  settings_csv_export: 'settings_view',
-
   settings_doc_types_view:   'settings_view',
   settings_doc_types_edit:   'settings_doc_types_view',
   settings_doc_types_delete: 'settings_doc_types_view',
@@ -344,6 +341,22 @@ export const PERM_DEPENDENCIES = {
   settings_bus_maps_edit:   'settings_bus_maps_view',
   settings_bus_maps_delete: 'settings_bus_maps_view',
 
+  // CSV buttons appear only when at least one section view/edit perm is active
+  settings_csv_export: [
+    'settings_doc_types_view', 'settings_professions_view', 'settings_languages_view',
+    'settings_vaccines_view', 'settings_genders_view', 'settings_prof_cards_view',
+    'settings_list_additionals_view', 'settings_crew_roles_view', 'settings_list_categories_view',
+    'settings_accommodations_view', 'settings_countries_view',
+    'settings_airports_view', 'settings_airlines_view',
+  ],
+  settings_csv_import: [
+    'settings_doc_types_edit', 'settings_professions_edit', 'settings_languages_edit',
+    'settings_vaccines_edit', 'settings_genders_edit', 'settings_prof_cards_edit',
+    'settings_list_additionals_edit', 'settings_crew_roles_edit', 'settings_list_categories_edit',
+    'settings_accommodations_edit', 'settings_countries_edit',
+    'settings_airports_edit', 'settings_airlines_edit',
+  ],
+
   log_passengers: 'log_view',
   log_lists:      'log_view',
   log_agencies:   'log_view',
@@ -368,7 +381,10 @@ export const PRESET_USER       = Object.fromEntries(ALL_PERM_KEYS.map(k => [k, !
 export const sanitizePerms = perms => {
   const out = { ...perms }
   for (const [depKey, baseKey] of Object.entries(PERM_DEPENDENCIES)) {
-    if (!out[baseKey]) out[depKey] = false
+    const satisfied = Array.isArray(baseKey)
+      ? baseKey.some(k => out[k])
+      : out[baseKey]
+    if (!satisfied) out[depKey] = false
   }
   return out
 }

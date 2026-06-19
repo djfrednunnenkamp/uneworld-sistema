@@ -70,6 +70,9 @@ const API_MAP = {
   crew_roles:      { add: (name)         => listsApi.addCrewRole(name),       label: 'Equipe técnica' },
   list_categories: { add: (name)         => configApi.addListCategory(name),  label: 'Categoria de Acomodações' },
   accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), label: 'Acomodações' },
+  doc_types:       { add: (name, extras) => configApi.addDocType({ label: name, key: extras.code || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), icon: '📄', color: '#475569' }), label: 'Documentos' },
+  airports:        { add: (name, extras) => configApi.addAirport({ name, iata_code: extras.code || '', city: extras.parent_state || '', country: extras.parent_country || '' }), label: 'Aeroportos' },
+  airlines:        { add: (name, extras) => configApi.addAirline({ name, iata_code: extras.code || '', country: extras.parent_country || '' }), label: 'Companhias Aéreas' },
   countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), label: 'Países' },
   states:          { add: (name, extras, ctx) => {
     const c = (ctx?.allCountries || []).find(x => x.name.toLowerCase() === (extras.parent_country || '').toLowerCase())
@@ -417,6 +420,15 @@ export default function FlatImport() {
                         <td style={{padding:'9px 12px', fontSize:12, color:'#64748b'}}>
                           {row.listKey === 'accommodations' && row.extras && (
                             <span>{row.extras.capacity ?? 1}p{row.extras.is_couple ? ' · casal' : ''}</span>
+                          )}
+                          {row.listKey === 'doc_types' && row.extras?.code && (
+                            <span style={{fontFamily:'monospace'}}>{row.extras.code}</span>
+                          )}
+                          {row.listKey === 'airports' && (
+                            <span>{[row.extras?.code, row.extras?.parent_state, row.extras?.parent_country].filter(Boolean).join(' · ')}</span>
+                          )}
+                          {row.listKey === 'airlines' && (
+                            <span>{[row.extras?.code, row.extras?.parent_country].filter(Boolean).join(' · ')}</span>
                           )}
                           {row.listKey === 'countries' && row.extras?.code && (
                             <span style={{fontFamily:'monospace'}}>{row.extras.code}</span>

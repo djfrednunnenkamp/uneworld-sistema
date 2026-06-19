@@ -57,8 +57,9 @@ function splitCsvLineSettings(line) {
 }
 
 /* CSV combinado — inclui listas simples + acomodações + países + estados + cidades
+                  + tipos de documento + aeroportos + companhias aéreas
    Formato: lista,nome,pessoas,casal,pais,estado,codigo */
-function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, filename) {
+function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
   const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
@@ -66,6 +67,15 @@ function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, 
   })
   accoms.forEach(a => {
     rows.push(`${q('Acomodações')},${q(a.name)},${a.capacity},${a.is_couple ? 'sim' : 'não'},,,`)
+  })
+  docTypes.forEach(d => {
+    rows.push(`${q('Documentos')},${q(d.label)},,,,,${q(d.key || '')}`)
+  })
+  airports.forEach(a => {
+    rows.push(`${q('Aeroportos')},${q(a.name)},,,${q(a.country || '')},${q(a.city || '')},${q(a.iata_code || '')}`)
+  })
+  airlines.forEach(a => {
+    rows.push(`${q('Companhias Aéreas')},${q(a.name)},,,${q(a.country || '')},,${q(a.iata_code || '')}`)
   })
   countries.forEach(c => {
     rows.push(`${q('Países')},${q(c.name)},,,,,${q(c.code || '')}`)
@@ -896,10 +906,12 @@ export default function Settings() {
   }
   /* Seções que fazem parte do CSV combinado */
   const CSV_SECTION_PERMS = [
+    'settings_doc_types',
     'settings_professions', 'settings_languages', 'settings_vaccines',
     'settings_genders', 'settings_prof_cards', 'settings_list_additionals',
     'settings_crew_roles', 'settings_list_categories',
     'settings_accommodations', 'settings_countries',
+    'settings_airports', 'settings_airlines',
   ]
   /* Botão Exportar: visível se pode VER pelo menos uma seção do CSV
      Botão Importar: visível se pode EDITAR pelo menos uma seção do CSV */
@@ -1118,18 +1130,25 @@ export default function Settings() {
       const viewableGroups = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'view'))
       const viewCountries  = can('settings_countries',     'view')
       const viewAccoms     = can('settings_accommodations', 'view')
+      const viewDocTypes   = can('settings_doc_types',     'view')
+      const viewAirports   = can('settings_airports',      'view')
+      const viewAirlines   = can('settings_airlines',      'view')
       let cRes = { data: [] }, sRes = { data: [] }, cities = []
-      if (viewCountries) {
-        const [cr, sr, geoRes] = await Promise.all([
-          configApi.countries(),
-          configApi.allStates(),
-          configApi.geoExport(),
-        ])
-        cRes = cr; sRes = sr
-        const geoText = await geoRes.data.text()
-        cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
-      }
-      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, 'todas_as_listas.csv')
+      let dtData = [], apData = [], alData = []
+      const fetches = []
+      if (viewCountries) fetches.push(
+        Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
+          .then(async ([cr, sr, geoRes]) => {
+            cRes = cr; sRes = sr
+            const geoText = await geoRes.data.text()
+            cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
+          })
+      )
+      if (viewDocTypes) fetches.push(configApi.docTypes().then(r => { dtData = r.data }))
+      if (viewAirports) fetches.push(configApi.airports({ page_size: 10000 }).then(r => { apData = r.data.results ?? r.data }))
+      if (viewAirlines) fetches.push(configApi.airlines({ page_size: 10000 }).then(r => { alData = r.data.results ?? r.data }))
+      await Promise.all(fetches)
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, 'todas_as_configuracoes.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -1141,22 +1160,34 @@ export default function Settings() {
     const editableGroups   = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'edit'))
     const canEditCountries = can('settings_countries',     'edit')
     const canEditAccoms    = can('settings_accommodations', 'edit')
-    let allCountries = []
-    if (canEditCountries) {
-      try { allCountries = (await configApi.countries()).data } catch {}
-    }
+    const canEditDocTypes  = can('settings_doc_types',     'edit')
+    const canEditAirports  = can('settings_airports',      'edit')
+    const canEditAirlines  = can('settings_airlines',      'edit')
+    let allCountries = [], allDocTypes = [], allAirports = [], allAirlines = []
+    const fetches2 = []
+    if (canEditCountries) fetches2.push(configApi.countries().then(r => { allCountries = r.data }).catch(() => {}))
+    if (canEditDocTypes)  fetches2.push(configApi.docTypes().then(r => { allDocTypes = r.data }).catch(() => {}))
+    if (canEditAirports)  fetches2.push(configApi.airports({ page_size: 10000 }).then(r => { allAirports = r.data.results ?? r.data }).catch(() => {}))
+    if (canEditAirlines)  fetches2.push(configApi.airlines({ page_size: 10000 }).then(r => { allAirlines = r.data.results ?? r.data }).catch(() => {}))
+    await Promise.all(fetches2)
     const permittedKeys = [
       ...editableGroups.map(g => g.key),
       ...(canEditAccoms    ? ['accommodations']                   : []),
       ...(canEditCountries ? ['countries', 'states', 'cities']   : []),
+      ...(canEditDocTypes  ? ['doc_types']                       : []),
+      ...(canEditAirports  ? ['airports']                        : []),
+      ...(canEditAirlines  ? ['airlines']                        : []),
     ]
     navigate('/configuracoes/import', {
       state: {
         csvText, filename: file.name, type: 'all',
         existingByType: {
           ...Object.fromEntries(editableGroups.map(g => [g.key, g.items.map(i => i.name)])),
-          ...(canEditAccoms    ? { accommodations: accoms.map(a => a.name) }         : {}),
-          ...(canEditCountries ? { countries: allCountries.map(c => c.name) }        : {}),
+          ...(canEditAccoms    ? { accommodations: accoms.map(a => a.name) }        : {}),
+          ...(canEditCountries ? { countries: allCountries.map(c => c.name) }       : {}),
+          ...(canEditDocTypes  ? { doc_types: allDocTypes.map(d => d.label) }       : {}),
+          ...(canEditAirports  ? { airports: allAirports.map(a => a.name) }         : {}),
+          ...(canEditAirlines  ? { airlines: allAirlines.map(a => a.name) }         : {}),
         },
         permittedKeys,
         allCountries,
