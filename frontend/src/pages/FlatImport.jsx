@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../context/AuthContext'
+import { Ic } from '../components/Icon'
 
 function parseCsvNames(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
@@ -171,14 +172,16 @@ export default function FlatImport() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSu, isAll, type, myP, existingByType])
 
-  const [rows,       setRows]       = useState([])
-  const [mode,       setMode]       = useState('new')
-  const [phase,      setPhase]      = useState('review')
-  const [result,     setResult]     = useState(null)
-  const [filter,     setFilter]     = useState('all')
-  const [search,     setSearch]     = useState('')
-  const [selected,   setSelected]   = useState(new Set())
-  const [confirm,    setConfirm]    = useState(null) // { type:'bulk'|'single', id?, count? }
+  const [rows,        setRows]        = useState([])
+  const [mode,        setMode]        = useState('new')
+  const [phase,       setPhase]       = useState('review')
+  const [result,      setResult]      = useState(null)
+  const [filter,      setFilter]      = useState('all')
+  const [search,      setSearch]      = useState('')
+  const [selected,    setSelected]    = useState(new Set())
+  const [confirm,     setConfirm]     = useState(null) // { type:'bulk'|'single', id?, count? }
+  const [parsing,     setParsing]     = useState(!!csvText)
+  const [visibleCount,setVisibleCount]= useState(20)
 
   /* Conjuntos de nomes já existentes — um por lista (modo combinado) ou um único (modo simples) */
   const existingSets = useMemo(() => {
@@ -207,21 +210,29 @@ export default function FlatImport() {
 
   useEffect(() => {
     if (!csvText) { navigate(backPath); return }
-    if (isAll) {
-      const parsed = parseCombinedCsv(csvText, LABEL_TO_KEY)
-      setRows(parsed.map((r, i) => ({
-        id: i + 1, name: r.name, listKey: r.listKey, listLabel: r.listKey ? API_MAP[r.listKey].label : r.listLabel,
-        extras: r.extras || {},
-        status: rowStatus(r.name, r.listKey, r.extras || {}),
-      })))
-    } else {
-      const names = parseCsvNames(csvText)
-      setRows(names.map((name, i) => ({
-        id: i + 1, name, listKey: type, listLabel: apiDef.label, extras: {},
-        status: rowStatus(name, type),
-      })))
-    }
+    // Defer heavy parsing so the loading screen renders first
+    const timer = setTimeout(() => {
+      if (isAll) {
+        const parsed = parseCombinedCsv(csvText, LABEL_TO_KEY)
+        setRows(parsed.map((r, i) => ({
+          id: i + 1, name: r.name, listKey: r.listKey, listLabel: r.listKey ? API_MAP[r.listKey].label : r.listLabel,
+          extras: r.extras || {},
+          status: rowStatus(r.name, r.listKey, r.extras || {}),
+        })))
+      } else {
+        const names = parseCsvNames(csvText)
+        setRows(names.map((name, i) => ({
+          id: i + 1, name, listKey: type, listLabel: apiDef.label, extras: {},
+          status: rowStatus(name, type),
+        })))
+      }
+      setParsing(false)
+    }, 60)
+    return () => clearTimeout(timer)
   }, [])
+
+  // Reset pagination when filter/search changes
+  useEffect(() => { setVisibleCount(20) }, [filter, search])
 
   const editRow = (id, name) => setRows(prev => prev.map(r => r.id === id
     ? { ...r, name, status: rowStatus(name, r.listKey) }
@@ -339,6 +350,20 @@ export default function FlatImport() {
     setResult({ added, deleted, skipped })
     setPhase('done')
   }
+
+  if (parsing) return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:20, padding:60 }}>
+      <div style={{ color:'#2e6db4' }}><Ic n="ul" s={48}/></div>
+      <div style={{ textAlign:'center' }}>
+        <h2 style={{ fontSize:18, fontWeight:700, color:'#0f172a', margin:'0 0 8px' }}>Analisando arquivo…</h2>
+        <p style={{ fontSize:13, color:'#64748b', margin:0 }}>Aguarde enquanto processamos o CSV.</p>
+      </div>
+      <div style={{ width:280, background:'#e2e8f0', borderRadius:99, height:8, overflow:'hidden' }}>
+        <div style={{ height:'100%', borderRadius:99, background:'#2e6db4', animation:'parseProgress 1.4s ease-in-out infinite alternate' }}/>
+      </div>
+      <style>{`@keyframes parseProgress { from { width:20% } to { width:88% } }`}</style>
+    </div>
+  )
 
   if (phase === 'done' && result) return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:24, padding:48 }}>
@@ -484,7 +509,7 @@ export default function FlatImport() {
                   <tr><td colSpan={isAll ? 7 : 5} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
                     {search ? 'Nenhum resultado para a busca.' : 'Nenhum item nesta categoria.'}
                   </td></tr>
-                ) : filtered.map((row, idx) => {
+                ) : filtered.slice(0, visibleCount).map((row, idx) => {
                   const isSel = selected.has(row.id)
                   return (
                     <tr key={row.id} style={{ borderTop:'1px solid #f1f5f9', background: isSel ? '#f0f6ff' : idx%2===0 ? '#fff' : '#fafafa' }}>
@@ -543,6 +568,17 @@ export default function FlatImport() {
             </table>
           </div>
         </div>
+
+        {/* Carregar mais */}
+        {visibleCount < filtered.length && (
+          <div style={{ display:'flex', justifyContent:'center', padding:'4px 0 2px' }}>
+            <button
+              onClick={() => setVisibleCount(c => c + 20)}
+              style={{ padding:'8px 28px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              Carregar mais — mostrando {Math.min(visibleCount, filtered.length)} de {filtered.length}
+            </button>
+          </div>
+        )}
 
         {/* Footer */}
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
