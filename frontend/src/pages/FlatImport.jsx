@@ -82,11 +82,16 @@ const API_MAP = {
     return configApi.addState(c.id, name, extras.code || '')
   }, del: (id) => configApi.delState(id), label: 'Estados' },
   cities:          { add: null, del: null, label: 'Cidades' }, // importadas em batch via geoImport
+  perm_profiles:   { add: null, del: null, label: 'Perfis de Permissão' }, // somente exportação
+  bus_maps:        { add: null, del: null, label: 'Mapas de Ônibus' },    // somente exportação
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
   Object.entries(API_MAP).map(([key, def]) => [def.label.toLowerCase(), key])
 )
+
+// Seções que aparecem no CSV exportado mas não podem ser importadas
+const EXPORT_ONLY_KEYS = new Set(['perm_profiles', 'bus_maps'])
 
 const MODES = [
   { key:'new',    label:'Somente adicionar',   desc:'Mantém os existentes, insere apenas os novos.' },
@@ -180,8 +185,9 @@ export default function FlatImport() {
   const [search,      setSearch]      = useState('')
   const [selected,    setSelected]    = useState(new Set())
   const [confirm,     setConfirm]     = useState(null) // { type:'bulk'|'single', id?, count? }
-  const [parsing,     setParsing]     = useState(!!csvText)
-  const [visibleCount,setVisibleCount]= useState(20)
+  const [parsing,            setParsing]           = useState(!!csvText)
+  const [visibleCount,       setVisibleCount]       = useState(20)
+  const [skippedExportOnly,  setSkippedExportOnly]  = useState(0)
 
   /* Conjuntos de nomes já existentes — um por lista (modo combinado) ou um único (modo simples) */
   const existingSets = useMemo(() => {
@@ -214,7 +220,9 @@ export default function FlatImport() {
     const timer = setTimeout(() => {
       if (isAll) {
         const parsed = parseCombinedCsv(csvText, LABEL_TO_KEY)
-        setRows(parsed.map((r, i) => ({
+        const importable = parsed.filter(r => !EXPORT_ONLY_KEYS.has(r.listKey))
+        setSkippedExportOnly(parsed.length - importable.length)
+        setRows(importable.map((r, i) => ({
           id: i + 1, name: r.name, listKey: r.listKey, listLabel: r.listKey ? API_MAP[r.listKey].label : r.listLabel,
           extras: r.extras || {},
           status: rowStatus(r.name, r.listKey, r.extras || {}),
@@ -426,6 +434,16 @@ export default function FlatImport() {
             Revise os itens antes de confirmar. Clique em qualquer nome para editar. Selecione e apague linhas indesejadas antes de importar.
           </p>
         </div>
+
+        {/* Aviso de seções ignoradas (exportadas mas não importáveis) */}
+        {skippedExportOnly > 0 && (
+          <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'10px 16px', display:'flex', gap:10, alignItems:'flex-start' }}>
+            <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
+            <p style={{ fontSize:13, color:'#92400e', margin:0 }}>
+              <strong>{skippedExportOnly} linha{skippedExportOnly !== 1 ? 's' : ''} ignorada{skippedExportOnly !== 1 ? 's' : ''}:</strong> seções de somente exportação (Perfis de Permissão, Mapas de Ônibus) não podem ser reimportadas e foram removidas da lista.
+            </p>
+          </div>
+        )}
 
         {/* Modo */}
         <div>

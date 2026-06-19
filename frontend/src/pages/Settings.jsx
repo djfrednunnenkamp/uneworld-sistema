@@ -1228,9 +1228,13 @@ export default function Settings() {
     const canImportDocTypes  = can('settings_doc_types',      'bulk_import')
     const canImportAirports  = can('settings_airports',       'bulk_import')
     const canImportAirlines  = can('settings_airlines',       'bulk_import')
-    let allCountries = [], allDocTypes = [], allAirports = [], allAirlines = []
+    let allCountries = [], allStates = [], allDocTypes = [], allAirports = [], allAirlines = []
     const fetches2 = []
-    if (canImportCountries) fetches2.push(configApi.countries().then(r => { allCountries = r.data }).catch(() => {}))
+    if (canImportCountries) fetches2.push(
+      Promise.all([configApi.countries(), configApi.allStates()])
+        .then(([cr, sr]) => { allCountries = cr.data; allStates = sr.data })
+        .catch(() => {})
+    )
     if (canImportDocTypes)  fetches2.push(configApi.docTypes().then(r => { allDocTypes = r.data }).catch(() => {}))
     if (canImportAirports)  fetches2.push(configApi.airports({ page_size: 10000 }).then(r => { allAirports = r.data.results ?? r.data }).catch(() => {}))
     if (canImportAirlines)  fetches2.push(configApi.airlines({ page_size: 10000 }).then(r => { allAirlines = r.data.results ?? r.data }).catch(() => {}))
@@ -1249,7 +1253,7 @@ export default function Settings() {
         existingByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items.map(i => i.name)])),
           ...(canImportAccoms    ? { accommodations: accoms.map(a => a.name) }        : {}),
-          ...(canImportCountries ? { countries: allCountries.map(c => c.name) }       : {}),
+          ...(canImportCountries ? { countries: allCountries.map(c => c.name), states: allStates.map(s => s.name) } : {}),
           ...(canImportDocTypes  ? { doc_types: allDocTypes.map(d => d.label) }       : {}),
           ...(canImportAirports  ? { airports: allAirports.map(a => a.name) }         : {}),
           ...(canImportAirlines  ? { airlines: allAirlines.map(a => a.name) }         : {}),
@@ -1257,7 +1261,7 @@ export default function Settings() {
         existingItemsByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items])),
           ...(canImportAccoms    ? { accommodations: accoms }                                             : {}),
-          ...(canImportCountries ? { countries: allCountries }                                            : {}),
+          ...(canImportCountries ? { countries: allCountries, states: allStates }                         : {}),
           ...(canImportDocTypes  ? { doc_types: allDocTypes.map(d => ({ id: d.id, name: d.label })) }    : {}),
           ...(canImportAirports  ? { airports: allAirports }                                              : {}),
           ...(canImportAirlines  ? { airlines: allAirlines }                                              : {}),
