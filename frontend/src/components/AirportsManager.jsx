@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
+import CsvImportPopup from './CsvImportPopup'
+import { CSV_SAMPLES } from '../utils/csvSamples'
 
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
@@ -209,11 +211,11 @@ export default function AirportsManager({ canEdit = true, canDelete = true }) {
   const [search,   setSearch]   = useState('')
   const [debounced,setDebounced]= useState('')
   const [loading,  setLoading]  = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [seeding,  setSeeding]  = useState(false)
-  const [exporting,setExporting]= useState(false)
-  const [importing,setImporting]= useState(false)
-  const fileRef = useRef(null)
+  const [showForm,   setShowForm]   = useState(false)
+  const [seeding,    setSeeding]    = useState(false)
+  const [exporting,  setExporting]  = useState(false)
+  const [importing,  setImporting]  = useState(false)
+  const [showPopup,  setShowPopup]  = useState(false)
 
   // Busca com debounce — evita disparar uma requisição a cada tecla digitada
   useEffect(() => {
@@ -294,10 +296,7 @@ export default function AirportsManager({ canEdit = true, canDelete = true }) {
     }
   }
 
-  const handleFileChosen = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const handleFileChosen = async (file) => {
     const text  = await file.text()
     const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
     if (!lines.length) return
@@ -357,11 +356,19 @@ export default function AirportsManager({ canEdit = true, canDelete = true }) {
           {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
         </button>
         {canEdit && (
-          <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} disabled={importing} title="Importar de CSV">
+          <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} disabled={importing} title="Importar de CSV">
             {importing ? '⏳ Importando…' : '⬆ Importar'}
           </button>
         )}
-        {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />}
+        {canEdit && showPopup && (
+          <CsvImportPopup
+            title="Importar Aeroportos"
+            sampleContent={CSV_SAMPLES.airports.content}
+            sampleFilename={CSV_SAMPLES.airports.filename}
+            onClose={() => setShowPopup(false)}
+            onFile={handleFileChosen}
+          />
+        )}
         {canEdit && (
           <button style={btnCsv('#7c3aed')} onClick={handleSeed} disabled={seeding} title="Importar todos os aeroportos do mundo via OurAirports">
             {seeding ? '⏳ Importando…' : '🌐 Base mundial'}

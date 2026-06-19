@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
+import { useAuth } from '../context/AuthContext'
 
 function parseCsvNames(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
@@ -131,13 +132,44 @@ function Spin() {
   )
 }
 
+/* Mapeamento de listKey → permissão de bulk_delete */
+const BULK_DELETE_PERM = {
+  professions:     'settings_professions_bulk_delete',
+  languages:       'settings_languages_bulk_delete',
+  vaccines:        'settings_vaccines_bulk_delete',
+  genders:         'settings_genders_bulk_delete',
+  prof_cards:      'settings_prof_cards_bulk_delete',
+  list_addits:     'settings_list_additionals_bulk_delete',
+  crew_roles:      'settings_crew_roles_bulk_delete',
+  list_categories: 'settings_list_categories_bulk_delete',
+  accommodations:  'settings_accommodations_bulk_delete',
+  doc_types:       'settings_doc_types_bulk_delete',
+  airports:        'settings_airports_bulk_delete',
+  airlines:        'settings_airlines_bulk_delete',
+  countries:       'settings_countries_bulk_delete',
+  states:          'settings_countries_bulk_delete',
+  cities:          'settings_countries_bulk_delete',
+}
+
 export default function FlatImport() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
   const { csvText, filename, type, existingNames = [], existingByType = {}, allCountries = [], permittedKeys } = location.state || {}
   const isAll    = type === 'all'
   const apiDef   = API_MAP[type] || API_MAP.professions
   const backPath = '/configuracoes'
+
+  const isSu = !!user?.is_superuser
+  const myP  = user?.permissions || {}
+  const canBulkDeleteKey = (key) => isSu || !!myP[BULK_DELETE_PERM[key]]
+  /* canDestructive: true se o usuário tem bulk_delete para pelo menos uma seção presente */
+  const canDestructive = useMemo(() => {
+    if (isSu) return true
+    if (isAll) return Object.keys(existingByType).some(k => canBulkDeleteKey(k))
+    return canBulkDeleteKey(type)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSu, isAll, type, myP, existingByType])
 
   const [rows,       setRows]       = useState([])
   const [mode,       setMode]       = useState('new')
@@ -326,14 +358,19 @@ export default function FlatImport() {
           <div>
             <p style={{ fontSize:11, fontWeight:700, color:'#64748b', margin:'0 0 8px', textTransform:'uppercase', letterSpacing:'.06em' }}>Modo de Importação:</p>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-              {MODES.map(m => (
-                <div key={m.key} onClick={() => setMode(m.key)}
-                  style={{ border:`2px solid ${mode===m.key?'#2e6db4':'#e2e8f0'}`, borderRadius:10, padding:'12px 16px', cursor:'pointer',
-                    background: mode===m.key?'#f0f6ff':'#fff', transition:'all .12s' }}>
-                  <p style={{ fontSize:14, fontWeight:700, color:mode===m.key?'#1a2d4f':'#1e293b', margin:'0 0 4px' }}>{m.label}</p>
-                  <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{m.desc}</p>
-                </div>
-              ))}
+              {MODES.map(m => {
+                const locked = (m.key === 'all' || m.key === 'delete') && !canDestructive
+                return (
+                  <div key={m.key}
+                    onClick={() => !locked && setMode(m.key)}
+                    title={locked ? 'Você não tem permissão de exclusão em massa para nenhuma seção deste CSV' : undefined}
+                    style={{ border:`2px solid ${mode===m.key?'#2e6db4':locked?'#f1f5f9':'#e2e8f0'}`, borderRadius:10, padding:'12px 16px', cursor:locked?'not-allowed':'pointer',
+                      background: mode===m.key?'#f0f6ff':locked?'#f8fafc':'#fff', transition:'all .12s', opacity: locked ? .55 : 1 }}>
+                    <p style={{ fontSize:14, fontWeight:700, color:mode===m.key?'#1a2d4f':locked?'#94a3b8':'#1e293b', margin:'0 0 4px' }}>{m.label}</p>
+                    <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{locked ? 'Permissão necessária: exclusão em massa' : m.desc}</p>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

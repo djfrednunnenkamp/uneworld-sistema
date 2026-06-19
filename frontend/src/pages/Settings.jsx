@@ -13,6 +13,9 @@ import BusMapsManager from '../components/BusMapsManager'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
 import { PERM_GROUPS, EMPTY_PERMISSIONS, sanitizePerms, applyPermChanges } from '../utils/permGroups'
+import CsvImportPopup from '../components/CsvImportPopup'
+import CsvExportModal from '../components/CsvExportModal'
+import { CSV_SAMPLES } from '../utils/csvSamples'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -127,15 +130,12 @@ const btnCsv = (color) => ({
   cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
 })
 
-/* ── CsvButtons — abre página de revisão antes de importar ── */
+/* ── CsvButtons — abre popup de importação antes de navegar para revisão ── */
 function CsvButtons({ items, filename, type, showImport = true }) {
-  const navigate = useNavigate()
-  const fileRef  = useRef(null)
+  const navigate    = useNavigate()
+  const [showPopup, setShowPopup] = useState(false)
 
-  const handleFileChosen = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const handleFile = async (file) => {
     const csvText = await file.text()
     navigate('/configuracoes/import', {
       state: {
@@ -153,13 +153,18 @@ function CsvButtons({ items, filename, type, showImport = true }) {
         ⬇ Exportar
       </button>
       {showImport && (
-        <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">
+        <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} title="Importar de CSV">
           ⬆ Importar
         </button>
       )}
-      {showImport && (
-        <input ref={fileRef} type="file" accept=".csv,text/csv"
-          style={{ display: 'none' }} onChange={handleFileChosen} />
+      {showImport && showPopup && (
+        <CsvImportPopup
+          title="Importar CSV"
+          sampleContent={CSV_SAMPLES[type]?.content}
+          sampleFilename={CSV_SAMPLES[type]?.filename}
+          onClose={() => setShowPopup(false)}
+          onFile={handleFile}
+        />
       )}
     </div>
   )
@@ -313,9 +318,9 @@ function ListDetailModal({ title, onClose, wide, children }) {
 
 /* ── Barra de CSV global da aba Países & Estados ── */
 function GeoCsvBar({ canEdit = true }) {
-  const navigate   = useNavigate()
-  const fileRef    = useRef(null)
-  const [exporting, setExporting] = useState(false)
+  const navigate  = useNavigate()
+  const [exporting,  setExporting]  = useState(false)
+  const [showPopup,  setShowPopup]  = useState(false)
 
   const doExport = async () => {
     setExporting(true)
@@ -323,12 +328,8 @@ function GeoCsvBar({ canEdit = true }) {
     setExporting(false)
   }
 
-  const handleFileChosen = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const handleFile = async (file) => {
     const csvText = await file.text()
-    // Navega para a página de revisão passando o conteúdo do CSV
     navigate('/configuracoes/geo-import', { state: { csvText, filename: file.name } })
   }
 
@@ -342,11 +343,19 @@ function GeoCsvBar({ canEdit = true }) {
         ⬇ {exporting ? 'Exportando…' : 'Exportar tudo'}
       </button>
       {canEdit && (
-        <button onClick={() => fileRef.current?.click()} style={btnCsv('#2e6db4')}>
+        <button onClick={() => setShowPopup(true)} style={btnCsv('#2e6db4')}>
           ⬆ Importar CSV
         </button>
       )}
-      {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleFileChosen} />}
+      {canEdit && showPopup && (
+        <CsvImportPopup
+          title="Importar Países, Estados e Cidades"
+          sampleContent={CSV_SAMPLES.geo.content}
+          sampleFilename={CSV_SAMPLES.geo.filename}
+          onClose={() => setShowPopup(false)}
+          onFile={handleFile}
+        />
+      )}
     </div>
   )
 }
@@ -770,12 +779,12 @@ function exportProfilesCsv(profiles) {
 }
 
 function PermissionProfilesManager({ canEdit = true, canDelete = true }) {
-  const [profiles, setProfiles] = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [search,   setSearch]   = useState('')
-  const [modal,    setModal]    = useState(null)
-  const [delItem,  setDelItem]  = useState(null)
-  const fileRef = useRef(null)
+  const [profiles,        setProfiles]        = useState([])
+  const [loading,         setLoading]         = useState(true)
+  const [search,          setSearch]          = useState('')
+  const [modal,           setModal]           = useState(null)
+  const [delItem,         setDelItem]         = useState(null)
+  const [showImportPopup, setShowImportPopup] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -792,9 +801,7 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true }) {
     finally { setDelItem(null) }
   }
 
-  const handleImport = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return
-    e.target.value = ''
+  const handleImport = async (file) => {
     const text = await file.text()
     const lines = text.split(/\r?\n/).filter(Boolean)
     if (lines.length < 2) { toast.error('CSV vazio ou inválido.'); return }
@@ -833,8 +840,16 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true }) {
         {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
         <div style={{ display:'flex', gap:6 }}>
           <button style={btnCsv('#059669')} onClick={() => exportProfilesCsv(profiles)} title="Exportar como CSV">⬇ Exportar</button>
-          {canEdit && <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">⬆ Importar</button>}
-          {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleImport} />}
+          {canEdit && <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>}
+          {canEdit && showImportPopup && (
+            <CsvImportPopup
+              title="Importar Perfis de Permissão"
+              sampleContent={CSV_SAMPLES.perm_profiles?.content}
+              sampleFilename={CSV_SAMPLES.perm_profiles?.filename}
+              onClose={() => setShowImportPopup(false)}
+              onFile={handleImport}
+            />
+          )}
         </div>
       </div>
 
@@ -920,7 +935,9 @@ export default function Settings() {
   const canCsvImport = isSu || !!myP.manage_settings
     || CSV_SECTION_PERMS.some(p => !!(myP[`${p}_edit`] || myP[p]))
 
-  const fileAllRef = useRef(null)
+  const [showExportModal,    setShowExportModal]    = useState(false)
+  const [showImportAllPopup, setShowImportAllPopup] = useState(false)
+  const [exportCountriesList, setExportCountriesList] = useState([])
   const [listSearch, setListSearch] = useState('')
   const [activeList, setActiveList] = useState(null)
   const [professions, setProfessions] = useState([])
@@ -1125,14 +1142,16 @@ export default function Settings() {
     { key:'list_categories', label:'Categoria de Acomodações', perm:'settings_list_categories',   items: listCats    },
   ]
 
-  const handleExportAll = async () => {
+  const handleExportAll = async ({ selectedKeys, countryFilter } = {}) => {
     try {
-      const viewableGroups = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'view'))
-      const viewCountries  = can('settings_countries',     'view')
-      const viewAccoms     = can('settings_accommodations', 'view')
-      const viewDocTypes   = can('settings_doc_types',     'view')
-      const viewAirports   = can('settings_airports',      'view')
-      const viewAirlines   = can('settings_airlines',      'view')
+      const sel = selectedKeys ?? null
+      const include = (key) => !sel || sel.has(key)
+      const viewableGroups = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'view') && include(g.key))
+      const viewCountries  = can('settings_countries',      'view') && include('countries')
+      const viewAccoms     = can('settings_accommodations', 'view') && include('accommodations')
+      const viewDocTypes   = can('settings_doc_types',      'view') && include('doc_types')
+      const viewAirports   = can('settings_airports',       'view') && include('airports')
+      const viewAirlines   = can('settings_airlines',       'view') && include('airlines')
       let cRes = { data: [] }, sRes = { data: [] }, cities = []
       let dtData = [], apData = [], alData = []
       const fetches = []
@@ -1141,7 +1160,9 @@ export default function Settings() {
           .then(async ([cr, sr, geoRes]) => {
             cRes = cr; sRes = sr
             const geoText = await geoRes.data.text()
-            cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
+            let parsedCities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
+            if (countryFilter) parsedCities = parsedCities.filter(c => c.country === countryFilter)
+            cities = parsedCities
           })
       )
       if (viewDocTypes) fetches.push(configApi.docTypes().then(r => { dtData = r.data }))
@@ -1152,10 +1173,7 @@ export default function Settings() {
     } catch { toast.error('Erro ao exportar.') }
   }
 
-  const handleImportAllFile = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const handleImportAllFile = async (file) => {
     const csvText = await file.text()
     const editableGroups   = SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'edit'))
     const canEditCountries = can('settings_countries',     'edit')
@@ -1215,17 +1233,20 @@ export default function Settings() {
           </div>
           <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
             {canCsvExport && (
-              <button style={btnCsv('#059669')} onClick={handleExportAll} title="Baixar CSV com todas as listas">
+              <button style={btnCsv('#059669')} onClick={() => {
+                setShowExportModal(true)
+                if (can('settings_countries', 'view') && exportCountriesList.length === 0) {
+                  configApi.countries().then(r => setExportCountriesList(r.data)).catch(() => {})
+                }
+              }} title="Baixar CSV com todas as listas">
                 ⬇ Exportar tudo
               </button>
             )}
             {canCsvImport && (
-              <button style={btnCsv('#2e6db4')} onClick={() => fileAllRef.current?.click()} title="Importar CSV com todas as listas">
+              <button style={btnCsv('#2e6db4')} onClick={() => setShowImportAllPopup(true)} title="Importar CSV com todas as listas">
                 ⬆ Importar tudo
               </button>
             )}
-            <input ref={fileAllRef} type="file" accept=".csv,text/csv"
-              style={{ display:'none' }} onChange={handleImportAllFile} />
           </div>
         </div>
 
@@ -1252,6 +1273,35 @@ export default function Settings() {
           ))}
         </div>
       </div>
+
+      {showExportModal && (() => {
+        const allSections = [
+          ...SIMPLE_LIST_GROUPS.filter(g => can(g.perm, 'view')).map(g => ({ key: g.key, label: g.label })),
+          ...(can('settings_accommodations', 'view') ? [{ key: 'accommodations', label: 'Acomodações' }] : []),
+          ...(can('settings_doc_types',      'view') ? [{ key: 'doc_types',      label: 'Documentos' }] : []),
+          ...(can('settings_airports',       'view') ? [{ key: 'airports',       label: 'Aeroportos' }] : []),
+          ...(can('settings_airlines',       'view') ? [{ key: 'airlines',       label: 'Companhias Aéreas' }] : []),
+          ...(can('settings_countries',      'view') ? [{ key: 'countries',      label: 'Países, Estados e Cidades' }] : []),
+        ]
+        return (
+          <CsvExportModal
+            sections={allSections}
+            countries={exportCountriesList}
+            onClose={() => setShowExportModal(false)}
+            onExport={({ selectedKeys, countryFilter }) => handleExportAll({ selectedKeys, countryFilter })}
+          />
+        )
+      })()}
+
+      {showImportAllPopup && (
+        <CsvImportPopup
+          title="Importar CSV — todas as configurações"
+          sampleContent={CSV_SAMPLES.all.content}
+          sampleFilename={CSV_SAMPLES.all.filename}
+          onClose={() => setShowImportAllPopup(false)}
+          onFile={handleImportAllFile}
+        />
+      )}
 
       {activeDef && (
         <ListDetailModal title={activeDef.label} onClose={() => setActiveList(null)} wide={WIDE_LISTS.includes(activeDef.key)}>

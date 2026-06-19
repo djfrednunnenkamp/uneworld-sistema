@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
+import CsvImportPopup from './CsvImportPopup'
+import { CSV_SAMPLES } from '../utils/csvSamples'
 
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
@@ -151,9 +153,9 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 }
 
 export default function AccommodationManager({ items, loading, onRefresh, canEdit = true, canDelete = true }) {
-  const [search,   setSearch]   = useState('')
-  const [showForm, setShowForm] = useState(false) // false | true (novo) | item (edição)
-  const fileRef = useRef(null)
+  const [search,     setSearch]     = useState('')
+  const [showForm,   setShowForm]   = useState(false) // false | true (novo) | item (edição)
+  const [showPopup,  setShowPopup]  = useState(false)
 
   const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
 
@@ -178,10 +180,7 @@ export default function AccommodationManager({ items, loading, onRefresh, canEdi
     onRefresh()
   }
 
-  const handleFileChosen = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const handleFileChosen = async (file) => {
     const csvText = await file.text()
     const parsed  = parseAccomCsv(csvText)
     const existing = new Set(items.map(i => i.name.toLowerCase()))
@@ -211,11 +210,19 @@ export default function AccommodationManager({ items, loading, onRefresh, canEdi
           ⬇ Exportar
         </button>
         {canEdit && (
-          <button style={btnCsv('#2e6db4')} onClick={() => fileRef.current?.click()} title="Importar de CSV">
+          <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} title="Importar de CSV">
             ⬆ Importar
           </button>
         )}
-        {canEdit && <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }} onChange={handleFileChosen} />}
+        {canEdit && showPopup && (
+          <CsvImportPopup
+            title="Importar Acomodações"
+            sampleContent={CSV_SAMPLES.accommodations.content}
+            sampleFilename={CSV_SAMPLES.accommodations.filename}
+            onClose={() => setShowPopup(false)}
+            onFile={handleFileChosen}
+          />
+        )}
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>

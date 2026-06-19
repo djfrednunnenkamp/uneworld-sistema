@@ -20,6 +20,7 @@ import CpfInput from '../components/CpfInput'
 import PhoneInput from '../components/PhoneInput'
 import RichTextEditor from '../components/RichTextEditor'
 import { BusLayoutPreview } from '../components/BusLayoutPreview'
+import { CSV_SAMPLES } from '../utils/csvSamples'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -3990,15 +3991,28 @@ function MetricsPanel({ enrolled, accomTypes }) {
 
 /* ── Popup "Importar passageiros via CSV" ── */
 function CsvImportModal({ listId, onImported, onClose }) {
-  const [file, setFile]       = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult]   = useState(null)
+  const [file,     setFile]     = useState(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [loading,  setLoading]  = useState(false)
+  const [result,   setResult]   = useState(null)
+  const fileRef = useRef(null)
+
+  const pickFile = (f) => {
+    if (f && (f.name.endsWith('.csv') || f.type === 'text/csv' || f.type === 'application/vnd.ms-excel')) {
+      setFile(f); setResult(null)
+    }
+  }
+
+  const downloadSample = () => {
+    const blob = new Blob([CSV_SAMPLES.passengers.content], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = CSV_SAMPLES.passengers.filename; a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleImport = async () => {
-    if (!file) {
-      toast.error('Selecione um arquivo CSV.')
-      return
-    }
+    if (!file) { toast.error('Selecione um arquivo CSV.'); return }
     setLoading(true)
     try {
       const formData = new FormData()
@@ -4027,20 +4041,62 @@ function CsvImportModal({ listId, onImported, onClose }) {
           <button className="mclose" onClick={onClose}><Ic n="x" s={14}/></button>
         </div>
 
-        <div className="mbody" style={{ maxHeight:'70vh' }}>
-          <p style={{ margin:'0 0 12px', fontSize:12.5, color:'#64748b', lineHeight:1.5 }}>
-            Envie um arquivo CSV com colunas como <b>nome</b>, <b>cpf</b>, <b>email</b>, <b>telefone</b>,{' '}
+        <div className="mbody" style={{ maxHeight:'70vh', display:'flex', flexDirection:'column', gap:14 }}>
+
+          {/* Sample download banner */}
+          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+            <span style={{ fontSize:12.5, color:'#166534' }}>
+              Não sabe o formato? Baixe um modelo de exemplo.
+            </span>
+            <button onClick={downloadSample}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:6, border:'1px solid #86efac', background:'#fff', color:'#16a34a', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+              <Ic n="dl" s={13}/> Baixar modelo
+            </button>
+          </div>
+
+          <p style={{ margin:0, fontSize:12.5, color:'#64748b', lineHeight:1.5 }}>
+            Colunas: <b>nome</b>, <b>cpf</b>, <b>email</b>, <b>telefone</b>,{' '}
             <b>genero</b>, <b>data_nascimento</b>, <b>nacionalidade</b>, <b>acomodacao</b>, <b>status</b> e{' '}
             <b>observacoes</b>. Passageiros já cadastrados (por CPF ou e-mail) serão reaproveitados; os demais
             serão criados (e-mail obrigatório nesse caso).
           </p>
 
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={e => { setFile(e.target.files?.[0] || null); setResult(null) }}
-            style={{ fontSize:13 }}
-          />
+          {/* Drop zone */}
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+            onDragEnter={e => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); pickFile([...(e.dataTransfer.files || [])][0]) }}
+            onClick={() => !file && fileRef.current?.click()}
+            style={{
+              border: `2px dashed ${dragOver ? '#2e6db4' : file ? '#22c55e' : '#cbd5e1'}`,
+              borderRadius: 10, padding: '22px 20px', textAlign: 'center',
+              background: dragOver ? '#e8f0fb' : file ? '#f0fdf4' : '#f8fafc',
+              cursor: file ? 'default' : 'pointer', transition: 'border-color .15s, background .15s',
+            }}>
+            {file ? (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
+                <span style={{ fontSize:20 }}>📄</span>
+                <div style={{ textAlign:'left' }}>
+                  <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#166534' }}>{file.name}</p>
+                  <p style={{ margin:0, fontSize:11, color:'#64748b' }}>{(file.size / 1024).toFixed(1)} KB</p>
+                </div>
+                <button onClick={e => { e.stopPropagation(); setFile(null); setResult(null) }}
+                  style={{ marginLeft:8, background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:16, lineHeight:1, padding:'2px 4px' }}
+                  title="Remover arquivo">✕</button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize:28, marginBottom:8, color: dragOver ? '#2e6db4' : '#94a3b8' }}>
+                  <Ic n="upload" s={32}/>
+                </div>
+                <p style={{ margin:'0 0 4px', fontSize:13, fontWeight:600, color:'#1e293b' }}>Arraste um arquivo CSV aqui</p>
+                <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>ou <span style={{ color:'#2e6db4', textDecoration:'underline' }}>clique para selecionar</span></p>
+              </div>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:'none' }}
+            onChange={e => { pickFile(e.target.files?.[0]); e.target.value = '' }} />
 
           {result && (
             <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:10 }}>
