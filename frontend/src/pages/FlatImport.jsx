@@ -182,6 +182,7 @@ export default function FlatImport() {
   const [phase,       setPhase]       = useState('review')
   const [result,      setResult]      = useState(null)
   const [filter,      setFilter]      = useState('all')
+  const [listFilter,  setListFilter]  = useState('all')
   const [search,      setSearch]      = useState('')
   const [selected,    setSelected]    = useState(new Set())
   const [confirm,     setConfirm]     = useState(null) // { type:'bulk'|'single', id?, count? }
@@ -211,7 +212,10 @@ export default function FlatImport() {
     if (listKey === 'states' && !extras.parent_country) return 'error'
     if (listKey === 'cities' && (!extras.parent_country || !extras.parent_state)) return 'error'
     const set = existingSets[listKey ?? type]
-    return set?.has(name.toLowerCase()) ? 'duplicate' : 'valid'
+    const key = listKey === 'cities'
+      ? `${extras.parent_country || ''}|${extras.parent_state || ''}|${name}`.toLowerCase()
+      : name.toLowerCase()
+    return set?.has(key) ? 'duplicate' : 'valid'
   }
 
   useEffect(() => {
@@ -240,10 +244,10 @@ export default function FlatImport() {
   }, [])
 
   // Reset pagination when filter/search changes
-  useEffect(() => { setVisibleCount(20) }, [filter, search])
+  useEffect(() => { setVisibleCount(20) }, [filter, listFilter, search])
 
   const editRow = (id, name) => setRows(prev => prev.map(r => r.id === id
-    ? { ...r, name, status: rowStatus(name, r.listKey) }
+    ? { ...r, name, status: rowStatus(name, r.listKey, r.extras) }
     : r
   ))
 
@@ -259,15 +263,23 @@ export default function FlatImport() {
     error:     rows.filter(r => r.status === 'error').length,
   }), [rows])
 
+  const listOptions = useMemo(() => {
+    if (!isAll) return []
+    const seen = new Map()
+    rows.forEach(r => { if (r.listKey && !seen.has(r.listKey)) seen.set(r.listKey, r.listLabel) })
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [rows, isAll])
+
   const filtered = useMemo(() => {
     let list = rows
     if (filter !== 'all') list = list.filter(r => r.status === filter)
+    if (isAll && listFilter !== 'all') list = list.filter(r => r.listKey === listFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(r => r.name.toLowerCase().includes(q))
     }
     return list
-  }, [rows, filter, search])
+  }, [rows, filter, listFilter, isAll, search])
 
   /* seleção */
   const allFilteredSelected = filtered.length > 0 && filtered.every(r => selected.has(r.id))
@@ -477,6 +489,15 @@ export default function FlatImport() {
             style={{ padding:'7px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', width:230 }}
             onFocus={e => e.target.style.borderColor='#1a2d4f'}
             onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
+          {isAll && listOptions.length > 1 && (
+            <select value={listFilter} onChange={e => setListFilter(e.target.value)}
+              style={{ padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#334155', background:'#fff', cursor:'pointer' }}>
+              <option value="all">Todas as listas</option>
+              {listOptions.map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          )}
           {[
             {key:'all',       label:`Todos (${rows.length})`},
             {key:'valid',     label:`Válidos (${stats.valid})`},

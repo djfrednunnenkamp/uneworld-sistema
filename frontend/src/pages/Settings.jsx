@@ -1228,11 +1228,16 @@ export default function Settings() {
     const canImportDocTypes  = can('settings_doc_types',      'bulk_import')
     const canImportAirports  = can('settings_airports',       'bulk_import')
     const canImportAirlines  = can('settings_airlines',       'bulk_import')
-    let allCountries = [], allStates = [], allDocTypes = [], allAirports = [], allAirlines = []
+    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = []
     const fetches2 = []
     if (canImportCountries) fetches2.push(
-      Promise.all([configApi.countries(), configApi.allStates()])
-        .then(([cr, sr]) => { allCountries = cr.data; allStates = sr.data })
+      Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
+        .then(async ([cr, sr, geoRes]) => {
+          allCountries = cr.data; allStates = sr.data
+          const geoText = await geoRes.data.text()
+          allCities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2])
+            .map(c => ({ country: c[0], state: c[1], name: c[2] }))
+        })
         .catch(() => {})
     )
     if (canImportDocTypes)  fetches2.push(configApi.docTypes().then(r => { allDocTypes = r.data }).catch(() => {}))
@@ -1253,7 +1258,11 @@ export default function Settings() {
         existingByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items.map(i => i.name)])),
           ...(canImportAccoms    ? { accommodations: accoms.map(a => a.name) }        : {}),
-          ...(canImportCountries ? { countries: allCountries.map(c => c.name), states: allStates.map(s => s.name) } : {}),
+          ...(canImportCountries ? {
+            countries: allCountries.map(c => c.name),
+            states: allStates.map(s => s.name),
+            cities: allCities.map(c => `${c.country}|${c.state}|${c.name}`),
+          } : {}),
           ...(canImportDocTypes  ? { doc_types: allDocTypes.map(d => d.label) }       : {}),
           ...(canImportAirports  ? { airports: allAirports.map(a => a.name) }         : {}),
           ...(canImportAirlines  ? { airlines: allAirlines.map(a => a.name) }         : {}),
