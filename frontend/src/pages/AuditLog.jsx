@@ -268,6 +268,7 @@ export default function AuditLog() {
   const listId         = searchParams.get('list_id') || ''
   const passengerId    = searchParams.get('passenger_id') || ''
   const agencyId       = searchParams.get('agency_id') || ''
+  const auditScope     = searchParams.get('scope') || ''
   const { user } = useAuth()
 
   const [logs,     setLogs]     = useState([])
@@ -292,6 +293,7 @@ export default function AuditLog() {
       if (listId)      params.list_id   = listId
       if (passengerId) params.passenger_id = passengerId
       if (agencyId)    params.agency_id    = agencyId
+      if (auditScope)  params.scope        = auditScope
       const r = await auditApi.list(params)
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
@@ -299,7 +301,7 @@ export default function AuditLog() {
       pageRef.current = p
     } catch {}
     finally { setLoading(false) }
-  }, [filters, listId, passengerId, agencyId])
+  }, [filters, listId, passengerId, agencyId, auditScope])
 
   useEffect(() => { load(1, filters) }, [])
 
@@ -323,11 +325,12 @@ export default function AuditLog() {
       if (listId)      params.list_id   = listId
       if (passengerId) params.passenger_id = passengerId
       if (agencyId)    params.agency_id    = agencyId
+      if (auditScope)  params.scope        = auditScope
       const r = await auditApi.list(params)
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
     } catch {}
-  }, [listId, passengerId, agencyId])
+  }, [listId, passengerId, agencyId, auditScope])
 
   const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
@@ -368,7 +371,15 @@ export default function AuditLog() {
               ← Voltar para a agência
             </button>
           )}
-          {!listId && !passengerId && !agencyId && ctx && (
+          {auditScope === 'settings' && (
+            <button onClick={() => navigate('/configuracoes')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+              ← Voltar para Configurações
+            </button>
+          )}
+          {!listId && !passengerId && !agencyId && !auditScope && ctx && (
             <button onClick={() => navigate(ctx.back)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
               onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
@@ -380,6 +391,7 @@ export default function AuditLog() {
             {listId ? 'Log da Lista de Passageiros'
               : passengerId ? 'Log do Passageiro'
               : agencyId ? 'Log da Agência'
+              : auditScope === 'settings' ? 'Log de Configurações'
               : ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>

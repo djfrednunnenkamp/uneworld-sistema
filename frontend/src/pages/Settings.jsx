@@ -1018,6 +1018,7 @@ export default function Settings() {
   const { user } = useAuth()
   const isSu = !!user?.is_superuser
   const myP  = user?.permissions ?? {}
+  const canViewLog = isSu || !!myP.view_audit_log || !!myP.log_view || !!myP.log_settings
   const can  = (permBase, action) => {
     if (isSu || myP.manage_settings) return true
     if (action === 'view')         return !!(myP[`${permBase}_view`]         || myP[permBase])
@@ -1411,6 +1412,15 @@ export default function Settings() {
           </p>
         </div>
         <div className="ph-actions">
+          {canViewLog && (
+            <button onClick={() => navigate('/log?scope=settings')}
+              title="Ver log de atividades"
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:9, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontFamily:'inherit', fontSize:13.5, fontWeight:600, cursor:'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+              <Ic n="list" s={16}/> Log
+            </button>
+          )}
           {canCsvExport && (
             <button onClick={() => {
               setShowExportModal(true)

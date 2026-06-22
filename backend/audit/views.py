@@ -29,6 +29,15 @@ class AuditPagination(PageNumberPagination):
     max_page_size = 200
 
 
+# Modelos cobertos pelo botão "Log" da página Configurações (scope=settings)
+SETTINGS_MODELS = [
+    'ConfigProfession', 'ConfigLanguage', 'ConfigCountry', 'ConfigState', 'ConfigCity',
+    'ConfigGender', 'ConfigVaccine', 'ConfigProfCard', 'CustomDocType', 'CustomDocField',
+    'ConfigAccommodation', 'ConfigListCategory', 'ListAdditional', 'CrewRole', 'Destination',
+    'Airport', 'Airline', 'BusMap', 'PermissionProfile',
+]
+
+
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditLogSerializer
     permission_classes = [RequirePermission(
@@ -44,25 +53,29 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         qs = AuditLog.objects.select_related('user').all()
         action = self.request.query_params.get('action')
         model  = self.request.query_params.get('model')
-        user   = self.request.query_params.get('user')
+        user_search = self.request.query_params.get('user')
         date_from = self.request.query_params.get('date_from')
         date_to   = self.request.query_params.get('date_to')
         object_id = self.request.query_params.get('object_id')
         list_id      = self.request.query_params.get('list_id')
         passenger_id = self.request.query_params.get('passenger_id')
         agency_id    = self.request.query_params.get('agency_id')
+        scope        = self.request.query_params.get('scope')
 
-        user = self.request.user
-        has_global = has_any_perm(user, 'view_audit_log', 'log_view')
-        has_log_passengers = has_global or has_any_perm(user, 'log_passengers')
-        has_log_lists      = has_global or has_any_perm(user, 'log_lists')
-        has_log_agencies   = has_global or has_any_perm(user, 'log_agencies')
-        has_log_users      = has_global or has_any_perm(user, 'log_users')
-        has_log_settings   = has_global or has_any_perm(user, 'log_settings')
+        current_user = self.request.user
+        has_global = has_any_perm(current_user, 'view_audit_log', 'log_view')
+        has_log_passengers = has_global or has_any_perm(current_user, 'log_passengers')
+        has_log_lists      = has_global or has_any_perm(current_user, 'log_lists')
+        has_log_agencies   = has_global or has_any_perm(current_user, 'log_agencies')
+        has_log_users      = has_global or has_any_perm(current_user, 'log_users')
+        has_log_settings   = has_global or has_any_perm(current_user, 'log_settings')
         has_any_area = (has_log_passengers or has_log_lists or has_log_agencies
                         or has_log_users or has_log_settings)
 
-        if not has_any_area and not (list_id or passenger_id or agency_id):
+        if scope == 'settings' and not has_log_settings:
+            return qs.none()
+
+        if not has_any_area and not (list_id or passenger_id or agency_id or scope):
             return qs.none()
 
         # Se não tem acesso global, filtra apenas as áreas com permissão
@@ -78,18 +91,15 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             if has_log_users:
                 area_q |= DQ(model_name__in=['User', 'UserPermissions'])
             if has_log_settings:
-                area_q |= DQ(model_name__in=[
-                    'ConfigProfession', 'ConfigLanguage', 'ConfigCountry', 'ConfigState',
-                    'ConfigGender', 'ConfigVaccine', 'CustomDocType', 'ConfigProfCard',
-                    'Destination', 'ListAdditional', 'CrewRole',
-                ])
+                area_q |= DQ(model_name__in=SETTINGS_MODELS)
             if area_q.children:
                 qs = qs.filter(area_q)
 
+        if scope == 'settings': qs = qs.filter(model_name__in=SETTINGS_MODELS)
         if action:    qs = qs.filter(action=action)
         if model:     qs = qs.filter(model_name=model)
         if object_id: qs = qs.filter(object_id=object_id)
-        if user:      qs = qs.filter(user_display__icontains=user)
+        if user_search: qs = qs.filter(user_display__icontains=user_search)
         if date_from: qs = qs.filter(timestamp__date__gte=date_from)
         if date_to:   qs = qs.filter(timestamp__date__lte=date_to)
         if list_id:

@@ -23,10 +23,18 @@ TRACKED_MODELS = {
     'ConfigLanguage':       'Idioma',
     'ConfigCountry':        'País',
     'ConfigState':          'Estado',
+    'ConfigCity':           'Cidade',
     'ConfigVaccine':        'Vacina',
     'ConfigGender':         'Gênero',
+    'ConfigProfCard':       'Carteira profissional',
     'ConfigAccommodation':  'Tipo de acomodação',
     'ConfigListCategory':   'Categoria de lista',
+    'CrewRole':             'Equipe técnica',
+    'Destination':          'Destino',
+    'Airport':              'Aeroporto',
+    'Airline':              'Companhia aérea',
+    'BusMap':               'Mapa de ônibus',
+    'PermissionProfile':    'Perfil de permissão',
 }
 
 # Campos a ignorar no diff
