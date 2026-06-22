@@ -500,11 +500,11 @@ function LogDetailPopup({ entry, onClose, navigate }) {
           <div style={{ display: 'flex', gap: 8 }}>
             {hasLink && (
               <>
-                <button onClick={() => navigate(link.open(entry.object_id))}
+                <button onClick={() => { onClose(); navigate(link.open(entry.object_id)) }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1.5px solid #2e6db4', background: '#eff6ff', color: '#2e6db4', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <Ic n="eye" s={13} /> Abrir {link.label}
                 </button>
-                <button onClick={() => navigate(link.log(entry.object_id))}
+                <button onClick={() => { onClose(); navigate(link.log(entry.object_id)) }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <Ic n="list" s={13} /> Log {link.of} {link.label}
                 </button>
@@ -637,7 +637,30 @@ export default function AuditLog() {
     finally { setLoading(false) }
   }, [filters, showNav, listId, passengerId, agencyId, auditScope])
 
-  useEffect(() => { load(1, filtersRef.current, showNavRef.current) }, [listId, passengerId, agencyId, auditScope])
+  // O componente não remonta ao navegar de uma página pra outra (mesma rota
+  // /log) — então, sem isso, o filtro Tipo (e os demais) de uma área antiga
+  // "vazava" pra área nova (ex: ir do Log de Calendário pro Log de Agências
+  // mantinha o Tipo = Inscrição na lista, misturando com scope=agencies e
+  // não retornando nada). Sempre que a combinação de contexto da URL muda,
+  // os filtros são reconstruídos do zero a partir da nova URL.
+  const areaKey = `${auditScope}|${initModel}`
+  const prevAreaKey = useRef(areaKey)
+  useEffect(() => {
+    if (prevAreaKey.current !== areaKey) {
+      // Área diferente da anterior (ex: veio de outro botão "Log" de outra
+      // página) — reconstrói os filtros do zero a partir da nova URL, em vez
+      // de manter o Tipo/Ação/Usuário que estavam selecionados na área antiga.
+      prevAreaKey.current = areaKey
+      const next = { action: '', model: initModel, search: '', date_from: '', date_to: '', user_id: '' }
+      setFilters(next)
+      filtersRef.current = next
+      load(1, next, showNavRef.current)
+    } else {
+      // Mesma área, só o registro específico mudou (drill-down de lista/
+      // passageiro/agência) — recarrega mantendo os filtros atuais.
+      load(1, filtersRef.current, showNavRef.current)
+    }
+  }, [areaKey, listId, passengerId, agencyId])
 
   const setFilter = (key, val) => {
     const next = { ...filters, [key]: val }

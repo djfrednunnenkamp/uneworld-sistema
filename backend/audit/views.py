@@ -14,7 +14,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'timestamp', 'timestamp_br',
             'user_display', 'action', 'action_label',
-            'model_label', 'object_id', 'object_repr',
+            'model_name', 'model_label', 'object_id', 'object_repr',
             'changes', 'ip_address',
         ]
 

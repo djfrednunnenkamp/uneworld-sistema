@@ -73,7 +73,7 @@ function FDrop({ label, value, onChange, options, active }) {
 }
 
 /* ── AgencyPreview — popup de visualização rápida ── */
-function AgencyPreview({ agency, onClose, onEdit }) {
+function AgencyPreview({ agency, onClose, onEdit, onViewLog }) {
   const [copied, setCopied] = useState(null)
   const PALETTE = ['#2B3A8F', '#0369A1', '#0D6E6E', '#6B3FA0', '#B45309', '#9B3A2A', '#2D6A4F', '#1E5799']
   const color   = PALETTE[(agency.id ?? 0) % PALETTE.length]
@@ -157,15 +157,25 @@ function AgencyPreview({ agency, onClose, onEdit }) {
         </div>
 
         {/* Rodapé */}
-        <div style={{ padding: '12px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: onEdit ? 'space-between' : 'flex-end' }}>
-          {onEdit && (
-            <button onClick={onEdit}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}>
-              <Ic n="edit" s={13} /> Editar
-            </button>
-          )}
+        <div style={{ padding: '12px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: (onEdit || onViewLog) ? 'space-between' : 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {onEdit && (
+              <button onClick={onEdit}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#2e6db4'; e.currentTarget.style.color = '#2e6db4' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}>
+                <Ic n="edit" s={13} /> Editar
+              </button>
+            )}
+            {onViewLog && (
+              <button onClick={onViewLog} title="Ver log de atividades desta agência"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.color = '#7c3aed' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}>
+                <Ic n="list" s={13} /> Log
+              </button>
+            )}
+          </div>
           <button onClick={onClose}
             style={{ padding: '7px 24px', borderRadius: 6, border: 'none', background: '#2e6db4', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
             onMouseEnter={e => e.currentTarget.style.background = '#275fa0'}
@@ -283,6 +293,7 @@ export default function Agencies() {
           agency={viewRow}
           onClose={() => setViewRow(null)}
           onEdit={canEdit ? () => { setViewRow(null); navigate(`/agencias/${viewRow.id}`) } : undefined}
+          onViewLog={canViewLog ? () => { setViewRow(null); navigate(`/log?agency_id=${viewRow.id}`) } : undefined}
         />
       )}
       {showNew && <NewAgencyModal onClose={() => setShowNew(false)} />}
