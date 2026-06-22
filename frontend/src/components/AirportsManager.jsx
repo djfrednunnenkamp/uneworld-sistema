@@ -208,7 +208,7 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 
 const PAGE_SIZE = 50
 
-export default function AirportsManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+export default function AirportsManager({ canEdit = true, canDelete = true, canImport = false, canExport = true, canImportWeb = false }) {
   const navigate = useNavigate()
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
@@ -346,7 +346,7 @@ export default function AirportsManager({ canEdit = true, canDelete = true, canI
             onFile={handleFileChosen}
           />
         )}
-        {canEdit && (
+        {canImportWeb && (
           <button style={btnCsv('#7c3aed')} onClick={handleSeed} disabled={seeding} title="Importar todos os aeroportos do mundo via OurAirports">
             {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
           </button>

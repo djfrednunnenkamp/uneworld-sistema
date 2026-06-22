@@ -128,6 +128,7 @@ export const PERM_GROUPS = [
           ['settings_professions_delete',      'Excluir profissões'],
           ['settings_professions_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_professions_bulk_import', 'Importação em massa via CSV'],
+          ['settings_professions_import_web',  'Importar lista pronta da internet'],
         ],
       },
       {
@@ -138,6 +139,7 @@ export const PERM_GROUPS = [
           ['settings_languages_delete',      'Excluir idiomas'],
           ['settings_languages_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_languages_bulk_import', 'Importação em massa via CSV'],
+          ['settings_languages_import_web',  'Importar lista pronta da internet'],
         ],
       },
       {
@@ -148,6 +150,7 @@ export const PERM_GROUPS = [
           ['settings_vaccines_delete',      'Excluir vacinas'],
           ['settings_vaccines_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_vaccines_bulk_import', 'Importação em massa via CSV'],
+          ['settings_vaccines_import_web',  'Importar lista pronta da internet'],
         ],
       },
       {
@@ -168,6 +171,7 @@ export const PERM_GROUPS = [
           ['settings_prof_cards_delete',      'Excluir carteiras profissionais'],
           ['settings_prof_cards_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_prof_cards_bulk_import', 'Importação em massa via CSV'],
+          ['settings_prof_cards_import_web',  'Importar lista pronta da internet'],
         ],
       },
       {
@@ -218,6 +222,7 @@ export const PERM_GROUPS = [
           ['settings_countries_delete',      'Excluir países, estados e cidades'],
           ['settings_countries_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_countries_bulk_import', 'Importação em massa via CSV'],
+          ['settings_countries_import_web',  'Importar países / estados / cidades da internet'],
         ],
       },
       {
@@ -228,6 +233,7 @@ export const PERM_GROUPS = [
           ['settings_airports_delete',      'Excluir aeroportos'],
           ['settings_airports_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_airports_bulk_import', 'Importação em massa via CSV'],
+          ['settings_airports_import_web',  'Importar base mundial da internet'],
         ],
       },
       {
@@ -238,6 +244,7 @@ export const PERM_GROUPS = [
           ['settings_airlines_delete',      'Excluir companhias aéreas'],
           ['settings_airlines_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_airlines_bulk_import', 'Importação em massa via CSV'],
+          ['settings_airlines_import_web',  'Importar base mundial da internet'],
         ],
       },
       {
@@ -394,6 +401,15 @@ export const PERM_DEPENDENCIES = {
   settings_airports_bulk_import:         'settings_airports_edit',
   settings_airlines_bulk_import:         'settings_airlines_edit',
   settings_countries_bulk_import:        'settings_countries_edit',
+
+  // import_web ("Importar da internet") depende só de _view — é uma ação independente do CSV
+  settings_professions_import_web: 'settings_professions_view',
+  settings_languages_import_web:   'settings_languages_view',
+  settings_vaccines_import_web:    'settings_vaccines_view',
+  settings_prof_cards_import_web:  'settings_prof_cards_view',
+  settings_countries_import_web:   'settings_countries_view',
+  settings_airports_import_web:    'settings_airports_view',
+  settings_airlines_import_web:    'settings_airlines_view',
 
   // CSV buttons appear only when at least one section view/edit perm is active
   settings_csv_export: [

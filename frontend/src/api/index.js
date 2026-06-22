@@ -144,6 +144,7 @@ export const configApi = {
   updateCountry:     (id, name)   => api.patch(`/config/countries/${id}/`, { name }),
   delCountry:        (id)   => api.delete(`/config/countries/${id}/`),
   importCountries:   ()     => api.post('/config/countries/import/'),
+  importCountriesCascade: () => api.post('/config/countries/import-cascade/'),
   // Estados
   states:            (country_id) => api.get('/config/states/', { params: { country_id } }),
   allStates:         ()           => api.get('/config/states/', { params: { all: true } }),

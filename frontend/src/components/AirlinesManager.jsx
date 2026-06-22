@@ -203,7 +203,7 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 
 const PAGE_SIZE = 50
 
-export default function AirlinesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+export default function AirlinesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true, canImportWeb = false }) {
   const navigate = useNavigate()
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
@@ -311,7 +311,7 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canI
             + Adicionar
           </button>
         )}
-        {canEdit && (
+        {canImportWeb && (
           <button
             style={{ padding:'6px 11px', borderRadius:7, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}
             onClick={handleSeed} disabled={seeding}>

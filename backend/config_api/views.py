@@ -19,11 +19,17 @@ from users_api.permissions import RequirePermission
 from dashboard.jobs import run_job
 
 
-def _settings_perm(perm_base, extra_write=None):
-    """Factory de get_permissions para ViewSets de configurações com permissões granulares."""
+def _settings_perm(perm_base, extra_write=None, action_perms=None):
+    """Factory de get_permissions para ViewSets de configurações com permissões granulares.
+
+    action_perms: {nome_da_action: sufixo} — exige '{perm_base}_{sufixo}' para essa action
+    específica, em vez do '_edit' genérico (ex: 'import_default' -> 'import_web')."""
     write_set = frozenset(['create', 'update', 'partial_update'] + (extra_write or []))
+    action_perms = action_perms or {}
 
     def get_permissions(self):
+        if self.action in action_perms:
+            return [RequirePermission('manage_settings', f'{perm_base}_{action_perms[self.action]}')()]
         if self.action == 'destroy':
             return [RequirePermission('manage_settings', perm_base, f'{perm_base}_delete')()]
         if self.action in write_set:
@@ -332,7 +338,7 @@ class ProfessionViewSet(viewsets.ModelViewSet):
     queryset = ConfigProfession.objects.all()
     serializer_class = ProfessionSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_professions', ['import_default'])
+    get_permissions = _settings_perm('settings_professions', action_perms={'import_default': 'import_web'})
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -385,7 +391,7 @@ class LanguageViewSet(viewsets.ModelViewSet):
     queryset = ConfigLanguage.objects.all()
     serializer_class = LanguageSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_languages', ['import_default'])
+    get_permissions = _settings_perm('settings_languages', action_perms={'import_default': 'import_web'})
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -421,7 +427,9 @@ class CountryViewSet(viewsets.ModelViewSet):
     queryset = ConfigCountry.objects.all()
     serializer_class = CountrySerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_countries', ['import_default'])
+    get_permissions = _settings_perm('settings_countries', action_perms={
+        'import_default': 'import_web', 'import_cascade': 'import_web',
+    })
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -447,6 +455,67 @@ class CountryViewSet(viewsets.ModelViewSet):
             return {'total': ConfigCountry.objects.count(), 'created': created}
 
         job_id = run_job('countries', 'Países', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['post'], url_path='import-cascade')
+    def import_cascade(self, request):
+        """Importa todos os países e, para cada um, seus estados e as cidades de
+        cada estado — tudo em sequência, em um único job de longa duração."""
+        def fetch_states(country):
+            try:
+                if country.code == 'BR':
+                    r = requests.get('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome', timeout=15)
+                    return [{'name': s['nome'], 'code': s['sigla']} for s in r.json()] if r.ok else []
+                r = requests.post('https://countriesnow.space/api/v0.1/countries/states',
+                                   json={'country': country.name}, timeout=15)
+                return [{'name': s['name'], 'code': s.get('state_code', '')} for s in r.json().get('data', {}).get('states', [])] if r.ok else []
+            except Exception:
+                return []
+
+        def fetch_cities(state, country):
+            try:
+                if country.code == 'BR' and state.code:
+                    r = requests.get(f'https://servicodados.ibge.gov.br/api/v1/localidades/estados/{state.code}/municipios', timeout=15)
+                    return [m['nome'] for m in r.json()] if r.ok else []
+                r = requests.post('https://countriesnow.space/api/v0.1/countries/state/cities',
+                                   json={'country': country.name, 'state': state.name}, timeout=15)
+                return list(r.json().get('data', [])) if r.ok else []
+            except Exception:
+                return []
+
+        def task(progress):
+            progress(0, 1)
+            try:
+                r = requests.get('https://restcountries.com/v3.1/all?fields=name,cca2,translations', timeout=20)
+                rows = r.json() if r.ok else []
+            except Exception:
+                rows = []
+            if not rows:
+                raise RuntimeError('Não foi possível buscar a lista de países.')
+            for c in rows:
+                name = (c.get('translations') or {}).get('por', {}).get('common') or c['name']['common']
+                ConfigCountry.objects.get_or_create(name=name, defaults={'code': c.get('cca2', '')})
+
+            countries = list(ConfigCountry.objects.all())
+            total = len(countries)
+            new_countries = new_states = new_cities = 0
+            for ci, country in enumerate(countries, 1):
+                for s in fetch_states(country):
+                    _, created = ConfigState.objects.get_or_create(
+                        country=country, name=s['name'], defaults={'code': s['code']})
+                    if created:
+                        new_states += 1
+                for state in country.states.all():
+                    names = fetch_cities(state, country)
+                    if names:
+                        before = state.cities.count()
+                        ConfigCity.objects.bulk_create(
+                            [ConfigCity(state=state, name=n) for n in names], ignore_conflicts=True)
+                        new_cities += state.cities.count() - before
+                progress(ci, total)
+            return {'countries': ConfigCountry.objects.count(), 'new_states': new_states, 'new_cities': new_cities}
+
+        job_id = run_job('countries_cascade', 'Países + Estados + Cidades (tudo)', task)
         return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
@@ -600,7 +669,7 @@ class ProfCardViewSet(viewsets.ModelViewSet):
     queryset = ConfigProfCard.objects.all()
     serializer_class = ProfCardSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_prof_cards', ['import_default'])
+    get_permissions = _settings_perm('settings_prof_cards', action_perms={'import_default': 'import_web'})
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -678,7 +747,7 @@ class VaccineViewSet(viewsets.ModelViewSet):
     queryset = ConfigVaccine.objects.all()
     serializer_class = VaccineSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_vaccines', ['import_default'])
+    get_permissions = _settings_perm('settings_vaccines', action_perms={'import_default': 'import_web'})
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
@@ -762,7 +831,7 @@ class CityViewSet(viewsets.ModelViewSet):
             return ConfigCity.objects.filter(state_id=state_id)
         return ConfigCity.objects.none()
 
-    get_permissions = _settings_perm('settings_countries', ['import_for_state'])
+    get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})
 
     def perform_create(self, serializer):
         state = ConfigState.objects.get(pk=self.request.data['state_id'])
@@ -817,7 +886,7 @@ class StateViewSet(viewsets.ModelViewSet):
             return ConfigState.objects.all().select_related('country').order_by('country__name', 'name')
         return ConfigState.objects.none()
 
-    get_permissions = _settings_perm('settings_countries', ['import_for_country'])
+    get_permissions = _settings_perm('settings_countries', action_perms={'import_for_country': 'import_web'})
 
     def perform_create(self, serializer):
         country = ConfigCountry.objects.get(pk=self.request.data['country_id'])
@@ -894,7 +963,7 @@ class AirportViewSet(viewsets.ModelViewSet):
     queryset         = Airport.objects.all()
     serializer_class = AirportSerializer
     pagination_class = ConfigListPagination
-    get_permissions  = _settings_perm('settings_airports', ['seed'])
+    get_permissions  = _settings_perm('settings_airports', action_perms={'seed': 'import_web'})
 
     def get_queryset(self):
         qs = Airport.objects.all()
@@ -953,7 +1022,7 @@ class AirlineViewSet(viewsets.ModelViewSet):
     queryset         = Airline.objects.all()
     serializer_class = AirlineSerializer
     pagination_class = ConfigListPagination
-    get_permissions  = _settings_perm('settings_airlines', ['seed'])
+    get_permissions  = _settings_perm('settings_airlines', action_perms={'seed': 'import_web'})
 
     def get_queryset(self):
         qs = Airline.objects.all()
