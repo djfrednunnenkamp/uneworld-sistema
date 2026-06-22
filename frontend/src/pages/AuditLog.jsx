@@ -1,47 +1,90 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { auditApi } from '../api'
+import { auditApi, usersApi } from '../api'
 import DateRangeDrop from '../components/DateRangeDrop'
+import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 
 /* ── Estilos de ação ── */
 const ACTION_STYLE = {
-  create:   { label: '✦ Criado',     bg: '#dcfce7', color: '#16a34a', border: '#bbf7d0' },
-  update:   { label: '✎ Atualizado', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
-  delete:   { label: '✕ Apagado',    bg: '#fee2e2', color: '#dc2626', border: '#fecaca' },
-  download: { label: '⬇ Baixado',    bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
+  create:   { label: 'Criado',     icon: 'plus',   bg: '#dcfce7', color: '#16a34a', border: '#bbf7d0' },
+  update:   { label: 'Atualizado', icon: 'edit',   bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
+  delete:   { label: 'Apagado',    icon: 'trash',  bg: '#fee2e2', color: '#dc2626', border: '#fecaca' },
+  download: { label: 'Baixado',    icon: 'dl',     bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
+  upload:   { label: 'Enviado',    icon: 'ul',     bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
+  login:    { label: 'Login',      icon: 'key',    bg: '#ede9fe', color: '#7c3aed', border: '#ddd6fe' },
 }
 
 const MODEL_OPTS = [
-  { value: '',                  label: 'Todos os tipos'    },
-  { value: 'Passenger',         label: 'Passageiro'        },
-  { value: 'PassengerDocument', label: 'Documento'         },
-  { value: 'Agency',            label: 'Agência'           },
-  { value: 'Trip',              label: 'Viagem'            },
-  { value: 'User',              label: 'Usuário'           },
-  { value: 'CustomDocType',     label: 'Tipo de documento' },
-  { value: 'ConfigProfession',  label: 'Profissão'         },
-  { value: 'ConfigLanguage',    label: 'Idioma'            },
-  { value: 'ConfigCountry',     label: 'País'              },
-  { value: 'ConfigVaccine',     label: 'Vacina'            },
-  { value: 'ConfigGender',      label: 'Gênero'            },
+  { value: '',                  label: 'Todos os tipos'          },
+  { value: 'Passenger',         label: 'Passageiro'              },
+  { value: 'PassengerDocument', label: 'Documento de passageiro' },
+  { value: 'Agency',            label: 'Agência'                 },
+  { value: 'Trip',               label: 'Viagem'                  },
+  { value: 'PassengerList',     label: 'Lista de passageiros'    },
+  { value: 'ListEnrollment',    label: 'Inscrição na lista'      },
+  { value: 'User',              label: 'Usuário'                 },
+  { value: 'Supplier',          label: 'Fornecedor'              },
+  { value: 'CustomDocType',     label: 'Tipo de documento'       },
+  { value: 'CustomDocField',    label: 'Campo de documento'      },
+  { value: 'ConfigProfession',  label: 'Profissão'               },
+  { value: 'ConfigLanguage',    label: 'Idioma'                  },
+  { value: 'ConfigCountry',     label: 'País'                    },
+  { value: 'ConfigState',       label: 'Estado'                  },
+  { value: 'ConfigCity',        label: 'Cidade'                  },
+  { value: 'ConfigVaccine',     label: 'Vacina'                  },
+  { value: 'ConfigGender',      label: 'Gênero'                  },
+  { value: 'ConfigProfCard',    label: 'Carteira profissional'   },
+  { value: 'ConfigAccommodation', label: 'Tipo de acomodação'    },
+  { value: 'ConfigListCategory',  label: 'Categoria de acomodação' },
+  { value: 'ListAdditional',    label: 'Adicional de lista'      },
+  { value: 'CrewRole',          label: 'Equipe técnica'          },
+  { value: 'Destination',       label: 'Destino'                 },
+  { value: 'Airport',           label: 'Aeroporto'               },
+  { value: 'Airline',           label: 'Companhia aérea'         },
+  { value: 'BusMap',            label: 'Mapa de ônibus'          },
+  { value: 'PermissionProfile', label: 'Perfil de permissão'     },
 ]
 
 const ACTION_OPTS = [
   { value: '',         label: 'Todas as ações' },
-  { value: 'create',   label: '✦ Criado'       },
-  { value: 'update',   label: '✎ Atualizado'   },
-  { value: 'delete',   label: '✕ Apagado'      },
-  { value: 'download', label: '⬇ Baixado'      },
+  { value: 'create',   label: 'Criado'         },
+  { value: 'update',   label: 'Atualizado'     },
+  { value: 'delete',   label: 'Apagado'        },
+  { value: 'download', label: 'Baixado'        },
+  { value: 'upload',   label: 'Enviado'        },
+  { value: 'login',    label: 'Login'          },
 ]
 
-/* ── Dropdown de filtro estilo Passageiros ── */
-function FDrop({ label, value, onChange, options }) {
+/* Iniciais para o avatar redondo (igual ao topbar) */
+function initialsOf(name) {
+  if (!name || name === 'Sistema') return '⚙'
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || name[0].toUpperCase()
+}
+
+function Avatar({ name, size = 26 }) {
+  return (
+    <span style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: name === 'Sistema' || !name ? '#94a3b8' : '#2e6db4',
+      color: '#fff', fontSize: size * 0.4, fontWeight: 700,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '.02em',
+    }}>
+      {initialsOf(name)}
+    </span>
+  )
+}
+
+/* ── Dropdown de filtro elegante — com busca quando há muitas opções ── */
+function FDrop({ label, icon, value, onChange, options, iconFor }) {
   const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
   const ref = useRef(null)
   const active = value !== options[0].value
   const selected = options.find(o => o.value === value)
+  const searchable = options.length > 8
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -49,47 +92,158 @@ function FDrop({ label, value, onChange, options }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  useEffect(() => { if (!open) setQ('') }, [open])
+
+  const filtered = q
+    ? options.filter(o => o.value === '' || o.label.toLowerCase().includes(q.toLowerCase()))
+    : options
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" onClick={() => setOpen(o => !o)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7,
-          border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8,
+          border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
           background: active ? '#eff6ff' : '#fff',
           color: active ? '#2e6db4' : '#475569',
-          fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit',
           whiteSpace: 'nowrap', transition: 'all .12s',
         }}>
-        {label}{active && selected ? `: ${selected.label}` : ''}
-        <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
+        {icon && <Ic n={icon} s={13} />}
+        {active && selected ? selected.label : label}
+        <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▼</span>
       </button>
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
-          background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0',
-          boxShadow: '0 8px 24px rgba(0,0,0,.10)', minWidth: 180, overflow: 'hidden',
+          background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0',
+          boxShadow: '0 12px 28px rgba(15,23,42,.12)', minWidth: 220, overflow: 'hidden',
         }}>
-          {options.map(opt => {
-            const sel = value === opt.value
-            return (
-              <button key={opt.value} type="button"
-                onClick={() => { onChange(opt.value); setOpen(false) }}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  width: '100%', padding: '9px 14px', gap: 10,
-                  background: sel ? '#eff6ff' : 'transparent', border: 'none',
-                  borderBottom: '1px solid #f8fafc', color: sel ? '#2e6db4' : '#1e293b',
-                  fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer',
-                  fontFamily: 'inherit', textAlign: 'left',
-                }}
-                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
-                onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}
-              >
-                <span>{opt.label}</span>
-                {sel && <span style={{ color: '#2e6db4' }}>✓</span>}
-              </button>
-            )
-          })}
+          {searchable && (
+            <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)}
+                placeholder="Buscar…"
+                style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12.5, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            </div>
+          )}
+          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <p style={{ padding: '14px', margin: 0, fontSize: 12.5, color: '#94a3b8', textAlign: 'center' }}>Nada encontrado.</p>
+            ) : filtered.map(opt => {
+              const sel = value === opt.value
+              const ic = iconFor?.(opt.value)
+              return (
+                <button key={opt.value} type="button"
+                  onClick={() => { onChange(opt.value); setOpen(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    width: '100%', padding: '8px 14px', gap: 10,
+                    background: sel ? '#eff6ff' : 'transparent', border: 'none',
+                    color: sel ? '#2e6db4' : '#1e293b',
+                    fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer',
+                    fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
+                  onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {ic && <span style={{ color: sel ? '#2e6db4' : '#94a3b8', display: 'flex' }}><Ic n={ic} s={13} /></span>}
+                    {opt.label}
+                  </span>
+                  {sel && <Ic n="check" s={13} />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Dropdown de filtro por usuário — busca em /users/, mostra avatar ── */
+function UserFilterDrop({ value, onChange }) {
+  const [open, setOpen]   = useState(false)
+  const [q, setQ]         = useState('')
+  const [users, setUsers] = useState(null) // null = ainda não carregou
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  useEffect(() => {
+    if (open && users === null) {
+      usersApi.list().then(r => setUsers(r.data)).catch(() => setUsers([]))
+    }
+  }, [open, users])
+
+  const selectedUser = (users ?? []).find(u => String(u.id) === String(value))
+  const active = !!value
+  const filtered = (users ?? []).filter(u =>
+    !q || (u.full_name || u.username).toLowerCase().includes(q.toLowerCase()) || u.email?.toLowerCase().includes(q.toLowerCase())
+  )
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8,
+          border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          background: active ? '#eff6ff' : '#fff',
+          color: active ? '#2e6db4' : '#475569',
+          fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit',
+          whiteSpace: 'nowrap', transition: 'all .12s', maxWidth: 200,
+        }}>
+        {active && selectedUser ? <Avatar name={selectedUser.full_name || selectedUser.username} size={18} /> : <Ic n="users" s={13} />}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {active ? (selectedUser?.full_name || selectedUser?.username || '…') : 'Usuário'}
+        </span>
+        <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
+          background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0',
+          boxShadow: '0 12px 28px rgba(15,23,42,.12)', minWidth: 240, overflow: 'hidden',
+        }}>
+          <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)}
+              placeholder="Buscar pessoa…"
+              style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12.5, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            <button type="button" onClick={() => { onChange(''); setOpen(false) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', background: !value ? '#eff6ff' : 'transparent', border: 'none', color: !value ? '#2e6db4' : '#1e293b', fontSize: 13, fontWeight: !value ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+              onMouseEnter={e => { if (value) e.currentTarget.style.background = '#f8fafc' }}
+              onMouseLeave={e => { if (value) e.currentTarget.style.background = 'transparent' }}>
+              <Ic n="users" s={13} /> Todos os usuários
+            </button>
+            {users === null ? (
+              <p style={{ padding: '14px', margin: 0, fontSize: 12.5, color: '#94a3b8', textAlign: 'center' }}>Carregando…</p>
+            ) : filtered.length === 0 ? (
+              <p style={{ padding: '14px', margin: 0, fontSize: 12.5, color: '#94a3b8', textAlign: 'center' }}>Nenhuma pessoa encontrada.</p>
+            ) : filtered.map(u => {
+              const sel = String(value) === String(u.id)
+              const name = u.full_name || u.username
+              return (
+                <button key={u.id} type="button"
+                  onClick={() => { onChange(String(u.id)); setOpen(false) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '7px 14px', background: sel ? '#eff6ff' : 'transparent', border: 'none', color: sel ? '#2e6db4' : '#1e293b', fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                  onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
+                  onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}>
+                  <Avatar name={name} size={22} />
+                  <span style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                    {u.email && <span style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</span>}
+                  </span>
+                  {sel && <Ic n="check" s={13} />}
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -140,16 +294,16 @@ function LogDetailPopup({ entry, onClose }) {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: style.bg, color: style.color, border: `1px solid ${style.border}` }}>
-                  {style.label}
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: style.bg, color: style.color, border: `1px solid ${style.border}` }}>
+                  <Ic n={style.icon} s={11} /> {style.label}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{entry.model_label}</span>
               </div>
               <p style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>{entry.object_repr}</p>
-              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#64748b' }}>
-                <span>🕐 {entry.timestamp_br}</span>
-                <span>👤 {entry.user_display || 'Sistema'}</span>
-                {entry.ip_address && <span>🌐 {entry.ip_address}</span>}
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#64748b', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Ic n="clock" s={12} /> {entry.timestamp_br}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Avatar name={entry.user_display || 'Sistema'} size={18} /> {entry.user_display || 'Sistema'}</span>
+                {entry.ip_address && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Ic n="globe" s={12} /> {entry.ip_address}</span>}
               </div>
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 22, lineHeight: 1, padding: 2, flexShrink: 0 }}>×</button>
@@ -207,48 +361,51 @@ function LogDetailPopup({ entry, onClose }) {
 }
 
 /* ── Linha da tabela ── */
-function LogRow({ entry, onClick }) {
+function LogRow({ entry, onClick, even }) {
   const style = ACTION_STYLE[entry.action] ?? ACTION_STYLE.update
   const changesCount = Object.keys(entry.changes ?? {}).length
 
   return (
-    <tr onClick={onClick} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background .1s' }}
-      onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-      onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+    <tr onClick={onClick} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background .1s', background: even ? '#fafbfc' : '#fff' }}
+      onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+      onMouseLeave={e => e.currentTarget.style.background = even ? '#fafbfc' : '#fff'}
     >
-      <td style={{ padding: '12px 16px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap', textAlign: 'center' }}>
+      <td style={{ padding: '11px 16px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
         {entry.timestamp_br}
       </td>
-      <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: '#1e293b', textAlign: 'center' }}>
-        {entry.user_display || '—'}
-      </td>
-      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-        <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: style.bg, color: style.color, border: `1px solid ${style.border}`, whiteSpace: 'nowrap' }}>
-          {style.label}
+      <td style={{ padding: '11px 16px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#1e293b' }}>
+          <Avatar name={entry.user_display || 'Sistema'} />
+          {entry.user_display || 'Sistema'}
         </span>
       </td>
-      <td style={{ padding: '12px 16px', fontSize: 13, color: '#475569', textAlign: 'center' }}>
+      <td style={{ padding: '11px 16px' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: style.bg, color: style.color, border: `1px solid ${style.border}`, whiteSpace: 'nowrap' }}>
+          <Ic n={style.icon} s={10} /> {style.label}
+        </span>
+      </td>
+      <td style={{ padding: '11px 16px', fontSize: 13, color: '#475569' }}>
         {entry.model_label}
       </td>
-      <td style={{ padding: '12px 16px', fontSize: 13, color: '#1e293b', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>
+      <td style={{ padding: '11px 16px', fontSize: 13, color: '#1e293b', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {entry.object_repr}
       </td>
-      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+      <td style={{ padding: '11px 16px', textAlign: 'center' }}>
         {changesCount > 0
           ? <span style={{ fontSize: 12, color: '#2e6db4', background: '#eff6ff', padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>
               {changesCount} campo{changesCount !== 1 ? 's' : ''}
             </span>
           : <span style={{ fontSize: 12, color: '#cbd5e1' }}>—</span>}
       </td>
-      <td style={{ padding: '12px 16px', fontSize: 11, color: '#cbd5e1', textAlign: 'center' }}>
+      <td style={{ padding: '11px 16px', fontSize: 11, color: '#cbd5e1', whiteSpace: 'nowrap' }}>
         {entry.ip_address ?? '—'}
       </td>
     </tr>
   )
 }
 
-const TH = ({ children }) => (
-  <th style={{ padding: '11px 16px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap', background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+const TH = ({ children, align = 'left' }) => (
+  <th style={{ padding: '11px 16px', textAlign: align, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap', background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
     {children}
   </th>
 )
@@ -276,7 +433,7 @@ export default function AuditLog() {
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
   const [selected, setSelected] = useState(null)
-  const [filters,  setFilters]  = useState({ action: '', model: initModel, search: '', date_from: '', date_to: '' })
+  const [filters,  setFilters]  = useState({ action: '', model: initModel, search: '', date_from: '', date_to: '', user_id: '' })
 
   const pageRef    = useRef(1)
   const filtersRef = useRef(filters)
@@ -290,6 +447,7 @@ export default function AuditLog() {
       if (f.search)    params.search    = f.search
       if (f.date_from) params.date_from = f.date_from
       if (f.date_to)   params.date_to   = f.date_to
+      if (f.user_id)   params.user_id   = f.user_id
       if (listId)      params.list_id   = listId
       if (passengerId) params.passenger_id = passengerId
       if (agencyId)    params.agency_id    = agencyId
@@ -322,6 +480,7 @@ export default function AuditLog() {
       if (f.search)    params.search    = f.search
       if (f.date_from) params.date_from = f.date_from
       if (f.date_to)   params.date_to   = f.date_to
+      if (f.user_id)   params.user_id   = f.user_id
       if (listId)      params.list_id   = listId
       if (passengerId) params.passenger_id = passengerId
       if (agencyId)    params.agency_id    = agencyId
@@ -337,7 +496,7 @@ export default function AuditLog() {
     if (scope === 'audit' || scope === 'all') silentReload()
   }, [silentReload]))
 
-  const hasFilter = filters.action || filters.model || filters.search || filters.date_from || filters.date_to
+  const hasFilter = filters.action || filters.model || filters.search || filters.date_from || filters.date_to || filters.user_id
   const totalPages = Math.ceil(count / 50)
 
   const ctx = MODEL_CONTEXT[filters.model] || null
@@ -387,7 +546,10 @@ export default function AuditLog() {
               ← Voltar para {ctx.label}
             </button>
           )}
-          <h1 className="ph-title">
+          <h1 className="ph-title" style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: '#eef2ff', color: '#4f46e5' }}>
+              <Ic n="list" s={16} />
+            </span>
             {listId ? 'Log da Lista de Passageiros'
               : passengerId ? 'Log do Passageiro'
               : agencyId ? 'Log da Agência'
@@ -400,23 +562,25 @@ export default function AuditLog() {
         </div>
       </div>
 
-      {/* Filtros estilo Passageiros */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Filtros — barra em card */}
+      <div style={{ display: 'flex', gap: 9, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, boxShadow: '0 1px 3px rgba(0,0,0,.03)' }}>
         {/* Busca */}
         <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none', fontSize: 14 }}>🔍</span>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none', display: 'flex' }}><Ic n="search" s={14} /></span>
           <input
             value={filters.search}
             onChange={e => setFilter('search', e.target.value)}
-            placeholder="Buscar por usuário ou descrição…"
-            style={{ paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7, border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', background: '#fff', width: 250 }}
+            placeholder="Buscar por descrição…"
+            style={{ paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', background: '#fff', width: 230, boxSizing: 'border-box' }}
             onFocus={e => e.target.style.borderColor = '#2e6db4'}
             onBlur={e  => e.target.style.borderColor = '#e2e8f0'}
           />
         </div>
 
-        <FDrop label="Ação"  value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS} />
-        <FDrop label="Tipo"  value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS} />
+        <UserFilterDrop value={filters.user_id} onChange={v => setFilter('user_id', v)} />
+        <FDrop label="Ação" icon="check" value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS}
+          iconFor={v => ACTION_STYLE[v]?.icon} />
+        <FDrop label="Tipo" icon="grid" value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS} />
 
         <DateRangeDrop
           label="Período"
@@ -427,9 +591,9 @@ export default function AuditLog() {
         />
 
         {hasFilter && (
-          <button onClick={() => { const c = { action:'',model:'',search:'',date_from:'',date_to:'' }; setFilters(c); load(1,c) }}
-            style={{ padding: '7px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-            ✕ Limpar
+          <button onClick={() => { const c = { action:'',model:'',search:'',date_from:'',date_to:'',user_id:'' }; setFilters(c); load(1,c) }}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 8, border: '1.5px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Ic n="x" s={12} /> Limpar filtros
           </button>
         )}
       </div>
@@ -445,8 +609,8 @@ export default function AuditLog() {
                 <TH>Ação</TH>
                 <TH>Tipo</TH>
                 <TH>Descrição</TH>
-                <TH>Campos</TH>
-                <TH>IP</TH>
+                <TH align="center">Campos</TH>
+                <TH align="center">IP</TH>
               </tr>
             </thead>
             <tbody>
@@ -456,12 +620,12 @@ export default function AuditLog() {
                 </td></tr>
               ) : logs.length === 0 ? (
                 <tr><td colSpan={7} style={{ textAlign: 'center', padding: '56px 0' }}>
-                  <p style={{ fontSize: 36, marginBottom: 10 }}>📋</p>
+                  <p style={{ display: 'flex', justifyContent: 'center', color: '#cbd5e1', marginBottom: 10 }}><Ic n="list" s={36} /></p>
                   <p style={{ color: '#94a3b8', fontSize: 14, fontWeight: 500 }}>Nenhum evento encontrado.</p>
                   {hasFilter && <p style={{ color: '#cbd5e1', fontSize: 12, marginTop: 4 }}>Tente ajustar os filtros.</p>}
                 </td></tr>
-              ) : logs.map(entry => (
-                <LogRow key={entry.id} entry={entry} onClick={() => setSelected(entry)} />
+              ) : logs.map((entry, i) => (
+                <LogRow key={entry.id} entry={entry} even={i % 2 === 1} onClick={() => setSelected(entry)} />
               ))}
             </tbody>
           </table>

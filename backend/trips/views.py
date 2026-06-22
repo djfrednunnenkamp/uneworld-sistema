@@ -329,6 +329,24 @@ class PassengerListViewSet(viewsets.ModelViewSet):
             added += 1
             enrollments.append(ListEnrollmentSerializer(e).data)
 
+        from audit.models import AuditLog
+        from audit.middleware import get_current_user, get_current_ip
+        from audit.tracking import user_display
+        log_user = get_current_user()
+        AuditLog.objects.create(
+            user=log_user, user_display=user_display(log_user), action='upload',
+            model_name='PassengerList', model_label='Lista de Passageiros',
+            object_id=str(pl.pk), object_repr=str(pl)[:500],
+            changes={
+                'Arquivo': file.name,
+                'Passageiros adicionados': added,
+                'Passageiros novos criados': created_passengers,
+                'Ignorados': len(skipped),
+                'Erros': len(errors),
+            },
+            ip_address=get_current_ip(),
+        )
+
         return Response({
             'added': added,
             'created_passengers': created_passengers,

@@ -8,6 +8,8 @@ class AuditLog(models.Model):
         ('update', 'Atualizado'),
         ('delete', 'Apagado'),
         ('download', 'Baixado'),
+        ('upload', 'Enviado'),
+        ('login', 'Login'),
     ]
 
     timestamp    = models.DateTimeField('Data/Hora', auto_now_add=True, db_index=True)

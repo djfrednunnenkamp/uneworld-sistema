@@ -83,6 +83,16 @@ def login_view(request):
     if not user.is_active:
         return Response({'error': 'Usuário desativado.'}, status=400)
     login(request, user)
+
+    from audit.models import AuditLog
+    from audit.middleware import get_current_ip
+    from audit.tracking import user_display
+    AuditLog.objects.create(
+        user=user, user_display=user_display(user), action='login',
+        model_name='User', model_label='Login', object_id=str(user.pk),
+        object_repr=user_display(user), ip_address=get_current_ip(),
+    )
+
     return Response(serialize_user(user))
 
 

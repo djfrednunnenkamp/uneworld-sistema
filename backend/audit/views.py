@@ -54,6 +54,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         action = self.request.query_params.get('action')
         model  = self.request.query_params.get('model')
         user_search = self.request.query_params.get('user')
+        user_id_filter = self.request.query_params.get('user_id')
         date_from = self.request.query_params.get('date_from')
         date_to   = self.request.query_params.get('date_to')
         object_id = self.request.query_params.get('object_id')
@@ -99,7 +100,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         if action:    qs = qs.filter(action=action)
         if model:     qs = qs.filter(model_name=model)
         if object_id: qs = qs.filter(object_id=object_id)
-        if user_search: qs = qs.filter(user_display__icontains=user_search)
+        if user_search:    qs = qs.filter(user_display__icontains=user_search)
+        if user_id_filter: qs = qs.filter(user_id=user_id_filter)
         if date_from: qs = qs.filter(timestamp__date__gte=date_from)
         if date_to:   qs = qs.filter(timestamp__date__lte=date_to)
         if list_id:
