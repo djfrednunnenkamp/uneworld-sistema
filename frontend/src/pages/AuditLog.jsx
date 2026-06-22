@@ -106,11 +106,11 @@ function NavToggle({ checked, onChange }) {
   )
 }
 
-function FDrop({ label, icon, value, onChange, options, iconFor }) {
+function FDrop({ label, icon, value, onChange, options, iconFor, forceActive, forceLabel }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const ref = useRef(null)
-  const active = value !== options[0].value
+  const active = forceActive || value !== options[0].value
   const selected = options.find(o => o.value === value)
   const searchable = options.length > 8
 
@@ -138,7 +138,7 @@ function FDrop({ label, icon, value, onChange, options, iconFor }) {
           whiteSpace: 'nowrap', transition: 'all .12s',
         }}>
         {icon && <Ic n={icon} s={13} />}
-        {active && selected ? selected.label : label}
+        {selected?.value ? selected.label : (active && forceLabel) ? forceLabel : label}
         <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▼</span>
       </button>
       {open && (
@@ -334,9 +334,9 @@ function RecordDrillDrop({ drillKey, value, onChange }) {
       <button type="button" onClick={() => setOpen(o => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8,
-          border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          border: `1.5px solid ${active ? '#2e6db4' : '#bfdbfe'}`,
           background: active ? '#eff6ff' : '#fff',
-          color: active ? '#2e6db4' : '#475569',
+          color: active ? '#2e6db4' : '#1d4ed8',
           fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit',
           whiteSpace: 'nowrap', transition: 'all .12s', maxWidth: 220,
         }}>
@@ -708,6 +708,15 @@ export default function AuditLog() {
 
   const ctx = SCOPE_CONTEXT[auditScope] || MODEL_CONTEXT[filters.model] || null
 
+  // Rótulo da área atual mesmo quando o filtro de Tipo (filters.model) está
+  // vazio — porque o filtro real está no scope= ou no list_id/passenger_id/
+  // agency_id da URL, não no dropdown de Tipo. Usado pra marcar o Tipo como
+  // ativo e mostrar visualmente que a área está, sim, sendo filtrada.
+  const areaLabel = listId ? 'Lista de Passageiros'
+    : passengerId ? 'Passageiro'
+    : agencyId ? 'Agência'
+    : ctx?.label || null
+
   // Sub-filtro "entrar num registro específico" — aparece junto do Tipo quando
   // a área atual (scope= ou Tipo=) é uma das que tem busca por registro.
   const MODEL_TO_DRILL = { PassengerList: 'lists', Passenger: 'passengers', Agency: 'agencies' }
@@ -790,7 +799,8 @@ export default function AuditLog() {
         <UserFilterDrop value={filters.user_id} onChange={v => setFilter('user_id', v)} />
         <FDrop label="Ação" icon="check" value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS}
           iconFor={v => ACTION_STYLE[v]?.icon} />
-        <FDrop label="Tipo" icon="grid" value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS} />
+        <FDrop label="Tipo" icon="grid" value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS}
+          forceActive={!!areaLabel} forceLabel={areaLabel} />
         {drillScope && <RecordDrillDrop drillKey={drillScope} value={drillValue} onChange={setDrillValue} />}
 
         <DateRangeDrop
