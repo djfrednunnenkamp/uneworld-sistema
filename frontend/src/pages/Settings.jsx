@@ -16,6 +16,7 @@ import { PERM_GROUPS, EMPTY_PERMISSIONS, sanitizePerms, applyPermChanges } from 
 import CsvImportPopup from '../components/CsvImportPopup'
 import CsvExportModal from '../components/CsvExportModal'
 import { CSV_SAMPLES } from '../utils/csvSamples'
+import { CARD_META } from '../utils/sectionMeta'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -701,24 +702,6 @@ const LIST_DEFS = [
   { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps' },
 ]
 const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
-
-const CARD_META = {
-  doc_types:       { icon: 'docs',      hue: 230, desc: 'Modelos e tipos de documentos do sistema.' },
-  perm_profiles:   { icon: 'shield',    hue: 252, desc: 'Perfis de acesso e permissões dos usuários.' },
-  professions:     { icon: 'briefcase', hue: 38,  desc: 'Profissões disponíveis no cadastro de passageiros.' },
-  languages:       { icon: 'globe',     hue: 150, desc: 'Idiomas disponíveis nos cadastros e materiais.' },
-  vaccines:        { icon: 'syringe',   hue: 18,  desc: 'Vacinas registradas para controle sanitário.' },
-  genders:         { icon: 'gender',    hue: 340, desc: 'Opções de gênero para o cadastro de pessoas.' },
-  prof_cards:      { icon: 'card',      hue: 285, desc: 'Tipos de carteiras e documentos de identificação.' },
-  list_addits:     { icon: 'listplus',  hue: 260, desc: 'Campos extras configuráveis nas listas de passageiros.' },
-  crew_roles:      { icon: 'wrench',    hue: 165, desc: 'Funções e membros da equipe técnica de viagem.' },
-  accommodations:  { icon: 'bed',       hue: 280, desc: 'Tipos de acomodação como single, duplo e triplo.' },
-  list_categories: { icon: 'grid',      hue: 300, desc: 'Categorias para classificar as acomodações.' },
-  countries:       { icon: 'pin',       hue: 130, desc: 'Países e seus respectivos estados e regiões.' },
-  airports:        { icon: 'plane',     hue: 218, desc: 'Aeroportos cadastrados para origens e destinos.' },
-  airlines:        { icon: 'ticket',    hue: 195, desc: 'Companhias aéreas disponíveis para voos.' },
-  bus_maps:        { icon: 'mapicon',   hue: 45,  desc: 'Mapas de assentos dos ônibus por empresa.' },
-}
 
 function exportEmailsCsv(emails) {
   const rows = ['email', ...emails.map(e => `"${e.replace(/"/g, '""')}"`)]

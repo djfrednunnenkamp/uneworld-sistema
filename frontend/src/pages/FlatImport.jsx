@@ -4,6 +4,7 @@ import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../context/AuthContext'
 import { Ic } from '../components/Icon'
+import { CARD_META } from '../utils/sectionMeta'
 
 function parseCsvNames(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
@@ -287,8 +288,13 @@ export default function FlatImport() {
   const listOptions = useMemo(() => {
     if (!isAll) return []
     const seen = new Map()
-    rows.forEach(r => { if (r.listKey && !seen.has(r.listKey)) seen.set(r.listKey, r.listLabel) })
-    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+    rows.forEach(r => {
+      if (!r.listKey) return
+      const entry = seen.get(r.listKey) || { label: r.listLabel, count: 0 }
+      entry.count++
+      seen.set(r.listKey, entry)
+    })
+    return [...seen.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label))
   }, [rows, isAll])
 
   const filtered = useMemo(() => {
@@ -510,15 +516,6 @@ export default function FlatImport() {
             style={{ padding:'7px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', width:230 }}
             onFocus={e => e.target.style.borderColor='#1a2d4f'}
             onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
-          {isAll && listOptions.length > 1 && (
-            <select value={listFilter} onChange={e => setListFilter(e.target.value)}
-              style={{ padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#334155', background:'#fff', cursor:'pointer' }}>
-              <option value="all">Todas as listas</option>
-              {listOptions.map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          )}
           {[
             {key:'all',       label:`Todos (${rows.length})`},
             {key:'valid',     label:`Válidos (${stats.valid})`},
@@ -542,6 +539,34 @@ export default function FlatImport() {
             </button>
           )}
         </div>
+
+        {/* Filtro por seção — só no modo combinado */}
+        {isAll && listOptions.length > 1 && (
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={() => setListFilter('all')}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 13px', borderRadius:20, border:'1.5px solid', fontFamily:'inherit',
+                borderColor: listFilter==='all' ? '#1a2d4f' : '#e2e8f0',
+                background:  listFilter==='all' ? '#1a2d4f' : '#fff',
+                color:       listFilter==='all' ? '#fff'    : '#475569',
+                fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              <Ic n="grid" s={13}/> Todas as listas
+            </button>
+            {listOptions.map(([key, { label, count }]) => {
+              const meta = CARD_META[key] || { icon:'list', hue:220 }
+              const active = listFilter === key
+              const bg = active ? `oklch(0.52 0.15 ${meta.hue})` : `oklch(0.955 0.035 ${meta.hue})`
+              const fg = active ? '#fff' : `oklch(0.52 0.15 ${meta.hue})`
+              return (
+                <button key={key} onClick={() => setListFilter(key)} title={`${label} (${count})`}
+                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 13px', borderRadius:20, border:'1.5px solid', fontFamily:'inherit',
+                    borderColor: active ? bg : 'transparent', background: bg, color: fg,
+                    fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .12s' }}>
+                  <Ic n={meta.icon} s={13}/> {label} <span style={{ opacity:.7 }}>({count})</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Tabela */}
         <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', overflow:'hidden' }}>
