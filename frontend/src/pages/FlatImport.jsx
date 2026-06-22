@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
@@ -204,6 +204,8 @@ export default function FlatImport() {
   const [result,      setResult]      = useState(null)
   const [filter,      setFilter]      = useState('all')
   const [listFilter,  setListFilter]  = useState('all')
+  const [listFilterOpen, setListFilterOpen] = useState(false)
+  const listFilterRef = useRef(null)
   const [search,      setSearch]      = useState('')
   const [selected,    setSelected]    = useState(new Set())
   const [confirm,     setConfirm]     = useState(null) // { type:'bulk'|'single', id?, count? }
@@ -267,6 +269,13 @@ export default function FlatImport() {
 
   // Reset pagination when filter/search changes
   useEffect(() => { setVisibleCount(20) }, [filter, listFilter, search])
+
+  useEffect(() => {
+    if (!listFilterOpen) return
+    const onClick = (e) => { if (listFilterRef.current && !listFilterRef.current.contains(e.target)) setListFilterOpen(false) }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [listFilterOpen])
 
   const editRow = (id, name) => setRows(prev => prev.map(r => r.id === id
     ? { ...r, name, status: rowStatus(name, r.listKey, r.extras) }
@@ -516,6 +525,53 @@ export default function FlatImport() {
             style={{ padding:'7px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', width:230 }}
             onFocus={e => e.target.style.borderColor='#1a2d4f'}
             onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
+
+          {isAll && listOptions.length > 1 && (() => {
+            const current = listFilter === 'all' ? null : CARD_META[listFilter]
+            const currentLabel = listFilter === 'all' ? 'Todas as listas' : listOptions.find(([k]) => k === listFilter)?.[1].label
+            const fg = current ? `oklch(0.52 0.15 ${current.hue})` : '#475569'
+            return (
+              <div ref={listFilterRef} style={{ position:'relative' }}>
+                <button onClick={() => setListFilterOpen(o => !o)}
+                  style={{ display:'flex', alignItems:'center', gap:7, padding:'6.5px 12px', borderRadius:8,
+                    border:'1.5px solid #e2e8f0', background:'#fff', color: fg,
+                    fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit', minWidth:170 }}>
+                  <Ic n={current ? current.icon : 'grid'} s={14}/>
+                  <span style={{ flex:1, textAlign:'left' }}>{currentLabel}</span>
+                  <span style={{ transform: listFilterOpen ? 'rotate(180deg)' : 'none', transition:'transform .12s', color:'#94a3b8' }}>
+                    <Ic n="chevron" s={12}/>
+                  </span>
+                </button>
+                {listFilterOpen && (
+                  <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:20, width:240, maxHeight:340, overflowY:'auto',
+                    background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, boxShadow:'0 8px 24px rgba(15,23,42,.12)', padding:6 }}>
+                    <button onClick={() => { setListFilter('all'); setListFilterOpen(false) }}
+                      style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'7px 9px', borderRadius:7, border:'none',
+                        background: listFilter==='all' ? '#f1f5f9' : 'transparent', color:'#334155',
+                        fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}>
+                      <Ic n="grid" s={14}/> Todas as listas
+                    </button>
+                    {listOptions.map(([key, { label, count }]) => {
+                      const meta = CARD_META[key] || { icon:'list', hue:220 }
+                      const active = listFilter === key
+                      return (
+                        <button key={key} onClick={() => { setListFilter(key); setListFilterOpen(false) }}
+                          style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'7px 9px', borderRadius:7, border:'none',
+                            background: active ? `oklch(0.955 0.035 ${meta.hue})` : 'transparent',
+                            color: `oklch(0.52 0.15 ${meta.hue})`,
+                            fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit', textAlign:'left' }}>
+                          <Ic n={meta.icon} s={14}/>
+                          <span style={{ flex:1, color:'#334155' }}>{label}</span>
+                          <span style={{ opacity:.65, fontWeight:500 }}>{count}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {[
             {key:'all',       label:`Todos (${rows.length})`},
             {key:'valid',     label:`Válidos (${stats.valid})`},
@@ -539,34 +595,6 @@ export default function FlatImport() {
             </button>
           )}
         </div>
-
-        {/* Filtro por seção — só no modo combinado */}
-        {isAll && listOptions.length > 1 && (
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            <button onClick={() => setListFilter('all')}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 13px', borderRadius:20, border:'1.5px solid', fontFamily:'inherit',
-                borderColor: listFilter==='all' ? '#1a2d4f' : '#e2e8f0',
-                background:  listFilter==='all' ? '#1a2d4f' : '#fff',
-                color:       listFilter==='all' ? '#fff'    : '#475569',
-                fontSize:12, fontWeight:600, cursor:'pointer' }}>
-              <Ic n="grid" s={13}/> Todas as listas
-            </button>
-            {listOptions.map(([key, { label, count }]) => {
-              const meta = CARD_META[key] || { icon:'list', hue:220 }
-              const active = listFilter === key
-              const bg = active ? `oklch(0.52 0.15 ${meta.hue})` : `oklch(0.955 0.035 ${meta.hue})`
-              const fg = active ? '#fff' : `oklch(0.52 0.15 ${meta.hue})`
-              return (
-                <button key={key} onClick={() => setListFilter(key)} title={`${label} (${count})`}
-                  style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 13px', borderRadius:20, border:'1.5px solid', fontFamily:'inherit',
-                    borderColor: active ? bg : 'transparent', background: bg, color: fg,
-                    fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .12s' }}>
-                  <Ic n={meta.icon} s={13}/> {label} <span style={{ opacity:.7 }}>({count})</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
 
         {/* Tabela */}
         <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', overflow:'hidden' }}>
