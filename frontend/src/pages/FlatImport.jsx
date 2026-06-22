@@ -67,6 +67,9 @@ function parseCombinedCsv(text, labelToKey) {
         extras.rows = parsed.rows
       } catch { /* mapa exportado em formato antigo, sem dados de fileiras */ }
     }
+    if (listKey === 'perm_profiles') {
+      extras.permissionKeys = extras.code ? extras.code.split('|').filter(Boolean) : []
+    }
     return { listLabel, listKey, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
@@ -91,7 +94,9 @@ const API_MAP = {
     return configApi.addState(c.id, name, extras.code || '')
   }, del: (id) => configApi.delState(id), label: 'Estados' },
   cities:          { add: null, del: null, label: 'Cidades' }, // importadas em batch via geoImport
-  perm_profiles:   { add: null, del: null, label: 'Perfis de Permissão' }, // somente exportação
+  perm_profiles:   { add: (name, extras) => configApi.addPermissionProfile({
+                       name, permissions: Object.fromEntries((extras.permissionKeys || []).map(k => [k, true])),
+                     }), del: (id) => configApi.delPermissionProfile(id), label: 'Perfis de Permissão' },
   bus_maps:        { add: (name, extras) => configApi.addBusMap({
                        key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
                        label: name, order: extras.order || 0, is_active: extras.is_active ?? true,
@@ -104,7 +109,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
-const EXPORT_ONLY_KEYS = new Set(['perm_profiles'])
+const EXPORT_ONLY_KEYS = new Set()
 
 const MODES = [
   { key:'new',    label:'Somente adicionar',   desc:'Mantém os existentes, insere apenas os novos.' },
@@ -169,6 +174,7 @@ const BULK_DELETE_PERM = {
   states:          'settings_countries_bulk_delete',
   cities:          'settings_countries_bulk_delete',
   bus_maps:        'settings_bus_maps_delete',
+  perm_profiles:   'settings_user_profiles_delete',
 }
 
 export default function FlatImport() {
@@ -612,6 +618,10 @@ export default function FlatImport() {
                               ? <span>{row.extras.rows.length} fileira{row.extras.rows.length!==1?'s':''} · {row.extras.deck_count===2?'2 andares':'1 andar'}</span>
                               : <em style={{color:'#dc2626'}}>sem dados de fileiras</em>
                           )}
+                          {row.listKey === 'perm_profiles' && (() => {
+                            const n = (row.extras?.permissionKeys || []).length
+                            return <span>{n} {n === 1 ? 'permissão' : 'permissões'}</span>
+                          })()}
                         </td>
                       )}
                       <td style={{padding:'9px 12px', textAlign:'center'}}>

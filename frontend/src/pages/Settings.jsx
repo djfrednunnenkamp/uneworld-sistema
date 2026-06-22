@@ -1236,7 +1236,8 @@ export default function Settings() {
     const canImportAirports  = can('settings_airports',       'bulk_import')
     const canImportAirlines  = can('settings_airlines',       'bulk_import')
     const canImportBusMaps   = can('settings_bus_maps',       'edit')
-    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = []
+    const canImportPermProfiles = can('settings_user_profiles', 'edit')
+    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = [], allPermProfiles = []
     const fetches2 = []
     if (canImportCountries) fetches2.push(
       Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
@@ -1252,6 +1253,7 @@ export default function Settings() {
     if (canImportAirports)  fetches2.push(configApi.airports({ page_size: 10000 }).then(r => { allAirports = r.data.results ?? r.data }).catch(() => {}))
     if (canImportAirlines)  fetches2.push(configApi.airlines({ page_size: 10000 }).then(r => { allAirlines = r.data.results ?? r.data }).catch(() => {}))
     if (canImportBusMaps)   fetches2.push(configApi.busMaps().then(r => { allBusMaps = r.data.results ?? r.data }).catch(() => {}))
+    if (canImportPermProfiles) fetches2.push(configApi.permissionProfiles().then(r => { allPermProfiles = r.data.results ?? r.data }).catch(() => {}))
     await Promise.all(fetches2)
     const permittedKeys = [
       ...importableGroups.map(g => g.key),
@@ -1261,6 +1263,7 @@ export default function Settings() {
       ...(canImportAirports  ? ['airports']                        : []),
       ...(canImportAirlines  ? ['airlines']                        : []),
       ...(canImportBusMaps   ? ['bus_maps']                        : []),
+      ...(canImportPermProfiles ? ['perm_profiles']                 : []),
     ]
     navigate('/configuracoes/import', {
       state: {
@@ -1277,6 +1280,7 @@ export default function Settings() {
           ...(canImportAirports  ? { airports: allAirports.map(a => a.name) }         : {}),
           ...(canImportAirlines  ? { airlines: allAirlines.map(a => a.name) }         : {}),
           ...(canImportBusMaps   ? { bus_maps: allBusMaps.map(m => m.label) }         : {}),
+          ...(canImportPermProfiles ? { perm_profiles: allPermProfiles.map(p => p.name) } : {}),
         },
         existingItemsByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items])),
@@ -1286,6 +1290,7 @@ export default function Settings() {
           ...(canImportAirports  ? { airports: allAirports }                                              : {}),
           ...(canImportAirlines  ? { airlines: allAirlines }                                              : {}),
           ...(canImportBusMaps   ? { bus_maps: allBusMaps }                                                : {}),
+          ...(canImportPermProfiles ? { perm_profiles: allPermProfiles }                                   : {}),
         },
         permittedKeys,
         allCountries,
