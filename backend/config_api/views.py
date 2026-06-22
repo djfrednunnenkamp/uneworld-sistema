@@ -498,22 +498,32 @@ class CountryViewSet(viewsets.ModelViewSet):
 
             countries = list(ConfigCountry.objects.all())
             total = len(countries)
-            new_countries = new_states = new_cities = 0
+            new_states = new_cities = 0
+            failed = 0
             for ci, country in enumerate(countries, 1):
-                for s in fetch_states(country):
-                    _, created = ConfigState.objects.get_or_create(
-                        country=country, name=s['name'], defaults={'code': s['code']})
-                    if created:
-                        new_states += 1
-                for state in country.states.all():
-                    names = fetch_cities(state, country)
-                    if names:
-                        before = state.cities.count()
-                        ConfigCity.objects.bulk_create(
-                            [ConfigCity(state=state, name=n) for n in names], ignore_conflicts=True)
-                        new_cities += state.cities.count() - before
+                try:
+                    for s in fetch_states(country):
+                        _, created = ConfigState.objects.get_or_create(
+                            country=country, name=s['name'], defaults={'code': s['code']})
+                        if created:
+                            new_states += 1
+                    for state in country.states.all():
+                        names = fetch_cities(state, country)
+                        if names:
+                            before = state.cities.count()
+                            ConfigCity.objects.bulk_create(
+                                [ConfigCity(state=state, name=n) for n in names], ignore_conflicts=True)
+                            new_cities += state.cities.count() - before
+                except Exception:
+                    # Um país com falha (ex: banco ocupado por outra importação em
+                    # paralelo) não pode travar a importação inteira — segue para o
+                    # próximo e reporta quantos falharam no resultado final.
+                    failed += 1
                 progress(ci, total)
-            return {'countries': ConfigCountry.objects.count(), 'new_states': new_states, 'new_cities': new_cities}
+            result = {'countries': ConfigCountry.objects.count(), 'new_states': new_states, 'new_cities': new_cities}
+            if failed:
+                result['failed_countries'] = failed
+            return result
 
         job_id = run_job('countries_cascade', 'Países + Estados + Cidades (tudo)', task)
         return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)

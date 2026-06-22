@@ -87,6 +87,11 @@ else:
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+            # SQLite só permite um escritor por vez — sem isso, duas importações em
+            # background gravando ao mesmo tempo (ex: "Importar tudo da internet" com
+            # várias seções marcadas) lançam "database is locked" quase instantaneamente.
+            # Com o timeout, a segunda thread espera a primeira liberar em vez de falhar.
+            'OPTIONS': {'timeout': 30},
         }
     }
 

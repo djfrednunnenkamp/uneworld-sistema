@@ -35,7 +35,7 @@ export default function Sidebar() {
     setJobs(prev => {
       const next = { ...prev, [msg.job_id]: { ...msg, _seenAt: Date.now() } }
       if (msg.status === 'done' || msg.status === 'error') {
-        setTimeout(() => setJobs(p => { const n = { ...p }; delete n[msg.job_id]; return n }), msg.status === 'error' ? 6000 : 2500)
+        setTimeout(() => setJobs(p => { const n = { ...p }; delete n[msg.job_id]; return n }), msg.status === 'error' ? 15000 : 2500)
       }
       return next
     })
@@ -96,7 +96,8 @@ export default function Sidebar() {
             const isError = job.status === 'error'
             return (
               <div key={job.job_id}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4 }}
+                  title={isError ? (job.error || 'Erro desconhecido') : undefined}>
                   <span style={{ fontSize:11.5, color: isError ? '#fca5a5' : 'rgba(255,255,255,.75)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:130 }}>
                     {isError ? `Erro: ${job.label}` : job.label}
                   </span>
@@ -111,6 +112,12 @@ export default function Sidebar() {
                     background: isError ? '#dc2626' : (job.status === 'done' ? '#22c55e' : '#2e6db4'),
                   }} />
                 </div>
+                {isError && job.error && (
+                  <p style={{ fontSize:10.5, color:'#fca5a5', margin:'3px 0 0', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                    title={job.error}>
+                    {job.error}
+                  </p>
+                )}
               </div>
             )
           })}
