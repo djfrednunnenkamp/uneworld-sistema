@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
@@ -16,7 +16,7 @@ const btnCsv = (color) => ({
 })
 
 /* ── Pop-up de criação/edição — mesmo padrão dos demais modais do sistema ── */
-function AccomFormModal({ title, initial, onSave, onClose }) {
+export function AccomFormModal({ title, initial, onSave, onClose }) {
   const [name,     setName]     = useState(initial?.name ?? '')
   const [capacity, setCapacity] = useState(initial?.capacity ?? 1)
   const [couple,   setCouple]   = useState(initial?.is_couple ?? false)

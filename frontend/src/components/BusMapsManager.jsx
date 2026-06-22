@@ -82,7 +82,7 @@ function resizeLabels(labels, count, counter) {
 }
 
 /* ── Modal de criação / edição de um mapa ── */
-function BusMapModal({ busMap, onSave, onClose }) {
+export function BusMapModal({ busMap, onSave, onClose }) {
   const isEdit = !!busMap
   const [name,       setName]       = useState(busMap?.label ?? '')
   const [deckCount,  setDeckCount]  = useState(busMap?.deck_count ?? 1)

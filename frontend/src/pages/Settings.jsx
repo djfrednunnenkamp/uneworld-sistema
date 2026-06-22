@@ -385,7 +385,7 @@ const colAddBtn = { ...btnPri, fontSize: 12, padding: '7px 10px', whiteSpace: 'n
 const colBox    = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 380, overflowY: 'auto' }
 
 /* Pop-up para criar/editar um nome simples (país, estado, cidade) — mesmo padrão do sistema */
-function NameFormModal({ title, placeholder, initial, onSave, onClose }) {
+export function NameFormModal({ title, placeholder, initial, onSave, onClose }) {
   const [val,    setVal]    = useState(initial ?? '')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef(null)
@@ -714,7 +714,7 @@ function exportEmailsCsv(emails) {
 
 /* ── Gerenciador de Perfis de Permissão ─────────────────────────────────────── */
 
-function ProfileModal({ profile, onClose, onSaved }) {
+export function ProfileModal({ profile, onClose, onSaved }) {
   const isEdit = !!profile
   const [name,    setName]    = useState(profile?.name ?? '')
   const [perms,   setPerms]   = useState(sanitizePerms({ ...EMPTY_PERMISSIONS, ...(profile?.permissions ?? {}) }))

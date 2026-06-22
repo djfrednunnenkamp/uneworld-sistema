@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
@@ -93,7 +93,7 @@ function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled
   )
 }
 
-function AirportFormModal({ title, initial, onSave, onClose }) {
+export function AirportFormModal({ title, initial, onSave, onClose }) {
   const [name,    setName]    = useState(initial?.name ?? '')
   const [iata,    setIata]    = useState(initial?.iata_code ?? '')
   const [country, setCountry] = useState(initial?.country ?? '')

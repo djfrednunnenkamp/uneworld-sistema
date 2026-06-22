@@ -1,10 +1,36 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { toast } from 'sonner'
 import { configApi, listsApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../context/AuthContext'
 import { Ic } from '../components/Icon'
 import { CARD_META } from '../utils/sectionMeta'
+import { NameFormModal, ProfileModal } from './Settings'
+import { AccomFormModal } from '../components/AccommodationManager'
+import { AirportFormModal } from '../components/AirportsManager'
+import { AirlineFormModal } from '../components/AirlinesManager'
+import { BusMapModal } from '../components/BusMapsManager'
+
+const NAME_EDIT_KEYS = new Set([
+  'professions', 'languages', 'vaccines', 'genders', 'prof_cards',
+  'list_addits', 'crew_roles', 'list_categories', 'countries', 'states', 'cities',
+])
+const NAME_UPDATE_FN = {
+  professions:     (id, name) => configApi.updateProfession(id, name),
+  languages:       (id, name) => configApi.updateLanguage(id, name),
+  vaccines:        (id, name) => configApi.updateVaccine(id, name),
+  genders:         (id, name) => configApi.updateGender(id, name),
+  prof_cards:      (id, name) => configApi.updateProfCard(id, name),
+  list_addits:     (id, name) => listsApi.updateAdditional(id, name),
+  crew_roles:      (id, name) => listsApi.updateCrewRole(id, name),
+  list_categories: (id, name) => configApi.updateListCategory(id, name),
+  countries:       (id, name) => configApi.updateCountry(id, name),
+  states:          (id, name) => configApi.updateState(id, name),
+  cities:          (id, name) => configApi.updateCity(id, name),
+}
+const OBJECT_EDIT_KEYS = new Set(['accommodations', 'airports', 'airlines', 'bus_maps'])
+const MATCH_FIELD = { bus_maps: 'label' } // demais tipos casam pelo campo "name"
 
 function parseCsvNames(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
@@ -212,6 +238,8 @@ export default function FlatImport() {
   const [parsing,            setParsing]           = useState(!!csvText)
   const [visibleCount,       setVisibleCount]       = useState(20)
   const [skippedExportOnly,  setSkippedExportOnly]  = useState(0)
+  const [itemsByType, setItemsByType] = useState(() => isAll ? existingItemsByType : { [type]: existingItems })
+  const [editingRow,  setEditingRow]  = useState(null) // { listKey, item, rowId }
 
   /* Conjuntos de nomes já existentes — um por lista (modo combinado) ou um único (modo simples) */
   const existingSets = useMemo(() => {
@@ -286,6 +314,56 @@ export default function FlatImport() {
     setRows(prev => prev.filter(r => !ids.has(r.id)))
     setSelected(new Set())
     setConfirm(null)
+  }
+
+  /* Edição de itens já existentes (linhas "Duplicado") a partir da própria revisão de importação */
+  const findExistingItem = (row) => {
+    const key = row.listKey ?? type
+    const items = itemsByType[key] || []
+    const field = MATCH_FIELD[key] || 'name'
+    return items.find(i => (i[field] || '').toLowerCase() === row.name.toLowerCase())
+  }
+
+  const canEditRow = (row) => row.status === 'duplicate'
+    && (NAME_EDIT_KEYS.has(row.listKey ?? type) || OBJECT_EDIT_KEYS.has(row.listKey ?? type) || (row.listKey ?? type) === 'perm_profiles')
+    && !!findExistingItem(row)
+
+  const openEdit = (row) => {
+    const item = findExistingItem(row)
+    if (!item) return
+    setEditingRow({ listKey: row.listKey ?? type, item, rowId: row.id })
+  }
+
+  const patchAfterEdit = (listKey, itemId, patch) => {
+    setItemsByType(prev => ({
+      ...prev,
+      [listKey]: (prev[listKey] || []).map(i => i.id === itemId ? { ...i, ...patch } : i),
+    }))
+    setRows(prev => prev.map(r => {
+      if (r.id !== editingRow?.rowId) return r
+      const nextExtras = { ...r.extras }
+      if ('capacity'   in patch) nextExtras.capacity   = patch.capacity
+      if ('is_couple'  in patch) nextExtras.is_couple   = patch.is_couple
+      if ('rows'       in patch) nextExtras.rows        = patch.rows
+      if ('deck_count' in patch) nextExtras.deck_count  = patch.deck_count
+      return { ...r, name: patch.name ?? patch.label ?? r.name, extras: nextExtras }
+    }))
+  }
+
+  const refreshPermProfileRow = async () => {
+    const rowId = editingRow?.rowId
+    try {
+      const r = await configApi.permissionProfiles()
+      const list = r.data.results ?? r.data
+      setItemsByType(prev => ({ ...prev, perm_profiles: list }))
+      const updated = list.find(p => p.id === editingRow.item.id)
+      if (updated && rowId != null) {
+        setRows(prev => prev.map(row => row.id === rowId ? {
+          ...row, name: updated.name,
+          extras: { ...row.extras, permissionKeys: Object.entries(updated.permissions || {}).filter(([, v]) => v).map(([k]) => k) },
+        } : row))
+      }
+    } catch { /* mantém os dados antigos em cache se a atualização falhar */ }
   }
 
   const stats = useMemo(() => ({
@@ -614,7 +692,7 @@ export default function FlatImport() {
                   {isAll && <th style={{...th, width:180}}>Lista</th>}
                   <th style={th}>Nome</th>
                   {isAll && <th style={{...th, width:150}}>Detalhes</th>}
-                  <th style={{...th, width:80, textAlign:'center'}}>Ação</th>
+                  <th style={{...th, width:110, textAlign:'center'}}>Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -677,7 +755,15 @@ export default function FlatImport() {
                           })()}
                         </td>
                       )}
-                      <td style={{padding:'9px 12px', textAlign:'center'}}>
+                      <td style={{padding:'9px 12px', textAlign:'center', display:'flex', gap:6, justifyContent:'center'}}>
+                        {canEditRow(row) && (
+                          <button
+                            onClick={() => openEdit(row)}
+                            style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,cursor:'pointer',color:'#2563eb',fontSize:13,padding:'4px 9px',fontFamily:'inherit'}}
+                            title="Editar item">
+                            <Ic n="edit" s={13}/>
+                          </button>
+                        )}
                         <button
                           onClick={() => setConfirm({ type:'single', id: row.id, name: row.name })}
                           style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,cursor:'pointer',color:'#dc2626',fontSize:13,padding:'4px 9px',fontFamily:'inherit'}}
@@ -740,6 +826,74 @@ export default function FlatImport() {
           okLabel="Remover"
           onOk={() => removeRows(new Set([confirm.id]))}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {/* Edição do item real (já existente no banco) a partir da revisão de importação */}
+      {editingRow && NAME_EDIT_KEYS.has(editingRow.listKey) && (
+        <NameFormModal
+          title={`Editar ${(API_MAP[editingRow.listKey]?.label || '').toLowerCase()}`}
+          initial={editingRow.item.name}
+          onSave={async (name) => {
+            await NAME_UPDATE_FN[editingRow.listKey](editingRow.item.id, name)
+            patchAfterEdit(editingRow.listKey, editingRow.item.id, { name })
+            toast.success('Atualizado.')
+          }}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+      {editingRow?.listKey === 'accommodations' && (
+        <AccomFormModal
+          title="Editar acomodação"
+          initial={editingRow.item}
+          onSave={async (data) => {
+            await configApi.updateAccommodation(editingRow.item.id, data)
+            patchAfterEdit('accommodations', editingRow.item.id, data)
+            toast.success('Atualizado.')
+          }}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+      {editingRow?.listKey === 'airports' && (
+        <AirportFormModal
+          title="Editar aeroporto"
+          initial={editingRow.item}
+          onSave={async (data) => {
+            await configApi.updateAirport(editingRow.item.id, data)
+            patchAfterEdit('airports', editingRow.item.id, data)
+            toast.success('Atualizado.')
+          }}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+      {editingRow?.listKey === 'airlines' && (
+        <AirlineFormModal
+          title="Editar companhia aérea"
+          initial={editingRow.item}
+          onSave={async (data) => {
+            await configApi.updateAirline(editingRow.item.id, data)
+            patchAfterEdit('airlines', editingRow.item.id, data)
+            toast.success('Atualizado.')
+          }}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+      {editingRow?.listKey === 'bus_maps' && (
+        <BusMapModal
+          busMap={editingRow.item}
+          onSave={async (data) => {
+            await configApi.updateBusMap(editingRow.item.id, data)
+            patchAfterEdit('bus_maps', editingRow.item.id, data)
+            toast.success('Mapa atualizado.')
+          }}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+      {editingRow?.listKey === 'perm_profiles' && (
+        <ProfileModal
+          profile={editingRow.item}
+          onSaved={async () => { await refreshPermProfileRow(); setEditingRow(null) }}
+          onClose={() => setEditingRow(null)}
         />
       )}
     </div>

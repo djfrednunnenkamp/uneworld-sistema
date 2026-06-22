@@ -105,7 +105,7 @@ const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, 
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
 const onB  = e => e.target.style.borderColor = '#e2e8f0'
 
-function AirlineFormModal({ title, initial, onSave, onClose }) {
+export function AirlineFormModal({ title, initial, onSave, onClose }) {
   const [name,    setName]    = useState(initial?.name ?? '')
   const [iata,    setIata]    = useState(initial?.iata_code ?? '')
   const [country, setCountry] = useState(initial?.country ?? '')
