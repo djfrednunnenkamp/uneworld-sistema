@@ -281,20 +281,10 @@ export default function Dashboard() {
 
   const { stats, recent_lists } = data
   const showEmailLog = emailCfg?.can_view
-  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.log_view
 
   return (
     <div>
-      <div className="ph">
-        <h1 className="ph-title">Visão Geral</h1>
-        {canViewLog && (
-          <div className="ph-actions">
-            <button className="btn btn-outline" onClick={() => navigate('/log')} title="Ver log de atividades">
-              <Ic n="list" s={14}/> Log
-            </button>
-          </div>
-        )}
-      </div>
+      <div className="ph"><h1 className="ph-title">Visão Geral</h1></div>
 
       {/* ── Stats ── */}
       <div className="stats">

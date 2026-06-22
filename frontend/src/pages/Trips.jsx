@@ -178,7 +178,7 @@ export default function Trips() {
         onAdd={canEdit ? () => setShowNew(true) : undefined}
         onView={(row) => navigate(`/viagens/${row.id}`)}
         onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-        onLog={canViewLog ? () => navigate('/log?model=PassengerList') : undefined}
+        onLog={canViewLog ? () => navigate('/log?scope=lists') : undefined}
         loading={loading}
       />
 

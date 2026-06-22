@@ -14,6 +14,7 @@ const ACTION_STYLE = {
   download: { label: 'Baixado',    icon: 'dl',     bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
   upload:   { label: 'Enviado',    icon: 'ul',     bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
   login:    { label: 'Login',      icon: 'key',    bg: '#ede9fe', color: '#7c3aed', border: '#ddd6fe' },
+  logout:   { label: 'Logout',     icon: 'key',    bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' },
   view:     { label: 'Visitou',    icon: 'eye',    bg: '#f0fdfa', color: '#0d9488', border: '#99f6e4' },
 }
 
@@ -57,6 +58,7 @@ const ACTION_OPTS = [
   { value: 'download', label: 'Baixado'        },
   { value: 'upload',   label: 'Enviado'        },
   { value: 'login',    label: 'Login'          },
+  { value: 'logout',   label: 'Logout'         },
   { value: 'view',     label: 'Visitou'        },
 ]
 
@@ -84,7 +86,7 @@ function Avatar({ name, size = 26 }) {
 function NavToggle({ checked, onChange }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', cursor: 'pointer', userSelect: 'none' }}
-      title="Mostra os registros de navegação (páginas visitadas pelos usuários)">
+      title="Mistura, com os filtros atuais, as páginas que os usuários visitaram e os logins/logouts">
       <span style={{ fontSize: 12.5, fontWeight: 600, color: checked ? '#1a2d4f' : '#64748b', whiteSpace: 'nowrap' }}>
         Ver navegação dos usuários
       </span>
@@ -461,9 +463,19 @@ const TH = ({ children, align = 'left' }) => (
 
 // Mapeia model_name → rótulo e rota de volta
 const MODEL_CONTEXT = {
-  Passenger: { label: 'Passageiros', back: '/passageiros' },
-  Agency:    { label: 'Agências',    back: '/agencias'    },
-  User:      { label: 'Usuários',    back: '/usuarios'    },
+  Passenger:      { label: 'Passageiros',           back: '/passageiros' },
+  Agency:         { label: 'Agências',              back: '/agencias'    },
+  User:           { label: 'Usuários',               back: '/usuarios'    },
+  PassengerList:  { label: 'Listas de Passageiros',  back: '/viagens'     },
+  ListEnrollment: { label: 'Calendário',             back: '/calendario'  },
+}
+
+const SCOPE_CONTEXT = {
+  settings:   { label: 'Configurações',         back: '/configuracoes' },
+  lists:      { label: 'Listas de Passageiros', back: '/viagens'        },
+  passengers: { label: 'Passageiros',           back: '/passageiros'    },
+  agencies:   { label: 'Agências',              back: '/agencias'       },
+  users:      { label: 'Usuários',              back: '/usuarios'       },
 }
 
 /* ── Página principal ── */
@@ -485,11 +497,13 @@ export default function AuditLog() {
   const [page,     setPage]     = useState(1)
   const [selected, setSelected] = useState(null)
   const [filters,  setFilters]  = useState({ action: '', model: initModel, search: '', date_from: '', date_to: '', user_id: '' })
+  const [showNav,  setShowNav]  = useState(false)
 
   const pageRef    = useRef(1)
   const filtersRef = useRef(filters)
+  const showNavRef = useRef(showNav)
 
-  const load = useCallback(async (p = 1, f = filters) => {
+  const load = useCallback(async (p = 1, f = filters, nav = showNav) => {
     setLoading(true)
     try {
       const params = { page: p, page_size: 50 }
@@ -499,6 +513,7 @@ export default function AuditLog() {
       if (f.date_from) params.date_from = f.date_from
       if (f.date_to)   params.date_to   = f.date_to
       if (f.user_id)   params.user_id   = f.user_id
+      if (nav)         params.show_nav  = 1
       if (listId)      params.list_id   = listId
       if (passengerId) params.passenger_id = passengerId
       if (agencyId)    params.agency_id    = agencyId
@@ -510,20 +525,27 @@ export default function AuditLog() {
       pageRef.current = p
     } catch {}
     finally { setLoading(false) }
-  }, [filters, listId, passengerId, agencyId, auditScope])
+  }, [filters, showNav, listId, passengerId, agencyId, auditScope])
 
-  useEffect(() => { load(1, filters) }, [])
+  useEffect(() => { load(1, filters, showNav) }, [])
 
   const setFilter = (key, val) => {
     const next = { ...filters, [key]: val }
     setFilters(next)
     filtersRef.current = next
-    load(1, next)
+    load(1, next, showNavRef.current)
+  }
+
+  const toggleNav = (on) => {
+    setShowNav(on)
+    showNavRef.current = on
+    load(1, filtersRef.current, on)
   }
 
   const silentReload = useCallback(async () => {
     try {
       const f = filtersRef.current
+      const nav = showNavRef.current
       const p = pageRef.current
       const params = { page: p, page_size: 50 }
       if (f.action)    params.action    = f.action
@@ -532,6 +554,7 @@ export default function AuditLog() {
       if (f.date_from) params.date_from = f.date_from
       if (f.date_to)   params.date_to   = f.date_to
       if (f.user_id)   params.user_id   = f.user_id
+      if (nav)         params.show_nav  = 1
       if (listId)      params.list_id   = listId
       if (passengerId) params.passenger_id = passengerId
       if (agencyId)    params.agency_id    = agencyId
@@ -550,7 +573,7 @@ export default function AuditLog() {
   const hasFilter = filters.action || filters.model || filters.search || filters.date_from || filters.date_to || filters.user_id
   const totalPages = Math.ceil(count / 50)
 
-  const ctx = MODEL_CONTEXT[filters.model] || null
+  const ctx = SCOPE_CONTEXT[auditScope] || MODEL_CONTEXT[filters.model] || null
 
   return (
     <div>
@@ -581,15 +604,7 @@ export default function AuditLog() {
               ← Voltar para a agência
             </button>
           )}
-          {auditScope === 'settings' && (
-            <button onClick={() => navigate('/configuracoes')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
-              onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
-              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
-              ← Voltar para Configurações
-            </button>
-          )}
-          {!listId && !passengerId && !agencyId && !auditScope && ctx && (
+          {!listId && !passengerId && !agencyId && ctx && (
             <button onClick={() => navigate(ctx.back)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
               onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
@@ -604,7 +619,6 @@ export default function AuditLog() {
             {listId ? 'Log da Lista de Passageiros'
               : passengerId ? 'Log do Passageiro'
               : agencyId ? 'Log da Agência'
-              : auditScope === 'settings' ? 'Log de Configurações'
               : ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
@@ -649,7 +663,7 @@ export default function AuditLog() {
         )}
 
         {canViewPageViews && (
-          <NavToggle checked={filters.model === 'PageView'} onChange={on => setFilter('model', on ? 'PageView' : '')} />
+          <NavToggle checked={showNav} onChange={toggleNav} />
         )}
       </div>
 

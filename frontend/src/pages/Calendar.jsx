@@ -139,7 +139,7 @@ export default function CalendarPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const perms = user?.permissions ?? {}
-  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.log_view
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.log_view || perms.log_lists
 
   const filterListId = searchParams.get('list_id') || null
 

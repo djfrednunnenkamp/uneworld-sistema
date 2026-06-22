@@ -10,6 +10,7 @@ class AuditLog(models.Model):
         ('download', 'Baixado'),
         ('upload', 'Enviado'),
         ('login', 'Login'),
+        ('logout', 'Logout'),
         ('view', 'Visitou'),
     ]
 

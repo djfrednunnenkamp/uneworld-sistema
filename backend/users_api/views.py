@@ -99,6 +99,16 @@ def login_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
+    user = request.user
+    if user.is_authenticated:
+        from audit.models import AuditLog
+        from audit.middleware import get_current_ip
+        from audit.tracking import user_display
+        AuditLog.objects.create(
+            user=user, user_display=user_display(user), action='logout',
+            model_name='User', model_label='Login', object_id=str(user.pk),
+            object_repr='Saiu do sistema', ip_address=get_current_ip(),
+        )
     logout(request)
     return Response({'message': 'Logout realizado com sucesso.'})
 

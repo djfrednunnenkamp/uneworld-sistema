@@ -38,6 +38,17 @@ SETTINGS_MODELS = [
     'Airport', 'Airline', 'BusMap', 'PermissionProfile',
 ]
 
+# Botão "Log" de cada área do sistema: clicar nele tem que mostrar TUDO que é
+# relevante pra área, não só o modelo "principal" — ex: Lista de Passageiros
+# inclui também ListEnrollment (passageiro entrando/saindo/mudando na lista).
+SCOPE_MODELS = {
+    'settings':   SETTINGS_MODELS,
+    'lists':      ['PassengerList', 'ListEnrollment'],
+    'passengers': ['Passenger', 'PassengerDocument'],
+    'agencies':   ['Agency'],
+    'users':      ['User', 'UserPermissions'],
+}
+
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """Qualquer usuário autenticado pode acessar — get_queryset() decide o que ele
@@ -63,6 +74,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         passenger_id = self.request.query_params.get('passenger_id')
         agency_id    = self.request.query_params.get('agency_id')
         scope        = self.request.query_params.get('scope')
+        show_nav     = self.request.query_params.get('show_nav') in ('1', 'true', 'True')
 
         current_user = self.request.user
         has_global = has_any_perm(current_user, 'view_audit_log', 'log_view')
@@ -75,16 +87,31 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                         or has_log_users or has_log_settings)
         has_page_view_access = has_global or has_any_perm(current_user, 'log_page_views')
 
-        # Navegação entre páginas (PageView) só aparece quando explicitamente
-        # pedida via filtro Tipo, e só para quem tem a permissão — por padrão
-        # fica de fora pra não poluir a visão de quem está revisando o log.
+        # Navegação entre páginas (PageView) e login/logout: por padrão ficam fora
+        # pra não poluir a visão de quem está revisando o log (login sozinho já é
+        # a maioria das entradas no dia a dia). Duas formas de trazer de volta —
+        # independentes uma da outra:
+        # - Tipo = Navegação (páginas): mostra SÓ as entradas de navegação.
+        # - Ação = Login/Logout: mostra só essa ação (filtro explícito).
+        # - toggle "Ver navegação dos usuários" (show_nav): mistura navegação +
+        #   login/logout com tudo que já está sendo mostrado pelos outros filtros
+        #   (usuário, ação, período, busca…), sem substituí-los.
+        include_page_views = has_page_view_access and (model == 'PageView' or show_nav)
         if model == 'PageView':
             qs = qs.filter(model_name='PageView') if has_page_view_access else qs.none()
             model = ''
-        else:
+        elif not include_page_views:
             qs = qs.exclude(model_name='PageView')
 
-        if scope == 'settings' and not has_log_settings:
+        include_login_noise = show_nav or action in ('login', 'logout')
+        if not include_login_noise:
+            qs = qs.exclude(action__in=['login', 'logout'])
+
+        scope_perms = {
+            'settings': has_log_settings, 'lists': has_log_lists,
+            'passengers': has_log_passengers, 'agencies': has_log_agencies, 'users': has_log_users,
+        }
+        if scope in scope_perms and not scope_perms[scope]:
             return qs.none()
 
         # Sem nenhuma permissão de log e sem pedir um escopo específico (lista,
@@ -98,19 +125,21 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             from django.db.models import Q as DQ
             area_q = DQ()
             if has_log_passengers:
-                area_q |= DQ(model_name__in=['Passenger', 'PassengerDocument'])
+                area_q |= DQ(model_name__in=SCOPE_MODELS['passengers'])
             if has_log_lists:
-                area_q |= DQ(model_name__in=['PassengerList', 'ListEnrollment'])
+                area_q |= DQ(model_name__in=SCOPE_MODELS['lists'])
             if has_log_agencies:
-                area_q |= DQ(model_name='Agency')
+                area_q |= DQ(model_name__in=SCOPE_MODELS['agencies'])
             if has_log_users:
-                area_q |= DQ(model_name__in=['User', 'UserPermissions'])
+                area_q |= DQ(model_name__in=SCOPE_MODELS['users'])
             if has_log_settings:
                 area_q |= DQ(model_name__in=SETTINGS_MODELS)
+            if show_nav and has_page_view_access:
+                area_q |= DQ(model_name='PageView') | DQ(action__in=['login', 'logout'])
             if area_q.children:
                 qs = qs.filter(area_q)
 
-        if scope == 'settings': qs = qs.filter(model_name__in=SETTINGS_MODELS)
+        if scope in SCOPE_MODELS: qs = qs.filter(model_name__in=SCOPE_MODELS[scope])
         if action:    qs = qs.filter(action=action)
         if model:     qs = qs.filter(model_name=model)
         if object_id: qs = qs.filter(object_id=object_id)

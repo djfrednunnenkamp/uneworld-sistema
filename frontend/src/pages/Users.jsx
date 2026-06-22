@@ -985,7 +985,7 @@ export default function Users() {
         {canViewLog && (
           <button
             type="button"
-            onClick={() => navigate('/log?model=User')}
+            onClick={() => navigate('/log?scope=users')}
             title="Ver log de atividades"
             style={{
               marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
