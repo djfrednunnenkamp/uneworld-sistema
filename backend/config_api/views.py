@@ -436,16 +436,22 @@ class CountryViewSet(viewsets.ModelViewSet):
         def task(progress):
             progress(0, 1)
             try:
-                r = requests.get('https://restcountries.com/v3.1/all?fields=name,cca2,translations', timeout=20)
+                r = requests.get('https://raw.githubusercontent.com/mledoze/countries/master/dist/countries.json', timeout=20)
                 if not r.ok:
                     raise RuntimeError('Falha ao buscar países.')
             except Exception:
                 raise RuntimeError('Erro de conexão.')
             rows = r.json()
+            if not isinstance(rows, list):
+                raise RuntimeError('Resposta inesperada da API de países.')
             created = 0
             total = len(rows)
             for i, c in enumerate(rows, 1):
-                name = (c.get('translations') or {}).get('por', {}).get('common') or c['name']['common']
+                if not isinstance(c, dict):
+                    continue
+                name = (c.get('translations') or {}).get('por', {}).get('common') or c.get('name', {}).get('common')
+                if not name:
+                    continue
                 code = c.get('cca2', '')
                 _, was_created = ConfigCountry.objects.get_or_create(name=name, defaults={'code': code})
                 if was_created:
@@ -486,14 +492,21 @@ class CountryViewSet(viewsets.ModelViewSet):
         def task(progress):
             progress(0, 1)
             try:
-                r = requests.get('https://restcountries.com/v3.1/all?fields=name,cca2,translations', timeout=20)
+                r = requests.get('https://raw.githubusercontent.com/mledoze/countries/master/dist/countries.json', timeout=20)
                 rows = r.json() if r.ok else []
             except Exception:
                 rows = []
-            if not rows:
-                raise RuntimeError('Não foi possível buscar a lista de países.')
+            if not isinstance(rows, list) or not rows:
+                # A API às vezes responde 200 com um JSON de erro (dict/string) em vez
+                # de uma lista — sem essa checagem, "for c in rows" iterava os
+                # caracteres da string e quebrava com 'str' object has no attribute 'get'.
+                raise RuntimeError('Não foi possível buscar a lista de países (resposta inesperada da API).')
             for c in rows:
-                name = (c.get('translations') or {}).get('por', {}).get('common') or c['name']['common']
+                if not isinstance(c, dict):
+                    continue
+                name = (c.get('translations') or {}).get('por', {}).get('common') or c.get('name', {}).get('common')
+                if not name:
+                    continue
                 ConfigCountry.objects.get_or_create(name=name, defaults={'code': c.get('cca2', '')})
 
             countries = list(ConfigCountry.objects.all())
