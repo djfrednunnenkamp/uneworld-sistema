@@ -30,11 +30,29 @@ def serialize_user(u):
     }
 
 
-def _apply_permissions(user, data):
+def _filter_grantable_permissions(actor, perms_data):
+    """Restringe as chaves de data['permissions'] às que o ator já possui.
+
+    Evita que um usuário com uma permissão ampla (ex.: o flag legado
+    'manage_users') conceda a si mesmo ou a outros permissões que ele
+    próprio não tem — só pode repassar o que já possui.
+    """
+    if actor.is_superuser:
+        return perms_data
+    actor_perms = get_user_permissions(actor)
+    return {
+        key: val for key, val in perms_data.items()
+        if key in PERMISSION_FIELDS and getattr(actor_perms, key, False)
+    }
+
+
+def _apply_permissions(user, data, actor=None):
     """Atualiza UserPermissions a partir de data['permissions'] (dict de booleanos) e sincroniza is_staff."""
     perms_data = data.get('permissions')
     if perms_data is None:
         return
+    if actor is not None:
+        perms_data = _filter_grantable_permissions(actor, perms_data)
     perms = get_user_permissions(user)
     for key in PERMISSION_FIELDS:
         if key in perms_data:
@@ -149,7 +167,7 @@ def user_create(request):
         perm_data = dict(data)
         if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
             perm_data.pop('permissions', None)
-        _apply_permissions(user, perm_data)
+        _apply_permissions(user, perm_data, actor=request.user)
 
     # Sempre envia convite por e-mail para o novo usuário definir a própria senha
     try:
@@ -198,7 +216,7 @@ def user_update(request, pk):
         perm_data = dict(data)
         if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
             perm_data.pop('permissions', None)
-        _apply_permissions(user, perm_data)
+        _apply_permissions(user, perm_data, actor=request.user)
     else:
         get_user_permissions(user).save()
     return Response(serialize_user(user))

@@ -47,7 +47,7 @@ class CalendarPreferenceView(APIView):
 
 class UserCalendarPreferenceView(APIView):
     """Admin: lê/atualiza CalendarPreference de qualquer usuário."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [RequirePermission('manage_users', 'users_edit')]
 
     def _get_pref(self, user_id):
         from django.contrib.auth import get_user_model

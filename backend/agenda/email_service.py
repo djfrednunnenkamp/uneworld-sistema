@@ -1,9 +1,14 @@
 """Envio de e-mails transacionais do calendário via Resend."""
+import html as html_lib
 import resend
 from datetime import timedelta
 from django.conf import settings
 
 from ._logo import LOGO_CID, LOGO_B64_CONTENT, get_logo_src
+
+
+def _esc(value) -> str:
+    return html_lib.escape(str(value)) if value else ''
 
 
 # ── Helpers de template ───────────────────────────────────────────────────────
@@ -148,7 +153,7 @@ def _fmt(iso_str) -> str:
 def _deadline_cards(entries: list, badge: str, badge_bg: str, badge_fg: str) -> str:
     cards = ''
     for e in entries:
-        reason = f'<p style="margin:6px 0 0;font-size:12px;color:#64748b;font-style:italic">{e["pending_reason"]}</p>' if e.get('pending_reason') else ''
+        reason = f'<p style="margin:6px 0 0;font-size:12px;color:#64748b;font-style:italic">{_esc(e["pending_reason"])}</p>' if e.get('pending_reason') else ''
         cards += f"""
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
           <tr>
@@ -156,8 +161,8 @@ def _deadline_cards(entries: list, badge: str, badge_bg: str, badge_fg: str) -> 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="vertical-align:top">
-                    <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{e['passenger_name']}</p>
-                    <p style="margin:3px 0 0;font-size:12px;color:#64748b">{e['list_name']}</p>
+                    <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{_esc(e['passenger_name'])}</p>
+                    <p style="margin:3px 0 0;font-size:12px;color:#64748b">{_esc(e['list_name'])}</p>
                     {reason}
                   </td>
                   <td style="vertical-align:top;text-align:right;padding-left:12px;white-space:nowrap">
@@ -165,7 +170,7 @@ def _deadline_cards(entries: list, badge: str, badge_bg: str, badge_fg: str) -> 
                   </td>
                 </tr>
               </table>
-              <p style="margin:8px 0 0;font-size:11px;color:#94a3b8">Prazo definido por {e.get('created_by', '—')}</p>
+              <p style="margin:8px 0 0;font-size:11px;color:#94a3b8">Prazo definido por {_esc(e.get('created_by', '—'))}</p>
             </td>
           </tr>
         </table>"""
@@ -179,9 +184,9 @@ def _task_cards(entries: list) -> str:
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;border:1px solid #e2e8f0;border-left:4px solid #059669;border-radius:10px;overflow:hidden">
           <tr>
             <td style="padding:14px 16px">
-              <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{e['title']}</p>
+              <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{_esc(e['title'])}</p>
               <p style="margin:4px 0 0;font-size:12px;color:#64748b">
-                Lista: <strong>{e['list_name']}</strong> &nbsp;&middot;&nbsp; Criado por {e['created_by']}
+                Lista: <strong>{_esc(e['list_name'])}</strong> &nbsp;&middot;&nbsp; Criado por {_esc(e['created_by'])}
               </p>
             </td>
             <td style="padding:14px 16px;text-align:right;vertical-align:middle;white-space:nowrap">
@@ -200,9 +205,9 @@ def _birthday_cards(entries: list) -> str:
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;border:1px solid #e2e8f0;border-left:4px solid #7c3aed;border-radius:10px;overflow:hidden">
           <tr>
             <td style="padding:14px 16px">
-              <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{e['name']}</p>
+              <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{_esc(e['name'])}</p>
               <p style="margin:4px 0 0;font-size:12px;color:#64748b">
-                Nascimento: <strong>{e['birth_date']}</strong>
+                Nascimento: <strong>{_esc(e['birth_date'])}</strong>
               </p>
             </td>
             <td style="padding:14px 16px;text-align:right;vertical-align:middle">{age_html}</td>
@@ -286,12 +291,12 @@ def _event_row(ev) -> str:
         period = f"{_fmt(ev['start'])} – {_fmt(ev['end'])}"
     else:
         period = _fmt(ev['start'])
-    sub = f'<span style="color:#94a3b8;font-size:12px"> &middot; {ev["subtitle"]}</span>' if ev.get('subtitle') else ''
+    sub = f'<span style="color:#94a3b8;font-size:12px"> &middot; {_esc(ev["subtitle"])}</span>' if ev.get('subtitle') else ''
     return f"""
         <tr>
           <td style="padding:9px 0;border-bottom:1px solid #f1f5f9;color:#1e293b;font-size:13px">
             <span style="font-weight:600;color:#64748b;min-width:80px;display:inline-block">{period}</span>
-            {ev['title']}{sub}
+            {_esc(ev['title'])}{sub}
           </td>
         </tr>"""
 
@@ -322,6 +327,7 @@ def _calendar_sections(events) -> str:
 
 
 def send_calendar_summary(email: str, first_name: str, events: list, subject: str, intro: str) -> bool:
+    first_name = _esc(first_name)
     body = f"""
       <tr><td style="padding:28px 32px">
         <p style="margin:0 0 6px;font-size:17px;font-weight:700;color:#0f172a">

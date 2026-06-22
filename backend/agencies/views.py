@@ -2,7 +2,7 @@ import re
 from django.contrib.auth.models import User
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from core.pagination import StandardResultsPagination
 from users_api.permissions import RequirePermission
@@ -35,6 +35,10 @@ class AgencyViewSet(viewsets.ModelViewSet):
             return [RequirePermission(*VIEW_PERMS, 'agencies_edit')()]
         if self.action in ('list', 'retrieve'):
             return [RequirePermission(*VIEW_PERMS)()]
+        if self.action == 'members':
+            if self.request.method == 'POST':
+                return [RequirePermission('agencies_edit')()]
+            return [RequirePermission(*VIEW_PERMS)()]
         return super().get_permissions()
 
     @action(detail=False, methods=['get'], url_path='check-cnpj')
@@ -52,8 +56,7 @@ class AgencyViewSet(viewsets.ModelViewSet):
 
     # ── Membros ──────────────────────────────────────────────────────────────
 
-    @action(detail=True, methods=['get', 'post'], url_path='members',
-            permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['get', 'post'], url_path='members')
     def members(self, request, pk=None):
         """GET: lista membros. POST: adiciona membro."""
         agency = self.get_object()

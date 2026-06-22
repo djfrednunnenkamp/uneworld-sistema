@@ -1,4 +1,5 @@
 """Serviço de envio de e-mail via Resend."""
+import html
 import resend
 from django.conf import settings
 
@@ -86,6 +87,7 @@ def _wrap(body_rows: str, accent: str = '#2e6db4') -> str:
 
 def send_reset_password(email: str, first_name: str, reset_url: str) -> bool:
     """Envia e-mail de redefinição de senha."""
+    first_name = html.escape(first_name or '')
     body = f"""
       <tr>
         <td style="padding:32px 32px 12px">
@@ -128,6 +130,8 @@ def send_reset_password(email: str, first_name: str, reset_url: str) -> bool:
 
 def send_invite(email: str, first_name: str, invite_url: str, invited_by: str) -> bool:
     """Envia convite para novo usuário criar sua conta."""
+    first_name = html.escape(first_name or '')
+    invited_by = html.escape(invited_by or '')
     body = f"""
       <tr>
         <td style="padding:32px 32px 12px">
