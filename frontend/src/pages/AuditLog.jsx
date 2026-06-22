@@ -81,6 +81,29 @@ function Avatar({ name, size = 26 }) {
 }
 
 /* ── Dropdown de filtro elegante — com busca quando há muitas opções ── */
+function NavToggle({ checked, onChange }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', cursor: 'pointer', userSelect: 'none' }}
+      title="Mostra os registros de navegação (páginas visitadas pelos usuários)">
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: checked ? '#1a2d4f' : '#64748b', whiteSpace: 'nowrap' }}>
+        Ver navegação dos usuários
+      </span>
+      <span style={{ position: 'relative', display: 'inline-block', width: 38, height: 22, flexShrink: 0 }}>
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
+          style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} />
+        <span style={{
+          position: 'absolute', inset: 0, borderRadius: 22, transition: 'background .2s',
+          background: checked ? '#1a2d4f' : '#cbd5e1',
+        }} />
+        <span style={{
+          position: 'absolute', top: 4, left: checked ? 20 : 4, width: 14, height: 14,
+          borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.25)',
+        }} />
+      </span>
+    </label>
+  )
+}
+
 function FDrop({ label, icon, value, onChange, options, iconFor }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -453,6 +476,8 @@ export default function AuditLog() {
   const agencyId       = searchParams.get('agency_id') || ''
   const auditScope     = searchParams.get('scope') || ''
   const { user } = useAuth()
+  const myP = user?.permissions ?? {}
+  const canViewPageViews = !!user?.is_superuser || !!myP.view_audit_log || !!myP.log_view || !!myP.log_page_views
 
   const [logs,     setLogs]     = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -621,6 +646,10 @@ export default function AuditLog() {
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 8, border: '1.5px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Ic n="x" s={12} /> Limpar filtros
           </button>
+        )}
+
+        {canViewPageViews && (
+          <NavToggle checked={filters.model === 'PageView'} onChange={on => setFilter('model', on ? 'PageView' : '')} />
         )}
       </div>
 

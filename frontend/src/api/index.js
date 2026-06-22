@@ -112,6 +112,7 @@ export const auditApi = {
   list:        (params)       => api.get('/audit/logs/', { params }),
   logPageView: (path, label)  => api.post('/audit/page-view/', { path, label }),
   logUpload:   (data)         => api.post('/audit/log-upload/', data),
+  logDownload: (data)         => api.post('/audit/log-download/', data),
 }
 
 export const agendaApi = {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { configApi, listsApi } from '../api'
+import { configApi, listsApi, auditApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -17,7 +17,7 @@ import CsvImportPopup from '../components/CsvImportPopup'
 import CsvExportModal from '../components/CsvExportModal'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { CARD_META } from '../utils/sectionMeta'
-import { exportSectionCsv } from '../utils/sectionCsv'
+import { exportSectionCsv, downloadCsv } from '../utils/sectionCsv'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -27,6 +27,11 @@ async function handleGeoExport() {
     const a = document.createElement('a')
     a.href = url; a.download = 'paises_estados_cidades.csv'; a.click()
     URL.revokeObjectURL(url)
+    auditApi.logDownload({
+      label: 'paises_estados_cidades.csv',
+      model_label: 'Exportação CSV — Países/Estados/Cidades',
+      model_name: 'CsvExportGeo',
+    }).catch(() => {})
   } catch { toast.error('Erro ao exportar.') }
 }
 
@@ -44,11 +49,7 @@ async function handleGeoImport(file, onDone) {
 /* ── CSV helpers ── */
 function exportCsv(items, filename) {
   const rows = ['nome', ...items.map(i => `"${i.name.replace(/"/g, '""')}"`)]
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
+  downloadCsv(rows.join('\n'), filename)
 }
 
 function splitCsvLineSettings(line) {
@@ -106,11 +107,7 @@ function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, 
     })
     rows.push(`${q('Mapas de Ônibus')},${q(m.label)},${m.rows?.length ?? 0},,,,${q(payload)}`)
   })
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
+  downloadCsv(rows.join('\n'), filename, { model_label: 'Exportação CSV — Todas as configurações' })
 }
 
 function readCsv(file) {
@@ -758,11 +755,7 @@ const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries',
 
 function exportEmailsCsv(emails) {
   const rows = ['email', ...emails.map(e => `"${e.replace(/"/g, '""')}"`)]
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url; a.download = 'emails_automaticos.csv'; a.click()
-  URL.revokeObjectURL(url)
+  downloadCsv(rows.join('\n'), 'emails_automaticos.csv', { model_label: 'Exportação CSV — E-mails automáticos' })
 }
 
 /* ── Gerenciador de Perfis de Permissão ─────────────────────────────────────── */

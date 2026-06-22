@@ -151,26 +151,36 @@ from audit.middleware import get_current_ip
 from audit.tracking import user_display
 
 
-@api_view(['POST'])
-@drf_permission_classes([IsAuthenticated])
-def log_upload(request):
-    """Registra um upload/importação de CSV feito pelo frontend (ex: FlatImport,
-    GeoImport) — esses fluxos chamam várias APIs de criação em sequência e não
-    têm, no backend, um único request que represente "o upload" inteiro."""
+def _log_client_event(request, action, default_model_name, default_model_label):
+    """Registra um upload/download disparado pelo frontend (ex: exportação/importação
+    de CSV em Configurações) — esses fluxos não passam por um único request de
+    backend que represente "a ação" inteira, então o frontend chama isso direto."""
     label = (request.data.get('label') or '').strip()[:200]
-    model_label = (request.data.get('model_label') or 'Importação CSV').strip()[:100]
+    model_label = (request.data.get('model_label') or default_model_label).strip()[:100]
     summary = request.data.get('summary') or {}
     if not label:
         return Response({'error': 'label é obrigatório.'}, status=400)
     user = request.user
     AuditLog.objects.create(
-        user=user, user_display=user_display(user), action='upload',
-        model_name=request.data.get('model_name') or 'CsvImport', model_label=model_label,
+        user=user, user_display=user_display(user), action=action,
+        model_name=request.data.get('model_name') or default_model_name, model_label=model_label,
         object_id='', object_repr=label,
         changes=summary if isinstance(summary, dict) else {},
         ip_address=get_current_ip(),
     )
     return Response({'ok': True}, status=201)
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
+def log_upload(request):
+    return _log_client_event(request, 'upload', 'CsvImport', 'Importação CSV')
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
+def log_download(request):
+    return _log_client_event(request, 'download', 'CsvExport', 'Exportação CSV')
 
 
 @api_view(['POST'])

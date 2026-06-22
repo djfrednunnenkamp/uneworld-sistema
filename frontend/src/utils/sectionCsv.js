@@ -1,6 +1,8 @@
 /* Exportação CSV individual por seção de Configurações — usa o MESMO formato de
    7 colunas do CSV combinado ("Exportar tudo"), para que qualquer arquivo
    individual seja reimportável pela mesma tela de revisão (FlatImport.jsx). */
+import { auditApi } from '../api'
+
 export const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
 
 export const SECTION_HEADER = 'lista,nome,pessoas,casal,pais,estado,codigo'
@@ -30,17 +32,24 @@ export const SECTION_ROW_BUILDERS = {
   },
 }
 
-export function downloadCsv(text, filename) {
+export function downloadCsv(text, filename, logMeta) {
   const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href = url; a.download = filename; a.click()
   URL.revokeObjectURL(url)
+  const lineCount = Math.max(text.split('\n').length - 1, 0)
+  auditApi.logDownload({
+    label: filename,
+    model_label: logMeta?.model_label || 'Exportação CSV',
+    model_name: logMeta?.model_name || 'CsvExport',
+    summary: { Linhas: lineCount, ...(logMeta?.summary || {}) },
+  }).catch(() => {})
 }
 
 export function exportSectionCsv(key, label, items, filename) {
   const builder = SECTION_ROW_BUILDERS[key]
   if (!builder) return
   const rows = [SECTION_HEADER, ...items.map(i => builder(label, i))]
-  downloadCsv(rows.join('\n'), filename)
+  downloadCsv(rows.join('\n'), filename, { model_label: `Exportação CSV — ${label}` })
 }

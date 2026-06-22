@@ -88,6 +88,7 @@ export default function Trips() {
   const perms     = user?.permissions ?? {}
   const canEdit   = !!user?.is_superuser || perms.lists_edit
   const canDelete = !!user?.is_superuser || perms.lists_delete
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.log_lists || perms.log_view
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
@@ -177,6 +178,7 @@ export default function Trips() {
         onAdd={canEdit ? () => setShowNew(true) : undefined}
         onView={(row) => navigate(`/viagens/${row.id}`)}
         onDelete={canDelete ? (row) => setDelRow(row) : undefined}
+        onLog={canViewLog ? () => navigate('/log?model=PassengerList') : undefined}
         loading={loading}
       />
 

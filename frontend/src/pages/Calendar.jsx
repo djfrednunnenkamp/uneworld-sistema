@@ -138,6 +138,8 @@ export default function CalendarPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
+  const perms = user?.permissions ?? {}
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.log_view
 
   const filterListId = searchParams.get('list_id') || null
 
@@ -280,6 +282,11 @@ export default function CalendarPage() {
           <button className="btn btn-outline" onClick={sendNow} disabled={sending}>
             <Ic n="mail" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo'}
           </button>
+          {canViewLog && (
+            <button className="btn btn-outline" onClick={() => navigate('/log?model=ListEnrollment')} title="Ver log de atividades">
+              <Ic n="list" s={14}/> Log
+            </button>
+          )}
         </div>
       </div>
 
