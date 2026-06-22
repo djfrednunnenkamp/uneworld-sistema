@@ -58,7 +58,16 @@ function parseCombinedCsv(text, labelToKey) {
     if (paisIdx    >= 0 && cols[paisIdx])    extras.parent_country = cols[paisIdx].trim()
     if (estadoIdx  >= 0 && cols[estadoIdx])  extras.parent_state   = cols[estadoIdx].trim()
     if (codigoIdx  >= 0 && cols[codigoIdx])  extras.code           = cols[codigoIdx].trim()
-    return { listLabel, listKey: labelToKey[listLabel.toLowerCase()] || null, name, extras }
+    const listKey = labelToKey[listLabel.toLowerCase()] || null
+    if (listKey === 'bus_maps' && extras.code) {
+      try {
+        const parsed = JSON.parse(extras.code)
+        extras.key = parsed.key
+        extras.deck_count = parsed.deck_count
+        extras.rows = parsed.rows
+      } catch { /* mapa exportado em formato antigo, sem dados de fileiras */ }
+    }
+    return { listLabel, listKey, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
 
@@ -83,7 +92,11 @@ const API_MAP = {
   }, del: (id) => configApi.delState(id), label: 'Estados' },
   cities:          { add: null, del: null, label: 'Cidades' }, // importadas em batch via geoImport
   perm_profiles:   { add: null, del: null, label: 'Perfis de Permissão' }, // somente exportação
-  bus_maps:        { add: null, del: null, label: 'Mapas de Ônibus' },    // somente exportação
+  bus_maps:        { add: (name, extras) => configApi.addBusMap({
+                       key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+                       label: name, order: extras.order || 0, is_active: extras.is_active ?? true,
+                       deck_count: extras.deck_count || 1, rows: extras.rows || [],
+                     }), del: (id) => configApi.delBusMap(id), label: 'Mapas de Ônibus' },
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -91,7 +104,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
-const EXPORT_ONLY_KEYS = new Set(['perm_profiles', 'bus_maps'])
+const EXPORT_ONLY_KEYS = new Set(['perm_profiles'])
 
 const MODES = [
   { key:'new',    label:'Somente adicionar',   desc:'Mantém os existentes, insere apenas os novos.' },
@@ -155,6 +168,7 @@ const BULK_DELETE_PERM = {
   countries:       'settings_countries_bulk_delete',
   states:          'settings_countries_bulk_delete',
   cities:          'settings_countries_bulk_delete',
+  bus_maps:        'settings_bus_maps_delete',
 }
 
 export default function FlatImport() {
@@ -211,6 +225,7 @@ export default function FlatImport() {
     if (isAll && permittedKeySet && listKey && !permittedKeySet.has(listKey)) return 'error'
     if (listKey === 'states' && !extras.parent_country) return 'error'
     if (listKey === 'cities' && (!extras.parent_country || !extras.parent_state)) return 'error'
+    if (listKey === 'bus_maps' && !extras.rows) return 'error'
     const set = existingSets[listKey ?? type]
     const key = listKey === 'cities'
       ? `${extras.parent_country || ''}|${extras.parent_state || ''}|${name}`.toLowerCase()
@@ -452,7 +467,7 @@ export default function FlatImport() {
           <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'10px 16px', display:'flex', gap:10, alignItems:'flex-start' }}>
             <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
             <p style={{ fontSize:13, color:'#92400e', margin:0 }}>
-              <strong>{skippedExportOnly} linha{skippedExportOnly !== 1 ? 's' : ''} ignorada{skippedExportOnly !== 1 ? 's' : ''}:</strong> seções de somente exportação (Perfis de Permissão, Mapas de Ônibus) não podem ser reimportadas e foram removidas da lista.
+              <strong>{skippedExportOnly} linha{skippedExportOnly !== 1 ? 's' : ''} ignorada{skippedExportOnly !== 1 ? 's' : ''}:</strong> seções de somente exportação (Perfis de Permissão) não podem ser reimportadas e foram removidas da lista.
             </p>
           </div>
         )}
@@ -591,6 +606,11 @@ export default function FlatImport() {
                           )}
                           {row.listKey === 'cities' && (
                             <span>{row.extras?.parent_state || <em style={{color:'#dc2626'}}>sem estado</em>}{row.extras?.parent_country ? `, ${row.extras.parent_country}` : ''}</span>
+                          )}
+                          {row.listKey === 'bus_maps' && (
+                            row.extras?.rows
+                              ? <span>{row.extras.rows.length} fileira{row.extras.rows.length!==1?'s':''} · {row.extras.deck_count===2?'2 andares':'1 andar'}</span>
+                              : <em style={{color:'#dc2626'}}>sem dados de fileiras</em>
                           )}
                         </td>
                       )}

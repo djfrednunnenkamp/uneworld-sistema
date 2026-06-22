@@ -95,7 +95,14 @@ function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, 
     rows.push(`${q('Perfis de Permissão')},${q(p.name)},,,,,${q(active)}`)
   })
   busMaps.forEach(m => {
-    rows.push(`${q('Mapas de Ônibus')},${q(m.label)},${m.rows?.length ?? 0},,,,`)
+    const payload = JSON.stringify({
+      key: m.key, deck_count: m.deck_count, order: m.order, is_active: m.is_active,
+      rows: (m.rows ?? []).map(r => ({
+        deck: r.deck, left_seats: r.left_seats, right_seats: r.right_seats,
+        left_labels: r.left_labels, right_labels: r.right_labels,
+      })),
+    })
+    rows.push(`${q('Mapas de Ônibus')},${q(m.label)},${m.rows?.length ?? 0},,,,${q(payload)}`)
   })
   const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
@@ -1228,7 +1235,8 @@ export default function Settings() {
     const canImportDocTypes  = can('settings_doc_types',      'bulk_import')
     const canImportAirports  = can('settings_airports',       'bulk_import')
     const canImportAirlines  = can('settings_airlines',       'bulk_import')
-    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = []
+    const canImportBusMaps   = can('settings_bus_maps',       'edit')
+    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = []
     const fetches2 = []
     if (canImportCountries) fetches2.push(
       Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
@@ -1243,6 +1251,7 @@ export default function Settings() {
     if (canImportDocTypes)  fetches2.push(configApi.docTypes().then(r => { allDocTypes = r.data }).catch(() => {}))
     if (canImportAirports)  fetches2.push(configApi.airports({ page_size: 10000 }).then(r => { allAirports = r.data.results ?? r.data }).catch(() => {}))
     if (canImportAirlines)  fetches2.push(configApi.airlines({ page_size: 10000 }).then(r => { allAirlines = r.data.results ?? r.data }).catch(() => {}))
+    if (canImportBusMaps)   fetches2.push(configApi.busMaps().then(r => { allBusMaps = r.data.results ?? r.data }).catch(() => {}))
     await Promise.all(fetches2)
     const permittedKeys = [
       ...importableGroups.map(g => g.key),
@@ -1251,6 +1260,7 @@ export default function Settings() {
       ...(canImportDocTypes  ? ['doc_types']                       : []),
       ...(canImportAirports  ? ['airports']                        : []),
       ...(canImportAirlines  ? ['airlines']                        : []),
+      ...(canImportBusMaps   ? ['bus_maps']                        : []),
     ]
     navigate('/configuracoes/import', {
       state: {
@@ -1266,6 +1276,7 @@ export default function Settings() {
           ...(canImportDocTypes  ? { doc_types: allDocTypes.map(d => d.label) }       : {}),
           ...(canImportAirports  ? { airports: allAirports.map(a => a.name) }         : {}),
           ...(canImportAirlines  ? { airlines: allAirlines.map(a => a.name) }         : {}),
+          ...(canImportBusMaps   ? { bus_maps: allBusMaps.map(m => m.label) }         : {}),
         },
         existingItemsByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items])),
@@ -1274,6 +1285,7 @@ export default function Settings() {
           ...(canImportDocTypes  ? { doc_types: allDocTypes.map(d => ({ id: d.id, name: d.label })) }    : {}),
           ...(canImportAirports  ? { airports: allAirports }                                              : {}),
           ...(canImportAirlines  ? { airlines: allAirlines }                                              : {}),
+          ...(canImportBusMaps   ? { bus_maps: allBusMaps }                                                : {}),
         },
         permittedKeys,
         allCountries,
