@@ -102,80 +102,9 @@ export const PERM_GROUPS = [
           ['settings_csv_export', 'Exportar CSV global'],
         ],
       },
+      // A partir daqui, mesma ordem alfabética (e mesmo ícone) dos cards da página Configurações
       {
-        label: 'Documentos',
-        items: [
-          ['settings_doc_types_view',         'Ver tipos de documento'],
-          ['settings_doc_types_edit',         'Criar / Editar tipos de documento'],
-          ['settings_doc_types_delete',       'Excluir tipos de documento'],
-          ['settings_doc_types_bulk_delete',  'Exclusão em massa via CSV'],
-          ['settings_doc_types_bulk_import',  'Importação em massa via CSV'],
-        ],
-      },
-      {
-        label: 'Perfis de permissão',
-        items: [
-          ['settings_user_profiles_view',   'Ver perfis de permissão'],
-          ['settings_user_profiles_edit',   'Criar / Editar perfis de permissão'],
-          ['settings_user_profiles_delete', 'Excluir perfis de permissão'],
-        ],
-      },
-      {
-        label: 'Profissões',
-        items: [
-          ['settings_professions_view',        'Ver profissões'],
-          ['settings_professions_edit',        'Criar / Editar profissões'],
-          ['settings_professions_delete',      'Excluir profissões'],
-          ['settings_professions_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_professions_bulk_import', 'Importação em massa via CSV'],
-          ['settings_professions_import_web',  'Importar lista pronta da internet'],
-        ],
-      },
-      {
-        label: 'Idiomas',
-        items: [
-          ['settings_languages_view',        'Ver idiomas'],
-          ['settings_languages_edit',        'Criar / Editar idiomas'],
-          ['settings_languages_delete',      'Excluir idiomas'],
-          ['settings_languages_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_languages_bulk_import', 'Importação em massa via CSV'],
-          ['settings_languages_import_web',  'Importar lista pronta da internet'],
-        ],
-      },
-      {
-        label: 'Vacinas',
-        items: [
-          ['settings_vaccines_view',        'Ver vacinas'],
-          ['settings_vaccines_edit',        'Criar / Editar vacinas'],
-          ['settings_vaccines_delete',      'Excluir vacinas'],
-          ['settings_vaccines_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_vaccines_bulk_import', 'Importação em massa via CSV'],
-          ['settings_vaccines_import_web',  'Importar lista pronta da internet'],
-        ],
-      },
-      {
-        label: 'Gêneros',
-        items: [
-          ['settings_genders_view',        'Ver gêneros'],
-          ['settings_genders_edit',        'Criar / Editar gêneros'],
-          ['settings_genders_delete',      'Excluir gêneros'],
-          ['settings_genders_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_genders_bulk_import', 'Importação em massa via CSV'],
-        ],
-      },
-      {
-        label: 'Carteiras profissionais',
-        items: [
-          ['settings_prof_cards_view',        'Ver carteiras profissionais'],
-          ['settings_prof_cards_edit',        'Criar / Editar carteiras profissionais'],
-          ['settings_prof_cards_delete',      'Excluir carteiras profissionais'],
-          ['settings_prof_cards_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_prof_cards_bulk_import', 'Importação em massa via CSV'],
-          ['settings_prof_cards_import_web',  'Importar lista pronta da internet'],
-        ],
-      },
-      {
-        label: 'Adicionais de lista',
+        label: 'Adicionais de lista', icon: 'listplus', hue: 260,
         items: [
           ['settings_list_additionals_view',        'Ver itens adicionais de lista'],
           ['settings_list_additionals_edit',        'Criar / Editar itens adicionais de lista'],
@@ -185,48 +114,7 @@ export const PERM_GROUPS = [
         ],
       },
       {
-        label: 'Equipe técnica',
-        items: [
-          ['settings_crew_roles_view',        'Ver funções de tripulante'],
-          ['settings_crew_roles_edit',        'Criar / Editar funções de tripulante'],
-          ['settings_crew_roles_delete',      'Excluir funções de tripulante'],
-          ['settings_crew_roles_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_crew_roles_bulk_import', 'Importação em massa via CSV'],
-        ],
-      },
-      {
-        label: 'Tipos de Acomodação',
-        items: [
-          ['settings_accommodations_view',        'Ver tipos de acomodação'],
-          ['settings_accommodations_edit',        'Criar / Editar tipos de acomodação'],
-          ['settings_accommodations_delete',      'Excluir tipos de acomodação'],
-          ['settings_accommodations_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_accommodations_bulk_import', 'Importação em massa via CSV'],
-        ],
-      },
-      {
-        label: 'Categoria de Acomodações',
-        items: [
-          ['settings_list_categories_view',        'Ver categorias de acomodação'],
-          ['settings_list_categories_edit',        'Criar / Editar categorias de acomodação'],
-          ['settings_list_categories_delete',      'Excluir categorias de acomodação'],
-          ['settings_list_categories_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_list_categories_bulk_import', 'Importação em massa via CSV'],
-        ],
-      },
-      {
-        label: 'Países & Estados',
-        items: [
-          ['settings_countries_view',        'Ver países e estados'],
-          ['settings_countries_edit',        'Criar / Editar países, estados e cidades'],
-          ['settings_countries_delete',      'Excluir países, estados e cidades'],
-          ['settings_countries_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_countries_bulk_import', 'Importação em massa via CSV'],
-          ['settings_countries_import_web',  'Importar países / estados / cidades da internet'],
-        ],
-      },
-      {
-        label: 'Aeroportos',
+        label: 'Aeroportos', icon: 'plane', hue: 218,
         items: [
           ['settings_airports_view',        'Ver aeroportos'],
           ['settings_airports_edit',        'Criar / Editar aeroportos'],
@@ -237,7 +125,28 @@ export const PERM_GROUPS = [
         ],
       },
       {
-        label: 'Companhias Aéreas',
+        label: 'Carteiras profissionais', icon: 'card', hue: 285,
+        items: [
+          ['settings_prof_cards_view',        'Ver carteiras profissionais'],
+          ['settings_prof_cards_edit',        'Criar / Editar carteiras profissionais'],
+          ['settings_prof_cards_delete',      'Excluir carteiras profissionais'],
+          ['settings_prof_cards_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_prof_cards_bulk_import', 'Importação em massa via CSV'],
+          ['settings_prof_cards_import_web',  'Importar lista pronta da internet'],
+        ],
+      },
+      {
+        label: 'Categoria de Acomodações', icon: 'grid', hue: 300,
+        items: [
+          ['settings_list_categories_view',        'Ver categorias de acomodação'],
+          ['settings_list_categories_edit',        'Criar / Editar categorias de acomodação'],
+          ['settings_list_categories_delete',      'Excluir categorias de acomodação'],
+          ['settings_list_categories_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_list_categories_bulk_import', 'Importação em massa via CSV'],
+        ],
+      },
+      {
+        label: 'Companhias Aéreas', icon: 'ticket', hue: 195,
         items: [
           ['settings_airlines_view',        'Ver companhias aéreas'],
           ['settings_airlines_edit',        'Criar / Editar companhias aéreas'],
@@ -248,11 +157,103 @@ export const PERM_GROUPS = [
         ],
       },
       {
-        label: 'Mapas de Ônibus',
+        label: 'Documentos', icon: 'docs', hue: 230,
+        items: [
+          ['settings_doc_types_view',         'Ver tipos de documento'],
+          ['settings_doc_types_edit',         'Criar / Editar tipos de documento'],
+          ['settings_doc_types_delete',       'Excluir tipos de documento'],
+          ['settings_doc_types_bulk_delete',  'Exclusão em massa via CSV'],
+          ['settings_doc_types_bulk_import',  'Importação em massa via CSV'],
+        ],
+      },
+      {
+        label: 'Equipe técnica', icon: 'wrench', hue: 165,
+        items: [
+          ['settings_crew_roles_view',        'Ver funções de tripulante'],
+          ['settings_crew_roles_edit',        'Criar / Editar funções de tripulante'],
+          ['settings_crew_roles_delete',      'Excluir funções de tripulante'],
+          ['settings_crew_roles_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_crew_roles_bulk_import', 'Importação em massa via CSV'],
+        ],
+      },
+      {
+        label: 'Gêneros', icon: 'gender', hue: 340,
+        items: [
+          ['settings_genders_view',        'Ver gêneros'],
+          ['settings_genders_edit',        'Criar / Editar gêneros'],
+          ['settings_genders_delete',      'Excluir gêneros'],
+          ['settings_genders_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_genders_bulk_import', 'Importação em massa via CSV'],
+        ],
+      },
+      {
+        label: 'Idiomas', icon: 'globe', hue: 150,
+        items: [
+          ['settings_languages_view',        'Ver idiomas'],
+          ['settings_languages_edit',        'Criar / Editar idiomas'],
+          ['settings_languages_delete',      'Excluir idiomas'],
+          ['settings_languages_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_languages_bulk_import', 'Importação em massa via CSV'],
+          ['settings_languages_import_web',  'Importar lista pronta da internet'],
+        ],
+      },
+      {
+        label: 'Mapas de Ônibus', icon: 'mapicon', hue: 45,
         items: [
           ['settings_bus_maps_view',   'Ver mapas de ônibus'],
           ['settings_bus_maps_edit',   'Criar / Editar mapas de ônibus'],
           ['settings_bus_maps_delete', 'Excluir mapas de ônibus'],
+        ],
+      },
+      {
+        label: 'Países & Estados', icon: 'pin', hue: 130,
+        items: [
+          ['settings_countries_view',        'Ver países e estados'],
+          ['settings_countries_edit',        'Criar / Editar países, estados e cidades'],
+          ['settings_countries_delete',      'Excluir países, estados e cidades'],
+          ['settings_countries_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_countries_bulk_import', 'Importação em massa via CSV'],
+          ['settings_countries_import_web',  'Importar países / estados / cidades da internet'],
+        ],
+      },
+      {
+        label: 'Perfis de permissão', icon: 'shield', hue: 252,
+        items: [
+          ['settings_user_profiles_view',   'Ver perfis de permissão'],
+          ['settings_user_profiles_edit',   'Criar / Editar perfis de permissão'],
+          ['settings_user_profiles_delete', 'Excluir perfis de permissão'],
+        ],
+      },
+      {
+        label: 'Profissões', icon: 'briefcase', hue: 38,
+        items: [
+          ['settings_professions_view',        'Ver profissões'],
+          ['settings_professions_edit',        'Criar / Editar profissões'],
+          ['settings_professions_delete',      'Excluir profissões'],
+          ['settings_professions_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_professions_bulk_import', 'Importação em massa via CSV'],
+          ['settings_professions_import_web',  'Importar lista pronta da internet'],
+        ],
+      },
+      {
+        label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
+        items: [
+          ['settings_accommodations_view',        'Ver tipos de acomodação'],
+          ['settings_accommodations_edit',        'Criar / Editar tipos de acomodação'],
+          ['settings_accommodations_delete',      'Excluir tipos de acomodação'],
+          ['settings_accommodations_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_accommodations_bulk_import', 'Importação em massa via CSV'],
+        ],
+      },
+      {
+        label: 'Vacinas', icon: 'syringe', hue: 18,
+        items: [
+          ['settings_vaccines_view',        'Ver vacinas'],
+          ['settings_vaccines_edit',        'Criar / Editar vacinas'],
+          ['settings_vaccines_delete',      'Excluir vacinas'],
+          ['settings_vaccines_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_vaccines_bulk_import', 'Importação em massa via CSV'],
+          ['settings_vaccines_import_web',  'Importar lista pronta da internet'],
         ],
       },
     ],

@@ -53,16 +53,28 @@ export function PermAccordionItem({ group, permissions, onToggle, onToggleAll })
   })
 
   const renderCheckboxes = (its) => (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(210px, 1fr))', gap:'5px 16px' }}>
-      {visibleItems(its).map(([key, label, icon]) => (
-        <label key={key} style={{ display:'flex', alignItems:'center', gap:7, cursor:'pointer', fontSize:12.5, color:'#1e293b', padding:'4px 3px', borderRadius:4 }}>
-          <input type="checkbox" checked={!!permissions?.[key]}
-            onChange={e => onToggle(key, e.target.checked)}
-            style={{ accentColor:'#1a2d4f', width:14, height:14, flexShrink:0 }} />
-          {icon && <span style={{ color:'#64748b', display:'flex' }}><Ic n={icon} s={12}/></span>}
-          <span>{label}</span>
-        </label>
-      ))}
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:6 }}>
+      {visibleItems(its).map(([key, label, icon]) => {
+        const checked = !!permissions?.[key]
+        return (
+          <label key={key}
+            style={{
+              display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:12.5,
+              color: checked ? '#0f172a' : '#475569', padding:'6px 9px', borderRadius:7,
+              background: checked ? '#eff6ff' : 'transparent',
+              border: `1px solid ${checked ? '#bfdbfe' : 'transparent'}`,
+              transition:'background .12s, border-color .12s',
+            }}
+            onMouseEnter={e => { if (!checked) e.currentTarget.style.background = '#f8fafc' }}
+            onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent' }}>
+            <input type="checkbox" checked={checked}
+              onChange={e => onToggle(key, e.target.checked)}
+              style={{ accentColor:'#2e6db4', width:15, height:15, flexShrink:0, cursor:'pointer' }} />
+            {icon && <span style={{ color:'#64748b', display:'flex', flexShrink:0 }}><Ic n={icon} s={12}/></span>}
+            <span>{label}</span>
+          </label>
+        )
+      })}
     </div>
   )
 
@@ -99,8 +111,18 @@ export function PermAccordionItem({ group, permissions, onToggle, onToggleAll })
           {group.sections
             ? group.sections.map((sec, i) => (
                 visibleItems(sec.items).length === 0 ? null : (
-                  <div key={sec.label} style={i > 0 ? { marginTop:10, paddingTop:10, borderTop:'1px dashed #e2e8f0' } : undefined}>
-                    <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', margin:'0 0 7px' }}>{sec.label}</p>
+                  <div key={sec.label} style={i > 0 ? { marginTop:12, paddingTop:12, borderTop:'1px dashed #e2e8f0' } : undefined}>
+                    <p style={{ display:'flex', alignItems:'center', gap:6, fontSize:10.5, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', margin:'0 0 8px' }}>
+                      {sec.icon && (
+                        <span style={{
+                          display:'flex', alignItems:'center', justifyContent:'center', width:18, height:18, borderRadius:5,
+                          background: `oklch(0.955 0.035 ${sec.hue ?? 220})`, color: `oklch(0.52 0.15 ${sec.hue ?? 220})`, flexShrink:0,
+                        }}>
+                          <Ic n={sec.icon} s={11}/>
+                        </span>
+                      )}
+                      {sec.label}
+                    </p>
                     {renderCheckboxes(sec.items)}
                   </div>
                 )
