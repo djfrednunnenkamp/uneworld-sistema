@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { auditApi, usersApi } from '../api'
+import { auditApi, usersApi, listsApi, passengersApi, agenciesApi } from '../api'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
@@ -278,6 +278,116 @@ function UserFilterDrop({ value, onChange }) {
   )
 }
 
+/* Config de "entrar em um registro específico" — mostrado ao lado do Tipo
+   quando a área selecionada (Tipo ou botão "Log" de uma página) é uma dessas. */
+const DRILL_CONFIG = {
+  lists: {
+    icon: 'plane', param: 'list_id', singular: 'lista', plural: 'Todas as listas',
+    fetch: () => listsApi.list().then(r => r.data.results ?? r.data),
+    nameOf: i => i.name,
+  },
+  passengers: {
+    icon: 'users', param: 'passenger_id', singular: 'passageiro', plural: 'Todos os passageiros',
+    fetch: () => passengersApi.list().then(r => r.data.results ?? r.data),
+    nameOf: i => i.full_name,
+  },
+  agencies: {
+    icon: 'building', param: 'agency_id', singular: 'agência', plural: 'Todas as agências',
+    fetch: () => agenciesApi.list().then(r => r.data.results ?? r.data),
+    nameOf: i => i.name || i.company_name,
+  },
+}
+
+/* Dropdown de busca pra entrar no log de UM registro específico (lista,
+   passageiro ou agência) sem sair da tela de Log — mesmo padrão do filtro
+   de usuário, com busca, e troca o filtro de id correspondente. */
+function RecordDrillDrop({ drillKey, value, onChange }) {
+  const cfg = DRILL_CONFIG[drillKey]
+  const [open, setOpen]   = useState(false)
+  const [q, setQ]         = useState('')
+  const [items, setItems] = useState(null)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  useEffect(() => {
+    setItems(null)
+    setQ('')
+  }, [drillKey])
+
+  useEffect(() => {
+    if (open && items === null) {
+      cfg.fetch().then(setItems).catch(() => setItems([]))
+    }
+  }, [open, items, cfg])
+
+  const selected = (items ?? []).find(i => String(i.id) === String(value))
+  const active = !!value
+  const filtered = (items ?? []).filter(i => !q || cfg.nameOf(i)?.toLowerCase().includes(q.toLowerCase()))
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8,
+          border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+          background: active ? '#eff6ff' : '#fff',
+          color: active ? '#2e6db4' : '#475569',
+          fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit',
+          whiteSpace: 'nowrap', transition: 'all .12s', maxWidth: 220,
+        }}>
+        <Ic n={cfg.icon} s={13} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {active ? (selected ? cfg.nameOf(selected) : '…') : cfg.plural}
+        </span>
+        <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
+          background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0',
+          boxShadow: '0 12px 28px rgba(15,23,42,.12)', minWidth: 260, overflow: 'hidden',
+        }}>
+          <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)}
+              placeholder={`Buscar ${cfg.singular}…`}
+              style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12.5, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            <button type="button" onClick={() => { onChange(''); setOpen(false) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', background: !value ? '#eff6ff' : 'transparent', border: 'none', color: !value ? '#2e6db4' : '#1e293b', fontSize: 13, fontWeight: !value ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+              onMouseEnter={e => { if (value) e.currentTarget.style.background = '#f8fafc' }}
+              onMouseLeave={e => { if (value) e.currentTarget.style.background = 'transparent' }}>
+              <Ic n={cfg.icon} s={13} /> {cfg.plural}
+            </button>
+            {items === null ? (
+              <p style={{ padding: '14px', margin: 0, fontSize: 12.5, color: '#94a3b8', textAlign: 'center' }}>Carregando…</p>
+            ) : filtered.length === 0 ? (
+              <p style={{ padding: '14px', margin: 0, fontSize: 12.5, color: '#94a3b8', textAlign: 'center' }}>Nada encontrado.</p>
+            ) : filtered.map(i => {
+              const sel = String(value) === String(i.id)
+              return (
+                <button key={i.id} type="button"
+                  onClick={() => { onChange(String(i.id)); setOpen(false) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '7px 14px', background: sel ? '#eff6ff' : 'transparent', border: 'none', color: sel ? '#2e6db4' : '#1e293b', fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                  onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
+                  onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{cfg.nameOf(i)}</span>
+                  {sel && <Ic n="check" s={13} />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* Formata valores ISO de data/hora para formato legível */
 function fmtVal(val) {
   if (val === null || val === undefined) return '—'
@@ -527,7 +637,7 @@ export default function AuditLog() {
     finally { setLoading(false) }
   }, [filters, showNav, listId, passengerId, agencyId, auditScope])
 
-  useEffect(() => { load(1, filters, showNav) }, [])
+  useEffect(() => { load(1, filtersRef.current, showNavRef.current) }, [listId, passengerId, agencyId, auditScope])
 
   const setFilter = (key, val) => {
     const next = { ...filters, [key]: val }
@@ -574,6 +684,18 @@ export default function AuditLog() {
   const totalPages = Math.ceil(count / 50)
 
   const ctx = SCOPE_CONTEXT[auditScope] || MODEL_CONTEXT[filters.model] || null
+
+  // Sub-filtro "entrar num registro específico" — aparece junto do Tipo quando
+  // a área atual (scope= ou Tipo=) é uma das que tem busca por registro.
+  const MODEL_TO_DRILL = { PassengerList: 'lists', Passenger: 'passengers', Agency: 'agencies' }
+  const drillScope = DRILL_CONFIG[auditScope] ? auditScope : MODEL_TO_DRILL[filters.model]
+  const drillValue = drillScope === 'lists' ? listId : drillScope === 'passengers' ? passengerId : drillScope === 'agencies' ? agencyId : ''
+  const setDrillValue = (val) => {
+    const cfg = DRILL_CONFIG[drillScope]
+    const next = new URLSearchParams(searchParams)
+    if (val) next.set(cfg.param, val); else next.delete(cfg.param)
+    navigate(`/log?${next.toString()}`)
+  }
 
   return (
     <div>
@@ -646,6 +768,7 @@ export default function AuditLog() {
         <FDrop label="Ação" icon="check" value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS}
           iconFor={v => ACTION_STYLE[v]?.icon} />
         <FDrop label="Tipo" icon="grid" value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS} />
+        {drillScope && <RecordDrillDrop drillKey={drillScope} value={drillValue} onChange={setDrillValue} />}
 
         <DateRangeDrop
           label="Período"
