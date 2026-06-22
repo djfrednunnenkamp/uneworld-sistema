@@ -1,8 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
+import CsvImportPopup from './CsvImportPopup'
+import { CSV_SAMPLES } from '../utils/csvSamples'
+import { exportSectionCsv } from '../utils/sectionCsv'
+
+const btnCsv = (color) => ({
+  padding: '6px 11px', borderRadius: 7, border: `1.5px solid ${color}20`,
+  background: `${color}10`, color, fontSize: 12, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
+})
 
 const FIELD_TYPES = [
   { value: 'text',       label: 'Texto livre',            icon: '📝', desc: 'Input de texto' },
@@ -462,11 +472,13 @@ function FieldEditor({ field, index, total, hasError, onClearError, onUpdate, on
 }
 
 /* ── Componente principal ── */
-export default function DocTypesManager({ canEdit = true, canDelete = true }) {
+export default function DocTypesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+  const navigate = useNavigate()
   const [docTypes, setDocTypes] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [modal,    setModal]    = useState(null) // null | { docType?: obj }
   const [confirm,  setConfirm]  = useState(null) // { id, name }
+  const [showPopup, setShowPopup] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -549,15 +561,47 @@ export default function DocTypesManager({ canEdit = true, canDelete = true }) {
     } catch { toast.error('Erro ao restaurar.') }
   }
 
+  const handleFileChosen = async (file) => {
+    const csvText = await file.text()
+    navigate('/configuracoes/import', {
+      state: {
+        csvText, filename: file.name, type: 'doc_types',
+        existingNames: docTypes.map(d => d.label),
+        existingItems: docTypes.map(d => ({ id: d.id, name: d.label, key: d.key, icon: d.icon, color: d.color })),
+      },
+    })
+  }
+
   return (
     <div>
       {/* Toolbar */}
-      <div style={{ display:'flex', gap:10, marginBottom:18, alignItems:'center' }}>
+      <div style={{ display:'flex', gap:10, marginBottom:18, alignItems:'center', flexWrap:'wrap' }}>
         {canEdit && (
           <button onClick={() => setModal({})}
             style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             + Novo tipo de documento
           </button>
+        )}
+        {canExport && (
+          <button style={btnCsv('#059669')}
+            onClick={() => exportSectionCsv('doc_types', 'Documentos', docTypes.map(d => ({ label: d.label, key: d.key, icon: d.icon, color: d.color })), 'documentos.csv')}
+            title="Exportar como CSV (sem campos customizados)">
+            ⬇ Exportar
+          </button>
+        )}
+        {canImport && (
+          <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} title="Importar de CSV">
+            ⬆ Importar
+          </button>
+        )}
+        {canImport && showPopup && (
+          <CsvImportPopup
+            title="Importar Documentos"
+            sampleContent={CSV_SAMPLES.doc_types.content}
+            sampleFilename={CSV_SAMPLES.doc_types.filename}
+            onClose={() => setShowPopup(false)}
+            onFile={handleFileChosen}
+          />
         )}
         <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>
           {docTypes.length} tipo{docTypes.length!==1?'s':''}

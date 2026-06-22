@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
+import CsvImportPopup from './CsvImportPopup'
+import { CSV_SAMPLES } from '../utils/csvSamples'
+import { exportSectionCsv } from '../utils/sectionCsv'
 
 let _cachedCountries = null
 
@@ -104,6 +108,11 @@ function CountryField({ value, onChange }) {
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
 const onB  = e => e.target.style.borderColor = '#e2e8f0'
+const btnCsv = (color) => ({
+  padding: '6px 11px', borderRadius: 7, border: `1.5px solid ${color}20`,
+  background: `${color}10`, color, fontSize: 12, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
+})
 
 export function AirlineFormModal({ title, initial, onSave, onClose }) {
   const [name,    setName]    = useState(initial?.name ?? '')
@@ -192,7 +201,8 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 
 const PAGE_SIZE = 50
 
-export default function AirlinesManager({ canEdit = true, canDelete = true, canExport = true }) {
+export default function AirlinesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+  const navigate = useNavigate()
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
@@ -201,6 +211,9 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canE
   const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [seeding,  setSeeding]  = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [showPopup, setShowPopup] = useState(false)
 
   // Busca com debounce — evita disparar uma requisição a cada tecla digitada
   useEffect(() => {
@@ -250,6 +263,35 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canE
     reload()
   }
 
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const r = await configApi.airlines({ page_size: 10000 })
+      const all = r.data.results ?? r.data
+      exportSectionCsv('airlines', 'Companhias Aéreas', all, 'companhias_aereas.csv')
+    } catch {
+      toast.error('Erro ao exportar.')
+    } finally { setExporting(false) }
+  }
+
+  const handleFileChosen = async (file) => {
+    const csvText = await file.text()
+    setImporting(true)
+    try {
+      const resp = await configApi.airlines({ page_size: 10000 })
+      const all = resp.data.results ?? resp.data
+      navigate('/configuracoes/import', {
+        state: {
+          csvText, filename: file.name, type: 'airlines',
+          existingNames: all.map(i => i.name),
+          existingItems: all,
+        },
+      })
+    } catch {
+      toast.error('Erro ao preparar importação.')
+    } finally { setImporting(false) }
+  }
+
   return (
     <div>
       <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
@@ -268,6 +310,25 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canE
             onClick={handleSeed} disabled={seeding}>
             {seeding ? '⏳ Importando…' : '🌐 Base mundial'}
           </button>
+        )}
+        {canExport && (
+          <button style={btnCsv('#059669')} onClick={exportCsv} disabled={exporting} title="Exportar como CSV">
+            {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
+          </button>
+        )}
+        {canImport && (
+          <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} disabled={importing} title="Importar de CSV">
+            {importing ? '⏳ Importando…' : '⬆ Importar'}
+          </button>
+        )}
+        {canImport && showPopup && (
+          <CsvImportPopup
+            title="Importar Companhias Aéreas"
+            sampleContent={CSV_SAMPLES.airlines.content}
+            sampleFilename={CSV_SAMPLES.airlines.filename}
+            onClose={() => setShowPopup(false)}
+            onFile={handleFileChosen}
+          />
         )}
       </div>
 

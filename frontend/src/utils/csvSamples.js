@@ -13,20 +13,47 @@ export const CSV_SAMPLES = {
   list_categories: { content: simple(['Standard', 'Superior', 'Deluxe']),                  filename: 'modelo_categorias.csv' },
 
   accommodations: {
-    content: 'nome,pessoas,casal\nCabine dupla,2,sim\nCabine tripla,3,não\nSuite individual,1,não',
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Acomodações,Cabine dupla,2,sim,,,',
+      'Acomodações,Cabine tripla,3,não,,,',
+      'Acomodações,Suite individual,1,não,,,',
+    ].join('\n'),
     filename: 'modelo_acomodacoes.csv',
   },
   doc_types: {
-    content: 'nome,codigo\nPassaporte,passport\nIdentidade (RG),rg\nCNH,cnh',
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Documentos,Passaporte,,,,,passport',
+      'Documentos,Identidade (RG),,,,,rg',
+      'Documentos,CNH,,,,,cnh',
+    ].join('\n'),
     filename: 'modelo_documentos.csv',
   },
   airports: {
-    content: 'nome,iata,cidade,pais\nGuarulhos,GRU,Guarulhos,Brasil\nCongonhas,CGH,São Paulo,Brasil\nGaleão,GIG,Rio de Janeiro,Brasil',
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Aeroportos,Guarulhos,,,Brasil,Guarulhos,GRU',
+      'Aeroportos,Congonhas,,,Brasil,São Paulo,CGH',
+      'Aeroportos,Galeão,,,Brasil,Rio de Janeiro,GIG',
+    ].join('\n'),
     filename: 'modelo_aeroportos.csv',
   },
   airlines: {
-    content: 'nome,iata,pais\nLATAM,LA,Brasil\nGol,G3,Brasil\nAzul,AD,Brasil',
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Companhias Aéreas,LATAM,,,Brasil,,LA',
+      'Companhias Aéreas,Gol,,,Brasil,,G3',
+      'Companhias Aéreas,Azul,,,Brasil,,AD',
+    ].join('\n'),
     filename: 'modelo_companhias_aereas.csv',
+  },
+  bus_maps: {
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Mapas de Ônibus,Convencional 2+2,0,,,,"{""deck_count"":1,""rows"":[]}"',
+    ].join('\n'),
+    filename: 'modelo_mapas_de_onibus.csv',
   },
   countries: {
     content: [
@@ -66,7 +93,11 @@ export const CSV_SAMPLES = {
     filename: 'modelo_todas_as_configuracoes.csv',
   },
   perm_profiles: {
-    content: 'nome,permissoes\nGerente de Viagens,settings_professions_view|settings_languages_view|settings_csv_export\nOperador,settings_professions_view|settings_professions_edit',
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Perfis de Permissão,Gerente de Viagens,,,,,settings_professions_view|settings_languages_view|settings_csv_export',
+      'Perfis de Permissão,Operador,,,,,settings_professions_view|settings_professions_edit',
+    ].join('\n'),
     filename: 'modelo_perfis_de_permissao.csv',
   },
   passengers: {

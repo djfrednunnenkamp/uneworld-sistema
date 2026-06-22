@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
 import { BusLayoutPreview, MapPreviewTooltip } from './BusLayoutPreview'
+import CsvImportPopup from './CsvImportPopup'
+import { CSV_SAMPLES } from '../utils/csvSamples'
+import { exportSectionCsv } from '../utils/sectionCsv'
+
+const btnCsv = (color) => ({
+  padding: '6px 11px', borderRadius: 7, border: `1.5px solid ${color}20`,
+  background: `${color}10`, color, fontSize: 12, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
+})
 
 const MAX_SEATS_PER_SIDE = 4
 
@@ -321,12 +331,14 @@ export function BusMapModal({ busMap, onSave, onClose }) {
 }
 
 /* ── Componente principal ── */
-export default function BusMapsManager({ canEdit = true, canDelete = true }) {
+export default function BusMapsManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+  const navigate = useNavigate()
   const [busMaps, setBusMaps] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal,   setModal]   = useState(null) // null | { busMap?: obj }
   const [confirm, setConfirm] = useState(null) // { id, name }
   const [hover,   setHover]   = useState(null) // { id, rect }
+  const [showPopup, setShowPopup] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -360,15 +372,45 @@ export default function BusMapsManager({ canEdit = true, canDelete = true }) {
     catch { toast.error('Erro ao remover mapa.') }
   }
 
+  const handleFileChosen = async (file) => {
+    const csvText = await file.text()
+    navigate('/configuracoes/import', {
+      state: {
+        csvText, filename: file.name, type: 'bus_maps',
+        existingNames: busMaps.map(m => m.label),
+        existingItems: busMaps,
+      },
+    })
+  }
+
   return (
     <div>
       {/* Toolbar */}
-      <div style={{ display:'flex', gap:10, marginBottom:18, alignItems:'center' }}>
+      <div style={{ display:'flex', gap:10, marginBottom:18, alignItems:'center', flexWrap:'wrap' }}>
         {canEdit && (
           <button onClick={() => setModal({})}
             style={{ padding:'9px 18px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
             + Novo mapa de ônibus
           </button>
+        )}
+        {canExport && (
+          <button style={btnCsv('#059669')} onClick={() => exportSectionCsv('bus_maps', 'Mapas de Ônibus', busMaps, 'mapas_de_onibus.csv')} title="Exportar como CSV">
+            ⬇ Exportar
+          </button>
+        )}
+        {canImport && (
+          <button style={btnCsv('#2e6db4')} onClick={() => setShowPopup(true)} title="Importar de CSV">
+            ⬆ Importar
+          </button>
+        )}
+        {canImport && showPopup && (
+          <CsvImportPopup
+            title="Importar Mapas de Ônibus"
+            sampleContent={CSV_SAMPLES.bus_maps.content}
+            sampleFilename={CSV_SAMPLES.bus_maps.filename}
+            onClose={() => setShowPopup(false)}
+            onFile={handleFileChosen}
+          />
         )}
         <span style={{ fontSize:12, color:'#94a3b8', marginLeft:'auto' }}>
           {busMaps.length} mapa{busMaps.length !== 1 ? 's' : ''}

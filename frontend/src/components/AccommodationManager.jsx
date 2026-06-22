@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
+import { exportSectionCsv } from '../utils/sectionCsv'
 
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
@@ -70,55 +72,6 @@ export function AccomFormModal({ title, initial, onSave, onClose }) {
   )
 }
 
-/* ── CSV helpers ── */
-function exportAccomCsv(items, filename = 'tipos_acomodacao.csv') {
-  const rows = ['nome,pessoas,casal', ...items.map(i =>
-    `"${i.name.replace(/"/g, '""')}",${i.capacity},${i.is_couple ? 'sim' : 'não'}`
-  )]
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
-}
-
-function splitCsvLine(line) {
-  const out = []
-  let cur = '', inQ = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (inQ) {
-      if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++ } else inQ = false }
-      else cur += c
-    } else {
-      if (c === '"') inQ = true
-      else if (c === ',') { out.push(cur); cur = '' }
-      else cur += c
-    }
-  }
-  out.push(cur)
-  return out.map(s => s.trim())
-}
-
-function parseAccomCsv(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
-  if (!lines.length) return []
-  const head = splitCsvLine(lines[0]).map(s => s.toLowerCase())
-  const hasHeader = head.includes('nome')
-  const start    = hasHeader ? 1 : 0
-  const nameIdx  = hasHeader ? head.indexOf('nome')   : 0
-  const capIdx   = hasHeader ? head.indexOf('pessoas') : 1
-  const coupleIdx= hasHeader ? head.indexOf('casal')   : 2
-  return lines.slice(start).map(line => {
-    const cols = splitCsvLine(line)
-    const name     = (cols[nameIdx] || '').trim()
-    const capacity = Number(cols[capIdx]) || 1
-    const coupleV  = (cols[coupleIdx] || '').trim().toLowerCase()
-    const is_couple = ['sim', 'true', '1', 'yes'].includes(coupleV)
-    return { name, capacity, is_couple }
-  }).filter(r => r.name)
-}
-
 /* ── Linha da listagem ── */
 function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
   const [confirm, setConfirm] = useState(false)
@@ -153,6 +106,7 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 }
 
 export default function AccommodationManager({ items, loading, onRefresh, canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+  const navigate = useNavigate()
   const [search,     setSearch]     = useState('')
   const [showForm,   setShowForm]   = useState(false) // false | true (novo) | item (edição)
   const [showPopup,  setShowPopup]  = useState(false)
@@ -182,16 +136,13 @@ export default function AccommodationManager({ items, loading, onRefresh, canEdi
 
   const handleFileChosen = async (file) => {
     const csvText = await file.text()
-    const parsed  = parseAccomCsv(csvText)
-    const existing = new Set(items.map(i => i.name.toLowerCase()))
-    const toAdd   = parsed.filter(r => !existing.has(r.name.toLowerCase()))
-    if (!toAdd.length) { toast.success('Nenhum item novo encontrado no arquivo — tudo já estava cadastrado.'); return }
-    let added = 0, skipped = 0
-    for (const row of toAdd) {
-      try { await configApi.addAccommodation(row); added++ } catch { skipped++ }
-    }
-    toast.success(`${added} adicionado${added !== 1 ? 's' : ''}${skipped ? `, ${skipped} com erro` : ''}.`)
-    onRefresh()
+    navigate('/configuracoes/import', {
+      state: {
+        csvText, filename: file.name, type: 'accommodations',
+        existingNames: items.map(i => i.name),
+        existingItems: items,
+      },
+    })
   }
 
   return (
@@ -207,7 +158,7 @@ export default function AccommodationManager({ items, loading, onRefresh, canEdi
           </button>
         )}
         {canExport && (
-          <button style={btnCsv('#059669')} onClick={() => exportAccomCsv(items)} title="Exportar como CSV">
+          <button style={btnCsv('#059669')} onClick={() => exportSectionCsv('accommodations', 'Acomodações', items, 'acomodacoes.csv')} title="Exportar como CSV">
             ⬇ Exportar
           </button>
         )}

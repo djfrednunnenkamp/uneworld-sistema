@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
@@ -6,6 +7,7 @@ import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
+import { exportSectionCsv } from '../utils/sectionCsv'
 
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
@@ -205,6 +207,7 @@ function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
 const PAGE_SIZE = 50
 
 export default function AirportsManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+  const navigate = useNavigate()
   const [items,    setItems]    = useState([])
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
@@ -278,17 +281,7 @@ export default function AirportsManager({ canEdit = true, canDelete = true, canI
     try {
       const r = await configApi.airports({ page_size: 10000 })
       const all = r.data.results ?? r.data
-      const rows = ['nome,iata,cidade,pais', ...all.map(i =>
-        [`"${(i.name || '').replace(/"/g, '""')}"`,
-         `"${(i.iata_code || '').replace(/"/g, '""')}"`,
-         `"${(i.city || '').replace(/"/g, '""')}"`,
-         `"${(i.country || '').replace(/"/g, '""')}"`].join(',')
-      )]
-      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a')
-      a.href = url; a.download = 'aeroportos.csv'; a.click()
-      URL.revokeObjectURL(url)
+      exportSectionCsv('airports', 'Aeroportos', all, 'aeroportos.csv')
     } catch {
       toast.error('Erro ao exportar.')
     } finally {
@@ -297,45 +290,20 @@ export default function AirportsManager({ canEdit = true, canDelete = true, canI
   }
 
   const handleFileChosen = async (file) => {
-    const text  = await file.text()
-    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
-    if (!lines.length) return
-    const splitLine = (line) => {
-      const out = []; let cur = '', inQ = false
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i]
-        if (inQ) { if (c==='"') { if (line[i+1]==='"') { cur+='"'; i++ } else inQ=false } else cur+=c }
-        else { if (c==='"') inQ=true; else if (c===',') { out.push(cur); cur='' } else cur+=c }
-      }
-      out.push(cur); return out.map(s => s.trim())
-    }
-    const head = splitLine(lines[0]).map(s => s.toLowerCase())
-    const hasHeader = head.includes('nome') || head.includes('iata')
-    const start = hasHeader ? 1 : 0
-    const ni = hasHeader ? (head.indexOf('nome') >= 0 ? head.indexOf('nome') : 0) : 0
-    const ii = hasHeader ? (head.indexOf('iata') >= 0 ? head.indexOf('iata') : 1) : 1
-    const ci = hasHeader ? (head.indexOf('cidade') >= 0 ? head.indexOf('cidade') : 2) : 2
-    const pi = hasHeader ? (head.indexOf('pais') >= 0 ? head.indexOf('pais') : 3) : 3
-    const parsed = lines.slice(start).map(l => {
-      const cols = splitLine(l)
-      return { name: cols[ni]||'', iata_code: (cols[ii]||'').toUpperCase(), city: cols[ci]||'', country: cols[pi]||'' }
-    }).filter(r => r.name)
-
+    const csvText = await file.text()
     setImporting(true)
     try {
       const resp = await configApi.airports({ page_size: 10000 })
       const all = resp.data.results ?? resp.data
-      const existing = new Set(all.map(i => i.name.toLowerCase()))
-      const toAdd    = parsed.filter(p => !existing.has(p.name.toLowerCase()))
-      if (!toAdd.length) { toast.success('Nenhum aeroporto novo encontrado — tudo já estava cadastrado.'); return }
-      let added = 0, skipped = 0
-      for (const row of toAdd) {
-        try { await configApi.addAirport(row); added++ } catch { skipped++ }
-      }
-      toast.success(`${added} adicionado${added !== 1 ? 's' : ''}${skipped ? `, ${skipped} com erro` : ''}.`)
-      reload()
+      navigate('/configuracoes/import', {
+        state: {
+          csvText, filename: file.name, type: 'airports',
+          existingNames: all.map(i => i.name),
+          existingItems: all,
+        },
+      })
     } catch {
-      toast.error('Erro ao importar.')
+      toast.error('Erro ao preparar importação.')
     } finally {
       setImporting(false)
     }

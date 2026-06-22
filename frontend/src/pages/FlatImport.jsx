@@ -97,6 +97,14 @@ function parseCombinedCsv(text, labelToKey) {
     if (listKey === 'perm_profiles') {
       extras.permissionKeys = extras.code ? extras.code.split('|').filter(Boolean) : []
     }
+    if (listKey === 'doc_types' && extras.code) {
+      try {
+        const parsed = JSON.parse(extras.code)
+        extras.key = parsed.key
+        extras.icon = parsed.icon
+        extras.color = parsed.color
+      } catch { extras.key = extras.code } // formato antigo: codigo era só a key, sem ícone/cor
+    }
     return { listLabel, listKey, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
@@ -111,7 +119,10 @@ const API_MAP = {
   crew_roles:      { add: (name)         => listsApi.addCrewRole(name),       del: (id) => listsApi.removeCrewRole(id),    label: 'Equipe técnica' },
   list_categories: { add: (name)         => configApi.addListCategory(name),  del: (id) => configApi.delListCategory(id),  label: 'Categoria de Acomodações' },
   accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), del: (id) => configApi.delAccommodation(id), label: 'Acomodações' },
-  doc_types:       { add: (name, extras) => configApi.addDocType({ label: name, key: extras.code || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), icon: '📄', color: '#475569' }), del: (id) => configApi.delDocType(id), label: 'Documentos' },
+  doc_types:       { add: (name, extras) => configApi.addDocType({
+                       label: name, key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+                       icon: extras.icon || '📄', color: extras.color || '#475569',
+                     }), del: (id) => configApi.delDocType(id), label: 'Documentos' },
   airports:        { add: (name, extras) => configApi.addAirport({ name, iata_code: extras.code || '', city: extras.parent_state || '', country: extras.parent_country || '' }), del: (id) => configApi.delAirport(id), label: 'Aeroportos' },
   airlines:        { add: (name, extras) => configApi.addAirline({ name, iata_code: extras.code || '', country: extras.parent_country || '' }), del: (id) => configApi.delAirline(id), label: 'Companhias Aéreas' },
   countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), del: (id) => configApi.delCountry(id), label: 'Países' },
@@ -134,6 +145,9 @@ const API_MAP = {
 const LABEL_TO_KEY = Object.fromEntries(
   Object.entries(API_MAP).map(([key, def]) => [def.label.toLowerCase(), key])
 )
+
+// Tipos com campos extras (não só "nome") — usam o mesmo parser rico do CSV combinado
+const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles'])
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
 const EXPORT_ONLY_KEYS = new Set()
@@ -282,6 +296,13 @@ export default function FlatImport() {
           id: i + 1, name: r.name, listKey: r.listKey, listLabel: r.listKey ? API_MAP[r.listKey].label : r.listLabel,
           extras: r.extras || {},
           status: rowStatus(r.name, r.listKey, r.extras || {}),
+        })))
+      } else if (RICH_TYPES.has(type) && /(^|\n)\s*lista\s*,\s*nome\b/i.test(csvText)) {
+        const parsed = parseCombinedCsv(csvText, LABEL_TO_KEY)
+        setRows(parsed.map((r, i) => ({
+          id: i + 1, name: r.name, listKey: type, listLabel: apiDef.label,
+          extras: r.extras || {},
+          status: rowStatus(r.name, type, r.extras || {}),
         })))
       } else {
         const names = parseCsvNames(csvText)
