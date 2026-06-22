@@ -156,6 +156,7 @@ export const configApi = {
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
   updateCity: (id, name) => api.patch(`/config/cities/${id}/`, { name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),
+  importCities: (state_id) => api.post('/config/cities/import/', { state_id }),
   // Tipos de documento
   docTypes:       ()       => api.get('/config/doc-types/'),
   addDocType:     (data)   => api.post('/config/doc-types/', data),

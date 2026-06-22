@@ -8,6 +8,8 @@ import { Ic } from './Icon'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
+import { useWebSocket } from '../hooks/useWebSocket'
+import { useAuth } from '../context/AuthContext'
 
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
@@ -239,6 +241,12 @@ export default function AirportsManager({ canEdit = true, canDelete = true, canI
 
   useEffect(reload, [debounced, page])
 
+  const { user } = useAuth()
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, (msg) => {
+    if (msg.type === 'job' && msg.kind === 'airports' && msg.status === 'done') reload()
+  })
+
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
 
   const handleSeed = async () => {
@@ -246,8 +254,7 @@ export default function AirportsManager({ canEdit = true, canDelete = true, canI
     setSeeding(true)
     try {
       await configApi.seedAirports()
-      toast.success('Importação iniciada! Aguarde alguns segundos e recarregue a lista.', { duration: 5000 })
-      setTimeout(reload, 4000)
+      toast.success('Importação iniciada — acompanhe o progresso na barra lateral.')
     } catch {
       toast.error('Erro ao iniciar importação.')
     } finally {

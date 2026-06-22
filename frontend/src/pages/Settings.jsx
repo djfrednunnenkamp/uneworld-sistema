@@ -191,11 +191,19 @@ function CsvButtons({ items, filename, type, canImport = false, canExport = true
 }
 
 /* ── ItemList (Profissões / Idiomas) ── */
-function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addTitle, editTitle, filename, type, canImport = false, canExport = true }) {
-  const [search,  setSearch]  = useState('')
-  const [confirm, setConfirm] = useState(null) // {id, name}
-  const [showAdd, setShowAdd] = useState(false)
-  const [editing, setEditing] = useState(null) // {id, name}
+function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addTitle, editTitle, filename, type, canImport = false, canExport = true, onImportWeb = null }) {
+  const [search,    setSearch]    = useState('')
+  const [confirm,   setConfirm]   = useState(null) // {id, name}
+  const [showAdd,   setShowAdd]   = useState(false)
+  const [editing,   setEditing]   = useState(null) // {id, name}
+  const [importing, setImporting] = useState(false)
+
+  const handleImportWeb = async () => {
+    setImporting(true)
+    try { await onImportWeb(); toast.success('Importação iniciada — acompanhe o progresso na barra lateral.') }
+    catch { toast.error('Erro ao iniciar importação.') }
+    finally { setImporting(false) }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -212,6 +220,13 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
         {onAdd && <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>}
+        {onImportWeb && (
+          <button onClick={handleImportWeb} disabled={importing}
+            style={{ padding:'6px 11px', borderRadius:7, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}
+            title="Importar lista pronta da internet">
+            {importing ? '⏳ Iniciando…' : '🌐 Importar da internet'}
+          </button>
+        )}
         <CsvButtons items={items} filename={filename} type={type} canImport={canImport} canExport={canExport} />
       </div>
 
@@ -426,7 +441,7 @@ export function NameFormModal({ title, placeholder, initial, onSave, onClose }) 
 }
 
 /* Col é um componente de módulo (nunca redefinido dentro de CountriesTab) */
-function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading, canEdit = true, children }) {
+function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading, canEdit = true, onImportWeb, importingWeb, children }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -434,6 +449,12 @@ function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading,
           {title}
           {count != null && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400, marginLeft: 5 }}>({count})</span>}
         </h3>
+        {onImportWeb && (
+          <button onClick={onImportWeb} disabled={addDisabled || importingWeb} title="Importar da internet"
+            style={{ flexShrink:0, padding:'3px 9px', borderRadius:6, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:11, fontWeight:600, cursor: addDisabled ? 'default' : 'pointer', fontFamily:'inherit', opacity: addDisabled ? .5 : 1 }}>
+            {importingWeb ? '⏳' : '🌐'}
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
         <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Buscar…"
@@ -497,6 +518,7 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false }) {
   const [searchS,    setSearchS]    = useState('')
   const [searchCi,   setSearchCi]   = useState('')
   const [confirm,    setConfirm]    = useState(null) // {action, id, name}
+  const [importingWeb, setImportingWeb] = useState(null) // 'country'|'state'|'city'|null
   const [form,       setForm]       = useState(null) // {kind:'country'|'state'|'city', item?}
 
   const loadCountries = () => {
@@ -514,6 +536,16 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false }) {
   }
 
   useEffect(() => { loadCountries() }, [])
+
+  const { user } = useAuth()
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, useCallback((msg) => {
+    if (msg.type !== 'job' || msg.status !== 'done') return
+    if (msg.kind === 'countries') loadCountries()
+    if (msg.kind === 'states' && selCountry) loadStates(selCountry)
+    if (msg.kind === 'cities' && selState) loadCities(selState)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selCountry, selState]))
 
   const addCountry = async (name) => {
     try { await configApi.addCountry(name, ''); loadCountries() }
@@ -566,6 +598,16 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false }) {
     catch { toast.error('Erro ao remover cidade.') }
   }
 
+  const importWeb = async (kind, fn) => {
+    setImportingWeb(kind)
+    try { await fn(); toast.success('Importação iniciada — acompanhe o progresso na barra lateral.') }
+    catch { toast.error('Erro ao iniciar importação.') }
+    finally { setImportingWeb(null) }
+  }
+  const importCountriesWeb = () => importWeb('country', () => configApi.importCountries())
+  const importStatesWeb    = () => selCountry && importWeb('state', () => configApi.importStates(selCountry.id))
+  const importCitiesWeb    = () => selState   && importWeb('city',  () => configApi.importCities(selState.id))
+
   const filteredC  = useMemo(() => { const q = searchC.toLowerCase();  return countries.filter(c => c.name.toLowerCase().includes(q)) }, [countries, searchC])
   const filteredS  = useMemo(() => { const q = searchS.toLowerCase();  return states.filter(s => s.name.toLowerCase().includes(q)) }, [states, searchS])
   const filteredCi = useMemo(() => { const q = searchCi.toLowerCase(); return cities.filter(c => c.name.toLowerCase().includes(q)) }, [cities, searchCi])
@@ -591,6 +633,7 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false }) {
         search={searchC} onSearch={setSearchC}
         onAddClick={() => setForm({ kind:'country' })}
         loading={loadingC} canEdit={canEdit}
+        onImportWeb={canEdit ? importCountriesWeb : null} importingWeb={importingWeb === 'country'}
       >
         {filteredC.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
@@ -615,6 +658,7 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false }) {
         onAddClick={() => setForm({ kind:'state' })}
         addDisabled={!selCountry}
         loading={loadingS} canEdit={canEdit}
+        onImportWeb={canEdit ? importStatesWeb : null} importingWeb={importingWeb === 'state'}
       >
         {!selCountry
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um país</p>
@@ -641,6 +685,7 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false }) {
         onAddClick={() => setForm({ kind:'city' })}
         addDisabled={!selState}
         loading={loadingCi} canEdit={canEdit}
+        onImportWeb={canEdit ? importCitiesWeb : null} importingWeb={importingWeb === 'city'}
       >
         {!selState
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um estado</p>
@@ -1417,11 +1462,11 @@ export default function Settings() {
               <div style={{ flex:1, overflowY:'auto', padding:'18px 24px' }}>
                 {activeDef.key === 'doc_types'       && <DocTypesManager canEdit={can('settings_doc_types','edit')} canDelete={can('settings_doc_types','delete')} canImport={can('settings_doc_types','bulk_import')} canExport={can('settings_doc_types','view')} />}
                 {activeDef.key === 'perm_profiles'   && <PermissionProfilesManager canEdit={can('settings_user_profiles','edit')} canDelete={can('settings_user_profiles','delete')} canImport={isSu || !!myP.manage_settings} canExport={can('settings_user_profiles','view')} />}
-                {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       canImport={can('settings_professions','bulk_import')}      canExport={can('settings_professions','view')}      placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions" />}
-                {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        canExport={can('settings_languages','view')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages" />}
-                {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         canExport={can('settings_vaccines','view')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines" />}
+                {activeDef.key === 'professions'     && <ItemList items={professions} loading={loadingP}  onAdd={can('settings_professions','edit') ? addProfession : undefined}       onUpdate={can('settings_professions','edit') ? updateProfession : undefined}       onDelete={can('settings_professions','delete') ? delProfession : undefined}       canImport={can('settings_professions','bulk_import')}      canExport={can('settings_professions','view')}      placeholder="Nome da profissão…"  addTitle="Nova profissão"  editTitle="Editar profissão"  filename="profissoes.csv"       type="professions"      onImportWeb={can('settings_professions','edit') ? () => configApi.importProfessions() : null} />}
+                {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        canExport={can('settings_languages','view')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages"        onImportWeb={can('settings_languages','edit') ? () => configApi.importLanguages() : null} />}
+                {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         canExport={can('settings_vaccines','view')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines"         onImportWeb={can('settings_vaccines','edit') ? () => configApi.importVaccines() : null} />}
                 {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          canExport={can('settings_genders','view')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
-                {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       canExport={can('settings_prof_cards','view')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards" />}
+                {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       canExport={can('settings_prof_cards','view')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards"       onImportWeb={can('settings_prof_cards','edit') ? () => configApi.importProfCards() : null} />}
                 {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} canExport={can('settings_list_additionals','view')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
                 {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}   loading={loadingCR} onAdd={can('settings_crew_roles','edit') ? addCrewRole : undefined}          onUpdate={can('settings_crew_roles','edit') ? updateCrewRole : undefined}          onDelete={can('settings_crew_roles','delete') ? delCrewRole : undefined}          canImport={can('settings_crew_roles','bulk_import')}       canExport={can('settings_crew_roles','view')}       placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
                 {activeDef.key === 'accommodations'  && <AccommodationManager canEdit={can('settings_accommodations','edit')} canDelete={can('settings_accommodations','delete')} canImport={can('settings_accommodations','bulk_import')} canExport={can('settings_accommodations','view')} items={accoms} loading={loadingAc} onRefresh={() => {

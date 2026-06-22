@@ -21,3 +21,9 @@ class DashboardConsumer(AsyncWebsocketConsumer):
             'type': 'refresh',
             'scope': event.get('scope', 'all'),
         }))
+
+    # Mensagem enviada pelo group_send com type='dashboard.job' (dashboard/jobs.py)
+    async def dashboard_job(self, event):
+        data = {k: v for k, v in event.items() if k != 'type'}
+        data['type'] = 'job'
+        await self.send(text_data=json.dumps(data))

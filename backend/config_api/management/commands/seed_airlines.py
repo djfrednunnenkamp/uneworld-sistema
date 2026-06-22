@@ -48,48 +48,53 @@ class Command(BaseCommand):
         parser.add_argument('--clear', action='store_true', help='Apaga tudo antes de importar')
 
     def handle(self, *args, **options):
+        progress_callback = options.get('progress_callback')
+
+        def progress(done, total):
+            if progress_callback:
+                progress_callback(done, total)
+
         if options['clear']:
             Airline.objects.all().delete()
             self.stdout.write('Base limpa.')
 
         self.stdout.write('Baixando airlines.dat…')
+        progress(0, 1)
         try:
             with urllib.request.urlopen(URL, timeout=30) as resp:
                 raw = resp.read().decode('utf-8', errors='replace')
         except Exception as e:
             self.stderr.write(f'Erro ao baixar: {e}')
-            return
+            raise
 
-        reader = csv.reader(io.StringIO(raw))
+        rows = list(csv.reader(io.StringIO(raw)))
         existing = set(Airline.objects.values_list('name', flat=True))
         to_create = []
+        total = len(rows)
 
-        for row in reader:
+        for i, row in enumerate(rows, 1):
             # Formato: id, name, alias, iata, icao, callsign, country, active
-            if len(row) < 7:
-                continue
-            name    = row[1].strip().strip('"')
-            iata    = row[3].strip().strip('"')
-            country = row[6].strip().strip('"')
-            active  = row[7].strip().strip('"') if len(row) > 7 else ''
+            if len(row) >= 7:
+                name    = row[1].strip().strip('"')
+                iata    = row[3].strip().strip('"')
+                country = row[6].strip().strip('"')
+                active  = row[7].strip().strip('"') if len(row) > 7 else ''
 
-            # Ignora entradas inválidas, inativas ou sem nome
-            if not name or name in ('-', '\\N') or active == 'N':
-                continue
-            if iata in ('\\N', '-', ''):
-                iata = ''
-            if country in ('\\N', '-', ''):
-                country = ''
+                # Ignora entradas inválidas, inativas ou sem nome
+                if name and name not in ('-', '\\N') and active != 'N':
+                    if iata in ('\\N', '-', ''):
+                        iata = ''
+                    if country in ('\\N', '-', ''):
+                        country = ''
+                    if name not in existing:
+                        to_create.append(Airline(name=name, iata_code=iata, country=pt(country)))
+                        existing.add(name)
 
-            if name not in existing:
-                to_create.append(Airline(
-                    name=name,
-                    iata_code=iata,
-                    country=pt(country),
-                ))
-                existing.add(name)
+            if i % 200 == 0 or i == total:
+                progress(i, total)
 
         Airline.objects.bulk_create(to_create, batch_size=500)
         self.stdout.write(self.style.SUCCESS(
             f'Importadas {len(to_create)} companhias aéreas.'
         ))
+        return len(to_create)

@@ -185,14 +185,21 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        progress_callback = options.get('progress_callback')
+
+        def progress(done, total):
+            if progress_callback:
+                progress_callback(done, total)
+
         url = 'https://davidmegginson.github.io/ourairports-data/airports.csv'
         self.stdout.write('Baixando dados do OurAirports…')
+        progress(0, 1)
         try:
             r = requests.get(url, timeout=60)
             r.raise_for_status()
         except Exception as e:
             self.stderr.write(f'Erro ao baixar: {e}')
-            return
+            raise
 
         if options['clear']:
             deleted, _ = Airport.objects.all().delete()
@@ -200,31 +207,28 @@ class Command(BaseCommand):
 
         existing_iata = set(Airport.objects.values_list('iata_code', flat=True).exclude(iata_code=''))
 
-        reader = csv.DictReader(io.StringIO(r.text))
+        rows = list(csv.DictReader(io.StringIO(r.text)))
         to_create = []
         skipped = 0
+        total = len(rows)
 
-        for row in reader:
+        for i, row in enumerate(rows, 1):
             iata = (row.get('iata_code') or '').strip()
             atype = (row.get('type') or '').strip()
 
-            if not iata:
-                continue
-            if atype in EXCLUDED_TYPES:
-                continue
-            if options['large_only'] and atype not in ('large_airport', 'medium_airport'):
-                continue
-            if iata in existing_iata:
-                skipped += 1
-                continue
+            if iata and atype not in EXCLUDED_TYPES and not (options['large_only'] and atype not in ('large_airport', 'medium_airport')):
+                if iata in existing_iata:
+                    skipped += 1
+                else:
+                    name    = (row.get('name') or '').strip()
+                    city    = (row.get('municipality') or '').strip()
+                    iso2    = (row.get('iso_country') or '').strip()
+                    country = country_name(iso2) if iso2 else ''
+                    to_create.append(Airport(name=name, iata_code=iata, city=city, country=country))
+                    existing_iata.add(iata)
 
-            name    = (row.get('name') or '').strip()
-            city    = (row.get('municipality') or '').strip()
-            iso2    = (row.get('iso_country') or '').strip()
-            country = country_name(iso2) if iso2 else ''
-
-            to_create.append(Airport(name=name, iata_code=iata, city=city, country=country))
-            existing_iata.add(iata)
+            if i % 500 == 0 or i == total:
+                progress(i, total)
 
         Airport.objects.bulk_create(to_create, batch_size=500)
 
@@ -232,3 +236,4 @@ class Command(BaseCommand):
             f'Importados {len(to_create)} aeroportos. '
             f'{skipped} já existiam e foram ignorados.'
         ))
+        return len(to_create)

@@ -16,6 +16,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile)
 from users_api.permissions import RequirePermission
+from dashboard.jobs import run_job
 
 
 def _settings_perm(perm_base, extra_write=None):
@@ -337,32 +338,47 @@ class ProfessionViewSet(viewsets.ModelViewSet):
     def import_default(self, request):
         URL_CSV  = 'https://raw.githubusercontent.com/okfn-brasil/datasets-br-cbo/master/data/lista_canonicos.csv'
         URL_JSON = 'https://raw.githubusercontent.com/lucassmacedo/cbo-brasil/master/json/CBO2002%20-%20Ocupacao.json'
-        names = set()
-        try:
-            r = requests.get(URL_CSV, timeout=20)
-            if r.ok:
-                for line in r.text.split('\n')[1:]:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    comma = line.index(',') if ',' in line else -1
-                    name = line[comma + 1:].replace('\r', '').strip()
-                    if name:
-                        names.add(name)
-        except Exception:
-            pass
-        try:
-            r = requests.get(URL_JSON, timeout=20)
-            if r.ok:
-                for item in r.json():
-                    if item.get('name'):
-                        names.add(item['name'].strip())
-        except Exception:
-            pass
-        if not names:
-            return Response({'error': 'Não foi possível importar. Verifique sua conexão.'}, status=502)
-        created = sum(1 for n in sorted(names) if ConfigProfession.objects.get_or_create(name=n)[1])
-        return Response({'total': ConfigProfession.objects.count(), 'created': created})
+
+        def task(progress):
+            progress(0, 1)
+            names = set()
+            try:
+                r = requests.get(URL_CSV, timeout=20)
+                if r.ok:
+                    for line in r.text.split('\n')[1:]:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        comma = line.index(',') if ',' in line else -1
+                        name = line[comma + 1:].replace('\r', '').strip()
+                        if name:
+                            names.add(name)
+            except Exception:
+                pass
+            try:
+                r = requests.get(URL_JSON, timeout=20)
+                if r.ok:
+                    for item in r.json():
+                        if item.get('name'):
+                            names.add(item['name'].strip())
+            except Exception:
+                pass
+            if not names:
+                raise RuntimeError('Não foi possível importar. Verifique sua conexão.')
+            sorted_names = sorted(names)
+            total = len(sorted_names)
+            before = ConfigProfession.objects.count()
+            CHUNK = 200
+            for i in range(0, total, CHUNK):
+                chunk = sorted_names[i:i + CHUNK]
+                ConfigProfession.objects.bulk_create(
+                    [ConfigProfession(name=n) for n in chunk], ignore_conflicts=True)
+                progress(min(i + CHUNK, total), total)
+            after = ConfigProfession.objects.count()
+            return {'total': after, 'created': after - before}
+
+        job_id = run_job('professions', 'Profissões', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 class LanguageViewSet(viewsets.ModelViewSet):
@@ -388,8 +404,17 @@ class LanguageViewSet(viewsets.ModelViewSet):
             'Tcheco','Télugu','Turco','Ucraniano','Urdu','Uzbeque','Vietnamita',
             'Xhosa','Iorubá','Zulu',
         ]
-        created = sum(1 for n in DEFAULT if ConfigLanguage.objects.get_or_create(name=n)[1])
-        return Response({'total': ConfigLanguage.objects.count(), 'created': created})
+        def task(progress):
+            created = 0
+            total = len(DEFAULT)
+            for i, n in enumerate(DEFAULT, 1):
+                if ConfigLanguage.objects.get_or_create(name=n)[1]:
+                    created += 1
+                progress(i, total)
+            return {'total': ConfigLanguage.objects.count(), 'created': created}
+
+        job_id = run_job('languages', 'Idiomas', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 class CountryViewSet(viewsets.ModelViewSet):
@@ -400,20 +425,29 @@ class CountryViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_default(self, request):
-        try:
-            r = requests.get('https://restcountries.com/v3.1/all?fields=name,cca2,translations', timeout=20)
-            if not r.ok:
-                return Response({'error': 'Falha ao buscar países.'}, status=502)
-        except Exception:
-            return Response({'error': 'Erro de conexão.'}, status=502)
-        created = 0
-        for c in r.json():
-            name = (c.get('translations') or {}).get('por', {}).get('common') or c['name']['common']
-            code = c.get('cca2', '')
-            _, was_created = ConfigCountry.objects.get_or_create(name=name, defaults={'code': code})
-            if was_created:
-                created += 1
-        return Response({'total': ConfigCountry.objects.count(), 'created': created})
+        def task(progress):
+            progress(0, 1)
+            try:
+                r = requests.get('https://restcountries.com/v3.1/all?fields=name,cca2,translations', timeout=20)
+                if not r.ok:
+                    raise RuntimeError('Falha ao buscar países.')
+            except Exception:
+                raise RuntimeError('Erro de conexão.')
+            rows = r.json()
+            created = 0
+            total = len(rows)
+            for i, c in enumerate(rows, 1):
+                name = (c.get('translations') or {}).get('por', {}).get('common') or c['name']['common']
+                code = c.get('cca2', '')
+                _, was_created = ConfigCountry.objects.get_or_create(name=name, defaults={'code': code})
+                if was_created:
+                    created += 1
+                if i % 10 == 0 or i == total:
+                    progress(i, total)
+            return {'total': ConfigCountry.objects.count(), 'created': created}
+
+        job_id = run_job('countries', 'Países', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 # ── Tipos de Documento ────────────────────────────────────────────────────
@@ -595,8 +629,17 @@ class ProfCardViewSet(viewsets.ModelViewSet):
             'OAB — Ordem dos Advogados do Brasil',
             'Registro de Classe (geral)',
         ]
-        created = sum(1 for n in DEFAULT if ConfigProfCard.objects.get_or_create(name=n)[1])
-        return Response({'total': ConfigProfCard.objects.count(), 'created': created})
+        def task(progress):
+            created = 0
+            total = len(DEFAULT)
+            for i, n in enumerate(DEFAULT, 1):
+                if ConfigProfCard.objects.get_or_create(name=n)[1]:
+                    created += 1
+                progress(i, total)
+            return {'total': ConfigProfCard.objects.count(), 'created': created}
+
+        job_id = run_job('prof_cards', 'Carteiras', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 class GenderSerializer(serializers.ModelSerializer):
@@ -690,8 +733,17 @@ class VaccineViewSet(viewsets.ModelViewSet):
             'Imunoglobulina Hepatite A',
             'Imunoglobulina Hepatite B',
         ]
-        created = sum(1 for n in DEFAULT if ConfigVaccine.objects.get_or_create(name=n)[1])
-        return Response({'total': ConfigVaccine.objects.count(), 'created': created})
+        def task(progress):
+            created = 0
+            total = len(DEFAULT)
+            for i, n in enumerate(DEFAULT, 1):
+                if ConfigVaccine.objects.get_or_create(name=n)[1]:
+                    created += 1
+                progress(i, total)
+            return {'total': ConfigVaccine.objects.count(), 'created': created}
+
+        job_id = run_job('vaccines', 'Vacinas', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 class CitySerializer(serializers.ModelSerializer):
@@ -710,11 +762,47 @@ class CityViewSet(viewsets.ModelViewSet):
             return ConfigCity.objects.filter(state_id=state_id)
         return ConfigCity.objects.none()
 
-    get_permissions = _settings_perm('settings_countries')
+    get_permissions = _settings_perm('settings_countries', ['import_for_state'])
 
     def perform_create(self, serializer):
         state = ConfigState.objects.get(pk=self.request.data['state_id'])
         serializer.save(state=state)
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_for_state(self, request):
+        state_id = request.data.get('state_id')
+        try:
+            state = ConfigState.objects.select_related('country').get(pk=state_id)
+        except ConfigState.DoesNotExist:
+            return Response({'error': 'Estado não encontrado.'}, status=404)
+
+        def task(progress):
+            progress(0, 1)
+            try:
+                if state.country.code == 'BR' and state.code:
+                    r = requests.get(
+                        f'https://servicodados.ibge.gov.br/api/v1/localidades/estados/{state.code}/municipios',
+                        timeout=15)
+                    names = [m['nome'] for m in r.json()] if r.ok else []
+                else:
+                    r = requests.post('https://countriesnow.space/api/v0.1/countries/state/cities',
+                                       json={'country': state.country.name, 'state': state.name}, timeout=15)
+                    names = list(r.json().get('data', [])) if r.ok else []
+            except Exception:
+                raise RuntimeError('Erro ao importar cidades.')
+            total = len(names)
+            before = state.cities.count()
+            CHUNK = 200
+            for i in range(0, total, CHUNK):
+                chunk = names[i:i + CHUNK]
+                ConfigCity.objects.bulk_create(
+                    [ConfigCity(state=state, name=n) for n in chunk], ignore_conflicts=True)
+                progress(min(i + CHUNK, total), total)
+            after = state.cities.count()
+            return {'total': after, 'created': after - before}
+
+        job_id = run_job('cities', f'Cidades — {state.name}', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 class StateViewSet(viewsets.ModelViewSet):
@@ -742,25 +830,29 @@ class StateViewSet(viewsets.ModelViewSet):
             country = ConfigCountry.objects.get(pk=country_id)
         except ConfigCountry.DoesNotExist:
             return Response({'error': 'País não encontrado.'}, status=404)
-        created = 0
-        try:
-            if country.code == 'BR':
-                r = requests.get('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome', timeout=15)
-                if r.ok:
-                    for s in r.json():
-                        _, ok = ConfigState.objects.get_or_create(country=country, name=s['nome'], defaults={'code': s['sigla']})
-                        if ok:
-                            created += 1
-            else:
-                r = requests.post('https://countriesnow.space/api/v0.1/countries/states', json={'country': country.name}, timeout=15)
-                if r.ok:
-                    for s in r.json().get('data', {}).get('states', []):
-                        _, ok = ConfigState.objects.get_or_create(country=country, name=s['name'], defaults={'code': s.get('state_code', '')})
-                        if ok:
-                            created += 1
-        except Exception:
-            return Response({'error': 'Erro ao importar estados.'}, status=502)
-        return Response({'total': country.states.count(), 'created': created})
+
+        def task(progress):
+            progress(0, 1)
+            try:
+                if country.code == 'BR':
+                    r = requests.get('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome', timeout=15)
+                    rows = [{'name': s['nome'], 'code': s['sigla']} for s in r.json()] if r.ok else []
+                else:
+                    r = requests.post('https://countriesnow.space/api/v0.1/countries/states', json={'country': country.name}, timeout=15)
+                    rows = [{'name': s['name'], 'code': s.get('state_code', '')} for s in r.json().get('data', {}).get('states', [])] if r.ok else []
+            except Exception:
+                raise RuntimeError('Erro ao importar estados.')
+            created = 0
+            total = len(rows)
+            for i, s in enumerate(rows, 1):
+                _, ok = ConfigState.objects.get_or_create(country=country, name=s['name'], defaults={'code': s['code']})
+                if ok:
+                    created += 1
+                progress(i, total)
+            return {'total': country.states.count(), 'created': created}
+
+        job_id = run_job('states', f'Estados — {country.name}', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 # ── Tipos de Acomodação ────────────────────────────────────────────────────
@@ -838,19 +930,15 @@ class AirportViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def seed(self, request):
-        """Importa aeroportos mundiais do OurAirports em background."""
-        import threading
-        from django.core.management import call_command
+        """Importa aeroportos mundiais do OurAirports em background, com progresso."""
+        from config_api.management.commands.seed_airports import Command as SeedAirportsCommand
 
-        def run():
-            try:
-                call_command('seed_airports')
-            except Exception:
-                pass
+        def task(progress):
+            created = SeedAirportsCommand().handle(clear=False, large_only=False, progress_callback=progress)
+            return {'created': created}
 
-        t = threading.Thread(target=run, daemon=True)
-        t.start()
-        return Response({'status': 'Importação iniciada. Pode levar alguns segundos.'}, status=status.HTTP_202_ACCEPTED)
+        job_id = run_job('airports', 'Aeroportos (base mundial)', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 # ── Companhias Aéreas ────────────────────────────────────────────────────────
@@ -876,19 +964,15 @@ class AirlineViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def seed(self, request):
-        """Importa companhias aéreas em background via OpenFlights."""
-        import threading
-        from django.core.management import call_command
+        """Importa companhias aéreas em background via OpenFlights, com progresso."""
+        from config_api.management.commands.seed_airlines import Command as SeedAirlinesCommand
 
-        def run():
-            try:
-                call_command('seed_airlines')
-            except Exception:
-                pass
+        def task(progress):
+            created = SeedAirlinesCommand().handle(clear=False, progress_callback=progress)
+            return {'created': created}
 
-        t = threading.Thread(target=run, daemon=True)
-        t.start()
-        return Response({'status': 'Importação iniciada.'}, status=status.HTTP_202_ACCEPTED)
+        job_id = run_job('airlines', 'Companhias Aéreas (base mundial)', task)
+        return Response({'job_id': job_id}, status=status.HTTP_202_ACCEPTED)
 
 
 # ── Mapas de Ônibus ────────────────────────────────────────────────────────

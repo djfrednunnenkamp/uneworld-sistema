@@ -8,6 +8,8 @@ import { Ic } from './Icon'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
+import { useWebSocket } from '../hooks/useWebSocket'
+import { useAuth } from '../context/AuthContext'
 
 let _cachedCountries = null
 
@@ -234,6 +236,12 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canI
 
   useEffect(reload, [debounced, page])
 
+  const { user } = useAuth()
+  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  useWebSocket(wsUrl, (msg) => {
+    if (msg.type === 'job' && msg.kind === 'airlines' && msg.status === 'done') reload()
+  })
+
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
 
   const handleSeed = async () => {
@@ -241,8 +249,7 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canI
     setSeeding(true)
     try {
       await configApi.seedAirlines()
-      toast.success('Importação iniciada! Recarregando em alguns segundos…', { duration: 5000 })
-      setTimeout(reload, 4000)
+      toast.success('Importação iniciada — acompanhe o progresso na barra lateral.')
     } catch {
       toast.error('Erro ao iniciar importação.')
     } finally { setSeeding(false) }
