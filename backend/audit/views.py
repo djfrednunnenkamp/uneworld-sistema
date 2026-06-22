@@ -1,5 +1,6 @@
 from rest_framework import serializers, viewsets, filters
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import AuditLog
 
@@ -39,11 +40,11 @@ SETTINGS_MODELS = [
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """Qualquer usuário autenticado pode acessar — get_queryset() decide o que ele
+    vê: acesso amplo com permissão de log, escopo de uma área específica (ex:
+    passengers_view_logs), ou — sem nenhuma permissão de log — só as próprias ações."""
     serializer_class = AuditLogSerializer
-    permission_classes = [RequirePermission(
-        'view_audit_log', 'log_view', 'log_passengers', 'log_lists', 'log_agencies',
-        'log_users', 'log_settings', 'lists_view_logs', 'passengers_view_logs', 'agencies_view_logs',
-    )]
+    permission_classes = [IsAuthenticated]
     pagination_class = AuditPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user_display', 'object_repr', 'model_label']
@@ -72,12 +73,25 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         has_log_settings   = has_global or has_any_perm(current_user, 'log_settings')
         has_any_area = (has_log_passengers or has_log_lists or has_log_agencies
                         or has_log_users or has_log_settings)
+        has_page_view_access = has_global or has_any_perm(current_user, 'log_page_views')
+
+        # Navegação entre páginas (PageView) só aparece quando explicitamente
+        # pedida via filtro Tipo, e só para quem tem a permissão — por padrão
+        # fica de fora pra não poluir a visão de quem está revisando o log.
+        if model == 'PageView':
+            qs = qs.filter(model_name='PageView') if has_page_view_access else qs.none()
+            model = ''
+        else:
+            qs = qs.exclude(model_name='PageView')
 
         if scope == 'settings' and not has_log_settings:
             return qs.none()
 
+        # Sem nenhuma permissão de log e sem pedir um escopo específico (lista,
+        # passageiro, agência…): em vez de não mostrar nada, mostra só as
+        # próprias ações da pessoa — todo usuário pode ver seu próprio histórico.
         if not has_any_area and not (list_id or passenger_id or agency_id or scope):
-            return qs.none()
+            return qs.filter(user=current_user)
 
         # Se não tem acesso global, filtra apenas as áreas com permissão
         if not has_global:
@@ -129,3 +143,51 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         if agency_id:
             qs = qs.filter(model_name='Agency', object_id=str(agency_id))
         return qs
+
+
+from rest_framework.decorators import api_view, permission_classes as drf_permission_classes
+from rest_framework.response import Response
+from audit.middleware import get_current_ip
+from audit.tracking import user_display
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
+def log_upload(request):
+    """Registra um upload/importação de CSV feito pelo frontend (ex: FlatImport,
+    GeoImport) — esses fluxos chamam várias APIs de criação em sequência e não
+    têm, no backend, um único request que represente "o upload" inteiro."""
+    label = (request.data.get('label') or '').strip()[:200]
+    model_label = (request.data.get('model_label') or 'Importação CSV').strip()[:100]
+    summary = request.data.get('summary') or {}
+    if not label:
+        return Response({'error': 'label é obrigatório.'}, status=400)
+    user = request.user
+    AuditLog.objects.create(
+        user=user, user_display=user_display(user), action='upload',
+        model_name=request.data.get('model_name') or 'CsvImport', model_label=model_label,
+        object_id='', object_repr=label,
+        changes=summary if isinstance(summary, dict) else {},
+        ip_address=get_current_ip(),
+    )
+    return Response({'ok': True}, status=201)
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
+def log_page_view(request):
+    """Registra que o usuário autenticado navegou para uma página do sistema —
+    chamado automaticamente pelo frontend a cada troca de rota (ver Layout.jsx)."""
+    path  = (request.data.get('path') or '').strip()[:500]
+    label = (request.data.get('label') or '').strip()[:200]
+    if not path:
+        return Response({'error': 'path é obrigatório.'}, status=400)
+    user = request.user
+    AuditLog.objects.create(
+        user=user, user_display=user_display(user), action='view',
+        model_name='PageView', model_label='Página',
+        object_id='', object_repr=label or path,
+        changes={'Caminho': path} if label else {},
+        ip_address=get_current_ip(),
+    )
+    return Response({'ok': True}, status=201)

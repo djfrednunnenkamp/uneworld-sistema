@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
-import { configApi, listsApi } from '../api'
+import { configApi, listsApi, auditApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../context/AuthContext'
 import { Ic } from '../components/Icon'
@@ -424,6 +424,15 @@ export default function FlatImport() {
   }
   const toggleRow  = (id) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
 
+  const logUploadSummary = (added, deleted, skipped) => {
+    auditApi.logUpload({
+      label: filename || (isAll ? 'todas_as_configuracoes.csv' : `${apiDef.label}.csv`),
+      model_label: isAll ? 'Importação CSV (todas as configurações)' : `Importação CSV — ${apiDef.label}`,
+      model_name: isAll ? 'CsvImportAll' : `CsvImport${type}`,
+      summary: { Modo: MODES.find(m => m.key === mode)?.label || mode, Adicionados: added, Excluídos: deleted, 'Com erro': skipped },
+    }).catch(() => {})
+  }
+
   const doConfirm = async () => {
     const nonError = rows.filter(r => r.status !== 'error')
     let toAdd = mode === 'new' ? nonError.filter(r => r.status === 'valid') : nonError
@@ -468,6 +477,7 @@ export default function FlatImport() {
       // Modo 'delete' só exclui, não adiciona nada
       if (mode === 'delete') {
         setResult({ added, deleted, skipped })
+        logUploadSummary(added, deleted, skipped)
         setPhase('done')
         return
       }
@@ -476,7 +486,12 @@ export default function FlatImport() {
     }
 
     // ── Inserção ──────────────────────────────────────────────────────────
-    if (!toAdd.length) { setResult({ added, deleted, skipped }); setPhase('done'); return }
+    if (!toAdd.length) {
+      setResult({ added, deleted, skipped })
+      logUploadSummary(added, deleted, skipped)
+      setPhase('done')
+      return
+    }
 
     const cityRows  = isAll ? toAdd.filter(r => r.listKey === 'cities') : []
     const otherRows = isAll ? toAdd.filter(r => r.listKey !== 'cities') : toAdd
@@ -503,6 +518,7 @@ export default function FlatImport() {
     }
 
     setResult({ added, deleted, skipped })
+    logUploadSummary(added, deleted, skipped)
     setPhase('done')
   }
 

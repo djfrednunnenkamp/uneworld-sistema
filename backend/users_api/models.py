@@ -190,6 +190,7 @@ class UserPermissions(models.Model):
     log_agencies   = models.BooleanField(default=False)
     log_users      = models.BooleanField(default=False)
     log_settings   = models.BooleanField(default=False)
+    log_page_views = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Permissões de usuário'

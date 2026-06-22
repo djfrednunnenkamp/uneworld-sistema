@@ -81,6 +81,7 @@ PERMISSION_FIELDS = [
     'log_agencies',
     'log_users',
     'log_settings',
+    'log_page_views',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -112,7 +113,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_airlines_view', 'settings_airlines_edit', 'settings_airlines_delete', 'settings_airlines_bulk_delete', 'settings_airlines_bulk_import', 'settings_airlines_import_web',
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
     # Log do sistema
-    'log_view', 'log_passengers', 'log_lists', 'log_agencies', 'log_users', 'log_settings',
+    'log_view', 'log_passengers', 'log_lists', 'log_agencies', 'log_users', 'log_settings', 'log_page_views',
 ]
 
 

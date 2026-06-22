@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { configApi } from '../api'
+import { configApi, auditApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
 
 /* ── CSV parsing ── */
@@ -151,6 +151,13 @@ export default function GeoImport() {
     try {
       const r = await configApi.geoAction(mode, toProcess.map(({pais,estado,cidade})=>({pais,estado,cidade})))
       setResult({ mode, ...r.data })
+      const modeLabel = mode === 'delete' ? 'Excluir' : mode === 'all' ? 'Substituir' : 'Adicionar'
+      auditApi.logUpload({
+        label: filename || 'geo_import.csv',
+        model_label: 'Importação CSV — Países/Estados/Cidades',
+        model_name: 'CsvImportGeo',
+        summary: { Modo: modeLabel, ...r.data },
+      }).catch(() => {})
       setPhase('done')
     } catch { setPhase('review') }
   }

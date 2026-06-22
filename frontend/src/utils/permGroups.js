@@ -278,6 +278,12 @@ export const PERM_GROUPS = [
           ['log_settings',   'Configurações'],
         ],
       },
+      {
+        label: 'Navegação',
+        items: [
+          ['log_page_views', 'Ver páginas visitadas pelos usuários (fica oculto por padrão, só aparece se filtrar por "Navegação")'],
+        ],
+      },
     ],
   },
 ]
@@ -434,6 +440,7 @@ export const PERM_DEPENDENCIES = {
   log_agencies:   'log_view',
   log_users:      'log_view',
   log_settings:   'log_view',
+  log_page_views: 'log_view',
 }
 
 export const groupItems = g => g.items ?? g.sections.flatMap(s => s.items)

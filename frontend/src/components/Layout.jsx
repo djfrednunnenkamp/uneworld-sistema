@@ -1,15 +1,37 @@
 import { useState, useRef, useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import Sidebar from './Sidebar'
 import AccountModal from './AccountModal'
 import ChangePasswordModal from './ChangePasswordModal'
 import { useAuth } from '../context/AuthContext'
+import { auditApi } from '../api'
 
 const menuItemStyle = {
   display: 'block', width: '100%', padding: '9px 16px', background: 'none',
   border: 'none', textAlign: 'left', fontSize: 13, color: '#0f172a', cursor: 'pointer',
   fontFamily: 'inherit', transition: 'background .1s',
+}
+
+/* Rótulo legível por prefixo de rota — usado no log de navegação.
+   Mais específico primeiro (rotas com :id antes da rota-base). */
+const PAGE_LABELS = [
+  { prefix: '/passageiros/',                label: 'Detalhe do Passageiro' },
+  { prefix: '/passageiros',                 label: 'Passageiros' },
+  { prefix: '/agencias/',                   label: 'Detalhe da Agência' },
+  { prefix: '/agencias',                    label: 'Agências' },
+  { prefix: '/viagens/',                    label: 'Detalhe da Lista de Passageiros' },
+  { prefix: '/viagens',                     label: 'Listas de Passageiros' },
+  { prefix: '/calendario',                  label: 'Calendário' },
+  { prefix: '/usuarios',                    label: 'Usuários' },
+  { prefix: '/configuracoes/geo-import',    label: 'Importação de Países/Estados/Cidades' },
+  { prefix: '/configuracoes/import',        label: 'Revisão de Importação de CSV' },
+  { prefix: '/configuracoes',               label: 'Configurações' },
+  { prefix: '/log',                         label: 'Log do Sistema' },
+  { prefix: '/',                            label: 'Visão Geral' },
+]
+function labelForPath(pathname) {
+  return PAGE_LABELS.find(p => pathname.startsWith(p.prefix))?.label || pathname
 }
 
 export default function Layout() {
@@ -18,6 +40,16 @@ export default function Layout() {
   const [showAccount,   setShowAccount]   = useState(false)
   const [showChangePw,  setShowChangePw]  = useState(false)
   const menuRef = useRef(null)
+  const location = useLocation()
+  const lastLoggedPath = useRef(null)
+
+  /* Registra cada troca de rota no log de auditoria (ignora troca de
+     querystring na mesma página, ex: filtros do log) */
+  useEffect(() => {
+    if (!user || lastLoggedPath.current === location.pathname) return
+    lastLoggedPath.current = location.pathname
+    auditApi.logPageView(location.pathname, labelForPath(location.pathname)).catch(() => {})
+  }, [location.pathname, user])
 
   const initials = user
     ? (`${user.first_name?.[0]??''}${user.last_name?.[0]??''}`).toUpperCase() || user.username?.[0]?.toUpperCase()

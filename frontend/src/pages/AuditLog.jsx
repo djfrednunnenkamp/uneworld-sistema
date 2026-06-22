@@ -14,10 +14,12 @@ const ACTION_STYLE = {
   download: { label: 'Baixado',    icon: 'dl',     bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
   upload:   { label: 'Enviado',    icon: 'ul',     bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
   login:    { label: 'Login',      icon: 'key',    bg: '#ede9fe', color: '#7c3aed', border: '#ddd6fe' },
+  view:     { label: 'Visitou',    icon: 'eye',    bg: '#f0fdfa', color: '#0d9488', border: '#99f6e4' },
 }
 
 const MODEL_OPTS = [
   { value: '',                  label: 'Todos os tipos'          },
+  { value: 'PageView',          label: 'Navegação (páginas)'     },
   { value: 'Passenger',         label: 'Passageiro'              },
   { value: 'PassengerDocument', label: 'Documento de passageiro' },
   { value: 'Agency',            label: 'Agência'                 },
@@ -55,6 +57,7 @@ const ACTION_OPTS = [
   { value: 'download', label: 'Baixado'        },
   { value: 'upload',   label: 'Enviado'        },
   { value: 'login',    label: 'Login'          },
+  { value: 'view',     label: 'Visitou'        },
 ]
 
 /* Iniciais para o avatar redondo (igual ao topbar) */
@@ -272,12 +275,21 @@ function fmtVal(val) {
   return s
 }
 
+/* Modelos com tela de detalhe e/ou log próprio navegável a partir do popup */
+const RECORD_LINKS = {
+  Passenger:     { open: id => `/passageiros/${id}`, log: id => `/log?passenger_id=${id}`, label: 'passageiro', of: 'do' },
+  PassengerList: { open: id => `/viagens/${id}`,     log: id => `/log?list_id=${id}`,      label: 'lista',      of: 'da' },
+  Agency:        { open: id => `/agencias/${id}`,    log: id => `/log?agency_id=${id}`,    label: 'agência',    of: 'da' },
+}
+
 /* ── Popup de detalhe de um evento ── */
-function LogDetailPopup({ entry, onClose }) {
+function LogDetailPopup({ entry, onClose, navigate }) {
   const style = ACTION_STYLE[entry.action] ?? ACTION_STYLE.update
   const changes = entry.changes ?? {}
   const hasChanges = Object.keys(changes).length > 0
   const isUpdate = entry.action === 'update'
+  const link = RECORD_LINKS[entry.model_name]
+  const hasLink = link && entry.object_id
 
   return (
     <div style={{
@@ -349,7 +361,21 @@ function LogDetailPopup({ entry, onClose }) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '12px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+        <div style={{ padding: '12px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {hasLink && (
+              <>
+                <button onClick={() => navigate(link.open(entry.object_id))}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1.5px solid #2e6db4', background: '#eff6ff', color: '#2e6db4', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Ic n="eye" s={13} /> Abrir {link.label}
+                </button>
+                <button onClick={() => navigate(link.log(entry.object_id))}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Ic n="list" s={13} /> Log {link.of} {link.label}
+                </button>
+              </>
+            )}
+          </div>
           <button onClick={onClose}
             style={{ padding: '8px 20px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             Fechar
@@ -652,7 +678,7 @@ export default function AuditLog() {
       </div>
 
       {/* Popup de detalhe */}
-      {selected && <LogDetailPopup entry={selected} onClose={() => setSelected(null)} />}
+      {selected && <LogDetailPopup entry={selected} onClose={() => setSelected(null)} navigate={navigate} />}
     </div>
   )
 }
