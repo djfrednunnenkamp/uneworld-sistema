@@ -35,10 +35,17 @@ const PHASES = [
   { key:'finalizada', label:'Finalizadas',  color:'#64748b', bg:'#f1f5f9', dot:'#cbd5e1' },
 ]
 
-const COLS = [
+const makeCols = (navigate) => [
   {
     key: 'name', label: 'Nome da Lista de Passageiros', align: 'left',
-    render: (v) => <span style={{ fontWeight:600, color:'#1e293b' }}>{v}</span>,
+    render: (v, row) => (
+      <span onClick={() => navigate(`/viagens/${row.id}`)}
+        style={{ fontWeight:600, color:'#1e293b', cursor:'pointer' }}
+        onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+        onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
+        {v}
+      </span>
+    ),
   },
   {
     key: 'list_type', label: 'Tipo', align: 'center',
@@ -172,7 +179,7 @@ export default function Trips() {
         title="Listas de Passageiros"
         addLabel="Adicionar Lista de Passageiros"
         data={filtered}
-        cols={COLS}
+        cols={makeCols(navigate)}
         searchKeys={['name']}
         topBar={tabBar}
         onAdd={canEdit ? () => setShowNew(true) : undefined}
