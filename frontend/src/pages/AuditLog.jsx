@@ -320,10 +320,13 @@ function RecordDrillDrop({ drillKey, value, onChange }) {
   }, [drillKey])
 
   useEffect(() => {
-    if (open && items === null) {
+    // Carrega também sem abrir o dropdown quando já chega com um valor
+    // selecionado (ex: veio do botão "Log" de uma lista específica) — pra
+    // mostrar o nome do registro de cara, em vez de só "…".
+    if ((open || value) && items === null) {
       cfg.fetch().then(setItems).catch(() => setItems([]))
     }
-  }, [open, items, cfg])
+  }, [open, value, items, cfg])
 
   const selected = (items ?? []).find(i => String(i.id) === String(value))
   const active = !!value
@@ -720,7 +723,12 @@ export default function AuditLog() {
   // Sub-filtro "entrar num registro específico" — aparece junto do Tipo quando
   // a área atual (scope= ou Tipo=) é uma das que tem busca por registro.
   const MODEL_TO_DRILL = { PassengerList: 'lists', Passenger: 'passengers', Agency: 'agencies' }
-  const drillScope = DRILL_CONFIG[auditScope] ? auditScope : MODEL_TO_DRILL[filters.model]
+  const drillScope = DRILL_CONFIG[auditScope] ? auditScope
+    : MODEL_TO_DRILL[filters.model] ? MODEL_TO_DRILL[filters.model]
+    : listId ? 'lists'
+    : passengerId ? 'passengers'
+    : agencyId ? 'agencies'
+    : undefined
   const drillValue = drillScope === 'lists' ? listId : drillScope === 'passengers' ? passengerId : drillScope === 'agencies' ? agencyId : ''
   const setDrillValue = (val) => {
     const cfg = DRILL_CONFIG[drillScope]
