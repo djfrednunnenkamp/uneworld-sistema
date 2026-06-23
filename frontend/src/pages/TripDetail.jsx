@@ -3631,7 +3631,7 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, rooms = []
         <PassengerPreviewModal
           passenger={previewPax}
           onClose={() => setPreviewPax(null)}
-          onEdit={() => { setPreviewPax(null); onClose(); navigate(`/passageiros/${previewPax.id}`) }}
+          onEdit={() => { setPreviewPax(null); onClose(); navigate(`/passageiros/${previewPax.id}`, { state: { fromListId: listId } }) }}
         />,
         document.body
       )}
@@ -4382,7 +4382,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
         if (enrollment.passenger) {
           // Sempre abrir na aba "Informações do cliente" — a aba persistida pode estar em "Documentos"
           try { localStorage.setItem('tab_passenger_detail', 'info') } catch { /* localStorage indisponível — segue normalmente */ }
-          navigate(`/passageiros/${enrollment.passenger}`)
+          navigate(`/passageiros/${enrollment.passenger}`, { state: { fromListId: listId, fromListName: listName } })
         }
         break
       case 'notes':

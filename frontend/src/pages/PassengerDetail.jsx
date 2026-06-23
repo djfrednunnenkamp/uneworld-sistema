@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import usePersistedTab from '../hooks/usePersistedTab'
 import { toast } from 'sonner'
 import axios from 'axios'
@@ -767,8 +767,10 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
 export default function PassengerDetail() {
   const { id }         = useParams()
   const navigate       = useNavigate()
+  const location       = useLocation()
   const [searchParams] = useSearchParams()
   const isNew          = id === 'novo'
+  const fromListId     = location.state?.fromListId
 
   const { user } = useAuth()
   const perms   = user?.permissions ?? {}
@@ -1034,9 +1036,15 @@ export default function PassengerDetail() {
               📋 Log
             </button>
           )}
-          <button className="btn btn-outline" onClick={() => navigate('/passageiros')}>
-            <Ic n="logout" s={13} />Voltar
-          </button>
+          {fromListId ? (
+            <button className="btn btn-outline" onClick={() => navigate(`/viagens/${fromListId}`)}>
+              <Ic n="logout" s={13} />Voltar para a lista
+            </button>
+          ) : (
+            <button className="btn btn-outline" onClick={() => navigate('/passageiros')}>
+              <Ic n="logout" s={13} />Voltar
+            </button>
+          )}
           {canSave && (
             <button className="btn btn-primary" onClick={save} disabled={saving}>
               <Ic n="check" s={13} />{saving ? 'Salvando…' : 'Salvar'}
