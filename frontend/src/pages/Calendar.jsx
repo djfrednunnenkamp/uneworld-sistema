@@ -61,20 +61,22 @@ function EventRow({ ev, iso, onClick, currentUserId }) {
   const isMine = ev.type === 'deadline' && ev.created_by_id != null && ev.created_by_id === currentUserId
   return (
     <div onClick={onClick} className="cal-row"
-      style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:8, cursor: onClick ? 'pointer' : 'default', marginBottom:8,
+      style={{ display:'flex', flexWrap:'wrap', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, cursor: onClick ? 'pointer' : 'default', marginBottom:8,
         border:'1px solid #e2e8f0', borderLeft: isMine ? '3px solid #2e6db4' : '1px solid #e2e8f0' }}>
       <span style={{ width:8, height:8, borderRadius:'50%', background:cfg.fg, flexShrink:0 }} />
       {cfg.icon && <span style={{ color:cfg.fg, display:'flex', flexShrink:0 }}><Ic n={cfg.icon} s={14}/></span>}
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:13, fontWeight:500, color:'#1e293b', overflowWrap:'anywhere' }}>{ev.title}</div>
-        {ev.subtitle && <div style={{ fontSize:12, color:'#64748b', overflowWrap:'anywhere' }}>{ev.subtitle}</div>}
+      <div style={{ flex:'1 1 100px', minWidth:0 }}>
+        <div title={ev.title} style={{ fontSize:13, fontWeight:500, color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ev.title}</div>
+        {ev.subtitle && <div title={ev.subtitle} style={{ fontSize:12, color:'#64748b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ev.subtitle}</div>}
       </div>
-      {isMine && <span className="cal-you-badge">Você</span>}
-      {dayN && <span className="cal-day-badge">Dia {dayN}</span>}
-      {ev.type === 'trip' && (
-        <span style={{ fontSize:11, color:'#94a3b8', whiteSpace:'nowrap' }}>{fmtBR(ev.start)} – {fmtBR(ev.end)}</span>
-      )}
-      <span style={{ fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:cfg.bg, color:cfg.fg, whiteSpace:'nowrap' }}>{cfg.label}</span>
+      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', justifyContent:'flex-end', marginLeft:'auto' }}>
+        {isMine && <span className="cal-you-badge">Você</span>}
+        {dayN && <span className="cal-day-badge">Dia {dayN}</span>}
+        {ev.type === 'trip' && (
+          <span style={{ fontSize:11, color:'#94a3b8', whiteSpace:'nowrap' }}>{fmtBR(ev.start)} – {fmtBR(ev.end)}</span>
+        )}
+        <span style={{ fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:cfg.bg, color:cfg.fg, whiteSpace:'nowrap' }}>{cfg.label}</span>
+      </div>
     </div>
   )
 }
