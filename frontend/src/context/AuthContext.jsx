@@ -22,9 +22,12 @@ export function AuthProvider({ children }) {
     // negar a permissão, o login segue normal, sem nenhum aviso ou erro.
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => { auditApi.refineLoginLocation(pos.coords.latitude, pos.coords.longitude).catch(() => {}) },
-        () => {},
-        { timeout: 5000, maximumAge: 60000 }
+        (pos) => {
+          auditApi.refineLoginLocation(pos.coords.latitude, pos.coords.longitude)
+            .catch(err => console.warn('[geo] falha ao enviar localização pro backend:', err))
+        },
+        (err) => console.warn('[geo] navigator.geolocation falhou:', err.code, err.message),
+        { timeout: 8000, maximumAge: 60000 }
       )
     }
     return r.data
