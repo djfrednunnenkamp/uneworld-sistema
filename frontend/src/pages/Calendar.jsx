@@ -283,7 +283,7 @@ export default function CalendarPage() {
             <Ic n="mail" s={14}/> {sending ? 'Enviando…' : 'Enviar resumo'}
           </button>
           {canViewLog && (
-            <button className="btn btn-outline" onClick={() => navigate('/log?model=ListEnrollment')} title="Ver log de atividades">
+            <button className="btn btn-outline" onClick={() => navigate('/log?scope=lists')} title="Ver log de atividades">
               <Ic n="list" s={14}/> Log
             </button>
           )}
