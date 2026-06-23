@@ -18,48 +18,79 @@ const ACTION_STYLE = {
   view:     { label: 'Visitou',    icon: 'eye',    bg: '#f0fdfa', color: '#0d9488', border: '#99f6e4' },
 }
 
-const MODEL_OPTS = [
-  { value: '',                  label: 'Todos os tipos'          },
-  { value: 'PageView',          label: 'Navegação (páginas)'     },
-  { value: 'Passenger',         label: 'Passageiro'              },
-  { value: 'PassengerDocument', label: 'Documento de passageiro' },
-  { value: 'Agency',            label: 'Agência'                 },
-  { value: 'Trip',               label: 'Viagem'                  },
-  { value: 'PassengerList',     label: 'Lista de passageiros'    },
-  { value: 'ListEnrollment',    label: 'Inscrição na lista'      },
-  { value: 'User',              label: 'Usuário'                 },
-  { value: 'Supplier',          label: 'Fornecedor'              },
-  { value: 'CustomDocType',     label: 'Tipo de documento'       },
-  { value: 'CustomDocField',    label: 'Campo de documento'      },
-  { value: 'ConfigProfession',  label: 'Profissão'               },
-  { value: 'ConfigLanguage',    label: 'Idioma'                  },
-  { value: 'ConfigCountry',     label: 'País'                    },
-  { value: 'ConfigState',       label: 'Estado'                  },
-  { value: 'ConfigCity',        label: 'Cidade'                  },
-  { value: 'ConfigVaccine',     label: 'Vacina'                  },
-  { value: 'ConfigGender',      label: 'Gênero'                  },
-  { value: 'ConfigProfCard',    label: 'Carteira profissional'   },
-  { value: 'ConfigAccommodation', label: 'Tipo de acomodação'    },
-  { value: 'ConfigListCategory',  label: 'Categoria de acomodação' },
-  { value: 'ListAdditional',    label: 'Adicional de lista'      },
-  { value: 'CrewRole',          label: 'Equipe técnica'          },
-  { value: 'Destination',       label: 'Destino'                 },
-  { value: 'Airport',           label: 'Aeroporto'               },
-  { value: 'Airline',           label: 'Companhia aérea'         },
-  { value: 'BusMap',            label: 'Mapa de ônibus'          },
-  { value: 'PermissionProfile', label: 'Perfil de permissão'     },
+/* ── Tipo: dropdown de duas camadas — área (grande) → sub-tipo (modelo) ──
+   Antes era uma lista plana de 28 modelos; agora agrupa por área (igual ao
+   "scope" do backend) e, ao escolher uma área com mais de um modelo, abre um
+   segundo dropdown pra escolher o sub-tipo específico (ex: dentro de
+   Configurações, só Mapas de Ônibus, só Países…). */
+const AREA_OPTS = [
+  { value: '',           label: 'Todos os tipos',          icon: 'grid',     color: '#64748b' },
+  { value: 'nav',         label: 'Navegação (páginas)',     icon: 'eye',      color: '#0d9488' },
+  { value: 'passengers', label: 'Passageiros',              icon: 'users',    color: '#2563eb' },
+  { value: 'lists',      label: 'Listas de Passageiros',    icon: 'plane',    color: '#16a34a' },
+  { value: 'agencies',   label: 'Agências',                icon: 'building', color: '#7c3aed' },
+  { value: 'users',      label: 'Usuários',                 icon: 'shield',   color: '#4f46e5' },
+  { value: 'settings',   label: 'Configurações',            icon: 'settings', color: '#b45309' },
 ]
 
+const SUB_OPTS_BY_AREA = {
+  passengers: [
+    { value: '',                  label: 'Todos',                   icon: 'users', color: '#2563eb' },
+    { value: 'Passenger',         label: 'Passageiro',               icon: 'users', color: '#2563eb' },
+    { value: 'PassengerDocument', label: 'Documento de passageiro',  icon: 'docs',  color: '#0891b2' },
+  ],
+  lists: [
+    { value: '',               label: 'Todos',                icon: 'plane',    color: '#16a34a' },
+    { value: 'PassengerList',  label: 'Lista de passageiros',  icon: 'plane',    color: '#16a34a' },
+    { value: 'ListEnrollment', label: 'Inscrição na lista',    icon: 'listplus', color: '#0d9488' },
+  ],
+  settings: [
+    { value: '',                    label: 'Todos',                     icon: 'settings', color: '#b45309' },
+    { value: 'ConfigProfession',    label: 'Profissão',                 icon: 'briefcase', color: '#7c3aed' },
+    { value: 'ConfigLanguage',      label: 'Idioma',                    icon: 'globe',     color: '#0891b2' },
+    { value: 'ConfigCountry',       label: 'País',                      icon: 'globe',     color: '#2563eb' },
+    { value: 'ConfigState',         label: 'Estado',                    icon: 'mapicon',   color: '#0d9488' },
+    { value: 'ConfigCity',          label: 'Cidade',                    icon: 'pin',       color: '#dc2626' },
+    { value: 'ConfigGender',        label: 'Gênero',                    icon: 'gender',    color: '#db2777' },
+    { value: 'ConfigVaccine',       label: 'Vacina',                    icon: 'syringe',   color: '#16a34a' },
+    { value: 'ConfigProfCard',      label: 'Carteira profissional',     icon: 'card',      color: '#7c3aed' },
+    { value: 'CustomDocType',       label: 'Tipo de documento',         icon: 'docs',      color: '#0891b2' },
+    { value: 'CustomDocField',      label: 'Campo de documento',        icon: 'docs',      color: '#64748b' },
+    { value: 'ConfigAccommodation', label: 'Tipo de acomodação',        icon: 'bed',       color: '#b45309' },
+    { value: 'ConfigListCategory',  label: 'Categoria de acomodação',   icon: 'listplus',  color: '#0d9488' },
+    { value: 'ListAdditional',      label: 'Adicional de lista',        icon: 'listplus',  color: '#2563eb' },
+    { value: 'CrewRole',            label: 'Equipe técnica',            icon: 'shield',    color: '#4f46e5' },
+    { value: 'Destination',         label: 'Destino',                   icon: 'pin',       color: '#dc2626' },
+    { value: 'Airport',             label: 'Aeroporto',                 icon: 'plane',     color: '#16a34a' },
+    { value: 'Airline',             label: 'Companhia aérea',           icon: 'plane',     color: '#0d9488' },
+    { value: 'BusMap',              label: 'Mapa de ônibus',            icon: 'mapicon',   color: '#b45309' },
+    { value: 'PermissionProfile',   label: 'Perfil de permissão',       icon: 'key',       color: '#7c3aed' },
+  ],
+}
+
+// Modelos que pertencem a cada área — usado pra resolver a área quando se
+// chega direto com um model= específico (ex: link antigo) sem scope=.
+const SCOPE_MODELS_FE = {
+  passengers: ['Passenger', 'PassengerDocument'],
+  lists:      ['PassengerList', 'ListEnrollment'],
+  agencies:   ['Agency'],
+  users:      ['User'],
+  settings:   SUB_OPTS_BY_AREA.settings.map(o => o.value).filter(Boolean),
+}
+const MODEL_TO_AREA = Object.fromEntries(
+  Object.entries(SCOPE_MODELS_FE).flatMap(([area, models]) => models.map(m => [m, area]))
+)
+
 const ACTION_OPTS = [
-  { value: '',         label: 'Todas as ações' },
-  { value: 'create',   label: 'Criado'         },
-  { value: 'update',   label: 'Atualizado'     },
-  { value: 'delete',   label: 'Apagado'        },
-  { value: 'download', label: 'Baixado'        },
-  { value: 'upload',   label: 'Enviado'        },
-  { value: 'login',    label: 'Login'          },
-  { value: 'logout',   label: 'Logout'         },
-  { value: 'view',     label: 'Visitou'        },
+  { value: '',         label: 'Todas as ações', icon: 'grid',  color: '#64748b' },
+  { value: 'create',   label: 'Criado',         icon: 'plus',  color: '#16a34a' },
+  { value: 'update',   label: 'Atualizado',     icon: 'edit',  color: '#2563eb' },
+  { value: 'delete',   label: 'Apagado',        icon: 'trash', color: '#dc2626' },
+  { value: 'download', label: 'Baixado',        icon: 'dl',    color: '#475569' },
+  { value: 'upload',   label: 'Enviado',        icon: 'ul',    color: '#b45309' },
+  { value: 'login',    label: 'Login',          icon: 'key',   color: '#7c3aed' },
+  { value: 'logout',   label: 'Logout',         icon: 'key',   color: '#64748b' },
+  { value: 'view',     label: 'Visitou',        icon: 'eye',   color: '#0d9488' },
 ]
 
 /* Iniciais para o avatar redondo (igual ao topbar) */
@@ -126,18 +157,21 @@ function FDrop({ label, icon, value, onChange, options, iconFor, forceActive, fo
     ? options.filter(o => o.value === '' || o.label.toLowerCase().includes(q.toLowerCase()))
     : options
 
+  const btnIcon  = selected?.icon || icon
+  const btnColor = active ? (selected?.color || '#2e6db4') : '#475569'
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" onClick={() => setOpen(o => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8,
-          border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
-          background: active ? '#eff6ff' : '#fff',
-          color: active ? '#2e6db4' : '#475569',
+          border: `1.5px solid ${active ? (selected?.color || '#2e6db4') : '#e2e8f0'}`,
+          background: active ? `${btnColor}14` : '#fff',
+          color: btnColor,
           fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit',
           whiteSpace: 'nowrap', transition: 'all .12s',
         }}>
-        {icon && <Ic n={icon} s={13} />}
+        {btnIcon && <Ic n={btnIcon} s={13} />}
         {selected?.value ? selected.label : (active && forceLabel) ? forceLabel : label}
         <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▼</span>
       </button>
@@ -159,23 +193,24 @@ function FDrop({ label, icon, value, onChange, options, iconFor, forceActive, fo
               <p style={{ padding: '14px', margin: 0, fontSize: 12.5, color: '#94a3b8', textAlign: 'center' }}>Nada encontrado.</p>
             ) : filtered.map(opt => {
               const sel = value === opt.value
-              const ic = iconFor?.(opt.value)
+              const ic = opt.icon || iconFor?.(opt.value)
+              const oc = opt.color || '#94a3b8'
               return (
                 <button key={opt.value} type="button"
                   onClick={() => { onChange(opt.value); setOpen(false) }}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     width: '100%', padding: '8px 14px', gap: 10,
-                    background: sel ? '#eff6ff' : 'transparent', border: 'none',
-                    color: sel ? '#2e6db4' : '#1e293b',
+                    background: sel ? `${oc}14` : 'transparent', border: 'none',
+                    color: sel ? oc : '#1e293b',
                     fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer',
                     fontFamily: 'inherit', textAlign: 'left',
                   }}
                   onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
-                  onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}
+                  onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? `${oc}14` : 'transparent' }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {ic && <span style={{ color: sel ? '#2e6db4' : '#94a3b8', display: 'flex' }}><Ic n={ic} s={13} /></span>}
+                    {ic && <span style={{ color: oc, display: 'flex' }}><Ic n={ic} s={13} /></span>}
                     {opt.label}
                   </span>
                   {sel && <Ic n="check" s={13} />}
@@ -575,20 +610,15 @@ const TH = ({ children, align = 'left' }) => (
 )
 
 // Mapeia model_name → rótulo e rota de volta
-const MODEL_CONTEXT = {
-  Passenger:      { label: 'Passageiros',           back: '/passageiros' },
-  Agency:         { label: 'Agências',              back: '/agencias'    },
-  User:           { label: 'Usuários',               back: '/usuarios'    },
-  PassengerList:  { label: 'Listas de Passageiros',  back: '/viagens'     },
-  ListEnrollment: { label: 'Calendário',             back: '/calendario'  },
-}
-
-const SCOPE_CONTEXT = {
+// Contexto (rótulo + rota de voltar) de cada área — chave igual ao value de
+// AREA_OPTS, usado tanto pro cabeçalho (título/botão voltar) quanto pra
+// marcar o Tipo como ativo quando a área vem do scope=/list_id da URL.
+const AREA_CONTEXT = {
+  passengers: { label: 'Passageiros',           back: '/passageiros'   },
+  lists:      { label: 'Listas de Passageiros', back: '/viagens'       },
+  agencies:   { label: 'Agências',              back: '/agencias'      },
+  users:      { label: 'Usuários',              back: '/usuarios'      },
   settings:   { label: 'Configurações',         back: '/configuracoes' },
-  lists:      { label: 'Listas de Passageiros', back: '/viagens'        },
-  passengers: { label: 'Passageiros',           back: '/passageiros'    },
-  agencies:   { label: 'Agências',              back: '/agencias'       },
-  users:      { label: 'Usuários',              back: '/usuarios'       },
 }
 
 /* ── Página principal ── */
@@ -609,28 +639,46 @@ export default function AuditLog() {
   const [count,    setCount]    = useState(0)
   const [page,     setPage]     = useState(1)
   const [selected, setSelected] = useState(null)
-  const [filters,  setFilters]  = useState({ action: '', model: initModel, search: '', date_from: '', date_to: '', user_id: '' })
+  const [filters,  setFilters]  = useState({ action: '', area: '', model: initModel, search: '', date_from: '', date_to: '', user_id: '' })
   const [showNav,  setShowNav]  = useState(false)
 
   const pageRef    = useRef(1)
   const filtersRef = useRef(filters)
   const showNavRef = useRef(showNav)
 
+  // Resolve a área efetiva a partir, em ordem: do Tipo escolhido na própria
+  // tela, do scope= que veio da URL (botão "Log" de outra página), do model=
+  // (link direto a um sub-tipo específico) ou do list_id/passenger_id/
+  // agency_id (botão "Log" de um registro específico).
+  const resolveArea = (f) => f.area || auditScope || MODEL_TO_AREA[f.model]
+    || (f.model === 'PageView' ? 'nav' : '')
+    || (listId ? 'lists' : passengerId ? 'passengers' : agencyId ? 'agencies' : '')
+
+  const buildParams = (f, nav) => {
+    const params = {}
+    if (f.action)    params.action    = f.action
+    if (f.search)    params.search    = f.search
+    if (f.date_from) params.date_from = f.date_from
+    if (f.date_to)   params.date_to   = f.date_to
+    if (f.user_id)   params.user_id   = f.user_id
+    if (nav)         params.show_nav  = 1
+    const area = resolveArea(f)
+    if (area === 'nav') {
+      params.model = 'PageView'
+    } else {
+      if (area)    params.scope = area
+      if (f.model) params.model = f.model
+    }
+    if (listId)      params.list_id      = listId
+    if (passengerId) params.passenger_id = passengerId
+    if (agencyId)    params.agency_id    = agencyId
+    return params
+  }
+
   const load = useCallback(async (p = 1, f = filters, nav = showNav) => {
     setLoading(true)
     try {
-      const params = { page: p, page_size: 50 }
-      if (f.action)    params.action    = f.action
-      if (f.model)     params.model     = f.model
-      if (f.search)    params.search    = f.search
-      if (f.date_from) params.date_from = f.date_from
-      if (f.date_to)   params.date_to   = f.date_to
-      if (f.user_id)   params.user_id   = f.user_id
-      if (nav)         params.show_nav  = 1
-      if (listId)      params.list_id   = listId
-      if (passengerId) params.passenger_id = passengerId
-      if (agencyId)    params.agency_id    = agencyId
-      if (auditScope)  params.scope        = auditScope
+      const params = { page: p, page_size: 50, ...buildParams(f, nav) }
       const r = await auditApi.list(params)
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
@@ -654,7 +702,7 @@ export default function AuditLog() {
       // página) — reconstrói os filtros do zero a partir da nova URL, em vez
       // de manter o Tipo/Ação/Usuário que estavam selecionados na área antiga.
       prevAreaKey.current = areaKey
-      const next = { action: '', model: initModel, search: '', date_from: '', date_to: '', user_id: '' }
+      const next = { action: '', area: '', model: initModel, search: '', date_from: '', date_to: '', user_id: '' }
       setFilters(next)
       filtersRef.current = next
       load(1, next, showNavRef.current)
@@ -672,6 +720,21 @@ export default function AuditLog() {
     load(1, next, showNavRef.current)
   }
 
+  // Trocar a área (Tipo) descarta o sub-tipo e o registro específico que
+  // estavam selecionados na área anterior — não fazem mais sentido juntos.
+  const setArea = (area) => {
+    const next = { ...filters, area, model: '' }
+    setFilters(next)
+    filtersRef.current = next
+    if (listId || passengerId || agencyId) {
+      const sp = new URLSearchParams(searchParams)
+      sp.delete('list_id'); sp.delete('passenger_id'); sp.delete('agency_id')
+      navigate(`/log?${sp.toString()}`)
+    } else {
+      load(1, next, showNavRef.current)
+    }
+  }
+
   const toggleNav = (on) => {
     setShowNav(on)
     showNavRef.current = on
@@ -683,18 +746,7 @@ export default function AuditLog() {
       const f = filtersRef.current
       const nav = showNavRef.current
       const p = pageRef.current
-      const params = { page: p, page_size: 50 }
-      if (f.action)    params.action    = f.action
-      if (f.model)     params.model     = f.model
-      if (f.search)    params.search    = f.search
-      if (f.date_from) params.date_from = f.date_from
-      if (f.date_to)   params.date_to   = f.date_to
-      if (f.user_id)   params.user_id   = f.user_id
-      if (nav)         params.show_nav  = 1
-      if (listId)      params.list_id   = listId
-      if (passengerId) params.passenger_id = passengerId
-      if (agencyId)    params.agency_id    = agencyId
-      if (auditScope)  params.scope        = auditScope
+      const params = { page: p, page_size: 50, ...buildParams(f, nav) }
       const r = await auditApi.list(params)
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
@@ -706,29 +758,25 @@ export default function AuditLog() {
     if (scope === 'audit' || scope === 'all') silentReload()
   }, [silentReload]))
 
-  const hasFilter = filters.action || filters.model || filters.search || filters.date_from || filters.date_to || filters.user_id
+  const hasFilter = filters.action || filters.area || filters.model || filters.search || filters.date_from || filters.date_to || filters.user_id
   const totalPages = Math.ceil(count / 50)
 
-  const ctx = SCOPE_CONTEXT[auditScope] || MODEL_CONTEXT[filters.model] || null
+  const effectiveArea = resolveArea(filters)
+  const ctx = AREA_CONTEXT[effectiveArea] || null
 
-  // Rótulo da área atual mesmo quando o filtro de Tipo (filters.model) está
-  // vazio — porque o filtro real está no scope= ou no list_id/passenger_id/
-  // agency_id da URL, não no dropdown de Tipo. Usado pra marcar o Tipo como
-  // ativo e mostrar visualmente que a área está, sim, sendo filtrada.
+  // Rótulo da área atual mesmo quando ela não vem do dropdown de Tipo —
+  // porque o filtro real está no scope= ou no list_id/passenger_id/agency_id
+  // da URL. Usado pra marcar o Tipo como ativo e mostrar visualmente que a
+  // área está, sim, sendo filtrada.
   const areaLabel = listId ? 'Lista de Passageiros'
     : passengerId ? 'Passageiro'
     : agencyId ? 'Agência'
+    : effectiveArea === 'nav' ? 'Navegação (páginas)'
     : ctx?.label || null
 
-  // Sub-filtro "entrar num registro específico" — aparece junto do Tipo quando
-  // a área atual (scope= ou Tipo=) é uma das que tem busca por registro.
-  const MODEL_TO_DRILL = { PassengerList: 'lists', Passenger: 'passengers', Agency: 'agencies' }
-  const drillScope = DRILL_CONFIG[auditScope] ? auditScope
-    : MODEL_TO_DRILL[filters.model] ? MODEL_TO_DRILL[filters.model]
-    : listId ? 'lists'
-    : passengerId ? 'passengers'
-    : agencyId ? 'agencies'
-    : undefined
+  // Sub-filtro "entrar num registro específico" — aparece quando a área atual
+  // é uma das que tem busca por registro (lista/passageiro/agência).
+  const drillScope = DRILL_CONFIG[effectiveArea] ? effectiveArea : undefined
   const drillValue = drillScope === 'lists' ? listId : drillScope === 'passengers' ? passengerId : drillScope === 'agencies' ? agencyId : ''
   const setDrillValue = (val) => {
     const cfg = DRILL_CONFIG[drillScope]
@@ -736,6 +784,9 @@ export default function AuditLog() {
     if (val) next.set(cfg.param, val); else next.delete(cfg.param)
     navigate(`/log?${next.toString()}`)
   }
+
+  // Sub-tipo dentro da área (ex: dentro de Configurações, só Mapas de Ônibus)
+  const subOpts = SUB_OPTS_BY_AREA[effectiveArea]
 
   return (
     <div>
@@ -805,10 +856,13 @@ export default function AuditLog() {
         </div>
 
         <UserFilterDrop value={filters.user_id} onChange={v => setFilter('user_id', v)} />
-        <FDrop label="Ação" icon="check" value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS}
-          iconFor={v => ACTION_STYLE[v]?.icon} />
-        <FDrop label="Tipo" icon="grid" value={filters.model}  onChange={v => setFilter('model',  v)} options={MODEL_OPTS}
+        <FDrop label="Ação" icon="check" value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS} />
+        <FDrop label="Tipo" icon="grid" value={filters.area} onChange={setArea} options={AREA_OPTS}
           forceActive={!!areaLabel} forceLabel={areaLabel} />
+        {subOpts && (
+          <FDrop label="Sub-tipo" icon={AREA_OPTS.find(a => a.value === effectiveArea)?.icon} value={filters.model}
+            onChange={v => setFilter('model', v)} options={subOpts} />
+        )}
         {drillScope && <RecordDrillDrop drillKey={drillScope} value={drillValue} onChange={setDrillValue} />}
 
         <DateRangeDrop
@@ -820,7 +874,7 @@ export default function AuditLog() {
         />
 
         {hasFilter && (
-          <button onClick={() => { const c = { action:'',model:'',search:'',date_from:'',date_to:'',user_id:'' }; setFilters(c); load(1,c) }}
+          <button onClick={() => { const c = { action:'',area:'',model:'',search:'',date_from:'',date_to:'',user_id:'' }; setFilters(c); filtersRef.current = c; load(1,c) }}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', borderRadius: 8, border: '1.5px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Ic n="x" s={12} /> Limpar filtros
           </button>
