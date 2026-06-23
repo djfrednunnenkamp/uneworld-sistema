@@ -5013,7 +5013,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                             onClick={() => copy(e.selected_passport_data.doc_number)}>
                             <span>{e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}</span>
                             <span>{e.selected_passport_data.doc_number || '—'}</span>
-                            {e.selected_passport_data.country && (
+                            {e.selected_passport_data.doc_type !== 'rg' && e.selected_passport_data.country && (
                               <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#fff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{e.selected_passport_data.country.toUpperCase()}</span>
                             )}
                           </span>
@@ -5028,7 +5028,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                           style={{ fontSize:12.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
                           <span>{e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}</span>
                           <span>{e.selected_passport_data.doc_number || '—'}</span>
-                          {e.selected_passport_data.country && (
+                          {e.selected_passport_data.doc_type !== 'rg' && e.selected_passport_data.country && (
                             <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{e.selected_passport_data.country.toUpperCase()}</span>
                           )}
                         </span>
