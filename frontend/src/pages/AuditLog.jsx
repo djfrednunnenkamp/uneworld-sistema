@@ -603,7 +603,7 @@ function LogRow({ entry, onClick, even }) {
   )
 }
 
-const TH = ({ children, align = 'left' }) => (
+const TH = ({ children, align = 'center' }) => (
   <th style={{ padding: '11px 16px', textAlign: align, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap', background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
     {children}
   </th>
