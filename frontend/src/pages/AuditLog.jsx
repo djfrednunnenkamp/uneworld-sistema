@@ -632,7 +632,28 @@ export default function AuditLog() {
   const auditScope     = searchParams.get('scope') || ''
   const { user } = useAuth()
   const myP = user?.permissions ?? {}
-  const canViewPageViews = !!user?.is_superuser || !!myP.view_audit_log || !!myP.log_view || !!myP.log_page_views
+  // Espelha a lógica de permissões do backend (audit/views.py) pra mostrar só
+  // os filtros que fazem sentido pra essa pessoa — sem isso, o dropdown de
+  // Tipo oferece áreas que sempre voltam vazias, e o de Usuário aparece pra
+  // quem só pode ver as próprias ações (filtrar por outro usuário não faz
+  // diferença nenhuma nesse caso).
+  const hasGlobalLog     = !!user?.is_superuser || !!myP.view_audit_log || !!myP.log_view
+  const hasPassengersLog = hasGlobalLog || !!myP.log_passengers
+  const hasListsLog      = hasGlobalLog || !!myP.log_lists
+  const hasAgenciesLog   = hasGlobalLog || !!myP.log_agencies
+  const hasUsersLog      = hasGlobalLog || !!myP.log_users
+  const hasSettingsLog   = hasGlobalLog || !!myP.log_settings
+  const canViewPageViews = hasGlobalLog || !!myP.log_page_views
+  const hasAnyAreaLog    = hasPassengersLog || hasListsLog || hasAgenciesLog || hasUsersLog || hasSettingsLog
+  const AREA_PERM = {
+    nav: canViewPageViews, passengers: hasPassengersLog, lists: hasListsLog,
+    agencies: hasAgenciesLog, users: hasUsersLog, settings: hasSettingsLog,
+  }
+  const allowedAreaOpts = AREA_OPTS.filter(o => o.value === '' || AREA_PERM[o.value])
+  // Auto-visão (sem nenhuma permissão de área e sem acesso global): o
+  // backend só devolve as próprias ações, ignorando qualquer user_id= —
+  // então o filtro de Usuário não tem nenhuma utilidade nesse caso.
+  const showUserFilter = hasGlobalLog || hasAnyAreaLog
 
   const [logs,     setLogs]     = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -855,9 +876,9 @@ export default function AuditLog() {
           />
         </div>
 
-        <UserFilterDrop value={filters.user_id} onChange={v => setFilter('user_id', v)} />
+        {showUserFilter && <UserFilterDrop value={filters.user_id} onChange={v => setFilter('user_id', v)} />}
         <FDrop label="Ação" icon="check" value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS} />
-        <FDrop label="Tipo" icon="grid" value={filters.area} onChange={setArea} options={AREA_OPTS}
+        <FDrop label="Tipo" icon="grid" value={filters.area} onChange={setArea} options={allowedAreaOpts}
           forceActive={!!areaLabel} forceLabel={areaLabel} />
         {subOpts && (
           <FDrop label="Sub-tipo" icon={AREA_OPTS.find(a => a.value === effectiveArea)?.icon} value={filters.model}
