@@ -1187,7 +1187,7 @@ function QESelect({ label, value, onChange, options, disabled, placeholder = 'Se
 }
 
 /* ── Edição rápida do passageiro — popup com 2 abas: Informações e Documentos ── */
-function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onClose }) {
+function QuickEditModal({ enrollment, listId, listType, startDate, initialFocus, onSaved, onClose }) {
   const passengerId = enrollment.passenger
   const [activeTab, setActiveTab] = useState('info')
   const [form,    setForm]    = useState(null)
@@ -1197,6 +1197,8 @@ function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onCl
   const [saving,  setSaving]  = useState(false)
   const [selectedPassport, setSelectedPassport] = useState(enrollment.selected_passport || null)
   const [viewingDoc,       setViewingDoc]       = useState(null)
+  const passportSectionRef = useRef(null)
+  const rgSectionRef       = useRef(null)
   // Origem do passageiro (apenas listas terrestres)
   const [originMode,    setOriginMode]    = useState(enrollment.origin_mode || '')
   const [originCountry, setOriginCountry] = useState(enrollment.origin_country_data?.id ?? null)
@@ -1218,6 +1220,17 @@ function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onCl
     .catch(() => toast.error('Erro ao carregar dados do passageiro.'))
     .finally(() => setLoading(false))
   }, [passengerId])
+
+  // Ao abrir vindo do alerta "nenhum documento selecionado", foca direto na seção de documentos
+  useEffect(() => {
+    if (loading || !initialFocus) return
+    setActiveTab('info')
+    const ref = initialFocus === 'rg' ? rgSectionRef : passportSectionRef
+    const t = setTimeout(() => {
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 80)
+    return () => clearTimeout(t)
+  }, [loading, initialFocus])
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -1351,7 +1364,7 @@ function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onCl
               <QEField label="E-mail"       value={form?.email}       onChange={v => upd('email',       v)} type="email" />
               <QEField label="Nacionalidade" value={form?.nationality} onChange={v => upd('nationality', v)} />
 
-              {/* RGs registrados nos documentos */}
+              {/* RGs registrados nos documentos — também podem ser selecionados como documento da viagem */}
               {(() => {
                 const rgs = docs.filter(d => d.doc_type === 'rg')
                 const fmtDate = (iso) => {
@@ -1360,37 +1373,51 @@ function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onCl
                   return `${d}/${m}/${y}`
                 }
                 return (
-                  <div>
+                  <div ref={rgSectionRef}>
                     <label style={LBL}>RG</label>
                     {rgs.length === 0
                       ? <p style={{ fontSize: 13, color: '#94a3b8', margin: '8px 0 0' }}>Nenhum RG cadastrado nos documentos.</p>
                       : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
-                          {rgs.map(r => (
-                            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff' }}>
-                              {/* Thumbnail */}
-                              <div style={{ width: 52, height: 36, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
-                                {r.preview_url
-                                  ? <img src={r.preview_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  : <span style={{ fontSize: 20 }}>🪪</span>
-                                }
-                              </div>
-                              {/* Info */}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
-                                    {r.doc_number || '—'}
-                                  </span>
-                                  {r.issued_by && (
-                                    <span style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4 }}>{r.issued_by}</span>
-                                  )}
+                          {rgs.map(r => {
+                            const sel = selectedPassport === r.id
+                            return (
+                              <button key={r.id} type="button" onClick={() => setSelectedPassport(sel ? null : r.id)}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                                  borderRadius: 10, border: `2px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`,
+                                  background: sel ? '#f0f4ff' : '#fff',
+                                  cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'inherit',
+                                  transition: 'border-color .15s, background .15s',
+                                }}>
+                                {/* Thumbnail */}
+                                <div style={{ width: 52, height: 36, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
+                                  {r.preview_url
+                                    ? <img src={r.preview_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    : <span style={{ fontSize: 20 }}>🪪</span>
+                                  }
                                 </div>
-                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                                  {fmtDate(r.issued_date) ? `Emissão: ${fmtDate(r.issued_date)}` : 'Sem data de emissão'}
-                                  {fmtDate(r.expiry_date) ? ` · Validade: ${fmtDate(r.expiry_date)}` : ''}
+                                {/* Info */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                                      {r.doc_number || '—'}
+                                    </span>
+                                    {r.issued_by && (
+                                      <span style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 4 }}>{r.issued_by}</span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                    {fmtDate(r.issued_date) ? `Emissão: ${fmtDate(r.issued_date)}` : 'Sem data de emissão'}
+                                    {fmtDate(r.expiry_date) ? ` · Validade: ${fmtDate(r.expiry_date)}` : ''}
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                          ))}
+                                {/* Selecionado */}
+                                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${sel ? '#1a2d4f' : '#e2e8f0'}`, background: sel ? '#1a2d4f' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {sel && <span style={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                                </div>
+                              </button>
+                            )
+                          })}
                         </div>
                     }
                   </div>
@@ -1424,7 +1451,7 @@ function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onCl
                 }
 
                 return (
-                  <div>
+                  <div ref={passportSectionRef}>
                     <label style={LBL}>Passaportes</label>
                     {passports.length === 0
                       ? <p style={{ fontSize: 13, color: '#94a3b8', margin: '8px 0 0' }}>Nenhum passaporte válido cadastrado.</p>
@@ -1582,10 +1609,38 @@ function QuickEditModal({ enrollment, listId, listType, startDate, onSaved, onCl
                 </div>
               )}
 
-              {/* Documento de preferência — não está no banco */}
+              {/* Documento selecionado para a viagem — atalho para Passaporte ou Identidade/RG */}
               <div>
-                <label style={LBL}>Documento de preferência</label>
-                <input disabled value="" placeholder="Não disponível nesta versão" style={QE_DISABLED_STYLE} />
+                <label style={LBL}>Documento para a viagem</label>
+                {(() => {
+                  const selDoc = docs.find(d => d.id === selectedPassport)
+                  const selType = selDoc?.doc_type
+                  const btnStyle = (active) => ({
+                    flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                    border: `2px solid ${active ? '#1a2d4f' : '#e2e8f0'}`,
+                    background: active ? '#f0f4ff' : '#fff', color: active ? '#1a2d4f' : '#64748b',
+                    cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  })
+                  return (
+                    <>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                        <button type="button" style={btnStyle(selType === 'passport')}
+                          onClick={() => passportSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                          🛂 Passaporte
+                        </button>
+                        <button type="button" style={btnStyle(selType === 'rg')}
+                          onClick={() => rgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                          🪪 Identidade / RG
+                        </button>
+                      </div>
+                      <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '6px 0 0' }}>
+                        {selDoc
+                          ? `Selecionado: ${selDoc.doc_number || '—'}${selDoc.issued_by ? ` · ${selDoc.issued_by}` : ''}`
+                          : 'Nenhum documento selecionado — escolha abaixo qual usar nesta viagem.'}
+                      </p>
+                    </>
+                  )
+                })()}
               </div>
             </>
           ) : (
@@ -4940,19 +4995,43 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                     <span onClick={() => copy(e.passenger_gender)} title="Clique para copiar"
                       style={{ fontSize:13, color:'#64748b', textAlign:'center', display:'block', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : gen}</span>
 
-                    {/* Passaporte(s) — número + sigla do país, até 2 */}
+                    {/* Documento selecionado para a viagem — usa selected_passport_data quando definido; senão, alerta */}
                     <span style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1, overflow:'hidden' }}>
-                      {e.is_block || passports.length === 0 ? (
+                      {e.is_block ? (
                         <span style={{ fontSize:13, color:'#475569' }}>—</span>
-                      ) : passports.map((p, pi) => (
-                        <span key={pi} onClick={() => copy(p.number)} title="Clique para copiar"
+                      ) : e.selected_passport_data ? (
+                        <span onClick={() => copy(e.selected_passport_data.doc_number)} title="Documento selecionado para esta viagem — clique para copiar"
                           style={{ fontSize:12.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
-                          {p.number}
-                          {p.country && (
-                            <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{p.country.toUpperCase()}</span>
+                          {e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}
+                          {e.selected_passport_data.doc_number || '—'}
+                          {e.selected_passport_data.country && (
+                            <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{e.selected_passport_data.country.toUpperCase()}</span>
                           )}
                         </span>
-                      ))}
+                      ) : passports.length > 0 ? (
+                        <>
+                          <button type="button" onClick={() => setQuickEditModal({ ...e, _focus: 'passport' })}
+                            title="Nenhum documento selecionado para esta viagem — clique para escolher"
+                            style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', border:'none', padding:'3px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:3, cursor:'pointer', whiteSpace:'nowrap' }}>
+                            ⚠ Selecionar
+                          </button>
+                          {passports.map((p, pi) => (
+                            <span key={pi} onClick={() => copy(p.number)} title="Clique para copiar"
+                              style={{ fontSize:11.5, color:'#94a3b8', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
+                              {p.number}
+                              {p.country && (
+                                <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{p.country.toUpperCase()}</span>
+                              )}
+                            </span>
+                          ))}
+                        </>
+                      ) : (
+                        <button type="button" onClick={() => setQuickEditModal({ ...e, _focus: 'passport' })}
+                          title="Nenhum documento selecionado — clique para abrir a edição rápida"
+                          style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', border:'none', padding:'3px 10px', borderRadius:20, display:'flex', alignItems:'center', gap:3, cursor:'pointer', whiteSpace:'nowrap' }}>
+                          ⚠ Nenhum documento
+                        </button>
+                      )}
                     </span>
 
                     {/* CPF */}
@@ -5186,6 +5265,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
           listId={listId}
           listType={listType}
           startDate={startDate}
+          initialFocus={quickEditModal._focus}
           onSaved={load}
           onClose={() => setQuickEditModal(null)}
         />

@@ -335,12 +335,18 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_selected_passport_data(self, obj):
         if obj.selected_passport_id:
             d = obj.selected_passport
+            codes = self.context.get('country_codes')
+            if codes is None:
+                from config_api.models import ConfigCountry
+                codes = {c.name: c.code for c in ConfigCountry.objects.filter(name=d.issued_by)} if d.issued_by else {}
             return {
                 'id': d.id,
+                'doc_type': d.doc_type,
                 'doc_number': d.doc_number,
                 'issued_date': str(d.issued_date) if d.issued_date else None,
                 'expiry_date': str(d.expiry_date) if d.expiry_date else None,
                 'issued_by': d.issued_by,
+                'country': codes.get(d.issued_by, d.issued_by[:3].upper() if d.issued_by else ''),
             }
         return None
 
