@@ -513,9 +513,9 @@ function LogDetailPopup({ entry, onClose, navigate }) {
 
         {/* Conteúdo */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-          {!hasChanges ? (
+          {!hasChanges && entry.latitude == null ? (
             <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Sem detalhes registrados.</p>
-          ) : (
+          ) : hasChanges ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
               {Object.entries(changes).map(([field, val]) => {
                 const isUpdateField = val && typeof val === 'object' && 'antes' in val
@@ -546,7 +546,7 @@ function LogDetailPopup({ entry, onClose, navigate }) {
                 )
               })}
             </div>
-          )}
+          ) : null}
 
           {entry.latitude != null && entry.longitude != null && (
             <div style={{ marginTop: hasChanges ? 16 : 0 }}>
