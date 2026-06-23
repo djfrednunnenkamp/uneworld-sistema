@@ -569,24 +569,24 @@ function LogRow({ entry, onClick, even }) {
       onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
       onMouseLeave={e => e.currentTarget.style.background = even ? '#fafbfc' : '#fff'}
     >
-      <td style={{ padding: '11px 16px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 16px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap', textAlign: 'center' }}>
         {entry.timestamp_br}
       </td>
       <td style={{ padding: '11px 16px', overflow: 'hidden' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#1e293b', overflow: 'hidden' }}>
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#1e293b', overflow: 'hidden' }}>
           <Avatar name={entry.user_display || 'Sistema'} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.user_display || 'Sistema'}</span>
         </span>
       </td>
-      <td style={{ padding: '11px 16px', overflow: 'hidden' }}>
+      <td style={{ padding: '11px 16px', overflow: 'hidden', textAlign: 'center' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: style.bg, color: style.color, border: `1px solid ${style.border}`, whiteSpace: 'nowrap' }}>
           <Ic n={style.icon} s={10} /> {style.label}
         </span>
       </td>
-      <td style={{ padding: '11px 16px', fontSize: 13, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 16px', fontSize: 13, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>
         {entry.model_label}
       </td>
-      <td style={{ padding: '11px 16px', fontSize: 13, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 16px', fontSize: 13, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>
         {entry.object_repr}
       </td>
       <td style={{ padding: '11px 16px', textAlign: 'center' }}>
@@ -596,7 +596,7 @@ function LogRow({ entry, onClick, even }) {
             </span>
           : <span style={{ fontSize: 12, color: '#cbd5e1' }}>—</span>}
       </td>
-      <td style={{ padding: '11px 16px', fontSize: 11, color: '#cbd5e1', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 16px', fontSize: 11, color: '#cbd5e1', whiteSpace: 'nowrap', textAlign: 'center' }}>
         {entry.ip_address ?? '—'}
       </td>
     </tr>
