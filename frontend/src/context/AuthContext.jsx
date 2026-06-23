@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { authApi } from '../api'
+import { authApi, auditApi } from '../api'
 
 const AuthContext = createContext(null)
 
@@ -17,6 +17,16 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const r = await authApi.login(email, password)
     setUser(r.data)
+    // Localização precisa do navegador é opcional — só refina o pino do
+    // login no Log do Sistema (já tem a aproximada via IP); se a pessoa
+    // negar a permissão, o login segue normal, sem nenhum aviso ou erro.
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { auditApi.refineLoginLocation(pos.coords.latitude, pos.coords.longitude).catch(() => {}) },
+        () => {},
+        { timeout: 5000, maximumAge: 60000 }
+      )
+    }
     return r.data
   }
 

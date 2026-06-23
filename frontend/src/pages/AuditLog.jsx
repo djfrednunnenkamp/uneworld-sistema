@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { auditApi, usersApi, listsApi, passengersApi, agenciesApi } from '../api'
 import DateRangeDrop from '../components/DateRangeDrop'
+import LocationMap from '../components/LocationMap'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -534,6 +535,21 @@ function LogDetailPopup({ entry, onClose, navigate }) {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {entry.latitude != null && entry.longitude != null && (
+            <div style={{ marginTop: hasChanges ? 16 : 0 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Ic n="pin" s={11} /> {[entry.geo_city, entry.geo_country].filter(Boolean).join(', ') || (entry.geo_precise ? 'Localização do navegador' : 'Localização aproximada')}
+                {entry.geo_precise && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '1px 6px', borderRadius: 20, textTransform: 'none', letterSpacing: 0 }}>
+                    precisa (navegador)
+                  </span>
+                )}
+              </p>
+              <LocationMap lat={entry.latitude} lng={entry.longitude}
+                label={[entry.geo_city, entry.geo_country].filter(Boolean).join(', ')} />
             </div>
           )}
         </div>

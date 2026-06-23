@@ -113,6 +113,7 @@ export const auditApi = {
   logPageView: (path, label)  => api.post('/audit/page-view/', { path, label }),
   logUpload:   (data)         => api.post('/audit/log-upload/', data),
   logDownload: (data)         => api.post('/audit/log-download/', data),
+  refineLoginLocation: (latitude, longitude) => api.post('/audit/refine-login-location/', { latitude, longitude }),
 }
 
 export const agendaApi = {

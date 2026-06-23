@@ -7,6 +7,9 @@
 db.sqlite3
 *.sqlite3
 
+# Banco GeoLite2 (baixado via `python manage.py update_geoip` — licenciado, não versionar)
+geoip_db/
+
 # Python
 __pycache__/
 *.py[cod]

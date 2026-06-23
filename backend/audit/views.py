@@ -16,6 +16,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'user_display', 'action', 'action_label',
             'model_name', 'model_label', 'object_id', 'object_repr',
             'changes', 'ip_address',
+            'geo_city', 'geo_country', 'latitude', 'longitude', 'geo_precise',
         ]
 
     def get_timestamp_br(self, obj):
@@ -233,3 +234,26 @@ def log_page_view(request):
         ip_address=get_current_ip(),
     )
     return Response({'ok': True}, status=201)
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
+def refine_login_location(request):
+    """Recebe a localização precisa do navegador (com consentimento da
+    pessoa, via navigator.geolocation) e refina o login mais recente dela,
+    que até então só tinha a localização aproximada pelo IP (GeoLite2)."""
+    try:
+        lat = float(request.data.get('latitude'))
+        lng = float(request.data.get('longitude'))
+    except (TypeError, ValueError):
+        return Response({'error': 'latitude e longitude são obrigatórios.'}, status=400)
+
+    entry = AuditLog.objects.filter(user=request.user, action='login').order_by('-timestamp').first()
+    if not entry:
+        return Response({'error': 'Nenhum login recente encontrado.'}, status=404)
+
+    entry.latitude = lat
+    entry.longitude = lng
+    entry.geo_precise = True
+    entry.save(update_fields=['latitude', 'longitude', 'geo_precise'])
+    return Response({'ok': True})

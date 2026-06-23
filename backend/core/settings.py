@@ -141,6 +141,9 @@ RESEND_FROM     = config('RESEND_FROM_EMAIL', default='UneWorld Turismo <noreply
 FRONTEND_URL    = config('FRONTEND_URL', default='http://localhost:5173')
 BACKEND_URL          = config('BACKEND_URL',          default='')
 EMAIL_PREVIEW_ENABLED = config('EMAIL_PREVIEW_ENABLED', default='True') == 'True'
+MAXMIND_ACCOUNT_ID  = config('MAXMIND_ACCOUNT_ID', default='')
+MAXMIND_LICENSE_KEY = config('MAXMIND_LICENSE_KEY', default='')
+GEOIP_DB_PATH = BASE_DIR / 'geoip_db' / 'GeoLite2-City.mmdb'
 CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
 CSRF_TRUSTED_ORIGINS = [

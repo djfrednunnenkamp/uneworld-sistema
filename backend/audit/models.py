@@ -26,9 +26,29 @@ class AuditLog(models.Model):
     changes      = models.JSONField('Alterações', default=dict)
     ip_address   = models.GenericIPAddressField('Endereço IP', null=True, blank=True)
 
+    # Localização do IP (GeoLite2) — preenchida automaticamente ao salvar
+    # quando há ip_address. lat/lng do navegador (mais precisos, com
+    # consentimento da pessoa) sobrescrevem os do IP quando disponíveis.
+    geo_city      = models.CharField('Cidade', max_length=120, blank=True)
+    geo_country   = models.CharField('País', max_length=120, blank=True)
+    latitude      = models.FloatField('Latitude', null=True, blank=True)
+    longitude     = models.FloatField('Longitude', null=True, blank=True)
+    geo_precise   = models.BooleanField('Localização precisa (navegador)', default=False)
+
     class Meta:
         ordering = ['-timestamp']
         verbose_name = 'Log de auditoria'
 
     def __str__(self):
         return f'{self.timestamp:%d/%m/%Y %H:%M} | {self.user_display} | {self.get_action_display()} | {self.model_label}'
+
+    def save(self, *args, **kwargs):
+        if self.pk is None and self.ip_address and self.latitude is None:
+            from .geoip import locate_ip
+            geo = locate_ip(self.ip_address)
+            if geo:
+                self.geo_city = geo['city']
+                self.geo_country = geo['country']
+                self.latitude = geo['latitude']
+                self.longitude = geo['longitude']
+        super().save(*args, **kwargs)
