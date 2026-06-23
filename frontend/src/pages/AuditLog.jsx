@@ -572,21 +572,21 @@ function LogRow({ entry, onClick, even }) {
       <td style={{ padding: '11px 16px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
         {entry.timestamp_br}
       </td>
-      <td style={{ padding: '11px 16px' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#1e293b' }}>
+      <td style={{ padding: '11px 16px', overflow: 'hidden' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#1e293b', overflow: 'hidden' }}>
           <Avatar name={entry.user_display || 'Sistema'} />
-          {entry.user_display || 'Sistema'}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.user_display || 'Sistema'}</span>
         </span>
       </td>
-      <td style={{ padding: '11px 16px' }}>
+      <td style={{ padding: '11px 16px', overflow: 'hidden' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: style.bg, color: style.color, border: `1px solid ${style.border}`, whiteSpace: 'nowrap' }}>
           <Ic n={style.icon} s={10} /> {style.label}
         </span>
       </td>
-      <td style={{ padding: '11px 16px', fontSize: 13, color: '#475569' }}>
+      <td style={{ padding: '11px 16px', fontSize: 13, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {entry.model_label}
       </td>
-      <td style={{ padding: '11px 16px', fontSize: 13, color: '#1e293b', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 16px', fontSize: 13, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {entry.object_repr}
       </td>
       <td style={{ padding: '11px 16px', textAlign: 'center' }}>
@@ -603,8 +603,8 @@ function LogRow({ entry, onClick, even }) {
   )
 }
 
-const TH = ({ children, align = 'center' }) => (
-  <th style={{ padding: '11px 16px', textAlign: align, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap', background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+const TH = ({ children, align = 'center', width }) => (
+  <th style={{ padding: '11px 16px', textAlign: align, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap', background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', width }}>
     {children}
   </th>
 )
@@ -888,16 +888,16 @@ export default function AuditLog() {
       {/* Tabela */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <TH>Data / Hora</TH>
-                <TH>Usuário</TH>
-                <TH>Ação</TH>
-                <TH>Tipo</TH>
-                <TH>Descrição</TH>
-                <TH align="center">Campos</TH>
-                <TH align="center">IP</TH>
+                <TH width="13%">Data / Hora</TH>
+                <TH width="17%">Usuário</TH>
+                <TH width="11%">Ação</TH>
+                <TH width="13%">Tipo</TH>
+                <TH width="29%">Descrição</TH>
+                <TH width="9%">Campos</TH>
+                <TH width="8%">IP</TH>
               </tr>
             </thead>
             <tbody>
