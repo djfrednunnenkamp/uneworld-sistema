@@ -261,13 +261,12 @@ export const PERM_GROUPS = [
       },
     ],
   },
-  {
-    title: 'Log do Sistema',
-    icon: 'list',
-    items: [
-      ['log_view', 'Ver log do sistema (todas as áreas)'],
-    ],
-  },
+  // "Log do Sistema" (log_view) foi removido da UI de permissões — concedia
+  // acesso a TODAS as áreas de log de uma vez, duplicando o que já é
+  // controlado individualmente em cada área (Ver log de atividades de
+  // passageiros/agências/listas/usuários/configurações). Mantido como campo
+  // legado (igual manage_users/manage_settings/view_audit_log) só por
+  // compatibilidade com quem já tinha essa permissão concedida.
 ]
 
 export const PERM_DEPENDENCIES = {

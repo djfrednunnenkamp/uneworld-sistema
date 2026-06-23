@@ -6,6 +6,7 @@ PERMISSION_FIELDS = [
     'manage_users',
     'manage_settings',
     'view_audit_log',
+    'log_view',
     # Visão Geral (Dashboard)
     'dashboard_view_passengers',
     'dashboard_view_lists',
@@ -50,6 +51,7 @@ PERMISSION_FIELDS = [
     'users_manage_permissions',
     'users_set_password',
     'users_view_logs',
+    'log_page_views',
     # Configurações — acesso global
     'settings_view',
     'settings_csv_import',
@@ -76,9 +78,6 @@ PERMISSION_FIELDS = [
     'settings_airports_view', 'settings_airports_edit', 'settings_airports_delete', 'settings_airports_bulk_delete', 'settings_airports_bulk_import', 'settings_airports_import_web',
     'settings_airlines_view', 'settings_airlines_edit', 'settings_airlines_delete', 'settings_airlines_bulk_delete', 'settings_airlines_bulk_import', 'settings_airlines_import_web',
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
-    # Log do sistema
-    'log_view',
-    'log_page_views',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
