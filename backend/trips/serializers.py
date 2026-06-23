@@ -332,22 +332,33 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
         return None
 
+    def _doc_to_dict(self, d, auto=False):
+        codes = self.context.get('country_codes')
+        if codes is None:
+            from config_api.models import ConfigCountry
+            codes = {c.name: c.code for c in ConfigCountry.objects.filter(name=d.issued_by)} if d.issued_by else {}
+        return {
+            'id': d.id,
+            'doc_type': d.doc_type,
+            'doc_number': d.doc_number,
+            'issued_date': str(d.issued_date) if d.issued_date else None,
+            'expiry_date': str(d.expiry_date) if d.expiry_date else None,
+            'issued_by': d.issued_by,
+            'country': codes.get(d.issued_by, d.issued_by[:3].upper() if d.issued_by else ''),
+            'auto': auto,
+        }
+
     def get_selected_passport_data(self, obj):
         if obj.selected_passport_id:
-            d = obj.selected_passport
-            codes = self.context.get('country_codes')
-            if codes is None:
-                from config_api.models import ConfigCountry
-                codes = {c.name: c.code for c in ConfigCountry.objects.filter(name=d.issued_by)} if d.issued_by else {}
-            return {
-                'id': d.id,
-                'doc_type': d.doc_type,
-                'doc_number': d.doc_number,
-                'issued_date': str(d.issued_date) if d.issued_date else None,
-                'expiry_date': str(d.expiry_date) if d.expiry_date else None,
-                'issued_by': d.issued_by,
-                'country': codes.get(d.issued_by, d.issued_by[:3].upper() if d.issued_by else ''),
-            }
+            return self._doc_to_dict(obj.selected_passport)
+        # Nenhum documento escolhido ainda — se o passageiro só tem UM
+        # documento útil (passaporte ou RG) cadastrado, sugere ele já
+        # preenchido (sem gravar no banco), marcado como "auto" pra exibir
+        # um aviso de verificação até alguém confirmar de fato.
+        if obj.passenger_id:
+            docs = list(obj.passenger.documents.filter(doc_type__in=['passport', 'rg']))
+            if len(docs) == 1:
+                return self._doc_to_dict(docs[0], auto=True)
         return None
 
     class Meta:

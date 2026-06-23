@@ -1195,7 +1195,9 @@ function QuickEditModal({ enrollment, listId, listType, startDate, initialFocus,
   const [genders, setGenders] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
-  const [selectedPassport, setSelectedPassport] = useState(enrollment.selected_passport || null)
+  const [selectedPassport, setSelectedPassport] = useState(
+    enrollment.selected_passport || (enrollment.selected_passport_data?.auto ? enrollment.selected_passport_data.id : null)
+  )
   const [viewingDoc,       setViewingDoc]       = useState(null)
   const passportSectionRef = useRef(null)
   const rgSectionRef       = useRef(null)
@@ -4309,6 +4311,11 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
     listsApi.ackRoomSameSex(listId, room.id, ack).then(loadRooms).catch(() => toast.error('Erro ao atualizar confirmação.'))
   }
 
+  // Confirma o documento sugerido automaticamente (passageiro só tinha 1) como o escolhido pra viagem
+  const confirmAutoDoc = (enrollmentId, docId) => {
+    listsApi.updatePassenger(listId, enrollmentId, { selected_passport: docId }).then(load).catch(() => toast.error('Erro ao confirmar documento.'))
+  }
+
   const silentLoad = useCallback(() => {
     listsApi.listPassengers(listId)
       .then(r => setEnrolled(r.data))
@@ -4629,7 +4636,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
               {h:'Nasc.',     align:'center'},
               {h:'Nac.',      align:'center'},
               {h:'Gên.',      align:'center'},
-              {h:'Passaporte',align:'center'},
+              {h:'Documento',align:'center'},
               {h:'CPF',       align:'center'},
               {h:'Agência',   align:'left'},
               {h:'Ações',     align:'center'},
@@ -4999,11 +5006,28 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                     <span style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1, overflow:'hidden' }}>
                       {e.is_block ? (
                         <span style={{ fontSize:13, color:'#475569' }}>—</span>
+                      ) : e.selected_passport_data?.auto ? (
+                        <span title="Único documento cadastrado — selecionado automaticamente. Confirme se está correto."
+                          style={{ fontSize:11.5, fontWeight:600, background:'#eff6ff', color:'#2e6db4', border:'1px solid #dbeafe', padding:'2px 6px 2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:5, overflow:'hidden', maxWidth:'100%' }}>
+                          <span style={{ display:'flex', alignItems:'center', gap:4, fontFamily:'monospace', cursor:'pointer', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                            onClick={() => copy(e.selected_passport_data.doc_number)}>
+                            <span>{e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}</span>
+                            <span>{e.selected_passport_data.doc_number || '—'}</span>
+                            {e.selected_passport_data.country && (
+                              <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#fff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{e.selected_passport_data.country.toUpperCase()}</span>
+                            )}
+                          </span>
+                          <button type="button" onClick={() => confirmAutoDoc(e.id, e.selected_passport_data.id)}
+                            title="Confirmar este documento pra viagem"
+                            style={{ width:15, height:15, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'50%', border:'1px solid #2e6db4', background:'#fff', color:'#2e6db4', fontSize:9, fontWeight:700, cursor:'pointer', padding:0, lineHeight:1, flexShrink:0 }}>
+                            ✓
+                          </button>
+                        </span>
                       ) : e.selected_passport_data ? (
                         <span onClick={() => copy(e.selected_passport_data.doc_number)} title="Documento selecionado para esta viagem — clique para copiar"
                           style={{ fontSize:12.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
-                          {e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}
-                          {e.selected_passport_data.doc_number || '—'}
+                          <span>{e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}</span>
+                          <span>{e.selected_passport_data.doc_number || '—'}</span>
                           {e.selected_passport_data.country && (
                             <span style={{ fontSize:10, fontWeight:700, color:'#2e6db4', background:'#eff6ff', border:'1px solid #dbeafe', borderRadius:4, padding:'1px 4px', letterSpacing:'.03em', flexShrink:0 }}>{e.selected_passport_data.country.toUpperCase()}</span>
                           )}
