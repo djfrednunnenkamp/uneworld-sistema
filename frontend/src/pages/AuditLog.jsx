@@ -572,10 +572,10 @@ function LogRow({ entry, onClick, even }) {
       <td style={{ padding: '11px 16px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap', textAlign: 'center' }}>
         {entry.timestamp_br}
       </td>
-      <td style={{ padding: '11px 16px', overflow: 'hidden' }}>
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#1e293b', overflow: 'hidden' }}>
+      <td style={{ padding: '11px 16px', overflow: 'hidden', textAlign: 'center' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#1e293b', width: 180, maxWidth: '100%' }}>
           <Avatar name={entry.user_display || 'Sistema'} />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.user_display || 'Sistema'}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>{entry.user_display || 'Sistema'}</span>
         </span>
       </td>
       <td style={{ padding: '11px 16px', overflow: 'hidden', textAlign: 'center' }}>
