@@ -1,6 +1,7 @@
 """Resolve IP -> localização aproximada usando o banco GeoLite2 (offline, sem
 limite de consultas). Banco baixado via `python manage.py update_geoip`."""
 import geoip2.database
+import requests
 from django.conf import settings
 
 _reader = None
@@ -34,3 +35,23 @@ def locate_ip(ip_address):
         'latitude': result.location.latitude,
         'longitude': result.location.longitude,
     }
+
+
+def reverse_geocode(latitude, longitude):
+    """Endereço legível a partir de lat/lng via Nominatim (OpenStreetMap) —
+    gratuito, mas com limite de 1 requisição/segundo, então só deve ser
+    chamado em ações pontuais (login/logout), nunca em todo AuditLog criado."""
+    if latitude is None or longitude is None:
+        return ''
+    try:
+        r = requests.get(
+            'https://nominatim.openstreetmap.org/reverse',
+            params={'format': 'jsonv2', 'lat': latitude, 'lon': longitude, 'zoom': 18, 'addressdetails': 0},
+            headers={'User-Agent': 'uneworld-sistema (audit-log-location)'},
+            timeout=5,
+        )
+        if r.status_code == 200:
+            return r.json().get('display_name', '') or ''
+    except Exception:
+        pass
+    return ''

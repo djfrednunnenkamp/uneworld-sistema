@@ -11,18 +11,23 @@ const markerIcon = new L.Icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
 })
 
-export default function LocationMap({ lat, lng, label, height = 200 }) {
+export default function LocationMap({ lat, lng, height = 200 }) {
   const ref = useRef(null)
   const mapRef = useRef(null)
 
   useEffect(() => {
     if (!ref.current || lat == null || lng == null) return
-    const map = L.map(ref.current, { attributionControl: false, zoomControl: false }).setView([lat, lng], 11)
+    const map = L.map(ref.current, { attributionControl: false, zoomControl: false }).setView([lat, lng], 13)
     mapRef.current = map
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map)
-    L.marker([lat, lng], { icon: markerIcon }).addTo(map).bindPopup(label || '').openPopup()
+    // CartoDB Positron — visual limpo e claro, sem a poluição de cores e
+    // rótulos de estrada do tile padrão do OpenStreetMap.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd',
+    }).addTo(map)
+    L.marker([lat, lng], { icon: markerIcon }).addTo(map)
     return () => { map.remove(); mapRef.current = null }
-  }, [lat, lng, label])
+  }, [lat, lng])
 
   if (lat == null || lng == null) return null
 

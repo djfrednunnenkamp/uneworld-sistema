@@ -34,6 +34,7 @@ class AuditLog(models.Model):
     latitude      = models.FloatField('Latitude', null=True, blank=True)
     longitude     = models.FloatField('Longitude', null=True, blank=True)
     geo_precise   = models.BooleanField('Localização precisa (navegador)', default=False)
+    geo_address   = models.CharField('Endereço', max_length=500, blank=True)
 
     class Meta:
         ordering = ['-timestamp']
@@ -44,11 +45,15 @@ class AuditLog(models.Model):
 
     def save(self, *args, **kwargs):
         if self.pk is None and self.ip_address and self.latitude is None:
-            from .geoip import locate_ip
+            from .geoip import locate_ip, reverse_geocode
             geo = locate_ip(self.ip_address)
             if geo:
                 self.geo_city = geo['city']
                 self.geo_country = geo['country']
                 self.latitude = geo['latitude']
                 self.longitude = geo['longitude']
+                # Nominatim tem limite de 1 req/s — só vale a pena chamar pra
+                # login/logout (pontual), nunca pra todo AuditLog criado.
+                if self.action in ('login', 'logout'):
+                    self.geo_address = reverse_geocode(geo['latitude'], geo['longitude'])
         super().save(*args, **kwargs)

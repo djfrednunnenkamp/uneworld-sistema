@@ -469,6 +469,16 @@ function LogDetailPopup({ entry, onClose, navigate }) {
   const isUpdate = entry.action === 'update'
   const link = RECORD_LINKS[entry.model_name]
   const hasLink = link && entry.object_id
+  const [addressCopied, setAddressCopied] = useState(false)
+
+  const copyAddress = async () => {
+    if (!entry.geo_address) return
+    try {
+      await navigator.clipboard.writeText(entry.geo_address)
+      setAddressCopied(true)
+      setTimeout(() => setAddressCopied(false), 1800)
+    } catch {}
+  }
 
   return (
     <div style={{
@@ -548,8 +558,25 @@ function LogDetailPopup({ entry, onClose, navigate }) {
                   </span>
                 )}
               </p>
-              <LocationMap lat={entry.latitude} lng={entry.longitude}
-                label={[entry.geo_city, entry.geo_country].filter(Boolean).join(', ')} />
+              <LocationMap lat={entry.latitude} lng={entry.longitude} />
+              {entry.geo_address && (
+                <div onClick={copyAddress} title="Clique para copiar"
+                  style={{
+                    position: 'relative', marginTop: 8, padding: '8px 12px', borderRadius: 8,
+                    background: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#2e6db4'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}>
+                  <Ic n="docs" s={13} />
+                  <span style={{ fontSize: 12.5, color: '#475569', flex: 1 }}>{entry.geo_address}</span>
+                  {addressCopied && (
+                    <span style={{ position: 'absolute', top: -16, right: 8, background: '#059669', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                      ✓ Copiado
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

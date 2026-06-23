@@ -16,7 +16,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'user_display', 'action', 'action_label',
             'model_name', 'model_label', 'object_id', 'object_repr',
             'changes', 'ip_address',
-            'geo_city', 'geo_country', 'latitude', 'longitude', 'geo_precise',
+            'geo_city', 'geo_country', 'latitude', 'longitude', 'geo_precise', 'geo_address',
         ]
 
     def get_timestamp_br(self, obj):
@@ -252,8 +252,10 @@ def refine_login_location(request):
     if not entry:
         return Response({'error': 'Nenhum login recente encontrado.'}, status=404)
 
+    from .geoip import reverse_geocode
     entry.latitude = lat
     entry.longitude = lng
     entry.geo_precise = True
-    entry.save(update_fields=['latitude', 'longitude', 'geo_precise'])
+    entry.geo_address = reverse_geocode(lat, lng)
+    entry.save(update_fields=['latitude', 'longitude', 'geo_precise', 'geo_address'])
     return Response({'ok': True})
