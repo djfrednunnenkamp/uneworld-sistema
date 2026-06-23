@@ -967,7 +967,7 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 class AirportSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Airport
-        fields = ['id', 'name', 'iata_code', 'city', 'country']
+        fields = ['id', 'name', 'iata_code', 'city', 'country', 'is_favorite']
 
 
 class ConfigListPagination(PageNumberPagination):
@@ -996,7 +996,9 @@ class AirportViewSet(viewsets.ModelViewSet):
             qs = qs.filter(
                 Q(name__icontains=q) | Q(iata_code__icontains=q) | Q(city__icontains=q)
             )
-        return qs
+        if self.request.query_params.get('favorites') in ('1', 'true', 'True'):
+            qs = qs.filter(is_favorite=True)
+        return qs.order_by('-is_favorite', 'name')
 
     @action(detail=False, methods=['get'], url_path='country-suggestions')
     def country_suggestions(self, request):

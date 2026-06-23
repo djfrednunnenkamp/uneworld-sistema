@@ -510,7 +510,10 @@ function AirportPicker({ value, onChange, placeholder }) {
   useEffect(() => {
     if (!open) return
     const t = setTimeout(() => {
-      configApi.airports({ q: query }).then(r => setOptions(r.data.results ?? r.data)).catch(() => {})
+      // Sem busca digitada: mostra só os favoritos (marcados em Configurações > Aeroportos).
+      // Com busca: pesquisa em todos os aeroportos, não só nos favoritos.
+      const params = query ? { q: query } : { favorites: 1 }
+      configApi.airports(params).then(r => setOptions(r.data.results ?? r.data)).catch(() => {})
     }, 200)
     return () => clearTimeout(t)
   }, [query, open])
@@ -525,9 +528,14 @@ function AirportPicker({ value, onChange, placeholder }) {
 
   const dropdown = open && rect && createPortal(
     <div style={{ position:'fixed', top: rect.bottom + 2, left: rect.left, width: rect.width, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:260, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+      {!query && options.length > 0 && (
+        <p style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', padding:'8px 12px 4px', margin:0 }}>
+          ★ Favoritos
+        </p>
+      )}
       {options.length === 0 ? (
         <p style={{ textAlign:'center', padding:'16px 0', color:'#94a3b8', fontSize:13, margin:0 }}>
-          {query.length >= 1 ? 'Nenhum aeroporto encontrado.' : 'Digite para buscar…'}
+          {query.length >= 1 ? 'Nenhum aeroporto encontrado.' : 'Nenhum favorito ainda — digite para buscar outro aeroporto.'}
         </p>
       ) : options.map(a => (
         <div key={a.id}
@@ -535,6 +543,7 @@ function AirportPicker({ value, onChange, placeholder }) {
           style={{ padding:'9px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid #f1f5f9' }}
           onMouseEnter={e => e.currentTarget.style.background='#f0f7ff'}
           onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+          {a.is_favorite && <span style={{ fontSize:12, color:'#f59e0b', flexShrink:0 }}>★</span>}
           {a.iata_code && (
             <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, fontFamily:'monospace', flexShrink:0 }}>{a.iata_code}</span>
           )}
