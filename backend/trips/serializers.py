@@ -288,13 +288,21 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     origin_airport_data      = serializers.SerializerMethodField()
 
     def get_agency_name(self, obj):
-        if obj.agency:
-            a = obj.agency
+        def _name(a):
             if a.person_type == 'fisica':
-                full_name = f'{a.name} {a.last_name}'.strip()
-                return a.company_name or full_name or ''
+                return a.company_name or f'{a.name} {a.last_name}'.strip() or ''
             return a.name or a.company_name or ''
-        return obj.block_agency or ''
+        if obj.agency:
+            return _name(obj.agency)
+        if obj.block_agency:
+            return obj.block_agency
+        # Sem agência específica nesta inscrição — usa as agências vinculadas
+        # ao cadastro do passageiro (Passenger.agencies). Se tiver mais de
+        # uma, junta com vírgula.
+        if obj.passenger_id:
+            names = [_name(a) for a in obj.passenger.agencies.all()]
+            return ', '.join(filter(None, names))
+        return ''
 
     def get_responsible_user_name(self, obj):
         if obj.responsible_user:

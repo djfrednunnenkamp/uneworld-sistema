@@ -4651,7 +4651,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 145px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 145px 96px 90px 90px', columnGap:10, padding:'8px 10px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 145px 118px 110px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 145px 118px 110px 90px', columnGap:10, padding:'8px 10px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {/* Checkbox select-all */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
               <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -4832,7 +4832,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 145px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 145px 96px 90px 90px', columnGap:10, padding:'8px 10px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 145px 118px 110px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 145px 118px 110px 90px', columnGap:10, padding:'8px 10px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -5096,9 +5096,9 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                       style={{ fontSize:13, color:'#475569', fontFamily:'monospace', textAlign:'center', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor: e.is_block ? 'default' : 'pointer' }}>{e.is_block ? '—' : cpf}</span>
 
                     {/* Agência */}
-                    <span onClick={() => copy(e.agency_name)} title="Clique para copiar"
+                    <span onClick={() => copy(e.agency_name)} title={e.agency_name || 'Clique para copiar'}
                       style={{ fontSize:12, color:'#475569', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
-                      {(e.is_provisional && !e.agency) ? '—' : (e.agency_name || '—')}
+                      {e.agency_name || '—'}
                     </span>
 
                     {/* Ações */}

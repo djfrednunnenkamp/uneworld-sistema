@@ -141,7 +141,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             entries = list(pl.list_enrollments.select_related(
                 'passenger', 'agency', 'responsible_user', 'departure_airport', 'selected_passport'
             ).prefetch_related(
-                'additionals', 'crew_roles',
+                'additionals', 'crew_roles', 'passenger__agencies',
                 Prefetch('passenger__documents', queryset=passport_docs_qs, to_attr='passport_docs'),
             ).all())
 
