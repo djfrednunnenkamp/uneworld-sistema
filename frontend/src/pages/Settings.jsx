@@ -1011,7 +1011,7 @@ export default function Settings() {
   const { user } = useAuth()
   const isSu = !!user?.is_superuser
   const myP  = user?.permissions ?? {}
-  const canViewLog = isSu || !!myP.view_audit_log || !!myP.log_view || !!myP.log_settings
+  const canViewLog = isSu || !!myP.view_audit_log || !!myP.log_view || !!myP.settings_view_logs
   const can  = (permBase, action) => {
     if (isSu || myP.manage_settings) return true
     if (action === 'view')         return !!(myP[`${permBase}_view`]         || myP[permBase])

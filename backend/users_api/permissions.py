@@ -49,10 +49,12 @@ PERMISSION_FIELDS = [
     'users_delete',
     'users_manage_permissions',
     'users_set_password',
+    'users_view_logs',
     # Configurações — acesso global
     'settings_view',
     'settings_csv_import',
     'settings_csv_export',
+    'settings_view_logs',
     # Configurações — legado
     'settings_professions', 'settings_languages', 'settings_countries',
     'settings_genders', 'settings_vaccines', 'settings_doc_types',
@@ -76,11 +78,6 @@ PERMISSION_FIELDS = [
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
     # Log do sistema
     'log_view',
-    'log_passengers',
-    'log_lists',
-    'log_agencies',
-    'log_users',
-    'log_settings',
     'log_page_views',
 ]
 
@@ -113,7 +110,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_airlines_view', 'settings_airlines_edit', 'settings_airlines_delete', 'settings_airlines_bulk_delete', 'settings_airlines_bulk_import', 'settings_airlines_import_web',
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
     # Log do sistema
-    'log_view', 'log_passengers', 'log_lists', 'log_agencies', 'log_users', 'log_settings', 'log_page_views',
+    'log_view', 'log_page_views',
 ]
 
 

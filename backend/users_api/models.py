@@ -84,11 +84,13 @@ class UserPermissions(models.Model):
     users_delete             = models.BooleanField(default=False)
     users_manage_permissions = models.BooleanField(default=False)
     users_set_password       = models.BooleanField(default=False)
+    users_view_logs          = models.BooleanField(default=False)
 
     # Configurações — acesso global
     settings_view             = models.BooleanField(default=False)
     settings_csv_import       = models.BooleanField(default=False)
     settings_csv_export       = models.BooleanField(default=False)
+    settings_view_logs        = models.BooleanField(default=False)
 
     # Configurações — legado (acesso completo à seção; mantido para compatibilidade)
     settings_professions      = models.BooleanField(default=False)
@@ -183,13 +185,10 @@ class UserPermissions(models.Model):
     settings_bus_maps_edit           = models.BooleanField(default=False)
     settings_bus_maps_delete         = models.BooleanField(default=False)
 
-    # Log do sistema
+    # Log do sistema — por área usa a mesma permissão "_view_logs" de cada
+    # área (passengers_view_logs, lists_view_logs, agencies_view_logs,
+    # users_view_logs, settings_view_logs), em vez de duplicar aqui.
     log_view       = models.BooleanField(default=False)
-    log_passengers = models.BooleanField(default=False)
-    log_lists      = models.BooleanField(default=False)
-    log_agencies   = models.BooleanField(default=False)
-    log_users      = models.BooleanField(default=False)
-    log_settings   = models.BooleanField(default=False)
     log_page_views = models.BooleanField(default=False)
 
     class Meta:

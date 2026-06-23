@@ -78,11 +78,14 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
         current_user = self.request.user
         has_global = has_any_perm(current_user, 'view_audit_log', 'log_view')
-        has_log_passengers = has_global or has_any_perm(current_user, 'log_passengers')
-        has_log_lists      = has_global or has_any_perm(current_user, 'log_lists')
-        has_log_agencies   = has_global or has_any_perm(current_user, 'log_agencies')
-        has_log_users      = has_global or has_any_perm(current_user, 'log_users')
-        has_log_settings   = has_global or has_any_perm(current_user, 'log_settings')
+        # Cada área usa a MESMA permissão "_view_logs" já configurada na sua
+        # própria seção (Passageiros, Agências, Listas, Usuários,
+        # Configurações) — evita duplicar a mesma decisão em dois lugares.
+        has_log_passengers = has_global or has_any_perm(current_user, 'passengers_view_logs')
+        has_log_lists      = has_global or has_any_perm(current_user, 'lists_view_logs')
+        has_log_agencies   = has_global or has_any_perm(current_user, 'agencies_view_logs')
+        has_log_users      = has_global or has_any_perm(current_user, 'users_view_logs')
+        has_log_settings   = has_global or has_any_perm(current_user, 'settings_view_logs')
         has_any_area = (has_log_passengers or has_log_lists or has_log_agencies
                         or has_log_users or has_log_settings)
         has_page_view_access = has_global or has_any_perm(current_user, 'log_page_views')

@@ -177,7 +177,7 @@ export default function Passengers() {
   const canEdit    = !!user?.is_superuser || perms.passengers_edit
   const canDelete  = !!user?.is_superuser || perms.passengers_delete
   const canDocs    = !!user?.is_superuser || perms.passengers_download_docs
-  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.log_passengers || perms.log_view
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.passengers_view_logs || perms.log_view
   const canViewPassengerLog = !!user?.is_superuser || perms.passengers_view_logs || perms.view_audit_log
   const cols       = canFull ? COLS : COLS.map(c => SENSITIVE_COLS.includes(c.key)
     ? { ...c, render: () => <span style={{ color:'#cbd5e1' }}>—</span> }

@@ -88,6 +88,7 @@ export const PERM_GROUPS = [
       ['users_delete',             'Excluir usuários permanentemente'],
       ['users_manage_permissions', 'Gerenciar permissões'],
       ['users_set_password',       'Definir senha via admin'],
+      ['users_view_logs',          'Ver log de atividades de usuários'],
     ],
   },
   {
@@ -100,6 +101,7 @@ export const PERM_GROUPS = [
           ['settings_view',       'Acessar a aba Configurações'],
           ['settings_csv_import', 'Importar CSV global'],
           ['settings_csv_export', 'Exportar CSV global'],
+          ['settings_view_logs',  'Ver log de atividades de Configurações'],
         ],
       },
       // A partir daqui, mesma ordem alfabética (e mesmo ícone) dos cards da página Configurações
@@ -265,17 +267,7 @@ export const PERM_GROUPS = [
       {
         label: 'Acesso',
         items: [
-          ['log_view', 'Ver log do sistema'],
-        ],
-      },
-      {
-        label: 'Por área',
-        items: [
-          ['log_passengers', 'Passageiros'],
-          ['log_lists',      'Listas de passageiros'],
-          ['log_agencies',   'Agências'],
-          ['log_users',      'Usuários'],
-          ['log_settings',   'Configurações'],
+          ['log_view', 'Ver log do sistema (todas as áreas)'],
         ],
       },
       {
@@ -320,6 +312,7 @@ export const PERM_DEPENDENCIES = {
   users_delete:             'users_view',
   users_manage_permissions: 'users_view',
   users_set_password:       'users_view',
+  users_view_logs:          'users_view',
 
   settings_doc_types_view:        'settings_view',
   settings_doc_types_edit:        'settings_doc_types_view',
@@ -435,11 +428,8 @@ export const PERM_DEPENDENCIES = {
     'settings_airports_bulk_import', 'settings_airlines_bulk_import',
   ],
 
-  log_passengers: 'log_view',
-  log_lists:      'log_view',
-  log_agencies:   'log_view',
-  log_users:      'log_view',
-  log_settings:   'log_view',
+  settings_view_logs: 'settings_view',
+
   log_page_views: 'log_view',
 }
 

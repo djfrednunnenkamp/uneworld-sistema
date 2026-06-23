@@ -231,7 +231,7 @@ export default function Agencies() {
   const perms     = user?.permissions ?? {}
   const canEdit    = !!user?.is_superuser || perms.agencies_edit
   const canDelete  = !!user?.is_superuser || perms.agencies_delete
-  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.log_agencies || perms.log_view
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.agencies_view_logs || perms.log_view
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)

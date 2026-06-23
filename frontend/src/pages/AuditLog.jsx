@@ -638,11 +638,11 @@ export default function AuditLog() {
   // quem só pode ver as próprias ações (filtrar por outro usuário não faz
   // diferença nenhuma nesse caso).
   const hasGlobalLog     = !!user?.is_superuser || !!myP.view_audit_log || !!myP.log_view
-  const hasPassengersLog = hasGlobalLog || !!myP.log_passengers
-  const hasListsLog      = hasGlobalLog || !!myP.log_lists
-  const hasAgenciesLog   = hasGlobalLog || !!myP.log_agencies
-  const hasUsersLog      = hasGlobalLog || !!myP.log_users
-  const hasSettingsLog   = hasGlobalLog || !!myP.log_settings
+  const hasPassengersLog = hasGlobalLog || !!myP.passengers_view_logs
+  const hasListsLog      = hasGlobalLog || !!myP.lists_view_logs
+  const hasAgenciesLog   = hasGlobalLog || !!myP.agencies_view_logs
+  const hasUsersLog      = hasGlobalLog || !!myP.users_view_logs
+  const hasSettingsLog   = hasGlobalLog || !!myP.settings_view_logs
   const canViewPageViews = hasGlobalLog || !!myP.log_page_views
   const hasAnyAreaLog    = hasPassengersLog || hasListsLog || hasAgenciesLog || hasUsersLog || hasSettingsLog
   const AREA_PERM = {
