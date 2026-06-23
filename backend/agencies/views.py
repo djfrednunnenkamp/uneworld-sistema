@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
+from core.merge import MergeViewSetMixin
 from users_api.permissions import RequirePermission
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
@@ -16,12 +17,21 @@ from .serializers import AgencySerializer, AgencyListSerializer
 VIEW_PERMS = ['agencies_view', 'passengers_edit', 'passengers_view_full', 'lists_edit']
 
 
-class AgencyViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
+class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelViewSet):
     queryset        = Agency.objects.all()
     pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields   = ['name', 'company_name', 'email', 'cnpj', 'responsible']
     ordering_fields = ['name', 'created_at']
+    MERGE_LABEL = 'Agência'
+
+    @property
+    def MERGE_RELATED(self):
+        from trips.models import ListEnrollment
+        return [
+            (ListEnrollment, 'agency', None),
+            (AgencyMember,   'agency', ['user']),
+        ]
 
     def get_serializer_class(self):
         return AgencyListSerializer if self.action == 'list' else AgencySerializer
@@ -31,6 +41,8 @@ class AgencyViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('agencies_delete')()]
         if self.action in ('create', 'update', 'partial_update'):
             return [RequirePermission('agencies_edit')()]
+        if self.action == 'merge':
+            return [RequirePermission('agencies_edit')(), RequirePermission('agencies_delete')()]
         if self.action == 'check_cnpj':
             # Endpoint utilitário usado durante o fluxo de criação/edição
             return [RequirePermission(*VIEW_PERMS, 'agencies_edit')()]

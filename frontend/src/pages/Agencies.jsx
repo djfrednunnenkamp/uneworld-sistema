@@ -5,6 +5,7 @@ import { agenciesApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import TrashTab from '../components/TrashTab'
+import MergeModal from '../components/MergeModal'
 import NewAgencyModal from '../components/NewAgencyModal'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
@@ -226,6 +227,29 @@ const STATUS_OPTS = [
   { value: 'inactive', label: 'Inativa'  },
 ]
 
+const MERGE_FIELDS = [
+  { key:'company_name',   label:'Razão social' },
+  { key:'name',            label:'Nome fantasia' },
+  { key:'last_name',       label:'Sobrenome' },
+  { key:'cnpj',            label:'CNPJ' },
+  { key:'cpf',             label:'CPF' },
+  { key:'phone',           label:'Telefone' },
+  { key:'mobile',          label:'Celular' },
+  { key:'email',           label:'E-mail' },
+  { key:'website',         label:'Website' },
+  { key:'commission_rate', label:'Comissão %' },
+  { key:'cep',             label:'CEP' },
+  { key:'street',          label:'Endereço' },
+  { key:'number',          label:'Número' },
+  { key:'complement',      label:'Complemento' },
+  { key:'neighborhood',    label:'Bairro' },
+  { key:'city',            label:'Cidade' },
+  { key:'state',           label:'Estado' },
+  { key:'country',         label:'País' },
+  { key:'pix_key_type',    label:'Tipo de chave PIX' },
+  { key:'pix_key',         label:'Chave PIX' },
+]
+
 export default function Agencies() {
   const navigate  = useNavigate()
   const { user }  = useAuth()
@@ -241,6 +265,7 @@ export default function Agencies() {
   const [statusF, setStatusF] = useState('all')
   const [showTrash, setShowTrash] = useState(false)
   const [deletedCount, setDeletedCount] = useState(0)
+  const [mergeRows, setMergeRows] = useState(null)
 
   const load = () => {
     setLoading(true)
@@ -340,6 +365,32 @@ export default function Agencies() {
           onView={(row) => setViewRow(row)}
           onDelete={canDelete ? (row) => setDelRow(row) : undefined}
           loading={loading}
+          bulkBar={(canEdit && canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
+            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:10 }}>
+              <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
+                {selRows.length} selecionados
+              </span>
+              <button type="button" onClick={() => setMergeRows({ rows: selRows, clearSelection })}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                <Ic n="merge" s={12}/> Mesclar
+              </button>
+              <button type="button" onClick={clearSelection}
+                style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+            </div>
+          ) : undefined}
+        />
+      )}
+
+      {mergeRows && (
+        <MergeModal
+          records={mergeRows.rows}
+          fields={MERGE_FIELDS}
+          getLabel={r => r.company_name || r.name}
+          onMerge={(payload) => agenciesApi.merge(payload)}
+          onClose={() => setMergeRows(null)}
+          onDone={() => { mergeRows.clearSelection(); setMergeRows(null); load() }}
         />
       )}
 

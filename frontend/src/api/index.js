@@ -16,6 +16,7 @@ export const passengersApi = {
   deleted:  ()       => api.get('/passengers/', { params: { deleted: 1 } }),
   restore:  (id)     => api.post(`/passengers/${id}/restore/`),
   purge:    (id)     => api.delete(`/passengers/${id}/purge/`),
+  merge:    (data)   => api.post('/passengers/merge/', data),
 }
 
 export const tripsApi = {
@@ -86,6 +87,7 @@ export const agenciesApi = {
   deleted:       ()       => api.get('/agencies/', { params: { deleted: 1 } }),
   restore:       (id)     => api.post(`/agencies/${id}/restore/`),
   purge:         (id)     => api.delete(`/agencies/${id}/purge/`),
+  merge:         (data)   => api.post('/agencies/merge/', data),
   // Membros
   listMembers:   (id)              => api.get(`/agencies/${id}/members/`),
   addMember:     (id, email, role) => api.post(`/agencies/${id}/members/`, { email, role }),

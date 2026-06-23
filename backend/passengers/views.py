@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
+from core.merge import MergeViewSetMixin
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import Passenger, PassengerDocument
 from .serializers import PassengerSerializer, PassengerListSerializer, PassengerDocumentSerializer
@@ -16,12 +17,23 @@ from .serializers import PassengerSerializer, PassengerListSerializer, Passenger
 VIEW_PERMS = ('passengers_view_basic', 'passengers_view_full')
 
 
-class PassengerViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
+class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelViewSet):
     queryset = Passenger.objects.prefetch_related('agencies').all()
     pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['full_name', 'email', 'cpf', 'city']
     ordering_fields = ['full_name', 'created_at', 'city']
+    MERGE_LABEL = 'Passageiro'
+    MERGE_UNIQUE_FIELDS = ['email']
+
+    @property
+    def MERGE_RELATED(self):
+        from trips.models import Enrollment, ListEnrollment
+        return [
+            (ListEnrollment, 'passenger', ['passenger_list']),
+            (Enrollment,     'passenger', ['trip']),
+            (PassengerDocument, 'passenger', None),
+        ]
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -33,6 +45,8 @@ class PassengerViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('passengers_delete')()]
         if self.action in ('create', 'update', 'partial_update'):
             return [RequirePermission('passengers_edit')()]
+        if self.action == 'merge':
+            return [RequirePermission('passengers_edit')(), RequirePermission('passengers_delete')()]
         if self.action in ('check_cpf', 'active'):
             # Endpoints utilitários de leitura usados durante o fluxo de criação/edição
             return [RequirePermission(*VIEW_PERMS, 'passengers_edit')()]

@@ -41,16 +41,20 @@ export function StatusBadge({ value }) {
  *   onView      – (row) => void  (opcional)
  *   onDelete    – (row) => void
  *   loading     – boolean
+ *   bulkBar     – (selectedRows, { clearSelection }) => ReactNode — barra exibida
+ *                 acima da tabela quando há pelo menos 1 linha selecionada
  */
 export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
-  extraFilters, topBar, onLog,
+  extraFilters, topBar, onLog, bulkBar,
   onAdd, onEdit, onView, onDelete, onDocs, loading,
 }) {
   const [q,   setQ]   = useState('')
   const [flt, setFlt] = useState('Todos')
   const [sel, setSel] = useState(new Set())
+  const clearSelection = () => setSel(new Set())
+  const selectedRows = useMemo(() => data.filter(r => sel.has(r.id)), [data, sel])
 
   const rows = useMemo(() => data.filter((r) => {
     const matchQ   = !q || searchKeys.some((k) => String(r[k] ?? '').toLowerCase().includes(q.toLowerCase()))
@@ -81,6 +85,10 @@ export default function DataTable({
       </div>
 
       {topBar && <div style={{ marginBottom:4 }}>{topBar}</div>}
+
+      {bulkBar && sel.size > 0 && (
+        <div style={{ marginBottom:12 }}>{bulkBar(selectedRows, { clearSelection })}</div>
+      )}
 
       {/* ── Search + filters ── */}
       <div className="search-row">

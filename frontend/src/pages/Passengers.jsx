@@ -5,8 +5,10 @@ import { passengersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DataTable, { StatusBadge } from '../components/DataTable'
+import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
 import TrashTab from '../components/TrashTab'
+import MergeModal from '../components/MergeModal'
 import NewPassengerModal from '../components/NewPassengerModal'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
@@ -163,6 +165,26 @@ const COLS = [
   { key:'status', label:'Status', render:(v) => <StatusBadge value={v} /> },
 ]
 
+const fmtDate = (v) => new Date(v + 'T00:00:00').toLocaleDateString('pt-BR')
+
+const MERGE_FIELDS = [
+  { key:'full_name',   label:'Nome completo' },
+  { key:'email',        label:'E-mail' },
+  { key:'cpf',          label:'CPF' },
+  { key:'phone1',       label:'Telefone' },
+  { key:'mobile',       label:'Celular' },
+  { key:'birth_date',   label:'Nascimento', format: fmtDate },
+  { key:'gender',       label:'Gênero' },
+  { key:'nationality',  label:'Nacionalidade' },
+  { key:'cep',          label:'CEP' },
+  { key:'street',       label:'Endereço' },
+  { key:'number',       label:'Número' },
+  { key:'neighborhood', label:'Bairro' },
+  { key:'city',         label:'Cidade' },
+  { key:'state',        label:'Estado' },
+  { key:'country',      label:'País' },
+]
+
 /* ── Página principal ── */
 export default function Passengers() {
   const [rows,      setRows]      = useState([])
@@ -171,6 +193,7 @@ export default function Passengers() {
   const [viewRow,   setViewRow]   = useState(null)
   const [showNew,   setShowNew]   = useState(false)
   const [docsRow,   setDocsRow]   = useState(null)
+  const [mergeRows, setMergeRows] = useState(null)
   const [showTrash, setShowTrash] = useState(false)
   const [deletedCount, setDeletedCount] = useState(0)
   const navigate                  = useNavigate()
@@ -373,6 +396,32 @@ export default function Passengers() {
           onView={(row) => setViewRow(row)}
           onDelete={canDelete ? (row) => setDelRow(row) : undefined}
           loading={loading}
+          bulkBar={(canEdit && canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
+            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:10 }}>
+              <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
+                {selRows.length} selecionados
+              </span>
+              <button type="button" onClick={() => setMergeRows({ rows: selRows, clearSelection })}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                <Ic n="merge" s={12}/> Mesclar
+              </button>
+              <button type="button" onClick={clearSelection}
+                style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+            </div>
+          ) : undefined}
+        />
+      )}
+
+      {mergeRows && (
+        <MergeModal
+          records={mergeRows.rows}
+          fields={MERGE_FIELDS}
+          getLabel={r => r.full_name}
+          onMerge={(payload) => passengersApi.merge(payload)}
+          onClose={() => setMergeRows(null)}
+          onDone={() => { mergeRows.clearSelection(); setMergeRows(null); load() }}
         />
       )}
 
