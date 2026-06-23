@@ -89,6 +89,7 @@ export const PERM_GROUPS = [
       ['users_manage_permissions', 'Gerenciar permissões'],
       ['users_set_password',       'Definir senha via admin'],
       ['users_view_logs',          'Ver log de atividades de usuários'],
+      ['log_page_views',           'Ver páginas visitadas e botões clicados pelos usuários'],
     ],
   },
   {
@@ -263,19 +264,8 @@ export const PERM_GROUPS = [
   {
     title: 'Log do Sistema',
     icon: 'list',
-    sections: [
-      {
-        label: 'Acesso',
-        items: [
-          ['log_view', 'Ver log do sistema (todas as áreas)'],
-        ],
-      },
-      {
-        label: 'Navegação',
-        items: [
-          ['log_page_views', 'Ver páginas visitadas pelos usuários (fica oculto por padrão, só aparece se filtrar por "Navegação")'],
-        ],
-      },
+    items: [
+      ['log_view', 'Ver log do sistema (todas as áreas)'],
     ],
   },
 ]
@@ -430,7 +420,7 @@ export const PERM_DEPENDENCIES = {
 
   settings_view_logs: 'settings_view',
 
-  log_page_views: 'log_view',
+  log_page_views: 'users_view',
 }
 
 export const groupItems = g => g.items ?? g.sections.flatMap(s => s.items)
