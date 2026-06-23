@@ -4,6 +4,7 @@ import { generateListHTML } from '../utils/generateListHTML'
 import { createPortal } from 'react-dom'
 import FormSelect from '../components/FormSelect'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
+import { DocDetail } from '../components/PassengerDocsPopup'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { listsApi, passengersApi, agenciesApi, configApi, documentsApi } from '../api'
@@ -4222,6 +4223,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   const canEditPax   = !!user?.is_superuser || perms.lists_passengers_edit
   const canRemovePax = !!user?.is_superuser || perms.lists_passengers_remove
   const canCsvUpload = !!user?.is_superuser || perms.lists_csv_upload
+  const canViewDocs  = !!user?.is_superuser || perms.passengers_download_docs
   const [enrolled,   setEnrolled]   = useState([])
   const [accomTypes, setAccomTypes] = useState([])
   const [rooms,      setRooms]      = useState([])
@@ -4314,6 +4316,35 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   // Confirma o documento sugerido automaticamente (passageiro só tinha 1) como o escolhido pra viagem
   const confirmAutoDoc = (enrollmentId, docId) => {
     listsApi.updatePassenger(listId, enrollmentId, { selected_passport: docId }).then(load).catch(() => toast.error('Erro ao confirmar documento.'))
+  }
+
+  // Popup com todos os dados do documento escolhido pra viagem (passaporte/RG) — exige passengers_download_docs
+  const [viewDoc,    setViewDoc]    = useState(null) // { doc, enrollment }
+  const [docDlId,    setDocDlId]    = useState(null)
+  const DOC_TYPE_INFO = {
+    passport: { icon:'🛂', color:'#2e6db4' },
+    rg:       { icon:'🪪', color:'#7c3aed' },
+  }
+  const openDocDetail = async (e) => {
+    if (!canViewDocs || !e.selected_passport_data) return
+    try {
+      const r = await documentsApi.list(e.passenger)
+      const doc = r.data.find(d => d.id === e.selected_passport_data.id)
+      if (doc) setViewDoc({ doc, enrollment: e })
+    } catch { toast.error('Erro ao carregar documento.') }
+  }
+  const downloadViewDoc = async () => {
+    if (!viewDoc) return
+    setDocDlId(viewDoc.doc.id)
+    try {
+      const r = await documentsApi.download(viewDoc.doc.id)
+      const url = URL.createObjectURL(r.data)
+      const a = document.createElement('a')
+      a.href = url; a.download = viewDoc.doc.original_name || `documento_${viewDoc.doc.id}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch { toast.error('Erro ao baixar documento.') }
+    finally { setDocDlId(null) }
   }
 
   const silentLoad = useCallback(() => {
@@ -4620,7 +4651,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
       ) : (
         <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
           {/* Cabeçalho da tabela */}
-          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 105px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 105px 96px 90px 90px', columnGap:6, padding:'8px 10px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
+          <div style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 145px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 145px 96px 90px 90px', columnGap:10, padding:'8px 10px', background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
             {/* Checkbox select-all */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
               <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -4801,7 +4832,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
 
                 return (
                   <div key={e.id}
-                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 105px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 105px 96px 90px 90px', columnGap:6, padding:'8px 10px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
+                    style={{ display:'grid', gridTemplateColumns: isAereo ? '32px 36px 22px 26px 56px 1fr 90px 46px 36px 145px 96px 90px 90px' : '32px 36px 22px 26px 26px 1fr 90px 46px 36px 145px 96px 90px 90px', columnGap:10, padding:'8px 10px', borderBottom: ri < rows.length-1 ? '1px solid #f8fafc' : 'none', background: selected.has(e.id) ? '#eff6ff' : ri%2===0 ? '#fff' : '#fafbfc', alignItems:'center' }}
                     onMouseEnter={ev => ev.currentTarget.style.background='#f0f7ff'}
                     onMouseLeave={ev => ev.currentTarget.style.background = ri%2===0 ? '#fff' : '#fafbfc'}>
 
@@ -5009,8 +5040,9 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                       ) : e.selected_passport_data?.auto ? (
                         <span title="Único documento cadastrado — selecionado automaticamente. Confirme se está correto."
                           style={{ fontSize:11.5, fontWeight:600, background:'#eff6ff', color:'#2e6db4', border:'1px solid #dbeafe', padding:'2px 6px 2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:5, overflow:'hidden', maxWidth:'100%' }}>
-                          <span style={{ display:'flex', alignItems:'center', gap:4, fontFamily:'monospace', cursor:'pointer', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
-                            onClick={() => copy(e.selected_passport_data.doc_number)}>
+                          <span style={{ display:'flex', alignItems:'center', gap:4, fontFamily:'monospace', cursor: canViewDocs ? 'pointer' : 'default', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                            title={canViewDocs ? 'Ver detalhes do documento' : undefined}
+                            onClick={() => canViewDocs ? openDocDetail(e) : copy(e.selected_passport_data.doc_number)}>
                             <span>{e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}</span>
                             <span>{e.selected_passport_data.doc_number || '—'}</span>
                             {e.selected_passport_data.doc_type !== 'rg' && e.selected_passport_data.country && (
@@ -5024,7 +5056,8 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                           </button>
                         </span>
                       ) : e.selected_passport_data ? (
-                        <span onClick={() => copy(e.selected_passport_data.doc_number)} title="Documento selecionado para esta viagem — clique para copiar"
+                        <span onClick={() => canViewDocs ? openDocDetail(e) : copy(e.selected_passport_data.doc_number)}
+                          title={canViewDocs ? 'Ver detalhes do documento' : 'Documento selecionado para esta viagem — clique para copiar'}
                           style={{ fontSize:12.5, color:'#475569', fontFamily:'monospace', display:'flex', alignItems:'center', gap:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%', cursor:'pointer' }}>
                           <span>{e.selected_passport_data.doc_type === 'rg' ? '🪪' : '🛂'}</span>
                           <span>{e.selected_passport_data.doc_number || '—'}</span>
@@ -5292,6 +5325,19 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
           initialFocus={quickEditModal._focus}
           onSaved={load}
           onClose={() => setQuickEditModal(null)}
+        />
+      )}
+
+      {/* Popup com detalhe completo do documento selecionado pra viagem */}
+      {viewDoc && (
+        <DocDetail
+          doc={viewDoc.doc}
+          typeInfo={DOC_TYPE_INFO[viewDoc.doc.doc_type] || { icon:'📄', color:'#475569' }}
+          passengerInfo={{ birth_date: viewDoc.enrollment.passenger_birth_date, nationality: viewDoc.enrollment.passenger_nationality }}
+          canDownload={canViewDocs}
+          onClose={() => setViewDoc(null)}
+          onDownload={downloadViewDoc}
+          downloading={docDlId === viewDoc.doc.id}
         />
       )}
 

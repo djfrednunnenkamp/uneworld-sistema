@@ -54,13 +54,21 @@ function expBadge(dateStr) {
   return null
 }
 
-/* ── Popup de detalhe de um documento ── */
-function DocDetail({ doc, typeInfo, onClose, onDownload, downloading }) {
+/* ── Popup de detalhe de um documento ──
+ * passengerInfo (opcional): { birth_date, nationality } — mostra junto quando vier de
+ * fora do cadastro de documentos (ex: coluna "Documento" da lista de passageiros).
+ * canDownload (default true): controla se o botão de baixar aparece — fica de fora
+ * de quem não tem a permissão passengers_download_docs. ── */
+export function DocDetail({ doc, typeInfo, onClose, onDownload, downloading, passengerInfo, canDownload = true }) {
   const exp = expBadge(doc.expiry_date)
+  const fmtBirth = (d) => {
+    if (!d) return null
+    return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
+  }
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.35)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:420, boxShadow:'0 24px 64px rgba(0,0,0,.22)' }}>
+      <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:420, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 24px 64px rgba(0,0,0,.22)' }}>
         {/* Header */}
         <div style={{ padding:'14px 18px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:26 }}>{typeInfo.icon}</span>
@@ -73,8 +81,21 @@ function DocDetail({ doc, typeInfo, onClose, onDownload, downloading }) {
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:20, lineHeight:1 }}>×</button>
         </div>
 
+        {/* Foto do documento */}
+        {doc.preview_url && (
+          <div style={{ padding:'14px 18px 0' }}>
+            <img src={doc.preview_url} alt="" style={{ width:'100%', maxHeight:220, objectFit:'contain', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8fafc' }} />
+          </div>
+        )}
+
         {/* Campos — clicáveis para copiar */}
         <div style={{ padding:'12px 18px' }}>
+          {passengerInfo && (
+            <>
+              <CopyField label="Nascimento"   value={fmtBirth(passengerInfo.birth_date)} />
+              <CopyField label="Nacionalidade" value={passengerInfo.nationality} />
+            </>
+          )}
           <CopyField label="Número"          value={doc.doc_number} />
           <CopyField label="Data de emissão" value={fmt(doc.issued_date)} />
           <CopyField label="Vencimento"      value={fmt(doc.expiry_date)} badge={exp} />
@@ -88,10 +109,12 @@ function DocDetail({ doc, typeInfo, onClose, onDownload, downloading }) {
             style={{ padding:'7px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
             Fechar
           </button>
-          <button onClick={onDownload} disabled={downloading}
-            style={{ padding:'7px 18px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, opacity:downloading?.6:1 }}>
-            {downloading ? 'Baixando…' : '⬇ Baixar documento'}
-          </button>
+          {canDownload && (
+            <button onClick={onDownload} disabled={downloading}
+              style={{ padding:'7px 18px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, opacity:downloading?.6:1 }}>
+              {downloading ? 'Baixando…' : '⬇ Baixar documento'}
+            </button>
+          )}
         </div>
       </div>
     </div>
