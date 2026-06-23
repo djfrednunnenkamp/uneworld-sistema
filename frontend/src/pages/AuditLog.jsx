@@ -137,7 +137,7 @@ function NavToggle({ checked, onChange }) {
   )
 }
 
-function FDrop({ label, icon, value, onChange, options, iconFor, forceActive, forceLabel }) {
+function FDrop({ label, icon, value, onChange, options, iconFor, forceActive, forceLabel, forceIcon, forceColor, forceValue }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const ref = useRef(null)
@@ -157,22 +157,27 @@ function FDrop({ label, icon, value, onChange, options, iconFor, forceActive, fo
     ? options.filter(o => o.value === '' || o.label.toLowerCase().includes(q.toLowerCase()))
     : options
 
-  const btnIcon  = selected?.icon || icon
-  const btnColor = active ? (selected?.color || '#2e6db4') : '#475569'
+  // selected só representa uma escolha real quando tem value — com value=''
+  // ele sempre casa com a opção "Todos" (sempre a primeira), então nesse caso
+  // o ícone/cor de exibição vêm do forceIcon/forceColor (ex: área herdada do
+  // scope= da URL), não da opção vazia.
+  const hasRealSelection = !!selected?.value
+  const btnIcon  = hasRealSelection ? selected.icon : (forceIcon || icon)
+  const btnColor = active ? (hasRealSelection ? selected.color : (forceColor || '#2e6db4')) : '#475569'
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" onClick={() => setOpen(o => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8,
-          border: `1.5px solid ${active ? (selected?.color || '#2e6db4') : '#e2e8f0'}`,
+          border: `1.5px solid ${active ? btnColor : '#e2e8f0'}`,
           background: active ? `${btnColor}14` : '#fff',
           color: btnColor,
           fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit',
           whiteSpace: 'nowrap', transition: 'all .12s',
         }}>
         {btnIcon && <Ic n={btnIcon} s={13} />}
-        {selected?.value ? selected.label : (active && forceLabel) ? forceLabel : label}
+        {hasRealSelection ? selected.label : (active && forceLabel) ? forceLabel : label}
         <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▼</span>
       </button>
       {open && (
@@ -192,7 +197,7 @@ function FDrop({ label, icon, value, onChange, options, iconFor, forceActive, fo
             {filtered.length === 0 ? (
               <p style={{ padding: '14px', margin: 0, fontSize: 12.5, color: '#94a3b8', textAlign: 'center' }}>Nada encontrado.</p>
             ) : filtered.map(opt => {
-              const sel = value === opt.value
+              const sel = (forceActive && !hasRealSelection) ? forceValue === opt.value : value === opt.value
               const ic = opt.icon || iconFor?.(opt.value)
               const oc = opt.color || '#94a3b8'
               return (
@@ -879,7 +884,9 @@ export default function AuditLog() {
         {showUserFilter && <UserFilterDrop value={filters.user_id} onChange={v => setFilter('user_id', v)} />}
         <FDrop label="Ação" icon="check" value={filters.action} onChange={v => setFilter('action', v)} options={ACTION_OPTS} />
         <FDrop label="Tipo" icon="grid" value={filters.area} onChange={setArea} options={allowedAreaOpts}
-          forceActive={!!areaLabel} forceLabel={areaLabel} />
+          forceActive={!!areaLabel} forceLabel={areaLabel} forceValue={effectiveArea}
+          forceIcon={AREA_OPTS.find(a => a.value === effectiveArea)?.icon}
+          forceColor={AREA_OPTS.find(a => a.value === effectiveArea)?.color} />
         {subOpts && (
           <FDrop label="Sub-tipo" icon={AREA_OPTS.find(a => a.value === effectiveArea)?.icon} value={filters.model}
             onChange={v => setFilter('model', v)} options={subOpts} />
