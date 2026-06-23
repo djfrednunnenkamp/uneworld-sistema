@@ -102,6 +102,10 @@ class Passenger(models.Model):
     created_at = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at = models.DateTimeField('Atualizado em', auto_now=True)
 
+    # ── Lixeira (soft-delete) — nunca é removido de fato do banco ──
+    is_deleted = models.BooleanField('Excluído', default=False, db_index=True)
+    deleted_at = models.DateTimeField('Excluído em', null=True, blank=True)
+
     class Meta:
         verbose_name        = 'Passageiro'
         verbose_name_plural = 'Passageiros'

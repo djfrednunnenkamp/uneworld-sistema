@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
+import TrashTab from '../components/TrashTab'
 import NewPassengerModal from '../components/NewPassengerModal'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
@@ -170,6 +171,8 @@ export default function Passengers() {
   const [viewRow,   setViewRow]   = useState(null)
   const [showNew,   setShowNew]   = useState(false)
   const [docsRow,   setDocsRow]   = useState(null)
+  const [showTrash, setShowTrash] = useState(false)
+  const [deletedCount, setDeletedCount] = useState(0)
   const navigate                  = useNavigate()
   const { user } = useAuth()
   const perms      = user?.permissions ?? {}
@@ -207,6 +210,12 @@ export default function Passengers() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    if (canDelete) {
+      passengersApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
+    }
+  }, [canDelete, showTrash])
+
   const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
   useWebSocket(wsUrl, useCallback((msg) => {
     if (msg.type !== 'refresh') return
@@ -219,6 +228,7 @@ export default function Passengers() {
     toast.success('Passageiro excluído.')
     setDelRow(null)
     load()
+    setDeletedCount(c => c + 1)
   }
 
   /* Aplica filtros client-side */
@@ -304,22 +314,67 @@ export default function Passengers() {
     </>
   )
 
+  const trashTabBar = canDelete && (
+    <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:4 }}>
+      {[{ key:false, label:'Passageiros', color:'#2563eb' }, { key:true, label:'Excluídos', color:'#dc2626' }].map(t => {
+        const sel = showTrash === t.key
+        return (
+          <button key={String(t.key)} type="button" onClick={() => setShowTrash(t.key)}
+            style={{
+              display:'flex', alignItems:'center', gap:8,
+              padding:'10px 20px', border:'none', cursor:'pointer', fontFamily:'inherit',
+              background:'transparent', fontSize:13.5, fontWeight: sel ? 600 : 400,
+              color: sel ? t.color : '#94a3b8',
+              borderBottom: sel ? `2px solid ${t.color}` : '2px solid transparent',
+              marginBottom:'-1.5px', transition:'color .15s, border-color .15s',
+              outline:'none',
+            }}>
+            {t.label}
+            {t.key && (
+              <span style={{
+                fontSize:11, fontWeight:600, padding:'1px 8px', borderRadius:20,
+                background: sel ? '#fee2e2' : '#f1f5f9',
+                color:      sel ? t.color : '#94a3b8',
+              }}>
+                {deletedCount}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <>
-      <DataTable
-        title="Passageiros"
-        addLabel="Adicionar Passageiro"
-        data={filtered}
-        cols={cols}
-        searchKeys={['full_name','email','cpf','phone1']}
-        extraFilters={filterBar}
-        onAdd={(canEdit && canFull) ? () => setShowNew(true) : undefined}
-        onLog={canViewLog ? () => navigate('/log?scope=passengers') : undefined}
-        onDocs={canDocs ? (row) => setDocsRow(row) : undefined}
-        onView={(row) => setViewRow(row)}
-        onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-        loading={loading}
-      />
+      {canDelete && trashTabBar}
+      {showTrash ? (
+        <TrashTab
+          fetchDeleted={() => passengersApi.deleted().then(r => r.data.results ?? r.data)}
+          onRestore={(id) => passengersApi.restore(id)}
+          onPurge={(id) => passengersApi.purge(id)}
+          getLabel={row => row.full_name}
+          getSubtitle={row => row.email}
+          isSuperuser={!!user?.is_superuser}
+          emptyText="Nenhum passageiro excluído."
+          onCountChange={setDeletedCount}
+        />
+      ) : (
+        <DataTable
+          title="Passageiros"
+          addLabel="Adicionar Passageiro"
+          data={filtered}
+          cols={cols}
+          searchKeys={['full_name','email','cpf','phone1']}
+          extraFilters={filterBar}
+          onAdd={(canEdit && canFull) ? () => setShowNew(true) : undefined}
+          onLog={canViewLog ? () => navigate('/log?scope=passengers') : undefined}
+          onDocs={canDocs ? (row) => setDocsRow(row) : undefined}
+          onView={(row) => setViewRow(row)}
+          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
+          loading={loading}
+        />
+      )}
 
       {viewRow && (
         <PassengerPreviewModal
@@ -332,7 +387,7 @@ export default function Passengers() {
         />
       )}
       {delRow && (
-        <DelModal name={delRow.full_name} onOk={handleDelete} onCancel={() => setDelRow(null)} />
+        <DelModal name={delRow.full_name} onOk={handleDelete} onCancel={() => setDelRow(null)} recoverable />
       )}
       {showNew && <NewPassengerModal onClose={() => setShowNew(false)} />}
       {docsRow && <PassengerDocsPopup passenger={docsRow} onClose={() => setDocsRow(null)} />}

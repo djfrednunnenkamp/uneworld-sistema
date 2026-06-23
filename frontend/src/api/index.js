@@ -13,6 +13,9 @@ export const passengersApi = {
   remove:   (id)     => api.delete(`/passengers/${id}/`),
   checkCpf:  (cpf)  => api.get('/passengers/check-cpf/', { params: { cpf } }),
   agencies:  (id)   => api.get(`/passengers/${id}/agencies/`),
+  deleted:  ()       => api.get('/passengers/', { params: { deleted: 1 } }),
+  restore:  (id)     => api.post(`/passengers/${id}/restore/`),
+  purge:    (id)     => api.delete(`/passengers/${id}/purge/`),
 }
 
 export const tripsApi = {
@@ -33,6 +36,9 @@ export const listsApi = {
   update: (id, d)  => api.put(`/trips/lists/${id}/`, d),
   patch:  (id, d)  => api.patch(`/trips/lists/${id}/`, d),
   remove: (id)     => api.delete(`/trips/lists/${id}/`),
+  deleted: ()      => api.get('/trips/lists/', { params: { deleted: 1 } }),
+  restore: (id)    => api.post(`/trips/lists/${id}/restore/`),
+  purge:   (id)    => api.delete(`/trips/lists/${id}/purge/`),
   // Passageiros na lista
   listPassengers:   (id)          => api.get(`/trips/lists/${id}/passageiros/`),
   addPassenger:     (id, data)     => api.post(`/trips/lists/${id}/passageiros/`, data),
@@ -77,6 +83,9 @@ export const agenciesApi = {
   update:        (id, data) => api.put(`/agencies/${id}/`, data),
   remove:        (id)     => api.delete(`/agencies/${id}/`),
   checkCnpj:     (cnpj)  => api.get('/agencies/check-cnpj/', { params: { cnpj } }),
+  deleted:       ()       => api.get('/agencies/', { params: { deleted: 1 } }),
+  restore:       (id)     => api.post(`/agencies/${id}/restore/`),
+  purge:         (id)     => api.delete(`/agencies/${id}/purge/`),
   // Membros
   listMembers:   (id)              => api.get(`/agencies/${id}/members/`),
   addMember:     (id, email, role) => api.post(`/agencies/${id}/members/`, { email, role }),
@@ -215,6 +224,9 @@ export const configApi = {
   addPermissionProfile:    (data)   => api.post('/config/permission-profiles/', data),
   updatePermissionProfile: (id, d)  => api.patch(`/config/permission-profiles/${id}/`, d),
   delPermissionProfile:    (id)     => api.delete(`/config/permission-profiles/${id}/`),
+  deletedPermissionProfiles: ()     => api.get('/config/permission-profiles/', { params: { deleted: 1 } }),
+  restorePermissionProfile:  (id)   => api.post(`/config/permission-profiles/${id}/restore/`),
+  purgePermissionProfile:    (id)   => api.delete(`/config/permission-profiles/${id}/purge/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),
@@ -238,9 +250,12 @@ export const configApi = {
 
 export const usersApi = {
   list:           ()       => api.get('/users/'),
+  deleted:        ()       => api.get('/users/', { params: { deleted: 1 } }),
   create:         (data)   => api.post('/users/create/', data),
   update:         (id, d)  => api.patch(`/users/${id}/`, d),
   remove:         (id)     => api.delete(`/users/${id}/delete/`),
+  restore:        (id)     => api.post(`/users/${id}/restore/`),
+  purge:          (id)     => api.delete(`/users/${id}/purge/`),
   sendInvite:     (id)     => api.post(`/users/${id}/invite/`),
   sendReset:      (id)     => api.post(`/users/${id}/send-reset/`),
   setPassword:    (id, password, adminPassword) => api.post(`/users/${id}/set-password/`, { password, admin_password: adminPassword }),

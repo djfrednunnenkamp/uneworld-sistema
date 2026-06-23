@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi, listsApi, auditApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
+import TrashTab from '../components/TrashTab'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DocTypesManager from '../components/DocTypesManager'
@@ -833,12 +834,15 @@ export function ProfileModal({ profile, onClose, onSaved }) {
 
 function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [profiles,        setProfiles]        = useState([])
   const [loading,         setLoading]         = useState(true)
   const [search,          setSearch]          = useState('')
   const [modal,           setModal]           = useState(null)
   const [delItem,         setDelItem]         = useState(null)
   const [showImportPopup, setShowImportPopup] = useState(false)
+  const [showTrash,       setShowTrash]       = useState(false)
+  const [deletedCount,    setDeletedCount]    = useState(0)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -849,8 +853,14 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
   }, [])
   useEffect(load, [load])
 
+  useEffect(() => {
+    if (canDelete) {
+      configApi.deletedPermissionProfiles().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
+    }
+  }, [canDelete, showTrash])
+
   const handleDelete = async () => {
-    try { await configApi.delPermissionProfile(delItem.id); load() }
+    try { await configApi.delPermissionProfile(delItem.id); load(); setDeletedCount(c => c + 1) }
     catch { toast.error('Erro ao excluir perfil.') }
     finally { setDelItem(null) }
   }
@@ -871,9 +881,58 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
     return profiles.filter(p => p.name.toLowerCase().includes(q))
   }, [profiles, search])
 
+  const trashTabBar = canDelete && (
+    <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:12 }}>
+      {[{ key:false, label:'Perfis', color:'#2563eb' }, { key:true, label:'Excluídos', color:'#dc2626' }].map(t => {
+        const sel = showTrash === t.key
+        return (
+          <button key={String(t.key)} type="button" onClick={() => setShowTrash(t.key)}
+            style={{
+              display:'flex', alignItems:'center', gap:8,
+              padding:'10px 20px', border:'none', cursor:'pointer', fontFamily:'inherit',
+              background:'transparent', fontSize:13.5, fontWeight: sel ? 600 : 400,
+              color: sel ? t.color : '#94a3b8',
+              borderBottom: sel ? `2px solid ${t.color}` : '2px solid transparent',
+              marginBottom:'-1.5px', transition:'color .15s, border-color .15s',
+              outline:'none',
+            }}>
+            {t.label}
+            {t.key && (
+              <span style={{
+                fontSize:11, fontWeight:600, padding:'1px 8px', borderRadius:20,
+                background: sel ? '#fee2e2' : '#f1f5f9',
+                color:      sel ? t.color : '#94a3b8',
+              }}>
+                {deletedCount}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  if (showTrash) {
+    return (
+      <div>
+        {trashTabBar}
+        <TrashTab
+          fetchDeleted={() => configApi.deletedPermissionProfiles().then(r => r.data.results ?? r.data)}
+          onRestore={(id) => configApi.restorePermissionProfile(id)}
+          onPurge={(id) => configApi.purgePermissionProfile(id)}
+          getLabel={row => row.name}
+          isSuperuser={!!user?.is_superuser}
+          emptyText="Nenhum perfil excluído."
+          onCountChange={setDeletedCount}
+        />
+      </div>
+    )
+  }
+
   return (
     <>
     <div>
+      {trashTabBar}
       <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
           style={{ ...inp, flex:1, minWidth:160 }}
@@ -940,7 +999,7 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
     )}
     {delItem && (
       <ConfirmModal
-        message={`Excluir o perfil "${delItem.name}"? Usuários que o têm aplicado não serão alterados.`}
+        message={`Excluir o perfil "${delItem.name}"? Vai pra aba "Excluídos" — um superusuário pode restaurar depois. Usuários que o têm aplicado não serão alterados.`}
         onOk={handleDelete}
         onCancel={() => setDelItem(null)}
       />

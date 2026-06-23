@@ -14,7 +14,7 @@ def dashboard_stats(request):
 
     # Exclui viagens já encerradas (end_date preenchida e no passado)
     qs = PassengerList.objects.filter(
-        models.Q(end_date__isnull=True) | models.Q(end_date__gte=today)
+        models.Q(end_date__isnull=True) | models.Q(end_date__gte=today), is_deleted=False,
     ).order_by('-created_at')[:20]
 
     def _ongoing(l):
@@ -25,8 +25,8 @@ def dashboard_stats(request):
 
     return Response({
         'stats': {
-            'total_passengers': Passenger.objects.filter(status='active').count(),
-            'open_lists': PassengerList.objects.filter(status='aberta').count(),
+            'total_passengers': Passenger.objects.filter(status='active', is_deleted=False).count(),
+            'open_lists': PassengerList.objects.filter(status='aberta', is_deleted=False).count(),
             'total_enrollments': ListEnrollment.objects.exclude(enrollment_status='cancelado').count(),
         },
         'recent_lists': [

@@ -11,7 +11,8 @@ from .email_service import send_reset_password, send_invite
 from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions
 
 
-def serialize_user(u):
+def serialize_user(u, perms=None):
+    perms = perms or get_user_permissions(u)
     return {
         'id':           u.id,
         'username':     u.username,
@@ -25,8 +26,10 @@ def serialize_user(u):
         'has_account':  u.has_usable_password(),
         'date_joined':  u.date_joined,
         'last_login':   u.last_login,
-        'updated_at':   get_user_permissions(u).updated_at,
+        'updated_at':   perms.updated_at,
         'permissions':  permissions_dict(u),
+        'is_deleted':   perms.is_deleted,
+        'deleted_at':   perms.deleted_at,
     }
 
 
@@ -156,8 +159,14 @@ def change_password(request):
 def user_list(request):
     if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_block', 'users_delete', 'users_manage_permissions'):
         return Response({'error': 'Sem permissão.'}, status=403)
+    show_deleted = request.query_params.get('deleted') in ('1', 'true', 'True')
     users = User.objects.all().order_by('username')
-    return Response([serialize_user(u) for u in users])
+    result = []
+    for u in users:
+        perms = get_user_permissions(u)
+        if bool(perms.is_deleted) == show_deleted:
+            result.append(serialize_user(u, perms))
+    return Response(result)
 
 
 @api_view(['POST'])
@@ -353,6 +362,9 @@ def accept_invite(request):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def user_delete(request, pk):
+    """Soft-delete — nunca remove o usuário do banco. Marca como excluído
+    (vai pra aba "Excluídos") e desativa o login; só um superusuário pode
+    restaurar ou remover de vez (ver user_restore/user_purge)."""
     if not (request.user.is_superuser or has_any_perm(request.user, 'users_delete')):
         return Response({'error': 'Sem permissão para excluir usuários.'}, status=403)
     try:
@@ -361,8 +373,60 @@ def user_delete(request, pk):
         return Response({'error': 'Usuário não encontrado.'}, status=404)
     if user == request.user:
         return Response({'error': 'Não é possível excluir seu próprio usuário.'}, status=400)
+    perms = get_user_permissions(user)
+    perms.is_deleted = True
+    perms.deleted_at = timezone.now()
+    perms.save(update_fields=['is_deleted', 'deleted_at'])
+    user.is_active = False
+    user.save(update_fields=['is_active'])
+    _log_user_action(request.user, user, 'delete')
+    return Response(status=204)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def user_restore(request, pk):
+    if not request.user.is_superuser:
+        return Response({'error': 'Apenas superusuário pode restaurar.'}, status=403)
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+    perms = get_user_permissions(user)
+    perms.is_deleted = False
+    perms.deleted_at = None
+    perms.save(update_fields=['is_deleted', 'deleted_at'])
+    _log_user_action(request.user, user, 'restore')
+    return Response(serialize_user(user, perms))
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def user_purge(request, pk):
+    if not request.user.is_superuser:
+        return Response({'error': 'Apenas superusuário pode excluir definitivamente.'}, status=403)
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+    if user == request.user:
+        return Response({'error': 'Não é possível excluir seu próprio usuário.'}, status=400)
+    _log_user_action(request.user, user, 'purge')
     user.delete()
     return Response(status=204)
+
+
+def _log_user_action(actor, target_user, action):
+    from audit.models import AuditLog
+    from audit.middleware import get_current_ip
+    from audit.tracking import user_display
+    label = {'delete': 'Excluído', 'restore': 'Restaurado', 'purge': 'Removido definitivamente'}[action]
+    AuditLog.objects.create(
+        user=actor, user_display=user_display(actor), action=action,
+        model_name='User', model_label='Usuário', object_id=str(target_user.pk),
+        object_repr=f'{label}: {target_user.email}',
+        ip_address=get_current_ip(),
+    )
 
 
 @api_view(['POST'])

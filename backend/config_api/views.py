@@ -16,6 +16,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile)
 from users_api.permissions import RequirePermission
+from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
 
 
@@ -1144,10 +1145,10 @@ def system_settings(request):
 class PermissionProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model  = PermissionProfile
-        fields = ['id', 'name', 'permissions', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'permissions', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
 
-class PermissionProfileViewSet(viewsets.ModelViewSet):
+class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = PermissionProfile.objects.all()
     serializer_class = PermissionProfileSerializer
     pagination_class = None

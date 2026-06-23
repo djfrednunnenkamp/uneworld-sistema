@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from core.pagination import StandardResultsPagination
+from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import Passenger, PassengerDocument
 from .serializers import PassengerSerializer, PassengerListSerializer, PassengerDocumentSerializer
@@ -15,7 +16,7 @@ from .serializers import PassengerSerializer, PassengerListSerializer, Passenger
 VIEW_PERMS = ('passengers_view_basic', 'passengers_view_full')
 
 
-class PassengerViewSet(viewsets.ModelViewSet):
+class PassengerViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset = Passenger.objects.prefetch_related('agencies').all()
     pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]

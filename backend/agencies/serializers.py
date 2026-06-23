@@ -12,4 +12,4 @@ class AgencyListSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Agency
         fields = ['id', 'name', 'last_name', 'company_name', 'email', 'cnpj', 'cpf', 'person_type',
-                  'phone', 'mobile', 'city', 'status', 'commission_rate']
+                  'phone', 'mobile', 'city', 'status', 'commission_rate', 'is_deleted', 'deleted_at']

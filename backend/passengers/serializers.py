@@ -40,7 +40,8 @@ class PassengerListSerializer(SensitiveFieldsMixin, serializers.ModelSerializer)
         fields = ['id', 'first_name', 'last_name', 'full_name', 'email',
                   'mobile', 'phone1', 'cpf', 'birth_date', 'diet_type',
                   'is_foreign', 'nationality', 'gender', 'is_verified',
-                  'city', 'state', 'status', 'agency_names']
+                  'city', 'state', 'status', 'agency_names',
+                  'is_deleted', 'deleted_at']
 
     def get_agency_names(self, obj):
         names = []

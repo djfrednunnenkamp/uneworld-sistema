@@ -191,6 +191,11 @@ class UserPermissions(models.Model):
     log_view       = models.BooleanField(default=False)
     log_page_views = models.BooleanField(default=False)
 
+    # ── Lixeira (soft-delete) do USUÁRIO — nunca é removido de fato do banco.
+    # Fica aqui (não dá pra adicionar campo direto no User do Django).
+    is_deleted = models.BooleanField('Excluído', default=False, db_index=True)
+    deleted_at = models.DateTimeField('Excluído em', null=True, blank=True)
+
     class Meta:
         verbose_name = 'Permissões de usuário'
         verbose_name_plural = 'Permissões de usuários'

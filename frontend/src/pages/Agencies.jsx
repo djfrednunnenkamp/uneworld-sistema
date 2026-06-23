@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { agenciesApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
+import TrashTab from '../components/TrashTab'
 import NewAgencyModal from '../components/NewAgencyModal'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
@@ -238,6 +239,8 @@ export default function Agencies() {
   const [showNew, setShowNew] = useState(false)
   const [viewRow, setViewRow] = useState(null)
   const [statusF, setStatusF] = useState('all')
+  const [showTrash, setShowTrash] = useState(false)
+  const [deletedCount, setDeletedCount] = useState(0)
 
   const load = () => {
     setLoading(true)
@@ -247,6 +250,12 @@ export default function Agencies() {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (canDelete) {
+      agenciesApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
+    }
+  }, [canDelete, showTrash])
 
   const silentReload = useCallback(() => {
     agenciesApi.list()
@@ -264,6 +273,7 @@ export default function Agencies() {
     toast.success('Agência excluída.')
     setDelRow(null)
     load()
+    setDeletedCount(c => c + 1)
   }
 
   const filtered = statusF === 'all' ? rows : rows.filter(r => r.status === statusF)
@@ -272,21 +282,66 @@ export default function Agencies() {
     <FDrop label="Status" value={statusF} onChange={setStatusF} options={STATUS_OPTS} active={statusF !== 'all'} />
   )
 
+  const trashTabBar = canDelete && (
+    <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:4 }}>
+      {[{ key:false, label:'Agências', color:'#2563eb' }, { key:true, label:'Excluídos', color:'#dc2626' }].map(t => {
+        const sel = showTrash === t.key
+        return (
+          <button key={String(t.key)} type="button" onClick={() => setShowTrash(t.key)}
+            style={{
+              display:'flex', alignItems:'center', gap:8,
+              padding:'10px 20px', border:'none', cursor:'pointer', fontFamily:'inherit',
+              background:'transparent', fontSize:13.5, fontWeight: sel ? 600 : 400,
+              color: sel ? t.color : '#94a3b8',
+              borderBottom: sel ? `2px solid ${t.color}` : '2px solid transparent',
+              marginBottom:'-1.5px', transition:'color .15s, border-color .15s',
+              outline:'none',
+            }}>
+            {t.label}
+            {t.key && (
+              <span style={{
+                fontSize:11, fontWeight:600, padding:'1px 8px', borderRadius:20,
+                background: sel ? '#fee2e2' : '#f1f5f9',
+                color:      sel ? t.color : '#94a3b8',
+              }}>
+                {deletedCount}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <>
-      <DataTable
-        title="Agências"
-        addLabel="Adicionar Agência"
-        data={filtered}
-        cols={COLS}
-        searchKeys={['name', 'company_name', 'email', 'cnpj', 'city', 'phone']}
-        extraFilters={filterBar}
-        onAdd={canEdit ? () => setShowNew(true) : undefined}
-        onLog={canViewLog ? () => navigate('/log?scope=agencies') : undefined}
-        onView={(row) => setViewRow(row)}
-        onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-        loading={loading}
-      />
+      {canDelete && trashTabBar}
+      {showTrash ? (
+        <TrashTab
+          fetchDeleted={() => agenciesApi.deleted().then(r => r.data.results ?? r.data)}
+          onRestore={(id) => agenciesApi.restore(id)}
+          onPurge={(id) => agenciesApi.purge(id)}
+          getLabel={row => row.company_name || row.name}
+          getSubtitle={row => row.email}
+          isSuperuser={!!user?.is_superuser}
+          emptyText="Nenhuma agência excluída."
+          onCountChange={setDeletedCount}
+        />
+      ) : (
+        <DataTable
+          title="Agências"
+          addLabel="Adicionar Agência"
+          data={filtered}
+          cols={COLS}
+          searchKeys={['name', 'company_name', 'email', 'cnpj', 'city', 'phone']}
+          extraFilters={filterBar}
+          onAdd={canEdit ? () => setShowNew(true) : undefined}
+          onLog={canViewLog ? () => navigate('/log?scope=agencies') : undefined}
+          onView={(row) => setViewRow(row)}
+          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
+          loading={loading}
+        />
+      )}
 
       {viewRow && (
         <AgencyPreview
@@ -298,7 +353,7 @@ export default function Agencies() {
       )}
       {showNew && <NewAgencyModal onClose={() => setShowNew(false)} />}
       {delRow && (
-        <DelModal name={delRow.company_name || delRow.name} onOk={handleDelete} onCancel={() => setDelRow(null)} />
+        <DelModal name={delRow.company_name || delRow.name} onOk={handleDelete} onCancel={() => setDelRow(null)} recoverable />
       )}
     </>
   )

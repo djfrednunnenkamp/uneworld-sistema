@@ -7,6 +7,8 @@ class AuditLog(models.Model):
         ('create', 'Criado'),
         ('update', 'Atualizado'),
         ('delete', 'Apagado'),
+        ('restore', 'Restaurado'),
+        ('purge', 'Removido definitivamente'),
         ('download', 'Baixado'),
         ('upload', 'Enviado'),
         ('login', 'Login'),

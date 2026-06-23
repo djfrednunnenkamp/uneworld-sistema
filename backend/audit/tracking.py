@@ -163,6 +163,13 @@ def log_save(sender, instance, created, **kwargs):
         action = 'update'
         if not changes:
             return  # Nada mudou
+        # Soft-delete (lixeira) e restauração passam por save(), não por
+        # delete() — sem isso, apareceriam no log como "Atualizado" em vez
+        # de "Apagado"/"Restaurado", que é o que reflete a ação real.
+        if 'is_deleted' in changes:
+            # changes já vem serializado ('Sim'/'Não'), por isso lemos o valor
+            # bruto direto da instância em vez do dict de changes.
+            action = 'delete' if instance.is_deleted else 'restore'
 
     try:
         repr_str = str(instance)[:500]
@@ -196,10 +203,14 @@ def log_delete(sender, instance, **kwargs):
         repr_str = str(instance)[:500]
     except Exception:
         repr_str = f'{sender.__name__}#{instance.pk}'
+    # Modelos com lixeira (is_deleted) só chegam aqui de verdade através da
+    # ação "purge" (exclusão definitiva) — destroy() normal vira save(), não
+    # delete(). Pra esses, marca como "purge" em vez de "delete" no log.
+    action = 'purge' if hasattr(instance, 'is_deleted') else 'delete'
     AuditLog.objects.create(
         user=user,
         user_display=user_display(user),
-        action='delete',
+        action=action,
         model_name=sender.__name__,
         model_label=TRACKED_MODELS[sender.__name__],
         object_id=str(instance.pk),

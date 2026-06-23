@@ -17,5 +17,7 @@ urlpatterns = [
     path('<int:pk>/send-reset/',   views.admin_send_reset, name='admin-send-reset'),
     path('<int:pk>/set-password/', views.admin_set_password, name='admin-set-password'),
     path('<int:pk>/delete/',       views.user_delete,      name='user-delete'),
+    path('<int:pk>/restore/',      views.user_restore,     name='user-restore'),
+    path('<int:pk>/purge/',        views.user_purge,       name='user-purge'),
 ]
 

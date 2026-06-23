@@ -24,7 +24,7 @@ def collect_events(start: date, end: date, user=None, list_id=None):
     # ── Viagens (período de cada Lista de Passageiros) ──
     lists_qs = PassengerList.objects.filter(
         start_date__isnull=False, end_date__isnull=False,
-        start_date__lte=end, end_date__gte=start,
+        start_date__lte=end, end_date__gte=start, is_deleted=False,
     )
     if list_id:
         lists_qs = lists_qs.filter(pk=list_id)

@@ -132,6 +132,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'bus_map', 'bus_map_data',
             'status', 'notes',
             'enrolled_count', 'notification_emails', 'revision', 'created_at', 'updated_at',
+            'is_deleted', 'deleted_at',
         ]
 
     def get_default_airport_data(self, obj):

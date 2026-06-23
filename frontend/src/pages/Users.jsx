@@ -6,6 +6,7 @@ import { usersApi, agendaApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
+import TrashTab from '../components/TrashTab'
 import PasswordInput from '../components/PasswordInput'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
@@ -600,8 +601,8 @@ function BlockOrDeleteModal({ user, onBlock, onDelete, onClose, initialStep = 'c
               <button style={optBtn(false)} disabled={busy} onClick={() => setStep('delete')}
                 onMouseEnter={e => { e.currentTarget.style.borderColor='#ef4444'; e.currentTarget.style.background='#fff5f5' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.background='#fff' }}>
-                <span style={{ fontSize:13, fontWeight:600, color:'#dc2626' }}>🗑️ Excluir permanentemente</span>
-                <span style={{ fontSize:12, color:'#64748b' }}>Remove o usuário do sistema (não pode ser desfeito)</span>
+                <span style={{ fontSize:13, fontWeight:600, color:'#dc2626' }}>🗑️ Excluir</span>
+                <span style={{ fontSize:12, color:'#64748b' }}>Vai pra aba "Excluídos" — um superusuário pode restaurar depois</span>
               </button>
             </div>
           </>) : step === 'block' ? (<>
@@ -620,7 +621,7 @@ function BlockOrDeleteModal({ user, onBlock, onDelete, onClose, initialStep = 'c
             </div>
           </>) : (<>
             <p style={{ margin:'0 0 16px', fontSize:13, color:'#475569', lineHeight:1.5 }}>
-              Tem certeza que deseja excluir permanentemente <b style={{ color:'#1e293b' }}>{name}</b>? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir <b style={{ color:'#1e293b' }}>{name}</b>? Vai pra aba "Excluídos" e um superusuário pode restaurar depois.
             </p>
             <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button onClick={() => initialStep === 'delete' ? onClose() : setStep('choose')} disabled={busy}
@@ -793,6 +794,8 @@ export default function Users() {
   const [modifiedFrom,  setModifiedFrom]  = useState('')
   const [permProfiles,  setPermProfiles]  = useState([])
   const [modifiedTo,    setModifiedTo]    = useState('')
+  const [showTrash,     setShowTrash]     = useState(false)
+  const [deletedCount,  setDeletedCount]  = useState(0)
   const { user: me } = useAuth()
   const navigate = useNavigate()
   const myP        = me?.permissions ?? {}
@@ -817,6 +820,11 @@ export default function Users() {
   useEffect(() => {
     configApi.permissionProfiles().then(r => setPermProfiles(r.data)).catch(() => {})
   }, [])
+  useEffect(() => {
+    if (canDeleteU) {
+      usersApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
+    }
+  }, [canDeleteU, showTrash])
 
   const matchProfile = u =>
     !u.is_superuser
@@ -849,6 +857,7 @@ export default function Users() {
     await usersApi.remove(actionUser.id).catch(e => { toast.error(e.response?.data?.error ?? 'Erro ao excluir.'); throw e })
     toast.success('Usuário excluído.')
     load()
+    setDeletedCount(c => c + 1)
   }
 
   const handleUnblock = async (u) => {
@@ -948,14 +957,46 @@ export default function Users() {
     clearSel()
     toast.success(`${ok} usuário${ok !== 1 ? 's' : ''} excluído${ok !== 1 ? 's' : ''}.${fail ? ` ${fail} com erro.` : ''}`)
     load()
+    setDeletedCount(c => c + ok)
   }
+
+  const trashTabBar = canDeleteU && (
+    <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:16 }}>
+      {[{ key:false, label:'Usuários', color:'#2563eb' }, { key:true, label:'Excluídos', color:'#dc2626' }].map(t => {
+        const sel = showTrash === t.key
+        return (
+          <button key={String(t.key)} type="button" onClick={() => setShowTrash(t.key)}
+            style={{
+              display:'flex', alignItems:'center', gap:8,
+              padding:'10px 20px', border:'none', cursor:'pointer', fontFamily:'inherit',
+              background:'transparent', fontSize:13.5, fontWeight: sel ? 600 : 400,
+              color: sel ? t.color : '#94a3b8',
+              borderBottom: sel ? `2px solid ${t.color}` : '2px solid transparent',
+              marginBottom:'-1.5px', transition:'color .15s, border-color .15s',
+              outline:'none',
+            }}>
+            {t.label}
+            {t.key && (
+              <span style={{
+                fontSize:11, fontWeight:600, padding:'1px 8px', borderRadius:20,
+                background: sel ? '#fee2e2' : '#f1f5f9',
+                color:      sel ? t.color : '#94a3b8',
+              }}>
+                {deletedCount}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   return (
     <div>
       <div className="ph">
         <h1 className="ph-title">Usuários</h1>
         <div className="ph-actions">
-          {canCreate && (
+          {canCreate && !showTrash && (
             <button className="btn btn-primary" onClick={() => setModal('new')}>
               <Ic n="plus" s={13}/>Novo usuário
             </button>
@@ -963,6 +1004,21 @@ export default function Users() {
         </div>
       </div>
 
+      {trashTabBar}
+
+      {showTrash ? (
+        <TrashTab
+          fetchDeleted={() => usersApi.deleted().then(r => r.data.results ?? r.data)}
+          onRestore={(id) => usersApi.restore(id)}
+          onPurge={(id) => usersApi.purge(id)}
+          getLabel={row => row.full_name || row.username}
+          getSubtitle={row => row.email}
+          isSuperuser={!!me?.is_superuser}
+          emptyText="Nenhum usuário excluído."
+          onCountChange={setDeletedCount}
+        />
+      ) : (
+      <>
       <div className="search-row">
         <div className="search-wrap">
           <span className="search-ico"><Ic n="search" s={14}/></span>
@@ -1108,7 +1164,7 @@ export default function Users() {
                         )}
                         {u.id !== me?.id && canDeleteU && (
                           <button className="r-btn del"
-                            title={canBlockU ? 'Bloquear / Excluir' : 'Excluir permanentemente'}
+                            title={canBlockU ? 'Bloquear / Excluir' : 'Excluir'}
                             onClick={() => setActionUser(u)}>
                             <Ic n="trash" s={13}/>
                           </button>
@@ -1120,7 +1176,7 @@ export default function Users() {
                           </button>
                         )}
                         {canDeleteU && u.id !== me?.id && (
-                          <button className="r-btn del" title="Excluir permanentemente" onClick={() => setActionUser(u)}>
+                          <button className="r-btn del" title="Excluir" onClick={() => setActionUser(u)}>
                             <Ic n="trash" s={13}/>
                           </button>
                         )}
@@ -1133,6 +1189,8 @@ export default function Users() {
           </table>
         )}
       </div>
+      </>
+      )}
 
       {modal && (
         <UserModal
@@ -1170,7 +1228,7 @@ export default function Users() {
         <KeyMenuModal user={keyMenu} canSetPwd={canSetPassword} onClose={() => setKeyMenu(null)} />
       )}
       {bulkDel && (
-        <DelModal name={`${sel.size} usuário${sel.size !== 1 ? 's' : ''} selecionado${sel.size !== 1 ? 's' : ''}`} onOk={bulkDelete} onCancel={() => !bulkBusy && setBulkDel(false)} />
+        <DelModal name={`${sel.size} usuário${sel.size !== 1 ? 's' : ''} selecionado${sel.size !== 1 ? 's' : ''}`} onOk={bulkDelete} onCancel={() => !bulkBusy && setBulkDel(false)} recoverable />
       )}
     </div>
   )

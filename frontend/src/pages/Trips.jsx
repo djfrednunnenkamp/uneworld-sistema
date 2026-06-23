@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import DataTable from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import ListModal from '../components/ListModal'
+import TrashTab from '../components/TrashTab'
 import { useWebSocket } from '../hooks/useWebSocket'
 
 const fmt = (d) => {
@@ -101,6 +102,13 @@ export default function Trips() {
   const [delRow,  setDelRow]  = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [phase,   setPhase]   = useState('criacao')
+  const [deletedCount, setDeletedCount] = useState(0)
+
+  useEffect(() => {
+    if (canDelete) {
+      listsApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
+    }
+  }, [canDelete, phase])
 
   const load = () => {
     setLoading(true)
@@ -129,6 +137,7 @@ export default function Trips() {
     toast.success('Lista de passageiros excluída.')
     setDelRow(null)
     load()
+    setDeletedCount(c => c + 1)
   }
 
   const handleSaved = (data) => {
@@ -143,10 +152,13 @@ export default function Trips() {
 
   const activePhase = PHASES.find(p => p.key === phase)
 
+  const ALL_TABS = canDelete ? [...PHASES, { key:'excluidos', label:'Excluídos', color:'#dc2626', bg:'#fee2e2', dot:'#fca5a5' }] : PHASES
+
   const tabBar = (
     <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:4 }}>
-      {PHASES.map(p => {
+      {ALL_TABS.map(p => {
         const sel = phase === p.key
+        const count = p.key === 'excluidos' ? deletedCount : counts[p.key]
         return (
           <button key={p.key} type="button" onClick={() => setPhase(p.key)}
             style={{
@@ -165,7 +177,7 @@ export default function Trips() {
               color:      sel ? p.color : '#94a3b8',
               transition:'background .15s, color .15s',
             }}>
-              {counts[p.key]}
+              {count}
             </span>
           </button>
         )
@@ -175,25 +187,44 @@ export default function Trips() {
 
   return (
     <>
-      <DataTable
-        title="Listas de Passageiros"
-        addLabel="Adicionar Lista de Passageiros"
-        data={filtered}
-        cols={makeCols(navigate)}
-        searchKeys={['name']}
-        topBar={tabBar}
-        onAdd={canEdit ? () => setShowNew(true) : undefined}
-        onView={(row) => navigate(`/viagens/${row.id}`)}
-        onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-        onLog={canViewLog ? () => navigate('/log?scope=lists') : undefined}
-        loading={loading}
-      />
+      {phase === 'excluidos' ? (
+        <div>
+          <div className="ph"><h1 className="ph-title">Listas de Passageiros</h1></div>
+          {tabBar}
+          <div style={{ marginTop: 16 }}>
+            <TrashTab
+              fetchDeleted={() => listsApi.deleted().then(r => r.data.results ?? r.data)}
+              onRestore={(id) => listsApi.restore(id)}
+              onPurge={(id) => listsApi.purge(id)}
+              getLabel={row => row.name}
+              getSubtitle={row => `${TYPE_LABEL[row.list_type] || row.list_type} · ${row.category}`}
+              isSuperuser={!!user?.is_superuser}
+              emptyText="Nenhuma lista de passageiros excluída."
+              onCountChange={setDeletedCount}
+            />
+          </div>
+        </div>
+      ) : (
+        <DataTable
+          title="Listas de Passageiros"
+          addLabel="Adicionar Lista de Passageiros"
+          data={filtered}
+          cols={makeCols(navigate)}
+          searchKeys={['name']}
+          topBar={tabBar}
+          onAdd={canEdit ? () => setShowNew(true) : undefined}
+          onView={(row) => navigate(`/viagens/${row.id}`)}
+          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
+          onLog={canViewLog ? () => navigate('/log?scope=lists') : undefined}
+          loading={loading}
+        />
+      )}
 
       {showNew && (
         <ListModal onClose={() => setShowNew(false)} onSaved={handleSaved} />
       )}
       {delRow && (
-        <DelModal name={delRow.name} onOk={handleDelete} onCancel={() => setDelRow(null)} />
+        <DelModal name={delRow.name} onOk={handleDelete} onCancel={() => setDelRow(null)} recoverable />
       )}
     </>
   )

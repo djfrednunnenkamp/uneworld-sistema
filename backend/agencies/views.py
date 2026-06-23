@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from core.pagination import StandardResultsPagination
+from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
@@ -15,7 +16,7 @@ from .serializers import AgencySerializer, AgencyListSerializer
 VIEW_PERMS = ['agencies_view', 'passengers_edit', 'passengers_view_full', 'lists_edit']
 
 
-class AgencyViewSet(viewsets.ModelViewSet):
+class AgencyViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset        = Agency.objects.all()
     pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]

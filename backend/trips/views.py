@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from core.pagination import StandardResultsPagination
+from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room, ListTask
 from .serializers import (
@@ -76,7 +77,7 @@ class RoteiroViewSet(viewsets.ModelViewSet):
     search_fields    = ['name']
 
 
-class PassengerListViewSet(viewsets.ModelViewSet):
+class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = PassengerList.objects.select_related(
         'default_airport', 'departure_country', 'departure_state', 'departure_city'
     ).prefetch_related('suppliers', 'additionals', 'roteiros').all()
