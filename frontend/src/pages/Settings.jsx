@@ -1270,7 +1270,7 @@ export default function Settings() {
     { key:'list_categories', label:'Categoria de Acomodações', perm:'settings_list_categories',   items: listCats    },
   ]
 
-  const handleExportAll = async ({ selectedKeys, countryFilter } = {}) => {
+  const handleExportAll = async ({ selectedKeys, geoLevel = 'cidades' } = {}) => {
     try {
       const sel = selectedKeys ?? null
       const include = (key) => !sel || sel.has(key)
@@ -1282,17 +1282,22 @@ export default function Settings() {
       const viewAirlines    = can('settings_airlines',       'view') && include('airlines')
       const viewPermProfiles= can('settings_user_profiles',  'view') && include('perm_profiles')
       const viewBusMaps     = can('settings_bus_maps',       'view') && include('bus_maps')
+      const wantStates = geoLevel === 'estados' || geoLevel === 'cidades'
+      const wantCities = geoLevel === 'cidades'
       let cRes = { data: [] }, sRes = { data: [] }, cities = []
       let dtData = [], apData = [], alData = [], ppData = [], bmData = []
       const fetches = []
       if (viewCountries) fetches.push(
-        Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
-          .then(async ([cr, sr, geoRes]) => {
+        Promise.all([
+          configApi.countries(),
+          wantStates ? configApi.allStates() : Promise.resolve({ data: [] }),
+          wantCities ? configApi.geoExport() : Promise.resolve(null),
+        ]).then(async ([cr, sr, geoRes]) => {
             cRes = cr; sRes = sr
-            const geoText = await geoRes.data.text()
-            let parsedCities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
-            if (countryFilter) parsedCities = parsedCities.filter(c => c.country === countryFilter)
-            cities = parsedCities
+            if (geoRes) {
+              const geoText = await geoRes.data.text()
+              cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
+            }
           })
       )
       if (viewDocTypes)     fetches.push(configApi.docTypes().then(r => { dtData = r.data }))
@@ -1519,7 +1524,7 @@ export default function Settings() {
             sections={allSections}
             countries={exportCountriesList}
             onClose={() => setShowExportModal(false)}
-            onExport={({ selectedKeys, countryFilter }) => handleExportAll({ selectedKeys, countryFilter })}
+            onExport={({ selectedKeys, geoLevel }) => handleExportAll({ selectedKeys, geoLevel })}
           />
         )
       })()}

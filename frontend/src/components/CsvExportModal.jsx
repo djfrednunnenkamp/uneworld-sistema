@@ -1,20 +1,32 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Ic } from './Icon'
+
+// Níveis hierárquicos da seção "Países, Estados e Cidades" — escolher um
+// nível exporta ele e todos os anteriores (Cidades = Países + Estados +
+// Cidades; Estados = Países + Estados; Países = só Países).
+const GEO_LEVELS = [
+  { key: 'paises',  label: 'Países',  icon: 'globe'    },
+  { key: 'estados', label: 'Estados', icon: 'mapicon'  },
+  { key: 'cidades', label: 'Cidades', icon: 'building' },
+]
 
 /**
  * Modal de seleção de seções para exportar o CSV global.
  *
  * Props:
  *   sections        – [{ key, label }] filtrado pelas permissões do usuário
- *   countries       – [{id, name}] lista de países (para filtro de estados)
+ *   countries       – [{id, name}] lista de países (não usada mais — mantida
+ *                     na assinatura por compatibilidade com quem chama)
  *   onClose()
- *   onExport({ selectedKeys: Set, countryFilter: string })
+ *   onExport({ selectedKeys: Set, geoLevel: 'paises'|'estados'|'cidades' })
  */
 export default function CsvExportModal({ sections, countries = [], onClose, onExport }) {
-  const [selected, setSelected]           = useState(() => new Set(sections.map(s => s.key)))
-  const [countryFilter, setCountryFilter] = useState('')
-  const [exporting, setExporting]         = useState(false)
-  const [progress,  setProgress]          = useState(0)
+  const [selected, setSelected]       = useState(() => new Set(sections.map(s => s.key)))
+  const [geoLevel, setGeoLevel]       = useState('cidades')
+  const [exporting, setExporting]     = useState(false)
+  const [progress,  setProgress]      = useState(0)
+  const [filterPopup, setFilterPopup] = useState(null)
 
   const toggle = (key) => setSelected(prev => {
     const next = new Set(prev)
@@ -28,7 +40,6 @@ export default function CsvExportModal({ sections, countries = [], onClose, onEx
 
   const allChecked  = selected.size === sections.length
   const noneChecked = selected.size === 0
-  const includesCountries = selected.has('countries')
 
   const handleExport = async () => {
     if (noneChecked || exporting) return
@@ -40,7 +51,7 @@ export default function CsvExportModal({ sections, countries = [], onClose, onEx
       setProgress(Math.min(p, 88))
     }, 250)
     try {
-      await onExport({ selectedKeys: selected, countryFilter })
+      await onExport({ selectedKeys: selected, geoLevel })
       clearInterval(interval)
       setProgress(100)
       await new Promise(r => setTimeout(r, 380))
@@ -51,8 +62,6 @@ export default function CsvExportModal({ sections, countries = [], onClose, onEx
       setProgress(0)
     }
   }
-
-  const lbl11 = { fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }
 
   return (
     <div className="overlay" style={{ zIndex: 800 }}
@@ -107,36 +116,37 @@ export default function CsvExportModal({ sections, countries = [], onClose, onEx
 
               {/* Lista de seções */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', background: '#f8fafc', borderRadius: 8, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
-                {sections.map(sec => (
-                  <label key={sec.key} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 13, color: '#1e293b', padding: '3px 0' }}>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(sec.key)}
-                      onChange={() => toggle(sec.key)}
-                      style={{ accentColor: '#1a2d4f', width: 14, height: 14, flexShrink: 0 }} />
-                    {sec.label}
-                  </label>
-                ))}
+                {sections.map(sec => {
+                  const hasFilter = sec.key === 'countries' && selected.has(sec.key)
+                  const filterActive = sec.key === 'countries' && geoLevel !== 'cidades'
+                  const levelIdx = GEO_LEVELS.findIndex(l => l.key === geoLevel)
+                  return (
+                    <div key={sec.key} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 13, color: '#1e293b', flex: 1, minWidth: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(sec.key)}
+                          onChange={() => toggle(sec.key)}
+                          style={{ accentColor: '#1a2d4f', width: 14, height: 14, flexShrink: 0 }} />
+                        {sec.label}
+                      </label>
+                      {hasFilter && (
+                        <button type="button"
+                          onClick={() => setFilterPopup(sec.key)}
+                          title={filterActive ? `Exportando até: ${GEO_LEVELS[levelIdx].label}` : 'Configurar níveis'}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 22, height: 22, borderRadius: 5, border: 'none', cursor: 'pointer', flexShrink: 0,
+                            background: filterActive ? '#dbeafe' : 'transparent',
+                            color: filterActive ? '#1d4ed8' : '#94a3b8',
+                          }}>
+                          <Ic n="filter" s={12} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-
-              {/* Filtro de país para estados (só quando Países & Estados está selecionado) */}
-              {includesCountries && countries.length > 0 && (
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '12px 14px' }}>
-                  <p style={{ ...lbl11, margin: '0 0 8px', color: '#1d4ed8' }}>Filtro de estados por país</p>
-                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#1d4ed8' }}>
-                    Selecione um país para exportar apenas os estados desse país. Deixe em branco para exportar todos.
-                  </p>
-                  <select
-                    value={countryFilter}
-                    onChange={e => setCountryFilter(e.target.value)}
-                    style={{ width: '100%', padding: '7px 10px', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 13, background: '#fff', color: '#1e293b', fontFamily: 'inherit', outline: 'none' }}>
-                    <option value="">Todos os países</option>
-                    {countries.map(c => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </>
           )}
 
@@ -157,6 +167,78 @@ export default function CsvExportModal({ sections, countries = [], onClose, onEx
           </div>
         )}
 
+      </div>
+
+      {filterPopup === 'countries' && createPortal(
+        <GeoLevelPopup geoLevel={geoLevel} onChoose={setGeoLevel} onClose={() => setFilterPopup(null)} />,
+        document.body
+      )}
+    </div>
+  )
+}
+
+/* Pop-up secundário (sua própria janela, com fundo escurecido e X de
+   fechar) — não é um dropdown ancorado no ícone, é independente. */
+function GeoLevelPopup({ geoLevel, onChoose, onClose }) {
+  const levelIdx = GEO_LEVELS.findIndex(l => l.key === geoLevel)
+  const lbl11 = { fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(2px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
+    }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 340,
+        boxShadow: '0 24px 64px rgba(0,0,0,.28)', padding: 20,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ color: '#2563eb', display: 'flex' }}><Ic n="globe" s={14} /></span>
+            <span style={{ ...lbl11, color: '#1d4ed8' }}>Países, Estados e Cidades</span>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2, display: 'flex' }}>
+            <Ic n="x" s={15} />
+          </button>
+        </div>
+        <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#64748b' }}>
+          Esta seção tem três níveis. Escolha até onde detalhar a exportação.
+        </p>
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 8,
+          background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 8px', marginBottom: 14,
+        }}>
+          {GEO_LEVELS.map((lvl, i) => (
+            <div key={lvl.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {i > 0 && <span style={{ color: '#cbd5e1', marginTop: 18 }}><Ic n="chevron" s={14} /></span>}
+              <button type="button" onClick={() => onChoose(lvl.key)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px 4px',
+                  borderBottom: i === levelIdx ? '2px solid #2563eb' : '2px solid transparent',
+                  fontFamily: 'inherit',
+                }}>
+                <span style={{
+                  width: 36, height: 36, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: i <= levelIdx ? '#2563eb' : '#cbd5e1', color: '#fff', transition: 'background .12s',
+                }}>
+                  <Ic n={lvl.icon} s={16} />
+                </span>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: i === levelIdx ? '#1d4ed8' : '#475569' }}>
+                  {lvl.label}
+                </span>
+              </button>
+            </div>
+          ))}
+        </div>
+        <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#475569', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ color: '#2563eb', display: 'flex' }}><Ic n="check" s={13} /></span>
+          Exportando <strong style={{ color: '#1d4ed8' }}>{GEO_LEVELS.slice(0, levelIdx + 1).map(l => l.label).join(' + ')}</strong>
+        </p>
+        <button onClick={onClose}
+          style={{ width: '100%', padding: '9px 0', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+          Confirmar
+        </button>
       </div>
     </div>
   )

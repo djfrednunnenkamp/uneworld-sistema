@@ -39,6 +39,7 @@ const PATHS = {
   listplus: ['M11 12H3','M16 6H3','M16 18H3','M18 9v6','M21 12h-6'],
   mapicon:  ['M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z','M9 4v13','M15 7v13'],
   chevron:  ['M9 18l6-6-6-6'],
+  filter:   ['M22 3H2l8 9.46V19l4 2v-8.54L22 3z'],
 }
 
 export function Ic({ n, s = 16 }) {
