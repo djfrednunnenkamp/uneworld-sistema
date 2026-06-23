@@ -459,7 +459,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['patch', 'delete'], url_path=r'rooms/(?P<room_id>\d+)')
     def manage_room(self, request, pk=None, room_id=None):
-        """PATCH: renomeia acomodação (e sincroniza inscrições). DELETE: remove acomodação vazia."""
+        """PATCH: renomeia acomodação e/ou confirma aviso de mesmo sexo (e sincroniza inscrições). DELETE: remove acomodação vazia."""
         pl = self.get_object()
         try:
             room = Room.objects.get(passenger_list=pl, id=room_id)
@@ -480,6 +480,12 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     return Response({'error': 'Não é possível excluir uma acomodação com passageiros.'}, status=400)
             room.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # PATCH — confirmar aviso de mesmo sexo (não exige nome)
+        if 'same_sex_ack' in request.data and 'name' not in request.data:
+            room.same_sex_ack = bool(request.data.get('same_sex_ack'))
+            room.save(update_fields=['same_sex_ack'])
+            return Response(RoomSerializer(room).data)
 
         # PATCH — renomear
         new_name = (request.data.get('name') or '').strip()

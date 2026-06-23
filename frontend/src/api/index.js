@@ -58,6 +58,7 @@ export const listsApi = {
   addRoom:          (id, name)     => api.post(`/trips/lists/${id}/rooms/`, { name }),
   renameRoom:       (id, rid, name) => api.patch(`/trips/lists/${id}/rooms/${rid}/`, { name }),
   removeRoom:       (id, rid, resolution) => api.delete(`/trips/lists/${id}/rooms/${rid}/`, resolution ? { data: { resolution } } : undefined),
+  ackRoomSameSex:   (id, rid, ack)  => api.patch(`/trips/lists/${id}/rooms/${rid}/`, { same_sex_ack: ack }),
   // Fornecedores e Adicionais
   suppliers:        ()            => api.get('/trips/suppliers/'),
   addSupplier:      (name)        => api.post('/trips/suppliers/', { name }),

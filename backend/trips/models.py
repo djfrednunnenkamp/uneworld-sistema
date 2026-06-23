@@ -223,6 +223,9 @@ class Room(models.Model):
     passenger_list = models.ForeignKey(PassengerList, on_delete=models.CASCADE, related_name='rooms', verbose_name='Lista')
     name           = models.CharField('Nome', max_length=200)
     created_at     = models.DateTimeField('Criado em', auto_now_add=True)
+    # Confirma que o casal do mesmo sexo está correto (ex: casal gay/lésbico)
+    # — o aviso "Mesmo sexo" continua visível, mas marcado como já revisado.
+    same_sex_ack   = models.BooleanField('Casal mesmo sexo confirmado', default=False)
 
     class Meta:
         unique_together     = ['passenger_list', 'name']

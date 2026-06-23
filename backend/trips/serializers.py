@@ -71,7 +71,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Room
-        fields = ['id', 'name', 'occupant_count']
+        fields = ['id', 'name', 'occupant_count', 'same_sex_ack']
 
     def get_occupant_count(self, obj):
         return ListEnrollment.objects.filter(passenger_list=obj.passenger_list, accommodation=obj.name).count()

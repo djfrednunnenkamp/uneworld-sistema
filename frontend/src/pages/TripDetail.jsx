@@ -3453,7 +3453,7 @@ function SeatMapModal({ busMap, enrolled, currentEnrollment, listId, listName, o
 }
 
 /* ── Modal de edição de tipo da acomodação (não remove passageiros) ── */
-function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, onDelete, onClose }) {
+function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, rooms = [], onSaved, onAckChanged, onDelete, onClose }) {
   const navigate    = useNavigate()
   const currentType = findAccomType(accomTypes, roomName)
   const [selectedType, setSelectedType] = useState(currentType?.name || '')
@@ -3482,6 +3482,12 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
   const capUnder = capacity && paxCount < capacity
   const genders  = occupants.filter(e => !e.is_block && e.passenger_gender).map(e => e.passenger_gender)
   const sameSex  = selType?.is_couple && genders.length >= 2 && genders.every(g => g === genders[0])
+  const room     = rooms.find(r => r.name === roomName)
+
+  const toggleAck = (ack) => {
+    if (!room) return
+    listsApi.ackRoomSameSex(listId, room.id, ack).then(onAckChanged).catch(() => toast.error('Erro ao atualizar confirmação.'))
+  }
 
   const typeOptions = accomTypes.map(t => ({
     value: t.name,
@@ -3568,9 +3574,20 @@ function EditAccomTypeModal({ roomName, accomTypes, enrolled, listId, onSaved, o
                 </span>
               )}
               {sameSex && (
-                <span style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', padding:'3px 10px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
-                  ⚠ Mesmo sexo
-                </span>
+                room?.same_sex_ack ? (
+                  <span onClick={() => toggleAck(false)} title="Confirmado — clique pra desfazer"
+                    style={{ fontSize:11, fontWeight:600, background:'#f1f5f9', color:'#64748b', padding:'3px 10px', borderRadius:20, display:'flex', alignItems:'center', gap:3, cursor:'pointer' }}>
+                    ✓ Mesmo sexo (confirmado)
+                  </span>
+                ) : (
+                  <span style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', padding:'3px 10px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
+                    ⚠ Mesmo sexo
+                    <button type="button" onClick={() => toggleAck(true)} title="Confirmar — está correto"
+                      style={{ width:15, height:15, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'50%', border:'1px solid #92400e', background:'#fff', color:'#92400e', fontSize:9, fontWeight:700, cursor:'pointer', padding:0, lineHeight:1 }}>
+                      ✓
+                    </button>
+                  </span>
+                )
               )}
             </div>
           )}
@@ -4231,6 +4248,12 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
 
   useEffect(() => { load(); loadRooms() }, [load, loadRooms])
 
+  const toggleSameSexAck = (roomName, ack) => {
+    const room = rooms.find(r => r.name === roomName)
+    if (!room) return
+    listsApi.ackRoomSameSex(listId, room.id, ack).then(loadRooms).catch(() => toast.error('Erro ao atualizar confirmação.'))
+  }
+
   const silentLoad = useCallback(() => {
     listsApi.listPassengers(listId)
       .then(r => setEnrolled(r.data))
@@ -4409,7 +4432,8 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
   const seen = {}
   const groups = []
   const roomIdByName = {}
-  rooms.forEach(room => { roomIdByName[room.name] = room.id })
+  const roomByName = {}
+  rooms.forEach(room => { roomIdByName[room.name] = room.id; roomByName[room.name] = room })
   activeEnrolled.forEach(e => {
     const key = e.accommodation || UNASSIGNED
     if (!seen[key]) { seen[key] = []; groups.push({ key, rows: seen[key] }) }
@@ -4656,10 +4680,24 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
                       </span>
                     )}
                     {sameSexCouple && (
-                      <span title="Acomodação de casal com dois passageiros do mesmo sexo"
-                        style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
-                        ⚠ Mesmo sexo
-                      </span>
+                      roomByName[key]?.same_sex_ack ? (
+                        <span title="Confirmado — clique pra desfazer"
+                          onClick={(ev) => { ev.stopPropagation(); toggleSameSexAck(key, false) }}
+                          style={{ fontSize:11, fontWeight:600, background:'#f1f5f9', color:'#64748b', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:3, cursor:'pointer' }}>
+                          ✓ Mesmo sexo (confirmado)
+                        </span>
+                      ) : (
+                        <span title="Acomodação de casal com dois passageiros do mesmo sexo — clique no ✓ se estiver correto (ex: casal do mesmo sexo)"
+                          style={{ fontSize:11, fontWeight:700, background:'#fef9c3', color:'#92400e', padding:'2px 8px', borderRadius:20, display:'flex', alignItems:'center', gap:3 }}>
+                          ⚠ Mesmo sexo
+                          <button type="button"
+                            onClick={(ev) => { ev.stopPropagation(); toggleSameSexAck(key, true) }}
+                            title="Confirmar — está correto"
+                            style={{ width:15, height:15, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'50%', border:'1px solid #92400e', background:'#fff', color:'#92400e', fontSize:9, fontWeight:700, cursor:'pointer', padding:0, lineHeight:1 }}>
+                            ✓
+                          </button>
+                        </span>
+                      )
                     )}
 
                     <button type="button"
@@ -5169,7 +5207,9 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
           accomTypes={accomTypes}
           enrolled={enrolled}
           listId={listId}
+          rooms={rooms}
           onSaved={load}
+          onAckChanged={loadRooms}
           onDelete={roomIdByName[editAccomType] != null ? () => handleDeleteRoom(roomIdByName[editAccomType], editAccomType) : null}
           onClose={() => setEditAccomType(null)}
         />
