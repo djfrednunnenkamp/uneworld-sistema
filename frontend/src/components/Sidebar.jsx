@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Ic } from './Icon'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { getLocalJobs, subscribeLocalJobs } from '../utils/localJobs'
 
 const NAV_BASE = [
   { id: '/',           icon: 'grid',     label: 'Visão Geral', group: null,     perms: null },
@@ -55,7 +56,20 @@ export default function Sidebar() {
     return () => clearInterval(t)
   }, [])
 
-  const activeJobs = Object.values(jobs)
+  // Jobs locais (ex: importação de CSV em Configurações) — mesma barra,
+  // publicados direto pelo navegador em vez de via WebSocket.
+  const localJobs = useSyncExternalStore(subscribeLocalJobs, getLocalJobs)
+
+  const activeJobs = [...Object.values(jobs), ...Object.values(localJobs)]
+
+  const eta = (job) => {
+    if (job.status !== 'running' || !job.done || !job._startedAt) return null
+    const elapsed = Date.now() - job._startedAt
+    const remaining = Math.max(0, (elapsed / job.done) * ((job.total || job.done) - job.done))
+    if (remaining < 1500) return null
+    const secs = Math.round(remaining / 1000)
+    return secs < 60 ? `~${secs}s restantes` : `~${Math.round(secs / 60)}min restantes`
+  }
 
   return (
     <div className="sidebar">
@@ -112,6 +126,12 @@ export default function Sidebar() {
                     background: isError ? '#dc2626' : (job.status === 'done' ? '#22c55e' : '#2e6db4'),
                   }} />
                 </div>
+                {!isError && job.status === 'running' && job.total > 1 && (
+                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:3 }}>
+                    <span style={{ fontSize:10.5, color:'rgba(255,255,255,.45)' }}>{job.done}/{job.total}</span>
+                    {eta(job) && <span style={{ fontSize:10.5, color:'rgba(255,255,255,.45)' }}>{eta(job)}</span>}
+                  </div>
+                )}
                 {isError && job.error && (
                   <p style={{ fontSize:10.5, color:'#fca5a5', margin:'3px 0 0', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
                     title={job.error}>

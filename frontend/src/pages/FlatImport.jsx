@@ -11,6 +11,7 @@ import { AccomFormModal } from '../components/AccommodationManager'
 import { AirportFormModal } from '../components/AirportsManager'
 import { AirlineFormModal } from '../components/AirlinesManager'
 import { BusMapModal } from '../components/BusMapsManager'
+import { setLocalJob, finishLocalJob } from '../utils/localJobs'
 
 const NAME_EDIT_KEYS = new Set([
   'professions', 'languages', 'vaccines', 'genders', 'prof_cards',
@@ -249,6 +250,7 @@ export default function FlatImport() {
   const [search,      setSearch]      = useState('')
   const [selected,    setSelected]    = useState(new Set())
   const [confirm,     setConfirm]     = useState(null) // { type:'bulk'|'single', id?, count? }
+  const [confirmDestructive, setConfirmDestructive] = useState(false) // gate vermelho antes de excluir de verdade (modo 'all'/'delete')
   const [parsing,            setParsing]           = useState(!!csvText)
   const [visibleCount,       setVisibleCount]       = useState(20)
   const [skippedExportOnly,  setSkippedExportOnly]  = useState(0)
@@ -433,12 +435,17 @@ export default function FlatImport() {
     }).catch(() => {})
   }
 
-  const doConfirm = async () => {
+  // Total é uma estimativa (cada linha do CSV ~ 1 unidade de trabalho, seja
+  // ela uma exclusão ou uma inserção) — o bastante pra mostrar % e ETA
+  // razoáveis na barra lateral, sem precisar duplicar toda a lógica de
+  // filtragem de quem-vai-ser-excluído só para contar com exatidão.
+  const runImportJob = async (jobId) => {
     const nonError = rows.filter(r => r.status !== 'error')
     let toAdd = mode === 'new' ? nonError.filter(r => r.status === 'valid') : nonError
-    if (!nonError.length) return
-    setPhase('importing')
+    if (!nonError.length) { finishLocalJob(jobId); return }
     let added = 0, deleted = 0, skipped = 0
+    const total = nonError.length
+    const bump = () => setLocalJob(jobId, { done: Math.min(added + deleted + skipped, total) })
 
     // ── Exclusão (modos 'delete' e 'all') ─────────────────────────────────
     if (mode === 'delete' || mode === 'all') {
@@ -460,6 +467,7 @@ export default function FlatImport() {
             : sectionItems.filter(i => !csvNames.has((i.name || '').toLowerCase()))
           for (const item of toDelete) {
             try { await delFn(item.id); deleted++ } catch { skipped++ }
+            bump()
           }
         }
       } else {
@@ -471,14 +479,14 @@ export default function FlatImport() {
             : existingItems.filter(i => !csvNames.has((i.name || '').toLowerCase()))
           for (const item of toDelete) {
             try { await delFn(item.id); deleted++ } catch { skipped++ }
+            bump()
           }
         }
       }
       // Modo 'delete' só exclui, não adiciona nada
       if (mode === 'delete') {
-        setResult({ added, deleted, skipped })
         logUploadSummary(added, deleted, skipped)
-        setPhase('done')
+        finishLocalJob(jobId)
         return
       }
       // Modo 'all': após excluir, inserir apenas os válidos (ex-duplicados podem agora ser novos)
@@ -487,9 +495,8 @@ export default function FlatImport() {
 
     // ── Inserção ──────────────────────────────────────────────────────────
     if (!toAdd.length) {
-      setResult({ added, deleted, skipped })
       logUploadSummary(added, deleted, skipped)
-      setPhase('done')
+      finishLocalJob(jobId)
       return
     }
 
@@ -502,6 +509,7 @@ export default function FlatImport() {
         if (fn) await fn(row.name, row.extras || {}, { allCountries })
         added++
       } catch { skipped++ }
+      bump()
     }
 
     if (cityRows.length > 0) {
@@ -515,11 +523,25 @@ export default function FlatImport() {
         const res = await configApi.geoImport(fd)
         added += res.data.cities || 0
       } catch { skipped += cityRows.length }
+      bump()
     }
 
-    setResult({ added, deleted, skipped })
     logUploadSummary(added, deleted, skipped)
-    setPhase('done')
+    finishLocalJob(jobId)
+  }
+
+  const startImportJob = () => {
+    const nonError = rows.filter(r => r.status !== 'error')
+    if (!nonError.length) return
+    const jobId = `csvimport-${Date.now()}`
+    const modeLabel = MODES.find(m => m.key === mode)?.label || ''
+    setLocalJob(jobId, {
+      kind: 'csv_import',
+      label: isAll ? `Importação CSV — ${modeLabel}` : `${apiDef.label} — ${modeLabel}`,
+      done: 0, total: nonError.length, status: 'running', _startedAt: Date.now(),
+    })
+    navigate(backPath)
+    runImportJob(jobId)
   }
 
   if (parsing) return (
@@ -835,11 +857,14 @@ export default function FlatImport() {
               style={{padding:'9px 20px',borderRadius:8,border:'1.5px solid #e2e8f0',background:'#fff',color:'#475569',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
               Cancelar
             </button>
-            <button onClick={doConfirm}
-              disabled={phase==='importing' || rows.filter(r=>r.status!=='error').length===0}
-              style={{padding:'9px 22px',borderRadius:8,border:'none',background:'#1a2d4f',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:8,
+            <button
+              onClick={() => (mode === 'delete' || mode === 'all') ? setConfirmDestructive(true) : startImportJob()}
+              disabled={rows.filter(r=>r.status!=='error').length===0}
+              style={{padding:'9px 22px',borderRadius:8,border:'none',
+                background: (mode === 'delete' || mode === 'all') ? '#dc2626' : '#1a2d4f',
+                color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:8,
                 opacity: rows.filter(r=>r.status!=='error').length===0?.5:1}}>
-              {phase==='importing' ? <><Spin/> Importando…</> : <>✓ Confirmar Importação</>}
+              {(mode === 'delete' || mode === 'all') ? <>⚠ Confirmar Exclusão</> : <>✓ Confirmar Importação</>}
             </button>
           </div>
         </div>
@@ -863,6 +888,21 @@ export default function FlatImport() {
           okLabel="Remover"
           onOk={() => removeRows(new Set([confirm.id]))}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {/* Confirmação vermelha antes de excluir de verdade do banco (modo "Substituir lista" ou "Apagar os importados") */}
+      {confirmDestructive && (
+        <ConfirmModal
+          danger
+          title="Confirmar exclusão definitiva"
+          message={mode === 'delete'
+            ? 'Isso vai apagar do banco de dados exatamente os registros listados neste CSV.'
+            : 'Isso vai apagar do banco de dados todos os registros que NÃO estão neste CSV, e inserir os novos.'}
+          detail="Essa exclusão é real — os registros não vão para nenhuma lixeira."
+          okLabel="Excluir e importar"
+          onOk={() => { setConfirmDestructive(false); startImportJob() }}
+          onCancel={() => setConfirmDestructive(false)}
         />
       )}
 
