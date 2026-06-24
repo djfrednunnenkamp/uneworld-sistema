@@ -967,20 +967,20 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 class ContractClauseSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ContractClause
-        fields = ['id', 'name', 'category', 'content', 'is_default', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+        fields = ['id', 'name', 'content', 'is_default', 'created_at', 'updated_at']
 
 
-class ContractClauseViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
+class ContractClauseViewSet(viewsets.ModelViewSet):
     queryset         = ContractClause.objects.all()
     serializer_class = ContractClauseSerializer
     pagination_class = None
     get_permissions  = _settings_perm('settings_contract_clauses')
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = ContractClause.objects.all()
         q = self.request.query_params.get('q', '').strip()
         if q:
-            qs = qs.filter(Q(name__icontains=q) | Q(category__icontains=q))
+            qs = qs.filter(Q(name__icontains=q))
         return qs
 
 

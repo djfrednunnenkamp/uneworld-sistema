@@ -4,18 +4,15 @@ import { configApi } from '../api'
 import { Ic } from './Icon'
 import RichTextEditor from './RichTextEditor'
 import ConfirmModal from './ConfirmModal'
-import TrashTab from './TrashTab'
-import { useAuth } from '../context/AuthContext'
 
 const inp = { padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:6, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box' }
 const lbl = { fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', display:'block', marginBottom:5 }
 const btnPri = { padding:'8px 16px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }
 
 /* ── Modal de edição/criação de cláusula — popup grande com editor rico ── */
-function ClauseModal({ clause, categories, onClose, onSaved }) {
+function ClauseModal({ clause, onClose, onSaved }) {
   const isEdit = !!clause
   const [name,      setName]      = useState(clause?.name ?? '')
-  const [category,  setCategory]  = useState(clause?.category ?? '')
   const [isDefault, setIsDefault] = useState(clause?.is_default ?? false)
   const [content,   setContent]   = useState(clause?.content ?? '')
   const [saving,    setSaving]    = useState(false)
@@ -23,7 +20,7 @@ function ClauseModal({ clause, categories, onClose, onSaved }) {
   const save = async () => {
     if (!name.trim()) { toast.error('Informe um nome para a cláusula.'); return }
     setSaving(true)
-    const payload = { name: name.trim(), category: category.trim(), is_default: isDefault, content }
+    const payload = { name: name.trim(), is_default: isDefault, content }
     try {
       if (isEdit) {
         await configApi.updateContractClause(clause.id, payload)
@@ -52,20 +49,10 @@ function ClauseModal({ clause, categories, onClose, onSaved }) {
         </div>
 
         <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:14, overflowY:'auto', flex:1 }}>
-          <div style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
-            <div style={{ flex:'2 1 220px' }}>
-              <label style={lbl}>Nome da cláusula</label>
-              <input style={{ ...inp, width:'100%' }} value={name} onChange={e => setName(e.target.value)}
-                placeholder="Ex: Cancelamento de voo, Política de hospedagem…" />
-            </div>
-            <div style={{ flex:'1 1 160px' }}>
-              <label style={lbl}>Categoria</label>
-              <input style={{ ...inp, width:'100%' }} value={category} onChange={e => setCategory(e.target.value)}
-                list="clause-categories" placeholder="Ex: Avião, Hotel…" />
-              <datalist id="clause-categories">
-                {categories.map(c => <option key={c} value={c} />)}
-              </datalist>
-            </div>
+          <div>
+            <label style={lbl}>Nome da cláusula</label>
+            <input style={{ ...inp, width:'100%' }} value={name} onChange={e => setName(e.target.value)}
+              placeholder="Ex: Cancelamento de voo, Política de hospedagem…" />
           </div>
 
           <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', width:'fit-content' }}>
@@ -103,14 +90,11 @@ function ClauseModal({ clause, categories, onClose, onSaved }) {
 
 /* ── Lista de cláusulas — base do futuro gerador de contratos ── */
 export default function ContractClausesManager({ canEdit = true, canDelete = true }) {
-  const { user } = useAuth()
-  const [clauses,     setClauses]     = useState([])
-  const [loading,      setLoading]    = useState(true)
-  const [search,       setSearch]     = useState('')
-  const [modal,        setModal]      = useState(null)
-  const [delItem,      setDelItem]    = useState(null)
-  const [showTrash,    setShowTrash]  = useState(false)
-  const [deletedCount, setDeletedCount] = useState(0)
+  const [clauses, setClauses] = useState([])
+  const [loading,  setLoading] = useState(true)
+  const [search,   setSearch]  = useState('')
+  const [modal,    setModal]   = useState(null)
+  const [delItem,  setDelItem] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -121,84 +105,23 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
   }, [])
   useEffect(load, [load])
 
-  useEffect(() => {
-    if (canDelete) {
-      configApi.deletedContractClauses().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDelete, showTrash])
-
   const handleDelete = async () => {
-    try { await configApi.delContractClause(delItem.id); load(); setDeletedCount(c => c + 1) }
+    try { await configApi.delContractClause(delItem.id); load() }
     catch { toast.error('Erro ao excluir cláusula.') }
     finally { setDelItem(null) }
   }
 
-  const categories = useMemo(() => {
-    const set = new Set(clauses.map(c => c.category).filter(Boolean))
-    return [...set].sort((a, b) => a.localeCompare(b, 'pt'))
-  }, [clauses])
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return clauses
-    return clauses.filter(c => c.name.toLowerCase().includes(q) || (c.category || '').toLowerCase().includes(q))
+    return clauses.filter(c => c.name.toLowerCase().includes(q))
   }, [clauses, search])
-
-  const trashTabBar = canDelete && (
-    <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:12 }}>
-      {[{ key:false, label:'Cláusulas', color:'#2563eb' }, { key:true, label:'Excluídas', color:'#dc2626' }].map(t => {
-        const sel = showTrash === t.key
-        return (
-          <button key={String(t.key)} type="button" onClick={() => setShowTrash(t.key)}
-            style={{
-              display:'flex', alignItems:'center', gap:8,
-              padding:'10px 20px', border:'none', cursor:'pointer', fontFamily:'inherit',
-              background:'transparent', fontSize:13.5, fontWeight: sel ? 600 : 400,
-              color: sel ? t.color : '#94a3b8',
-              borderBottom: sel ? `2px solid ${t.color}` : '2px solid transparent',
-              marginBottom:'-1.5px', transition:'color .15s, border-color .15s',
-              outline:'none',
-            }}>
-            {t.label}
-            {t.key && (
-              <span style={{
-                fontSize:11, fontWeight:600, padding:'1px 8px', borderRadius:20,
-                background: sel ? '#fee2e2' : '#f1f5f9',
-                color:      sel ? t.color : '#94a3b8',
-              }}>
-                {deletedCount}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
-
-  if (showTrash) {
-    return (
-      <div>
-        {trashTabBar}
-        <TrashTab
-          fetchDeleted={() => configApi.deletedContractClauses().then(r => r.data.results ?? r.data)}
-          onRestore={(id) => configApi.restoreContractClause(id)}
-          onPurge={(id) => configApi.purgeContractClause(id)}
-          getLabel={row => row.name}
-          getSubtitle={row => row.category}
-          isSuperuser={!!user?.is_superuser}
-          emptyText="Nenhuma cláusula excluída."
-          onCountChange={setDeletedCount}
-        />
-      </div>
-    )
-  }
 
   return (
     <>
     <div>
-      {trashTabBar}
       <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou categoria…"
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome…"
           style={{ ...inp, flex:1, minWidth:160 }}
           onFocus={e => e.target.style.borderColor='#1a2d4f'}
           onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
@@ -229,11 +152,6 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
               {c.is_default && (
                 <span title="Cláusula padrão — sempre entra no contrato" style={{ marginLeft:8, fontSize:12, color:'#f59e0b' }}>★</span>
               )}
-              {c.category && (
-                <span style={{ marginLeft:10, fontSize:11.5, fontWeight:600, color:'#64748b', background:'#f1f5f9', padding:'1px 8px', borderRadius:20 }}>
-                  {c.category}
-                </span>
-              )}
             </div>
             {(canEdit || canDelete) && (
               <div className="r-acts" style={{ flexShrink:0 }}>
@@ -248,14 +166,14 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
     {modal && (
       <ClauseModal
         clause={modal === 'new' ? null : modal}
-        categories={categories}
         onClose={() => setModal(null)}
         onSaved={() => { setModal(null); load() }}
       />
     )}
     {delItem && (
       <ConfirmModal
-        message={`Excluir a cláusula "${delItem.name}"? Vai pra aba "Excluídas" — um superusuário pode restaurar depois.`}
+        message={`Excluir a cláusula "${delItem.name}"?`}
+        detail="Cláusulas já usadas em contratos não são afetadas — o texto fica salvo no próprio contrato."
         onOk={handleDelete}
         onCancel={() => setDelItem(null)}
       />

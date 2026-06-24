@@ -75,7 +75,7 @@ export default function RichTextEditor({ value, onChange, title, placeholder }) 
       <JoditEditor value={value} config={inlineConfig} onBlur={onChange} />
 
       {expanded && createPortal(
-        <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setExpanded(false) }}>
+        <div className="overlay" style={{ zIndex:700 }} onMouseDown={e => { if (e.target === e.currentTarget) setExpanded(false) }}>
           <div className="mbox" style={{ maxWidth:'none', width:'95vw', height:'92vh', display:'flex', flexDirection:'column' }}>
             <div className="mhead">
               <span className="mtitle">{title}</span>
