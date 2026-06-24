@@ -97,16 +97,14 @@ function ClauseModal({ clause, onClose, onSaved }) {
   )
 }
 
-/* ── Popup com os dados da UneWorld como operadora — pré-preenche todo
- * contrato novo (seção "Operadora" da capa) e a lista de formas de pagamento
- * disponíveis no formulário de contrato. ── */
+/* ── Popup com os dados da UneWorld como operadora — pré-preenche
+ * automaticamente a seção "Operadora" de todo contrato novo. ── */
 function CompanyDataModal({ onClose }) {
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
   const [form, setForm] = useState({
     company_name: '', cnpj: '', seller: '', phone: '', mobile: '', email: '', address: '',
   })
-  const [paymentMethodsText, setPaymentMethodsText] = useState('')
 
   useEffect(() => {
     configApi.operatingCompany()
@@ -116,7 +114,6 @@ function CompanyDataModal({ onClose }) {
           company_name: d.company_name ?? '', cnpj: d.cnpj ?? '', seller: d.seller ?? '',
           phone: d.phone ?? '', mobile: d.mobile ?? '', email: d.email ?? '', address: d.address ?? '',
         })
-        setPaymentMethodsText((d.payment_methods ?? []).join(', '))
       })
       .catch(() => toast.error('Erro ao carregar dados da operadora.'))
       .finally(() => setLoading(false))
@@ -126,9 +123,8 @@ function CompanyDataModal({ onClose }) {
 
   const save = async () => {
     setSaving(true)
-    const payment_methods = paymentMethodsText.split(',').map(s => s.trim()).filter(Boolean)
     try {
-      await configApi.updateOperatingCompany({ ...form, payment_methods })
+      await configApi.updateOperatingCompany(form)
       toast.success('Dados da operadora salvos.')
       onClose()
     } catch {
@@ -185,12 +181,6 @@ function CompanyDataModal({ onClose }) {
             <div>
               <label style={lbl}>Endereço</label>
               <input style={{ ...inp, width:'100%' }} value={form.address} onChange={set('address')} />
-            </div>
-            <div>
-              <label style={lbl}>Formas de pagamento</label>
-              <input style={{ ...inp, width:'100%' }} value={paymentMethodsText} onChange={e => setPaymentMethodsText(e.target.value)}
-                placeholder="Pix, Cartão de crédito, Transferência bancária…" />
-              <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Separe cada opção por vírgula.</p>
             </div>
           </div>
         )}

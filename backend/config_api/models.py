@@ -60,6 +60,35 @@ class ConfigGender(models.Model):
         return self.name
 
 
+class ConfigPaymentMethod(models.Model):
+    name = models.CharField('Nome', max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Forma de pagamento'
+
+    def __str__(self):
+        return self.name
+
+
+class ConfigExchangeRate(models.Model):
+    """Taxa de conversão entre duas moedas — usada para preencher automaticamente
+    o câmbio e o total em BRL nos contratos (ver app `contracts`)."""
+    from_currency = models.CharField('De', max_length=10, default='USD')
+    to_currency   = models.CharField('Para', max_length=10, default='BRL')
+    rate          = models.DecimalField('Taxa', max_digits=10, decimal_places=4)
+    updated_at    = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        ordering = ['from_currency', 'to_currency']
+        verbose_name = 'Câmbio'
+        verbose_name_plural = 'Câmbio'
+        unique_together = ('from_currency', 'to_currency')
+
+    def __str__(self):
+        return f'{self.from_currency} → {self.to_currency}: {self.rate}'
+
+
 class ConfigVaccine(models.Model):
     name = models.CharField('Nome', max_length=200, unique=True)
 
@@ -305,7 +334,6 @@ class OperatingCompany(models.Model):
     mobile         = models.CharField('Celular', max_length=20, blank=True)
     email          = models.EmailField('E-mail', blank=True)
     address        = models.CharField('Endereço', max_length=300, blank=True)
-    payment_methods = models.JSONField('Formas de pagamento', default=list, blank=True)  # lista de strings
     updated_at     = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:

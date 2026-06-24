@@ -1,11 +1,19 @@
+from decimal import Decimal
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from agencies.models import Agency
-from config_api.models import ConfigAccommodation, ContractClause
+from config_api.models import ConfigAccommodation, ConfigExchangeRate, ContractClause
 from passengers.models import Passenger
 from trips.models import PassengerList
 
 from .models import Contract, ContractAccommodationLine, ContractGuest, ContractInstallment
+
+
+def _default_exchange_rate(from_currency='USD', to_currency='BRL'):
+    row = ConfigExchangeRate.objects.filter(from_currency=from_currency, to_currency=to_currency).first()
+    return row.rate if row else None
 
 
 def _passenger_brief(p):
@@ -84,6 +92,13 @@ class ContractSerializer(serializers.ModelSerializer):
     passenger_list_data = serializers.SerializerMethodField()
     clauses_data        = serializers.SerializerMethodField()
 
+    # Calculados pelo backend — nunca digitados (ver _recalc_totals).
+    total_usd     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total_brl     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    # Imutáveis após a criação (ver create()).
+    reservation_number = serializers.CharField(read_only=True)
+    contract_date       = serializers.DateField(read_only=True)
+
     class Meta:
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_data',
@@ -129,8 +144,28 @@ class ContractSerializer(serializers.ModelSerializer):
                 ContractInstallment(contract=contract, order=i, **row)
                 for i, row in enumerate(installments)
             ])
-        if clauses is not None:
-            contract.clauses.set(clauses)
+
+        # As cláusulas marcadas como "padrão" (favoritas) sempre entram no
+        # contrato, independente do que foi enviado — o usuário só escolhe as
+        # adicionais.
+        default_ids = set(ContractClause.objects.filter(is_default=True).values_list('id', flat=True))
+        chosen_ids  = set(c.id for c in clauses) if clauses is not None else set()
+        contract.clauses.set(default_ids | chosen_ids)
+
+    def _recalc_totals(self, contract):
+        """Soma total (USD) vem das linhas de acomodação; câmbio vem da
+        configuração de Câmbio quando o contrato não tem um valor próprio;
+        total em BRL é derivado dos dois — nada disso é digitado manualmente."""
+        total_usd = sum(
+            (line.value_per_person_usd + line.taxes_usd) * line.quantity
+            for line in contract.accommodation_lines.all()
+        )
+        exchange_rate = contract.exchange_rate or _default_exchange_rate()
+        total_brl = total_usd * exchange_rate if exchange_rate else None
+        contract.total_usd     = total_usd
+        contract.exchange_rate = exchange_rate
+        contract.total_brl     = total_brl
+        contract.save(update_fields=['total_usd', 'exchange_rate', 'total_brl'])
 
     def create(self, validated_data):
         accommodation_lines = validated_data.pop('accommodation_lines', [])
@@ -138,11 +173,25 @@ class ContractSerializer(serializers.ModelSerializer):
         installments        = validated_data.pop('installments', [])
         clauses              = validated_data.pop('clauses', [])
         request = self.context.get('request')
+
+        # Data da contratação é sempre hoje — não é um campo preenchido pelo usuário.
+        validated_data['contract_date'] = timezone.now().date()
+        # Totais (USD/BRL) são sempre calculados — nunca aceitos do payload.
+        validated_data.pop('total_usd', None)
+        validated_data.pop('total_brl', None)
+
         contract = Contract.objects.create(
             created_by=getattr(request, 'user', None) if request else None,
             **validated_data,
         )
+        # Reserva nº: sequencial e único — gerado a partir do próprio id, sem
+        # precisar de um contador separado nem de digitação manual.
+        if not contract.reservation_number:
+            contract.reservation_number = f'{contract.id:06d}'
+            contract.save(update_fields=['reservation_number'])
+
         self._save_children(contract, accommodation_lines, guests, installments, clauses)
+        self._recalc_totals(contract)
         return contract
 
     def update(self, instance, validated_data):
@@ -150,8 +199,14 @@ class ContractSerializer(serializers.ModelSerializer):
         guests              = validated_data.pop('guests', None)
         installments        = validated_data.pop('installments', None)
         clauses              = validated_data.pop('clauses', None)
+        # Data da contratação e reserva nº são imutáveis após a criação.
+        validated_data.pop('contract_date', None)
+        validated_data.pop('reservation_number', None)
+        validated_data.pop('total_usd', None)
+        validated_data.pop('total_brl', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         self._save_children(instance, accommodation_lines, guests, installments, clauses)
+        self._recalc_totals(instance)
         return instance

@@ -15,7 +15,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
-                     OperatingCompany)
+                     OperatingCompany, ConfigPaymentMethod, ConfigExchangeRate)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -749,6 +749,32 @@ class GenderViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm('settings_genders')
 
 
+class PaymentMethodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigPaymentMethod
+        fields = ['id', 'name']
+
+
+class PaymentMethodViewSet(viewsets.ModelViewSet):
+    queryset = ConfigPaymentMethod.objects.all()
+    serializer_class = PaymentMethodSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_payment_methods')
+
+
+class ExchangeRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigExchangeRate
+        fields = ['id', 'from_currency', 'to_currency', 'rate', 'updated_at']
+
+
+class ExchangeRateViewSet(viewsets.ModelViewSet):
+    queryset = ConfigExchangeRate.objects.all()
+    serializer_class = ExchangeRateSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_exchange_rates')
+
+
 class ListCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigListCategory
@@ -1172,8 +1198,7 @@ def system_settings(request):
 class OperatingCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model  = OperatingCompany
-        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address',
-                  'payment_methods', 'updated_at']
+        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address', 'updated_at']
 
 
 @api_view(['GET', 'PATCH'])

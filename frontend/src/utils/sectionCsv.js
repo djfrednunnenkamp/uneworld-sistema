@@ -38,6 +38,10 @@ export const SECTION_ROW_BUILDERS = {
     const payload = JSON.stringify({ content: t.content || '' })
     return `${q(label)},${q(t.name)},,,,,${q(payload)}`
   },
+  exchange_rates: (label, er) => {
+    const payload = JSON.stringify({ from_currency: er.from_currency, to_currency: er.to_currency, rate: er.rate })
+    return `${q(label)},${q(`${er.from_currency} → ${er.to_currency}`)},,,,,${q(payload)}`
+  },
 }
 
 export function downloadCsv(text, filename, logMeta) {

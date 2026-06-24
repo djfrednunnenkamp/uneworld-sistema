@@ -123,6 +123,14 @@ function parseCombinedCsv(text, labelToKey) {
         extras.content = parsed.content || ''
       } catch { /* formato antigo/inválido */ }
     }
+    if (listKey === 'exchange_rates' && extras.code) {
+      try {
+        const parsed = JSON.parse(extras.code)
+        extras.from_currency = parsed.from_currency || 'USD'
+        extras.to_currency   = parsed.to_currency || 'BRL'
+        extras.rate          = parsed.rate
+      } catch { /* câmbio exportado em formato antigo/inválido */ }
+    }
     return { listLabel, listKey, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
@@ -136,6 +144,7 @@ const API_MAP = {
   list_addits:     { add: (name)         => listsApi.addAdditional(name),     del: (id) => listsApi.removeAdditional(id),  label: 'Adicionais de Lista' },
   crew_roles:      { add: (name)         => listsApi.addCrewRole(name),       del: (id) => listsApi.removeCrewRole(id),    label: 'Equipe técnica' },
   list_categories: { add: (name)         => configApi.addListCategory(name),  del: (id) => configApi.delListCategory(id),  label: 'Categoria de Acomodações' },
+  payment_methods: { add: (name)         => configApi.addPaymentMethod(name), del: (id) => configApi.delPaymentMethod(id), label: 'Formas de Pagamento' },
   accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), del: (id) => configApi.delAccommodation(id), label: 'Acomodações' },
   doc_types:       { add: (name, extras) => configApi.addDocType({
                        label: name, key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
@@ -163,6 +172,9 @@ const API_MAP = {
                      }), del: (id) => configApi.delContractClause(id), label: 'Cláusulas de Contrato' },
   // Singleton — "adicionar" aqui só atualiza o texto vigente, nunca cria item novo
   terms:           { add: (name, extras) => configApi.updateTerms({ content: extras.content || '' }), del: null, label: 'Termos e Condições' },
+  exchange_rates:  { add: (name, extras) => configApi.addExchangeRate({
+                       from_currency: extras.from_currency || 'USD', to_currency: extras.to_currency || 'BRL', rate: extras.rate,
+                     }), del: (id) => configApi.delExchangeRate(id), label: 'Câmbio' },
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -170,7 +182,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Tipos com campos extras (não só "nome") — usam o mesmo parser rico do CSV combinado
-const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms'])
+const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms', 'exchange_rates'])
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
 const EXPORT_ONLY_KEYS = new Set()
@@ -239,6 +251,8 @@ const BULK_DELETE_PERM = {
   cities:          'settings_countries_bulk_delete',
   bus_maps:        'settings_bus_maps_delete',
   perm_profiles:   'settings_user_profiles_delete',
+  payment_methods: 'settings_payment_methods_delete',
+  exchange_rates:  'settings_exchange_rates_delete',
 }
 
 export default function FlatImport() {
@@ -301,6 +315,7 @@ export default function FlatImport() {
     if (listKey === 'states' && !extras.parent_country) return 'error'
     if (listKey === 'cities' && (!extras.parent_country || !extras.parent_state)) return 'error'
     if (listKey === 'bus_maps' && !extras.rows) return 'error'
+    if (listKey === 'exchange_rates' && (extras.rate == null || extras.rate === '')) return 'error'
     const set = existingSets[listKey ?? type]
     const key = listKey === 'cities'
       ? `${extras.parent_country || ''}|${extras.parent_state || ''}|${name}`.toLowerCase()

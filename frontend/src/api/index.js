@@ -249,6 +249,16 @@ export const configApi = {
   // Dados da operadora (UneWorld) — pré-preenche os contratos
   operatingCompany:       ()        => api.get('/config/operating-company/'),
   updateOperatingCompany: (data)    => api.patch('/config/operating-company/', data),
+  // Formas de pagamento
+  paymentMethods:    () => api.get('/config/payment-methods/'),
+  addPaymentMethod:  (name) => api.post('/config/payment-methods/', { name }),
+  updatePaymentMethod: (id, name) => api.patch(`/config/payment-methods/${id}/`, { name }),
+  delPaymentMethod:  (id)   => api.delete(`/config/payment-methods/${id}/`),
+  // Câmbio
+  exchangeRates:     () => api.get('/config/exchange-rates/'),
+  addExchangeRate:   (data) => api.post('/config/exchange-rates/', data),
+  updateExchangeRate: (id, data) => api.patch(`/config/exchange-rates/${id}/`, data),
+  delExchangeRate:   (id)   => api.delete(`/config/exchange-rates/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

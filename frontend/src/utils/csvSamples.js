@@ -11,6 +11,7 @@ export const CSV_SAMPLES = {
   list_addits:     { content: simple(['Mochila', 'Passaporte', 'Seguro viagem']),           filename: 'modelo_adicionais.csv' },
   crew_roles:      { content: simple(['Guia', 'Motorista', 'Assistente']),                 filename: 'modelo_equipe_tecnica.csv' },
   list_categories: { content: simple(['Standard', 'Superior', 'Deluxe']),                  filename: 'modelo_categorias.csv' },
+  payment_methods: { content: simple(['Pix', 'Cartão de crédito', 'Transferência bancária']), filename: 'modelo_formas_pagamento.csv' },
 
   accommodations: {
     content: [
@@ -61,6 +62,13 @@ export const CSV_SAMPLES = {
       'Cláusulas de Contrato,Cancelamento de voo,,,,,"{""content"":""<p>Texto da cláusula…</p>"",""is_default"":false}"',
     ].join('\n'),
     filename: 'modelo_clausulas_contrato.csv',
+  },
+  exchange_rates: {
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Câmbio,USD → BRL,,,,,"{""from_currency"":""USD"",""to_currency"":""BRL"",""rate"":5.3}"',
+    ].join('\n'),
+    filename: 'modelo_cambio.csv',
   },
   terms: {
     content: [

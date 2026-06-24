@@ -83,6 +83,8 @@ PERMISSION_FIELDS = [
     'settings_airlines_view', 'settings_airlines_edit', 'settings_airlines_delete', 'settings_airlines_bulk_delete', 'settings_airlines_bulk_import', 'settings_airlines_import_web',
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
     'settings_contract_clauses_view', 'settings_contract_clauses_edit', 'settings_contract_clauses_delete',
+    'settings_payment_methods_view', 'settings_payment_methods_edit', 'settings_payment_methods_delete',
+    'settings_exchange_rates_view', 'settings_exchange_rates_edit', 'settings_exchange_rates_delete',
     'settings_terms_view', 'settings_terms_edit',
 ]
 
@@ -115,6 +117,8 @@ STAFF_PERMISSION_FIELDS = [
     'settings_airlines_view', 'settings_airlines_edit', 'settings_airlines_delete', 'settings_airlines_bulk_delete', 'settings_airlines_bulk_import', 'settings_airlines_import_web',
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
     'settings_contract_clauses_view', 'settings_contract_clauses_edit', 'settings_contract_clauses_delete',
+    'settings_payment_methods_view', 'settings_payment_methods_edit', 'settings_payment_methods_delete',
+    'settings_exchange_rates_view', 'settings_exchange_rates_edit', 'settings_exchange_rates_delete',
     'settings_terms_view', 'settings_terms_edit',
     # Log do sistema
     'log_view', 'log_page_views',

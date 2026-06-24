@@ -21,6 +21,8 @@ export const CARD_META = {
   bus_maps:        { icon: 'mapicon',   hue: 45,  desc: 'Mapas de assentos dos ônibus por empresa.' },
   contract_clauses:{ icon: 'docs',      hue: 70,  desc: 'Cláusulas de contrato — base para o futuro gerador de contratos.' },
   terms:           { icon: 'shield',    hue: 5,   desc: 'Termos e condições que todo usuário precisa aceitar.' },
+  payment_methods: { icon: 'card',      hue: 200, desc: 'Formas de pagamento disponíveis nos contratos.' },
+  exchange_rates:  { icon: 'globe',     hue: 160, desc: 'Câmbio usado para preencher automaticamente os contratos.' },
 }
 
 export const sectionTileColors = (hue) => ({

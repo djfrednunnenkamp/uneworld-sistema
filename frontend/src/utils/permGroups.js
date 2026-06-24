@@ -166,6 +166,22 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Formas de Pagamento', icon: 'card', hue: 200,
+        items: [
+          ['settings_payment_methods_view',   'Ver formas de pagamento'],
+          ['settings_payment_methods_edit',   'Criar / Editar formas de pagamento'],
+          ['settings_payment_methods_delete', 'Excluir formas de pagamento'],
+        ],
+      },
+      {
+        label: 'Câmbio', icon: 'globe', hue: 160,
+        items: [
+          ['settings_exchange_rates_view',   'Ver câmbio'],
+          ['settings_exchange_rates_edit',   'Criar / Editar câmbio'],
+          ['settings_exchange_rates_delete', 'Excluir câmbio'],
+        ],
+      },
+      {
         label: 'Companhias Aéreas', icon: 'ticket', hue: 195,
         items: [
           ['settings_airlines_view',        'Ver companhias aéreas'],
@@ -406,6 +422,14 @@ export const PERM_DEPENDENCIES = {
   settings_contract_clauses_view:   'settings_view',
   settings_contract_clauses_edit:   'settings_contract_clauses_view',
   settings_contract_clauses_delete: 'settings_contract_clauses_view',
+
+  settings_payment_methods_view:   'settings_view',
+  settings_payment_methods_edit:   'settings_payment_methods_view',
+  settings_payment_methods_delete: 'settings_payment_methods_view',
+
+  settings_exchange_rates_view:    'settings_view',
+  settings_exchange_rates_edit:    'settings_exchange_rates_view',
+  settings_exchange_rates_delete:  'settings_exchange_rates_view',
 
   settings_terms_view: 'settings_view',
   settings_terms_edit: 'settings_terms_view',

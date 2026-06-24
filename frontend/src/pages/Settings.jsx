@@ -12,6 +12,7 @@ import AirportsManager from '../components/AirportsManager'
 import AirlinesManager from '../components/AirlinesManager'
 import BusMapsManager from '../components/BusMapsManager'
 import ContractClausesManager from '../components/ContractClausesManager'
+import ExchangeRateManager from '../components/ExchangeRateManager'
 import TermsAndConditionsManager from '../components/TermsAndConditionsManager'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
@@ -71,7 +72,7 @@ function splitCsvLineSettings(line) {
                   + tipos de documento + aeroportos + companhias aéreas
                   + perfis de permissão + mapas de ônibus
    Formato: lista,nome,pessoas,casal,pais,estado,codigo */
-function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, filename) {
+function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, paymentMethods = [], exchangeRates = [], filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
   const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
@@ -120,6 +121,13 @@ function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, 
     const payload = JSON.stringify({ content: termsContent || '' })
     rows.push(`${q('Termos e Condições')},${q('Termos e Condições')},,,,,${q(payload)}`)
   }
+  paymentMethods.forEach(pm => {
+    rows.push(`${q('Formas de Pagamento')},${q(pm.name)},,,,,`)
+  })
+  exchangeRates.forEach(er => {
+    const payload = JSON.stringify({ from_currency: er.from_currency, to_currency: er.to_currency, rate: er.rate })
+    rows.push(`${q('Câmbio')},${q(`${er.from_currency} → ${er.to_currency}`)},,,,,${q(payload)}`)
+  })
   downloadCsv(rows.join('\n'), filename, { model_label: 'Exportação CSV — Todas as configurações' })
 }
 
@@ -765,6 +773,8 @@ const LIST_DEFS = [
   { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps' },
   { key:'contract_clauses', label:'Cláusulas de Contrato',    perm:'settings_contract_clauses' },
   { key:'terms',            label:'Termos e Condições',       perm:'settings_terms' },
+  { key:'payment_methods',  label:'Formas de Pagamento',      perm:'settings_payment_methods' },
+  { key:'exchange_rates',   label:'Câmbio',                   perm:'settings_exchange_rates' },
 ]
 const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses', 'terms']
 
@@ -1133,6 +1143,10 @@ export default function Settings() {
   const [languages,   setLanguages]   = useState([])
   const [vaccines,    setVaccines]    = useState([])
   const [genders,    setGenders]    = useState([])
+  const [paymentMethods, setPaymentMethods] = useState([])
+  const [exchangeRates,  setExchangeRates]  = useState([])
+  const [loadingPM, setLoadingPM] = useState(true)
+  const [loadingER, setLoadingER] = useState(true)
   const [listCats,   setListCats]   = useState([])
   const [profCards,    setProfCards]    = useState([])
   const [listAddits,   setListAddits]   = useState([])
@@ -1161,6 +1175,8 @@ export default function Settings() {
     configApi.languages().then(r => setLanguages(r.data)).catch(() => {}).finally(() => setLoadingL(false))
     configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {}).finally(() => setLoadingV(false))
     configApi.genders().then(r => setGenders(r.data)).catch(() => {}).finally(() => setLoadingG(false))
+    configApi.paymentMethods().then(r => setPaymentMethods(r.data)).catch(() => {}).finally(() => setLoadingPM(false))
+    configApi.exchangeRates().then(r => setExchangeRates(r.data)).catch(() => {}).finally(() => setLoadingER(false))
     configApi.listCategories().then(r => setListCats(r.data)).catch(() => {}).finally(() => setLoadingLC(false))
     configApi.profCards().then(r => setProfCards(r.data)).catch(() => {}).finally(() => setLoadingPC(false))
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {}).finally(() => setLoadingLA(false))
@@ -1181,6 +1197,8 @@ export default function Settings() {
     configApi.languages().then(r => setLanguages(r.data)).catch(() => {})
     configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {})
     configApi.genders().then(r => setGenders(r.data)).catch(() => {})
+    configApi.paymentMethods().then(r => setPaymentMethods(r.data)).catch(() => {})
+    configApi.exchangeRates().then(r => setExchangeRates(r.data)).catch(() => {})
     configApi.listCategories().then(r => setListCats(r.data)).catch(() => {})
     configApi.profCards().then(r => setProfCards(r.data)).catch(() => {})
     listsApi.listAdditionals().then(r => setListAddits(r.data.results ?? r.data)).catch(() => {})
@@ -1256,6 +1274,38 @@ export default function Settings() {
   const delGender = async (id) => {
     try { await configApi.delGender(id); setGenders(g => g.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover gênero.') }
+  }
+  const addPaymentMethod = async (name) => {
+    try {
+      const r = await configApi.addPaymentMethod(name)
+      setPaymentMethods(p => [...p, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar forma de pagamento.') }
+  }
+  const updatePaymentMethod = async (id, name) => {
+    try {
+      const r = await configApi.updatePaymentMethod(id, name)
+      setPaymentMethods(p => p.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar forma de pagamento.') }
+  }
+  const delPaymentMethod = async (id) => {
+    try { await configApi.delPaymentMethod(id); setPaymentMethods(p => p.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover forma de pagamento.') }
+  }
+  const addExchangeRate = async (data) => {
+    try {
+      const r = await configApi.addExchangeRate(data)
+      setExchangeRates(e => [...e, r.data])
+    } catch { toast.error('Erro ao adicionar câmbio.') }
+  }
+  const updateExchangeRate = async (id, data) => {
+    try {
+      const r = await configApi.updateExchangeRate(id, data)
+      setExchangeRates(e => e.map(x => x.id === id ? r.data : x))
+    } catch { toast.error('Erro ao salvar câmbio.') }
+  }
+  const delExchangeRate = async (id) => {
+    try { await configApi.delExchangeRate(id); setExchangeRates(e => e.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover câmbio.') }
   }
   const addListCategory = async (name) => {
     try {
@@ -1361,10 +1411,13 @@ export default function Settings() {
       const viewBusMaps     = can('settings_bus_maps',       'view') && include('bus_maps')
       const viewContractClauses = can('settings_contract_clauses', 'view') && include('contract_clauses')
       const viewTerms       = can('settings_terms', 'view') && include('terms')
+      const viewPaymentMethods = can('settings_payment_methods', 'view') && include('payment_methods')
+      const viewExchangeRates  = can('settings_exchange_rates',  'view') && include('exchange_rates')
       const wantStates = geoLevel === 'estados' || geoLevel === 'cidades'
       const wantCities = geoLevel === 'cidades'
       let cRes = { data: [] }, sRes = { data: [] }, cities = []
       let dtData = [], apData = [], alData = [], ppData = [], bmData = [], ccData = [], termsContent = null
+      let pmData = [], erData = []
       const fetches = []
       if (viewCountries) fetches.push(
         Promise.all([
@@ -1386,8 +1439,10 @@ export default function Settings() {
       if (viewBusMaps)      fetches.push(configApi.busMaps().then(r => { bmData = r.data.results ?? r.data }))
       if (viewContractClauses) fetches.push(configApi.contractClauses().then(r => { ccData = r.data.results ?? r.data }))
       if (viewTerms) fetches.push(configApi.terms().then(r => { termsContent = r.data.content || '' }))
+      if (viewPaymentMethods) fetches.push(configApi.paymentMethods().then(r => { pmData = r.data }))
+      if (viewExchangeRates)  fetches.push(configApi.exchangeRates().then(r => { erData = r.data }))
       await Promise.all(fetches)
-      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, 'todas_as_configuracoes.csv')
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, pmData, erData, 'todas_as_configuracoes.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -1403,7 +1458,10 @@ export default function Settings() {
     const canImportPermProfiles = can('settings_user_profiles', 'edit')
     const canImportContractClauses = can('settings_contract_clauses', 'edit')
     const canImportTerms = can('settings_terms', 'edit')
+    const canImportPaymentMethods = can('settings_payment_methods', 'edit')
+    const canImportExchangeRates  = can('settings_exchange_rates',  'edit')
     let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = [], allPermProfiles = [], allContractClauses = [], allTermsContent = null
+    let allPaymentMethods = [], allExchangeRates = []
     const fetches2 = []
     if (canImportCountries) fetches2.push(
       Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
@@ -1422,6 +1480,8 @@ export default function Settings() {
     if (canImportPermProfiles) fetches2.push(configApi.permissionProfiles().then(r => { allPermProfiles = r.data.results ?? r.data }).catch(() => {}))
     if (canImportContractClauses) fetches2.push(configApi.contractClauses().then(r => { allContractClauses = r.data.results ?? r.data }).catch(() => {}))
     if (canImportTerms) fetches2.push(configApi.terms().then(r => { allTermsContent = r.data.content || '' }).catch(() => {}))
+    if (canImportPaymentMethods) fetches2.push(configApi.paymentMethods().then(r => { allPaymentMethods = r.data }).catch(() => {}))
+    if (canImportExchangeRates)  fetches2.push(configApi.exchangeRates().then(r => { allExchangeRates = r.data }).catch(() => {}))
     await Promise.all(fetches2)
     const permittedKeys = [
       ...importableGroups.map(g => g.key),
@@ -1434,6 +1494,8 @@ export default function Settings() {
       ...(canImportPermProfiles ? ['perm_profiles']                 : []),
       ...(canImportContractClauses ? ['contract_clauses']           : []),
       ...(canImportTerms     ? ['terms']                            : []),
+      ...(canImportPaymentMethods ? ['payment_methods']             : []),
+      ...(canImportExchangeRates  ? ['exchange_rates']              : []),
     ]
     navigate('/configuracoes/import', {
       state: {
@@ -1452,6 +1514,8 @@ export default function Settings() {
           ...(canImportBusMaps   ? { bus_maps: allBusMaps.map(m => m.label) }         : {}),
           ...(canImportPermProfiles ? { perm_profiles: allPermProfiles.map(p => p.name) } : {}),
           ...(canImportContractClauses ? { contract_clauses: allContractClauses.map(c => c.name) } : {}),
+          ...(canImportPaymentMethods ? { payment_methods: allPaymentMethods.map(pm => pm.name) } : {}),
+          ...(canImportExchangeRates  ? { exchange_rates: allExchangeRates.map(er => `${er.from_currency} → ${er.to_currency}`) } : {}),
         },
         existingItemsByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items])),
@@ -1463,6 +1527,8 @@ export default function Settings() {
           ...(canImportBusMaps   ? { bus_maps: allBusMaps }                                                : {}),
           ...(canImportPermProfiles ? { perm_profiles: allPermProfiles }                                   : {}),
           ...(canImportContractClauses ? { contract_clauses: allContractClauses }                          : {}),
+          ...(canImportPaymentMethods ? { payment_methods: allPaymentMethods }                              : {}),
+          ...(canImportExchangeRates  ? { exchange_rates: allExchangeRates.map(er => ({ ...er, name: `${er.from_currency} → ${er.to_currency}` })) } : {}),
         },
         permittedKeys,
         allCountries,
@@ -1489,6 +1555,8 @@ export default function Settings() {
     countries: cntCountries, airports: cntAirports, airlines: cntAirlines, bus_maps: cntBusMaps,
     contract_clauses: cntContractClauses,
     terms: cntTerms,
+    payment_methods: paymentMethods.length,
+    exchange_rates: exchangeRates.length,
   }
 
   return (
@@ -1611,6 +1679,8 @@ export default function Settings() {
           ...(can('settings_bus_maps',       'view') ? [{ key: 'bus_maps',       label: 'Mapas de Ônibus' }] : []),
           ...(can('settings_contract_clauses', 'view') ? [{ key: 'contract_clauses', label: 'Cláusulas de Contrato' }] : []),
           ...(can('settings_terms', 'view') ? [{ key: 'terms', label: 'Termos e Condições' }] : []),
+          ...(can('settings_payment_methods', 'view') ? [{ key: 'payment_methods', label: 'Formas de Pagamento' }] : []),
+          ...(can('settings_exchange_rates',  'view') ? [{ key: 'exchange_rates',  label: 'Câmbio' }] : []),
         ]
         return (
           <CsvExportModal
@@ -1667,6 +1737,8 @@ export default function Settings() {
                 {activeDef.key === 'languages'       && <ItemList items={languages}   loading={loadingL}  onAdd={can('settings_languages','edit') ? addLanguage : undefined}           onUpdate={can('settings_languages','edit') ? updateLanguage : undefined}           onDelete={can('settings_languages','delete') ? delLanguage : undefined}           canImport={can('settings_languages','bulk_import')}        canExport={can('settings_languages','view')}        placeholder="Nome do idioma…"     addTitle="Novo idioma"     editTitle="Editar idioma"     filename="idiomas.csv"          type="languages"        onImportWeb={can('settings_languages','import_web') ? () => configApi.importLanguages() : null} />}
                 {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         canExport={can('settings_vaccines','view')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines"         onImportWeb={can('settings_vaccines','import_web') ? () => configApi.importVaccines() : null} />}
                 {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          canExport={can('settings_genders','view')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
+                {activeDef.key === 'payment_methods' && <ItemList items={paymentMethods} loading={loadingPM} onAdd={can('settings_payment_methods','edit') ? addPaymentMethod : undefined} onUpdate={can('settings_payment_methods','edit') ? updatePaymentMethod : undefined} onDelete={can('settings_payment_methods','delete') ? delPaymentMethod : undefined} canImport={can('settings_payment_methods','edit')} canExport={can('settings_payment_methods','view')} placeholder="Nome da forma de pagamento…" addTitle="Nova forma de pagamento" editTitle="Editar forma de pagamento" filename="formas_pagamento.csv" type="payment_methods" />}
+                {activeDef.key === 'exchange_rates'  && <ExchangeRateManager items={exchangeRates} canEdit={can('settings_exchange_rates','edit')} canDelete={can('settings_exchange_rates','delete')} canImport={can('settings_exchange_rates','edit')} canExport={can('settings_exchange_rates','view')} onAdd={addExchangeRate} onUpdate={updateExchangeRate} onDelete={delExchangeRate} />}
                 {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       canExport={can('settings_prof_cards','view')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards"       onImportWeb={can('settings_prof_cards','import_web') ? () => configApi.importProfCards() : null} />}
                 {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} canExport={can('settings_list_additionals','view')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
                 {activeDef.key === 'crew_roles'      && <ItemList items={crewRoles}   loading={loadingCR} onAdd={can('settings_crew_roles','edit') ? addCrewRole : undefined}          onUpdate={can('settings_crew_roles','edit') ? updateCrewRole : undefined}          onDelete={can('settings_crew_roles','delete') ? delCrewRole : undefined}          canImport={can('settings_crew_roles','bulk_import')}       canExport={can('settings_crew_roles','view')}       placeholder="Nome da função…"     addTitle="Nova função"     editTitle="Editar função"     filename="equipe_tecnica.csv"   type="crew_roles" />}
