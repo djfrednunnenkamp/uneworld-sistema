@@ -6,10 +6,22 @@ const NAV    = [26, 45, 79]      // #1a2d4f
 const BORDER = [226, 232, 240]   // #e2e8f0
 const MUTED  = [71, 85, 105]
 
+// Fonte base 11pt — o usuário pediu pra não ir abaixo disso por legibilidade,
+// preferindo espaçamento mais apertado a letra menor pra caber numa página.
+const FONT_BODY = 11
+const FONT_HEAD = 11
+const PAD       = 1.3
+
 const fmtDateBR = (iso) => {
   if (!iso) return ''
   const [y, m, d] = String(iso).split('-')
   return (y && m && d) ? `${d}/${m}/${y}` : String(iso)
+}
+
+const fmtDateRangeBR = (start, end) => {
+  if (!start && !end) return ''
+  if (start && end) return `${fmtDateBR(start)} – ${fmtDateBR(end)}`
+  return fmtDateBR(start || end)
 }
 
 const fmtMoney = (v) => v == null || v === '' ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
@@ -28,12 +40,12 @@ function htmlToText(html) {
 function sectionHeader(doc, title, y) {
   const pw = doc.internal.pageSize.getWidth()
   doc.setFillColor(...NAV)
-  doc.rect(10, y, pw - 20, 7, 'F')
+  doc.rect(10, y, pw - 20, 5.5, 'F')
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(9.5)
   doc.setTextColor(255, 255, 255)
-  doc.text(title, 13, y + 5)
-  return y + 7
+  doc.text(title, 13, y + 3.9)
+  return y + 5.5
 }
 
 function kvTable(doc, y, rows) {
@@ -42,16 +54,29 @@ function kvTable(doc, y, rows) {
     startY: y,
     body: rows,
     theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, lineColor: BORDER, lineWidth: 0.2, textColor: [30, 41, 59] },
+    styles: { font: 'helvetica', fontSize: FONT_BODY, cellPadding: PAD, lineColor: BORDER, lineWidth: 0.2, textColor: [30, 41, 59] },
     columnStyles: {
-      0: { fontStyle: 'bold', textColor: MUTED, cellWidth: 35 },
-      1: { cellWidth: 60 },
-      2: { fontStyle: 'bold', textColor: MUTED, cellWidth: 35 },
+      0: { fontStyle: 'bold', textColor: MUTED, cellWidth: 33 },
+      1: { cellWidth: 62 },
+      2: { fontStyle: 'bold', textColor: MUTED, cellWidth: 33 },
       3: { cellWidth: 'auto' },
     },
     margin: { left: 10, right: 10 },
     tableLineColor: BORDER,
     tableLineWidth: 0.2,
+  })
+  return doc.lastAutoTable.finalY
+}
+
+function dataTable(doc, y, head, body) {
+  autoTable(doc, {
+    startY: y,
+    head: [head],
+    body,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: FONT_BODY, cellPadding: PAD, lineColor: BORDER, lineWidth: 0.2 },
+    headStyles: { fillColor: NAV, textColor: 255, fontStyle: 'bold', fontSize: FONT_HEAD },
+    margin: { left: 10, right: 10 },
   })
   return doc.lastAutoTable.finalY
 }
@@ -71,23 +96,26 @@ export async function generateContractPDF(contract) {
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw  = doc.internal.pageSize.getWidth()
-  let y = 10
+  let y = 8
 
+  // ── Cabeçalho compacto: logo + título + reserva/data na mesma área ──
   if (logoDataUrl) {
-    try { doc.addImage(logoDataUrl, 'PNG', 10, y, 22, 14) } catch {}
+    try { doc.addImage(logoDataUrl, 'PNG', 10, y, 19, 12) } catch {}
   }
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
+  doc.setFontSize(11.5)
   doc.setTextColor(...NAV)
-  doc.text('COMPRA DE SERVIÇOS TURÍSTICOS E CONTRATO DE VIAGEM POR ADESÃO', pw / 2 + 10, y + 6, { align: 'center' })
+  doc.text('COMPRA DE SERVIÇOS TURÍSTICOS E CONTRATO DE VIAGEM POR ADESÃO', pw / 2 + 8, y + 4.5, { align: 'center' })
   doc.setFontSize(9)
-  doc.text('EXCLUSIVO PARA GRUPOS', pw / 2 + 10, y + 11, { align: 'center' })
-  y += 20
-
-  y = kvTable(doc, y, [['Reserva nº', contract.reservation_number || '—', 'Data desta contratação', fmtDateBR(contract.contract_date)]])
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...MUTED)
+  doc.text('EXCLUSIVO PARA GRUPOS', pw / 2 + 8, y + 9, { align: 'center' })
+  doc.setFontSize(8.5)
+  doc.text(`Reserva nº ${contract.reservation_number || '—'}    ·    Data desta contratação: ${fmtDateBR(contract.contract_date)}`, pw / 2 + 8, y + 13, { align: 'center' })
+  y += 17
 
   // Agência
-  y = sectionHeader(doc, 'AGÊNCIA DE VIAGEM (INTERMEDIADORA)', y + 3)
+  y = sectionHeader(doc, 'AGÊNCIA DE VIAGEM (INTERMEDIADORA)', y)
   const ag = contract.agency_data || {}
   y = kvTable(doc, y, [
     ['Empresa', ag.name || '', 'CNPJ', ag.cnpj || ''],
@@ -97,7 +125,7 @@ export async function generateContractPDF(contract) {
   ])
 
   // Operadora
-  y = sectionHeader(doc, 'OPERADORA (FORNECEDORA DO PACOTE TURÍSTICO)', y + 3)
+  y = sectionHeader(doc, 'OPERADORA (FORNECEDORA DO PACOTE TURÍSTICO)', y + 1.5)
   y = kvTable(doc, y, [
     ['Nome/Empresa', company.company_name || '', 'CNPJ', company.cnpj || ''],
     ['Vendedor', company.seller || '', 'Telefone fixo', company.phone || ''],
@@ -106,31 +134,23 @@ export async function generateContractPDF(contract) {
   ])
 
   // Pacote de viagem
-  y = sectionHeader(doc, 'PACOTE DE VIAGEM', y + 3)
+  y = sectionHeader(doc, 'PACOTE DE VIAGEM', y + 1.5)
   y = kvTable(doc, y, [
-    ['Nome do pacote', contract.package_name || '', 'Data da viagem', fmtDateBR(contract.departure_date)],
+    ['Nome do pacote', contract.package_name || '', 'Data da viagem', fmtDateRangeBR(contract.departure_date, contract.return_date)],
     ['Aeroporto de embarque', contract.departure_airport || '', 'Observações', contract.observations || ''],
   ])
 
   // Tipos de acomodação
-  y = sectionHeader(doc, 'TIPOS DE ACOMODAÇÃO / VALORES POR PESSOA', y + 3)
+  y = sectionHeader(doc, 'TIPOS DE ACOMODAÇÃO / VALORES POR PESSOA', y + 1.5)
   const accomRows = (contract.accommodation_lines || []).map(l => [
     l.accommodation_type_name || '', fmtMoney(l.value_per_person_usd), fmtMoney(l.taxes_usd),
     String(l.quantity ?? ''), fmtMoney(l.total_usd),
   ])
-  autoTable(doc, {
-    startY: y,
-    head: [['Tipo de Acomodação', 'Valor/pessoa (USD)', 'Taxas (USD)', 'Quantidade', 'Total (USD)']],
-    body: accomRows.length ? accomRows : [['—', '', '', '', '']],
-    theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, lineColor: BORDER, lineWidth: 0.2 },
-    headStyles: { fillColor: NAV, textColor: 255, fontStyle: 'bold', fontSize: 8 },
-    margin: { left: 10, right: 10 },
-  })
-  y = doc.lastAutoTable.finalY
+  y = dataTable(doc, y, ['Tipo de Acomodação', 'Valor/pessoa (USD)', 'Taxas (USD)', 'Quantidade', 'Total (USD)'],
+    accomRows.length ? accomRows : [['—', '', '', '', '']])
 
   // Dados de pagamento
-  y = sectionHeader(doc, 'DADOS DOS PAGAMENTOS / VALORES', y + 3)
+  y = sectionHeader(doc, 'DADOS DOS PAGAMENTOS / VALORES', y + 1.5)
   y = kvTable(doc, y, [
     ['Soma total (USD)', fmtMoney(contract.total_usd), 'Total em (BRL)', fmtMoney(contract.total_brl)],
     ['Câmbio', contract.exchange_rate ?? '', '', ''],
@@ -145,50 +165,38 @@ export async function generateContractPDF(contract) {
   if (entrada) installmentRows.push(['Entrada', entrada.detail || '', fmtDateBR(entrada.due_date), fmtMoney(entrada.value_brl), entrada.payment_method || ''])
   parcelas.forEach(p => installmentRows.push([`${p.installment_number}ª parcela`, p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl), p.payment_method || '']))
   if (installmentRows.length) {
-    y = sectionHeader(doc, 'PARCELAS', y + 3)
-    autoTable(doc, {
-      startY: y,
-      head: [['Parcela', 'Detalhe do pagamento', 'Para (data)', 'Valor (BRL)', 'Forma de pagamento']],
-      body: installmentRows,
-      theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, lineColor: BORDER, lineWidth: 0.2 },
-      headStyles: { fillColor: NAV, textColor: 255, fontStyle: 'bold', fontSize: 8 },
-      margin: { left: 10, right: 10 },
-    })
-    y = doc.lastAutoTable.finalY
+    y = sectionHeader(doc, 'PARCELAS', y + 1.5)
+    y = dataTable(doc, y, ['Parcela', 'Detalhe do pagamento', 'Para (data)', 'Valor (BRL)', 'Forma de pagamento'], installmentRows)
   }
 
-  // Cliente contratante
+  // Cliente contratante — só força nova página se realmente não houver espaço.
   const checkPageBreak = (needed) => {
     const ph = doc.internal.pageSize.getHeight()
-    if (y + needed > ph - 15) { doc.addPage(); y = 12 }
+    if (y + needed > ph - 12) { doc.addPage(); y = 10 }
   }
-  checkPageBreak(40)
-  y = sectionHeader(doc, 'CLIENTE: CONTRATANTE / RESPONSÁVEL PELO PAGAMENTO', y + 3)
   const ct = contract.contratante_data || {}
-  y = kvTable(doc, y, [
+  const isJuridica = ct.payer_type === 'juridica'
+  checkPageBreak(28)
+  y = sectionHeader(doc, 'CLIENTE: CONTRATANTE / RESPONSÁVEL PELO PAGAMENTO', y + 1.5)
+  y = kvTable(doc, y, isJuridica ? [
+    ['Razão social', ct.full_name || '', 'CNPJ', ct.cpf || ''],
+    ['Celular', ct.mobile || '', 'E-mail', ct.email || ''],
+    ['Endereço', { content: ct.address || '', colSpan: 3 }],
+  ] : [
     ['Nome completo', ct.full_name || '', 'Sexo', ct.gender || ''],
     ['Data de nascimento', fmtDateBR(ct.birth_date), 'CPF', ct.cpf || ''],
     ['Celular', ct.mobile || '', 'E-mail', ct.email || ''],
   ])
 
   // Nome dos passageiros
-  checkPageBreak(20)
-  y = sectionHeader(doc, 'NOME DOS PASSAGEIROS (CONTRATANTE E DEMAIS USUÁRIOS)', y + 3)
+  checkPageBreak(16)
+  y = sectionHeader(doc, 'NOME DOS PASSAGEIROS (CONTRATANTE E DEMAIS USUÁRIOS)', y + 1.5)
   const guestRows = (contract.guests || []).map(g => {
     const p = g.passenger_data || {}
     return [p.full_name || '', p.gender || '', fmtDateBR(p.birth_date), p.passport || '', p.cpf || '', g.accommodation_type_name || '']
   })
-  autoTable(doc, {
-    startY: y,
-    head: [['Nome completo', 'Sexo', 'Data de nascimento', 'Passaporte', 'CPF', 'Acomodação']],
-    body: guestRows.length ? guestRows : [['—', '', '', '', '', '']],
-    theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, lineColor: BORDER, lineWidth: 0.2 },
-    headStyles: { fillColor: NAV, textColor: 255, fontStyle: 'bold', fontSize: 8 },
-    margin: { left: 10, right: 10 },
-  })
-  y = doc.lastAutoTable.finalY
+  y = dataTable(doc, y, ['Nome completo', 'Sexo', 'Data de nascimento', 'Passaporte', 'CPF', 'Acomodação'],
+    guestRows.length ? guestRows : [['—', '', '', '', '', '']])
 
   // ── Cláusulas contratuais — uma ou mais páginas, texto corrido ──
   const clauses = contract.clauses_data || []
@@ -201,22 +209,22 @@ export async function generateContractPDF(contract) {
     doc.text('CLÁUSULAS CONTRATUAIS', pw / 2, y, { align: 'center' })
     y += 8
 
-    const lineHeight = 4.6
+    const lineHeight = 5.2
     const maxWidth   = pw - 20
 
     clauses.forEach((clause) => {
       const ph = doc.internal.pageSize.getHeight()
       if (y + 12 > ph - 15) { doc.addPage(); y = 14 }
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(10)
+      doc.setFontSize(11)
       doc.setTextColor(...NAV)
       doc.text(clause.name, 10, y)
-      y += 6
+      y += 6.5
 
       const text  = htmlToText(clause.content)
       const lines = doc.splitTextToSize(text, maxWidth)
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
+      doc.setFontSize(10.5)
       doc.setTextColor(30, 41, 59)
       lines.forEach((line) => {
         const ph2 = doc.internal.pageSize.getHeight()

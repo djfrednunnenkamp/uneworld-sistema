@@ -19,12 +19,25 @@ class Contract(models.Model):
                                      related_name='contracts', verbose_name='Agência de viagem')
     passenger_list = models.ForeignKey('trips.PassengerList', on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='contracts', verbose_name='Lista de passageiros')
-    contratante  = models.ForeignKey('passengers.Passenger', on_delete=models.PROTECT,
+    # Contratante pode ser um passageiro já cadastrado OU dados preenchidos à
+    # mão (payer_*) quando quem paga não está cadastrado no sistema — inclusive
+    # uma empresa (payer_type='juridica'), não necessariamente uma pessoa física.
+    contratante  = models.ForeignKey('passengers.Passenger', on_delete=models.PROTECT, null=True, blank=True,
                                      related_name='contracts_as_contratante', verbose_name='Contratante')
+    PAYER_TYPE_CHOICES = [('fisica', 'Pessoa física'), ('juridica', 'Pessoa jurídica / Empresa')]
+    payer_type     = models.CharField('Tipo', max_length=10, choices=PAYER_TYPE_CHOICES, blank=True)
+    payer_name     = models.CharField('Nome completo / Razão social', max_length=200, blank=True)
+    payer_document = models.CharField('CPF / CNPJ', max_length=20, blank=True)
+    payer_birth_date = models.DateField('Data de nascimento', null=True, blank=True)
+    payer_gender   = models.CharField('Sexo', max_length=50, blank=True)
+    payer_email    = models.EmailField('E-mail', blank=True)
+    payer_phone    = models.CharField('Celular', max_length=20, blank=True)
+    payer_address  = models.CharField('Endereço', max_length=300, blank=True)
 
     # Pacote de viagem — snapshot editável, pré-preenchido a partir da passenger_list ao criar
     package_name     = models.CharField('Nome do pacote', max_length=300, blank=True)
-    departure_date    = models.DateField('Data da viagem', null=True, blank=True)
+    departure_date    = models.DateField('Data de início da viagem', null=True, blank=True)
+    return_date        = models.DateField('Data de término da viagem', null=True, blank=True)
     departure_airport = models.CharField('Aeroporto de embarque', max_length=200, blank=True)
     observations      = models.TextField('Observações', blank=True)
 

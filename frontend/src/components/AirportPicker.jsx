@@ -4,6 +4,8 @@ import { configApi } from '../api'
 
 /**
  * AirportPicker — campo de busca de aeroporto com dropdown via portal.
+ * Navegável por teclado (ArrowUp/ArrowDown + Enter), igual aos outros
+ * campos de autocomplete do sistema.
  *
  * Props:
  *   value       — objeto airport { id, name, iata_code, city, country } ou null
@@ -11,10 +13,11 @@ import { configApi } from '../api'
  *   placeholder — texto do campo vazio
  */
 export default function AirportPicker({ value, onChange, placeholder = 'Buscar aeroporto…' }) {
-  const [query,     setQuery]     = useState('')
-  const [open,      setOpen]      = useState(false)
-  const [options,   setOptions]   = useState([])
-  const [dropStyle, setDropStyle] = useState({})
+  const [query,       setQuery]       = useState('')
+  const [open,        setOpen]        = useState(false)
+  const [options,     setOptions]     = useState([])
+  const [dropStyle,   setDropStyle]   = useState({})
+  const [highlighted, setHighlighted] = useState(-1)
   const inputRef = useRef(null)
 
   // Fecha ao clicar fora
@@ -36,6 +39,7 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
     }
     setQuery('')
     setOpen(true)
+    setHighlighted(-1)
   }
 
   // Busca com debounce — sem texto digitado, mostra só os favoritos
@@ -44,7 +48,7 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
     if (!open) return
     const t = setTimeout(() => {
       const params = query ? { q: query } : { favorites: 1 }
-      configApi.airports(params).then(r => setOptions(r.data.results ?? r.data)).catch(() => {})
+      configApi.airports(params).then(r => { setOptions(r.data.results ?? r.data); setHighlighted(-1) }).catch(() => {})
     }, 200)
     return () => clearTimeout(t)
   }, [query, open])
@@ -53,6 +57,17 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
 
   const select = (a) => { onChange(a); setOpen(false); setQuery('') }
 
+  const handleKeyDown = (e) => {
+    if (!open) { if (e.key !== 'Tab') openDrop(); return }
+    if (e.key === 'Escape') { setOpen(false) }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, options.length - 1)) }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, -1)) }
+    if (e.key === 'Enter' && options.length > 0) {
+      e.preventDefault()
+      select(highlighted >= 0 ? options[highlighted] : options[0])
+    }
+  }
+
   return (
     <>
       <input
@@ -60,6 +75,7 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
         value={open ? query : display}
         onChange={e => { setQuery(e.target.value); if (!open) openDrop() }}
         onFocus={openDrop}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         style={{ width:'100%', boxSizing:'border-box', padding:'8px 11px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }}
       />
@@ -75,12 +91,12 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
             <p style={{ textAlign:'center', padding:'14px 0', color:'#94a3b8', fontSize:13, margin:0 }}>
               {query.length >= 1 ? 'Nenhum aeroporto encontrado.' : 'Nenhum favorito ainda — digite para buscar outro aeroporto.'}
             </p>
-          ) : options.map(a => (
+          ) : options.map((a, idx) => (
             <div key={a.id}
+              data-airport-drop
               onMouseDown={e => { e.preventDefault(); select(a) }}
-              style={{ padding:'9px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid #f1f5f9' }}
-              onMouseEnter={e => e.currentTarget.style.background='#f0f7ff'}
-              onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+              onMouseEnter={() => setHighlighted(idx)}
+              style={{ padding:'9px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, borderBottom:'1px solid #f1f5f9', background: idx === highlighted ? '#e8f0fe' : '#fff' }}>
               {a.is_favorite && <span style={{ fontSize:12, color:'#f59e0b', flexShrink:0 }}>★</span>}
               {a.iata_code && (
                 <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', padding:'2px 7px', borderRadius:5, fontFamily:'monospace', flexShrink:0 }}>{a.iata_code}</span>

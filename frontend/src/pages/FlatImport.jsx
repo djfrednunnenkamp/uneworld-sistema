@@ -96,6 +96,8 @@ function parseCombinedCsv(text, labelToKey) {
         const parsed = JSON.parse(extras.code)
         extras.key = parsed.key
         extras.deck_count = parsed.deck_count
+        extras.order = parsed.order
+        extras.is_active = parsed.is_active
         extras.rows = parsed.rows
       } catch { /* mapa exportado em formato antigo, sem dados de fileiras */ }
     }

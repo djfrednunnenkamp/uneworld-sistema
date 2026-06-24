@@ -3,6 +3,8 @@ import { toast } from 'sonner'
 import { contractsApi, agenciesApi, passengersApi, listsApi, configApi } from '../api'
 import EntityPicker from './EntityPicker'
 import DatePicker from './DatePicker'
+import AirportPicker from './AirportPicker'
+import Dropdown from './Dropdown'
 import { Ic } from './Icon'
 
 /* Confirmação específica pra "valores não somam o total" — não reaproveita o
@@ -44,35 +46,6 @@ const btnPri = { padding: '8px 16px', borderRadius: 7, border: 'none', backgroun
 const sectionTitle = { fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }
 const card = { border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }
 
-/* Select estilizado (a aparência nativa do <select> não acompanhava o resto
- * do formulário — remove a seta/padding padrão do navegador e desenha uma
- * seta própria com o mesmo ícone usado no resto do sistema). */
-function Select({ value, onChange, children, style, disabled }) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={{ position: 'relative' }}>
-      <select value={value} onChange={onChange} disabled={disabled}
-        style={{
-          ...inp, ...style, width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-          paddingRight: 30, cursor: disabled ? 'not-allowed' : 'pointer', backgroundColor: disabled ? '#f8fafc' : '#fff',
-          borderColor: focused ? '#2e6db4' : '#e2e8f0',
-          boxShadow: focused ? '0 0 0 3px rgba(46,109,180,.1)' : 'none',
-          color: '#1e293b', transition: 'border-color .12s, box-shadow .12s',
-        }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}>
-        {children}
-      </select>
-      <span style={{
-        position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%) rotate(90deg)',
-        color: '#94a3b8', pointerEvents: 'none', display: 'flex',
-      }}>
-        <Ic n="chevron" s={12} />
-      </span>
-    </div>
-  )
-}
-
 const agencyLabel = (a) => {
   const name = a.person_type === 'fisica' ? (a.company_name || `${a.name} ${a.last_name}`.trim()) : (a.name || a.company_name)
   return name || `Agência #${a.id}`
@@ -91,6 +64,11 @@ const addMonthsIso = (iso, n) => {
 }
 
 const round2 = (n) => Math.round(n * 100) / 100
+
+const PAYER_TYPE_OPTS = [
+  { value: 'fisica', label: 'Pessoa física' },
+  { value: 'juridica', label: 'Pessoa jurídica / Empresa' },
+]
 
 export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const isEdit = !!contractId
@@ -114,9 +92,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
   const [form, setForm] = useState({
     agency: null, passenger_list: null, contratante: null,
-    package_name: '', departure_date: '', departure_airport: '', observations: '',
+    package_name: '', departure_date: '', return_date: '', departure_airport: '', observations: '',
     exchange_rate: '', received_down_payment_brl: '', received_installments_brl: '',
   })
+  // Pagante manual — usado quando não há contratante selecionado entre os
+  // passageiros cadastrados (pode ser uma pessoa física ou uma empresa).
+  const [payer, setPayer] = useState({
+    payer_type: 'fisica', payer_name: '', payer_document: '', payer_birth_date: '',
+    payer_gender: '', payer_email: '', payer_phone: '', payer_address: '',
+  })
+  const [departureAirportObj, setDepartureAirportObj] = useState(null)
   const [accomLines, setAccomLines] = useState([])
   const [guests, setGuests]         = useState([]) // [{ passenger, accommodation_type }]
   const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '', payment_method: '' })
@@ -153,11 +138,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       setContractDate(d.contract_date ?? '')
       setForm({
         agency: d.agency, passenger_list: d.passenger_list, contratante: d.contratante,
-        package_name: d.package_name ?? '', departure_date: d.departure_date ?? '',
+        package_name: d.package_name ?? '', departure_date: d.departure_date ?? '', return_date: d.return_date ?? '',
         departure_airport: d.departure_airport ?? '', observations: d.observations ?? '',
         exchange_rate: d.exchange_rate ?? '',
         received_down_payment_brl: d.received_down_payment_brl ?? '',
         received_installments_brl: d.received_installments_brl ?? '',
+      })
+      if (d.departure_airport) setDepartureAirportObj({ name: d.departure_airport })
+      setPayer({
+        payer_type: d.payer_type || 'fisica', payer_name: d.payer_name ?? '', payer_document: d.payer_document ?? '',
+        payer_birth_date: d.payer_birth_date ?? '', payer_gender: d.payer_gender ?? '',
+        payer_email: d.payer_email ?? '', payer_phone: d.payer_phone ?? '', payer_address: d.payer_address ?? '',
       })
       setAccomLines((d.accommodation_lines ?? []).map(l => ({
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd,
@@ -185,6 +176,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const passengerItems = useMemo(() => passengers.map(p => ({ id: p.id, label: p.full_name, sublabel: p.cpf || p.email })), [passengers])
   const listItems = useMemo(() => lists.map(l => ({ id: l.id, label: l.name, sublabel: l.start_date ? `Início: ${fmtDateBR(l.start_date)}` : '' })), [lists])
   const selectedList = useMemo(() => lists.find(l => l.id === form.passenger_list) ?? null, [lists, form.passenger_list])
+  const accomTypeOptions = useMemo(() => accomTypes.map(at => ({ value: at.id, label: at.name })), [accomTypes])
+  const paymentMethodOptions = useMemo(() => paymentMethods.map(pm => ({ value: pm.name, label: pm.name })), [paymentMethods])
 
   // Soma total (USD) sempre calculada a partir das linhas de acomodação —
   // nunca digitada. Total em BRL deriva da soma total e do câmbio.
@@ -199,6 +192,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     Math.abs(sumFilled - round2(computedTotalBrl)) > 0.01
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const setPayerField = (k) => (e) => setPayer(p => ({ ...p, [k]: e.target.value }))
 
   const handleSelectList = (ids) => {
     const id = ids[0] ?? null
@@ -287,6 +281,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       if (key === 'due_date' && idx === 0 && value) {
         next = next.map((it, i) => i === 0 ? it : { ...it, due_date: addMonthsIso(value, i) })
       }
+      // Definir a forma de pagamento da 1ª parcela já aplica pras demais —
+      // ainda editável individualmente depois.
+      if (key === 'payment_method' && idx === 0) {
+        next = next.map((it, i) => i === 0 ? it : { ...it, payment_method: value })
+      }
       return next
     })
   }
@@ -319,23 +318,35 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       })
     })
 
-    // Quando há lista vinculada, pacote/data/aeroporto vêm sempre dela —
+    // Quando há lista vinculada, pacote/datas/aeroporto vêm sempre dela —
     // os campos manuais ficam ocultos e não devem sobrescrever com vazio.
     const packageFields = selectedList ? {
       package_name: selectedList.name,
       departure_date: selectedList.start_date || null,
+      return_date: selectedList.end_date || null,
       departure_airport: selectedList.default_airport_data?.name ?? '',
     } : {
       package_name: form.package_name,
       departure_date: form.departure_date || null,
+      return_date: form.return_date || null,
       departure_airport: form.departure_airport,
     }
 
+    // Contratante: passageiro cadastrado OU dados preenchidos à mão (nunca os dois).
+    const contratanteFields = form.contratante
+      ? { contratante: form.contratante, payer_type: '', payer_name: '', payer_document: '',
+          payer_birth_date: null, payer_gender: '', payer_email: '', payer_phone: '', payer_address: '' }
+      : { contratante: null, payer_type: payer.payer_type, payer_name: payer.payer_name,
+          payer_document: payer.payer_document, payer_birth_date: payer.payer_birth_date || null,
+          payer_gender: payer.payer_gender, payer_email: payer.payer_email,
+          payer_phone: payer.payer_phone, payer_address: payer.payer_address }
+
     return {
-      agency: form.agency, passenger_list: form.passenger_list, contratante: form.contratante,
+      agency: form.agency, passenger_list: form.passenger_list,
       observations: form.observations,
       exchange_rate: form.exchange_rate || null,
       ...packageFields,
+      ...contratanteFields,
       received_down_payment_brl: form.received_down_payment_brl || null,
       received_installments_brl: form.received_installments_brl || null,
       accommodation_lines: accomLines.filter(l => l.accommodation_type).map(l => ({
@@ -348,9 +359,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     }
   }
 
+  const validateRequired = () => {
+    if (!form.agency) { toast.error('Selecione a agência.'); return false }
+    if (!form.contratante && !payer.payer_name.trim()) {
+      toast.error('Selecione um contratante cadastrado ou preencha os dados do pagante manualmente.')
+      return false
+    }
+    return true
+  }
+
   const doSave = async () => {
-    if (!form.agency)      { toast.error('Selecione a agência.'); return }
-    if (!form.contratante) { toast.error('Selecione o contratante.'); return }
+    if (!validateRequired()) return
     setSaving(true)
     const payload = buildPayload()
     try {
@@ -370,8 +389,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   }
 
   const handleSaveClick = () => {
-    if (!form.agency)      { toast.error('Selecione a agência.'); return }
-    if (!form.contratante) { toast.error('Selecione o contratante.'); return }
+    if (!validateRequired()) return
     if (totalMismatch) { setConfirmMismatch(true); return }
     doSave()
   }
@@ -422,7 +440,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                     title="Selecionar lista de passageiros" searchPlaceholder="Buscar lista…" placeholder="— Selecionar lista —"
                     emptyLabel="Nenhuma lista encontrada" />
                   <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
-                    Selecionando uma lista, o nome do pacote, a data da viagem e o aeroporto vêm dela automaticamente.
+                    Selecionando uma lista, o nome do pacote, as datas e o aeroporto vêm dela automaticamente.
                   </p>
                 </div>
                 <div>
@@ -431,6 +449,52 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                     onChange={(ids) => setForm(f => ({ ...f, contratante: ids[0] ?? null }))}
                     title="Selecionar contratante" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar contratante —"
                     emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
+
+                  {!form.contratante && (
+                    <div style={{ marginTop: 10, padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                      <p style={{ fontSize: 11.5, color: '#64748b', margin: '0 0 10px' }}>
+                        Sem um contratante cadastrado selecionado acima — preencha os dados manualmente (pode ser uma empresa pagando, não só uma pessoa física).
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={lbl}>Tipo</label>
+                            <Dropdown value={payer.payer_type} onChange={v => setPayer(p => ({ ...p, payer_type: v }))} options={PAYER_TYPE_OPTS} />
+                          </div>
+                          <div style={{ flex: 2 }}>
+                            <label style={lbl}>{payer.payer_type === 'juridica' ? 'Razão social' : 'Nome completo'}</label>
+                            <input style={inp} value={payer.payer_name} onChange={setPayerField('payer_name')} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={lbl}>{payer.payer_type === 'juridica' ? 'CNPJ' : 'CPF'}</label>
+                            <input style={inp} value={payer.payer_document} onChange={setPayerField('payer_document')} />
+                          </div>
+                          {payer.payer_type !== 'juridica' && (
+                            <div style={{ flex: 1 }}>
+                              <label style={lbl}>Data de nascimento</label>
+                              <DatePicker value={payer.payer_birth_date} onChange={v => setPayer(p => ({ ...p, payer_birth_date: v }))} fixed />
+                            </div>
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <label style={lbl}>Celular</label>
+                            <input style={inp} value={payer.payer_phone} onChange={setPayerField('payer_phone')} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={lbl}>E-mail</label>
+                            <input style={inp} type="email" value={payer.payer_email} onChange={setPayerField('payer_email')} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={lbl}>Endereço</label>
+                            <input style={inp} value={payer.payer_address} onChange={setPayerField('payer_address')} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -446,8 +510,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                       <input style={inpRO} readOnly value={selectedList.name} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={lbl}>Data da viagem</label>
+                      <label style={lbl}>Data de início</label>
                       <input style={inpRO} readOnly value={fmtDateBR(selectedList.start_date) || '—'} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Data de término</label>
+                      <input style={inpRO} readOnly value={fmtDateBR(selectedList.end_date) || '—'} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Aeroporto de embarque</label>
@@ -462,14 +530,22 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                         <input style={inp} value={form.package_name} onChange={set('package_name')} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <label style={lbl}>Data da viagem</label>
-                        <DatePicker value={form.departure_date} onChange={v => setForm(f => ({ ...f, departure_date: v }))} fixed />
+                        <label style={lbl}>Data de início</label>
+                        <DatePicker value={form.departure_date} relatedDate={form.return_date || null}
+                          onChange={v => setForm(f => ({ ...f, departure_date: v }))} fixed />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={lbl}>Data de término</label>
+                        <DatePicker value={form.return_date} relatedDate={form.departure_date || null}
+                          onChange={v => setForm(f => ({ ...f, return_date: v }))} fixed />
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
                       <div style={{ flex: 1 }}>
                         <label style={lbl}>Aeroporto de embarque</label>
-                        <input style={inp} value={form.departure_airport} onChange={set('departure_airport')} />
+                        <AirportPicker value={departureAirportObj}
+                          onChange={a => { setDepartureAirportObj(a); setForm(f => ({ ...f, departure_airport: a?.name ?? '' })) }}
+                          placeholder="Buscar aeroporto…" />
                       </div>
                     </div>
                   </>
@@ -499,11 +575,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                           {p?.full_name ?? `#${g.passenger}`}
                         </span>
                         <div style={{ width: 220 }}>
-                          <Select value={g.accommodation_type ?? ''} style={{ padding: '5px 8px' }}
-                            onChange={e => updateGuestAccom(g.passenger, e.target.value ? Number(e.target.value) : null)}>
-                            <option value="">— Acomodação —</option>
-                            {accomTypes.map(at => <option key={at.id} value={at.id}>{at.name}</option>)}
-                          </Select>
+                          <Dropdown value={g.accommodation_type ?? null} options={accomTypeOptions} placeholder="— Acomodação —"
+                            onChange={v => updateGuestAccom(g.passenger, v)} />
                         </div>
                       </div>
                     )
@@ -523,11 +596,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 2 }}>
                       {idx === 0 && <label style={lbl}>Tipo de acomodação</label>}
-                      <Select value={line.accommodation_type ?? ''}
-                        onChange={e => updateAccomLine(idx, 'accommodation_type', e.target.value ? Number(e.target.value) : null)}>
-                        <option value="">— Selecione —</option>
-                        {accomTypes.map(at => <option key={at.id} value={at.id}>{at.name}</option>)}
-                      </Select>
+                      <Dropdown value={line.accommodation_type ?? null} options={accomTypeOptions}
+                        onChange={v => updateAccomLine(idx, 'accommodation_type', v)} />
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Valor/pessoa (USD)</label>}
@@ -607,10 +677,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={entrada.value_brl}
                     onChange={e => setEntrada(p => ({ ...p, value_brl: e.target.value }))} />
                   <div style={{ flex: 1 }}>
-                    <Select value={entrada.payment_method} onChange={e => setEntrada(p => ({ ...p, payment_method: e.target.value }))}>
-                      <option value="">— Forma de pagamento —</option>
-                      {paymentMethods.map(pm => <option key={pm.id} value={pm.name}>{pm.name}</option>)}
-                    </Select>
+                    <Dropdown value={entrada.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
+                      onChange={v => setEntrada(p => ({ ...p, payment_method: v }))} />
                   </div>
                 </div>
               </div>
@@ -638,13 +706,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={it.value_brl}
                     onChange={e => updateInstallment(idx, 'value_brl', e.target.value)} />
                   <div style={{ flex: 1 }}>
-                    <Select value={it.payment_method} onChange={e => updateInstallment(idx, 'payment_method', e.target.value)}>
-                      <option value="">— Forma de pagamento —</option>
-                      {paymentMethods.map(pm => <option key={pm.id} value={pm.name}>{pm.name}</option>)}
-                    </Select>
+                    <Dropdown value={it.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
+                      onChange={v => updateInstallment(idx, 'payment_method', v)} />
                   </div>
                 </div>
               ))}
+              {installments.length > 1 && (
+                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
+                  Definir a forma de pagamento da 1ª parcela já aplica pras demais — ainda editável individualmente.
+                </p>
+              )}
             </div>
 
             {/* Cláusulas */}

@@ -69,7 +69,7 @@ class ContractInstallmentSerializer(serializers.ModelSerializer):
 
 class ContractListSerializer(serializers.ModelSerializer):
     agency_name      = serializers.SerializerMethodField()
-    contratante_name = serializers.CharField(source='contratante.full_name', read_only=True)
+    contratante_name = serializers.SerializerMethodField()
 
     class Meta:
         model  = Contract
@@ -79,6 +79,9 @@ class ContractListSerializer(serializers.ModelSerializer):
 
     def get_agency_name(self, obj):
         return _agency_brief(obj.agency)['name'] if obj.agency_id else ''
+
+    def get_contratante_name(self, obj):
+        return obj.contratante.full_name if obj.contratante_id else obj.payer_name
 
 
 class ContractSerializer(serializers.ModelSerializer):
@@ -103,11 +106,21 @@ class ContractSerializer(serializers.ModelSerializer):
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_data',
                   'passenger_list', 'passenger_list_data', 'contratante', 'contratante_data',
-                  'package_name', 'departure_date', 'departure_airport', 'observations',
+                  'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
+                  'payer_email', 'payer_phone', 'payer_address',
+                  'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'total_usd', 'total_brl', 'exchange_rate',
                   'received_down_payment_brl', 'received_installments_brl',
                   'accommodation_lines', 'guests', 'installments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+
+    def validate(self, attrs):
+        contratante = attrs.get('contratante', getattr(self.instance, 'contratante', None))
+        payer_name  = attrs.get('payer_name', getattr(self.instance, 'payer_name', ''))
+        if not contratante and not payer_name:
+            raise serializers.ValidationError(
+                {'contratante': 'Selecione um contratante cadastrado ou preencha os dados manualmente.'})
+        return attrs
 
     def get_agency_data(self, obj):
         return _agency_brief(obj.agency) if obj.agency_id else None
@@ -116,13 +129,22 @@ class ContractSerializer(serializers.ModelSerializer):
         return [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
 
     def get_contratante_data(self, obj):
-        return _passenger_brief(obj.contratante) if obj.contratante_id else None
+        if obj.contratante_id:
+            return _passenger_brief(obj.contratante)
+        if obj.payer_name:
+            return {
+                'id': None, 'full_name': obj.payer_name, 'gender': obj.payer_gender,
+                'birth_date': obj.payer_birth_date, 'passport': '', 'cpf': obj.payer_document,
+                'mobile': obj.payer_phone, 'email': obj.payer_email, 'address': obj.payer_address,
+                'payer_type': obj.payer_type,
+            }
+        return None
 
     def get_passenger_list_data(self, obj):
         if not obj.passenger_list_id:
             return None
         pl = obj.passenger_list
-        return {'id': pl.id, 'name': pl.name, 'start_date': pl.start_date,
+        return {'id': pl.id, 'name': pl.name, 'start_date': pl.start_date, 'end_date': pl.end_date,
                 'airport_name': pl.default_airport.name if pl.default_airport_id else ''}
 
     def _save_children(self, contract, accommodation_lines, guests, installments, clauses):
@@ -179,6 +201,12 @@ class ContractSerializer(serializers.ModelSerializer):
         # Totais (USD/BRL) são sempre calculados — nunca aceitos do payload.
         validated_data.pop('total_usd', None)
         validated_data.pop('total_brl', None)
+        # Contratante e dados manuais (payer_*) são mutuamente exclusivos —
+        # escolher um passageiro cadastrado limpa os dados digitados à mão.
+        if validated_data.get('contratante'):
+            for f in ('payer_type', 'payer_name', 'payer_document', 'payer_birth_date',
+                      'payer_gender', 'payer_email', 'payer_phone', 'payer_address'):
+                validated_data.pop(f, None)
 
         contract = Contract.objects.create(
             created_by=getattr(request, 'user', None) if request else None,
@@ -204,6 +232,15 @@ class ContractSerializer(serializers.ModelSerializer):
         validated_data.pop('reservation_number', None)
         validated_data.pop('total_usd', None)
         validated_data.pop('total_brl', None)
+        if validated_data.get('contratante'):
+            for f in ('payer_type', 'payer_name', 'payer_document', 'payer_birth_date',
+                      'payer_gender', 'payer_email', 'payer_phone', 'payer_address'):
+                validated_data.pop(f, None)
+            instance.payer_type = instance.payer_name = instance.payer_document = ''
+            instance.payer_gender = instance.payer_email = instance.payer_phone = instance.payer_address = ''
+            instance.payer_birth_date = None
+        elif validated_data.get('payer_name'):
+            validated_data['contratante'] = None
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
