@@ -169,12 +169,19 @@ export function AirlineFormModal({ title, initial, onSave, onClose }) {
   )
 }
 
-function Row({ item, onEdit, onDelete, canEdit, canDelete }) {
+function Row({ item, onEdit, onDelete, onToggleFavorite, canEdit, canDelete }) {
   const [confirm, setConfirm] = useState(false)
   return (
     <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderBottom:'1px solid #f1f5f9', background:'#fff' }}
       onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
       onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+      {canEdit && (
+        <button type="button" onClick={() => onToggleFavorite(item)}
+          title={item.is_favorite ? 'Remover dos favoritos' : 'Marcar como favorito'}
+          style={{ background:'none', border:'none', cursor:'pointer', padding:0, fontSize:16, lineHeight:1, color: item.is_favorite ? '#f59e0b' : '#cbd5e1', flexShrink:0 }}>
+          {item.is_favorite ? '★' : '☆'}
+        </button>
+      )}
       {item.iata_code && (
         <span style={{ fontSize:12, fontWeight:700, color:'#1a2d4f', background:'#eff6ff', padding:'2px 8px', borderRadius:6, fontFamily:'monospace', flexShrink:0 }}>
           {item.iata_code}
@@ -270,6 +277,12 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canI
     reload()
   }
 
+  const toggleFavorite = (item) => {
+    configApi.updateAirline(item.id, { is_favorite: !item.is_favorite })
+      .then(() => setItems(its => its.map(i => i.id === item.id ? { ...i, is_favorite: !i.is_favorite } : i)))
+      .catch(() => toast.error('Erro ao atualizar favorito.'))
+  }
+
   const exportCsv = async () => {
     setExporting(true)
     try {
@@ -351,7 +364,7 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canI
             {count === 0 ? 'Nenhuma companhia cadastrada.' : 'Nenhum resultado.'}
           </p>
         ) : items.map(item => (
-          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} canEdit={canEdit} canDelete={canDelete} />
+          <Row key={item.id} item={item} onEdit={setShowForm} onDelete={del} onToggleFavorite={toggleFavorite} canEdit={canEdit} canDelete={canDelete} />
         ))}
       </div>
 

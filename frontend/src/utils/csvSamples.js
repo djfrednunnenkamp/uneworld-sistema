@@ -55,6 +55,13 @@ export const CSV_SAMPLES = {
     ].join('\n'),
     filename: 'modelo_mapas_de_onibus.csv',
   },
+  contract_clauses: {
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Cláusulas de Contrato,Cancelamento de voo,,,,,"{""content"":""<p>Texto da cláusula…</p>"",""is_default"":false}"',
+    ].join('\n'),
+    filename: 'modelo_clausulas_contrato.csv',
+  },
   countries: {
     content: [
       'lista,nome,pessoas,casal,pais,estado,codigo',

@@ -1,13 +1,22 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import { Ic } from './Icon'
 import RichTextEditor from './RichTextEditor'
 import ConfirmModal from './ConfirmModal'
+import CsvImportPopup from './CsvImportPopup'
+import { CSV_SAMPLES } from '../utils/csvSamples'
+import { exportSectionCsv } from '../utils/sectionCsv'
 
 const inp = { padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:6, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box' }
 const lbl = { fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', display:'block', marginBottom:5 }
 const btnPri = { padding:'8px 16px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }
+const btnCsv = (color) => ({
+  padding: '6px 11px', borderRadius: 7, border: `1.5px solid ${color}20`,
+  background: `${color}10`, color, fontSize: 12, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
+})
 
 /* ── Modal de edição/criação de cláusula — popup grande com editor rico ── */
 function ClauseModal({ clause, onClose, onSaved }) {
@@ -89,12 +98,15 @@ function ClauseModal({ clause, onClose, onSaved }) {
 }
 
 /* ── Lista de cláusulas — base do futuro gerador de contratos ── */
-export default function ContractClausesManager({ canEdit = true, canDelete = true }) {
+export default function ContractClausesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+  const navigate = useNavigate()
   const [clauses, setClauses] = useState([])
   const [loading,  setLoading] = useState(true)
   const [search,   setSearch]  = useState('')
   const [modal,    setModal]   = useState(null)
   const [delItem,  setDelItem] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const [showImportPopup, setShowImportPopup] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -109,6 +121,23 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
     try { await configApi.delContractClause(delItem.id); load() }
     catch { toast.error('Erro ao excluir cláusula.') }
     finally { setDelItem(null) }
+  }
+
+  const handleExport = () => {
+    setExporting(true)
+    try { exportSectionCsv('contract_clauses', 'Cláusulas de Contrato', clauses, 'clausulas_contrato.csv') }
+    finally { setExporting(false) }
+  }
+
+  const handleImportFile = async (file) => {
+    const csvText = await file.text()
+    navigate('/configuracoes/import', {
+      state: {
+        csvText, filename: file.name, type: 'contract_clauses',
+        existingNames: clauses.map(c => c.name),
+        existingItems: clauses,
+      },
+    })
   }
 
   const filtered = useMemo(() => {
@@ -126,6 +155,25 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
           onFocus={e => e.target.style.borderColor='#1a2d4f'}
           onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
         {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
+        <div style={{ display:'flex', gap:6 }}>
+          {canExport && (
+            <button style={btnCsv('#059669')} onClick={handleExport} disabled={exporting} title="Exportar como CSV">
+              {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
+            </button>
+          )}
+          {canImport && (
+            <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>
+          )}
+          {canImport && showImportPopup && (
+            <CsvImportPopup
+              title="Importar Cláusulas de Contrato"
+              sampleContent={CSV_SAMPLES.contract_clauses?.content}
+              sampleFilename={CSV_SAMPLES.contract_clauses?.filename}
+              onClose={() => setShowImportPopup(false)}
+              onFile={handleImportFile}
+            />
+          )}
+        </div>
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>

@@ -1063,7 +1063,7 @@ class AirportViewSet(viewsets.ModelViewSet):
 class AirlineSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Airline
-        fields = ['id', 'name', 'iata_code', 'country']
+        fields = ['id', 'name', 'iata_code', 'country', 'is_favorite']
 
 
 class AirlineViewSet(viewsets.ModelViewSet):
@@ -1077,7 +1077,9 @@ class AirlineViewSet(viewsets.ModelViewSet):
         q = self.request.query_params.get('q', '').strip()
         if q:
             qs = qs.filter(Q(name__icontains=q) | Q(iata_code__icontains=q))
-        return qs
+        if self.request.query_params.get('favorites') in ('1', 'true', 'True'):
+            qs = qs.filter(is_favorite=True)
+        return qs.order_by('-is_favorite', 'name')
 
     @action(detail=False, methods=['post'])
     def seed(self, request):

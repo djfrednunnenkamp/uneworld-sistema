@@ -14,8 +14,8 @@ export const SECTION_ROW_BUILDERS = {
     const payload = JSON.stringify({ key: d.key, icon: d.icon, color: d.color })
     return `${q(label)},${q(d.label)},,,,,${q(payload)}`
   },
-  airports: (label, a) => `${q(label)},${q(a.name)},,,${q(a.country || '')},${q(a.city || '')},${q(a.iata_code || '')}`,
-  airlines: (label, a) => `${q(label)},${q(a.name)},,,${q(a.country || '')},,${q(a.iata_code || '')}`,
+  airports: (label, a) => `${q(label)},${q(a.name)},,${a.is_favorite ? 'sim' : 'não'},${q(a.country || '')},${q(a.city || '')},${q(a.iata_code || '')}`,
+  airlines: (label, a) => `${q(label)},${q(a.name)},,${a.is_favorite ? 'sim' : 'não'},${q(a.country || '')},,${q(a.iata_code || '')}`,
   bus_maps: (label, m) => {
     const payload = JSON.stringify({
       key: m.key, deck_count: m.deck_count, order: m.order, is_active: m.is_active,
@@ -29,6 +29,10 @@ export const SECTION_ROW_BUILDERS = {
   perm_profiles: (label, p) => {
     const active = Object.entries(p.permissions ?? {}).filter(([, v]) => v).map(([k]) => k).join('|')
     return `${q(label)},${q(p.name)},,,,,${q(active)}`
+  },
+  contract_clauses: (label, c) => {
+    const payload = JSON.stringify({ content: c.content || '', is_default: !!c.is_default })
+    return `${q(label)},${q(c.name)},,,,,${q(payload)}`
   },
 }
 

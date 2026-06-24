@@ -182,9 +182,10 @@ class ConfigListCategory(models.Model):
 
 
 class Airline(models.Model):
-    name      = models.CharField('Nome', max_length=200, db_index=True)
-    iata_code = models.CharField('Código IATA', max_length=10, blank=True, db_index=True)
-    country   = models.CharField('País', max_length=200, blank=True)
+    name        = models.CharField('Nome', max_length=200, db_index=True)
+    iata_code   = models.CharField('Código IATA', max_length=10, blank=True, db_index=True)
+    country     = models.CharField('País', max_length=200, blank=True)
+    is_favorite = models.BooleanField('Favorito', default=False, db_index=True)
 
     class Meta:
         ordering            = ['name']

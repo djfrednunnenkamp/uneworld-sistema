@@ -82,7 +82,11 @@ function parseCombinedCsv(text, labelToKey) {
     const name      = (cols[nameIdx] || '').trim()
     const extras    = {}
     if (pessoasIdx >= 0 && cols[pessoasIdx]) extras.capacity       = Number(cols[pessoasIdx]) || 1
+    // Coluna "casal" é reaproveitada como booleano genérico: is_couple pra
+    // acomodações, is_favorite pra aeroportos/cias aéreas (cada tipo só lê o
+    // campo que faz sentido pra ele).
     if (casalIdx   >= 0) extras.is_couple    = ['sim','true','1','yes'].includes((cols[casalIdx] || '').trim().toLowerCase())
+    if (casalIdx   >= 0) extras.is_favorite  = extras.is_couple
     if (paisIdx    >= 0 && cols[paisIdx])    extras.parent_country = cols[paisIdx].trim()
     if (estadoIdx  >= 0 && cols[estadoIdx])  extras.parent_state   = cols[estadoIdx].trim()
     if (codigoIdx  >= 0 && cols[codigoIdx])  extras.code           = cols[codigoIdx].trim()
@@ -106,6 +110,13 @@ function parseCombinedCsv(text, labelToKey) {
         extras.color = parsed.color
       } catch { extras.key = extras.code } // formato antigo: codigo era só a key, sem ícone/cor
     }
+    if (listKey === 'contract_clauses' && extras.code) {
+      try {
+        const parsed = JSON.parse(extras.code)
+        extras.content = parsed.content || ''
+        extras.is_default = !!parsed.is_default
+      } catch { /* cláusula exportada em formato antigo/inválido */ }
+    }
     return { listLabel, listKey, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
@@ -124,8 +135,8 @@ const API_MAP = {
                        label: name, key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
                        icon: extras.icon || '📄', color: extras.color || '#475569',
                      }), del: (id) => configApi.delDocType(id), label: 'Documentos' },
-  airports:        { add: (name, extras) => configApi.addAirport({ name, iata_code: extras.code || '', city: extras.parent_state || '', country: extras.parent_country || '' }), del: (id) => configApi.delAirport(id), label: 'Aeroportos' },
-  airlines:        { add: (name, extras) => configApi.addAirline({ name, iata_code: extras.code || '', country: extras.parent_country || '' }), del: (id) => configApi.delAirline(id), label: 'Companhias Aéreas' },
+  airports:        { add: (name, extras) => configApi.addAirport({ name, iata_code: extras.code || '', city: extras.parent_state || '', country: extras.parent_country || '', is_favorite: extras.is_favorite || false }), del: (id) => configApi.delAirport(id), label: 'Aeroportos' },
+  airlines:        { add: (name, extras) => configApi.addAirline({ name, iata_code: extras.code || '', country: extras.parent_country || '', is_favorite: extras.is_favorite || false }), del: (id) => configApi.delAirline(id), label: 'Companhias Aéreas' },
   countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), del: (id) => configApi.delCountry(id), label: 'Países' },
   states:          { add: (name, extras, ctx) => {
     const c = (ctx?.allCountries || []).find(x => x.name.toLowerCase() === (extras.parent_country || '').toLowerCase())
@@ -141,6 +152,9 @@ const API_MAP = {
                        label: name, order: extras.order || 0, is_active: extras.is_active ?? true,
                        deck_count: extras.deck_count || 1, rows: extras.rows || [],
                      }), del: (id) => configApi.delBusMap(id), label: 'Mapas de Ônibus' },
+  contract_clauses: { add: (name, extras) => configApi.addContractClause({
+                       name, content: extras.content || '', is_default: extras.is_default || false,
+                     }), del: (id) => configApi.delContractClause(id), label: 'Cláusulas de Contrato' },
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -148,7 +162,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Tipos com campos extras (não só "nome") — usam o mesmo parser rico do CSV combinado
-const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles'])
+const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses'])
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
 const EXPORT_ONLY_KEYS = new Set()
