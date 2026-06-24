@@ -32,7 +32,6 @@ class Contract(models.Model):
     total_usd                 = models.DecimalField('Soma total (USD)', max_digits=12, decimal_places=2, null=True, blank=True)
     total_brl                 = models.DecimalField('Total em (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     exchange_rate             = models.DecimalField('Câmbio', max_digits=10, decimal_places=4, null=True, blank=True)
-    payment_method            = models.CharField('Forma de pagamento', max_length=100, blank=True)
     received_down_payment_brl = models.DecimalField('Recebido na entrada (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     received_installments_brl = models.DecimalField('Recebido a prazo (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
 
@@ -95,6 +94,7 @@ class ContractInstallment(models.Model):
     detail             = models.CharField('Detalhe do pagamento', max_length=300, blank=True)
     due_date           = models.DateField('Para (data)', null=True, blank=True)
     value_brl          = models.DecimalField('Valor (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
+    payment_method     = models.CharField('Forma de pagamento', max_length=100, blank=True)
     order              = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:

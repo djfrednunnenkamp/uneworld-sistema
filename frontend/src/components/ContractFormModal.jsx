@@ -1,9 +1,41 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { contractsApi, agenciesApi, passengersApi, listsApi, configApi } from '../api'
 import EntityPicker from './EntityPicker'
 import DatePicker from './DatePicker'
 import { Ic } from './Icon'
+
+/* Confirmação específica pra "valores não somam o total" — não reaproveita o
+ * ConfirmModal genérico porque ele sempre mostra "Esta ação não pode ser
+ * desfeita" e botão vermelho de exclusão, que não fazem sentido aqui (é só
+ * um aviso, o usuário pode continuar editando depois). */
+function MismatchConfirm({ sumFilled, total, onOk, onCancel }) {
+  return (
+    <div className="overlay" onClick={onCancel}>
+      <div className="mbox" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <span className="mtitle">Os valores não somam o total</span>
+          <button className="mclose" onClick={onCancel}><Ic n="x" s={15} /></button>
+        </div>
+        <div className="mbody">
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <div style={{ color: '#f59e0b', flexShrink: 0, marginTop: 2 }}><Ic n="warn" s={20} /></div>
+            <div>
+              <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, margin: '0 0 4px' }}>
+                Entrada + parcelas somam {sumFilled.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, mas o total do contrato é {total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.
+              </p>
+              <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Você pode salvar assim mesmo e ajustar depois.</p>
+            </div>
+          </div>
+        </div>
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onCancel}>Voltar e revisar</button>
+          <button className="btn btn-primary" onClick={onOk}>Salvar mesmo assim</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const lbl = { fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
@@ -11,6 +43,35 @@ const inpRO = { ...inp, background: '#f8fafc', color: '#64748b' }
 const btnPri = { padding: '8px 16px', borderRadius: 7, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }
 const sectionTitle = { fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }
 const card = { border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }
+
+/* Select estilizado (a aparência nativa do <select> não acompanhava o resto
+ * do formulário — remove a seta/padding padrão do navegador e desenha uma
+ * seta própria com o mesmo ícone usado no resto do sistema). */
+function Select({ value, onChange, children, style, disabled }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <select value={value} onChange={onChange} disabled={disabled}
+        style={{
+          ...inp, ...style, width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+          paddingRight: 30, cursor: disabled ? 'not-allowed' : 'pointer', backgroundColor: disabled ? '#f8fafc' : '#fff',
+          borderColor: focused ? '#2e6db4' : '#e2e8f0',
+          boxShadow: focused ? '0 0 0 3px rgba(46,109,180,.1)' : 'none',
+          color: '#1e293b', transition: 'border-color .12s, box-shadow .12s',
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}>
+        {children}
+      </select>
+      <span style={{
+        position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%) rotate(90deg)',
+        color: '#94a3b8', pointerEvents: 'none', display: 'flex',
+      }}>
+        <Ic n="chevron" s={12} />
+      </span>
+    </div>
+  )
+}
 
 const agencyLabel = (a) => {
   const name = a.person_type === 'fisica' ? (a.company_name || `${a.name} ${a.last_name}`.trim()) : (a.name || a.company_name)
@@ -23,10 +84,25 @@ const fmtDateBR = (iso) => {
   return `${d}/${m}/${y}`
 }
 
+const addMonthsIso = (iso, n) => {
+  const d = new Date(iso + 'T00:00:00')
+  d.setMonth(d.getMonth() + n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const round2 = (n) => Math.round(n * 100) / 100
+
 export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const isEdit = !!contractId
   const [loading, setLoading] = useState(isEdit)
   const [saving,  setSaving]  = useState(false)
+  const [confirmMismatch, setConfirmMismatch] = useState(false)
+  // Evita que o auto-divisor de parcelas rode nos primeiros valores
+  // carregados (criação automática do câmbio, ou abertura de um contrato já
+  // salvo) — só deve recalcular depois de tudo já estar de pé. Em criação
+  // nova não há nada pra sobrescrever, então já começa "pronto"; em edição,
+  // só fica pronto depois que os dados do contrato terminam de carregar.
+  const initializedRef = useRef(!isEdit)
 
   // Fontes de dados pros pickers
   const [agencies,   setAgencies]   = useState([])
@@ -37,17 +113,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const [paymentMethods, setPaymentMethods] = useState([])
 
   const [form, setForm] = useState({
-    reservation_number: '', contract_date: '', agency: null, passenger_list: null, contratante: null,
+    agency: null, passenger_list: null, contratante: null,
     package_name: '', departure_date: '', departure_airport: '', observations: '',
-    exchange_rate: '', payment_method: '',
-    received_down_payment_brl: '', received_installments_brl: '', status: 'ativo',
+    exchange_rate: '', received_down_payment_brl: '', received_installments_brl: '',
   })
   const [accomLines, setAccomLines] = useState([])
   const [guests, setGuests]         = useState([]) // [{ passenger, accommodation_type }]
-  const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '' })
+  const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '', payment_method: '' })
   const [installmentsCount, setInstallmentsCount] = useState(0)
-  const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl }]
+  const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
   const [selectedClauses, setSelectedClauses] = useState([])
+  const [reservationNumber, setReservationNumber] = useState('')
+  const [contractDate, setContractDate] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -62,7 +139,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       setPaymentMethods(pm.data)
       if (!isEdit) {
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
-        // Câmbio USD → BRL pré-preenchido automaticamente — editável se necessário.
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
         if (usdBrl) setForm(f => ({ ...f, exchange_rate: usdBrl.rate }))
       }
@@ -73,14 +149,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     if (!isEdit) return
     contractsApi.get(contractId).then(r => {
       const d = r.data
+      setReservationNumber(d.reservation_number ?? '')
+      setContractDate(d.contract_date ?? '')
       setForm({
-        reservation_number: d.reservation_number ?? '', contract_date: d.contract_date ?? '',
         agency: d.agency, passenger_list: d.passenger_list, contratante: d.contratante,
         package_name: d.package_name ?? '', departure_date: d.departure_date ?? '',
         departure_airport: d.departure_airport ?? '', observations: d.observations ?? '',
         exchange_rate: d.exchange_rate ?? '',
-        payment_method: d.payment_method ?? '', received_down_payment_brl: d.received_down_payment_brl ?? '',
-        received_installments_brl: d.received_installments_brl ?? '', status: d.status ?? 'ativo',
+        received_down_payment_brl: d.received_down_payment_brl ?? '',
+        received_installments_brl: d.received_installments_brl ?? '',
       })
       setAccomLines((d.accommodation_lines ?? []).map(l => ({
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd,
@@ -89,11 +166,19 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       setGuests((d.guests ?? []).map(g => ({ passenger: g.passenger, accommodation_type: g.accommodation_type })))
       const entradaRow = (d.installments ?? []).find(i => i.kind === 'entrada')
       const parcelaRows = (d.installments ?? []).filter(i => i.kind === 'parcela').sort((a, b) => a.installment_number - b.installment_number)
-      if (entradaRow) setEntrada({ detail: entradaRow.detail ?? '', due_date: entradaRow.due_date ?? '', value_brl: entradaRow.value_brl ?? '' })
+      if (entradaRow) setEntrada({
+        detail: entradaRow.detail ?? '', due_date: entradaRow.due_date ?? '',
+        value_brl: entradaRow.value_brl ?? '', payment_method: entradaRow.payment_method ?? '',
+      })
       setInstallmentsCount(parcelaRows.length)
-      setInstallments(parcelaRows.map(r => ({ detail: r.detail ?? '', due_date: r.due_date ?? '', value_brl: r.value_brl ?? '' })))
+      setInstallments(parcelaRows.map(r => ({
+        detail: r.detail ?? '', due_date: r.due_date ?? '', value_brl: r.value_brl ?? '', payment_method: r.payment_method ?? '',
+      })))
       setSelectedClauses((d.clauses ?? []))
-    }).catch(() => toast.error('Erro ao carregar contrato.')).finally(() => setLoading(false))
+    }).catch(() => toast.error('Erro ao carregar contrato.')).finally(() => {
+      setLoading(false)
+      setTimeout(() => { initializedRef.current = true }, 0)
+    })
   }, [contractId])
 
   const agencyItems = useMemo(() => agencies.map(a => ({ id: a.id, label: agencyLabel(a), sublabel: a.cnpj || a.cpf })), [agencies])
@@ -108,6 +193,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   ), [accomLines])
   const computedTotalBrl = form.exchange_rate ? computedTotalUsd * Number(form.exchange_rate) : null
 
+  // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
+  const sumFilled = round2(Number(entrada.value_brl || 0) + installments.reduce((s, it) => s + Number(it.value_brl || 0), 0))
+  const totalMismatch = computedTotalBrl != null && (entrada.value_brl || installments.some(i => i.value_brl)) &&
+    Math.abs(sumFilled - round2(computedTotalBrl)) > 0.01
+
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const handleSelectList = (ids) => {
@@ -115,7 +205,29 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     setForm(f => ({ ...f, passenger_list: id }))
   }
 
-  // ── Tipos de Acomodação / Valores ──
+  // ── Tipos de Acomodação / Valores — auto-gerado a partir dos hóspedes ──
+  // Cada tipo de acomodação tem uma capacidade (ex: Duplo = 2 pessoas); a
+  // quantidade de unidades necessárias é arredondada pra cima (3 pessoas em
+  // quartos duplos = 2 quartos). Continua editável manualmente depois.
+  useEffect(() => {
+    const counts = {}
+    guests.forEach(g => { if (g.accommodation_type) counts[g.accommodation_type] = (counts[g.accommodation_type] || 0) + 1 })
+    if (Object.keys(counts).length === 0) return
+    setAccomLines(prev => {
+      const next = [...prev]
+      Object.entries(counts).forEach(([typeIdStr, count]) => {
+        const typeId = Number(typeIdStr)
+        const type = accomTypes.find(t => t.id === typeId)
+        const capacity = type?.capacity || 1
+        const neededQty = Math.ceil(count / capacity)
+        const idx = next.findIndex(l => l.accommodation_type === typeId)
+        if (idx >= 0) next[idx] = { ...next[idx], quantity: neededQty }
+        else next.push({ accommodation_type: typeId, value_per_person_usd: 0, taxes_usd: 0, quantity: neededQty })
+      })
+      return next
+    })
+  }, [guests, accomTypes])
+
   const addAccomLine = () => setAccomLines(a => [...a, { accommodation_type: null, value_per_person_usd: 0, taxes_usd: 0, quantity: 1 }])
   const updateAccomLine = (idx, key, value) => setAccomLines(a => a.map((l, i) => i === idx ? { ...l, [key]: value } : l))
   const removeAccomLine = (idx) => setAccomLines(a => a.filter((_, i) => i !== idx))
@@ -133,33 +245,77 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     setGuests(prev => prev.map(g => g.passenger === passengerId ? { ...g, accommodation_type } : g))
 
   // ── Parcelas ──
+  // Define quantas parcelas existem e já divide o valor restante (total -
+  // entrada) igualmente entre elas — a última absorve a diferença de
+  // arredondamento. Continua editável depois, linha a linha.
   const setInstallmentsCountClamped = (n) => {
     const count = Math.max(0, Math.min(12, n))
+    const remaining = (computedTotalBrl || 0) - Number(entrada.value_brl || 0)
+    const base = count > 0 ? Math.floor((remaining / count) * 100) / 100 : 0
     setInstallmentsCount(count)
     setInstallments(prev => {
-      const next = [...prev]
-      while (next.length < count) next.push({ detail: '', due_date: '', value_brl: '' })
-      return next.slice(0, count)
+      const next = []
+      for (let i = 0; i < count; i++) {
+        const isLast = i === count - 1
+        const value = isLast ? round2(remaining - base * (count - 1)) : base
+        next.push(prev[i] ? { ...prev[i], value_brl: value } : { detail: '', due_date: '', value_brl: value, payment_method: '' })
+      }
+      return next
     })
   }
-  const updateInstallment = (idx, key, value) => setInstallments(prev => prev.map((it, i) => i === idx ? { ...it, [key]: value } : it))
+  // Se o total mudar depois (ex: editou o valor por pessoa na acomodação)
+  // ou a entrada mudar, redivide as parcelas existentes automaticamente —
+  // não precisa apagar e recriar as parcelas pra atualizar os valores.
+  useEffect(() => {
+    if (!initializedRef.current) return
+    if (installmentsCount === 0) return
+    const remaining = (computedTotalBrl || 0) - Number(entrada.value_brl || 0)
+    const base = Math.floor((remaining / installmentsCount) * 100) / 100
+    setInstallments(prev => prev.map((it, i) => {
+      const isLast = i === installmentsCount - 1
+      const value = isLast ? round2(remaining - base * (installmentsCount - 1)) : base
+      return { ...it, value_brl: value }
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedTotalBrl, entrada.value_brl])
 
-  const save = async () => {
-    if (!form.agency)      { toast.error('Selecione a agência.'); return }
-    if (!form.contratante) { toast.error('Selecione o contratante.'); return }
-    setSaving(true)
+  const updateInstallment = (idx, key, value) => {
+    setInstallments(prev => {
+      let next = prev.map((it, i) => i === idx ? { ...it, [key]: value } : it)
+      // Preencher a data da 1ª parcela já preenche as seguintes, um mês depois
+      // cada — ainda editáveis individualmente depois.
+      if (key === 'due_date' && idx === 0 && value) {
+        next = next.map((it, i) => i === 0 ? it : { ...it, due_date: addMonthsIso(value, i) })
+      }
+      return next
+    })
+  }
 
+  // Recebido na entrada / a prazo são preenchidos automaticamente a partir
+  // do que foi definido na entrada e nas parcelas — o total já é conhecido.
+  useEffect(() => {
+    setForm(f => ({ ...f, received_down_payment_brl: entrada.value_brl || '' }))
+  }, [entrada.value_brl])
+  useEffect(() => {
+    if (installments.length === 0) return
+    const sum = installments.reduce((s, it) => s + Number(it.value_brl || 0), 0)
+    setForm(f => ({ ...f, received_installments_brl: sum }))
+  }, [installments])
+
+  const buildPayload = () => {
     const installmentsPayload = []
-    if (entrada.detail || entrada.due_date || entrada.value_brl) {
+    if (entrada.detail || entrada.due_date || entrada.value_brl || entrada.payment_method) {
       installmentsPayload.push({
         kind: 'entrada', installment_number: null, detail: entrada.detail,
         due_date: entrada.due_date || null, value_brl: entrada.value_brl || null,
+        payment_method: entrada.payment_method,
       })
     }
     installments.forEach((it, i) => {
       installmentsPayload.push({
         kind: 'parcela', installment_number: i + 1, detail: it.detail,
         due_date: it.due_date || null, value_brl: it.value_brl || null,
+        payment_method: it.payment_method,
       })
     })
 
@@ -175,12 +331,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       departure_airport: form.departure_airport,
     }
 
-    const payload = {
+    return {
       agency: form.agency, passenger_list: form.passenger_list, contratante: form.contratante,
       observations: form.observations,
       exchange_rate: form.exchange_rate || null,
-      payment_method: form.payment_method,
-      status: form.status,
       ...packageFields,
       received_down_payment_brl: form.received_down_payment_brl || null,
       received_installments_brl: form.received_installments_brl || null,
@@ -192,7 +346,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       installments: installmentsPayload,
       clauses: selectedClauses,
     }
+  }
 
+  const doSave = async () => {
+    if (!form.agency)      { toast.error('Selecione a agência.'); return }
+    if (!form.contratante) { toast.error('Selecione o contratante.'); return }
+    setSaving(true)
+    const payload = buildPayload()
     try {
       if (isEdit) {
         await contractsApi.update(contractId, payload)
@@ -209,6 +369,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     }
   }
 
+  const handleSaveClick = () => {
+    if (!form.agency)      { toast.error('Selecione a agência.'); return }
+    if (!form.contratante) { toast.error('Selecione o contratante.'); return }
+    if (totalMismatch) { setConfirmMismatch(true); return }
+    doSave()
+  }
+
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
@@ -217,6 +384,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
             {isEdit ? 'Editar contrato' : 'Novo contrato'}
+            {isEdit && reservationNumber && (
+              <span style={{ fontSize: 12, fontWeight: 400, color: '#94a3b8', marginLeft: 10 }}>
+                Reserva nº {reservationNumber} · {fmtDateBR(contractDate)}
+              </span>
+            )}
           </p>
         </div>
 
@@ -225,27 +397,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         ) : (
           <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
 
-            {/* Reserva / Data */}
-            <div style={card}>
-              <p style={sectionTitle}><Ic n="docs" s={14} /> Reserva</p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Reserva nº</label>
-                  <input style={inpRO} readOnly value={isEdit ? form.reservation_number : 'Gerado automaticamente ao salvar'} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Data desta contratação</label>
-                  <input style={inpRO} readOnly value={isEdit ? fmtDateBR(form.contract_date) : 'Hoje, ao salvar'} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Status</label>
-                  <select style={inp} value={form.status} onChange={set('status')}>
-                    <option value="ativo">Ativo</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
-                </div>
+            {totalMismatch && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', fontSize: 12.5 }}>
+                <Ic n="warn" s={15} />
+                Os valores de entrada + parcelas ({sumFilled.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) não somam o total do contrato ({computedTotalBrl?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
               </div>
-            </div>
+            )}
 
             {/* Agência / Lista / Contratante */}
             <div style={card}>
@@ -341,11 +498,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                         <span style={{ fontSize: 13, color: '#1e293b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {p?.full_name ?? `#${g.passenger}`}
                         </span>
-                        <select style={{ ...inp, width: 220, padding: '5px 8px' }} value={g.accommodation_type ?? ''}
-                          onChange={e => updateGuestAccom(g.passenger, e.target.value ? Number(e.target.value) : null)}>
-                          <option value="">— Acomodação —</option>
-                          {accomTypes.map(at => <option key={at.id} value={at.id}>{at.name}</option>)}
-                        </select>
+                        <div style={{ width: 220 }}>
+                          <Select value={g.accommodation_type ?? ''} style={{ padding: '5px 8px' }}
+                            onChange={e => updateGuestAccom(g.passenger, e.target.value ? Number(e.target.value) : null)}>
+                            <option value="">— Acomodação —</option>
+                            {accomTypes.map(at => <option key={at.id} value={at.id}>{at.name}</option>)}
+                          </Select>
+                        </div>
                       </div>
                     )
                   })}
@@ -356,16 +515,19 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             {/* Tipos de Acomodação / Valores */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="bed" s={14} /> Tipos de acomodação / valores por pessoa</p>
+              <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '0 0 10px' }}>
+                As linhas e quantidades abaixo são geradas automaticamente a partir da acomodação escolhida pra cada hóspede — pode ajustar manualmente se precisar.
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {accomLines.map((line, idx) => (
                   <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 2 }}>
                       {idx === 0 && <label style={lbl}>Tipo de acomodação</label>}
-                      <select style={inp} value={line.accommodation_type ?? ''}
+                      <Select value={line.accommodation_type ?? ''}
                         onChange={e => updateAccomLine(idx, 'accommodation_type', e.target.value ? Number(e.target.value) : null)}>
                         <option value="">— Selecione —</option>
                         {accomTypes.map(at => <option key={at.id} value={at.id}>{at.name}</option>)}
-                      </select>
+                      </Select>
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Valor/pessoa (USD)</label>}
@@ -416,21 +578,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
-                    <label style={lbl}>Forma de pagamento</label>
-                    <select style={inp} value={form.payment_method} onChange={set('payment_method')}>
-                      <option value="">— Selecione —</option>
-                      {paymentMethods.map(pm => <option key={pm.id} value={pm.name}>{pm.name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ flex: 1 }}>
                     <label style={lbl}>Recebido na entrada (BRL)</label>
-                    <input style={inp} type="number" step="0.01" value={form.received_down_payment_brl} onChange={set('received_down_payment_brl')} />
+                    <input style={inpRO} readOnly value={form.received_down_payment_brl ? Number(form.received_down_payment_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Recebido a prazo (BRL)</label>
-                    <input style={inp} type="number" step="0.01" value={form.received_installments_brl} onChange={set('received_installments_brl')} />
+                    <input style={inpRO} readOnly value={form.received_installments_brl ? Number(form.received_installments_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} />
                   </div>
                 </div>
+                <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+                  "Recebido na entrada" e "Recebido a prazo" são preenchidos automaticamente a partir dos valores definidos na Entrada e nas Parcelas, abaixo.
+                </p>
               </div>
             </div>
 
@@ -448,6 +606,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   </div>
                   <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={entrada.value_brl}
                     onChange={e => setEntrada(p => ({ ...p, value_brl: e.target.value }))} />
+                  <div style={{ flex: 1 }}>
+                    <Select value={entrada.payment_method} onChange={e => setEntrada(p => ({ ...p, payment_method: e.target.value }))}>
+                      <option value="">— Forma de pagamento —</option>
+                      {paymentMethods.map(pm => <option key={pm.id} value={pm.name}>{pm.name}</option>)}
+                    </Select>
+                  </div>
                 </div>
               </div>
 
@@ -459,7 +623,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', minWidth: 20, textAlign: 'center' }}>{installmentsCount}</span>
                   <button type="button" onClick={() => setInstallmentsCountClamped(installmentsCount + 1)}
                     style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>(0 a 12)</span>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>(0 a 12 — o valor restante já é dividido igualmente)</span>
                 </div>
               </div>
 
@@ -473,6 +637,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   </div>
                   <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={it.value_brl}
                     onChange={e => updateInstallment(idx, 'value_brl', e.target.value)} />
+                  <div style={{ flex: 1 }}>
+                    <Select value={it.payment_method} onChange={e => updateInstallment(idx, 'payment_method', e.target.value)}>
+                      <option value="">— Forma de pagamento —</option>
+                      {paymentMethods.map(pm => <option key={pm.id} value={pm.name}>{pm.name}</option>)}
+                    </Select>
+                  </div>
                 </div>
               ))}
             </div>
@@ -506,11 +676,20 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
             Cancelar
           </button>
-          <button onClick={save} disabled={saving || loading} style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={handleSaveClick} disabled={saving || loading} style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Ic n="check" s={13} />{saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar contrato'}
           </button>
         </div>
       </div>
+
+      {confirmMismatch && (
+        <MismatchConfirm
+          sumFilled={sumFilled}
+          total={computedTotalBrl}
+          onOk={() => { setConfirmMismatch(false); doSave() }}
+          onCancel={() => setConfirmMismatch(false)}
+        />
+      )}
     </div>
   )
 }

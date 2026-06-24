@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                 'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -37,8 +37,9 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
   const [decadeStart, setDecadeStart] = useState(null)
   const [popupPos,    setPopupPos]    = useState({})
   const [hoverDay,    setHoverDay]    = useState(null)
-  const ref    = useRef(null)
-  const inpRef = useRef(null)
+  const ref       = useRef(null)
+  const inpRef    = useRef(null)
+  const popupRef  = useRef(null)
 
   const selected = value ? new Date(value + 'T00:00:00') : null
   const related  = relatedDate ? new Date(relatedDate + 'T00:00:00') : null
@@ -47,7 +48,7 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
   /* Sync inputVal quando value muda externamente */
   useEffect(() => { setInputVal(isoToDisplay(value)) }, [value])
 
-  /* Inicializa view ao abrir e calcula posição fixed se necessário */
+  /* Inicializa view ao abrir */
   useEffect(() => {
     if (open) {
       const d = related || selected || today
@@ -55,12 +56,39 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
       setDecadeStart(Math.floor(d.getFullYear() / 10) * 10)
       setMode('days')
       setHoverDay(null)
-      if (fixed && ref.current) {
-        const rect = ref.current.getBoundingClientRect()
-        setPopupPos({ top: rect.bottom + 6, left: rect.left })
-      }
     }
   }, [open])
+
+  /* Posição do popup fixed — usa a altura REAL do popup já renderizado (não
+   * uma estimativa, que deixava espaço sobrando quando abria pra cima).
+   * Recalcula ao abrir, ao trocar de modo (dias/meses/anos muda a altura) e
+   * enquanto a página/modal faz scroll ou a janela é redimensionada; abre
+   * pra cima se não houver espaço suficiente embaixo do campo. */
+  const reposition = () => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const popupH = popupRef.current?.offsetHeight || 360
+    const spaceBelow = window.innerHeight - rect.bottom
+    const flipUp = spaceBelow < popupH && rect.top > spaceBelow
+    setPopupPos({
+      top: flipUp ? Math.max(8, rect.top - popupH - 6) : rect.bottom + 6,
+      left: rect.left,
+    })
+  }
+
+  useLayoutEffect(() => {
+    if (open && fixed) reposition()
+  }, [open, fixed, mode, view])
+
+  useEffect(() => {
+    if (!open || !fixed) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open, fixed])
 
   /* Fecha ao clicar fora */
   useEffect(() => {
@@ -218,6 +246,7 @@ export default function DatePicker({ value, onChange, placeholder = 'DD/MM/AAAA'
       {/* Popup calendário */}
       {open && view && (
         <div
+          ref={popupRef}
           onClick={e=>e.stopPropagation()}
           style={{
             position: fixed ? 'fixed' : 'absolute',

@@ -133,7 +133,7 @@ export async function generateContractPDF(contract) {
   y = sectionHeader(doc, 'DADOS DOS PAGAMENTOS / VALORES', y + 3)
   y = kvTable(doc, y, [
     ['Soma total (USD)', fmtMoney(contract.total_usd), 'Total em (BRL)', fmtMoney(contract.total_brl)],
-    ['Câmbio', contract.exchange_rate ?? '', 'Forma de pagamento', contract.payment_method || ''],
+    ['Câmbio', contract.exchange_rate ?? '', '', ''],
     ['Recebido na entrada', fmtMoney(contract.received_down_payment_brl), 'Recebido a prazo', fmtMoney(contract.received_installments_brl)],
   ])
 
@@ -142,13 +142,13 @@ export async function generateContractPDF(contract) {
   const entrada  = installments.find(i => i.kind === 'entrada')
   const parcelas = installments.filter(i => i.kind === 'parcela').sort((a, b) => a.installment_number - b.installment_number)
   const installmentRows = []
-  if (entrada) installmentRows.push(['Entrada', entrada.detail || '', fmtDateBR(entrada.due_date), fmtMoney(entrada.value_brl)])
-  parcelas.forEach(p => installmentRows.push([`${p.installment_number}ª parcela`, p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl)]))
+  if (entrada) installmentRows.push(['Entrada', entrada.detail || '', fmtDateBR(entrada.due_date), fmtMoney(entrada.value_brl), entrada.payment_method || ''])
+  parcelas.forEach(p => installmentRows.push([`${p.installment_number}ª parcela`, p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl), p.payment_method || '']))
   if (installmentRows.length) {
     y = sectionHeader(doc, 'PARCELAS', y + 3)
     autoTable(doc, {
       startY: y,
-      head: [['Parcela', 'Detalhe do pagamento', 'Para (data)', 'Valor (BRL)']],
+      head: [['Parcela', 'Detalhe do pagamento', 'Para (data)', 'Valor (BRL)', 'Forma de pagamento']],
       body: installmentRows,
       theme: 'grid',
       styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, lineColor: BORDER, lineWidth: 0.2 },

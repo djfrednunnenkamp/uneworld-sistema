@@ -64,7 +64,7 @@ class ContractGuestSerializer(serializers.ModelSerializer):
 class ContractInstallmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ContractInstallment
-        fields = ['id', 'kind', 'installment_number', 'detail', 'due_date', 'value_brl', 'order']
+        fields = ['id', 'kind', 'installment_number', 'detail', 'due_date', 'value_brl', 'payment_method', 'order']
 
 
 class ContractListSerializer(serializers.ModelSerializer):
@@ -104,7 +104,7 @@ class ContractSerializer(serializers.ModelSerializer):
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_data',
                   'passenger_list', 'passenger_list_data', 'contratante', 'contratante_data',
                   'package_name', 'departure_date', 'departure_airport', 'observations',
-                  'total_usd', 'total_brl', 'exchange_rate', 'payment_method',
+                  'total_usd', 'total_brl', 'exchange_rate',
                   'received_down_payment_brl', 'received_installments_brl',
                   'accommodation_lines', 'guests', 'installments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
