@@ -12,6 +12,7 @@ import AirportsManager from '../components/AirportsManager'
 import AirlinesManager from '../components/AirlinesManager'
 import BusMapsManager from '../components/BusMapsManager'
 import ContractClausesManager from '../components/ContractClausesManager'
+import TermsAndConditionsManager from '../components/TermsAndConditionsManager'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
 import { PERM_GROUPS, EMPTY_PERMISSIONS, sanitizePerms, applyPermChanges } from '../utils/permGroups'
@@ -68,7 +69,7 @@ function splitCsvLineSettings(line) {
                   + tipos de documento + aeroportos + companhias aéreas
                   + perfis de permissão + mapas de ônibus
    Formato: lista,nome,pessoas,casal,pais,estado,codigo */
-function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], filename) {
+function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
   const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
@@ -113,6 +114,10 @@ function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, 
     const payload = JSON.stringify({ content: c.content || '', is_default: !!c.is_default })
     rows.push(`${q('Cláusulas de Contrato')},${q(c.name)},,,,,${q(payload)}`)
   })
+  if (termsContent != null) {
+    const payload = JSON.stringify({ content: termsContent || '' })
+    rows.push(`${q('Termos e Condições')},${q('Termos e Condições')},,,,,${q(payload)}`)
+  }
   downloadCsv(rows.join('\n'), filename, { model_label: 'Exportação CSV — Todas as configurações' })
 }
 
@@ -757,8 +762,9 @@ const LIST_DEFS = [
   { key:'airlines',         label:'Companhias Aéreas',        perm:'settings_airlines' },
   { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps' },
   { key:'contract_clauses', label:'Cláusulas de Contrato',    perm:'settings_contract_clauses' },
+  { key:'terms',            label:'Termos e Condições',       perm:'settings_terms' },
 ]
-const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses']
+const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses', 'terms']
 
 function exportEmailsCsv(emails) {
   const rows = ['email', ...emails.map(e => `"${e.replace(/"/g, '""')}"`)]
@@ -1146,6 +1152,7 @@ export default function Settings() {
   const [cntAirlines,     setCntAirlines]     = useState(null)
   const [cntBusMaps,      setCntBusMaps]      = useState(null)
   const [cntContractClauses, setCntContractClauses] = useState(null)
+  const [cntTerms, setCntTerms] = useState(null)
 
   useEffect(() => {
     configApi.professions().then(r => setProfessions(r.data)).catch(() => {}).finally(() => setLoadingP(false))
@@ -1164,6 +1171,7 @@ export default function Settings() {
     configApi.airlines({ page_size: 1 }).then(r => setCntAirlines(r.data.count ?? (r.data.results ?? r.data).length)).catch(() => {})
     configApi.busMaps?.().then(r => setCntBusMaps((r.data.results ?? r.data).length)).catch(() => {})
     configApi.contractClauses().then(r => setCntContractClauses(r.data.length)).catch(() => {})
+    configApi.terms().then(r => setCntTerms(r.data.content?.trim() ? 1 : 0)).catch(() => {})
   }, [])
 
   const silentReloadConfig = useCallback(() => {
@@ -1350,10 +1358,11 @@ export default function Settings() {
       const viewPermProfiles= can('settings_user_profiles',  'view') && include('perm_profiles')
       const viewBusMaps     = can('settings_bus_maps',       'view') && include('bus_maps')
       const viewContractClauses = can('settings_contract_clauses', 'view') && include('contract_clauses')
+      const viewTerms       = can('settings_terms', 'view') && include('terms')
       const wantStates = geoLevel === 'estados' || geoLevel === 'cidades'
       const wantCities = geoLevel === 'cidades'
       let cRes = { data: [] }, sRes = { data: [] }, cities = []
-      let dtData = [], apData = [], alData = [], ppData = [], bmData = [], ccData = []
+      let dtData = [], apData = [], alData = [], ppData = [], bmData = [], ccData = [], termsContent = null
       const fetches = []
       if (viewCountries) fetches.push(
         Promise.all([
@@ -1374,8 +1383,9 @@ export default function Settings() {
       if (viewPermProfiles) fetches.push(configApi.permissionProfiles().then(r => { ppData = r.data.results ?? r.data }))
       if (viewBusMaps)      fetches.push(configApi.busMaps().then(r => { bmData = r.data.results ?? r.data }))
       if (viewContractClauses) fetches.push(configApi.contractClauses().then(r => { ccData = r.data.results ?? r.data }))
+      if (viewTerms) fetches.push(configApi.terms().then(r => { termsContent = r.data.content || '' }))
       await Promise.all(fetches)
-      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, 'todas_as_configuracoes.csv')
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, 'todas_as_configuracoes.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -1390,7 +1400,8 @@ export default function Settings() {
     const canImportBusMaps   = can('settings_bus_maps',       'edit')
     const canImportPermProfiles = can('settings_user_profiles', 'edit')
     const canImportContractClauses = can('settings_contract_clauses', 'edit')
-    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = [], allPermProfiles = [], allContractClauses = []
+    const canImportTerms = can('settings_terms', 'edit')
+    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = [], allPermProfiles = [], allContractClauses = [], allTermsContent = null
     const fetches2 = []
     if (canImportCountries) fetches2.push(
       Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
@@ -1408,6 +1419,7 @@ export default function Settings() {
     if (canImportBusMaps)   fetches2.push(configApi.busMaps().then(r => { allBusMaps = r.data.results ?? r.data }).catch(() => {}))
     if (canImportPermProfiles) fetches2.push(configApi.permissionProfiles().then(r => { allPermProfiles = r.data.results ?? r.data }).catch(() => {}))
     if (canImportContractClauses) fetches2.push(configApi.contractClauses().then(r => { allContractClauses = r.data.results ?? r.data }).catch(() => {}))
+    if (canImportTerms) fetches2.push(configApi.terms().then(r => { allTermsContent = r.data.content || '' }).catch(() => {}))
     await Promise.all(fetches2)
     const permittedKeys = [
       ...importableGroups.map(g => g.key),
@@ -1419,6 +1431,7 @@ export default function Settings() {
       ...(canImportBusMaps   ? ['bus_maps']                        : []),
       ...(canImportPermProfiles ? ['perm_profiles']                 : []),
       ...(canImportContractClauses ? ['contract_clauses']           : []),
+      ...(canImportTerms     ? ['terms']                            : []),
     ]
     navigate('/configuracoes/import', {
       state: {
@@ -1473,6 +1486,7 @@ export default function Settings() {
     doc_types: cntDocTypes, perm_profiles: cntPermProfiles,
     countries: cntCountries, airports: cntAirports, airlines: cntAirlines, bus_maps: cntBusMaps,
     contract_clauses: cntContractClauses,
+    terms: cntTerms,
   }
 
   return (
@@ -1594,6 +1608,7 @@ export default function Settings() {
           ...(can('settings_user_profiles',  'view') ? [{ key: 'perm_profiles',  label: 'Perfis de Permissão' }] : []),
           ...(can('settings_bus_maps',       'view') ? [{ key: 'bus_maps',       label: 'Mapas de Ônibus' }] : []),
           ...(can('settings_contract_clauses', 'view') ? [{ key: 'contract_clauses', label: 'Cláusulas de Contrato' }] : []),
+          ...(can('settings_terms', 'view') ? [{ key: 'terms', label: 'Termos e Condições' }] : []),
         ]
         return (
           <CsvExportModal
@@ -1663,6 +1678,7 @@ export default function Settings() {
                 {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} canImport={can('settings_airlines','bulk_import')} canExport={can('settings_airlines','view')} canImportWeb={can('settings_airlines','import_web')} />}
                 {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} canImport={can('settings_bus_maps','edit')} canExport={can('settings_bus_maps','view')} />}
                 {activeDef.key === 'contract_clauses' && <ContractClausesManager canEdit={can('settings_contract_clauses','edit')} canDelete={can('settings_contract_clauses','delete')} canImport={can('settings_contract_clauses','edit')} canExport={can('settings_contract_clauses','view')} />}
+                {activeDef.key === 'terms'           && <TermsAndConditionsManager canEdit={can('settings_terms','edit')} canImport={can('settings_terms','edit')} canExport={can('settings_terms','view')} />}
               </div>
             </div>
           </div>

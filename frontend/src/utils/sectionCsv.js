@@ -34,6 +34,10 @@ export const SECTION_ROW_BUILDERS = {
     const payload = JSON.stringify({ content: c.content || '', is_default: !!c.is_default })
     return `${q(label)},${q(c.name)},,,,,${q(payload)}`
   },
+  terms: (label, t) => {
+    const payload = JSON.stringify({ content: t.content || '' })
+    return `${q(label)},${q(t.name)},,,,,${q(payload)}`
+  },
 }
 
 export function downloadCsv(text, filename, logMeta) {

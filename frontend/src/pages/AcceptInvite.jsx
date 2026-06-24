@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { usersApi } from '../api'
+import { usersApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
+import TermsModal from '../components/TermsModal'
 
 export default function AcceptInvite() {
   const [params]  = useSearchParams()
@@ -18,6 +19,9 @@ export default function AcceptInvite() {
   const [switching,  setSwitching]  = useState(false)
   const [done,       setDone]       = useState(false)
   const [error,      setError]      = useState('')
+  const [hasTerms,   setHasTerms]   = useState(false)
+  const [agreed,     setAgreed]     = useState(false)
+  const [showTerms,  setShowTerms]  = useState(false)
 
   useEffect(() => {
     if (!token) { navigate('/login'); return }
@@ -25,15 +29,17 @@ export default function AcceptInvite() {
       .then(r  => setInvite(r.data))
       .catch(() => setError('Convite inválido ou expirado.'))
       .finally(() => setLoading(false))
+    configApi.terms().then(r => setHasTerms(!!r.data.content?.trim())).catch(() => {})
   }, [token])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (password.length < 8) { setError('A senha deve ter pelo menos 8 caracteres.'); return }
     if (password !== confirm) { setError('As senhas não coincidem.'); return }
+    if (hasTerms && !agreed) { setError('É preciso concordar com os Termos e Condições.'); return }
     setSaving(true); setError('')
     try {
-      await usersApi.acceptInvite(token, password)
+      await usersApi.acceptInvite(token, password, agreed)
       if (user) {
         // Alguém está logado neste browser — mostra tela de escolha
         setDone(true)
@@ -129,6 +135,19 @@ export default function AcceptInvite() {
                   <PasswordInput value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repita a senha" style={inp}
                     onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
                 </div>
+                {hasTerms && (
+                  <label style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:20, cursor:'pointer' }}>
+                    <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
+                      style={{ width:16, height:16, marginTop:2, accentColor:'#1a2d4f', cursor:'pointer', flexShrink:0 }} />
+                    <span style={{ fontSize:13, color:'#475569', lineHeight:1.5 }}>
+                      Eu li e concordo com os{' '}
+                      <button type="button" onClick={() => setShowTerms(true)}
+                        style={{ background:'none', border:'none', padding:0, color:'#2e6db4', fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'inherit', textDecoration:'underline' }}>
+                        Termos e Condições
+                      </button>.
+                    </span>
+                  </label>
+                )}
                 <button type="submit" disabled={saving}
                   style={{ ...btnPri, background:saving?'#94a3b8':'#1a2d4f', cursor:saving?'not-allowed':'pointer' }}
                   onMouseEnter={e=>{if(!saving)e.currentTarget.style.background='#2e6db4'}}
@@ -140,6 +159,7 @@ export default function AcceptInvite() {
           )}
         </div>
       </div>
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   )
 }

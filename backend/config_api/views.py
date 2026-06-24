@@ -6,7 +6,7 @@ from django.http import StreamingHttpResponse, HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser
@@ -14,7 +14,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
-                     BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause)
+                     BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -1164,6 +1164,31 @@ def system_settings(request):
         ser.save()
         return Response(ser.data)
     return Response(SystemSettingsSerializer(obj).data)
+
+
+# ── Termos e condições ───────────────────────────────────────────────────────
+
+class TermsAndConditionsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = TermsAndConditions
+        fields = ['content', 'updated_at']
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([AllowAny])
+def terms_and_conditions(request):
+    """GET é público (precisa ser lido antes/sem login, ex: tela de convite).
+    PATCH exige permissão de edição dos termos."""
+    obj = TermsAndConditions.get()
+    if request.method == 'PATCH':
+        from users_api.permissions import has_any_perm
+        if not has_any_perm(request.user, 'manage_settings', 'settings_terms_edit'):
+            return Response({'error': 'Você não tem permissão para executar esta ação.'}, status=403)
+        ser = TermsAndConditionsSerializer(obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+    return Response(TermsAndConditionsSerializer(obj).data)
 
 
 # ── Perfis de permissão ───────────────────────────────────────────────────────

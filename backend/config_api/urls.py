@@ -29,4 +29,5 @@ urlpatterns = [
     path('geo/analyze/',      views.geo_analyze,        name='geo-analyze'),
     path('geo/action/',       views.geo_import_action,  name='geo-action'),
     path('system-settings/',  views.system_settings,    name='system-settings'),
+    path('terms/',            views.terms_and_conditions, name='terms'),
 ]

@@ -117,6 +117,12 @@ function parseCombinedCsv(text, labelToKey) {
         extras.is_default = !!parsed.is_default
       } catch { /* cláusula exportada em formato antigo/inválido */ }
     }
+    if (listKey === 'terms' && extras.code) {
+      try {
+        const parsed = JSON.parse(extras.code)
+        extras.content = parsed.content || ''
+      } catch { /* formato antigo/inválido */ }
+    }
     return { listLabel, listKey, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
@@ -155,6 +161,8 @@ const API_MAP = {
   contract_clauses: { add: (name, extras) => configApi.addContractClause({
                        name, content: extras.content || '', is_default: extras.is_default || false,
                      }), del: (id) => configApi.delContractClause(id), label: 'Cláusulas de Contrato' },
+  // Singleton — "adicionar" aqui só atualiza o texto vigente, nunca cria item novo
+  terms:           { add: (name, extras) => configApi.updateTerms({ content: extras.content || '' }), del: null, label: 'Termos e Condições' },
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -162,7 +170,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Tipos com campos extras (não só "nome") — usam o mesmo parser rico do CSV combinado
-const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses'])
+const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms'])
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
 const EXPORT_ONLY_KEYS = new Set()

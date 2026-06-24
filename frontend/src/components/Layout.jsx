@@ -4,6 +4,8 @@ import { Toaster } from 'sonner'
 import Sidebar from './Sidebar'
 import AccountModal from './AccountModal'
 import ChangePasswordModal from './ChangePasswordModal'
+import TermsModal from './TermsModal'
+import TermsAcceptGate from './TermsAcceptGate'
 import { useAuth } from '../context/AuthContext'
 import { auditApi } from '../api'
 
@@ -39,6 +41,7 @@ export default function Layout() {
   const [menuOpen,      setMenuOpen]      = useState(false)
   const [showAccount,   setShowAccount]   = useState(false)
   const [showChangePw,  setShowChangePw]  = useState(false)
+  const [showTerms,     setShowTerms]     = useState(false)
   const menuRef = useRef(null)
   const location = useLocation()
   const lastLoggedPath = useRef(null)
@@ -116,6 +119,14 @@ export default function Layout() {
                   >
                     Alterar senha
                   </button>
+                  <button
+                    style={menuItemStyle}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    onClick={() => { setMenuOpen(false); setShowTerms(true) }}
+                  >
+                    Termos e Condições
+                  </button>
                   <div style={{ borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
                   <button
                     style={{ ...menuItemStyle, color: '#dc2626' }}
@@ -144,6 +155,8 @@ export default function Layout() {
 
       {showAccount  && <AccountModal        onClose={() => setShowAccount(false)}  onSaved={refreshUser} />}
       {showChangePw && <ChangePasswordModal  onClose={() => setShowChangePw(false)} />}
+      {showTerms    && <TermsModal          onClose={() => setShowTerms(false)} />}
+      {user?.needs_terms_acceptance && <TermsAcceptGate onAccepted={refreshUser} />}
     </div>
   )
 }

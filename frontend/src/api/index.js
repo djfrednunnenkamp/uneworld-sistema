@@ -254,6 +254,9 @@ export const configApi = {
   // Configurações globais do sistema
   systemSettings:       ()     => api.get('/config/system-settings/'),
   updateSystemSettings: (data) => api.patch('/config/system-settings/', data),
+  // Termos e condições
+  terms:        ()     => api.get('/config/terms/'),
+  updateTerms:  (data) => api.patch('/config/terms/', data),
 }
 
 export const usersApi = {
@@ -270,5 +273,6 @@ export const usersApi = {
   forgotPassword: (email)  => api.post('/users/forgot-password/', { email }),
   resetPassword:  (token, password) => api.post('/users/reset-password/', { token, password }),
   validateInvite: (token)  => api.get(`/users/invite/validate/?token=${token}`),
-  acceptInvite:   (token, password) => api.post('/users/invite/accept/', { token, password }),
+  acceptInvite:   (token, password, termsAccepted) => api.post('/users/invite/accept/', { token, password, terms_accepted: termsAccepted }),
+  acceptTerms:    ()       => api.post('/users/me/accept-terms/'),
 }

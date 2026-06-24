@@ -295,6 +295,26 @@ class ContractClause(models.Model):
         return self.name
 
 
+class TermsAndConditions(models.Model):
+    """Singleton com o texto de termos e condições — todo usuário precisa
+    aceitar no primeiro login; se o texto for editado depois, precisa
+    aceitar de novo (comparado via updated_at)."""
+    content    = models.TextField('Texto', blank=True)  # HTML do editor rico
+    updated_at = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Termos e condições'
+        verbose_name_plural = 'Termos e condições'
+
+    def __str__(self):
+        return 'Termos e condições'
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class SystemSettings(models.Model):
     """Singleton de configurações globais do sistema."""
     deadline_notification_emails = models.JSONField('E-mails de notificação de prazos', default=list, blank=True)

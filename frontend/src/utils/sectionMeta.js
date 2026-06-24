@@ -20,6 +20,7 @@ export const CARD_META = {
   airlines:        { icon: 'ticket',    hue: 195, desc: 'Companhias aéreas disponíveis para voos.' },
   bus_maps:        { icon: 'mapicon',   hue: 45,  desc: 'Mapas de assentos dos ônibus por empresa.' },
   contract_clauses:{ icon: 'docs',      hue: 70,  desc: 'Cláusulas de contrato — base para o futuro gerador de contratos.' },
+  terms:           { icon: 'shield',    hue: 5,   desc: 'Termos e condições que todo usuário precisa aceitar.' },
 }
 
 export const sectionTileColors = (hue) => ({

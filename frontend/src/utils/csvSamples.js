@@ -62,6 +62,13 @@ export const CSV_SAMPLES = {
     ].join('\n'),
     filename: 'modelo_clausulas_contrato.csv',
   },
+  terms: {
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Termos e Condições,Termos e Condições,,,,,"{""content"":""<p>Texto dos termos…</p>""}"',
+    ].join('\n'),
+    filename: 'modelo_termos_e_condicoes.csv',
+  },
   countries: {
     content: [
       'lista,nome,pessoas,casal,pais,estado,codigo',

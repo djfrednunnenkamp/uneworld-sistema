@@ -184,6 +184,11 @@ class UserPermissions(models.Model):
     settings_bus_maps_view           = models.BooleanField(default=False)
     settings_bus_maps_edit           = models.BooleanField(default=False)
     settings_bus_maps_delete         = models.BooleanField(default=False)
+    settings_contract_clauses_view   = models.BooleanField(default=False)
+    settings_contract_clauses_edit   = models.BooleanField(default=False)
+    settings_contract_clauses_delete = models.BooleanField(default=False)
+    settings_terms_view              = models.BooleanField(default=False)
+    settings_terms_edit              = models.BooleanField(default=False)
 
     # Log do sistema — por área usa a mesma permissão "_view_logs" de cada
     # área (passengers_view_logs, lists_view_logs, agencies_view_logs,
@@ -195,6 +200,10 @@ class UserPermissions(models.Model):
     # Fica aqui (não dá pra adicionar campo direto no User do Django).
     is_deleted = models.BooleanField('Excluído', default=False, db_index=True)
     deleted_at = models.DateTimeField('Excluído em', null=True, blank=True)
+
+    # ── Termos e condições — quando o usuário aceitou por último. Se os
+    # termos forem editados depois dessa data, precisa aceitar de novo.
+    terms_accepted_at = models.DateTimeField('Termos aceitos em', null=True, blank=True)
 
     class Meta:
         verbose_name = 'Permissões de usuário'
