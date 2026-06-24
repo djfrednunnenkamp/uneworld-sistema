@@ -182,3 +182,10 @@ CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
     default='http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://192.168.1.55:5173,http://192.168.1.55:8000'
 ).split(',')
+
+# Atrás do nginx/Cloudflare (modo "Flexible": HTTPS público, HTTP simples até o
+# servidor), o Django só sabe que a conexão original era HTTPS através deste
+# cabeçalho — sem isso, cookies "secure" e o redirect de HTTPS funcionam errado.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
