@@ -4,6 +4,7 @@ import { Ic } from './Icon'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { getLocalJobs, subscribeLocalJobs } from '../utils/localJobs'
+import { dashboardWsUrl } from '../utils/ws'
 
 const NAV_BASE = [
   { id: '/',           icon: 'grid',     label: 'Visão Geral', group: null,     perms: null },
@@ -30,7 +31,7 @@ export default function Sidebar() {
   /* Jobs de importação em background (vacinas, países, aeroportos…) — barra de
      progresso ao vivo recebida via WebSocket, visível em qualquer tela. */
   const [jobs, setJobs] = useState({}) // job_id -> { kind, label, done, total, status, _seenAt }
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback((msg) => {
     if (msg.type !== 'job') return
     setJobs(prev => {

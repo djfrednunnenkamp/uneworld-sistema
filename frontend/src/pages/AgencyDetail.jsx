@@ -13,6 +13,7 @@ import CountryStatePicker from '../components/CountryStatePicker'
 import FormSelect from '../components/FormSelect'
 import usePersistedTab from '../hooks/usePersistedTab'
 import ConfirmModal from '../components/ConfirmModal'
+import { dashboardWsUrl } from '../utils/ws'
 
 
 const PERSON_TYPE_OPTS = [
@@ -249,7 +250,7 @@ function AgencyUsersTab({ agencyId }) {
       .catch(() => {})
   }, [agencyId])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
     if (scope === 'agencies' || scope === 'all') silentReload()
   }, [silentReload]))
@@ -400,7 +401,7 @@ export default function AgencyDetail() {
     }
   }, [id, isNew])
 
-  const wsUrlMain = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrlMain = user ? dashboardWsUrl() : null
   useWebSocket(wsUrlMain, useCallback(({ scope }) => {
     if (scope === 'agencies' || scope === 'all') silentLoad()
   }, [silentLoad]))

@@ -8,6 +8,7 @@ import { canAccess } from '../utils/permissions'
 import { Ic } from '../components/Icon'
 import { fmtDateTime } from '../utils/timeFormat'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { dashboardWsUrl } from '../utils/ws'
 
 const fmt = (d) => {
   if (!d) return ''
@@ -246,7 +247,7 @@ export default function Dashboard() {
       .catch(() => {})
   }, [])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
 
   useWebSocket(wsUrl, useCallback((msg) => {
     if (msg.type !== 'refresh') return

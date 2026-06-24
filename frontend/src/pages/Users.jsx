@@ -17,6 +17,7 @@ import {
   EMPTY_PERMISSIONS, PRESET_ADMIN, PRESET_USER,
   sanitizePerms, applyPermChanges,
 } from '../utils/permGroups'
+import { dashboardWsUrl } from '../utils/ws'
 
 const STATUS_OPTS = [
   { value: '',            label: 'Todos os status' },
@@ -842,7 +843,7 @@ export default function Users() {
       .catch(() => {})
   }, [])
 
-  const wsUrl = me ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = me ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
     if (scope === 'users' || scope === 'all') silentReload()
   }, [silentReload]))

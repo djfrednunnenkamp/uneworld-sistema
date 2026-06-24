@@ -10,6 +10,7 @@ import NewAgencyModal from '../components/NewAgencyModal'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { dashboardWsUrl } from '../utils/ws'
 
 /* ── CopyCell ── */
 function CopyCell({ value, muted, bold }) {
@@ -288,7 +289,7 @@ export default function Agencies() {
       .catch(() => {})
   }, [])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
     if (scope === 'agencies' || scope === 'all') silentReload()
   }, [silentReload]))

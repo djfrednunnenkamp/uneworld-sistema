@@ -22,6 +22,7 @@ import PhoneInput from '../components/PhoneInput'
 import RichTextEditor from '../components/RichTextEditor'
 import { BusLayoutPreview } from '../components/BusLayoutPreview'
 import { CSV_SAMPLES } from '../utils/csvSamples'
+import { dashboardWsUrl } from '../utils/ws'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -4366,7 +4367,7 @@ function PassengersTab({ listId, listType, busMapId, listName, defaultAirport, s
     listsApi.listRooms(listId).then(r => setRooms(r.data)).catch(() => {})
   }, [listId])
 
-  const wsUrlPax = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrlPax = user ? dashboardWsUrl() : null
   useWebSocket(wsUrlPax, useCallback((msg) => {
     if (msg.type !== 'refresh') return
     const scope = msg.scope ?? 'all'
@@ -5617,7 +5618,7 @@ function FlightsTab({ listId, list, onListUpdate }) {
       .catch(() => {})
   }, [listId])
 
-  const wsUrlFlights = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrlFlights = user ? dashboardWsUrl() : null
   useWebSocket(wsUrlFlights, useCallback((msg) => {
     if (msg.type !== 'refresh') return
     const scope = msg.scope ?? 'all'
@@ -6051,7 +6052,7 @@ export default function TripDetail() {
       .catch(() => {})
   }, [id])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback((msg) => {
     if (msg.type !== 'refresh') return
     const scope = msg.scope ?? 'all'

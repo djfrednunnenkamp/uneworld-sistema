@@ -10,6 +10,7 @@ import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useAuth } from '../context/AuthContext'
+import { dashboardWsUrl } from '../utils/ws'
 
 const inp = { padding:'7px 10px', border:'1.5px solid #e2e8f0', borderRadius:7, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
 const onF  = e => e.target.style.borderColor = '#1a2d4f'
@@ -255,7 +256,7 @@ export default function AirportsManager({ canEdit = true, canDelete = true, canI
   }
 
   const { user } = useAuth()
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, (msg) => {
     if (msg.type === 'job' && msg.kind === 'airports' && msg.status === 'done') reload()
   })

@@ -6,6 +6,7 @@ import LocationMap from '../components/LocationMap'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { dashboardWsUrl } from '../utils/ws'
 
 /* ── Estilos de ação ── */
 const ACTION_STYLE = {
@@ -826,7 +827,7 @@ export default function AuditLog() {
     } catch {}
   }, [listId, passengerId, agencyId, auditScope])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
     if (scope === 'audit' || scope === 'all') silentReload()
   }, [silentReload]))

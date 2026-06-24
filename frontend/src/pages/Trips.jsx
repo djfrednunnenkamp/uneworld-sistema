@@ -8,6 +8,7 @@ import DelModal from '../components/DelModal'
 import ListModal from '../components/ListModal'
 import TrashTab from '../components/TrashTab'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { dashboardWsUrl } from '../utils/ws'
 
 const fmt = (d) => {
   if (!d) return ''
@@ -125,7 +126,7 @@ export default function Trips() {
       .catch(() => {})
   }, [])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback((msg) => {
     if (msg.type !== 'refresh') return
     const scope = msg.scope ?? 'all'

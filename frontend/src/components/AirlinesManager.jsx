@@ -10,6 +10,7 @@ import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useAuth } from '../context/AuthContext'
+import { dashboardWsUrl } from '../utils/ws'
 
 let _cachedCountries = null
 
@@ -244,7 +245,7 @@ export default function AirlinesManager({ canEdit = true, canDelete = true, canI
   useEffect(reload, [debounced, page])
 
   const { user } = useAuth()
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, (msg) => {
     if (msg.type === 'job' && msg.kind === 'airlines' && msg.status === 'done') reload()
   })

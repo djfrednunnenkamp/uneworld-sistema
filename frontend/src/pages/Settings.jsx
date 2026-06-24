@@ -22,6 +22,7 @@ import { CSV_SAMPLES } from '../utils/csvSamples'
 import { CARD_META } from '../utils/sectionMeta'
 import { exportSectionCsv, downloadCsv } from '../utils/sectionCsv'
 import { hasVisibleText } from '../utils/richText'
+import { dashboardWsUrl } from '../utils/ws'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -553,7 +554,7 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false, can
   useEffect(() => { loadCountries() }, [])
 
   const { user } = useAuth()
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback((msg) => {
     if (msg.type !== 'job' || msg.status !== 'done') return
     if (msg.kind === 'countries' || msg.kind === 'countries_cascade') loadCountries()
@@ -1187,7 +1188,7 @@ export default function Settings() {
     configApi.accommodations().then(r => setAccoms(r.data.results ?? r.data)).catch(() => {})
   }, [])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
     if (scope === 'config' || scope === 'all') silentReloadConfig()
   }, [silentReloadConfig]))

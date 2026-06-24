@@ -6,6 +6,7 @@ import { Ic } from '../components/Icon'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useAuth } from '../context/AuthContext'
 import { canAccess } from '../utils/permissions'
+import { dashboardWsUrl } from '../utils/ws'
 
 const WEEKDAYS      = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const WEEKDAYS_FULL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
@@ -192,7 +193,7 @@ export default function CalendarPage() {
       .catch(() => {})
   }, [startISO, endISO, filterListId])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
     if (scope === 'lists' || scope === 'stats' || scope === 'calendar' || scope === 'all') silentRefreshEvents()
   }, [silentRefreshEvents]))

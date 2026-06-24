@@ -6,6 +6,7 @@ import Button from '../components/ui/Button'
 import Spinner from '../components/ui/Spinner'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { dashboardWsUrl } from '../utils/ws'
 
 export default function Destinations() {
   const [destinations, setDestinations] = useState([])
@@ -46,7 +47,7 @@ export default function Destinations() {
       .catch(() => {})
   }, [])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
     if (scope === 'config' || scope === 'all') silentReload()
   }, [silentReload]))

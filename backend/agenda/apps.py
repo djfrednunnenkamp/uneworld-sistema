@@ -9,9 +9,11 @@ class AgendaConfig(AppConfig):
     verbose_name = 'Agenda'
 
     def ready(self):
-        # Evita iniciar o agendador duas vezes por causa do auto-reload do runserver
-        # (o processo "watcher" não tem RUN_MAIN=true).
-        if os.environ.get('RUN_MAIN') != 'true':
+        # RUN_MAIN só existe no processo filho do auto-reload do runserver (dev).
+        # Em produção (Daphne, sem auto-reload) ele nunca é setado — por isso o
+        # entrypoint do container define RUN_SCHEDULER=1 só no comando de servidor
+        # de longa duração, nunca em comandos pontuais como migrate/shell.
+        if os.environ.get('RUN_MAIN') != 'true' and os.environ.get('RUN_SCHEDULER') != '1':
             return
         from . import scheduler
         scheduler.start()

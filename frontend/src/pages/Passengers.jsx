@@ -12,6 +12,7 @@ import MergeModal from '../components/MergeModal'
 import NewPassengerModal from '../components/NewPassengerModal'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
+import { dashboardWsUrl } from '../utils/ws'
 
 /* Colunas com dados sensíveis — só aparecem para quem tem passengers_view_full */
 const SENSITIVE_COLS = ['email', 'phone1', 'cpf', 'birth_date']
@@ -239,7 +240,7 @@ export default function Passengers() {
     }
   }, [canDelete, showTrash])
 
-  const wsUrl = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback((msg) => {
     if (msg.type !== 'refresh') return
     const scope = msg.scope ?? 'all'

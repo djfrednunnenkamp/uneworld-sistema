@@ -15,3 +15,11 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Variáveis de ambiente do docker-compose — NUNCA enviar ao repositório
+.env
+.env.*
+!.env.example
+
+# Configuração local do Claude Code
+.claude/

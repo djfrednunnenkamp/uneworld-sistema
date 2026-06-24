@@ -26,6 +26,7 @@ import PhoneInput from '../components/PhoneInput'
 import DocTypePicker from '../components/DocTypePicker'
 import FormSelect from '../components/FormSelect'
 import { configApi } from '../api'
+import { dashboardWsUrl } from '../utils/ws'
 
 // Fallback estático para quando a API ainda não carregou
 const DOC_TYPES_FALLBACK = [
@@ -253,7 +254,7 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
       .catch(() => {})
   }, [passengerId, isNew])
 
-  const wsUrlDocs = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrlDocs = user ? dashboardWsUrl() : null
   useWebSocket(wsUrlDocs, useCallback(({ scope }) => {
     if (scope === 'stats' || scope === 'all') silentReload()
   }, [silentReload]))
@@ -827,7 +828,7 @@ export default function PassengerDetail() {
     }
   }, [id, isNew])
 
-  const wsUrlPassenger = user ? `ws://${window.location.hostname}:8000/ws/dashboard/` : null
+  const wsUrlPassenger = user ? dashboardWsUrl() : null
   useWebSocket(wsUrlPassenger, useCallback(({ scope }) => {
     if (scope === 'stats' || scope === 'all') silentReload()
   }, [silentReload]))
