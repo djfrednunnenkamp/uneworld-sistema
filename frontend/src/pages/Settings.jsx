@@ -11,6 +11,7 @@ import AccommodationManager from '../components/AccommodationManager'
 import AirportsManager from '../components/AirportsManager'
 import AirlinesManager from '../components/AirlinesManager'
 import BusMapsManager from '../components/BusMapsManager'
+import ContractClausesManager from '../components/ContractClausesManager'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
 import { PERM_GROUPS, EMPTY_PERMISSIONS, sanitizePerms, applyPermChanges } from '../utils/permGroups'
@@ -751,8 +752,9 @@ const LIST_DEFS = [
   { key:'airports',         label:'Aeroportos',               perm:'settings_airports' },
   { key:'airlines',         label:'Companhias Aéreas',        perm:'settings_airlines' },
   { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps' },
+  { key:'contract_clauses', label:'Cláusulas de Contrato',    perm:'settings_contract_clauses' },
 ]
-const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps']
+const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses']
 
 function exportEmailsCsv(emails) {
   const rows = ['email', ...emails.map(e => `"${e.replace(/"/g, '""')}"`)]
@@ -1139,6 +1141,7 @@ export default function Settings() {
   const [cntAirports,     setCntAirports]     = useState(null)
   const [cntAirlines,     setCntAirlines]     = useState(null)
   const [cntBusMaps,      setCntBusMaps]      = useState(null)
+  const [cntContractClauses, setCntContractClauses] = useState(null)
 
   useEffect(() => {
     configApi.professions().then(r => setProfessions(r.data)).catch(() => {}).finally(() => setLoadingP(false))
@@ -1156,6 +1159,7 @@ export default function Settings() {
     configApi.airports({ page_size: 1 }).then(r => setCntAirports(r.data.count ?? (r.data.results ?? r.data).length)).catch(() => {})
     configApi.airlines({ page_size: 1 }).then(r => setCntAirlines(r.data.count ?? (r.data.results ?? r.data).length)).catch(() => {})
     configApi.busMaps?.().then(r => setCntBusMaps((r.data.results ?? r.data).length)).catch(() => {})
+    configApi.contractClauses().then(r => setCntContractClauses(r.data.length)).catch(() => {})
   }, [])
 
   const silentReloadConfig = useCallback(() => {
@@ -1457,6 +1461,7 @@ export default function Settings() {
     crew_roles: crewRoles.length, accommodations: accoms.length, list_categories: listCats.length,
     doc_types: cntDocTypes, perm_profiles: cntPermProfiles,
     countries: cntCountries, airports: cntAirports, airlines: cntAirlines, bus_maps: cntBusMaps,
+    contract_clauses: cntContractClauses,
   }
 
   return (
@@ -1645,6 +1650,7 @@ export default function Settings() {
                 {activeDef.key === 'airports'        && <AirportsManager canEdit={can('settings_airports','edit')} canDelete={can('settings_airports','delete')} canImport={can('settings_airports','bulk_import')} canExport={can('settings_airports','view')} canImportWeb={can('settings_airports','import_web')} />}
                 {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} canImport={can('settings_airlines','bulk_import')} canExport={can('settings_airlines','view')} canImportWeb={can('settings_airlines','import_web')} />}
                 {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} canImport={can('settings_bus_maps','edit')} canExport={can('settings_bus_maps','view')} />}
+                {activeDef.key === 'contract_clauses' && <ContractClausesManager canEdit={can('settings_contract_clauses','edit')} canDelete={can('settings_contract_clauses','delete')} />}
               </div>
             </div>
           </div>

@@ -272,6 +272,29 @@ class PermissionProfile(models.Model):
         return self.name
 
 
+class ContractClause(models.Model):
+    """Base para o futuro recurso de geração de contrato — ainda não usado em
+    nenhum fluxo, só a tela de cadastro/edição das cláusulas em si."""
+    name       = models.CharField('Nome', max_length=200)
+    category   = models.CharField('Categoria', max_length=100, blank=True)  # ex: "Avião", "Hotel" — texto livre
+    content    = models.TextField('Texto', blank=True)  # HTML do editor rico
+    is_default = models.BooleanField('Cláusula padrão', default=False, db_index=True)  # sempre entra no contrato
+    created_at = models.DateTimeField('Criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('Atualizado em', auto_now=True)
+
+    # ── Lixeira (soft-delete) — nunca é removido de fato do banco ──
+    is_deleted = models.BooleanField('Excluído', default=False, db_index=True)
+    deleted_at = models.DateTimeField('Excluído em', null=True, blank=True)
+
+    class Meta:
+        ordering = ['category', 'name']
+        verbose_name = 'Cláusula de contrato'
+        verbose_name_plural = 'Cláusulas de contrato'
+
+    def __str__(self):
+        return self.name
+
+
 class SystemSettings(models.Model):
     """Singleton de configurações globais do sistema."""
     deadline_notification_emails = models.JSONField('E-mails de notificação de prazos', default=list, blank=True)

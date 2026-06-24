@@ -230,6 +230,14 @@ export const configApi = {
   deletedPermissionProfiles: ()     => api.get('/config/permission-profiles/', { params: { deleted: 1 } }),
   restorePermissionProfile:  (id)   => api.post(`/config/permission-profiles/${id}/restore/`),
   purgePermissionProfile:    (id)   => api.delete(`/config/permission-profiles/${id}/purge/`),
+  // Cláusulas de contrato
+  contractClauses:        (params)  => api.get('/config/contract-clauses/', { params }),
+  addContractClause:      (data)    => api.post('/config/contract-clauses/', data),
+  updateContractClause:   (id, d)   => api.patch(`/config/contract-clauses/${id}/`, d),
+  delContractClause:      (id)      => api.delete(`/config/contract-clauses/${id}/`),
+  deletedContractClauses: ()        => api.get('/config/contract-clauses/', { params: { deleted: 1 } }),
+  restoreContractClause:  (id)      => api.post(`/config/contract-clauses/${id}/restore/`),
+  purgeContractClause:    (id)      => api.delete(`/config/contract-clauses/${id}/purge/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

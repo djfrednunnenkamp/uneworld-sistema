@@ -14,7 +14,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
-                     BusMap, BusMapRow, SystemSettings, PermissionProfile)
+                     BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -960,6 +960,28 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     queryset         = ConfigAccommodation.objects.all()
     serializer_class = AccommodationSerializer
     get_permissions  = _settings_perm('settings_accommodations')
+
+
+# ── Cláusulas de contrato ───────────────────────────────────────────────────
+
+class ContractClauseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ContractClause
+        fields = ['id', 'name', 'category', 'content', 'is_default', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+
+
+class ContractClauseViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
+    queryset         = ContractClause.objects.all()
+    serializer_class = ContractClauseSerializer
+    pagination_class = None
+    get_permissions  = _settings_perm('settings_contract_clauses')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        q = self.request.query_params.get('q', '').strip()
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(category__icontains=q))
+        return qs
 
 
 # ── Aeroportos ────────────────────────────────────────────────────────────

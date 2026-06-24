@@ -78,6 +78,7 @@ PERMISSION_FIELDS = [
     'settings_airports_view', 'settings_airports_edit', 'settings_airports_delete', 'settings_airports_bulk_delete', 'settings_airports_bulk_import', 'settings_airports_import_web',
     'settings_airlines_view', 'settings_airlines_edit', 'settings_airlines_delete', 'settings_airlines_bulk_delete', 'settings_airlines_bulk_import', 'settings_airlines_import_web',
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
+    'settings_contract_clauses_view', 'settings_contract_clauses_edit', 'settings_contract_clauses_delete',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -108,6 +109,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_airports_view', 'settings_airports_edit', 'settings_airports_delete', 'settings_airports_bulk_delete', 'settings_airports_bulk_import', 'settings_airports_import_web',
     'settings_airlines_view', 'settings_airlines_edit', 'settings_airlines_delete', 'settings_airlines_bulk_delete', 'settings_airlines_bulk_import', 'settings_airlines_import_web',
     'settings_bus_maps_view', 'settings_bus_maps_edit', 'settings_bus_maps_delete',
+    'settings_contract_clauses_view', 'settings_contract_clauses_edit', 'settings_contract_clauses_delete',
     # Log do sistema
     'log_view', 'log_page_views',
 ]
