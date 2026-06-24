@@ -149,6 +149,14 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Cláusulas de Contrato', icon: 'docs', hue: 70,
+        items: [
+          ['settings_contract_clauses_view',   'Ver cláusulas de contrato'],
+          ['settings_contract_clauses_edit',   'Criar / Editar cláusulas de contrato'],
+          ['settings_contract_clauses_delete', 'Excluir cláusulas de contrato'],
+        ],
+      },
+      {
         label: 'Companhias Aéreas', icon: 'ticket', hue: 195,
         items: [
           ['settings_airlines_view',        'Ver companhias aéreas'],
@@ -236,6 +244,13 @@ export const PERM_GROUPS = [
           ['settings_professions_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_professions_bulk_import', 'Importação em massa via CSV'],
           ['settings_professions_import_web',  'Importar lista pronta da internet'],
+        ],
+      },
+      {
+        label: 'Termos e Condições', icon: 'shield', hue: 5,
+        items: [
+          ['settings_terms_view', 'Ver termos e condições'],
+          ['settings_terms_edit', 'Editar termos e condições'],
         ],
       },
       {
@@ -375,6 +390,13 @@ export const PERM_DEPENDENCIES = {
   settings_bus_maps_view:   'settings_view',
   settings_bus_maps_edit:   'settings_bus_maps_view',
   settings_bus_maps_delete: 'settings_bus_maps_view',
+
+  settings_contract_clauses_view:   'settings_view',
+  settings_contract_clauses_edit:   'settings_contract_clauses_view',
+  settings_contract_clauses_delete: 'settings_contract_clauses_view',
+
+  settings_terms_view: 'settings_view',
+  settings_terms_edit: 'settings_terms_view',
 
   // bulk_import depende de _edit (igual ao bulk_delete que depende de _delete)
   settings_professions_bulk_import:      'settings_professions_edit',
