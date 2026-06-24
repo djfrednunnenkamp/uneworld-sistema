@@ -303,8 +303,16 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     errors.append(f'Linha {i}: e-mail é obrigatório para cadastrar "{full_name}".')
                     continue
                 try:
+                    # full_name sozinho não preenche os campos Primeiro nome/
+                    # Sobrenome usados na tela de edição — divide na primeira
+                    # palavra (heurística simples, sem isso ficam vazios lá).
+                    name_parts = full_name.split(' ', 1)
+                    first_name = name_parts[0]
+                    last_name  = name_parts[1] if len(name_parts) > 1 else ''
                     passenger = PassengerModel.objects.create(
                         full_name=full_name,
+                        first_name=first_name,
+                        last_name=last_name,
                         email=email,
                         cpf=cpf,
                         mobile=mobile,
