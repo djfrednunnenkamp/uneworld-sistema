@@ -10,6 +10,7 @@ const NAV_BASE = [
   { id: '/',           icon: 'grid',     label: 'Visão Geral', group: null,     perms: null },
   { id: '/passageiros',icon: 'users',    label: 'Passageiros', group: 'GESTÃO', perms: ['passengers_view_basic', 'passengers_view_full'] },
   { id: '/agencias',   icon: 'building', label: 'Agências',    group: 'GESTÃO', perms: ['agencies_view'] },
+  { id: '/contratos',  icon: 'docs',     label: 'Contratos',   group: 'GESTÃO', perms: ['contracts_view'] },
   { id: '/viagens',    icon: 'plane',    label: 'Listas de Passageiros',      group: 'GESTÃO', perms: ['lists_view'] },
   { id: '/calendario', icon: 'calendar', label: 'Calendário',  group: 'GESTÃO', perms: ['calendar_view'] },
   { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA', perms: ['manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'] },

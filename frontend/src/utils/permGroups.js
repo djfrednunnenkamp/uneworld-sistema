@@ -45,6 +45,15 @@ export const PERM_GROUPS = [
     ],
   },
   {
+    title: 'Contratos',
+    icon: 'docs',
+    items: [
+      ['contracts_view',   'Ver contratos'],
+      ['contracts_edit',   'Criar / Editar'],
+      ['contracts_delete', 'Excluir'],
+    ],
+  },
+  {
     title: 'Listas de Passageiros',
     icon: 'plane',
     sections: [
@@ -304,6 +313,9 @@ export const PERM_DEPENDENCIES = {
   agencies_edit:      'agencies_view',
   agencies_delete:    'agencies_view',
   agencies_view_logs: 'agencies_view',
+
+  contracts_edit:   'contracts_view',
+  contracts_delete: 'contracts_view',
 
   calendar_view_birthdays:     'calendar_view',
   calendar_view_all_deadlines: 'calendar_view',

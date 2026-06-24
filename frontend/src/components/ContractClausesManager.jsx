@@ -97,6 +97,118 @@ function ClauseModal({ clause, onClose, onSaved }) {
   )
 }
 
+/* ── Popup com os dados da UneWorld como operadora — pré-preenche todo
+ * contrato novo (seção "Operadora" da capa) e a lista de formas de pagamento
+ * disponíveis no formulário de contrato. ── */
+function CompanyDataModal({ onClose }) {
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+  const [form, setForm] = useState({
+    company_name: '', cnpj: '', seller: '', phone: '', mobile: '', email: '', address: '',
+  })
+  const [paymentMethodsText, setPaymentMethodsText] = useState('')
+
+  useEffect(() => {
+    configApi.operatingCompany()
+      .then(r => {
+        const d = r.data
+        setForm({
+          company_name: d.company_name ?? '', cnpj: d.cnpj ?? '', seller: d.seller ?? '',
+          phone: d.phone ?? '', mobile: d.mobile ?? '', email: d.email ?? '', address: d.address ?? '',
+        })
+        setPaymentMethodsText((d.payment_methods ?? []).join(', '))
+      })
+      .catch(() => toast.error('Erro ao carregar dados da operadora.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const save = async () => {
+    setSaving(true)
+    const payment_methods = paymentMethodsText.split(',').map(s => s.trim()).filter(Boolean)
+    try {
+      await configApi.updateOperatingCompany({ ...form, payment_methods })
+      toast.success('Dados da operadora salvos.')
+      onClose()
+    } catch {
+      toast.error('Erro ao salvar dados da operadora.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:540, maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)' }}>
+        <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
+          <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Dados da operadora</p>
+          <p style={{ fontSize:12, color:'#94a3b8', margin:'4px 0 0' }}>
+            Esses dados pré-preenchem a seção "Operadora" de todo contrato novo.
+          </p>
+        </div>
+
+        {loading ? (
+          <p style={{ padding:'32px 20px', textAlign:'center', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
+        ) : (
+          <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12, overflowY:'auto', flex:1 }}>
+            <div>
+              <label style={lbl}>Nome/Empresa</label>
+              <input style={{ ...inp, width:'100%' }} value={form.company_name} onChange={set('company_name')} placeholder="UneWorld Viagens e Turismo" />
+            </div>
+            <div style={{ display:'flex', gap:12 }}>
+              <div style={{ flex:1 }}>
+                <label style={lbl}>CNPJ</label>
+                <input style={{ ...inp, width:'100%' }} value={form.cnpj} onChange={set('cnpj')} placeholder="00.000.000/0000-00" />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={lbl}>Vendedor</label>
+                <input style={{ ...inp, width:'100%' }} value={form.seller} onChange={set('seller')} />
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:12 }}>
+              <div style={{ flex:1 }}>
+                <label style={lbl}>Telefone fixo</label>
+                <input style={{ ...inp, width:'100%' }} value={form.phone} onChange={set('phone')} />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={lbl}>Celular</label>
+                <input style={{ ...inp, width:'100%' }} value={form.mobile} onChange={set('mobile')} />
+              </div>
+            </div>
+            <div>
+              <label style={lbl}>E-mail</label>
+              <input style={{ ...inp, width:'100%' }} value={form.email} onChange={set('email')} type="email" />
+            </div>
+            <div>
+              <label style={lbl}>Endereço</label>
+              <input style={{ ...inp, width:'100%' }} value={form.address} onChange={set('address')} />
+            </div>
+            <div>
+              <label style={lbl}>Formas de pagamento</label>
+              <input style={{ ...inp, width:'100%' }} value={paymentMethodsText} onChange={e => setPaymentMethodsText(e.target.value)}
+                placeholder="Pix, Cartão de crédito, Transferência bancária…" />
+              <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Separe cada opção por vírgula.</p>
+            </div>
+          </div>
+        )}
+
+        <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', flexShrink:0 }}>
+          <button onClick={onClose} disabled={saving}
+            style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={save} disabled={saving || loading} style={{ ...btnPri, display:'flex', alignItems:'center', gap:6 }}>
+            <Ic n="check" s={13}/>{saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Lista de cláusulas — base do futuro gerador de contratos ── */
 export default function ContractClausesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
   const navigate = useNavigate()
@@ -107,6 +219,7 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
   const [delItem,  setDelItem] = useState(null)
   const [exporting, setExporting] = useState(false)
   const [showImportPopup, setShowImportPopup] = useState(false)
+  const [showCompanyModal, setShowCompanyModal] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -155,6 +268,11 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
           onFocus={e => e.target.style.borderColor='#1a2d4f'}
           onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
         {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
+        {canEdit && (
+          <button onClick={() => setShowCompanyModal(true)} style={btnCsv('#1a2d4f')} title="Definir dados da empresa operadora">
+            🏢 Dados da empresa
+          </button>
+        )}
         <div style={{ display:'flex', gap:6 }}>
           {canExport && (
             <button style={btnCsv('#059669')} onClick={handleExport} disabled={exporting} title="Exportar como CSV">
@@ -226,6 +344,7 @@ export default function ContractClausesManager({ canEdit = true, canDelete = tru
         onCancel={() => setDelItem(null)}
       />
     )}
+    {showCompanyModal && <CompanyDataModal onClose={() => setShowCompanyModal(false)} />}
     </>
   )
 }

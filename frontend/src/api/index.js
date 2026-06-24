@@ -97,6 +97,17 @@ export const agenciesApi = {
   removeMember:  (id, mid)         => api.delete(`/agencies/${id}/members/${mid}/`),
 }
 
+export const contractsApi = {
+  list:    (params) => api.get('/contracts/', { params }),
+  get:     (id)     => api.get(`/contracts/${id}/`),
+  create:  (data)   => api.post('/contracts/', data),
+  update:  (id, d)  => api.put(`/contracts/${id}/`, d),
+  remove:  (id)     => api.delete(`/contracts/${id}/`),
+  deleted: ()       => api.get('/contracts/', { params: { deleted: 1 } }),
+  restore: (id)     => api.post(`/contracts/${id}/restore/`),
+  purge:   (id)     => api.delete(`/contracts/${id}/purge/`),
+}
+
 export const documentsApi = {
   list:     (passengerId) =>
     api.get(`/passengers/${passengerId}/documents/`),
@@ -235,6 +246,9 @@ export const configApi = {
   addContractClause:      (data)    => api.post('/config/contract-clauses/', data),
   updateContractClause:   (id, d)   => api.patch(`/config/contract-clauses/${id}/`, d),
   delContractClause:      (id)      => api.delete(`/config/contract-clauses/${id}/`),
+  // Dados da operadora (UneWorld) — pré-preenche os contratos
+  operatingCompany:       ()        => api.get('/config/operating-company/'),
+  updateOperatingCompany: (data)    => api.patch('/config/operating-company/', data),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

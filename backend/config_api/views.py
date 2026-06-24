@@ -14,7 +14,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
-                     BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions)
+                     BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
+                     OperatingCompany)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -1164,6 +1165,33 @@ def system_settings(request):
         ser.save()
         return Response(ser.data)
     return Response(SystemSettingsSerializer(obj).data)
+
+
+# ── Dados da operadora (UneWorld) — pré-preenche contratos ──────────────────
+
+class OperatingCompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = OperatingCompany
+        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address',
+                  'payment_methods', 'updated_at']
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def operating_company(request):
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings', 'settings_contract_clauses_view',
+                         'settings_contract_clauses_edit'):
+        return Response(status=403)
+    obj = OperatingCompany.get()
+    if request.method == 'PATCH':
+        if not has_any_perm(request.user, 'manage_settings', 'settings_contract_clauses_edit'):
+            return Response({'error': 'Você não tem permissão para executar esta ação.'}, status=403)
+        ser = OperatingCompanySerializer(obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+    return Response(OperatingCompanySerializer(obj).data)
 
 
 # ── Termos e condições ───────────────────────────────────────────────────────

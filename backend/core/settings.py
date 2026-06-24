@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'config_api',
     'audit',
     'agenda',
+    'contracts',
     'channels',
 ]
 

@@ -295,6 +295,32 @@ class ContractClause(models.Model):
         return self.name
 
 
+class OperatingCompany(models.Model):
+    """Singleton com os dados da própria UneWorld como operadora — pré-preenche
+    automaticamente a seção 'Operadora' de todo contrato novo (ver app `contracts`)."""
+    company_name   = models.CharField('Nome/Empresa', max_length=200, blank=True)
+    cnpj           = models.CharField('CNPJ', max_length=20, blank=True)
+    seller         = models.CharField('Vendedor', max_length=200, blank=True)
+    phone          = models.CharField('Telefone fixo', max_length=20, blank=True)
+    mobile         = models.CharField('Celular', max_length=20, blank=True)
+    email          = models.EmailField('E-mail', blank=True)
+    address        = models.CharField('Endereço', max_length=300, blank=True)
+    payment_methods = models.JSONField('Formas de pagamento', default=list, blank=True)  # lista de strings
+    updated_at     = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Dados da operadora'
+        verbose_name_plural = 'Dados da operadora'
+
+    def __str__(self):
+        return self.company_name or 'Dados da operadora'
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class TermsAndConditions(models.Model):
     """Singleton com o texto de termos e condições — todo usuário precisa
     aceitar no primeiro login; se o texto for editado depois, precisa

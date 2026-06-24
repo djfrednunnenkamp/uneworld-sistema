@@ -28,6 +28,10 @@ PERMISSION_FIELDS = [
     'agencies_edit',
     'agencies_delete',
     'agencies_view_logs',
+    # Contratos
+    'contracts_view',
+    'contracts_edit',
+    'contracts_delete',
     # Listas de Passageiros
     'lists_view',
     'lists_edit',

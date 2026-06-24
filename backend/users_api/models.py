@@ -62,6 +62,11 @@ class UserPermissions(models.Model):
     agencies_delete    = models.BooleanField(default=False)
     agencies_view_logs = models.BooleanField(default=False)
 
+    # Contratos
+    contracts_view   = models.BooleanField(default=False)
+    contracts_edit   = models.BooleanField(default=False)
+    contracts_delete = models.BooleanField(default=False)
+
     # Administração
     manage_users     = models.BooleanField(default=False)
     manage_settings  = models.BooleanField(default=False)
