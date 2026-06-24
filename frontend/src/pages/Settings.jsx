@@ -21,6 +21,7 @@ import CsvExportModal from '../components/CsvExportModal'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { CARD_META } from '../utils/sectionMeta'
 import { exportSectionCsv, downloadCsv } from '../utils/sectionCsv'
+import { hasVisibleText } from '../utils/richText'
 
 /* ── CSV global: Países → Estados → Cidades ── */
 async function handleGeoExport() {
@@ -1171,7 +1172,7 @@ export default function Settings() {
     configApi.airlines({ page_size: 1 }).then(r => setCntAirlines(r.data.count ?? (r.data.results ?? r.data).length)).catch(() => {})
     configApi.busMaps?.().then(r => setCntBusMaps((r.data.results ?? r.data).length)).catch(() => {})
     configApi.contractClauses().then(r => setCntContractClauses(r.data.length)).catch(() => {})
-    configApi.terms().then(r => setCntTerms(r.data.content?.trim() ? 1 : 0)).catch(() => {})
+    configApi.terms().then(r => setCntTerms(hasVisibleText(r.data.content) ? 1 : 0)).catch(() => {})
   }, [])
 
   const silentReloadConfig = useCallback(() => {
@@ -1678,7 +1679,7 @@ export default function Settings() {
                 {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} canImport={can('settings_airlines','bulk_import')} canExport={can('settings_airlines','view')} canImportWeb={can('settings_airlines','import_web')} />}
                 {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} canImport={can('settings_bus_maps','edit')} canExport={can('settings_bus_maps','view')} />}
                 {activeDef.key === 'contract_clauses' && <ContractClausesManager canEdit={can('settings_contract_clauses','edit')} canDelete={can('settings_contract_clauses','delete')} canImport={can('settings_contract_clauses','edit')} canExport={can('settings_contract_clauses','view')} />}
-                {activeDef.key === 'terms'           && <TermsAndConditionsManager canEdit={can('settings_terms','edit')} canImport={can('settings_terms','edit')} canExport={can('settings_terms','view')} />}
+                {activeDef.key === 'terms'           && <TermsAndConditionsManager canEdit={can('settings_terms','edit')} canImport={can('settings_terms','edit')} canExport={can('settings_terms','view')} onSaved={() => setActiveList(null)} />}
               </div>
             </div>
           </div>

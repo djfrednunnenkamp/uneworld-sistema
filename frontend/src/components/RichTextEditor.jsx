@@ -72,7 +72,7 @@ export default function RichTextEditor({ value, onChange, title, placeholder }) 
         </button>
       </div>
 
-      <JoditEditor value={value} config={inlineConfig} onBlur={onChange} />
+      <JoditEditor value={value} config={inlineConfig} onBlur={onChange} onChange={onChange} />
 
       {expanded && createPortal(
         <div className="overlay" style={{ zIndex:700 }} onMouseDown={e => { if (e.target === e.currentTarget) setExpanded(false) }}>
@@ -82,7 +82,7 @@ export default function RichTextEditor({ value, onChange, title, placeholder }) 
               <button className="mclose" onClick={() => setExpanded(false)}><Ic n="x" s={16} /></button>
             </div>
             <div className="mbody" style={{ flex:1, maxHeight:'none', overflow:'hidden', padding:12 }}>
-              <JoditEditor value={value} config={modalConfig} onBlur={onChange} />
+              <JoditEditor value={value} config={modalConfig} onBlur={onChange} onChange={onChange} />
             </div>
           </div>
         </div>,

@@ -7,6 +7,7 @@ import RichTextEditor from './RichTextEditor'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
+import { hasVisibleText } from '../utils/richText'
 
 const btnPri = { padding:'8px 16px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }
 const btnCsv = (color) => ({
@@ -17,13 +18,12 @@ const btnCsv = (color) => ({
 
 /* ── Editor único dos Termos e Condições — toda edição pede aceite de novo
  * de quem já tinha aceitado, já que muda o updated_at do singleton. ── */
-export default function TermsAndConditionsManager({ canEdit = true, canImport = false, canExport = true }) {
+export default function TermsAndConditionsManager({ canEdit = true, canImport = false, canExport = true, onSaved }) {
   const navigate = useNavigate()
   const [content,   setContent]   = useState('')
   const [updatedAt, setUpdatedAt] = useState(null)
   const [loading,   setLoading]   = useState(true)
   const [saving,    setSaving]    = useState(false)
-  const [dirty,     setDirty]     = useState(false)
   const [showImportPopup, setShowImportPopup] = useState(false)
 
   const load = () => {
@@ -40,8 +40,7 @@ export default function TermsAndConditionsManager({ canEdit = true, canImport = 
     try {
       await configApi.updateTerms({ content })
       toast.success('Termos e Condições atualizados. Quem já tinha aceitado vai precisar aceitar de novo.')
-      setDirty(false)
-      load()
+      onSaved?.()
     } catch {
       toast.error('Erro ao salvar.')
     } finally {
@@ -91,12 +90,12 @@ export default function TermsAndConditionsManager({ canEdit = true, canImport = 
         title="Termos e Condições"
         placeholder="Digite aqui os termos e condições, leis aplicáveis etc…"
         value={content}
-        onChange={v => { setContent(v); setDirty(true) }}
+        onChange={setContent}
       />
 
       {canEdit && (
         <div style={{ display:'flex', justifyContent:'flex-end', marginTop:14 }}>
-          <button onClick={save} disabled={saving || !dirty} style={{ ...btnPri, opacity: (!dirty || saving) ? .6 : 1, display:'flex', alignItems:'center', gap:6 }}>
+          <button onClick={save} disabled={saving || !hasVisibleText(content)} style={{ ...btnPri, opacity: (!hasVisibleText(content) || saving) ? .6 : 1, display:'flex', alignItems:'center', gap:6 }}>
             <Ic n="check" s={13}/>{saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>

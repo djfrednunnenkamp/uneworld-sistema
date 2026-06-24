@@ -4,6 +4,7 @@ import { usersApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
 import TermsModal from '../components/TermsModal'
+import { hasVisibleText } from '../utils/richText'
 
 export default function AcceptInvite() {
   const [params]  = useSearchParams()
@@ -29,7 +30,7 @@ export default function AcceptInvite() {
       .then(r  => setInvite(r.data))
       .catch(() => setError('Convite inválido ou expirado.'))
       .finally(() => setLoading(false))
-    configApi.terms().then(r => setHasTerms(!!r.data.content?.trim())).catch(() => {})
+    configApi.terms().then(r => setHasTerms(hasVisibleText(r.data.content))).catch(() => {})
   }, [token])
 
   const handleSubmit = async (e) => {

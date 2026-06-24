@@ -11,10 +11,17 @@ from .email_service import send_reset_password, send_invite
 from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions
 
 
+def _has_visible_text(html):
+    """O editor rico salva '<p><br></p>' (ou similar) quando "vazio" — sem
+    isso, esse HTML passaria como "tem conteúdo" numa checagem ingênua."""
+    import re
+    return bool(re.sub(r'<[^>]*>', '', html or '').strip())
+
+
 def _needs_terms_acceptance(perms):
     from config_api.models import TermsAndConditions
     terms = TermsAndConditions.get()
-    if not terms.content.strip():
+    if not _has_visible_text(terms.content):
         return False  # ainda não há termos cadastrados — nada pra aceitar
     if not perms.terms_accepted_at:
         return True
@@ -347,7 +354,7 @@ def accept_invite(request):
     if len(password) < 8:
         return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
     terms = TermsAndConditions.get()
-    if terms.content.strip() and not request.data.get('terms_accepted'):
+    if _has_visible_text(terms.content) and not request.data.get('terms_accepted'):
         return Response({'error': 'É preciso concordar com os Termos e Condições.'}, status=400)
     try:
         invite = InviteToken.objects.get(token=token_str)
@@ -369,7 +376,7 @@ def accept_invite(request):
     user.set_password(password)
     user.save()
 
-    if terms.content.strip():
+    if _has_visible_text(terms.content):
         perms = get_user_permissions(user)
         perms.terms_accepted_at = timezone.now()
         perms.save(update_fields=['terms_accepted_at'])
