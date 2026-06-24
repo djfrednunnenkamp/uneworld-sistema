@@ -52,12 +52,27 @@ class EmailLog(models.Model):
         ('other',          'Outro'),
     ]
 
-    sent_at    = models.DateTimeField('Enviado em', auto_now_add=True, db_index=True)
-    to         = models.TextField('Destinatários')
-    subject    = models.CharField('Assunto', max_length=500)
-    email_type = models.CharField('Tipo', max_length=30, choices=EMAIL_TYPES, default='other')
-    html_body  = models.TextField('Conteúdo HTML', blank=True)
-    success    = models.BooleanField('Enviado com sucesso', default=True)
+    STATUS_CHOICES = [
+        ('sent',      'Enviado'),       # aceito pela Resend, entrega ainda não confirmada
+        ('delivered', 'Entregue'),
+        ('bounced',   'Não entregue'),
+        ('failed',    'Falhou no envio'),
+    ]
+
+    sent_at      = models.DateTimeField('Enviado em', auto_now_add=True, db_index=True)
+    to           = models.TextField('Destinatários')
+    subject      = models.CharField('Assunto', max_length=500)
+    email_type   = models.CharField('Tipo', max_length=30, choices=EMAIL_TYPES, default='other')
+    html_body    = models.TextField('Conteúdo HTML', blank=True)
+    success      = models.BooleanField('Enviado com sucesso', default=True)
+
+    # Rastreamento via webhook da Resend (ver agenda/views.py:resend_webhook_view).
+    # resend_id é o id retornado pela API no momento do envio — é com ele que a
+    # Resend identifica qual EmailLog cada evento do webhook se refere.
+    resend_id    = models.CharField('ID na Resend', max_length=100, blank=True, null=True, db_index=True)
+    status       = models.CharField('Status de entrega', max_length=10, choices=STATUS_CHOICES, default='sent')
+    delivered_at = models.DateTimeField('Entregue em', null=True, blank=True)
+    opened_at    = models.DateTimeField('Aberto em', null=True, blank=True)
 
     class Meta:
         ordering            = ['-sent_at']

@@ -3,7 +3,7 @@ from django.urls import path
 from .views import (CalendarPreferenceView, UserCalendarPreferenceView,
                     calendar_events, send_now,
                     EmailLogListView, EmailLogDetailView, email_preview_enabled,
-                    email_resend_action)
+                    email_resend_action, resend_webhook_view)
 
 urlpatterns = [
     path('events/',                         calendar_events,                      name='calendar-events'),
@@ -14,4 +14,5 @@ urlpatterns = [
     path('email-log/<int:pk>/',             EmailLogDetailView.as_view(),         name='email-log-detail'),
     path('email-log/<int:pk>/resend/',      email_resend_action,                  name='email-log-resend'),
     path('email-log/settings/',             email_preview_enabled,                name='email-log-settings'),
+    path('resend-webhook/',                 resend_webhook_view,                  name='resend-webhook'),
 ]

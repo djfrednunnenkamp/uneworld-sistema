@@ -18,6 +18,23 @@ const fmt = (d) => {
 
 const TYPE_LABEL = { aereo: 'Via Aéreo', terrestre: 'Via Terrestre' }
 
+// Indicador de entrega — confirmado pela Resend via webhook (confiável).
+function deliveryBadge(log) {
+  if (!log.success || log.status === 'failed') return { icon: 'x', color: '#dc2626', title: 'Falhou ao enviar' }
+  if (log.status === 'bounced')   return { icon: 'x',     color: '#dc2626', title: 'Não entregue (rejeitado pelo servidor de destino)' }
+  if (log.status === 'delivered') return { icon: 'check', color: '#15803d', title: 'Entregue' }
+  return { icon: 'clock', color: '#94a3b8', title: 'Enviado — aguardando confirmação de entrega' }
+}
+
+// Indicador de leitura — baseado em pixel de rastreamento da Resend. Um "lido"
+// é confiável, mas a ausência não garante que não foi lido: alguns provedores
+// (Gmail, Apple Mail) bloqueiam ou pré-carregam imagens, então o evento de
+// abertura pode nunca chegar mesmo com o e-mail tendo sido aberto.
+function openBadge(log) {
+  if (log.opened_at) return { icon: 'check', color: '#15803d', title: 'Lido' }
+  return { icon: 'x', color: '#cbd5e1', title: 'Ainda sem confirmação de leitura (pode ter sido lido mesmo assim)' }
+}
+
 const EMAIL_TYPE_CFG = {
   daily_digest:   { label: 'Digest diário',          color: '#dbeafe', fg: '#1d4ed8' },
   digest:         { label: 'Resumo do calendário',   color: '#e0f2fe', fg: '#0369a1' },
@@ -182,6 +199,12 @@ function EmailLogWidget({ canView, canPreview, canResend, timeFormat, refreshKey
                 {!log.success && (
                   <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:999, background:'#fee2e2', color:'#dc2626' }}>Falhou</span>
                 )}
+                {(() => { const b = deliveryBadge(log); return (
+                  <span title={`Entrega: ${b.title}`} style={{ display:'flex', color:b.color }}><Ic n={b.icon} s={12}/></span>
+                ) })()}
+                {(() => { const b = openBadge(log); return (
+                  <span title={`Leitura: ${b.title}`} style={{ display:'flex', color:b.color }}><Ic n={b.icon} s={12}/></span>
+                ) })()}
                 <span style={{ flex:1 }}/>
                 <span style={{ fontSize:11, color:'#94a3b8', whiteSpace:'nowrap' }}>{fmtDt(log.sent_at)}</span>
                 {canResend && (log.email_type === 'reset_password' || log.email_type === 'invite') && (

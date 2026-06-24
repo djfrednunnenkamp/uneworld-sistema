@@ -168,6 +168,7 @@ CORS_ALLOWED_ORIGINS = config(
 CORS_ALLOW_CREDENTIALS = True
 
 RESEND_API_KEY  = config('RESEND_API_KEY', default='')
+RESEND_WEBHOOK_SECRET = config('RESEND_WEBHOOK_SECRET', default='')
 RESEND_FROM     = config('RESEND_FROM_EMAIL', default='UneWorld Turismo <noreply@uneworld.com.br>')
 FRONTEND_URL    = config('FRONTEND_URL', default='http://localhost:5173')
 BACKEND_URL          = config('BACKEND_URL',          default='')

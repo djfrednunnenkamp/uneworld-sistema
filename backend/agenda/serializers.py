@@ -33,7 +33,8 @@ class EmailLogListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = EmailLog
-        fields = ['id', 'sent_at', 'to', 'subject', 'email_type', 'email_type_display', 'success']
+        fields = ['id', 'sent_at', 'to', 'subject', 'email_type', 'email_type_display', 'success',
+                  'status', 'delivered_at', 'opened_at']
 
 
 class EmailLogDetailSerializer(serializers.ModelSerializer):
@@ -41,4 +42,5 @@ class EmailLogDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = EmailLog
-        fields = ['id', 'sent_at', 'to', 'subject', 'email_type', 'email_type_display', 'success', 'html_body']
+        fields = ['id', 'sent_at', 'to', 'subject', 'email_type', 'email_type_display', 'success', 'html_body',
+                  'status', 'delivered_at', 'opened_at']

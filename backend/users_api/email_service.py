@@ -39,12 +39,14 @@ def _send(to: str, subject: str, html: str, email_type: str = 'other') -> bool:
             "content_id": LOGO_CID,
         }]
     try:
-        resend.Emails.send(payload)
-        EmailLog.objects.create(to=to, subject=subject, email_type=email_type, html_body=html_preview, success=True)
+        response = resend.Emails.send(payload)
+        EmailLog.objects.create(to=to, subject=subject, email_type=email_type, html_body=html_preview,
+                                success=True, resend_id=response.get('id'), status='sent')
         return True
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
-        EmailLog.objects.create(to=to, subject=subject, email_type=email_type, html_body=html_preview, success=False)
+        EmailLog.objects.create(to=to, subject=subject, email_type=email_type, html_body=html_preview,
+                                success=False, status='failed')
         return False
 
 

@@ -53,6 +53,27 @@ Cloudflare (ou outro proxy) deve apontar para essa porta do seu servidor —
 o TLS público é terminado na Cloudflare; a conexão Cloudflare → servidor é
 HTTP simples, então não há certificado para configurar aqui.
 
+## Rastreamento de entrega/leitura de e-mail (Resend)
+
+O sistema mostra na tela "E-mails enviados" se cada e-mail foi **entregue** (✓/✗)
+e se foi **lido** (✓/✗). Isso depende de um webhook configurado no painel da
+Resend, que só funciona com uma URL pública — **não funciona em `localhost`**.
+
+Depois do deploy:
+1. Acesse https://resend.com/webhooks → "Add Webhook".
+2. URL: `https://seu-dominio.com.br/api/agenda/resend-webhook/`.
+3. Eventos a marcar: `email.sent`, `email.delivered`, `email.bounced`, `email.delivery_delayed`, `email.opened`.
+4. Copie o "Signing Secret" gerado e coloque em `RESEND_WEBHOOK_SECRET` no `.env`, depois suba a stack de novo (`docker compose up -d`).
+
+Sem isso configurado, todo e-mail fica marcado como "🕐 enviado, aguardando
+confirmação" para sempre (não é erro — só falta o webhook apontando para o servidor).
+
+**Importante sobre o indicador de leitura:** ele usa um pixel invisível no
+e-mail. Um "✓ lido" é confiável, mas alguns provedores (Gmail, Apple Mail)
+pré-carregam ou bloqueiam imagens, então a ausência do evento não garante que
+o e-mail não foi lido — é uma limitação de qualquer sistema de rastreamento
+por pixel, não específica deste sistema.
+
 ## Desenvolvimento local com Docker (build local, sem GHCR)
 
 ```bash

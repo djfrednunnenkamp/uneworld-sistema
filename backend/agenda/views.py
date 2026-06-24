@@ -179,3 +179,72 @@ def email_resend_action(request, pk):
     invited_by = request.user.get_full_name() or request.user.username
     send_invite(user.email, user.first_name, url, invited_by)
     return Response({'message': f'Convite reenviado para {user.email}.'})
+
+
+# ── Webhook da Resend (entrega/abertura de e-mail) ─────────────────────────────
+#
+# Configurar em https://resend.com/webhooks: URL "<seu domínio>/api/agenda/resend-webhook/",
+# eventos email.sent/delivered/bounced/delivery_delayed/opened. Copiar o "Signing Secret"
+# gerado lá para RESEND_WEBHOOK_SECRET no .env.
+
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.permissions import AllowAny
+
+
+def _verify_resend_signature(request) -> bool:
+    """Verifica a assinatura Svix usada pela Resend. Sem secret configurado,
+    aceita sem verificar (só deve acontecer em desenvolvimento local)."""
+    secret = settings.RESEND_WEBHOOK_SECRET
+    if not secret:
+        return True
+    try:
+        from svix.webhooks import Webhook, WebhookVerificationError
+    except ImportError:
+        return True
+    headers = {
+        'svix-id':        request.headers.get('svix-id', ''),
+        'svix-timestamp': request.headers.get('svix-timestamp', ''),
+        'svix-signature': request.headers.get('svix-signature', ''),
+    }
+    try:
+        Webhook(secret).verify(request.body, headers)
+        return True
+    except WebhookVerificationError:
+        return False
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_webhook_view(request):
+    """Recebe eventos de entrega/abertura da Resend e atualiza o EmailLog correspondente."""
+    if not _verify_resend_signature(request):
+        return Response(status=401)
+
+    event_type = request.data.get('type', '')
+    data       = request.data.get('data', {}) or {}
+    resend_id  = data.get('email_id')
+    if not resend_id:
+        return Response(status=200)  # evento sem id rastreável — ignora silenciosamente
+
+    try:
+        log = EmailLog.objects.get(resend_id=resend_id)
+    except EmailLog.DoesNotExist:
+        return Response(status=200)
+
+    if event_type == 'email.delivered':
+        log.status = 'delivered'
+        log.delivered_at = timezone.now()
+        log.save(update_fields=['status', 'delivered_at'])
+    elif event_type in ('email.bounced', 'email.delivery_delayed'):
+        log.status = 'bounced'
+        log.save(update_fields=['status'])
+    elif event_type == 'email.complained':
+        log.status = 'bounced'
+        log.save(update_fields=['status'])
+    elif event_type == 'email.opened' and not log.opened_at:
+        log.opened_at = timezone.now()
+        log.save(update_fields=['opened_at'])
+
+    return Response(status=200)

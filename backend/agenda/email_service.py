@@ -130,14 +130,15 @@ def _send(to, subject, html, email_type='other'):
             "content_id": LOGO_CID,
         }]
     try:
-        resend.Emails.send(payload)
+        response = resend.Emails.send(payload)
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
-                                html_body=html_preview, success=True)
+                                html_body=html_preview, success=True,
+                                resend_id=response.get('id'), status='sent')
         return True
     except Exception as e:
         print(f"[RESEND ERROR] {e}")
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
-                                html_body=html_preview, success=False)
+                                html_body=html_preview, success=False, status='failed')
         return False
 
 
