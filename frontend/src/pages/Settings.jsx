@@ -796,6 +796,65 @@ function exportEmailsCsv(emails) {
   downloadCsv(rows.join('\n'), 'emails_automaticos.csv', { model_label: 'Exportação CSV — E-mails automáticos' })
 }
 
+/* ── Dropdown de filtro por área — fica ao lado da barra de busca ── */
+function AreaFilterDropdown({ areas, selected, onToggle, onClear }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const active = selected.size > 0
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7, padding: '10px 15px', borderRadius: 10,
+          border: `1.5px solid ${active ? '#1a2d4f' : '#dbe2ec'}`, background: active ? '#eef2f7' : '#fff',
+          color: active ? '#1a2d4f' : '#475569', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+          fontFamily: 'inherit', whiteSpace: 'nowrap',
+        }}>
+        <Ic n="filter" s={14} /> Área{active ? ` (${selected.size})` : ''}
+        <span style={{ fontSize: 9, opacity: .7, marginLeft: 2 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 200, minWidth: 250,
+          background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0',
+          boxShadow: '0 8px 24px rgba(0,0,0,.10)', overflow: 'hidden',
+        }}>
+          <div style={{ maxHeight: 280, overflowY: 'auto', padding: '6px 0' }}>
+            {areas.map(a => {
+              const checked = selected.has(a.key)
+              return (
+                <label key={a.key}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', fontSize: 13.5, color: '#1e293b' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <input type="checkbox" checked={checked} onChange={() => onToggle(a.key)}
+                    style={{ width: 15, height: 15, accentColor: '#1a2d4f', cursor: 'pointer', flexShrink: 0 }} />
+                  <span style={{ color: '#64748b', display: 'flex', flexShrink: 0 }}><Ic n={a.icon} s={14} /></span>
+                  {a.label}
+                </label>
+              )
+            })}
+          </div>
+          {active && (
+            <button type="button" onClick={onClear}
+              style={{ width: '100%', padding: '10px 14px', border: 'none', borderTop: '1px solid #f1f5f9', background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+              Limpar filtro
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Gerenciador de Perfis de Permissão ─────────────────────────────────────── */
 
 export function ProfileModal({ profile, onClose, onSaved }) {
@@ -1668,6 +1727,7 @@ export default function Settings() {
               style={{ width:'100%', padding:'11px 14px 11px 42px', borderRadius:10, border:'1px solid #dbe2ec', background:'#fff', fontFamily:'inherit', fontSize:14, color:'#1e293b', outline:'none', boxSizing:'border-box' }}
             />
           </div>
+          <AreaFilterDropdown areas={AREA_DEFS} selected={areaFilters} onToggle={toggleArea} onClear={() => setAreaFilters(new Set())} />
           <span style={{ fontSize:13, color:'#94a3b8', fontWeight:500 }}>{filteredListDefs.length} categorias</span>
           {canViewLog && (
             <button
@@ -1686,36 +1746,6 @@ export default function Settings() {
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}
             >
               <Ic n="list" s={13} /> Log
-            </button>
-          )}
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:22, flexWrap:'wrap' }}>
-          <span style={{ fontSize:12.5, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.04em', marginRight:2 }}>
-            Filtrar por área:
-          </span>
-          {AREA_DEFS.map(a => {
-            const active = areaFilters.has(a.key)
-            return (
-              <button key={a.key} type="button" onClick={() => toggleArea(a.key)}
-                style={{
-                  display:'flex', alignItems:'center', gap:6, padding:'6px 13px', borderRadius:20,
-                  border: `1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`,
-                  background: active ? '#1a2d4f' : '#fff',
-                  color: active ? '#fff' : '#475569',
-                  fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s',
-                }}
-                onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' } }}
-                onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' } }}
-              >
-                <Ic n={a.icon} s={12.5}/> {a.label}
-              </button>
-            )
-          })}
-          {areaFilters.size > 0 && (
-            <button type="button" onClick={() => setAreaFilters(new Set())}
-              style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 11px', borderRadius:20, border:'none', background:'none', color:'#dc2626', fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-              <Ic n="x" s={11}/> Limpar
             </button>
           )}
         </div>
