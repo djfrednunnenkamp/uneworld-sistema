@@ -26,6 +26,10 @@ const fmtDateRangeBR = (start, end) => {
 
 const fmtMoney = (v) => v == null || v === '' ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 
+// Câmbio vem do banco com 4 casas decimais fixas (ex: "5.4000") — exibe sem
+// zeros à direita desnecessários (5,4 em vez de 5,4000; 5,4321 mantém as 4 se forem reais).
+const fmtRate = (v) => v == null || v === '' ? '' : String(Number(v)).replace('.', ',')
+
 /* Converte o HTML rico das cláusulas em texto simples (com quebras de
  * parágrafo preservadas) — formatação (negrito, listas) ainda não é
  * reproduzida no PDF; fica pra uma próxima etapa. */
@@ -153,7 +157,7 @@ export async function generateContractPDF(contract) {
   y = sectionHeader(doc, 'DADOS DOS PAGAMENTOS / VALORES', y + 1.5)
   y = kvTable(doc, y, [
     ['Soma total (USD)', fmtMoney(contract.total_usd), 'Total em (BRL)', fmtMoney(contract.total_brl)],
-    ['Câmbio', contract.exchange_rate ?? '', '', ''],
+    ['Câmbio', fmtRate(contract.exchange_rate), '', ''],
     ['Recebido na entrada', fmtMoney(contract.received_down_payment_brl), 'Recebido a prazo', fmtMoney(contract.received_installments_brl)],
   ])
 
@@ -188,8 +192,10 @@ export async function generateContractPDF(contract) {
     ['Celular', ct.mobile || '', 'E-mail', ct.email || ''],
   ])
 
-  // Nome dos passageiros
-  checkPageBreak(16)
+  // Nome dos passageiros — precisa de espaço pro título + cabeçalho da
+  // tabela + ao menos 1 linha; senão o autoTable desenha o cabeçalho
+  // sozinho no fim da página e só as linhas no topo da seguinte.
+  checkPageBreak(28)
   y = sectionHeader(doc, 'NOME DOS PASSAGEIROS (CONTRATANTE E DEMAIS USUÁRIOS)', y + 1.5)
   const guestRows = (contract.guests || []).map(g => {
     const p = g.passenger_data || {}
@@ -198,11 +204,15 @@ export async function generateContractPDF(contract) {
   y = dataTable(doc, y, ['Nome completo', 'Sexo', 'Data de nascimento', 'Passaporte', 'CPF', 'Acomodação'],
     guestRows.length ? guestRows : [['—', '', '', '', '', '']])
 
-  // ── Cláusulas contratuais — uma ou mais páginas, texto corrido ──
+  // ── Cláusulas contratuais — texto corrido ──
+  // Começa direto após o conteúdo anterior se ainda houver espaço razoável
+  // na página atual; só quebra pra uma nova se realmente não couber o
+  // título + começo da primeira cláusula (evita página quase vazia no meio
+  // do documento).
   const clauses = contract.clauses_data || []
   if (clauses.length) {
-    doc.addPage()
-    y = 14
+    const phClauses = doc.internal.pageSize.getHeight()
+    if (y + 30 > phClauses - 15) { doc.addPage(); y = 14 } else { y += 8 }
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
     doc.setTextColor(...NAV)
@@ -235,6 +245,23 @@ export async function generateContractPDF(contract) {
       y += 4
     })
   }
+
+  // ── Assinaturas — sempre no final do documento, depois de tudo ──
+  const phSig = doc.internal.pageSize.getHeight()
+  if (y + 38 > phSig - 15) { doc.addPage(); y = 14 }
+  y += 16
+  const sigGap = 14
+  const sigColW = (pw - 20 - sigGap) / 2
+  doc.setDrawColor(100, 116, 139)
+  doc.setLineWidth(0.3)
+  doc.line(10, y, 10 + sigColW, y)
+  doc.line(10 + sigColW + sigGap, y, pw - 10, y)
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(71, 85, 105)
+  doc.text('Assinatura do Contratante', 10 + sigColW / 2, y, { align: 'center' })
+  doc.text('Assinatura da Operadora / Agência', 10 + sigColW + sigGap + sigColW / 2, y, { align: 'center' })
 
   // ── Numeração de página ──
   const pageCount = doc.internal.getNumberOfPages()

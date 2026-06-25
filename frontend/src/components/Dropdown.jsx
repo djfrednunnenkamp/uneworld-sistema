@@ -53,7 +53,22 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
           gap: 8, boxShadow: open ? '0 0 0 3px rgba(46,109,180,.1)' : 'none', transition: 'border-color .12s, box-shadow .12s',
         }}>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected?.label ?? placeholder}</span>
-        <span style={{ flexShrink: 0, color: '#94a3b8', display: 'flex', transform: 'rotate(90deg)' }}><Ic n="chevron" s={12} /></span>
+        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {selected && (
+            <span
+              role="button"
+              tabIndex={-1}
+              onClick={e => { e.stopPropagation(); onChange(null) }}
+              title="Limpar seleção"
+              style={{ color: '#94a3b8', display: 'flex', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+            >
+              <Ic n="x" s={12} />
+            </span>
+          )}
+          <span style={{ color: '#94a3b8', display: 'flex', transform: 'rotate(90deg)' }}><Ic n="chevron" s={12} /></span>
+        </span>
       </button>
 
       {open && createPortal(

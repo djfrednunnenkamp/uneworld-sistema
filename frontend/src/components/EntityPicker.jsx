@@ -76,7 +76,21 @@ export default function EntityPicker({
         onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{btnLabel}</span>
-        <span style={{ flexShrink: 0, color: '#94a3b8' }}><Ic n="plus" s={13} /></span>
+        {selectedItems.length > 0 ? (
+          <span
+            role="button"
+            tabIndex={-1}
+            onClick={(e) => { e.stopPropagation(); onChange([]) }}
+            style={{ flexShrink: 0, color: '#94a3b8', display: 'flex', cursor: 'pointer' }}
+            title="Limpar seleção"
+            onMouseEnter={(e) => e.currentTarget.style.color = '#dc2626'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+          >
+            <Ic n="x" s={13} />
+          </span>
+        ) : (
+          <span style={{ flexShrink: 0, color: '#94a3b8' }}><Ic n="plus" s={13} /></span>
+        )}
       </button>
 
       {open && (

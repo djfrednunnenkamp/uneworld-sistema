@@ -125,7 +125,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       if (!isEdit) {
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
-        if (usdBrl) setForm(f => ({ ...f, exchange_rate: usdBrl.rate }))
+        if (usdBrl) setForm(f => ({ ...f, exchange_rate: Number(usdBrl.rate) }))
       }
     }).catch(() => toast.error('Erro ao carregar dados auxiliares.'))
   }, [])
@@ -140,7 +140,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         agency: d.agency, passenger_list: d.passenger_list, contratante: d.contratante,
         package_name: d.package_name ?? '', departure_date: d.departure_date ?? '', return_date: d.return_date ?? '',
         departure_airport: d.departure_airport ?? '', observations: d.observations ?? '',
-        exchange_rate: d.exchange_rate ?? '',
+        exchange_rate: d.exchange_rate != null ? Number(d.exchange_rate) : '',
         received_down_payment_brl: d.received_down_payment_brl ?? '',
         received_installments_brl: d.received_installments_brl ?? '',
       })
@@ -227,6 +227,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const removeAccomLine = (idx) => setAccomLines(a => a.filter((_, i) => i !== idx))
 
   // ── Hóspedes ──
+  // O contratante escolhido entre os passageiros cadastrados já entra
+  // automaticamente como hóspede (ele também viaja) — ainda pode ser
+  // removido da lista manualmente depois, se necessário.
+  useEffect(() => {
+    if (!form.contratante) return
+    setGuests(prev => prev.some(g => g.passenger === form.contratante)
+      ? prev
+      : [{ passenger: form.contratante, accommodation_type: null }, ...prev])
+  }, [form.contratante])
+
   const guestIds = guests.map(g => g.passenger)
   const handleGuestsChange = (ids) => {
     setGuests(prev => {
@@ -578,6 +588,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                           <Dropdown value={g.accommodation_type ?? null} options={accomTypeOptions} placeholder="— Acomodação —"
                             onChange={v => updateGuestAccom(g.passenger, v)} />
                         </div>
+                        <button type="button" onClick={() => setGuests(prev => prev.filter(x => x.passenger !== g.passenger))}
+                          title="Remover hóspede"
+                          style={{ padding: 6, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', flexShrink: 0, display: 'flex' }}>
+                          <Ic n="trash" s={13} />
+                        </button>
                       </div>
                     )
                   })}

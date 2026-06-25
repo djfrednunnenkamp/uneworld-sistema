@@ -70,15 +70,30 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
 
   return (
     <>
-      <input
-        ref={inputRef}
-        value={open ? query : display}
-        onChange={e => { setQuery(e.target.value); if (!open) openDrop() }}
-        onFocus={openDrop}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        style={{ width:'100%', boxSizing:'border-box', padding:'8px 11px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }}
-      />
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          value={open ? query : display}
+          onChange={e => { setQuery(e.target.value); if (!open) openDrop() }}
+          onFocus={openDrop}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          style={{ width:'100%', boxSizing:'border-box', padding: value ? '8px 30px 8px 11px' : '8px 11px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', background:'#fff' }}
+        />
+        {value && !open && (
+          <span
+            role="button"
+            tabIndex={-1}
+            onClick={e => { e.preventDefault(); e.stopPropagation(); onChange(null); setQuery('') }}
+            title="Limpar seleção"
+            style={{ position:'absolute', right:9, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', display:'flex', cursor:'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+          >
+            ✕
+          </span>
+        )}
+      </div>
       {open && createPortal(
         <div data-airport-drop
           style={{ position:'fixed', ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:240, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
