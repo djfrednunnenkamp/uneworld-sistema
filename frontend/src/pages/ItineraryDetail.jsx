@@ -1,13 +1,86 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { itinerariesApi, configApi } from '../api'
+import { itinerariesApi, configApi, listsApi } from '../api'
 import Dropdown from '../components/Dropdown'
 import TagPicker from '../components/TagPicker'
 import RichTextEditor from '../components/RichTextEditor'
+import DatePicker from '../components/DatePicker'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import usePersistedTab from '../hooks/usePersistedTab'
+
+const NOTICE_COLORS = [
+  { value: 'laranja',  label: 'Laranja',  hex: '#f59e0b' },
+  { value: 'vermelho', label: 'Vermelho', hex: '#dc2626' },
+  { value: 'verde',    label: 'Verde',    hex: '#16a34a' },
+  { value: 'azul',     label: 'Azul',     hex: '#2563eb' },
+  { value: 'cinza',    label: 'Cinza',    hex: '#64748b' },
+]
+
+const CURRENCY_OPTS = [
+  { value: 'EUR', label: 'Euro' },
+  { value: 'USD', label: 'Dólar' },
+  { value: 'BRL', label: 'Real' },
+]
+
+const WEEKDAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
+
+const addDaysIso = (iso, days) => {
+  if (!iso) return iso
+  const d = new Date(iso + 'T00:00:00')
+  d.setDate(d.getDate() + (days || 0))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const fmtDateWithWeekday = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso + 'T00:00:00')
+  return `${fmtDateBR(iso)} (${WEEKDAYS[d.getDay()]})`
+}
+
+/* ── Seletor de cor do aviso — o botão fica colorido com a cor escolhida ── */
+function NoticeColorSelect({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false)
+  const current = NOTICE_COLORS.find(c => c.value === value) || NOTICE_COLORS[0]
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" onClick={() => !disabled && setOpen(o => !o)} disabled={disabled}
+        style={{
+          width: '100%', padding: '8px 10px', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
+          background: current.hex, color: '#fff', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+        {current.label}
+        <span style={{ display: 'flex', transform: 'rotate(90deg)' }}><Ic n="chevron" s={12} /></span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,.14)' }}>
+          {NOTICE_COLORS.map(c => (
+            <div key={c.value} onMouseDown={e => { e.preventDefault(); onChange(c.value); setOpen(false) }}
+              style={{ padding: '9px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#fff', background: c.hex, opacity: c.value === value ? 1 : .85 }}>
+              {c.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Stepper numérico com +/-, igual ao "Número de parcelas" dos Contratos ── */
+function Stepper({ value, onChange, disabled }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button type="button" onClick={() => onChange((value || 0) - 1)} disabled={disabled}
+        style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 14 }}>−</button>
+      <input type="number" value={value} disabled={disabled} onChange={e => onChange(Number(e.target.value) || 0)}
+        style={{ ...inp, width: 90, textAlign: 'center' }} />
+      <button type="button" onClick={() => onChange((value || 0) + 1)} disabled={disabled}
+        style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 14 }}>+</button>
+    </div>
+  )
+}
 
 /* ── Toggle Sim/Não — mesmo padrão usado em Agências/Usuários/Passageiros ── */
 function Toggle({ checked, onChange, disabled }) {
@@ -78,6 +151,8 @@ export default function ItineraryDetail() {
   const [continents, setContinents] = useState([])
   const [destinationOpts, setDestinationOpts] = useState([])
   const [holidayOpts, setHolidayOpts] = useState([])
+  const [supplierOpts, setSupplierOpts] = useState([])
+  const [serviceOpts, setServiceOpts] = useState([])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -93,6 +168,8 @@ export default function ItineraryDetail() {
     configApi.continents().then(r => setContinents(r.data)).catch(() => {})
     configApi.destinations().then(r => setDestinationOpts(r.data)).catch(() => {})
     configApi.holidays().then(r => setHolidayOpts(r.data)).catch(() => {})
+    listsApi.suppliers().then(r => setSupplierOpts(r.data.results ?? r.data)).catch(() => {})
+    configApi.services().then(r => setServiceOpts(r.data)).catch(() => {})
   }, [])
 
   const set = (k) => (e) => setData(d => ({ ...d, [k]: e.target.value }))
@@ -107,6 +184,13 @@ export default function ItineraryDetail() {
         cover_title: data.cover_title, internal_title: data.internal_title,
         subtitle: data.subtitle, short_description: data.short_description, holiday: data.holiday,
         is_featured: data.is_featured, is_active: data.is_active, is_full: data.is_full, is_listed: data.is_listed,
+        has_notice: data.has_notice, notice_color: data.notice_color, notice_message: data.notice_message,
+        day_count_correction: data.day_count_correction || 0,
+        cash_discount_percent: data.cash_discount_percent || 0,
+        base_currency: data.base_currency, additional_spread_percent: data.additional_spread_percent || 0,
+        service_lines: (data.service_lines || []).map(l => ({
+          supplier: l.supplier, services: (l.services_data || []).map(s => s.id), percentage: l.percentage || 0,
+        })),
       }
       const r = await itinerariesApi.update(id, payload)
       setData(r.data)
@@ -128,8 +212,14 @@ export default function ItineraryDetail() {
   const categoryOptions  = categories.map(c => ({ value: c.id, label: c.name }))
   const continentOptions = continents.map(c => ({ value: c.id, label: c.name }))
   const holidayOptions   = holidayOpts.map(h => ({ value: h.id, label: h.name }))
+  const supplierOptions  = supplierOpts.map(s => ({ value: s.id, label: s.name }))
   const categoryLabel  = categories.find(c => c.id === data.category)?.name
   const continentLabel = continents.find(c => c.id === data.continent)?.name
+
+  const serviceLines = data.service_lines || []
+  const addServiceLine = () => setData(d => ({ ...d, service_lines: [...(d.service_lines || []), { supplier: null, services_data: [], percentage: 0 }] }))
+  const updateServiceLine = (idx, patch) => setData(d => ({ ...d, service_lines: d.service_lines.map((l, i) => i === idx ? { ...l, ...patch } : l) }))
+  const removeServiceLine = (idx) => setData(d => ({ ...d, service_lines: d.service_lines.filter((_, i) => i !== idx) }))
 
   const regenerateShortDescription = () => {
     const names = data.destinations_data.map(d => d.name)
@@ -284,10 +374,118 @@ export default function ItineraryDetail() {
             <Toggle checked={data.is_full} disabled={!canEdit} onChange={v => setData(d => ({ ...d, is_full: v }))} />
           </FormRow>
 
-          <FormRow label="Listado no website?" last>
+          <FormRow label="Listado no website?">
             <Toggle checked={data.is_listed} disabled={!canEdit} onChange={v => setData(d => ({ ...d, is_listed: v }))} />
             <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>Desative esta opção para que o roteiro não seja listado no website.</p>
           </FormRow>
+
+          <FormRow label="Aviso">
+            <Toggle checked={data.has_notice} disabled={!canEdit} onChange={v => setData(d => ({ ...d, has_notice: v }))} />
+          </FormRow>
+
+          <FormRow label="Cor do aviso">
+            <NoticeColorSelect value={data.notice_color} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, notice_color: v }))} />
+          </FormRow>
+
+          <FormRow label="Mensagem do aviso">
+            <input style={inp} value={data.notice_message} disabled={!canEdit} onChange={set('notice_message')} />
+          </FormRow>
+
+          <FormRow label="Data de início">
+            <DatePicker value={data.start_date} relatedDate={data.end_date || null} disabled={!canEdit} fixed
+              onChange={v => setData(d => ({ ...d, start_date: v }))} />
+          </FormRow>
+
+          <FormRow label="Data de término">
+            <DatePicker value={data.end_date} relatedDate={data.start_date || null} disabled={!canEdit} fixed
+              onChange={v => setData(d => ({ ...d, end_date: v }))} />
+          </FormRow>
+
+          <FormRow label="Correção contagem de dias">
+            <Stepper value={data.day_count_correction} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, day_count_correction: v }))} />
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>Ajuste o total de dias do roteiro incluindo ou removendo dias.</p>
+            {data.start_date && data.end_date && (
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: '8px 0 0' }}>
+                {fmtDateWithWeekday(data.start_date)} à {fmtDateWithWeekday(addDaysIso(data.end_date, data.day_count_correction))}
+              </p>
+            )}
+          </FormRow>
+
+          <FormRow label="Desconto à vista em %">
+            <input style={inp} type="number" step="0.01" value={data.cash_discount_percent} disabled={!canEdit}
+              onChange={e => setData(d => ({ ...d, cash_discount_percent: e.target.value }))} />
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>Informe o desconto à vista.</p>
+          </FormRow>
+
+          <FormRow label="Moeda base">
+            <Dropdown value={data.base_currency} options={CURRENCY_OPTS} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, base_currency: v }))} />
+          </FormRow>
+
+          <FormRow label="Spread adicional em %" last>
+            <input style={inp} type="number" step="0.01" value={data.additional_spread_percent} disabled={!canEdit}
+              onChange={e => setData(d => ({ ...d, additional_spread_percent: e.target.value }))} />
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>Informe um spread adicional apenas para este roteiro.</p>
+          </FormRow>
+        </div>
+      )}
+
+      {tab === 'info' && (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,.04)', marginTop: 20 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 16px' }}>
+            Serviços turísticos fornecidos por terceiros (serviços intermediados)
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+              <span style={{ width: 32, flexShrink: 0 }}>#</span>
+              <span style={{ flex: 1 }}>Fornecedor</span>
+              <span style={{ flex: 2 }}>Serviço</span>
+              <span style={{ width: 110, flexShrink: 0 }}>Percentual %</span>
+              <span style={{ width: 32, flexShrink: 0 }} />
+            </div>
+            {serviceLines.map((line, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ width: 32, flexShrink: 0, paddingTop: 8, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{idx + 1}</div>
+                <div style={{ flex: 1 }}>
+                  <Dropdown value={line.supplier} options={supplierOptions} disabled={!canEdit}
+                    onChange={v => updateServiceLine(idx, { supplier: v })} placeholder="Selecione o fornecedor" />
+                </div>
+                <div style={{ flex: 2 }}>
+                  <TagPicker
+                    selected={(line.services_data || []).map(s => ({ id: s.id, label: s.name }))}
+                    onRemove={(sid) => updateServiceLine(idx, { services_data: line.services_data.filter(s => s.id !== sid) })}
+                    onAdd={(item) => updateServiceLine(idx, { services_data: [...(line.services_data || []), { id: item.id, name: item.label }] })}
+                    search={async (q) => {
+                      const list = q ? serviceOpts.filter(s => s.name.toLowerCase().includes(q.toLowerCase())) : serviceOpts
+                      return list.map(s => ({ id: s.id, label: s.name }))
+                    }}
+                    onCreate={async (name) => {
+                      const r = await configApi.addService(name)
+                      setServiceOpts(prev => [...prev, r.data])
+                      return { id: r.data.id, label: r.data.name }
+                    }}
+                    placeholder="Selecione os serviços…"
+                  />
+                </div>
+                <div style={{ width: 110, flexShrink: 0 }}>
+                  <input style={inp} type="number" step="0.01" value={line.percentage} disabled={!canEdit}
+                    onChange={e => updateServiceLine(idx, { percentage: e.target.value })} />
+                </div>
+                <button type="button" onClick={() => removeServiceLine(idx)} disabled={!canEdit}
+                  style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: canEdit ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ic n="x" s={13} />
+                </button>
+              </div>
+            ))}
+            {canEdit && (
+              <button type="button" onClick={addServiceLine}
+                style={{ alignSelf: 'flex-start', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="plus" s={13} /> Adicionar linha
+              </button>
+            )}
+          </div>
         </div>
       )}
 

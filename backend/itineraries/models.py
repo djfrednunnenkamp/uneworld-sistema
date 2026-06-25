@@ -36,6 +36,29 @@ class Itinerary(models.Model):
     is_full     = models.BooleanField('Roteiro lotado?', default=False)
     is_listed   = models.BooleanField('Listado no website?', default=True)
 
+    # ── Aviso ──
+    NOTICE_COLOR_CHOICES = [
+        ('laranja',   'Laranja'),
+        ('vermelho',  'Vermelho'),
+        ('verde',     'Verde'),
+        ('azul',      'Azul'),
+        ('cinza',     'Cinza'),
+    ]
+    has_notice     = models.BooleanField('Aviso', default=False)
+    notice_color   = models.CharField('Cor do aviso', max_length=20, choices=NOTICE_COLOR_CHOICES, default='laranja')
+    notice_message = models.CharField('Mensagem do aviso', max_length=300, blank=True)
+
+    # ── Datas e financeiro ──
+    day_count_correction      = models.IntegerField('Correção contagem de dias', default=0)
+    cash_discount_percent     = models.DecimalField('Desconto à vista em %', max_digits=5, decimal_places=2, default=0)
+    CURRENCY_CHOICES = [
+        ('EUR', 'Euro'),
+        ('USD', 'Dólar'),
+        ('BRL', 'Real'),
+    ]
+    base_currency             = models.CharField('Moeda base', max_length=3, choices=CURRENCY_CHOICES, default='EUR')
+    additional_spread_percent = models.DecimalField('Spread adicional em %', max_digits=5, decimal_places=2, default=0)
+
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)
 
@@ -66,3 +89,23 @@ class Itinerary(models.Model):
                 i += 1
             self.slug = slug
         super().save(*args, **kwargs)
+
+
+class ItineraryServiceLine(models.Model):
+    """Linha de "serviços turísticos fornecidos por terceiros" — serviço(s)
+    de um fornecedor repassado/intermediado no Roteiro, com o percentual de
+    comissão/repasse correspondente."""
+    itinerary  = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='service_lines')
+    supplier   = models.ForeignKey('trips.Supplier', null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='+', verbose_name='Fornecedor')
+    services   = models.ManyToManyField('config_api.ConfigService', blank=True, related_name='+', verbose_name='Serviços')
+    percentage = models.DecimalField('Percentual %', max_digits=5, decimal_places=2, default=0)
+    order      = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Linha de serviço'
+        verbose_name_plural = 'Linhas de serviço'
+
+    def __str__(self):
+        return f'{self.supplier} ({self.percentage}%)'

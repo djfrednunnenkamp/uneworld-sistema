@@ -435,3 +435,16 @@ class ConfigHoliday(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConfigService(models.Model):
+    """Serviço turístico oferecido por um fornecedor (ex: Transfer, Guia,
+    Seguro viagem) — usado nas linhas de "serviços intermediados" do Roteiro."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Serviço'
+
+    def __str__(self):
+        return self.name

@@ -27,6 +27,7 @@ export const CARD_META = {
   continents:      { icon: 'globe',     hue: 200, desc: 'Continentes vinculados aos roteiros.' },
   destinations:    { icon: 'mapicon',   hue: 210, desc: 'Destinos disponíveis para vincular aos roteiros.' },
   holidays:        { icon: 'calendar',  hue: 25,  desc: 'Feriados e datas comerciais associáveis aos roteiros.' },
+  services:        { icon: 'briefcase', hue: 35,  desc: 'Serviços turísticos oferecidos por fornecedores nos roteiros.' },
 }
 
 export const sectionTileColors = (hue) => ({

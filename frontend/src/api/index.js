@@ -290,6 +290,11 @@ export const configApi = {
   addHoliday:  (name) => api.post('/config/holidays/', { name }),
   updateHoliday: (id, name) => api.patch(`/config/holidays/${id}/`, { name }),
   delHoliday:  (id)   => api.delete(`/config/holidays/${id}/`),
+  // Serviços (linhas de "serviços intermediados" do Roteiro)
+  services:    () => api.get('/config/services/'),
+  addService:  (name) => api.post('/config/services/', { name }),
+  updateService: (id, name) => api.patch(`/config/services/${id}/`, { name }),
+  delService:  (id)   => api.delete(`/config/services/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

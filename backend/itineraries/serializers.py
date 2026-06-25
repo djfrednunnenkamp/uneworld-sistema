@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Itinerary
+from .models import Itinerary, ItineraryServiceLine
 
 
 def _country_brief(c):
@@ -11,12 +11,25 @@ def _destination_brief(d):
     return {'id': d.id, 'name': d.name}
 
 
+class ItineraryServiceLineSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True, default=None)
+    services_data = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = ItineraryServiceLine
+        fields = ['id', 'supplier', 'supplier_name', 'services', 'services_data', 'percentage', 'order']
+
+    def get_services_data(self, obj):
+        return [{'id': s.id, 'name': s.name} for s in obj.services.all()]
+
+
 class ItinerarySerializer(serializers.ModelSerializer):
     countries_data    = serializers.SerializerMethodField()
     destinations_data = serializers.SerializerMethodField()
     category_name  = serializers.CharField(source='category.name', read_only=True, default=None)
     continent_name = serializers.CharField(source='continent.name', read_only=True, default=None)
     holiday_name   = serializers.CharField(source='holiday.name', read_only=True, default=None)
+    service_lines  = ItineraryServiceLineSerializer(many=True, required=False)
 
     class Meta:
         model  = Itinerary
@@ -25,6 +38,9 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'countries', 'countries_data', 'destinations', 'destinations_data',
                   'cover_title', 'internal_title', 'subtitle', 'short_description',
                   'holiday', 'holiday_name', 'is_featured', 'is_active', 'is_full', 'is_listed',
+                  'has_notice', 'notice_color', 'notice_message',
+                  'day_count_correction', 'cash_discount_percent', 'base_currency', 'additional_spread_percent',
+                  'service_lines',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def get_countries_data(self, obj):
@@ -32,6 +48,26 @@ class ItinerarySerializer(serializers.ModelSerializer):
 
     def get_destinations_data(self, obj):
         return [_destination_brief(d) for d in obj.destinations.all()]
+
+    def _save_service_lines(self, itinerary, lines):
+        itinerary.service_lines.all().delete()
+        for i, line in enumerate(lines):
+            services = line.pop('services', [])
+            obj = ItineraryServiceLine.objects.create(itinerary=itinerary, order=i, **line)
+            obj.services.set(services)
+
+    def create(self, validated_data):
+        service_lines = validated_data.pop('service_lines', [])
+        itinerary = super().create(validated_data)
+        self._save_service_lines(itinerary, service_lines)
+        return itinerary
+
+    def update(self, instance, validated_data):
+        service_lines = validated_data.pop('service_lines', None)
+        instance = super().update(instance, validated_data)
+        if service_lines is not None:
+            self._save_service_lines(instance, service_lines)
+        return instance
 
 
 class ItineraryListSerializer(serializers.ModelSerializer):

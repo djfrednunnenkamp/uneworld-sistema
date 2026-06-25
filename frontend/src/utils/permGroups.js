@@ -315,6 +315,15 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Serviços', icon: 'briefcase', hue: 35,
+        items: [
+          ['settings_services_view',        'Ver serviços'],
+          ['settings_services_edit',        'Criar / Editar serviços'],
+          ['settings_services_delete',      'Excluir serviços'],
+          ['settings_services_bulk_import', 'Importação em massa via CSV'],
+        ],
+      },
+      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],
@@ -485,6 +494,10 @@ export const PERM_DEPENDENCIES = {
   settings_holidays_edit:        'settings_holidays_view',
   settings_holidays_delete:      'settings_holidays_view',
   settings_holidays_bulk_import: 'settings_holidays_edit',
+  settings_services_view:        'settings_view',
+  settings_services_edit:        'settings_services_view',
+  settings_services_delete:      'settings_services_view',
+  settings_services_bulk_import: 'settings_services_edit',
 
   // bulk_import depende de _edit (igual ao bulk_delete que depende de _delete)
   settings_professions_bulk_import:      'settings_professions_edit',
@@ -517,7 +530,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_view', 'settings_crew_roles_view', 'settings_list_categories_view',
     'settings_accommodations_view', 'settings_countries_view',
     'settings_airports_view', 'settings_airlines_view',
-    'settings_itinerary_categories_view', 'settings_destinations_view', 'settings_holidays_view',
+    'settings_itinerary_categories_view', 'settings_destinations_view', 'settings_holidays_view', 'settings_services_view',
   ],
   // "Importar CSV global" só aparece quando pelo menos um _bulk_import de seção está ativo
   settings_csv_import: [
@@ -526,7 +539,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_bulk_import', 'settings_crew_roles_bulk_import', 'settings_list_categories_bulk_import',
     'settings_accommodations_bulk_import', 'settings_countries_bulk_import',
     'settings_airports_bulk_import', 'settings_airlines_bulk_import',
-    'settings_itinerary_categories_bulk_import', 'settings_destinations_bulk_import', 'settings_holidays_bulk_import',
+    'settings_itinerary_categories_bulk_import', 'settings_destinations_bulk_import', 'settings_holidays_bulk_import', 'settings_services_bulk_import',
   ],
 
   settings_view_logs: 'settings_view',
