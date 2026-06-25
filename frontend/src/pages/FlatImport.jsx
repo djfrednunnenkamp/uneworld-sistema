@@ -16,7 +16,7 @@ import { setLocalJob, finishLocalJob } from '../utils/localJobs'
 const NAME_EDIT_KEYS = new Set([
   'professions', 'languages', 'vaccines', 'genders', 'prof_cards',
   'list_addits', 'crew_roles', 'list_categories', 'countries', 'states', 'cities',
-  'continents', 'itinerary_categories', 'destinations',
+  'continents', 'itinerary_categories', 'destinations', 'holidays',
 ])
 const NAME_UPDATE_FN = {
   professions:     (id, name) => configApi.updateProfession(id, name),
@@ -33,6 +33,7 @@ const NAME_UPDATE_FN = {
   continents:           (id, name) => configApi.updateContinent(id, name),
   itinerary_categories: (id, name) => configApi.updateItineraryCategory(id, name),
   destinations:         (id, name) => configApi.updateDestination(id, name),
+  holidays:             (id, name) => configApi.updateHoliday(id, name),
 }
 const OBJECT_EDIT_KEYS = new Set(['accommodations', 'airports', 'airlines', 'bus_maps'])
 const MATCH_FIELD = { bus_maps: 'label' } // demais tipos casam pelo campo "name"
@@ -178,6 +179,7 @@ const API_MAP = {
   continents:      { add: (name)         => configApi.addContinent(name),    del: (id) => configApi.delContinent(id),     label: 'Continentes' },
   itinerary_categories: { add: (name)    => configApi.addItineraryCategory(name), del: (id) => configApi.delItineraryCategory(id), label: 'Categorias de Roteiro' },
   destinations:    { add: (name)         => configApi.addDestination(name),  del: (id) => configApi.delDestination(id),   label: 'Destinos' },
+  holidays:        { add: (name)         => configApi.addHoliday(name),      del: (id) => configApi.delHoliday(id),       label: 'Feriados' },
   accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), del: (id) => configApi.delAccommodation(id), label: 'Acomodações' },
   doc_types:       { add: (name, extras) => configApi.addDocType({
                        label: name, key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),

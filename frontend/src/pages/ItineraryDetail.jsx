@@ -4,9 +4,23 @@ import { toast } from 'sonner'
 import { itinerariesApi, configApi } from '../api'
 import Dropdown from '../components/Dropdown'
 import TagPicker from '../components/TagPicker'
+import RichTextEditor from '../components/RichTextEditor'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import usePersistedTab from '../hooks/usePersistedTab'
+
+/* ── Toggle Sim/Não — mesmo padrão usado em Agências/Usuários/Passageiros ── */
+function Toggle({ checked, onChange, disabled }) {
+  return (
+    <label className="toggle-wrap" style={{ opacity: disabled ? .6 : 1, cursor: disabled ? 'default' : 'pointer' }}>
+      <span className="toggle">
+        <input type="checkbox" checked={!!checked} disabled={disabled} onChange={e => onChange(e.target.checked)} />
+        <span className="toggle-slider" />
+      </span>
+      <span className="toggle-label">{checked ? 'Sim' : 'Não'}</span>
+    </label>
+  )
+}
 
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
 
@@ -63,6 +77,7 @@ export default function ItineraryDetail() {
   const [categories, setCategories] = useState([])
   const [continents, setContinents] = useState([])
   const [destinationOpts, setDestinationOpts] = useState([])
+  const [holidayOpts, setHolidayOpts] = useState([])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -77,6 +92,7 @@ export default function ItineraryDetail() {
     configApi.itineraryCategories().then(r => setCategories(r.data)).catch(() => {})
     configApi.continents().then(r => setContinents(r.data)).catch(() => {})
     configApi.destinations().then(r => setDestinationOpts(r.data)).catch(() => {})
+    configApi.holidays().then(r => setHolidayOpts(r.data)).catch(() => {})
   }, [])
 
   const set = (k) => (e) => setData(d => ({ ...d, [k]: e.target.value }))
@@ -88,6 +104,9 @@ export default function ItineraryDetail() {
         name: data.name, slug: data.slug, start_date: data.start_date || null, end_date: data.end_date || null,
         trip_type: data.trip_type, category: data.category, continent: data.continent,
         countries: data.countries_data.map(c => c.id), destinations: data.destinations_data.map(d => d.id),
+        cover_title: data.cover_title, internal_title: data.internal_title,
+        subtitle: data.subtitle, short_description: data.short_description, holiday: data.holiday,
+        is_featured: data.is_featured, is_active: data.is_active, is_full: data.is_full, is_listed: data.is_listed,
       }
       const r = await itinerariesApi.update(id, payload)
       setData(r.data)
@@ -108,8 +127,14 @@ export default function ItineraryDetail() {
 
   const categoryOptions  = categories.map(c => ({ value: c.id, label: c.name }))
   const continentOptions = continents.map(c => ({ value: c.id, label: c.name }))
+  const holidayOptions   = holidayOpts.map(h => ({ value: h.id, label: h.name }))
   const categoryLabel  = categories.find(c => c.id === data.category)?.name
   const continentLabel = continents.find(c => c.id === data.continent)?.name
+
+  const regenerateShortDescription = () => {
+    const names = data.destinations_data.map(d => d.name)
+    setData(d => ({ ...d, short_description: names.join(', ') }))
+  }
 
   return (
     <div>
@@ -211,9 +236,57 @@ export default function ItineraryDetail() {
               onChange={v => setData(d => ({ ...d, continent: v }))} placeholder="— Selecione —" />
           </FormRow>
 
-          <FormRow label="Tipo" last>
+          <FormRow label="Tipo">
             <Dropdown value={data.trip_type} options={TYPE_OPTS} disabled={!canEdit}
               onChange={v => setData(d => ({ ...d, trip_type: v }))} />
+          </FormRow>
+
+          <FormRow label="Título da capa">
+            <input style={inp} value={data.cover_title} disabled={!canEdit} onChange={set('cover_title')} />
+          </FormRow>
+
+          <FormRow label="Título interno completo">
+            <RichTextEditor title="Título interno completo" value={data.internal_title}
+              onChange={v => setData(d => ({ ...d, internal_title: v }))} />
+          </FormRow>
+
+          <FormRow label="Subtítulo">
+            <input style={inp} value={data.subtitle} disabled={!canEdit} onChange={set('subtitle')} />
+          </FormRow>
+
+          <FormRow label="Breve descrição">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input style={inp} value={data.short_description} disabled={!canEdit} onChange={set('short_description')} />
+              {canEdit && (
+                <button type="button" onClick={regenerateShortDescription} title="Gerar a partir dos destinos selecionados"
+                  style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ic n="rotate" s={14} />
+                </button>
+              )}
+            </div>
+          </FormRow>
+
+          <FormRow label="Feriado">
+            <Dropdown value={data.holiday} options={holidayOptions} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, holiday: v }))} placeholder="— Selecione —" />
+          </FormRow>
+
+          <FormRow label="Destaque na home?">
+            <Toggle checked={data.is_featured} disabled={!canEdit} onChange={v => setData(d => ({ ...d, is_featured: v }))} />
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>Marque esta opção para fixar o roteiro no topo da página principal.</p>
+          </FormRow>
+
+          <FormRow label="Roteiro ativo?">
+            <Toggle checked={data.is_active} disabled={!canEdit} onChange={v => setData(d => ({ ...d, is_active: v }))} />
+          </FormRow>
+
+          <FormRow label="Roteiro lotado?">
+            <Toggle checked={data.is_full} disabled={!canEdit} onChange={v => setData(d => ({ ...d, is_full: v }))} />
+          </FormRow>
+
+          <FormRow label="Listado no website?" last>
+            <Toggle checked={data.is_listed} disabled={!canEdit} onChange={v => setData(d => ({ ...d, is_listed: v }))} />
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>Desative esta opção para que o roteiro não seja listado no website.</p>
           </FormRow>
         </div>
       )}

@@ -285,6 +285,11 @@ export const configApi = {
   addDestination:  (name) => api.post('/config/destinations/', { name }),
   updateDestination: (id, name) => api.patch(`/config/destinations/${id}/`, { name }),
   delDestination:  (id)   => api.delete(`/config/destinations/${id}/`),
+  // Feriados (associáveis aos Roteiros)
+  holidays:    () => api.get('/config/holidays/'),
+  addHoliday:  (name) => api.post('/config/holidays/', { name }),
+  updateHoliday: (id, name) => api.patch(`/config/holidays/${id}/`, { name }),
+  delHoliday:  (id)   => api.delete(`/config/holidays/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

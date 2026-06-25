@@ -16,7 +16,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, ConfigPaymentMethod, ConfigExchangeRate,
-                     ConfigItineraryCategory, ConfigContinent, ConfigDestination)
+                     ConfigItineraryCategory, ConfigContinent, ConfigDestination, ConfigHoliday)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -825,6 +825,19 @@ class DestinationViewSet(viewsets.ModelViewSet):
     serializer_class = DestinationSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_destinations')
+
+
+class HolidaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigHoliday
+        fields = ['id', 'name']
+
+
+class HolidayViewSet(viewsets.ModelViewSet):
+    queryset = ConfigHoliday.objects.all()
+    serializer_class = HolidaySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_holidays')
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):

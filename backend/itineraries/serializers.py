@@ -16,12 +16,15 @@ class ItinerarySerializer(serializers.ModelSerializer):
     destinations_data = serializers.SerializerMethodField()
     category_name  = serializers.CharField(source='category.name', read_only=True, default=None)
     continent_name = serializers.CharField(source='continent.name', read_only=True, default=None)
+    holiday_name   = serializers.CharField(source='holiday.name', read_only=True, default=None)
 
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type',
                   'category', 'category_name', 'continent', 'continent_name',
                   'countries', 'countries_data', 'destinations', 'destinations_data',
+                  'cover_title', 'internal_title', 'subtitle', 'short_description',
+                  'holiday', 'holiday_name', 'is_featured', 'is_active', 'is_full', 'is_listed',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def get_countries_data(self, obj):

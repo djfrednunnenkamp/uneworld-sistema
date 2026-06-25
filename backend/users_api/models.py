@@ -213,6 +213,10 @@ class UserPermissions(models.Model):
     settings_destinations_edit                = models.BooleanField(default=False)
     settings_destinations_delete              = models.BooleanField(default=False)
     settings_destinations_bulk_import         = models.BooleanField(default=False)
+    settings_holidays_view                    = models.BooleanField(default=False)
+    settings_holidays_edit                    = models.BooleanField(default=False)
+    settings_holidays_delete                  = models.BooleanField(default=False)
+    settings_holidays_bulk_import             = models.BooleanField(default=False)
 
     # Log do sistema — por área usa a mesma permissão "_view_logs" de cada
     # área (passengers_view_logs, lists_view_logs, agencies_view_logs,

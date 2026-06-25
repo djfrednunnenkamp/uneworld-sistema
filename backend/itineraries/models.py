@@ -24,6 +24,18 @@ class Itinerary(models.Model):
     countries     = models.ManyToManyField('config_api.ConfigCountry', blank=True, related_name='itineraries', verbose_name='Países')
     destinations  = models.ManyToManyField('config_api.ConfigDestination', blank=True, related_name='itineraries', verbose_name='Destinos e Cidades')
 
+    # ── Conteúdo editorial ──
+    cover_title       = models.CharField('Título da capa', max_length=300, blank=True)
+    internal_title    = models.TextField('Título interno completo', blank=True)
+    subtitle          = models.CharField('Subtítulo', max_length=500, blank=True)
+    short_description = models.CharField('Breve descrição', max_length=500, blank=True)
+    holiday           = models.ForeignKey('config_api.ConfigHoliday', null=True, blank=True,
+                                           on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Feriado')
+    is_featured = models.BooleanField('Destaque na home?', default=False)
+    is_active   = models.BooleanField('Roteiro ativo?', default=True)
+    is_full     = models.BooleanField('Roteiro lotado?', default=False)
+    is_listed   = models.BooleanField('Listado no website?', default=True)
+
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)
 

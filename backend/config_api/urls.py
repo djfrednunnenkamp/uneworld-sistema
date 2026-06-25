@@ -26,6 +26,7 @@ router.register('contract-clauses',    views.ContractClauseViewSet,      basenam
 router.register('itinerary-categories', views.ItineraryCategoryViewSet,  basename='itinerary-category')
 router.register('continents',           views.ContinentViewSet,          basename='continent')
 router.register('destinations',         views.DestinationViewSet,        basename='destination')
+router.register('holidays',             views.HolidayViewSet,             basename='holiday')
 
 urlpatterns = [
     path('', include(router.urls)),

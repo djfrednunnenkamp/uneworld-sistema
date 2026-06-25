@@ -26,6 +26,7 @@ export const CARD_META = {
   itinerary_categories: { icon: 'mapicon', hue: 190, desc: 'Categorias para classificar os roteiros (ex: Grupos Internacionais).' },
   continents:      { icon: 'globe',     hue: 200, desc: 'Continentes vinculados aos roteiros.' },
   destinations:    { icon: 'mapicon',   hue: 210, desc: 'Destinos disponíveis para vincular aos roteiros.' },
+  holidays:        { icon: 'calendar',  hue: 25,  desc: 'Feriados e datas comerciais associáveis aos roteiros.' },
 }
 
 export const sectionTileColors = (hue) => ({

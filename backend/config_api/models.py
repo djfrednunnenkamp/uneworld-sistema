@@ -423,3 +423,15 @@ class ConfigDestination(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConfigHoliday(models.Model):
+    """Feriado/data comercial associável a um Roteiro (ex: Carnaval, Réveillon)."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Feriado'
+
+    def __str__(self):
+        return self.name
