@@ -54,6 +54,15 @@ export const PERM_GROUPS = [
     ],
   },
   {
+    title: 'Roteiros',
+    icon: 'mapicon',
+    items: [
+      ['roteiros_view',   'Ver roteiros'],
+      ['roteiros_edit',   'Criar / Editar'],
+      ['roteiros_delete', 'Excluir'],
+    ],
+  },
+  {
     title: 'Listas de Passageiros',
     icon: 'plane',
     sections: [
@@ -279,6 +288,24 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Categorias de Roteiro', icon: 'mapicon', hue: 190,
+        items: [
+          ['settings_itinerary_categories_view',        'Ver categorias de roteiro'],
+          ['settings_itinerary_categories_edit',        'Criar / Editar categorias de roteiro'],
+          ['settings_itinerary_categories_delete',      'Excluir categorias de roteiro'],
+          ['settings_itinerary_categories_bulk_import', 'Importação em massa via CSV'],
+        ],
+      },
+      {
+        label: 'Continentes', icon: 'globe', hue: 200,
+        items: [
+          ['settings_continents_view',        'Ver continentes'],
+          ['settings_continents_edit',        'Criar / Editar continentes'],
+          ['settings_continents_delete',      'Excluir continentes'],
+          ['settings_continents_bulk_import', 'Importação em massa via CSV'],
+        ],
+      },
+      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],
@@ -332,6 +359,9 @@ export const PERM_DEPENDENCIES = {
 
   contracts_edit:   'contracts_view',
   contracts_delete: 'contracts_view',
+
+  roteiros_edit:   'roteiros_view',
+  roteiros_delete: 'roteiros_view',
 
   calendar_view_birthdays:     'calendar_view',
   calendar_view_all_deadlines: 'calendar_view',
@@ -434,6 +464,15 @@ export const PERM_DEPENDENCIES = {
   settings_terms_view: 'settings_view',
   settings_terms_edit: 'settings_terms_view',
 
+  settings_itinerary_categories_view:        'settings_view',
+  settings_itinerary_categories_edit:        'settings_itinerary_categories_view',
+  settings_itinerary_categories_delete:      'settings_itinerary_categories_view',
+  settings_itinerary_categories_bulk_import: 'settings_itinerary_categories_edit',
+  settings_continents_view:        'settings_view',
+  settings_continents_edit:        'settings_continents_view',
+  settings_continents_delete:      'settings_continents_view',
+  settings_continents_bulk_import: 'settings_continents_edit',
+
   // bulk_import depende de _edit (igual ao bulk_delete que depende de _delete)
   settings_professions_bulk_import:      'settings_professions_edit',
   settings_languages_bulk_import:        'settings_languages_edit',
@@ -465,6 +504,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_view', 'settings_crew_roles_view', 'settings_list_categories_view',
     'settings_accommodations_view', 'settings_countries_view',
     'settings_airports_view', 'settings_airlines_view',
+    'settings_itinerary_categories_view', 'settings_continents_view',
   ],
   // "Importar CSV global" só aparece quando pelo menos um _bulk_import de seção está ativo
   settings_csv_import: [
@@ -473,6 +513,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_bulk_import', 'settings_crew_roles_bulk_import', 'settings_list_categories_bulk_import',
     'settings_accommodations_bulk_import', 'settings_countries_bulk_import',
     'settings_airports_bulk_import', 'settings_airlines_bulk_import',
+    'settings_itinerary_categories_bulk_import', 'settings_continents_bulk_import',
   ],
 
   settings_view_logs: 'settings_view',

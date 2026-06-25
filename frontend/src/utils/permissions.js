@@ -2,6 +2,7 @@ const ROUTE_PERMS = [
   { prefix: '/passageiros',  perms: ['passengers_view_basic', 'passengers_view_full'] },
   { prefix: '/agencias',     perms: ['agencies_view'] },
   { prefix: '/contratos',    perms: ['contracts_view'] },
+  { prefix: '/roteiros',     perms: ['roteiros_view'] },
   { prefix: '/viagens',      perms: ['lists_view'] },
   { prefix: '/calendario',   perms: ['calendar_view'] },
   { prefix: '/usuarios',     perms: ['manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'] },

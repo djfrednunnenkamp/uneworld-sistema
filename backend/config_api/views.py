@@ -15,7 +15,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
-                     OperatingCompany, ConfigPaymentMethod, ConfigExchangeRate)
+                     OperatingCompany, ConfigPaymentMethod, ConfigExchangeRate,
+                     ConfigItineraryCategory, ConfigContinent)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -749,6 +750,32 @@ class GenderViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm('settings_genders')
 
 
+class ItineraryCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigItineraryCategory
+        fields = ['id', 'name']
+
+
+class ItineraryCategoryViewSet(viewsets.ModelViewSet):
+    queryset = ConfigItineraryCategory.objects.all()
+    serializer_class = ItineraryCategorySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_itinerary_categories')
+
+
+class ContinentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigContinent
+        fields = ['id', 'name']
+
+
+class ContinentViewSet(viewsets.ModelViewSet):
+    queryset = ConfigContinent.objects.all()
+    serializer_class = ContinentSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_continents')
+
+
 class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigPaymentMethod
@@ -867,9 +894,12 @@ class VaccineViewSet(viewsets.ModelViewSet):
 
 
 class CitySerializer(serializers.ModelSerializer):
+    state_name   = serializers.CharField(source='state.name', read_only=True, default=None)
+    country_name = serializers.CharField(source='state.country.name', read_only=True, default=None)
+
     class Meta:
         model = ConfigCity
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'state_name', 'country_name']
 
 
 class CityViewSet(viewsets.ModelViewSet):
@@ -878,8 +908,11 @@ class CityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         state_id = self.request.query_params.get('state_id')
+        q = self.request.query_params.get('q')
         if state_id:
-            return ConfigCity.objects.filter(state_id=state_id)
+            return ConfigCity.objects.filter(state_id=state_id).select_related('state__country')
+        if q:
+            return ConfigCity.objects.filter(name__icontains=q).select_related('state__country')[:50]
         return ConfigCity.objects.none()
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})

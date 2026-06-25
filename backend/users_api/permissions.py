@@ -32,6 +32,10 @@ PERMISSION_FIELDS = [
     'contracts_view',
     'contracts_edit',
     'contracts_delete',
+    # Roteiros
+    'roteiros_view',
+    'roteiros_edit',
+    'roteiros_delete',
     # Listas de Passageiros
     'lists_view',
     'lists_edit',
@@ -86,6 +90,8 @@ PERMISSION_FIELDS = [
     'settings_payment_methods_view', 'settings_payment_methods_edit', 'settings_payment_methods_delete',
     'settings_exchange_rates_view', 'settings_exchange_rates_edit', 'settings_exchange_rates_delete',
     'settings_terms_view', 'settings_terms_edit',
+    'settings_itinerary_categories_view', 'settings_itinerary_categories_edit', 'settings_itinerary_categories_delete', 'settings_itinerary_categories_bulk_import',
+    'settings_continents_view', 'settings_continents_edit', 'settings_continents_delete', 'settings_continents_bulk_import',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -120,6 +126,8 @@ STAFF_PERMISSION_FIELDS = [
     'settings_payment_methods_view', 'settings_payment_methods_edit', 'settings_payment_methods_delete',
     'settings_exchange_rates_view', 'settings_exchange_rates_edit', 'settings_exchange_rates_delete',
     'settings_terms_view', 'settings_terms_edit',
+    'settings_itinerary_categories_view', 'settings_itinerary_categories_edit', 'settings_itinerary_categories_delete', 'settings_itinerary_categories_bulk_import',
+    'settings_continents_view', 'settings_continents_edit', 'settings_continents_delete', 'settings_continents_bulk_import',
     # Log do sistema
     'log_view', 'log_page_views',
 ]

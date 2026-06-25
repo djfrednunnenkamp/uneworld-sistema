@@ -384,3 +384,26 @@ class SystemSettings(models.Model):
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class ConfigItineraryCategory(models.Model):
+    """Categoria de roteiro (ex: Grupos Internacionais, Grupos Nacionais)."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Categoria de Roteiro'
+
+    def __str__(self):
+        return self.name
+
+
+class ConfigContinent(models.Model):
+    name = models.CharField('Nome', max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Continente'
+
+    def __str__(self):
+        return self.name

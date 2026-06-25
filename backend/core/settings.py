@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'audit',
     'agenda',
     'contracts',
+    'itineraries',
     'channels',
 ]
 

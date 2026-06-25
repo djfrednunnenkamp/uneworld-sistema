@@ -23,6 +23,8 @@ router.register('airlines',       views.AirlineViewSet,          basename='airli
 router.register('bus-maps',            views.BusMapViewSet,              basename='busmap')
 router.register('permission-profiles', views.PermissionProfileViewSet,   basename='permission-profile')
 router.register('contract-clauses',    views.ContractClauseViewSet,      basename='contract-clause')
+router.register('itinerary-categories', views.ItineraryCategoryViewSet,  basename='itinerary-category')
+router.register('continents',           views.ContinentViewSet,          basename='continent')
 
 urlpatterns = [
     path('', include(router.urls)),

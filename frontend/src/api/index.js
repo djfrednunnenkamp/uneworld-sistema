@@ -108,6 +108,17 @@ export const contractsApi = {
   purge:   (id)     => api.delete(`/contracts/${id}/purge/`),
 }
 
+export const itinerariesApi = {
+  list:    (params) => api.get('/itineraries/', { params }),
+  get:     (id)     => api.get(`/itineraries/${id}/`),
+  create:  (data)   => api.post('/itineraries/', data),
+  update:  (id, d)  => api.put(`/itineraries/${id}/`, d),
+  remove:  (id)     => api.delete(`/itineraries/${id}/`),
+  deleted: ()       => api.get('/itineraries/', { params: { deleted: 1 } }),
+  restore: (id)     => api.post(`/itineraries/${id}/restore/`),
+  purge:   (id)     => api.delete(`/itineraries/${id}/purge/`),
+}
+
 export const documentsApi = {
   list:     (passengerId) =>
     api.get(`/passengers/${passengerId}/documents/`),
@@ -259,6 +270,18 @@ export const configApi = {
   addExchangeRate:   (data) => api.post('/config/exchange-rates/', data),
   updateExchangeRate: (id, data) => api.patch(`/config/exchange-rates/${id}/`, data),
   delExchangeRate:   (id)   => api.delete(`/config/exchange-rates/${id}/`),
+  // Categorias de roteiro
+  itineraryCategories:    () => api.get('/config/itinerary-categories/'),
+  addItineraryCategory:   (name) => api.post('/config/itinerary-categories/', { name }),
+  updateItineraryCategory: (id, name) => api.patch(`/config/itinerary-categories/${id}/`, { name }),
+  delItineraryCategory:   (id)   => api.delete(`/config/itinerary-categories/${id}/`),
+  // Continentes
+  continents:    () => api.get('/config/continents/'),
+  addContinent:  (name) => api.post('/config/continents/', { name }),
+  updateContinent: (id, name) => api.patch(`/config/continents/${id}/`, { name }),
+  delContinent:  (id)   => api.delete(`/config/continents/${id}/`),
+  // Busca global de cidades (sem precisar de state_id) — usado no TagPicker de Destinos
+  citiesSearch:  (q) => api.get('/config/cities/', { params: { q } }),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

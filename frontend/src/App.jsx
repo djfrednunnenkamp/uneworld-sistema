@@ -13,6 +13,8 @@ import PassengerDetail from './pages/PassengerDetail'
 import Agencies        from './pages/Agencies'
 import AgencyDetail    from './pages/AgencyDetail'
 import Contracts       from './pages/Contracts'
+import Itineraries     from './pages/Itineraries'
+import ItineraryDetail from './pages/ItineraryDetail'
 import Trips           from './pages/Trips'
 import TripDetail      from './pages/TripDetail'
 import Users           from './pages/Users'
@@ -58,6 +60,8 @@ function AppRoutes() {
         <Route path="agencias"            element={<RequirePermission><Agencies        /></RequirePermission>} />
         <Route path="agencias/:id"        element={<RequirePermission><AgencyDetail    /></RequirePermission>} />
         <Route path="contratos"           element={<RequirePermission><Contracts       /></RequirePermission>} />
+        <Route path="roteiros"            element={<RequirePermission><Itineraries     /></RequirePermission>} />
+        <Route path="roteiros/:id"        element={<RequirePermission><ItineraryDetail /></RequirePermission>} />
         <Route path="viagens"             element={<RequirePermission><Trips           /></RequirePermission>} />
         <Route path="viagens/:id"         element={<RequirePermission><TripDetail      /></RequirePermission>} />
         <Route path="calendario"          element={<RequirePermission><CalendarPage    /></RequirePermission>} />
