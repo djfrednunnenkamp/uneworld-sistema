@@ -303,8 +303,9 @@ export default function Dashboard() {
     )
   }
 
-  const { stats, recent_lists } = data
+  const { stats, recent_lists, exchange_rate } = data
   const showEmailLog = emailCfg?.can_view
+  const showExchangeRate = can('settings_exchange_rates_view')
 
   return (
     <div>
@@ -326,6 +327,25 @@ export default function Dashboard() {
             </div>
           )
         })}
+
+        {showExchangeRate && (
+          <div className="scard"
+            onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
+            style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
+            <div className="scard-ico" style={{ background: '#fef3c7' }}>
+              <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
+            </div>
+            <div className="scard-label">Câmbio (USD → BRL)</div>
+            <div className="scard-val">
+              {exchange_rate?.rate != null ? `R$ ${Number(exchange_rate.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+            </div>
+            {exchange_rate?.updated_at && (
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                Atualizado em {fmtDateTime(exchange_rate.updated_at, timeFormat)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Bottom row: listas + email log ── */}

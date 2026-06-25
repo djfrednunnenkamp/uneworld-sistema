@@ -91,7 +91,7 @@ table.dt tbody tr:hover td { background: #fafbfd; }
 .r-btn.del:hover  { border-color: #dc2626; color: #dc2626; background: #fee2e2; }
 
 /* ── Stats grid ── */
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
 .scard { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 20px; cursor: pointer; transition: box-shadow .15s, transform .15s; }
 .scard:hover { box-shadow: 0 4px 16px rgba(0,0,0,.09); transform: translateY(-1px); }
 .scard-ico { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }

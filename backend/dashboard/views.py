@@ -5,6 +5,7 @@ from django.db import models
 from datetime import date
 from passengers.models import Passenger
 from trips.models import PassengerList, ListEnrollment
+from config_api.models import ConfigExchangeRate
 
 
 @api_view(['GET'])
@@ -22,6 +23,8 @@ def dashboard_stats(request):
 
     # Em andamento aparecem primeiro, depois as demais
     recent = sorted(qs, key=lambda l: (0 if _ongoing(l) else 1))[:10]
+
+    usd_brl = ConfigExchangeRate.objects.filter(from_currency='USD', to_currency='BRL').first()
 
     return Response({
         'stats': {
@@ -45,4 +48,8 @@ def dashboard_stats(request):
             }
             for l in recent
         ],
+        'exchange_rate': {
+            'rate': usd_brl.rate if usd_brl else None,
+            'updated_at': usd_brl.updated_at if usd_brl else None,
+        },
     })
