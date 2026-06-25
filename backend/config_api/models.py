@@ -24,8 +24,10 @@ class ConfigLanguage(models.Model):
 
 
 class ConfigCountry(models.Model):
-    name = models.CharField('Nome', max_length=100, unique=True)
-    code = models.CharField('Código ISO', max_length=10, blank=True)
+    name      = models.CharField('Nome', max_length=100, unique=True)
+    code      = models.CharField('Código ISO', max_length=10, blank=True)
+    continent = models.ForeignKey('ConfigContinent', null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='countries', verbose_name='Continente')
 
     class Meta:
         ordering = ['name']

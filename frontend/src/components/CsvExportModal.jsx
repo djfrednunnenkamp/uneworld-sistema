@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Ic } from './Icon'
 
-// Níveis hierárquicos da seção "Países, Estados e Cidades" — escolher um
-// nível exporta ele e todos os anteriores (Cidades = Países + Estados +
-// Cidades; Estados = Países + Estados; Países = só Países).
+// Níveis hierárquicos da seção "Continentes, Países, Estados e Cidades" —
+// escolher um nível exporta ele e todos os anteriores (Cidades = Continentes
+// + Países + Estados + Cidades; Países = Continentes + Países; etc.).
 const GEO_LEVELS = [
-  { key: 'paises',  label: 'Países',  icon: 'globe'    },
-  { key: 'estados', label: 'Estados', icon: 'mapicon'  },
-  { key: 'cidades', label: 'Cidades', icon: 'building' },
+  { key: 'continentes', label: 'Continentes', icon: 'globe'    },
+  { key: 'paises',      label: 'Países',      icon: 'pin'      },
+  { key: 'estados',     label: 'Estados',     icon: 'mapicon'  },
+  { key: 'cidades',     label: 'Cidades',     icon: 'building' },
 ]
 
 /**
@@ -189,20 +190,20 @@ function GeoLevelPopup({ geoLevel, onChoose, onClose }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
     }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{
-        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 340,
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 400,
         boxShadow: '0 24px 64px rgba(0,0,0,.28)', padding: 20,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <span style={{ color: '#2563eb', display: 'flex' }}><Ic n="globe" s={14} /></span>
-            <span style={{ ...lbl11, color: '#1d4ed8' }}>Países, Estados e Cidades</span>
+            <span style={{ ...lbl11, color: '#1d4ed8' }}>Continentes, Países, Estados e Cidades</span>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2, display: 'flex' }}>
             <Ic n="x" s={15} />
           </button>
         </div>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#64748b' }}>
-          Esta seção tem três níveis. Escolha até onde detalhar a exportação.
+          Esta seção tem quatro níveis. Escolha até onde detalhar a exportação.
         </p>
         <div style={{
           display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 8,

@@ -178,8 +178,8 @@ export const configApi = {
   importLanguages:   ()     => api.post('/config/languages/import/'),
   // Países
   countries:         ()     => api.get('/config/countries/'),
-  addCountry:        (name, code) => api.post('/config/countries/', { name, code }),
-  updateCountry:     (id, name)   => api.patch(`/config/countries/${id}/`, { name }),
+  addCountry:        (name, code, continent) => api.post('/config/countries/', { name, code, continent }),
+  updateCountry:     (id, name, continent)   => api.patch(`/config/countries/${id}/`, { name, ...(continent !== undefined ? { continent } : {}) }),
   delCountry:        (id)   => api.delete(`/config/countries/${id}/`),
   importCountries:   ()     => api.post('/config/countries/import/'),
   importCountriesCascade: () => api.post('/config/countries/import-cascade/'),

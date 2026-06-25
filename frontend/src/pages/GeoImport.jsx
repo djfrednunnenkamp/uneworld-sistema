@@ -9,6 +9,7 @@ function parseCsv(text) {
   if (!lines.length) return []
   const header   = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["""]/g, ''))
   const iCol     = (names) => header.findIndex(h => names.includes(h))
+  const cContinente = iCol(['continente','continent'])
   const cPais    = iCol(['pais','país','country'])
   const cEstado  = iCol(['estado','state'])
   const cCidade  = iCol(['cidade','city'])
@@ -25,10 +26,11 @@ function parseCsv(text) {
     }
     cells.push(cur)
     rows.push({
-      id:     i,
-      pais:   cPais  >=0 ? parseCell(cells[cPais])  : '',
-      estado: cEstado>=0 ? parseCell(cells[cEstado]) : '',
-      cidade: cCidade>=0 ? parseCell(cells[cCidade]) : '',
+      id:         i,
+      continente: cContinente>=0 ? parseCell(cells[cContinente]) : '',
+      pais:       cPais  >=0 ? parseCell(cells[cPais])  : '',
+      estado:     cEstado>=0 ? parseCell(cells[cEstado]) : '',
+      cidade:     cCidade>=0 ? parseCell(cells[cCidade]) : '',
     })
   }
   return rows
@@ -97,7 +99,7 @@ export default function GeoImport() {
     const BATCH = 300
     const result = [...annotated]
     for (let i = 0; i < parsed.length; i += BATCH) {
-      const batch = parsed.slice(i, i+BATCH).map(({pais,estado,cidade})=>({pais,estado,cidade}))
+      const batch = parsed.slice(i, i+BATCH).map(({continente,pais,estado,cidade})=>({continente,pais,estado,cidade}))
       try {
         const r = await configApi.geoAnalyze(batch)
         r.data.rows.forEach((res, j) => {
@@ -130,6 +132,7 @@ export default function GeoImport() {
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(r =>
+        r.continente.toLowerCase().includes(q) ||
         r.pais.toLowerCase().includes(q) ||
         r.estado.toLowerCase().includes(q) ||
         r.cidade.toLowerCase().includes(q)
@@ -149,7 +152,7 @@ export default function GeoImport() {
     if (!toProcess.length) return
     setPhase('importing')
     try {
-      const r = await configApi.geoAction(mode, toProcess.map(({pais,estado,cidade})=>({pais,estado,cidade})))
+      const r = await configApi.geoAction(mode, toProcess.map(({continente,pais,estado,cidade})=>({continente,pais,estado,cidade})))
       setResult({ mode, ...r.data })
       const modeLabel = mode === 'delete' ? 'Excluir' : mode === 'all' ? 'Substituir' : 'Adicionar'
       auditApi.logUpload({
@@ -300,6 +303,7 @@ export default function GeoImport() {
                 </th>
                 <th style={{...th, width:60}}>Linha</th>
                 <th style={{...th, width:120}}>Status</th>
+                <th style={th}>Continente</th>
                 <th style={th}>País</th>
                 <th style={th}>Estado</th>
                 <th style={th}>Cidade</th>
@@ -308,9 +312,9 @@ export default function GeoImport() {
             </thead>
             <tbody>
               {phase==='analyzing' && filtered.length===0 ? (
-                <tr><td colSpan={7} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>Analisando…</td></tr>
+                <tr><td colSpan={8} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>Analisando…</td></tr>
               ) : filtered.length===0 ? (
-                <tr><td colSpan={7} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
+                <tr><td colSpan={8} style={{textAlign:'center',padding:'36px 0',color:'#94a3b8',fontSize:13}}>
                   {search ? 'Nenhum resultado para a busca.' : 'Nenhuma linha.'}
                 </td></tr>
               ) : filtered.map((row, idx) => {
@@ -328,6 +332,7 @@ export default function GeoImport() {
                     {row.status==='pending' && <span style={pill('#f1f5f9','#94a3b8')}>…</span>}
                     {row.msg && <span style={{fontSize:11,color:'#dc2626',marginLeft:6}}>{row.msg}</span>}
                   </td>
+                  <td style={{padding:'8px 12px'}}><Editable value={row.continente} onChange={v=>editRow(row.id,'continente',v)} placeholder="continente" /></td>
                   <td style={{padding:'8px 12px'}}><Editable value={row.pais}   onChange={v=>editRow(row.id,'pais',v)}   placeholder="país" /></td>
                   <td style={{padding:'8px 12px'}}><Editable value={row.estado} onChange={v=>editRow(row.id,'estado',v)} placeholder="estado" /></td>
                   <td style={{padding:'8px 12px'}}><Editable value={row.cidade} onChange={v=>editRow(row.id,'cidade',v)} placeholder="cidade" /></td>

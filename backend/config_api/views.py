@@ -49,7 +49,7 @@ def _settings_perm(perm_base, extra_write=None, action_perms=None):
 def geo_analyze(request):
     """
     Analisa linhas do CSV sem gravar nada.
-    Input:  { rows: [{pais, estado, cidade}, ...] }
+    Input:  { rows: [{continente, pais, estado, cidade}, ...] }
     Output: { rows: [{...row, status: 'new'|'exists'|'error', msg?}, ...] }
     """
     rows = request.data.get('rows', [])
@@ -127,6 +127,7 @@ def geo_import_action(request):
     csv_cities    = set()
 
     for row in rows:
+        continente = (row.get('continente') or '').strip()
         pais   = (row.get('pais')   or '').strip()
         estado = (row.get('estado') or '').strip()
         cidade = (row.get('cidade') or '').strip()
@@ -144,9 +145,13 @@ def geo_import_action(request):
 
         # País
         if pais not in country_cache:
-            obj, created = ConfigCountry.objects.get_or_create(name=pais)
+            continent_obj = _get_continent(continente)
+            obj, created = ConfigCountry.objects.get_or_create(name=pais, defaults={'continent': continent_obj})
             if created:
                 counts['countries'] += 1
+            elif continent_obj and not obj.continent_id:
+                obj.continent = continent_obj
+                obj.save(update_fields=['continent'])
             country_cache[pais] = obj
 
         if not estado:
@@ -210,23 +215,24 @@ def geo_import_action(request):
 @permission_classes([RequirePermission('manage_settings', 'settings_csv_export', 'settings_countries', 'settings_countries_view')])
 def geo_export(request):
     """
-    Exporta todos os países, estados e cidades em um único CSV:
-    pais,estado,cidade
+    Exporta todos os continentes, países, estados e cidades em um único CSV:
+    continente,pais,estado,cidade
     """
     def rows():
-        yield 'pais,estado,cidade\n'
-        for country in ConfigCountry.objects.prefetch_related('states__cities').order_by('name'):
+        yield 'continente,pais,estado,cidade\n'
+        for country in ConfigCountry.objects.select_related('continent').prefetch_related('states__cities').order_by('name'):
+            continente = country.continent.name if country.continent_id else ''
             states = list(country.states.all())
             if not states:
-                yield f'"{_esc(country.name)}",,\n'
+                yield f'"{_esc(continente)}","{_esc(country.name)}",,\n'
                 continue
             for state in states:
                 cities = list(state.cities.all())
                 if not cities:
-                    yield f'"{_esc(country.name)}","{_esc(state.name)}",\n'
+                    yield f'"{_esc(continente)}","{_esc(country.name)}","{_esc(state.name)}",\n'
                     continue
                 for city in cities:
-                    yield f'"{_esc(country.name)}","{_esc(state.name)}","{_esc(city.name)}"\n'
+                    yield f'"{_esc(continente)}","{_esc(country.name)}","{_esc(state.name)}","{_esc(city.name)}"\n'
 
     response = StreamingHttpResponse(rows(), content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="paises_estados_cidades.csv"'
@@ -237,12 +243,27 @@ def _esc(s):
     return (s or '').replace('"', '""')
 
 
+# Region (inglês, vem da API mledoze/countries) → nome do continente em português.
+REGION_TO_CONTINENT = {
+    'Africa': 'África', 'Americas': 'Américas', 'Asia': 'Ásia',
+    'Europe': 'Europa', 'Oceania': 'Oceania', 'Antarctic': 'Antártida',
+}
+
+
+def _get_continent(name):
+    name = (name or '').strip()
+    if not name:
+        return None
+    obj, _ = ConfigContinent.objects.get_or_create(name=name)
+    return obj
+
+
 @api_view(['POST'])
 @permission_classes([RequirePermission('manage_settings', 'settings_countries', 'settings_countries_edit')])
 def geo_import(request):
     """
-    Importa CSV com colunas: pais,estado,cidade
-    Cria países/estados/cidades que não existem ainda.
+    Importa CSV com colunas: continente,pais,estado,cidade
+    Cria continentes/países/estados/cidades que não existem ainda.
     """
     f = request.FILES.get('file')
     if not f:
@@ -253,6 +274,7 @@ def geo_import(request):
 
     # aceita variações de cabeçalho
     fieldnames = [n.lower().strip() for n in (reader.fieldnames or [])]
+    col_continent = next((n for n in reader.fieldnames or [] if n.lower().strip() in ('continente', 'continent')), None)
     col_country = next((n for n in reader.fieldnames or [] if n.lower().strip() in ('pais', 'país', 'country')), None)
     col_state   = next((n for n in reader.fieldnames or [] if n.lower().strip() in ('estado', 'state')), None)
     col_city    = next((n for n in reader.fieldnames or [] if n.lower().strip() in ('cidade', 'city')), None)
@@ -266,6 +288,7 @@ def geo_import(request):
 
     for row in reader:
         counts['rows'] += 1
+        ct_name = (row.get(col_continent) or '').strip() if col_continent else ''
         c_name = (row.get(col_country) or '').strip()
         s_name = (row.get(col_state)   or '').strip() if col_state else ''
         ci_name= (row.get(col_city)    or '').strip() if col_city  else ''
@@ -275,9 +298,13 @@ def geo_import(request):
 
         # País
         if c_name not in country_cache:
-            obj, created = ConfigCountry.objects.get_or_create(name=c_name)
+            continent_obj = _get_continent(ct_name)
+            obj, created = ConfigCountry.objects.get_or_create(name=c_name, defaults={'continent': continent_obj})
             if created:
                 counts['countries'] += 1
+            elif continent_obj and not obj.continent_id:
+                obj.continent = continent_obj
+                obj.save(update_fields=['continent'])
             country_cache[c_name] = obj
         country = country_cache[c_name]
 
@@ -329,10 +356,11 @@ class StateSerializer(serializers.ModelSerializer):
         return obj.cities.count()
 
 class CountrySerializer(serializers.ModelSerializer):
-    state_count = serializers.SerializerMethodField()
+    state_count    = serializers.SerializerMethodField()
+    continent_name = serializers.CharField(source='continent.name', read_only=True, default=None)
     class Meta:
         model = ConfigCountry
-        fields = ['id', 'name', 'code', 'state_count']
+        fields = ['id', 'name', 'code', 'continent', 'continent_name', 'state_count']
     def get_state_count(self, obj):
         return obj.states.count()
 
@@ -456,9 +484,13 @@ class CountryViewSet(viewsets.ModelViewSet):
                 if not name:
                     continue
                 code = c.get('cca2', '')
-                _, was_created = ConfigCountry.objects.get_or_create(name=name, defaults={'code': code})
+                continent = _get_continent(REGION_TO_CONTINENT.get(c.get('region', '')))
+                obj, was_created = ConfigCountry.objects.get_or_create(name=name, defaults={'code': code, 'continent': continent})
                 if was_created:
                     created += 1
+                elif continent and not obj.continent_id:
+                    obj.continent = continent
+                    obj.save(update_fields=['continent'])
                 if i % 10 == 0 or i == total:
                     progress(i, total)
             return {'total': ConfigCountry.objects.count(), 'created': created}
@@ -510,7 +542,11 @@ class CountryViewSet(viewsets.ModelViewSet):
                 name = (c.get('translations') or {}).get('por', {}).get('common') or c.get('name', {}).get('common')
                 if not name:
                     continue
-                ConfigCountry.objects.get_or_create(name=name, defaults={'code': c.get('cca2', '')})
+                continent = _get_continent(REGION_TO_CONTINENT.get(c.get('region', '')))
+                obj, was_created = ConfigCountry.objects.get_or_create(name=name, defaults={'code': c.get('cca2', ''), 'continent': continent})
+                if not was_created and continent and not obj.continent_id:
+                    obj.continent = continent
+                    obj.save(update_fields=['continent'])
 
             countries = list(ConfigCountry.objects.all())
             total = len(countries)
@@ -770,10 +806,12 @@ class ContinentSerializer(serializers.ModelSerializer):
 
 
 class ContinentViewSet(viewsets.ModelViewSet):
+    """Continentes são gerenciados dentro de Países & Estados — usa a mesma
+    permissão de Países (settings_countries), sem permissão própria."""
     queryset = ConfigContinent.objects.all()
     serializer_class = ContinentSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_continents')
+    get_permissions = _settings_perm('settings_countries')
 
 
 class DestinationSerializer(serializers.ModelSerializer):

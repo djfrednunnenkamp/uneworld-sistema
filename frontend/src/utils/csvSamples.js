@@ -90,7 +90,7 @@ export const CSV_SAMPLES = {
     filename: 'modelo_paises_estados_cidades.csv',
   },
   geo: {
-    content: 'pais,estado,cidade\nBrasil,São Paulo,São Paulo\nBrasil,São Paulo,Campinas\nBrasil,Rio de Janeiro,Rio de Janeiro',
+    content: 'continente,pais,estado,cidade\nAméricas,Brasil,São Paulo,São Paulo\nAméricas,Brasil,São Paulo,Campinas\nAméricas,Brasil,Rio de Janeiro,Rio de Janeiro',
     filename: 'modelo_geo.csv',
   },
   all: {

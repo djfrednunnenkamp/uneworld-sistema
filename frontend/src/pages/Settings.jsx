@@ -72,11 +72,14 @@ function splitCsvLineSettings(line) {
                   + tipos de documento + aeroportos + companhias aéreas
                   + perfis de permissão + mapas de ônibus
    Formato: lista,nome,pessoas,casal,pais,estado,codigo */
-function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, paymentMethods = [], exchangeRates = [], filename) {
+function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, paymentMethods = [], exchangeRates = [], filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
   const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
     items.forEach(i => rows.push(`${q(label)},${q(i.name)},,,,,`))
+  })
+  continents.forEach(c => {
+    rows.push(`${q('Continentes')},${q(c.name)},,,,,`)
   })
   accoms.forEach(a => {
     rows.push(`${q('Acomodações')},${q(a.name)},${a.capacity},${a.is_couple ? 'sim' : 'não'},,,`)
@@ -91,7 +94,7 @@ function exportCombinedCsvFull(simpleGroups, accoms, countries, states, cities, 
     rows.push(`${q('Companhias Aéreas')},${q(a.name)},,${a.is_favorite ? 'sim' : 'não'},${q(a.country || '')},,${q(a.iata_code || '')}`)
   })
   countries.forEach(c => {
-    rows.push(`${q('Países')},${q(c.name)},,,,,${q(c.code || '')}`)
+    rows.push(`${q('Países')},${q(c.name)},,,${q(c.continent_name || '')},,${q(c.code || '')}`)
   })
   states.forEach(s => {
     rows.push(`${q('Estados')},${q(s.name)},,,${q(s.country_name || '')},,${q(s.code || '')}`)
@@ -389,21 +392,21 @@ function GeoCsvBar({ canEdit = true, canImport = false, canImportWeb = false, on
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
       <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, flex: 1 }}>
-        CSV unificado — <span style={{ fontWeight: 400, color: '#94a3b8' }}>colunas: pais, estado, cidade</span>
+        CSV unificado — <span style={{ fontWeight: 400, color: '#94a3b8' }}>colunas: continente, pais, estado, cidade</span>
       </span>
       <button onClick={doExport} disabled={exporting}
         style={{ ...btnCsv('#059669'), opacity: exporting ? .6 : 1 }}>
-        ⬇ {exporting ? 'Exportando…' : 'Exportar tudo'}
+        <Ic n="dl" s={12} /> {exporting ? 'Exportando…' : 'Exportar tudo'}
       </button>
       {canImport && (
         <button onClick={() => setShowPopup(true)} style={btnCsv('#2e6db4')}>
-          ⬆ Importar CSV
+          <Ic n="ul" s={12} /> Importar CSV
         </button>
       )}
       {canImportWeb && (
         <button onClick={onImportCascade} disabled={importingCascade} style={btnCsv('#7c3aed')}
           title="Importa todos os países e, em cascata, os estados e cidades de cada um — pode levar bastante tempo">
-          🌐 {importingCascade ? 'Iniciando…' : 'Importar tudo da internet'}
+          <Ic n="globe" s={12} /> {importingCascade ? 'Iniciando…' : 'Importar tudo da internet'}
         </button>
       )}
       {canImport && showPopup && (
@@ -420,7 +423,7 @@ function GeoCsvBar({ canEdit = true, canImport = false, canImportWeb = false, on
 }
 
 /* ── Estilos de coluna (módulo-level para não recriar a cada render) ── */
-const colAddInp = { ...inp, flex: 1, fontSize: 12, padding: '7px 10px' }
+const colAddInp = { ...inp, flex: 1, minWidth: 0, fontSize: 12, padding: '7px 10px' }
 const colAddBtn = { ...btnPri, fontSize: 12, padding: '7px 10px', whiteSpace: 'nowrap' }
 const colBox    = { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', maxHeight: 380, overflowY: 'auto' }
 
@@ -475,8 +478,8 @@ function Col({ title, count, search, onSearch, onAddClick, addDisabled, loading,
         </h3>
         {onImportWeb && (
           <button onClick={onImportWeb} disabled={addDisabled || importingWeb} title="Importar da internet"
-            style={{ flexShrink:0, padding:'3px 9px', borderRadius:6, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:11, fontWeight:600, cursor: addDisabled ? 'default' : 'pointer', fontFamily:'inherit', opacity: addDisabled ? .5 : 1 }}>
-            {importingWeb ? '⏳' : '🌐'}
+            style={{ flexShrink:0, display:'flex', alignItems:'center', padding:'4px 8px', borderRadius:6, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', cursor: addDisabled ? 'default' : 'pointer', fontFamily:'inherit', opacity: addDisabled ? .5 : 1 }}>
+            <Ic n={importingWeb ? 'clock' : 'globe'} s={12} />
           </button>
         )}
       </div>
@@ -530,24 +533,36 @@ function GeoRow({ label, extra, selected, onClick, onEdit, onDelete, canEdit = t
 
 /* ── CountriesTab ── */
 function CountriesTab({ canEdit = true, canDelete = true, canImport = false, canImportWeb = false }) {
+  const [continents,   setContinents]   = useState([])
+  const [selContinent, setSelContinent] = useState(null)
   const [countries,  setCountries]  = useState([])
   const [selCountry, setSelCountry] = useState(null)
   const [states,     setStates]     = useState([])
   const [selState,   setSelState]   = useState(null)
   const [cities,     setCities]     = useState([])
+  const [loadingCo,  setLoadingCo]  = useState(true)
   const [loadingC,   setLoadingC]   = useState(true)
   const [loadingS,   setLoadingS]   = useState(false)
   const [loadingCi,  setLoadingCi]  = useState(false)
+  const [searchCo,   setSearchCo]   = useState('')
   const [searchC,    setSearchC]    = useState('')
   const [searchS,    setSearchS]    = useState('')
   const [searchCi,   setSearchCi]   = useState('')
   const [confirm,    setConfirm]    = useState(null) // {action, id, name}
   const [importingWeb, setImportingWeb] = useState(null) // 'country'|'state'|'city'|null
-  const [form,       setForm]       = useState(null) // {kind:'country'|'state'|'city', item?}
+  const [form,       setForm]       = useState(null) // {kind:'continent'|'country'|'state'|'city', item?}
 
+  const loadContinents = () => {
+    setLoadingCo(true)
+    configApi.continents().then(r => setContinents(r.data)).catch(() => {}).finally(() => setLoadingCo(false))
+  }
   const loadCountries = () => {
     setLoadingC(true)
     configApi.countries().then(r => setCountries(r.data)).catch(() => {}).finally(() => setLoadingC(false))
+  }
+  const selectContinent = (continent) => {
+    setSelContinent(continent); setSelCountry(null); setSelState(null)
+    setStates([]); setCities([])
   }
   const loadStates = (country) => {
     setSelCountry(country); setSelState(null); setCities([])
@@ -559,7 +574,7 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false, can
     configApi.cities(state.id).then(r => setCities(r.data)).catch(() => {}).finally(() => setLoadingCi(false))
   }
 
-  useEffect(() => { loadCountries() }, [])
+  useEffect(() => { loadContinents(); loadCountries() }, [])
 
   const { user } = useAuth()
   const wsUrl = user ? dashboardWsUrl() : null
@@ -570,8 +585,26 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false, can
     if ((msg.kind === 'cities' || msg.kind === 'countries_cascade') && selState) loadCities(selState)
   }, [selCountry, selState]))
 
+  const addContinent = async (name) => {
+    try { const r = await configApi.addContinent(name); setContinents(c => [...c, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt'))) }
+    catch { toast.error('Erro ao adicionar continente.') }
+  }
+  const updateContinent = async (id, name) => {
+    try {
+      const r = await configApi.updateContinent(id, name)
+      setContinents(c => c.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+      if (selContinent?.id === id) setSelContinent(r.data)
+    } catch { toast.error('Erro ao salvar continente.') }
+  }
+  const delContinent = async (id) => {
+    try {
+      await configApi.delContinent(id)
+      setContinents(c => c.filter(x => x.id !== id))
+      if (selContinent?.id === id) selectContinent(null)
+    } catch { toast.error('Erro ao remover continente.') }
+  }
   const addCountry = async (name) => {
-    try { await configApi.addCountry(name, ''); loadCountries() }
+    try { await configApi.addCountry(name, '', selContinent?.id ?? null); loadCountries() }
     catch { toast.error('Erro ao adicionar país.') }
   }
   const updateCountry = async (id, name) => {
@@ -632,35 +665,75 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false, can
   const importCitiesWeb    = () => selState   && importWeb('city',  () => configApi.importCities(selState.id))
   const importCascadeWeb   = () => importWeb('cascade', () => configApi.importCountriesCascade())
 
-  const filteredC  = useMemo(() => { const q = searchC.toLowerCase();  return countries.filter(c => c.name.toLowerCase().includes(q)) }, [countries, searchC])
+  const filteredCo = useMemo(() => { const q = searchCo.toLowerCase(); return continents.filter(c => c.name.toLowerCase().includes(q)) }, [continents, searchCo])
+  const filteredC  = useMemo(() => {
+    const q = searchC.toLowerCase()
+    return countries
+      .filter(c => !selContinent || c.continent === selContinent.id)
+      .filter(c => c.name.toLowerCase().includes(q))
+  }, [countries, searchC, selContinent])
   const filteredS  = useMemo(() => { const q = searchS.toLowerCase();  return states.filter(s => s.name.toLowerCase().includes(q)) }, [states, searchS])
   const filteredCi = useMemo(() => { const q = searchCi.toLowerCase(); return cities.filter(c => c.name.toLowerCase().includes(q)) }, [cities, searchCi])
 
+  const countryCountByContinent = useMemo(() => {
+    const m = {}
+    countries.forEach(c => { if (c.continent) m[c.continent] = (m[c.continent] || 0) + 1 })
+    return m
+  }, [countries])
+
   const formSave = async (name) => {
-    if (form.kind === 'country') return form.item ? updateCountry(form.item.id, name) : addCountry(name)
-    if (form.kind === 'state')   return form.item ? updateState(form.item.id, name)   : addState(name)
-    if (form.kind === 'city')    return form.item ? updateCity(form.item.id, name)    : addCity(name)
+    if (form.kind === 'continent') return form.item ? updateContinent(form.item.id, name) : addContinent(name)
+    if (form.kind === 'country')   return form.item ? updateCountry(form.item.id, name) : addCountry(name)
+    if (form.kind === 'state')     return form.item ? updateState(form.item.id, name)   : addState(name)
+    if (form.kind === 'city')      return form.item ? updateCity(form.item.id, name)    : addCity(name)
   }
   const formTitles = {
-    country: form?.item ? 'Editar país'   : 'Novo país',
-    state:   form?.item ? 'Editar estado' : 'Novo estado',
-    city:    form?.item ? 'Editar cidade' : 'Nova cidade',
+    continent: form?.item ? 'Editar continente' : 'Novo continente',
+    country:   form?.item ? 'Editar país'   : 'Novo país',
+    state:     form?.item ? 'Editar estado' : 'Novo estado',
+    city:      form?.item ? 'Editar cidade' : 'Nova cidade',
   }
-  const formPlaceholders = { country: 'Nome do país…', state: 'Nome do estado…', city: 'Nome da cidade…' }
+  const formPlaceholders = { continent: 'Nome do continente…', country: 'Nome do país…', state: 'Nome do estado…', city: 'Nome da cidade…' }
 
   return (
     <>
     <GeoCsvBar canEdit={canEdit} canImport={canImport} canImportWeb={canImportWeb}
       onImportCascade={importCascadeWeb} importingCascade={importingWeb === 'cascade'} />
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 14 }}>
+      {/* ── Continentes ── */}
+      <Col title="Continentes" count={continents.length}
+        search={searchCo} onSearch={setSearchCo}
+        onAddClick={() => setForm({ kind:'continent' })}
+        loading={loadingCo} canEdit={canEdit}
+      >
+        {filteredCo.length === 0
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum continente.</p>
+          : filteredCo.map(c => (
+            <GeoRow key={c.id}
+              label={c.name}
+              extra={countryCountByContinent[c.id] > 0 ? countryCountByContinent[c.id] : null}
+              selected={selContinent?.id === c.id}
+              onClick={() => selectContinent(c)}
+              onEdit={() => setForm({ kind:'continent', item:c })}
+              onDelete={() => setConfirm({ action:'continent', id:c.id, name:c.name })}
+              canEdit={canEdit} canDelete={canDelete}
+            />
+          ))
+        }
+      </Col>
+
       {/* ── Países ── */}
-      <Col title="Países" count={countries.length}
+      <Col title={selContinent ? `${selContinent.name} — Países` : 'Países'}
+        count={selContinent ? filteredC.length : null}
         search={searchC} onSearch={setSearchC}
         onAddClick={() => setForm({ kind:'country' })}
+        addDisabled={!selContinent}
         loading={loadingC} canEdit={canEdit}
         onImportWeb={canImportWeb ? importCountriesWeb : null} importingWeb={importingWeb === 'country'}
       >
-        {filteredC.length === 0
+        {!selContinent
+          ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>← Selecione um continente</p>
+          : filteredC.length === 0
           ? <p style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>Nenhum país.</p>
           : filteredC.map(c => (
             <GeoRow key={c.id}
@@ -741,9 +814,10 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false, can
       <ConfirmModal
         message={`Remover "${confirm.name}"?`}
         onOk={() => {
-          if (confirm.action === 'country') delCountry(confirm.id)
-          if (confirm.action === 'state')   delState(confirm.id)
-          if (confirm.action === 'city')    delCity(confirm.id)
+          if (confirm.action === 'continent') delContinent(confirm.id)
+          if (confirm.action === 'country')   delCountry(confirm.id)
+          if (confirm.action === 'state')     delState(confirm.id)
+          if (confirm.action === 'city')      delCity(confirm.id)
           setConfirm(null)
         }}
         onCancel={() => setConfirm(null)}
@@ -774,7 +848,6 @@ const LIST_DEFS = [
   { key:'vaccines',         label:'Vacinas',                  perm:'settings_vaccines',         areas:['passageiros'] },
   { key:'genders',          label:'Gêneros',                  perm:'settings_genders',          areas:['passageiros'] },
   { key:'itinerary_categories', label:'Categorias de Roteiro', perm:'settings_itinerary_categories', areas:['roteiros'] },
-  { key:'continents',       label:'Continentes',              perm:'settings_continents',       areas:['roteiros'] },
   { key:'destinations',     label:'Destinos',                 perm:'settings_destinations',     areas:['roteiros'] },
   { key:'prof_cards',       label:'Carteiras',                perm:'settings_prof_cards',        areas:['passageiros'] },
   { key:'list_addits',      label:'Adicionais de Lista',      perm:'settings_list_additionals', areas:['listas'] },
@@ -1223,11 +1296,9 @@ export default function Settings() {
   const [vaccines,    setVaccines]    = useState([])
   const [genders,    setGenders]    = useState([])
   const [itineraryCategories, setItineraryCategories] = useState([])
-  const [continents, setContinents] = useState([])
   const [destinations, setDestinations] = useState([])
   const [loadingDe, setLoadingDe] = useState(true)
   const [loadingIC, setLoadingIC] = useState(true)
-  const [loadingCt, setLoadingCt] = useState(true)
   const [paymentMethods, setPaymentMethods] = useState([])
   const [exchangeRates,  setExchangeRates]  = useState([])
   const [loadingPM, setLoadingPM] = useState(true)
@@ -1261,7 +1332,6 @@ export default function Settings() {
     configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {}).finally(() => setLoadingV(false))
     configApi.genders().then(r => setGenders(r.data)).catch(() => {}).finally(() => setLoadingG(false))
     configApi.itineraryCategories().then(r => setItineraryCategories(r.data)).catch(() => {}).finally(() => setLoadingIC(false))
-    configApi.continents().then(r => setContinents(r.data)).catch(() => {}).finally(() => setLoadingCt(false))
     configApi.destinations().then(r => setDestinations(r.data)).catch(() => {}).finally(() => setLoadingDe(false))
     configApi.paymentMethods().then(r => setPaymentMethods(r.data)).catch(() => {}).finally(() => setLoadingPM(false))
     configApi.exchangeRates().then(r => setExchangeRates(r.data)).catch(() => {}).finally(() => setLoadingER(false))
@@ -1286,7 +1356,6 @@ export default function Settings() {
     configApi.vaccines().then(r => setVaccines(r.data)).catch(() => {})
     configApi.genders().then(r => setGenders(r.data)).catch(() => {})
     configApi.itineraryCategories().then(r => setItineraryCategories(r.data)).catch(() => {})
-    configApi.continents().then(r => setContinents(r.data)).catch(() => {})
     configApi.destinations().then(r => setDestinations(r.data)).catch(() => {})
     configApi.paymentMethods().then(r => setPaymentMethods(r.data)).catch(() => {})
     configApi.exchangeRates().then(r => setExchangeRates(r.data)).catch(() => {})
@@ -1381,22 +1450,6 @@ export default function Settings() {
   const delItineraryCategory = async (id) => {
     try { await configApi.delItineraryCategory(id); setItineraryCategories(c => c.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover categoria de roteiro.') }
-  }
-  const addContinent = async (name) => {
-    try {
-      const r = await configApi.addContinent(name)
-      setContinents(c => [...c, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
-    } catch { toast.error('Erro ao adicionar continente.') }
-  }
-  const updateContinent = async (id, name) => {
-    try {
-      const r = await configApi.updateContinent(id, name)
-      setContinents(c => c.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
-    } catch { toast.error('Erro ao salvar continente.') }
-  }
-  const delContinent = async (id) => {
-    try { await configApi.delContinent(id); setContinents(c => c.filter(x => x.id !== id)) }
-    catch { toast.error('Erro ao remover continente.') }
   }
   const addDestination = async (name) => {
     try {
@@ -1531,7 +1584,6 @@ export default function Settings() {
     { key:'vaccines',        label:'Vacinas',                  perm:'settings_vaccines',          items: vaccines    },
     { key:'genders',         label:'Gêneros',                  perm:'settings_genders',           items: genders     },
     { key:'itinerary_categories', label:'Categorias de Roteiro', perm:'settings_itinerary_categories', items: itineraryCategories },
-    { key:'continents',      label:'Continentes',              perm:'settings_continents',        items: continents },
     { key:'destinations',    label:'Destinos',                 perm:'settings_destinations',      items: destinations },
     { key:'prof_cards',      label:'Carteiras',                perm:'settings_prof_cards',        items: profCards   },
     { key:'list_addits',     label:'Adicionais de Lista',      perm:'settings_list_additionals',  items: listAddits  },
@@ -1555,13 +1607,16 @@ export default function Settings() {
       const viewTerms       = can('settings_terms', 'view') && include('terms')
       const viewPaymentMethods = can('settings_payment_methods', 'view') && include('payment_methods')
       const viewExchangeRates  = can('settings_exchange_rates',  'view') && include('exchange_rates')
-      const wantStates = geoLevel === 'estados' || geoLevel === 'cidades'
-      const wantCities = geoLevel === 'cidades'
-      let cRes = { data: [] }, sRes = { data: [] }, cities = []
+      // Continentes → Países → Estados → Cidades: cada nível inclui os anteriores.
+      const wantCountries = geoLevel === 'paises' || geoLevel === 'estados' || geoLevel === 'cidades'
+      const wantStates    = geoLevel === 'estados' || geoLevel === 'cidades'
+      const wantCities    = geoLevel === 'cidades'
+      let ctRes = { data: [] }, cRes = { data: [] }, sRes = { data: [] }, cities = []
       let dtData = [], apData = [], alData = [], ppData = [], bmData = [], ccData = [], termsContent = null
       let pmData = [], erData = []
       const fetches = []
-      if (viewCountries) fetches.push(
+      if (viewCountries) fetches.push(configApi.continents().then(r => { ctRes = r }))
+      if (viewCountries && wantCountries) fetches.push(
         Promise.all([
           configApi.countries(),
           wantStates ? configApi.allStates() : Promise.resolve({ data: [] }),
@@ -1570,7 +1625,7 @@ export default function Settings() {
             cRes = cr; sRes = sr
             if (geoRes) {
               const geoText = await geoRes.data.text()
-              cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2]).map(c => ({ country: c[0], state: c[1], name: c[2] }))
+              cities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[3]).map(c => ({ country: c[1], state: c[2], name: c[3] }))
             }
           })
       )
@@ -1584,7 +1639,7 @@ export default function Settings() {
       if (viewPaymentMethods) fetches.push(configApi.paymentMethods().then(r => { pmData = r.data }))
       if (viewExchangeRates)  fetches.push(configApi.exchangeRates().then(r => { erData = r.data }))
       await Promise.all(fetches)
-      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, pmData, erData, 'todas_as_configuracoes.csv')
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], ctRes.data, cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, pmData, erData, 'todas_as_configuracoes.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -1602,16 +1657,17 @@ export default function Settings() {
     const canImportTerms = can('settings_terms', 'edit')
     const canImportPaymentMethods = can('settings_payment_methods', 'edit')
     const canImportExchangeRates  = can('settings_exchange_rates',  'edit')
-    let allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = [], allPermProfiles = [], allContractClauses = [], allTermsContent = null
+    let allContinents = [], allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = [], allPermProfiles = [], allContractClauses = [], allTermsContent = null
     let allPaymentMethods = [], allExchangeRates = []
     const fetches2 = []
+    if (canImportCountries) fetches2.push(configApi.continents().then(r => { allContinents = r.data }).catch(() => {}))
     if (canImportCountries) fetches2.push(
       Promise.all([configApi.countries(), configApi.allStates(), configApi.geoExport()])
         .then(async ([cr, sr, geoRes]) => {
           allCountries = cr.data; allStates = sr.data
           const geoText = await geoRes.data.text()
-          allCities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[2])
-            .map(c => ({ country: c[0], state: c[1], name: c[2] }))
+          allCities = geoText.split(/\r?\n/).slice(1).map(l => splitCsvLineSettings(l)).filter(c => c[3])
+            .map(c => ({ country: c[1], state: c[2], name: c[3] }))
         })
         .catch(() => {})
     )
@@ -1628,7 +1684,7 @@ export default function Settings() {
     const permittedKeys = [
       ...importableGroups.map(g => g.key),
       ...(canImportAccoms    ? ['accommodations']                   : []),
-      ...(canImportCountries ? ['countries', 'states', 'cities']   : []),
+      ...(canImportCountries ? ['continents', 'countries', 'states', 'cities'] : []),
       ...(canImportDocTypes  ? ['doc_types']                       : []),
       ...(canImportAirports  ? ['airports']                        : []),
       ...(canImportAirlines  ? ['airlines']                        : []),
@@ -1646,6 +1702,7 @@ export default function Settings() {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items.map(i => i.name)])),
           ...(canImportAccoms    ? { accommodations: accoms.map(a => a.name) }        : {}),
           ...(canImportCountries ? {
+            continents: allContinents.map(c => c.name),
             countries: allCountries.map(c => c.name),
             states: allStates.map(s => s.name),
             cities: allCities.map(c => `${c.country}|${c.state}|${c.name}`),
@@ -1662,7 +1719,7 @@ export default function Settings() {
         existingItemsByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items])),
           ...(canImportAccoms    ? { accommodations: accoms }                                             : {}),
-          ...(canImportCountries ? { countries: allCountries, states: allStates }                         : {}),
+          ...(canImportCountries ? { continents: allContinents, countries: allCountries, states: allStates } : {}),
           ...(canImportDocTypes  ? { doc_types: allDocTypes.map(d => ({ id: d.id, name: d.label })) }    : {}),
           ...(canImportAirports  ? { airports: allAirports }                                              : {}),
           ...(canImportAirlines  ? { airlines: allAirlines }                                              : {}),
@@ -1693,7 +1750,7 @@ export default function Settings() {
   const cfgCount = {
     professions: professions.length, languages: languages.length, vaccines: vaccines.length,
     genders: genders.length, prof_cards: profCards.length, list_addits: listAddits.length,
-    itinerary_categories: itineraryCategories.length, continents: continents.length,
+    itinerary_categories: itineraryCategories.length,
     destinations: destinations.length,
     crew_roles: crewRoles.length, accommodations: accoms.length, list_categories: listCats.length,
     doc_types: cntDocTypes, perm_profiles: cntPermProfiles,
@@ -1820,7 +1877,7 @@ export default function Settings() {
           ...(can('settings_doc_types',      'view') ? [{ key: 'doc_types',      label: 'Documentos' }] : []),
           ...(can('settings_airports',       'view') ? [{ key: 'airports',       label: 'Aeroportos' }] : []),
           ...(can('settings_airlines',       'view') ? [{ key: 'airlines',       label: 'Companhias Aéreas' }] : []),
-          ...(can('settings_countries',      'view') ? [{ key: 'countries',      label: 'Países, Estados e Cidades' }] : []),
+          ...(can('settings_countries',      'view') ? [{ key: 'countries',      label: 'Continentes, Países, Estados e Cidades' }] : []),
           ...(can('settings_user_profiles',  'view') ? [{ key: 'perm_profiles',  label: 'Perfis de Permissão' }] : []),
           ...(can('settings_bus_maps',       'view') ? [{ key: 'bus_maps',       label: 'Mapas de Ônibus' }] : []),
           ...(can('settings_contract_clauses', 'view') ? [{ key: 'contract_clauses', label: 'Cláusulas de Contrato' }] : []),
@@ -1863,7 +1920,7 @@ export default function Settings() {
         return (
           <div style={{ position:'fixed', inset:0, zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
             <div onClick={() => setActiveList(null)} style={{ position:'absolute', inset:0, background:'rgba(15,23,42,.4)', animation:'fadeIn .2s ease' }}/>
-            <div style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth: isWide ? 860 : 560, maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .18s ease' }}>
+            <div style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth: activeDef.key === 'countries' ? 1080 : (isWide ? 860 : 560), maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .18s ease' }}>
               <div style={{ padding:'20px 24px', borderBottom:'1px solid #eef2f7', display:'flex', alignItems:'flex-start', gap:14, flexShrink:0 }}>
                 <div style={{ width:46, height:46, flexShrink:0, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', background:tileBg, color:tileFg }}>
                   <Ic n={meta.icon} s={22}/>
@@ -1884,7 +1941,6 @@ export default function Settings() {
                 {activeDef.key === 'vaccines'        && <ItemList items={vaccines}    loading={loadingV}  onAdd={can('settings_vaccines','edit') ? addVaccine : undefined}             onUpdate={can('settings_vaccines','edit') ? updateVaccine : undefined}             onDelete={can('settings_vaccines','delete') ? delVaccine : undefined}             canImport={can('settings_vaccines','bulk_import')}         canExport={can('settings_vaccines','view')}         placeholder="Nome da vacina…"     addTitle="Nova vacina"     editTitle="Editar vacina"     filename="vacinas.csv"          type="vaccines"         onImportWeb={can('settings_vaccines','import_web') ? () => configApi.importVaccines() : null} />}
                 {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          canExport={can('settings_genders','view')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
                 {activeDef.key === 'itinerary_categories' && <ItemList items={itineraryCategories} loading={loadingIC} onAdd={can('settings_itinerary_categories','edit') ? addItineraryCategory : undefined} onUpdate={can('settings_itinerary_categories','edit') ? updateItineraryCategory : undefined} onDelete={can('settings_itinerary_categories','delete') ? delItineraryCategory : undefined} canImport={can('settings_itinerary_categories','bulk_import')} canExport={can('settings_itinerary_categories','view')} placeholder="Nome da categoria…" addTitle="Nova categoria de roteiro" editTitle="Editar categoria de roteiro" filename="categorias_de_roteiro.csv" type="itinerary_categories" />}
-                {activeDef.key === 'continents'      && <ItemList items={continents}  loading={loadingCt} onAdd={can('settings_continents','edit') ? addContinent : undefined}         onUpdate={can('settings_continents','edit') ? updateContinent : undefined}         onDelete={can('settings_continents','delete') ? delContinent : undefined}         canImport={can('settings_continents','bulk_import')}      canExport={can('settings_continents','view')}      placeholder="Nome do continente…" addTitle="Novo continente" editTitle="Editar continente" filename="continentes.csv" type="continents" />}
                 {activeDef.key === 'destinations'    && <ItemList items={destinations} loading={loadingDe} onAdd={can('settings_destinations','edit') ? addDestination : undefined} onUpdate={can('settings_destinations','edit') ? updateDestination : undefined} onDelete={can('settings_destinations','delete') ? delDestination : undefined} canImport={can('settings_destinations','bulk_import')} canExport={can('settings_destinations','view')} placeholder="Nome do destino…" addTitle="Novo destino" editTitle="Editar destino" filename="destinos.csv" type="destinations" />}
                 {activeDef.key === 'payment_methods' && <ItemList items={paymentMethods} loading={loadingPM} onAdd={can('settings_payment_methods','edit') ? addPaymentMethod : undefined} onUpdate={can('settings_payment_methods','edit') ? updatePaymentMethod : undefined} onDelete={can('settings_payment_methods','delete') ? delPaymentMethod : undefined} canImport={can('settings_payment_methods','edit')} canExport={can('settings_payment_methods','view')} placeholder="Nome da forma de pagamento…" addTitle="Nova forma de pagamento" editTitle="Editar forma de pagamento" filename="formas_pagamento.csv" type="payment_methods" />}
                 {activeDef.key === 'exchange_rates'  && <ExchangeRateManager items={exchangeRates} canEdit={can('settings_exchange_rates','edit')} canDelete={can('settings_exchange_rates','delete')} canImport={can('settings_exchange_rates','edit')} canExport={can('settings_exchange_rates','view')} onAdd={addExchangeRate} onUpdate={updateExchangeRate} onDelete={delExchangeRate} />}

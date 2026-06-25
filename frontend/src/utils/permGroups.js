@@ -297,15 +297,6 @@ export const PERM_GROUPS = [
         ],
       },
       {
-        label: 'Continentes', icon: 'globe', hue: 200,
-        items: [
-          ['settings_continents_view',        'Ver continentes'],
-          ['settings_continents_edit',        'Criar / Editar continentes'],
-          ['settings_continents_delete',      'Excluir continentes'],
-          ['settings_continents_bulk_import', 'Importação em massa via CSV'],
-        ],
-      },
-      {
         label: 'Destinos', icon: 'mapicon', hue: 210,
         items: [
           ['settings_destinations_view',        'Ver destinos'],
@@ -477,10 +468,6 @@ export const PERM_DEPENDENCIES = {
   settings_itinerary_categories_edit:        'settings_itinerary_categories_view',
   settings_itinerary_categories_delete:      'settings_itinerary_categories_view',
   settings_itinerary_categories_bulk_import: 'settings_itinerary_categories_edit',
-  settings_continents_view:        'settings_view',
-  settings_continents_edit:        'settings_continents_view',
-  settings_continents_delete:      'settings_continents_view',
-  settings_continents_bulk_import: 'settings_continents_edit',
   settings_destinations_view:        'settings_view',
   settings_destinations_edit:        'settings_destinations_view',
   settings_destinations_delete:      'settings_destinations_view',
@@ -517,7 +504,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_view', 'settings_crew_roles_view', 'settings_list_categories_view',
     'settings_accommodations_view', 'settings_countries_view',
     'settings_airports_view', 'settings_airlines_view',
-    'settings_itinerary_categories_view', 'settings_continents_view', 'settings_destinations_view',
+    'settings_itinerary_categories_view', 'settings_destinations_view',
   ],
   // "Importar CSV global" só aparece quando pelo menos um _bulk_import de seção está ativo
   settings_csv_import: [
@@ -526,7 +513,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_bulk_import', 'settings_crew_roles_bulk_import', 'settings_list_categories_bulk_import',
     'settings_accommodations_bulk_import', 'settings_countries_bulk_import',
     'settings_airports_bulk_import', 'settings_airlines_bulk_import',
-    'settings_itinerary_categories_bulk_import', 'settings_continents_bulk_import', 'settings_destinations_bulk_import',
+    'settings_itinerary_categories_bulk_import', 'settings_destinations_bulk_import',
   ],
 
   settings_view_logs: 'settings_view',

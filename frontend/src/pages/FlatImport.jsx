@@ -16,6 +16,7 @@ import { setLocalJob, finishLocalJob } from '../utils/localJobs'
 const NAME_EDIT_KEYS = new Set([
   'professions', 'languages', 'vaccines', 'genders', 'prof_cards',
   'list_addits', 'crew_roles', 'list_categories', 'countries', 'states', 'cities',
+  'continents', 'itinerary_categories', 'destinations',
 ])
 const NAME_UPDATE_FN = {
   professions:     (id, name) => configApi.updateProfession(id, name),
@@ -29,6 +30,9 @@ const NAME_UPDATE_FN = {
   countries:       (id, name) => configApi.updateCountry(id, name),
   states:          (id, name) => configApi.updateState(id, name),
   cities:          (id, name) => configApi.updateCity(id, name),
+  continents:           (id, name) => configApi.updateContinent(id, name),
+  itinerary_categories: (id, name) => configApi.updateItineraryCategory(id, name),
+  destinations:         (id, name) => configApi.updateDestination(id, name),
 }
 const OBJECT_EDIT_KEYS = new Set(['accommodations', 'airports', 'airlines', 'bus_maps'])
 const MATCH_FIELD = { bus_maps: 'label' } // demais tipos casam pelo campo "name"
@@ -91,6 +95,12 @@ function parseCombinedCsv(text, labelToKey) {
     if (estadoIdx  >= 0 && cols[estadoIdx])  extras.parent_state   = cols[estadoIdx].trim()
     if (codigoIdx  >= 0 && cols[codigoIdx])  extras.code           = cols[codigoIdx].trim()
     const listKey = labelToKey[listLabel.toLowerCase()] || null
+    // Países não têm "país pai" — a coluna "pais" é reaproveitada pra
+    // carregar o nome do continente nesse caso específico.
+    if (listKey === 'countries' && extras.parent_country) {
+      extras.continent = extras.parent_country
+      delete extras.parent_country
+    }
     if (listKey === 'bus_maps' && extras.code) {
       try {
         const parsed = JSON.parse(extras.code)
@@ -137,6 +147,24 @@ function parseCombinedCsv(text, labelToKey) {
   }).filter(r => r.listLabel || r.name)
 }
 
+// Cache de continentes carregado uma vez por sessão de importação — evita
+// uma requisição por país ao resolver/criar o continente de cada linha.
+let _continentsCache = null
+async function resolveContinentId(name) {
+  if (!name) return null
+  if (!_continentsCache) {
+    const r = await configApi.continents()
+    _continentsCache = r.data
+  }
+  let match = _continentsCache.find(c => c.name.toLowerCase() === name.toLowerCase())
+  if (!match) {
+    const r = await configApi.addContinent(name)
+    match = r.data
+    _continentsCache.push(match)
+  }
+  return match.id
+}
+
 const API_MAP = {
   professions:     { add: (name)         => configApi.addProfession(name),    del: (id) => configApi.delProfession(id),    label: 'Profissões' },
   languages:       { add: (name)         => configApi.addLanguage(name),      del: (id) => configApi.delLanguage(id),      label: 'Idiomas' },
@@ -147,6 +175,9 @@ const API_MAP = {
   crew_roles:      { add: (name)         => listsApi.addCrewRole(name),       del: (id) => listsApi.removeCrewRole(id),    label: 'Equipe técnica' },
   list_categories: { add: (name)         => configApi.addListCategory(name),  del: (id) => configApi.delListCategory(id),  label: 'Categoria de Acomodações' },
   payment_methods: { add: (name)         => configApi.addPaymentMethod(name), del: (id) => configApi.delPaymentMethod(id), label: 'Formas de Pagamento' },
+  continents:      { add: (name)         => configApi.addContinent(name),    del: (id) => configApi.delContinent(id),     label: 'Continentes' },
+  itinerary_categories: { add: (name)    => configApi.addItineraryCategory(name), del: (id) => configApi.delItineraryCategory(id), label: 'Categorias de Roteiro' },
+  destinations:    { add: (name)         => configApi.addDestination(name),  del: (id) => configApi.delDestination(id),   label: 'Destinos' },
   accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), del: (id) => configApi.delAccommodation(id), label: 'Acomodações' },
   doc_types:       { add: (name, extras) => configApi.addDocType({
                        label: name, key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
@@ -154,7 +185,10 @@ const API_MAP = {
                      }), del: (id) => configApi.delDocType(id), label: 'Documentos' },
   airports:        { add: (name, extras) => configApi.addAirport({ name, iata_code: extras.code || '', city: extras.parent_state || '', country: extras.parent_country || '', is_favorite: extras.is_favorite || false }), del: (id) => configApi.delAirport(id), label: 'Aeroportos' },
   airlines:        { add: (name, extras) => configApi.addAirline({ name, iata_code: extras.code || '', country: extras.parent_country || '', is_favorite: extras.is_favorite || false }), del: (id) => configApi.delAirline(id), label: 'Companhias Aéreas' },
-  countries:       { add: (name, extras) => configApi.addCountry(name, extras.code || ''), del: (id) => configApi.delCountry(id), label: 'Países' },
+  countries:       { add: async (name, extras) => {
+    const continentId = await resolveContinentId(extras.continent)
+    return configApi.addCountry(name, extras.code || '', continentId)
+  }, del: (id) => configApi.delCountry(id), label: 'Países' },
   states:          { add: (name, extras, ctx) => {
     const c = (ctx?.allCountries || []).find(x => x.name.toLowerCase() === (extras.parent_country || '').toLowerCase())
     if (!c) return Promise.reject(new Error('País não encontrado'))
