@@ -280,8 +280,11 @@ export const configApi = {
   addContinent:  (name) => api.post('/config/continents/', { name }),
   updateContinent: (id, name) => api.patch(`/config/continents/${id}/`, { name }),
   delContinent:  (id)   => api.delete(`/config/continents/${id}/`),
-  // Busca global de cidades (sem precisar de state_id) — usado no TagPicker de Destinos
-  citiesSearch:  (q) => api.get('/config/cities/', { params: { q } }),
+  // Destinos (lista curada usada nos Roteiros — distinta da base global de cidades)
+  destinations:    () => api.get('/config/destinations/'),
+  addDestination:  (name) => api.post('/config/destinations/', { name }),
+  updateDestination: (id, name) => api.patch(`/config/destinations/${id}/`, { name }),
+  delDestination:  (id)   => api.delete(`/config/destinations/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

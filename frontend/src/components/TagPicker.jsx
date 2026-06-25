@@ -13,12 +13,15 @@ import { Ic } from './Icon'
  *   onRemove   — (id) => void
  *   onAdd      — (item) => void — chamado ao escolher um item na busca
  *   search     — (query) => Promise<[{ id, label }]> — busca assíncrona de opções
+ *   onCreate   — (name) => Promise<{ id, label }> — opcional; se passado, mostra
+ *                "+ Criar 'X'" quando a busca não encontra nada com esse nome
  *   placeholder
  */
-export default function TagPicker({ selected = [], onRemove, onAdd, search, placeholder = 'Buscar…' }) {
+export default function TagPicker({ selected = [], onRemove, onAdd, search, onCreate, placeholder = 'Buscar…' }) {
   const [open,    setOpen]    = useState(false)
   const [query,   setQuery]   = useState('')
   const [options, setOptions] = useState([])
+  const [creating, setCreating] = useState(false)
   const [dropStyle, setDropStyle] = useState({})
   const btnRef = useRef(null)
 
@@ -52,6 +55,21 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, plac
   const pick = (item) => { onAdd(item); setOpen(false) }
   const selectedIds = new Set(selected.map(s => s.id))
   const filteredOptions = options.filter(o => !selectedIds.has(o.id))
+
+  const trimmedQuery = query.trim()
+  const hasExactMatch = filteredOptions.some(o => o.label.toLowerCase() === trimmedQuery.toLowerCase())
+  const showCreate = !!onCreate && trimmedQuery.length > 0 && !hasExactMatch
+
+  const handleCreate = async () => {
+    if (creating) return
+    setCreating(true)
+    try {
+      const item = await onCreate(trimmedQuery)
+      pick(item)
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
@@ -90,11 +108,12 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, plac
               style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
           </div>
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-            {filteredOptions.length === 0 ? (
+            {filteredOptions.length === 0 && !showCreate && (
               <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12.5, padding: '12px 0', margin: 0 }}>
                 {query ? 'Nenhum resultado.' : 'Digite para buscar…'}
               </p>
-            ) : filteredOptions.map(opt => (
+            )}
+            {filteredOptions.map(opt => (
               <div key={opt.id} onMouseDown={e => { e.preventDefault(); pick(opt) }}
                 style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f8fafc' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
@@ -102,6 +121,14 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, plac
                 {opt.label}
               </div>
             ))}
+            {showCreate && (
+              <div onMouseDown={e => { e.preventDefault(); handleCreate() }}
+                style={{ padding: '8px 12px', cursor: creating ? 'default' : 'pointer', fontSize: 13, color: '#1a2d4f', fontWeight: 600, borderTop: filteredOptions.length ? '1px solid #f1f5f9' : 'none' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                {creating ? 'Criando…' : `+ Criar "${trimmedQuery}"`}
+              </div>
+            )}
           </div>
         </div>,
         document.body

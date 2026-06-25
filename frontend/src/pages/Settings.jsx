@@ -775,6 +775,7 @@ const LIST_DEFS = [
   { key:'genders',          label:'Gêneros',                  perm:'settings_genders',          areas:['passageiros'] },
   { key:'itinerary_categories', label:'Categorias de Roteiro', perm:'settings_itinerary_categories', areas:['roteiros'] },
   { key:'continents',       label:'Continentes',              perm:'settings_continents',       areas:['roteiros'] },
+  { key:'destinations',     label:'Destinos',                 perm:'settings_destinations',     areas:['roteiros'] },
   { key:'prof_cards',       label:'Carteiras',                perm:'settings_prof_cards',        areas:['passageiros'] },
   { key:'list_addits',      label:'Adicionais de Lista',      perm:'settings_list_additionals', areas:['listas'] },
   { key:'crew_roles',       label:'Equipe técnica',           perm:'settings_crew_roles',        areas:['listas'] },
@@ -1223,6 +1224,8 @@ export default function Settings() {
   const [genders,    setGenders]    = useState([])
   const [itineraryCategories, setItineraryCategories] = useState([])
   const [continents, setContinents] = useState([])
+  const [destinations, setDestinations] = useState([])
+  const [loadingDe, setLoadingDe] = useState(true)
   const [loadingIC, setLoadingIC] = useState(true)
   const [loadingCt, setLoadingCt] = useState(true)
   const [paymentMethods, setPaymentMethods] = useState([])
@@ -1259,6 +1262,7 @@ export default function Settings() {
     configApi.genders().then(r => setGenders(r.data)).catch(() => {}).finally(() => setLoadingG(false))
     configApi.itineraryCategories().then(r => setItineraryCategories(r.data)).catch(() => {}).finally(() => setLoadingIC(false))
     configApi.continents().then(r => setContinents(r.data)).catch(() => {}).finally(() => setLoadingCt(false))
+    configApi.destinations().then(r => setDestinations(r.data)).catch(() => {}).finally(() => setLoadingDe(false))
     configApi.paymentMethods().then(r => setPaymentMethods(r.data)).catch(() => {}).finally(() => setLoadingPM(false))
     configApi.exchangeRates().then(r => setExchangeRates(r.data)).catch(() => {}).finally(() => setLoadingER(false))
     configApi.listCategories().then(r => setListCats(r.data)).catch(() => {}).finally(() => setLoadingLC(false))
@@ -1283,6 +1287,7 @@ export default function Settings() {
     configApi.genders().then(r => setGenders(r.data)).catch(() => {})
     configApi.itineraryCategories().then(r => setItineraryCategories(r.data)).catch(() => {})
     configApi.continents().then(r => setContinents(r.data)).catch(() => {})
+    configApi.destinations().then(r => setDestinations(r.data)).catch(() => {})
     configApi.paymentMethods().then(r => setPaymentMethods(r.data)).catch(() => {})
     configApi.exchangeRates().then(r => setExchangeRates(r.data)).catch(() => {})
     configApi.listCategories().then(r => setListCats(r.data)).catch(() => {})
@@ -1392,6 +1397,22 @@ export default function Settings() {
   const delContinent = async (id) => {
     try { await configApi.delContinent(id); setContinents(c => c.filter(x => x.id !== id)) }
     catch { toast.error('Erro ao remover continente.') }
+  }
+  const addDestination = async (name) => {
+    try {
+      const r = await configApi.addDestination(name)
+      setDestinations(d => [...d, r.data].sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao adicionar destino.') }
+  }
+  const updateDestination = async (id, name) => {
+    try {
+      const r = await configApi.updateDestination(id, name)
+      setDestinations(d => d.map(x => x.id === id ? r.data : x).sort((a, b) => a.name.localeCompare(b.name, 'pt')))
+    } catch { toast.error('Erro ao salvar destino.') }
+  }
+  const delDestination = async (id) => {
+    try { await configApi.delDestination(id); setDestinations(d => d.filter(x => x.id !== id)) }
+    catch { toast.error('Erro ao remover destino.') }
   }
   const addPaymentMethod = async (name) => {
     try {
@@ -1511,6 +1532,7 @@ export default function Settings() {
     { key:'genders',         label:'Gêneros',                  perm:'settings_genders',           items: genders     },
     { key:'itinerary_categories', label:'Categorias de Roteiro', perm:'settings_itinerary_categories', items: itineraryCategories },
     { key:'continents',      label:'Continentes',              perm:'settings_continents',        items: continents },
+    { key:'destinations',    label:'Destinos',                 perm:'settings_destinations',      items: destinations },
     { key:'prof_cards',      label:'Carteiras',                perm:'settings_prof_cards',        items: profCards   },
     { key:'list_addits',     label:'Adicionais de Lista',      perm:'settings_list_additionals',  items: listAddits  },
     { key:'crew_roles',      label:'Equipe técnica',           perm:'settings_crew_roles',        items: crewRoles   },
@@ -1672,6 +1694,7 @@ export default function Settings() {
     professions: professions.length, languages: languages.length, vaccines: vaccines.length,
     genders: genders.length, prof_cards: profCards.length, list_addits: listAddits.length,
     itinerary_categories: itineraryCategories.length, continents: continents.length,
+    destinations: destinations.length,
     crew_roles: crewRoles.length, accommodations: accoms.length, list_categories: listCats.length,
     doc_types: cntDocTypes, perm_profiles: cntPermProfiles,
     countries: cntCountries, airports: cntAirports, airlines: cntAirlines, bus_maps: cntBusMaps,
@@ -1862,6 +1885,7 @@ export default function Settings() {
                 {activeDef.key === 'genders'         && <ItemList items={genders}     loading={loadingG}  onAdd={can('settings_genders','edit') ? addGender : undefined}               onUpdate={can('settings_genders','edit') ? updateGender : undefined}               onDelete={can('settings_genders','delete') ? delGender : undefined}               canImport={can('settings_genders','bulk_import')}          canExport={can('settings_genders','view')}          placeholder="Nome do gênero…"     addTitle="Novo gênero"     editTitle="Editar gênero"     filename="generos.csv"          type="genders" />}
                 {activeDef.key === 'itinerary_categories' && <ItemList items={itineraryCategories} loading={loadingIC} onAdd={can('settings_itinerary_categories','edit') ? addItineraryCategory : undefined} onUpdate={can('settings_itinerary_categories','edit') ? updateItineraryCategory : undefined} onDelete={can('settings_itinerary_categories','delete') ? delItineraryCategory : undefined} canImport={can('settings_itinerary_categories','bulk_import')} canExport={can('settings_itinerary_categories','view')} placeholder="Nome da categoria…" addTitle="Nova categoria de roteiro" editTitle="Editar categoria de roteiro" filename="categorias_de_roteiro.csv" type="itinerary_categories" />}
                 {activeDef.key === 'continents'      && <ItemList items={continents}  loading={loadingCt} onAdd={can('settings_continents','edit') ? addContinent : undefined}         onUpdate={can('settings_continents','edit') ? updateContinent : undefined}         onDelete={can('settings_continents','delete') ? delContinent : undefined}         canImport={can('settings_continents','bulk_import')}      canExport={can('settings_continents','view')}      placeholder="Nome do continente…" addTitle="Novo continente" editTitle="Editar continente" filename="continentes.csv" type="continents" />}
+                {activeDef.key === 'destinations'    && <ItemList items={destinations} loading={loadingDe} onAdd={can('settings_destinations','edit') ? addDestination : undefined} onUpdate={can('settings_destinations','edit') ? updateDestination : undefined} onDelete={can('settings_destinations','delete') ? delDestination : undefined} canImport={can('settings_destinations','bulk_import')} canExport={can('settings_destinations','view')} placeholder="Nome do destino…" addTitle="Novo destino" editTitle="Editar destino" filename="destinos.csv" type="destinations" />}
                 {activeDef.key === 'payment_methods' && <ItemList items={paymentMethods} loading={loadingPM} onAdd={can('settings_payment_methods','edit') ? addPaymentMethod : undefined} onUpdate={can('settings_payment_methods','edit') ? updatePaymentMethod : undefined} onDelete={can('settings_payment_methods','delete') ? delPaymentMethod : undefined} canImport={can('settings_payment_methods','edit')} canExport={can('settings_payment_methods','view')} placeholder="Nome da forma de pagamento…" addTitle="Nova forma de pagamento" editTitle="Editar forma de pagamento" filename="formas_pagamento.csv" type="payment_methods" />}
                 {activeDef.key === 'exchange_rates'  && <ExchangeRateManager items={exchangeRates} canEdit={can('settings_exchange_rates','edit')} canDelete={can('settings_exchange_rates','delete')} canImport={can('settings_exchange_rates','edit')} canExport={can('settings_exchange_rates','view')} onAdd={addExchangeRate} onUpdate={updateExchangeRate} onDelete={delExchangeRate} />}
                 {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       canExport={can('settings_prof_cards','view')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards"       onImportWeb={can('settings_prof_cards','import_web') ? () => configApi.importProfCards() : null} />}

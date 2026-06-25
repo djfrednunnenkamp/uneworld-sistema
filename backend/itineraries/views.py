@@ -9,7 +9,7 @@ from .serializers import ItinerarySerializer, ItineraryListSerializer
 
 
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
-    queryset         = Itinerary.objects.select_related('category', 'continent').prefetch_related('countries', 'cities')
+    queryset         = Itinerary.objects.select_related('category', 'continent').prefetch_related('countries', 'destinations')
     pagination_class = StandardResultsPagination
     filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
     search_fields    = ['name', 'slug']

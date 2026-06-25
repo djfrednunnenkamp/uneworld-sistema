@@ -62,6 +62,7 @@ export default function ItineraryDetail() {
   const [data,    setData]    = useState(null)
   const [categories, setCategories] = useState([])
   const [continents, setContinents] = useState([])
+  const [destinationOpts, setDestinationOpts] = useState([])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -75,6 +76,7 @@ export default function ItineraryDetail() {
   useEffect(() => {
     configApi.itineraryCategories().then(r => setCategories(r.data)).catch(() => {})
     configApi.continents().then(r => setContinents(r.data)).catch(() => {})
+    configApi.destinations().then(r => setDestinationOpts(r.data)).catch(() => {})
   }, [])
 
   const set = (k) => (e) => setData(d => ({ ...d, [k]: e.target.value }))
@@ -85,7 +87,7 @@ export default function ItineraryDetail() {
       const payload = {
         name: data.name, slug: data.slug, start_date: data.start_date || null, end_date: data.end_date || null,
         trip_type: data.trip_type, category: data.category, continent: data.continent,
-        countries: data.countries_data.map(c => c.id), cities: data.cities_data.map(c => c.id),
+        countries: data.countries_data.map(c => c.id), destinations: data.destinations_data.map(d => d.id),
       }
       const r = await itinerariesApi.update(id, payload)
       setData(r.data)
@@ -166,16 +168,23 @@ export default function ItineraryDetail() {
 
           <FormRow label="Destinos e Cidades">
             <TagPicker
-              selected={data.cities_data.map(c => ({ id: c.id, label: c.state_name ? `${c.name} (${c.state_name})` : c.name }))}
-              onRemove={(cid) => setData(d => ({ ...d, cities_data: d.cities_data.filter(c => c.id !== cid) }))}
-              onAdd={(item) => setData(d => ({ ...d, cities_data: [...d.cities_data, { id: item.id, name: item.label }] }))}
+              selected={data.destinations_data.map(d => ({ id: d.id, label: d.name }))}
+              onRemove={(did) => setData(d => ({ ...d, destinations_data: d.destinations_data.filter(x => x.id !== did) }))}
+              onAdd={(item) => setData(d => ({ ...d, destinations_data: [...d.destinations_data, { id: item.id, name: item.label }] }))}
               search={async (q) => {
-                if (!q || q.length < 2) return []
-                const r = await configApi.citiesSearch(q)
-                return r.data.map(c => ({ id: c.id, label: c.state_name ? `${c.name} (${c.state_name})` : c.name }))
+                const list = q ? destinationOpts.filter(d => d.name.toLowerCase().includes(q.toLowerCase())) : destinationOpts
+                return list.map(d => ({ id: d.id, label: d.name }))
               }}
-              placeholder="Buscar cidade…"
+              onCreate={async (name) => {
+                const r = await configApi.addDestination(name)
+                setDestinationOpts(prev => [...prev, r.data])
+                return { id: r.data.id, label: r.data.name }
+              }}
+              placeholder="Buscar destino…"
             />
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 0' }}>
+              Os destinos disponíveis são gerenciados em Configurações → Destinos.
+            </p>
           </FormRow>
 
           <FormRow label="Países">

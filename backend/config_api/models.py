@@ -407,3 +407,17 @@ class ConfigContinent(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConfigDestination(models.Model):
+    """Destino turístico (ex: Palermo, Valeta) — lista curada usada nos
+    Roteiros, distinta da base global de Cidades (que tem milhares de
+    registros importados e não serve como opção de destino editorial)."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Destino'
+
+    def __str__(self):
+        return self.name

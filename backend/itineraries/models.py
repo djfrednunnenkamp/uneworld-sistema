@@ -21,8 +21,8 @@ class Itinerary(models.Model):
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Categoria')
     continent   = models.ForeignKey('config_api.ConfigContinent', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Continente')
-    countries   = models.ManyToManyField('config_api.ConfigCountry', blank=True, related_name='itineraries', verbose_name='Países')
-    cities      = models.ManyToManyField('config_api.ConfigCity', blank=True, related_name='itineraries', verbose_name='Destinos e Cidades')
+    countries     = models.ManyToManyField('config_api.ConfigCountry', blank=True, related_name='itineraries', verbose_name='Países')
+    destinations  = models.ManyToManyField('config_api.ConfigDestination', blank=True, related_name='itineraries', verbose_name='Destinos e Cidades')
 
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)

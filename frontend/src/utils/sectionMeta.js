@@ -25,6 +25,7 @@ export const CARD_META = {
   exchange_rates:  { icon: 'globe',     hue: 160, desc: 'Câmbio usado para preencher automaticamente os contratos.' },
   itinerary_categories: { icon: 'mapicon', hue: 190, desc: 'Categorias para classificar os roteiros (ex: Grupos Internacionais).' },
   continents:      { icon: 'globe',     hue: 200, desc: 'Continentes vinculados aos roteiros.' },
+  destinations:    { icon: 'mapicon',   hue: 210, desc: 'Destinos disponíveis para vincular aos roteiros.' },
 }
 
 export const sectionTileColors = (hue) => ({

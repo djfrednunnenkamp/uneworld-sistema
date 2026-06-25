@@ -25,6 +25,7 @@ router.register('permission-profiles', views.PermissionProfileViewSet,   basenam
 router.register('contract-clauses',    views.ContractClauseViewSet,      basename='contract-clause')
 router.register('itinerary-categories', views.ItineraryCategoryViewSet,  basename='itinerary-category')
 router.register('continents',           views.ContinentViewSet,          basename='continent')
+router.register('destinations',         views.DestinationViewSet,        basename='destination')
 
 urlpatterns = [
     path('', include(router.urls)),
