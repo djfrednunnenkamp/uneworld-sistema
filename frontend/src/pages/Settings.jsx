@@ -755,28 +755,39 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false, can
 
 /* ── Página principal ── */
 /* Listas configuráveis */
+/* Áreas usadas no filtro da grade de Configurações — cada lista pode ser
+ * relevante para mais de uma área (ex: Aeroportos serve Listas e Contratos). */
+const AREA_DEFS = [
+  { key:'passageiros', label:'Passageiros',            icon:'users' },
+  { key:'agencias',    label:'Agências',               icon:'building' },
+  { key:'contratos',   label:'Contratos',               icon:'docs' },
+  { key:'roteiros',    label:'Roteiros',               icon:'mapicon' },
+  { key:'listas',      label:'Listas de Passageiros',  icon:'plane' },
+  { key:'sistema',     label:'Sistema',                icon:'settings' },
+]
+
 const LIST_DEFS = [
-  { key:'doc_types',        label:'Documentos',               perm:'settings_doc_types' },
-  { key:'perm_profiles',    label:'Perfis de permissão',      perm:'settings_user_profiles' },
-  { key:'professions',      label:'Profissões',               perm:'settings_professions' },
-  { key:'languages',        label:'Idiomas',                  perm:'settings_languages' },
-  { key:'vaccines',         label:'Vacinas',                  perm:'settings_vaccines' },
-  { key:'genders',          label:'Gêneros',                  perm:'settings_genders' },
-  { key:'itinerary_categories', label:'Categorias de Roteiro', perm:'settings_itinerary_categories' },
-  { key:'continents',       label:'Continentes',              perm:'settings_continents' },
-  { key:'prof_cards',       label:'Carteiras',                perm:'settings_prof_cards' },
-  { key:'list_addits',      label:'Adicionais de Lista',      perm:'settings_list_additionals' },
-  { key:'crew_roles',       label:'Equipe técnica',           perm:'settings_crew_roles' },
-  { key:'accommodations',   label:'Tipos de Acomodação',      perm:'settings_accommodations' },
-  { key:'list_categories',  label:'Categoria de Acomodações', perm:'settings_list_categories' },
-  { key:'countries',        label:'Países & Estados',         perm:'settings_countries' },
-  { key:'airports',         label:'Aeroportos',               perm:'settings_airports' },
-  { key:'airlines',         label:'Companhias Aéreas',        perm:'settings_airlines' },
-  { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps' },
-  { key:'contract_clauses', label:'Cláusulas de Contrato',    perm:'settings_contract_clauses' },
-  { key:'terms',            label:'Termos e Condições',       perm:'settings_terms' },
-  { key:'payment_methods',  label:'Formas de Pagamento',      perm:'settings_payment_methods' },
-  { key:'exchange_rates',   label:'Câmbio',                   perm:'settings_exchange_rates' },
+  { key:'doc_types',        label:'Documentos',               perm:'settings_doc_types',       areas:['passageiros'] },
+  { key:'perm_profiles',    label:'Perfis de permissão',      perm:'settings_user_profiles',    areas:['sistema'] },
+  { key:'professions',      label:'Profissões',               perm:'settings_professions',      areas:['passageiros'] },
+  { key:'languages',        label:'Idiomas',                  perm:'settings_languages',        areas:['passageiros'] },
+  { key:'vaccines',         label:'Vacinas',                  perm:'settings_vaccines',         areas:['passageiros'] },
+  { key:'genders',          label:'Gêneros',                  perm:'settings_genders',          areas:['passageiros'] },
+  { key:'itinerary_categories', label:'Categorias de Roteiro', perm:'settings_itinerary_categories', areas:['roteiros'] },
+  { key:'continents',       label:'Continentes',              perm:'settings_continents',       areas:['roteiros'] },
+  { key:'prof_cards',       label:'Carteiras',                perm:'settings_prof_cards',        areas:['passageiros'] },
+  { key:'list_addits',      label:'Adicionais de Lista',      perm:'settings_list_additionals', areas:['listas'] },
+  { key:'crew_roles',       label:'Equipe técnica',           perm:'settings_crew_roles',        areas:['listas'] },
+  { key:'accommodations',   label:'Tipos de Acomodação',      perm:'settings_accommodations',   areas:['listas','contratos'] },
+  { key:'list_categories',  label:'Categoria de Acomodações', perm:'settings_list_categories',  areas:['listas'] },
+  { key:'countries',        label:'Países & Estados',         perm:'settings_countries',         areas:['passageiros','roteiros','agencias'] },
+  { key:'airports',         label:'Aeroportos',               perm:'settings_airports',          areas:['listas','contratos'] },
+  { key:'airlines',         label:'Companhias Aéreas',        perm:'settings_airlines',          areas:['listas'] },
+  { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps',          areas:['listas'] },
+  { key:'contract_clauses', label:'Cláusulas de Contrato',    perm:'settings_contract_clauses', areas:['contratos'] },
+  { key:'terms',            label:'Termos e Condições',       perm:'settings_terms',             areas:['sistema'] },
+  { key:'payment_methods',  label:'Formas de Pagamento',      perm:'settings_payment_methods',  areas:['contratos'] },
+  { key:'exchange_rates',   label:'Câmbio',                   perm:'settings_exchange_rates',   areas:['contratos'] },
 ]
 const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses', 'terms']
 
@@ -1140,6 +1151,12 @@ export default function Settings() {
   const [showImportWebModal, setShowImportWebModal] = useState(false)
   const [exportCountriesList, setExportCountriesList] = useState([])
   const [listSearch, setListSearch] = useState('')
+  const [areaFilters, setAreaFilters] = useState(() => new Set())
+  const toggleArea = (key) => setAreaFilters(prev => {
+    const next = new Set(prev)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    return next
+  })
   const [activeList, setActiveList] = useState(null)
   const [professions, setProfessions] = useState([])
   const [languages,   setLanguages]   = useState([])
@@ -1582,6 +1599,7 @@ export default function Settings() {
 
   const filteredListDefs = LIST_DEFS
     .filter(d => can(d.perm, 'view'))
+    .filter(d => areaFilters.size === 0 || (d.areas || []).some(a => areaFilters.has(a)))
     .filter(d => {
       const q = listSearch.trim().toLowerCase()
       if (!q) return true
@@ -1668,6 +1686,36 @@ export default function Settings() {
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}
             >
               <Ic n="list" s={13} /> Log
+            </button>
+          )}
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:22, flexWrap:'wrap' }}>
+          <span style={{ fontSize:12.5, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.04em', marginRight:2 }}>
+            Filtrar por área:
+          </span>
+          {AREA_DEFS.map(a => {
+            const active = areaFilters.has(a.key)
+            return (
+              <button key={a.key} type="button" onClick={() => toggleArea(a.key)}
+                style={{
+                  display:'flex', alignItems:'center', gap:6, padding:'6px 13px', borderRadius:20,
+                  border: `1.5px solid ${active ? '#1a2d4f' : '#e2e8f0'}`,
+                  background: active ? '#1a2d4f' : '#fff',
+                  color: active ? '#fff' : '#475569',
+                  fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .12s',
+                }}
+                onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' } }}
+                onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' } }}
+              >
+                <Ic n={a.icon} s={12.5}/> {a.label}
+              </button>
+            )
+          })}
+          {areaFilters.size > 0 && (
+            <button type="button" onClick={() => setAreaFilters(new Set())}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 11px', borderRadius:20, border:'none', background:'none', color:'#dc2626', fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              <Ic n="x" s={11}/> Limpar
             </button>
           )}
         </div>
