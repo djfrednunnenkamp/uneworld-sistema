@@ -352,12 +352,13 @@ export default function Dashboard() {
                   <th>Término</th>
                   <th>Passageiros</th>
                   <th>Status</th>
+                  <th>Última atualização</th>
                 </tr>
               </thead>
               <tbody>
                 {recent_lists.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div className="empty-state"><p>Nenhuma lista de passageiros criada</p></div>
                     </td>
                   </tr>
@@ -385,6 +386,7 @@ export default function Dashboard() {
                         </span>
                       )}
                     </td>
+                    <td style={{ color: '#64748b', fontSize: 12.5 }}>{fmtDateTime(l.updated_at, timeFormat) || '—'}</td>
                   </tr>
                   )
                 })}

@@ -41,6 +41,7 @@ def dashboard_stats(request):
                 'enrolled_count': l.enrolled_count,
                 'block_capacity': l.block_capacity,
                 'is_ongoing': _ongoing(l),
+                'updated_at': l.updated_at,
             }
             for l in recent
         ],
