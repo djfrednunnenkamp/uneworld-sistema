@@ -59,6 +59,20 @@ class Itinerary(models.Model):
     base_currency             = models.CharField('Moeda base', max_length=3, choices=CURRENCY_CHOICES, default='EUR')
     additional_spread_percent = models.DecimalField('Spread adicional em %', max_digits=5, decimal_places=2, default=0)
 
+    # ── Conteúdo descritivo (textos longos, com editor rico) ──
+    about_destination    = models.TextField('Sobre o destino', blank=True)
+    day_by_day            = models.TextField('Dia a dia', blank=True)
+    package_includes      = models.TextField('O que inclui no pacote', blank=True)
+    package_excludes      = models.TextField('O que não inclui no pacote', blank=True)
+    insurance_info        = models.TextField('Adicional de seguro viagem', blank=True)
+    pricing_info          = models.TextField('Informações sobre valores', blank=True)
+    payment_info          = models.TextField('Forma de pagamento', blank=True)
+    terms_info            = models.TextField('Condições gerais para compra do pacote', blank=True)
+    hotels_reserved        = models.TextField('Hotéis reservados', blank=True)
+    transport_info        = models.TextField('Parte aérea / rodoviária', blank=True)
+    documentation_info    = models.TextField('Documentação necessária para a viagem', blank=True)
+    extras                = models.TextField('Extras', blank=True)
+
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)
 

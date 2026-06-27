@@ -61,7 +61,7 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
             return Response({'error': 'CPF não informado.'}, status=400)
         digits = re.sub(r'\D', '', cpf)
         passenger = Passenger.objects.filter(
-            Q(cpf=cpf) | Q(cpf=digits)
+            Q(cpf=cpf) | Q(cpf=digits), is_deleted=False
         ).exclude(cpf='').first()
         if passenger:
             name = (passenger.full_name or

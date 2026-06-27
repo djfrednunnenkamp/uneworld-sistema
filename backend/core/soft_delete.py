@@ -2,6 +2,7 @@
 removido do banco. "Excluir" só marca is_deleted/deleted_at — o item vai
 pra aba "Excluídos" da área, de onde só um superusuário pode restaurar ou
 remover de vez (purge)."""
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -26,7 +27,8 @@ class SoftDeleteViewSetMixin:
         if not request.user.is_superuser:
             return Response({'error': 'Apenas superusuário pode restaurar.'}, status=403)
         model = self.queryset.model
-        instance = model.objects.get(pk=pk)
+        # Só faz sentido restaurar algo que está na lixeira.
+        instance = get_object_or_404(model, pk=pk, is_deleted=True)
         instance.is_deleted = False
         instance.deleted_at = None
         instance.save(update_fields=['is_deleted', 'deleted_at'])
@@ -37,6 +39,7 @@ class SoftDeleteViewSetMixin:
         if not request.user.is_superuser:
             return Response({'error': 'Apenas superusuário pode excluir definitivamente.'}, status=403)
         model = self.queryset.model
-        instance = model.objects.get(pk=pk)
+        # Purge é o passo final da lixeira: exige que o item já esteja excluído.
+        instance = get_object_or_404(model, pk=pk, is_deleted=True)
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

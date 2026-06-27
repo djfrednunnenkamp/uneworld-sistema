@@ -295,6 +295,11 @@ export const configApi = {
   addService:  (name) => api.post('/config/services/', { name }),
   updateService: (id, name) => api.patch(`/config/services/${id}/`, { name }),
   delService:  (id)   => api.delete(`/config/services/${id}/`),
+  // Modelos de texto do Roteiro (seguro, forma de pagamento, condições gerais, documentação)
+  itineraryTemplates:    (kind) => api.get('/config/itinerary-templates/', { params: kind ? { kind } : {} }),
+  addItineraryTemplate:  (data) => api.post('/config/itinerary-templates/', data),
+  updateItineraryTemplate: (id, data) => api.patch(`/config/itinerary-templates/${id}/`, data),
+  delItineraryTemplate:  (id)   => api.delete(`/config/itinerary-templates/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

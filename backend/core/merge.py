@@ -76,6 +76,17 @@ class MergeViewSetMixin:
                 setattr(winner, field_name, value)
             winner.save()
 
+            # Garante que cada valor escolhido campo a campo permaneça EXATAMENTE como
+            # selecionado, mesmo quando Model.save() deriva algum deles. Ex.: Passenger.save
+            # recalcula full_name a partir de first_name/last_name; se o usuário escolheu o
+            # full_name de um perdedor mas manteve o nome do vencedor, o save sobrescreveria
+            # a escolha. update() grava direto, sem passar pela derivação do save().
+            overrides = {f: v for f, v in field_values.items() if getattr(winner, f) != v}
+            if overrides:
+                model.objects.filter(pk=winner.pk).update(**overrides)
+                for f, v in overrides.items():
+                    setattr(winner, f, v)
+
             for rel_model, fk_field, dedupe_fields in self.MERGE_RELATED:
                 qs = rel_model.objects.filter(**{f'{fk_field}__in': losers})
                 if dedupe_fields:

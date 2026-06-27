@@ -26,4 +26,11 @@ class AuditMiddleware:
         xff = request.META.get('HTTP_X_FORWARDED_FOR')
         _local.ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
 
-        return self.get_response(request)
+        try:
+            return self.get_response(request)
+        finally:
+            # Threads de worker são reaproveitadas entre requisições. Se não limparmos,
+            # uma requisição posterior que não passe por aqui (ou sinais disparados depois)
+            # herdam o usuário/IP da requisição anterior — atribuindo ações ao usuário errado.
+            _local.user = None
+            _local.ip = None

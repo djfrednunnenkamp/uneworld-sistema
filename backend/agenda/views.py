@@ -237,7 +237,9 @@ def resend_webhook_view(request):
         log.status = 'delivered'
         log.delivered_at = timezone.now()
         log.save(update_fields=['status', 'delivered_at'])
-    elif event_type in ('email.bounced', 'email.delivery_delayed'):
+    elif event_type == 'email.bounced':
+        # Atraso (email.delivery_delayed) NÃO é bounce — o Resend ainda tenta reentregar.
+        # Marcar como "Não entregue" rotularia errado e-mails que podem chegar normalmente.
         log.status = 'bounced'
         log.save(update_fields=['status'])
     elif event_type == 'email.complained':

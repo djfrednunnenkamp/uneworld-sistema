@@ -28,6 +28,7 @@ router.register('continents',           views.ContinentViewSet,          basenam
 router.register('destinations',         views.DestinationViewSet,        basename='destination')
 router.register('holidays',             views.HolidayViewSet,             basename='holiday')
 router.register('services',             views.ServiceViewSet,             basename='service')
+router.register('itinerary-templates',  views.ItineraryTemplateViewSet,    basename='itinerary-template')
 
 urlpatterns = [
     path('', include(router.urls)),

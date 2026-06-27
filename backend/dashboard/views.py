@@ -6,33 +6,44 @@ from datetime import date
 from passengers.models import Passenger
 from trips.models import PassengerList, ListEnrollment
 from config_api.models import ConfigExchangeRate
+from users_api.permissions import has_any_perm
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_stats(request):
     today = date.today()
-
-    # Exclui viagens já encerradas (end_date preenchida e no passado)
-    qs = PassengerList.objects.filter(
-        models.Q(end_date__isnull=True) | models.Q(end_date__gte=today), is_deleted=False,
-    ).order_by('-created_at')[:20]
+    user  = request.user
 
     def _ongoing(l):
         return bool(l.start_date and l.end_date and l.start_date <= today <= l.end_date)
 
-    # Em andamento aparecem primeiro, depois as demais
-    recent = sorted(qs, key=lambda l: (0 if _ongoing(l) else 1))[:10]
+    # Cada bloco respeita a permissão específica do próprio card no frontend.
+    # Sem isso, qualquer autenticado conseguia ler as estatísticas chamando a API direto.
+    stats = {}
+    if has_any_perm(user, 'dashboard_view_passengers'):
+        stats['total_passengers'] = Passenger.objects.filter(status='active', is_deleted=False).count()
+    if has_any_perm(user, 'dashboard_view_lists'):
+        stats['open_lists'] = PassengerList.objects.filter(status='aberta', is_deleted=False).count()
+    if has_any_perm(user, 'dashboard_view_enrollments'):
+        # Conta só inscrições de listas/passageiros vivos (soft-delete não deve inflar o total).
+        stats['total_enrollments'] = (
+            ListEnrollment.objects
+            .exclude(enrollment_status='cancelado')
+            .filter(passenger_list__is_deleted=False)
+            .exclude(passenger__is_deleted=True)
+            .count()
+        )
 
-    usd_brl = ConfigExchangeRate.objects.filter(from_currency='USD', to_currency='BRL').first()
-
-    return Response({
-        'stats': {
-            'total_passengers': Passenger.objects.filter(status='active', is_deleted=False).count(),
-            'open_lists': PassengerList.objects.filter(status='aberta', is_deleted=False).count(),
-            'total_enrollments': ListEnrollment.objects.exclude(enrollment_status='cancelado').count(),
-        },
-        'recent_lists': [
+    recent_lists = []
+    if has_any_perm(user, 'dashboard_view_lists'):
+        # Exclui viagens já encerradas (end_date preenchida e no passado)
+        qs = PassengerList.objects.filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=today), is_deleted=False,
+        ).order_by('-created_at')[:20]
+        # Em andamento aparecem primeiro, depois as demais
+        recent = sorted(qs, key=lambda l: (0 if _ongoing(l) else 1))[:10]
+        recent_lists = [
             {
                 'id': l.id,
                 'name': l.name,
@@ -47,9 +58,18 @@ def dashboard_stats(request):
                 'updated_at': l.updated_at,
             }
             for l in recent
-        ],
-        'exchange_rate': {
+        ]
+
+    exchange_rate = None
+    if has_any_perm(user, 'settings_exchange_rates_view'):
+        usd_brl = ConfigExchangeRate.objects.filter(from_currency='USD', to_currency='BRL').first()
+        exchange_rate = {
             'rate': usd_brl.rate if usd_brl else None,
             'updated_at': usd_brl.updated_at if usd_brl else None,
-        },
+        }
+
+    return Response({
+        'stats': stats,
+        'recent_lists': recent_lists,
+        'exchange_rate': exchange_rate,
     })

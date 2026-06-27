@@ -68,7 +68,8 @@ const ordinal = n => `${n}º`
 
 /* ── Chip de info ── */
 function Chip({ label, value }) {
-  if (!value) return null
+  // Aceita 0: contadores de importação ("Adicionados 0") precisam aparecer.
+  if (value === null || value === undefined || value === '') return null
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
       <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em' }}>{label}</span>
@@ -1927,13 +1928,12 @@ function AccomPicker({ onSelect, existingRooms = [], enrolledList = [] }) {
       <input ref={inputRef}
         value={query}
         onChange={e => { setQuery(e.target.value); setCursor(-1); if (!open) openDrop() }}
-        onFocus={openDrop}
-        onBlur={() => setTimeout(() => { setOpen(false); setQuery('') }, 160)}
+        onFocus={e => { e.target.style.borderColor = '#1a2d4f'; openDrop() }}
+        onBlur={e => { e.target.style.borderColor = '#e2e8f0'; setTimeout(() => { setOpen(false); setQuery('') }, 160) }}
         onKeyDown={handleKey}
         autoComplete="new-password"
         placeholder="Buscar acomodação…"
         style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
-        onFocus2={e => e.target.style.borderColor='#1a2d4f'}
       />
       {open && opts.length > 0 && (
         <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:300, overflowY:'auto' }}>
@@ -6008,7 +6008,7 @@ function PendenciesPanel({ listId, listName, listStartDate, onClose }) {
         <ConfirmModal
           title="Remover pendência"
           message="Tem certeza que deseja remover esta pendência?"
-          onConfirm={handleDelete}
+          onOk={handleDelete}
           onCancel={() => setDeleteId(null)}
         />
       )}

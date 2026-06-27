@@ -16,15 +16,15 @@ export function fmtGender(g) {
 
 export function fmtNat(n) {
   if (!n) return ''
-  const map = { BRASILEIRA: 'BRA', BRASILEIR: 'BRA', BRASILEIRO: 'BRA', BRA: 'BRA' }
+  const map = { BRASILEIRA: 'BRA', BRASILEIRO: 'BRA', BRA: 'BRA' }
   const up = n.toUpperCase().replace(/[^A-Z]/g, '')
   return map[up] || up.slice(0, 3)
 }
 
 export function fmtDiet(e) {
-  const tipo = e.passenger_diet_type || ''
+  const tipo = e?.passenger_diet_type || ''
   if (!tipo) return ''
-  const obs = e.notes || ''
+  const obs = e?.notes || ''
   return obs ? `${tipo} - ${obs}` : tipo
 }
 
@@ -59,9 +59,11 @@ export function accomTypeLabel(types, roomName) {
 export function hasBirthdayInTrip(birthDate, startDate, endDate) {
   if (!birthDate || !startDate || !endDate) return false
   try {
-    const b  = new Date(birthDate)
-    const s  = new Date(startDate)
-    const en = new Date(endDate)
+    // 'YYYY-MM-DD' sem hora é interpretado como UTC; em UTC-3 (Brasil) getDate()/getMonth()
+    // leem o dia anterior. Forçar 'T00:00:00' faz o parse no fuso local e evita o off-by-one.
+    const b  = new Date(birthDate + 'T00:00:00')
+    const s  = new Date(startDate + 'T00:00:00')
+    const en = new Date(endDate + 'T00:00:00')
     const bm = b.getMonth(); const bd = b.getDate()
     let cur = new Date(s)
     while (cur <= en) {

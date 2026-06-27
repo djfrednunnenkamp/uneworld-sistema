@@ -82,6 +82,20 @@ function Stepper({ value, onChange, disabled }) {
   )
 }
 
+/* ── Seletor transiente "Usar modelo" — escolher um modelo preenche o texto
+ * abaixo, mas o usuário sempre pode ignorar e escrever manualmente. ── */
+function TemplatePicker({ options, onUse }) {
+  return (
+    <div style={{ maxWidth: 320, marginBottom: 8 }}>
+      <Dropdown value={null} options={options} placeholder="— Usar um modelo —"
+        onChange={v => {
+          const opt = options.find(o => o.value === v)
+          if (opt) onUse(opt.content)
+        }} />
+    </div>
+  )
+}
+
 /* ── Toggle Sim/Não — mesmo padrão usado em Agências/Usuários/Passageiros ── */
 function Toggle({ checked, onChange, disabled }) {
   return (
@@ -153,6 +167,7 @@ export default function ItineraryDetail() {
   const [holidayOpts, setHolidayOpts] = useState([])
   const [supplierOpts, setSupplierOpts] = useState([])
   const [serviceOpts, setServiceOpts] = useState([])
+  const [templatesByKind, setTemplatesByKind] = useState({})
 
   const load = useCallback(() => {
     setLoading(true)
@@ -170,6 +185,9 @@ export default function ItineraryDetail() {
     configApi.holidays().then(r => setHolidayOpts(r.data)).catch(() => {})
     listsApi.suppliers().then(r => setSupplierOpts(r.data.results ?? r.data)).catch(() => {})
     configApi.services().then(r => setServiceOpts(r.data)).catch(() => {})
+    ;['seguro', 'pagamento', 'condicoes', 'documentacao'].forEach(k => {
+      configApi.itineraryTemplates(k).then(r => setTemplatesByKind(prev => ({ ...prev, [k]: r.data }))).catch(() => {})
+    })
   }, [])
 
   const set = (k) => (e) => setData(d => ({ ...d, [k]: e.target.value }))
@@ -191,6 +209,12 @@ export default function ItineraryDetail() {
         service_lines: (data.service_lines || []).map(l => ({
           supplier: l.supplier, services: (l.services_data || []).map(s => s.id), percentage: l.percentage || 0,
         })),
+        about_destination: data.about_destination, day_by_day: data.day_by_day,
+        package_includes: data.package_includes, package_excludes: data.package_excludes,
+        insurance_info: data.insurance_info, pricing_info: data.pricing_info,
+        payment_info: data.payment_info, terms_info: data.terms_info,
+        hotels_reserved: data.hotels_reserved, transport_info: data.transport_info,
+        documentation_info: data.documentation_info, extras: data.extras,
       }
       const r = await itinerariesApi.update(id, payload)
       setData(r.data)
@@ -336,7 +360,7 @@ export default function ItineraryDetail() {
           </FormRow>
 
           <FormRow label="Título interno completo">
-            <RichTextEditor title="Título interno completo" value={data.internal_title}
+            <RichTextEditor title="Título interno completo" value={data.internal_title} disabled={!canEdit}
               onChange={v => setData(d => ({ ...d, internal_title: v }))} />
           </FormRow>
 
@@ -486,6 +510,78 @@ export default function ItineraryDetail() {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {tab === 'info' && (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '4px 24px', boxShadow: '0 1px 4px rgba(0,0,0,.04)', marginTop: 20 }}>
+          <FormRow label="Sobre o destino">
+            <RichTextEditor title="Sobre o destino" value={data.about_destination} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, about_destination: v }))} />
+          </FormRow>
+
+          <FormRow label="Dia a dia">
+            <RichTextEditor title="Dia a dia" value={data.day_by_day} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, day_by_day: v }))} />
+          </FormRow>
+
+          <FormRow label="O que inclui no pacote">
+            <RichTextEditor title="O que inclui no pacote" value={data.package_includes} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, package_includes: v }))} />
+          </FormRow>
+
+          <FormRow label="O que não inclui no pacote">
+            <RichTextEditor title="O que não inclui no pacote" value={data.package_excludes} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, package_excludes: v }))} />
+          </FormRow>
+
+          <FormRow label="Adicional de seguro viagem">
+            <TemplatePicker options={(templatesByKind.seguro || []).map(t => ({ value: t.id, label: t.name, content: t.content }))}
+              onUse={content => setData(d => ({ ...d, insurance_info: content }))} />
+            <RichTextEditor title="Adicional de seguro viagem" value={data.insurance_info} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, insurance_info: v }))} />
+          </FormRow>
+
+          <FormRow label="Informações sobre valores">
+            <RichTextEditor title="Informações sobre valores" value={data.pricing_info} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, pricing_info: v }))} />
+          </FormRow>
+
+          <FormRow label="Forma de pagamento">
+            <TemplatePicker options={(templatesByKind.pagamento || []).map(t => ({ value: t.id, label: t.name, content: t.content }))}
+              onUse={content => setData(d => ({ ...d, payment_info: content }))} />
+            <RichTextEditor title="Forma de pagamento" value={data.payment_info} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, payment_info: v }))} />
+          </FormRow>
+
+          <FormRow label="Condições gerais para compra do pacote">
+            <TemplatePicker options={(templatesByKind.condicoes || []).map(t => ({ value: t.id, label: t.name, content: t.content }))}
+              onUse={content => setData(d => ({ ...d, terms_info: content }))} />
+            <RichTextEditor title="Condições gerais para compra do pacote" value={data.terms_info} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, terms_info: v }))} />
+          </FormRow>
+
+          <FormRow label="Hotéis reservados">
+            <RichTextEditor title="Hotéis reservados" value={data.hotels_reserved} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, hotels_reserved: v }))} />
+          </FormRow>
+
+          <FormRow label="Parte aérea / rodoviária">
+            <RichTextEditor title="Parte aérea / rodoviária" value={data.transport_info} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, transport_info: v }))} />
+          </FormRow>
+
+          <FormRow label="Documentação necessária para a viagem">
+            <TemplatePicker options={(templatesByKind.documentacao || []).map(t => ({ value: t.id, label: t.name, content: t.content }))}
+              onUse={content => setData(d => ({ ...d, documentation_info: content }))} />
+            <RichTextEditor title="Documentação necessária para a viagem" value={data.documentation_info} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, documentation_info: v }))} />
+          </FormRow>
+
+          <FormRow label="Extras" last>
+            <RichTextEditor title="Extras" value={data.extras} disabled={!canEdit}
+              onChange={v => setData(d => ({ ...d, extras: v }))} />
+          </FormRow>
         </div>
       )}
 

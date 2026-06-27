@@ -3,6 +3,7 @@ import io
 import requests
 from django.db.models import Q
 from django.http import StreamingHttpResponse, HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
@@ -16,7 +17,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, ConfigPaymentMethod, ConfigExchangeRate,
-                     ConfigItineraryCategory, ConfigContinent, ConfigDestination, ConfigHoliday, ConfigService)
+                     ConfigItineraryCategory, ConfigContinent, ConfigDestination, ConfigHoliday, ConfigService,
+                     ConfigItineraryTemplate)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -696,7 +698,7 @@ class DocFieldViewSet(viewsets.ModelViewSet):
         return [RequirePermission('manage_settings', 'settings_doc_types', 'settings_doc_types_edit')()]
 
     def perform_create(self, serializer):
-        doc_type = CustomDocType.objects.get(pk=self.request.data['doc_type_id'])
+        doc_type = get_object_or_404(CustomDocType, pk=self.request.data.get('doc_type_id'))
         serializer.save(doc_type=doc_type)
 
 
@@ -717,7 +719,7 @@ class DocFieldOptionViewSet(viewsets.ModelViewSet):
         return [RequirePermission('manage_settings', 'settings_doc_types', 'settings_doc_types_edit')()]
 
     def perform_create(self, serializer):
-        field = CustomDocField.objects.get(pk=self.request.data['field_id'])
+        field = get_object_or_404(CustomDocField, pk=self.request.data.get('field_id'))
         serializer.save(field=field)
 
 
@@ -851,6 +853,27 @@ class ServiceViewSet(viewsets.ModelViewSet):
     serializer_class = ServiceSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_services')
+
+
+class ItineraryTemplateSerializer(serializers.ModelSerializer):
+    kind_display = serializers.CharField(source='get_kind_display', read_only=True)
+
+    class Meta:
+        model = ConfigItineraryTemplate
+        fields = ['id', 'kind', 'kind_display', 'name', 'content']
+
+
+class ItineraryTemplateViewSet(viewsets.ModelViewSet):
+    serializer_class = ItineraryTemplateSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_itinerary_templates')
+
+    def get_queryset(self):
+        qs = ConfigItineraryTemplate.objects.all()
+        kind = self.request.query_params.get('kind')
+        if kind:
+            qs = qs.filter(kind=kind)
+        return qs
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -995,7 +1018,7 @@ class CityViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})
 
     def perform_create(self, serializer):
-        state = ConfigState.objects.get(pk=self.request.data['state_id'])
+        state = get_object_or_404(ConfigState, pk=self.request.data.get('state_id'))
         serializer.save(state=state)
 
     @action(detail=False, methods=['post'], url_path='import')
@@ -1050,7 +1073,7 @@ class StateViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_country': 'import_web'})
 
     def perform_create(self, serializer):
-        country = ConfigCountry.objects.get(pk=self.request.data['country_id'])
+        country = get_object_or_404(ConfigCountry, pk=self.request.data.get('country_id'))
         serializer.save(country=country)
 
     @action(detail=False, methods=['post'], url_path='import')

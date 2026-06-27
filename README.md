@@ -81,11 +81,18 @@ O deploy é feito via Docker, com as imagens publicadas automaticamente no
 GitHub Container Registry a cada push. Veja o passo a passo completo em
 **[DEPLOY.md](DEPLOY.md)**.
 
+## Documentação para desenvolvedores
+
+A documentação técnica completa está em **[docs/](docs/README.md)**:
+arquitetura, guia do desenvolvedor, sistema de permissões, o que cada página
+faz, cada app do backend e o relatório de auditoria de falhas.
+
 ## Estrutura do repositório
 
 ```
 backend/    Django + DRF — API, modelos, regras de negócio
 frontend/   React + Vite — interface do painel
+docs/       Documentação técnica da equipe (arquitetura, páginas, backend…)
 docker-compose.yml        Build local (dev-parity)
 docker-compose.prod.yml   Produção — usa as imagens do GHCR
 .github/workflows/        CI: build e publicação automática das imagens Docker

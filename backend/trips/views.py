@@ -294,9 +294,9 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
             passenger = None
             if cpf:
-                passenger = PassengerModel.objects.filter(cpf=cpf).exclude(cpf='').first()
+                passenger = PassengerModel.objects.filter(cpf=cpf, is_deleted=False).exclude(cpf='').first()
             if not passenger and email:
-                passenger = PassengerModel.objects.filter(email=email).first()
+                passenger = PassengerModel.objects.filter(email=email, is_deleted=False).first()
 
             if not passenger:
                 if not email:
@@ -421,6 +421,11 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             if pid:
                 p = PassengerModel.objects.filter(pk=pid).first()
                 if p:
+                    # unique_together(passenger_list, passenger): impedir duplicar o mesmo
+                    # passageiro na lista (senão e.save() estoura IntegrityError → 500).
+                    if pl.list_enrollments.filter(passenger=p).exclude(pk=e.pk).exists():
+                        return Response(
+                            {'error': 'Este passageiro já está nesta lista.'}, status=400)
                     e.passenger    = p
                     e.is_block     = False
                     e.is_provisional = False

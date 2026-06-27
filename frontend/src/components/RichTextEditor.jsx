@@ -17,10 +17,11 @@ const TOOLBAR_BUTTONS = [
   'source',
 ]
 
-function buildConfig(height, placeholder) {
+function buildConfig(height, placeholder, disabled) {
   return {
     language: 'en',
     height,
+    readonly: !!disabled,   // sem permissão de edição: somente leitura
     placeholder: placeholder || 'Digite aqui…',
     toolbarAdaptive: false,
     toolbarSticky: false,
@@ -48,11 +49,12 @@ function buildConfig(height, placeholder) {
 }
 
 /* Caixa de texto rico (Jodit) com botão para expandir em um popup quase tela cheia */
-export default function RichTextEditor({ value, onChange, title, placeholder }) {
+export default function RichTextEditor({ value, onChange, title, placeholder, disabled = false }) {
   const [expanded, setExpanded] = useState(false)
 
-  const inlineConfig = useMemo(() => buildConfig(220, placeholder), [placeholder])
-  const modalConfig  = useMemo(() => buildConfig('calc(92vh - 80px)', placeholder), [placeholder])
+  const inlineConfig = useMemo(() => buildConfig(220, placeholder, disabled), [placeholder, disabled])
+  const modalConfig  = useMemo(() => buildConfig('calc(92vh - 80px)', placeholder, disabled), [placeholder, disabled])
+  const handleChange = disabled ? undefined : onChange
 
   return (
     <div style={{ border:'1px solid #e2e8f0', borderRadius:10, overflow:'hidden' }}>
@@ -72,7 +74,7 @@ export default function RichTextEditor({ value, onChange, title, placeholder }) 
         </button>
       </div>
 
-      <JoditEditor value={value} config={inlineConfig} onBlur={onChange} onChange={onChange} />
+      <JoditEditor value={value} config={inlineConfig} onBlur={handleChange} onChange={handleChange} />
 
       {expanded && createPortal(
         <div className="overlay" style={{ zIndex:700 }} onMouseDown={e => { if (e.target === e.currentTarget) setExpanded(false) }}>
@@ -82,7 +84,7 @@ export default function RichTextEditor({ value, onChange, title, placeholder }) 
               <button className="mclose" onClick={() => setExpanded(false)}><Ic n="x" s={16} /></button>
             </div>
             <div className="mbody" style={{ flex:1, maxHeight:'none', overflow:'hidden', padding:12 }}>
-              <JoditEditor value={value} config={modalConfig} onBlur={onChange} onChange={onChange} />
+              <JoditEditor value={value} config={modalConfig} onBlur={handleChange} onChange={handleChange} />
             </div>
           </div>
         </div>,

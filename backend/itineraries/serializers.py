@@ -41,7 +41,15 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'has_notice', 'notice_color', 'notice_message',
                   'day_count_correction', 'cash_discount_percent', 'base_currency', 'additional_spread_percent',
                   'service_lines',
+                  'about_destination', 'day_by_day', 'package_includes', 'package_excludes',
+                  'insurance_info', 'pricing_info', 'payment_info', 'terms_info',
+                  'hotels_reserved', 'transport_info', 'documentation_info', 'extras',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+        # is_deleted/deleted_at só podem ser alterados pelas ações destroy/restore/purge
+        # do SoftDeleteViewSetMixin. Se ficarem graváveis aqui, um usuário com apenas
+        # 'roteiros_edit' conseguiria mandar um roteiro pra lixeira (ou restaurá-lo)
+        # via PATCH, furando o controle de permissão de exclusão (superusuário).
+        read_only_fields = ['slug', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def get_countries_data(self, obj):
         return [_country_brief(c) for c in obj.countries.all()]

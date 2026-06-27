@@ -61,7 +61,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             return Response({'error': 'CNPJ não informado.'}, status=400)
         digits = re.sub(r'\D', '', cnpj)
         from django.db.models import Q
-        agency = Agency.objects.filter(Q(cnpj=cnpj) | Q(cnpj=digits)).exclude(cnpj='').first()
+        agency = Agency.objects.filter(Q(cnpj=cnpj) | Q(cnpj=digits), is_deleted=False).exclude(cnpj='').first()
         if agency:
             name = agency.company_name or agency.name or f'Agência #{agency.pk}'
             return Response({'exists': True, 'id': agency.id, 'name': name})

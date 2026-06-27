@@ -1,7 +1,7 @@
 """Loop em background que envia os e-mails de resumo/lembrete agendados pelos usuários."""
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 
 CHECK_INTERVAL = 3600  # 1 hora
 
@@ -27,11 +27,16 @@ def _loop():
 
 def run_once():
     from django.db.models import Q
+    from django.utils import timezone
     from .models import CalendarPreference
     from .services import send_digest_email, send_reminder_email
 
-    today        = date.today()
-    current_hour = datetime.now().hour
+    # Usa o fuso configurado (TIME_ZONE/USE_TZ). date.today()/datetime.now() usariam o
+    # horário local do processo (normalmente UTC em container), disparando o e-mail na
+    # hora errada e podendo virar o dia no momento errado perto da meia-noite.
+    now          = timezone.localtime()
+    today        = now.date()
+    current_hour = now.hour
 
     prefs = CalendarPreference.objects.select_related('user').filter(
         Q(digest_enabled=True) | Q(reminder_enabled=True)
@@ -61,8 +66,9 @@ def _collect_deadline_entries(today, days_ahead):
     target_date = today + timedelta(days=days_ahead)
     enrollments = (
         ListEnrollment.objects
-        .filter(pending_until=target_date)
+        .filter(pending_until=target_date, passenger_list__is_deleted=False)
         .exclude(enrollment_status='confirmado')
+        .exclude(passenger__is_deleted=True)  # ignora passageiros na lixeira (mantém bloqueios, sem passageiro)
         .select_related('passenger', 'passenger_list', 'pending_until_created_by')
     )
     entries    = []
@@ -86,7 +92,7 @@ def _collect_task_entries(today):
 
     tasks = (
         ListTask.objects
-        .filter(due_date=today, done=False)
+        .filter(due_date=today, done=False, passenger_list__is_deleted=False)
         .select_related('passenger_list', 'created_by')
     )
     return [
@@ -105,6 +111,7 @@ def _collect_birthday_entries(today):
     passengers = Passenger.objects.filter(
         birth_date__month=today.month,
         birth_date__day=today.day,
+        is_deleted=False,
     ).exclude(birth_date__isnull=True)
     return [
         {

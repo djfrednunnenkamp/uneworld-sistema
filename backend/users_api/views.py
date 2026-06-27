@@ -245,7 +245,17 @@ def user_update(request, pk):
     if has_any_perm(request.user, 'manage_users', 'users_edit'):
         if 'first_name' in data: user.first_name = data['first_name']
         if 'last_name'  in data: user.last_name  = data['last_name']
-        if 'email'      in data: user.email      = data['email']
+        if 'email' in data:
+            new_email = (data['email'] or '').strip().lower()
+            if not new_email:
+                return Response({'error': 'E-mail é obrigatório.'}, status=400)
+            if new_email != user.email:
+                if User.objects.filter(email__iexact=new_email).exclude(pk=user.pk).exists():
+                    return Response({'error': 'E-mail já está em uso por outra conta.'}, status=400)
+                # username == email em todo o sistema; manter sincronizado para o login
+                # (que busca por e-mail e autentica pelo username) não quebrar.
+                user.email    = new_email
+                user.username = new_email
     if has_any_perm(request.user, 'manage_users', 'users_edit', 'users_block'):
         if 'is_active'  in data: user.is_active  = bool(data['is_active'])
 
@@ -276,9 +286,10 @@ def forgot_password(request):
     if not email:
         return Response({'error': 'Informe o e-mail.'}, status=400)
     try:
-        user = User.objects.get(email__iexact=email)
+        user = User.objects.get(email__iexact=email, is_active=True)
     except User.DoesNotExist:
-        # Não revela se o e-mail existe ou não (segurança)
+        # Não revela se o e-mail existe ou não (segurança). Usuários desativados
+        # (soft-delete) também caem aqui e não recebem link.
         return Response({'message': 'Se este e-mail estiver cadastrado, você receberá um link em breve.'})
 
     token = PasswordResetToken.objects.create(user=user)
@@ -363,11 +374,13 @@ def accept_invite(request):
     if not invite.is_valid:
         return Response({'error': 'Convite inválido ou expirado.'}, status=400)
 
-    # Cria ou atualiza o usuário
-    user, created = User.objects.get_or_create(
-        email__iexact=invite.email,
-        defaults={'username': invite.email.lower()}
-    )
+    # Cria ou atualiza o usuário.
+    # Obs.: não usar get_or_create(email__iexact=...) — o lookup "__iexact" não é
+    # um campo do model e quebra o ramo de criação (TypeError/FieldError). Buscamos
+    # por lookup e instanciamos manualmente quando não existe.
+    user = User.objects.filter(email__iexact=invite.email).first()
+    if user is None:
+        user = User(username=invite.email.lower(), email=invite.email)
     user.email      = invite.email
     user.username   = invite.email.lower()
     user.first_name = invite.first_name

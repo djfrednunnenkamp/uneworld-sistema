@@ -448,3 +448,26 @@ class ConfigService(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConfigItineraryTemplate(models.Model):
+    """Modelo de texto reutilizável para os campos "template" do Roteiro
+    (seguro viagem, forma de pagamento, condições gerais, documentação) —
+    o usuário escolhe um modelo pra preencher o campo, ou escreve manualmente."""
+    KIND_CHOICES = [
+        ('seguro',       'Adicional de Seguro Viagem'),
+        ('pagamento',    'Forma de Pagamento'),
+        ('condicoes',    'Condições Gerais para Compra do Pacote'),
+        ('documentacao', 'Documentação Necessária para a Viagem'),
+    ]
+    kind    = models.CharField('Tipo', max_length=20, choices=KIND_CHOICES)
+    name    = models.CharField('Nome', max_length=200)
+    content = models.TextField('Conteúdo', blank=True)
+
+    class Meta:
+        ordering = ['kind', 'name']
+        verbose_name = 'Modelo de texto do Roteiro'
+        verbose_name_plural = 'Modelos de texto do Roteiro'
+
+    def __str__(self):
+        return f'{self.get_kind_display()} — {self.name}'

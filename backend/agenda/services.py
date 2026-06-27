@@ -44,7 +44,9 @@ def collect_events(start: date, end: date, user=None, list_id=None):
     enrollments = (
         ListEnrollment.objects
         .exclude(enrollment_status='confirmado')
-        .filter(pending_until__isnull=False, pending_until__gte=start, pending_until__lte=end)
+        .exclude(passenger__is_deleted=True)  # passageiros na lixeira não geram prazos
+        .filter(pending_until__isnull=False, pending_until__gte=start, pending_until__lte=end,
+                passenger_list__is_deleted=False)
         .select_related('passenger', 'passenger_list', 'pending_until_created_by')
     )
     if list_id:
@@ -73,6 +75,7 @@ def collect_events(start: date, end: date, user=None, list_id=None):
         due_date__isnull=False,
         due_date__gte=start,
         due_date__lte=end,
+        passenger_list__is_deleted=False,
     ).select_related('passenger_list')
     if list_id:
         tasks_qs = tasks_qs.filter(passenger_list_id=list_id)
@@ -90,7 +93,10 @@ def collect_events(start: date, end: date, user=None, list_id=None):
 
     # ── Aniversários dos passageiros (não filtrado por lista) ──
     if not list_id and (user is None or has_any_perm(user, 'calendar_view_birthdays')):
-        passengers = Passenger.objects.exclude(birth_date__isnull=True).only('id', 'full_name', 'birth_date')
+        passengers = (Passenger.objects
+                      .filter(is_deleted=False)
+                      .exclude(birth_date__isnull=True)
+                      .only('id', 'full_name', 'birth_date'))
         days = (end - start).days + 1
         for i in range(days):
             d = start + timedelta(days=i)

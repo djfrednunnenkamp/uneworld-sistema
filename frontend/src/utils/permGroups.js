@@ -315,6 +315,14 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Modelos de Texto do Roteiro', icon: 'docs', hue: 250,
+        items: [
+          ['settings_itinerary_templates_view',   'Ver modelos de texto'],
+          ['settings_itinerary_templates_edit',   'Criar / Editar modelos de texto'],
+          ['settings_itinerary_templates_delete', 'Excluir modelos de texto'],
+        ],
+      },
+      {
         label: 'Serviços', icon: 'briefcase', hue: 35,
         items: [
           ['settings_services_view',        'Ver serviços'],
@@ -498,6 +506,9 @@ export const PERM_DEPENDENCIES = {
   settings_services_edit:        'settings_services_view',
   settings_services_delete:      'settings_services_view',
   settings_services_bulk_import: 'settings_services_edit',
+  settings_itinerary_templates_view:   'settings_view',
+  settings_itinerary_templates_edit:   'settings_itinerary_templates_view',
+  settings_itinerary_templates_delete: 'settings_itinerary_templates_view',
 
   // bulk_import depende de _edit (igual ao bulk_delete que depende de _delete)
   settings_professions_bulk_import:      'settings_professions_edit',

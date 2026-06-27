@@ -94,6 +94,7 @@ PERMISSION_FIELDS = [
     'settings_destinations_view', 'settings_destinations_edit', 'settings_destinations_delete', 'settings_destinations_bulk_import',
     'settings_holidays_view', 'settings_holidays_edit', 'settings_holidays_delete', 'settings_holidays_bulk_import',
     'settings_services_view', 'settings_services_edit', 'settings_services_delete', 'settings_services_bulk_import',
+    'settings_itinerary_templates_view', 'settings_itinerary_templates_edit', 'settings_itinerary_templates_delete',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -132,6 +133,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_destinations_view', 'settings_destinations_edit', 'settings_destinations_delete', 'settings_destinations_bulk_import',
     'settings_holidays_view', 'settings_holidays_edit', 'settings_holidays_delete', 'settings_holidays_bulk_import',
     'settings_services_view', 'settings_services_edit', 'settings_services_delete', 'settings_services_bulk_import',
+    'settings_itinerary_templates_view', 'settings_itinerary_templates_edit', 'settings_itinerary_templates_delete',
     # Log do sistema
     'log_view', 'log_page_views',
 ]
