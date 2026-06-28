@@ -229,6 +229,84 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
   )
 }
 
+/* Popup de arredondamento do total — arredonda a moeda escolhida (USD ou BRL)
+ * para um múltiplo; a outra acompanha pelo câmbio. */
+function RoundingModal({ form, setForm, rawUsd, rawBrl, roundedUsd, roundedBrl, onClose }) {
+  const set  = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const step = Number(form.round_step) || 0
+  const fmt  = (n) => n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+  const STEP_OPTS = [
+    { value: 0, label: 'Não arredondar' },
+    { value: 10, label: 'Múltiplo de 10' },
+    { value: 50, label: 'Múltiplo de 50' },
+    { value: 100, label: 'Múltiplo de 100' },
+    { value: 500, label: 'Múltiplo de 500' },
+    { value: 1000, label: 'Múltiplo de 1.000' },
+  ]
+  const seg = (active, label, onClick) => (
+    <button type="button" onClick={onClick}
+      style={{ flex: 1, padding: '8px 10px', borderRadius: 7, border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
+        background: active ? '#eff6ff' : '#fff', color: active ? '#1a2d4f' : '#64748b', fontSize: 12.5,
+        fontWeight: active ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}>
+      {label}
+    </button>
+  )
+  return (
+    <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
+      <div className="mbox" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <span className="mtitle">Arredondamento do total</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
+        </div>
+        <div className="mbody">
+          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
+            Deixa o total num número "redondo" (ex: 1.985 → 2.000). A moeda escolhida é arredondada e a outra acompanha pelo câmbio.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={lbl}>Arredondar para</label>
+              <Dropdown value={step} clearable={false} searchable={false} options={STEP_OPTS}
+                onChange={v => set('round_step', Number(v) || 0)} />
+            </div>
+            {step > 0 && (
+              <>
+                <div>
+                  <label style={lbl}>Moeda</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {seg(form.round_currency === 'brl', 'Real (R$)', () => set('round_currency', 'brl'))}
+                    {seg(form.round_currency === 'usd', 'Dólar (US$)', () => set('round_currency', 'usd'))}
+                  </div>
+                </div>
+                <div>
+                  <label style={lbl}>Direção</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {seg(form.round_mode === 'nearest', 'Mais próximo', () => set('round_mode', 'nearest'))}
+                    {seg(form.round_mode === 'up', 'Pra cima', () => set('round_mode', 'up'))}
+                    {seg(form.round_mode === 'down', 'Pra baixo', () => set('round_mode', 'down'))}
+                  </div>
+                </div>
+                <div style={{ background: '#f8fafc', border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                    <span>Atual</span>
+                    <span>US$ {fmt(rawUsd)} · R$ {fmt(rawBrl)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontWeight: 700, color: '#15803d' }}>
+                    <span>Arredondado</span>
+                    <span>US$ {fmt(roundedUsd)} · R$ {fmt(roundedBrl)}</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="mfoot" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-primary" onClick={onClose}>Concluir</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const lbl = { fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
 const inpRO = { ...inp, background: '#f8fafc', color: '#64748b' }
@@ -292,6 +370,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const [accomLines, setAccomLines] = useState([])
   const [adjustments, setAdjustments] = useState([]) // [{ description, kind, value_usd }]
   const [showAdjustments, setShowAdjustments] = useState(false)
+  const [showRounding, setShowRounding] = useState(false)
   const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
   const [rooms, setRooms]           = useState([]) // [{ id, type }]  type = id da acomodação | null
   const roomSeqRef                  = useRef(1)     // gera ids estáveis de quarto
@@ -424,6 +503,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     const b = roundTo(rawBrl, step, form.round_mode)
     return [rate ? b / rate : rawUsd, b]
   }, [accomSubtotalUsd, adjustmentsTotalUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
+
+  // Totais ANTES do arredondamento (para a prévia "de X para Y" no popup).
+  const rawTotalUsd = accomSubtotalUsd + adjustmentsTotalUsd
+  const rawTotalBrl = Number(form.exchange_rate) ? rawTotalUsd * Number(form.exchange_rate) : null
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
   const sumFilled = round2(Number(entrada.value_brl || 0) + installments.reduce((s, it) => s + Number(it.value_brl || 0), 0))
@@ -1029,15 +1112,26 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             <div style={card}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
                 <p style={{ ...sectionTitle, margin: 0 }}><Ic n="card" s={14} /> Dados dos pagamentos / valores</p>
-                <button type="button" onClick={() => setShowAdjustments(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <Ic n="plus" s={13} /> Valores extras / descontos
-                  {adjustments.length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: adjustmentsTotalUsd < 0 ? '#dc2626' : '#15803d' }}>
-                      ({adjustmentsTotalUsd >= 0 ? '+' : '−'}{Math.abs(adjustmentsTotalUsd).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} USD)
-                    </span>
-                  )}
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => setShowAdjustments(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Ic n="plus" s={13} /> Valores extras / descontos
+                    {adjustments.length > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: adjustmentsTotalUsd < 0 ? '#dc2626' : '#15803d' }}>
+                        ({adjustmentsTotalUsd >= 0 ? '+' : '−'}{Math.abs(adjustmentsTotalUsd).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} USD)
+                      </span>
+                    )}
+                  </button>
+                  <button type="button" onClick={() => setShowRounding(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <span style={{ fontSize: 14, lineHeight: 1 }}>≈</span> Arredondar total
+                    {Number(form.round_step) > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#1a2d4f' }}>
+                        ({form.round_currency === 'usd' ? 'US$' : 'R$'} · {Number(form.round_step).toLocaleString('pt-BR')})
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'flex', gap: 12 }}>
@@ -1056,44 +1150,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   </div>
                 </div>
 
-                {/* Arredondamento do total */}
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
-                  <div>
-                    <label style={lbl}>Arredondar total</label>
-                    <div style={{ width: 160 }}>
-                      <Dropdown value={Number(form.round_step) || 0} clearable={false} searchable={false}
-                        options={[
-                          { value: 0, label: 'Não arredondar' },
-                          { value: 10, label: 'Múltiplo de 10' },
-                          { value: 50, label: 'Múltiplo de 50' },
-                          { value: 100, label: 'Múltiplo de 100' },
-                          { value: 500, label: 'Múltiplo de 500' },
-                          { value: 1000, label: 'Múltiplo de 1.000' },
-                        ]}
-                        onChange={v => setForm(f => ({ ...f, round_step: Number(v) || 0 }))} />
-                    </div>
-                  </div>
-                  {Number(form.round_step) > 0 && (
-                    <>
-                      <div>
-                        <label style={lbl}>Moeda</label>
-                        <div style={{ width: 140 }}>
-                          <Dropdown value={form.round_currency} clearable={false} searchable={false}
-                            options={[{ value: 'brl', label: 'em BRL (R$)' }, { value: 'usd', label: 'em USD (US$)' }]}
-                            onChange={v => setForm(f => ({ ...f, round_currency: v || 'brl' }))} />
-                        </div>
-                      </div>
-                      <div>
-                        <label style={lbl}>Direção</label>
-                        <div style={{ width: 150 }}>
-                          <Dropdown value={form.round_mode} clearable={false} searchable={false}
-                            options={[{ value: 'nearest', label: 'Mais próximo' }, { value: 'up', label: 'Pra cima' }, { value: 'down', label: 'Pra baixo' }]}
-                            onChange={v => setForm(f => ({ ...f, round_mode: v || 'nearest' }))} />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
 
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
@@ -1224,6 +1280,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
           setAdjustments={setAdjustments}
           baseUsd={accomSubtotalUsd}
           onClose={() => setShowAdjustments(false)}
+        />
+      )}
+      {showRounding && (
+        <RoundingModal
+          form={form}
+          setForm={setForm}
+          rawUsd={rawTotalUsd}
+          rawBrl={rawTotalBrl}
+          roundedUsd={computedTotalUsd}
+          roundedBrl={computedTotalBrl}
+          onClose={() => setShowRounding(false)}
         />
       )}
     </div>
