@@ -198,6 +198,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
   const [rooms, setRooms]           = useState([]) // [{ id, type }]  type = id da acomodação | null
   const roomSeqRef                  = useRef(1)     // gera ids estáveis de quarto
+  const [draggingId, setDraggingId] = useState(null) // passageiro sendo arrastado
+  const [dragOverKey, setDragOverKey] = useState(null) // zona destacada no arraste ('pool' | id do quarto | 'new')
   const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '', payment_method: '' })
   const [installmentsCount, setInstallmentsCount] = useState(0)
   const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
@@ -348,24 +350,39 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     })
   }, [rooms])
 
-  // ── Adivinha o tipo do quarto pela quantidade de pessoas (1=Simples, 2=Duplo…),
-  // casando a contagem com a capacidade da acomodação. Quartos com tipo escolhido
-  // na mão (typeManual) NÃO são tocados, mesmo que entrem/saiam pessoas.
+  // ── Adivinha o tipo do quarto pela quantidade de pessoas, casando a contagem
+  // com a capacidade da acomodação. Para 2 pessoas, decide entre Duplo Casal e
+  // Duplo Twin pelo sexo: sexos diferentes = casal; sexos iguais = twin.
+  // Quartos com tipo escolhido na mão (typeManual) NÃO são tocados.
+  const guessRoomType = (passengerIds) => {
+    const count = passengerIds.length
+    if (count === 2) {
+      const duplos = accomTypes.filter(t => (t.capacity || 1) === 2)
+      const casal = duplos.find(t => /casal/i.test(t.name))
+      const twin  = duplos.find(t => /twin/i.test(t.name))
+      const g = passengerIds.map(pid => (passengers.find(p => p.id === pid)?.gender || '').trim().toLowerCase())
+      const differentSex = g[0] && g[1] && g[0] !== g[1]
+      if (differentSex && casal) return casal.id
+      if (!differentSex && twin)  return twin.id
+      return (casal || twin || duplos[0])?.id ?? null
+    }
+    return accomTypes.find(t => (t.capacity || 1) === count)?.id ?? null
+  }
+
   useEffect(() => {
     setRooms(prev => {
       let changed = false
       const next = prev.map(room => {
         if (room.typeManual) return room
-        const count = guests.filter(g => g.room === room.id).length
-        if (count === 0) return room
-        const match = accomTypes.find(t => (t.capacity || 1) === count)
-        const newType = match ? match.id : room.type
-        if (newType !== room.type) { changed = true; return { ...room, type: newType } }
+        const occ = guests.filter(g => g.room === room.id).map(g => g.passenger)
+        if (occ.length === 0) return room
+        const newType = guessRoomType(occ)
+        if (newType != null && newType !== room.type) { changed = true; return { ...room, type: newType } }
         return room
       })
       return changed ? next : prev
     })
-  }, [guests, accomTypes])
+  }, [guests, accomTypes, passengers])
 
   const addAccomLine = () => setAccomLines(a => [...a, { accommodation_type: null, value_per_person_usd: 0, taxes_usd: 0, quantity: 1 }])
   const updateAccomLine = (idx, key, value) => setAccomLines(a => a.map((l, i) => i === idx ? { ...l, [key]: value } : l))
@@ -389,28 +406,37 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const roomTypeOf    = (room)            => rooms.find(r => r.id === room)?.type ?? null
   const guestName     = (pid)             => passengers.find(x => x.id === pid)?.full_name ?? `#${pid}`
 
-  // Cartãozinho de hóspede — só a "alça" (⠿) é arrastável, pra não conflitar com
-  // o dropdown "mover" e o botão de remover.
-  const renderGuestChip = (g) => (
-    <div key={g.passenger}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 6px 4px 9px', fontSize: 12.5 }}>
-      <span draggable title="Arraste para um quarto"
-        onDragStart={e => e.dataTransfer.setData('text/plain', String(g.passenger))}
-        style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1, flexShrink: 0, cursor: 'grab' }}>⠿</span>
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1e293b' }}>{guestName(g.passenger)}</span>
-      <div style={{ width: 124, flexShrink: 0 }}>
-        <Dropdown value={g.room ?? null}
-          options={rooms.map((r, i) => ({ value: r.id, label: `Quarto ${i + 1}` }))}
-          placeholder="Mover…"
-          onChange={v => assignGuest(g.passenger, v)} />
+  // Cartãozinho de hóspede — arrastável por qualquer parte, exceto o dropdown e o
+  // botão de remover (marcados com data-no-drag). Fica translúcido enquanto arrasta.
+  const renderGuestChip = (g) => {
+    const dragging = draggingId === g.passenger
+    return (
+      <div key={g.passenger} draggable
+        onDragStart={e => {
+          if (e.target.closest('[data-no-drag]')) { e.preventDefault(); return }
+          e.dataTransfer.setData('text/plain', String(g.passenger))
+          e.dataTransfer.effectAllowed = 'move'
+          setDraggingId(g.passenger)
+        }}
+        onDragEnd={() => { setDraggingId(null); setDragOverKey(null) }}
+        title="Arraste para um quarto"
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: dragging ? '#eff6ff' : '#fff', border: `1px solid ${dragging ? '#93c5fd' : '#e2e8f0'}`, borderRadius: 6, padding: '5px 6px 5px 9px', fontSize: 12.5, cursor: 'grab', opacity: dragging ? 0.5 : 1, boxShadow: dragging ? '0 4px 12px rgba(0,0,0,.12)' : 'none', transition: 'opacity .12s, box-shadow .12s, border-color .12s' }}>
+        <span style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1, flexShrink: 0 }}>⠿</span>
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1e293b' }}>{guestName(g.passenger)}</span>
+        <div data-no-drag style={{ width: 124, flexShrink: 0 }}>
+          <Dropdown value={g.room ?? null}
+            options={rooms.map((r, i) => ({ value: r.id, label: `Quarto ${i + 1}` }))}
+            placeholder="Mover…"
+            onChange={v => assignGuest(g.passenger, v)} />
+        </div>
+        <button type="button" title="Remover do contrato" data-no-drag
+          onClick={() => setGuests(prev => prev.filter(x => x.passenger !== g.passenger))}
+          style={{ display: 'flex', padding: 2, borderRadius: 4, border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
+          <Ic n="x" s={13} />
+        </button>
       </div>
-      <button type="button" title="Remover do contrato"
-        onClick={() => setGuests(prev => prev.filter(x => x.passenger !== g.passenger))}
-        style={{ display: 'flex', padding: 2, borderRadius: 4, border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
-        <Ic n="x" s={13} />
-      </button>
-    </div>
-  )
+    )
+  }
 
   // ── Hóspedes ──
   // O contratante escolhido entre os passageiros cadastrados já entra
@@ -749,9 +775,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   {(() => {
                     const unassigned = guests.filter(g => g.room == null)
                     return (
-                      <div onDragOver={e => e.preventDefault()}
-                        onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); if (pid) assignGuest(pid, null) }}
-                        style={{ border: '1px dashed #cbd5e1', borderRadius: 8, padding: 10, background: '#fafbfc' }}>
+                      <div
+                        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                        onDragEnter={() => setDragOverKey('pool')}
+                        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(k => k === 'pool' ? null : k) }}
+                        onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); if (pid) assignGuest(pid, null) }}
+                        style={{ border: `1.5px dashed ${dragOverKey === 'pool' ? '#2e6db4' : '#cbd5e1'}`, borderRadius: 8, padding: 10, background: dragOverKey === 'pool' ? '#eff6ff' : '#fafbfc', transition: 'border-color .12s, background .12s' }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>
                           Sem quarto ({unassigned.length})
                         </div>
@@ -772,9 +801,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                       const over = cap ? occ.length > cap : false
                       return (
                         <div key={room.id}
-                          onDragOver={e => e.preventDefault()}
-                          onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); if (pid) assignGuest(pid, room.id) }}
-                          style={{ border: `1px solid ${over ? '#fca5a5' : '#e2e8f0'}`, borderRadius: 8, padding: 10, background: over ? '#fef2f2' : '#fff', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                          onDragEnter={() => setDragOverKey(room.id)}
+                          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(k => k === room.id ? null : k) }}
+                          onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); if (pid) assignGuest(pid, room.id) }}
+                          style={{ border: `${dragOverKey === room.id ? 1.5 : 1}px solid ${dragOverKey === room.id ? '#2e6db4' : (over ? '#fca5a5' : '#e2e8f0')}`, borderRadius: 8, padding: 10, background: dragOverKey === room.id ? '#eff6ff' : (over ? '#fef2f2' : '#fff'), display: 'flex', flexDirection: 'column', gap: 8, transition: 'border-color .12s, background .12s' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                             <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
                               Quarto {idx + 1}
@@ -800,12 +831,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                     })}
 
                     {/* Novo quarto — clicar OU soltar uma pessoa aqui cria um quarto */}
-                    <div onDragOver={e => e.preventDefault()}
-                      onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); if (pid) createRoomWith(pid) }}
+                    <div
+                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                      onDragEnter={() => setDragOverKey('new')}
+                      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(k => k === 'new' ? null : k) }}
+                      onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); if (pid) createRoomWith(pid) }}
                       onClick={addRoom}
-                      onMouseEnter={e => e.currentTarget.style.borderColor = '#2e6db4'}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = '#cbd5e1'}
-                      style={{ border: '1.5px dashed #cbd5e1', borderRadius: 8, padding: 10, background: '#fafbfc', minHeight: 96, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, cursor: 'pointer', color: '#64748b', transition: 'border-color .12s' }}>
+                      style={{ border: `1.5px dashed ${dragOverKey === 'new' ? '#2e6db4' : '#cbd5e1'}`, borderRadius: 8, padding: 10, background: dragOverKey === 'new' ? '#eff6ff' : '#fafbfc', minHeight: 96, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, cursor: 'pointer', color: '#64748b', transition: 'border-color .12s, background .12s' }}>
                       <Ic n="plus" s={18} />
                       <span style={{ fontSize: 12, fontWeight: 600 }}>Novo quarto</span>
                       <span style={{ fontSize: 10.5, color: '#94a3b8', textAlign: 'center' }}>clique ou arraste alguém aqui</span>
