@@ -117,67 +117,99 @@ def _union(boxes):
     return (min(xs0), min(ys0), max(xs1), max(ys1))
 
 
+def _group_lines(words, ytol=0.012):
+    """Agrupa palavras em linhas (mesma faixa vertical), ordenadas por x."""
+    ws = sorted(words, key=lambda w: ((w['box'][1] + w['box'][3]) / 2, w['box'][0]))
+    lines, cur, cy = [], [], None
+    for w in ws:
+        c = (w['box'][1] + w['box'][3]) / 2
+        if cy is None or abs(c - cy) <= ytol:
+            cur.append(w); cy = c if cy is None else (cy + c) / 2
+        else:
+            lines.append(cur); cur = [w]; cy = c
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def _locate_value(pages, item):
-    """Procura o VALOR do campo no documento. Devolve (achou, page_index, box|None)."""
+    """Procura o VALOR do campo. Devolve (page_index, box) ou None — sempre uma
+    caixa JUSTA (palavra única p/ números, ou trecho na MESMA linha p/ nomes)."""
     kind, value = item['kind'], item['value']
     if kind == 'digits':
         target = _digits(value)
         if len(target) < 3:
-            return False, None, None
+            return None
         for pi, pg in enumerate(pages):
             for w in pg['words']:
                 wd = _digits(w['text'])
-                if len(wd) >= 3 and (wd == target or wd in target or target in wd):
-                    return True, pi, w['box']
-        return False, None, None
-    # nome/texto: casa por tokens
-    tokens = [t for t in _norm(value).split(' ') if len(t) >= 3]
-    if not tokens:
-        return False, None, None
-    best = None  # (hits, pi, boxes)
+                if len(wd) >= 3 and (wd == target
+                                     or (len(target) >= 4 and target in wd)
+                                     or (len(wd) >= 4 and wd in target)):
+                    return pi, w['box']
+        return None
+    # nome/texto: casa por tokens DENTRO DE UMA LINHA (não espalha pela página)
+    tset = {t for t in _norm(value).split(' ') if len(t) >= 3}
+    if not tset:
+        return None
+    best = None  # (score, pi, box)
     for pi, pg in enumerate(pages):
-        hit_boxes = [w['box'] for w in pg['words'] if _norm(w['text']) in tokens]
-        # tokens distintos casados nesta página
-        matched = {tok for w in pg['words'] for tok in [_norm(w['text'])] if tok in tokens}
-        if len(matched) and (best is None or len(matched) > best[0]):
-            best = (len(matched), pi, hit_boxes)
-    if best and best[0] / len(set(tokens)) >= 0.6 and best[2]:
-        return True, best[1], _union(best[2])
-    return False, None, None
+        for line in _group_lines(pg['words']):
+            hit = [w['box'] for w in line if _norm(w['text']) in tset]
+            distinct = {_norm(w['text']) for w in line if _norm(w['text']) in tset}
+            if distinct:
+                score = len(distinct) / len(tset)
+                if best is None or score > best[0]:
+                    best = (score, pi, _union(hit))
+    if best and best[0] >= 0.6:
+        return best[1], best[2]
+    return None
+
+
+def _label_tokens(label):
+    base = label.split(':')[-1]
+    toks = [t for t in _norm(base).split(' ') if len(t) >= 4]
+    return toks or [t for t in _norm(base).split(' ') if len(t) >= 3]
 
 
 def _locate_label(pages, label):
-    """Procura o RÓTULO do campo (ex.: 'Reserva', 'Contratante'). Devolve
-    (page_index, box) do rótulo, ou (None, None)."""
-    # usa as palavras significativas do rótulo (ignora "nº", "de", etc.)
-    base = label.split(':')[-1]
-    tokens = [t for t in _norm(base).split(' ') if len(t) >= 4]
-    if not tokens:
-        tokens = [t for t in _norm(base).split(' ') if len(t) >= 3]
-    if not tokens:
+    """Acha o RÓTULO numa ÚNICA linha (caixa justa), não a união de todas as
+    ocorrências da palavra na página. Devolve (page_index, box) ou (None, None)."""
+    tset = set(_label_tokens(label))
+    if not tset:
         return None, None
+    best = None
     for pi, pg in enumerate(pages):
-        boxes = [w['box'] for w in pg['words'] if _norm(w['text']) in tokens]
-        if boxes:
-            return pi, _union(boxes)
+        for line in _group_lines(pg['words']):
+            hit = [w['box'] for w in line if _norm(w['text']) in tset]
+            distinct = {_norm(w['text']) for w in line if _norm(w['text']) in tset}
+            if distinct:
+                score = len(distinct) / len(tset)
+                if best is None or score > best[0]:
+                    best = (score, pi, _union(hit))
+    if best and best[0] >= 0.6:
+        return best[1], best[2]
     return None, None
 
 
-def _value_region_after(pages, pi, label_box):
-    """Região do VALOR à direita do rótulo, na mesma linha. Devolve (box, tem_texto)."""
+def _value_cell_after(pages, pi, label_box):
+    """Trecho do VALOR à direita do rótulo, na MESMA linha (caixa justa nas
+    palavras reais; se vazio, uma região curta). Devolve (box, tem_texto)."""
     lx0, ly0, lx1, ly1 = label_box
     cy = (ly0 + ly1) / 2
     h = max(ly1 - ly0, 0.012)
-    region = (lx1 + 0.005, max(0, cy - h * 0.9), min(1, lx1 + 0.42), min(1, cy + h * 0.9))
-    has_text = False
-    if 0 <= pi < len(pages):
-        for w in pages[pi]['words']:
-            wx0, wy0, wx1, wy1 = w['box']
-            wcx, wcy = (wx0 + wx1) / 2, (wy0 + wy1) / 2
-            if region[0] <= wcx <= region[2] and region[1] <= wcy <= region[3]:
-                has_text = True
-                break
-    return region, has_text
+    same = [w for w in pages[pi]['words']
+            if abs((w['box'][1] + w['box'][3]) / 2 - cy) <= h * 0.7 and w['box'][0] >= lx1 - 0.002]
+    same.sort(key=lambda w: w['box'][0])
+    cell, prev = [], lx1
+    for w in same:
+        if cell and w['box'][0] - prev > 0.06:   # pulou pra outra coluna
+            break
+        cell.append(w); prev = w['box'][2]
+    if cell:
+        return _union([w['box'] for w in cell]), True
+    region = (min(1, lx1 + 0.005), max(0, cy - h), min(1, lx1 + 0.16), min(1, cy + h))
+    return region, False
 
 
 def build_expected(contract):
@@ -208,32 +240,47 @@ def build_expected(contract):
 
 
 def _check_field(pages, item):
-    found, pi, box = _locate_value(pages, item)
-    if found:
+    loc = _locate_value(pages, item)
+    if loc:
+        pi, box = loc
         return {'label': item['label'], 'value': item['value'], 'ok': True,
                 'status': 'confere', 'page': pi, 'box': list(box) if box else None}
-    # não achou o valor → tenta localizar o rótulo p/ destacar onde deveria estar
+    # não achou o valor → tenta o rótulo (numa linha só) p/ destacar onde deveria estar
     lpi, lbox = _locate_label(pages, item['label'])
     if lbox is not None:
-        region, has_text = _value_region_after(pages, lpi, lbox)
+        box, has_text = _value_cell_after(pages, lpi, lbox)
         status = 'divergente' if has_text else 'nao_preenchido'
         return {'label': item['label'], 'value': item['value'], 'ok': False,
-                'status': status, 'page': lpi, 'box': list(region)}
+                'status': status, 'page': lpi, 'box': list(box)}
     return {'label': item['label'], 'value': item['value'], 'ok': False,
             'status': 'nao_localizado', 'page': None, 'box': None}
 
 
 # ── Detecção de assinatura ───────────────────────────────────────────────────
 
-def _ink_ratio(img, box):
+def _ink_ratio(img, box, mask_words=None):
+    """Fração de pixels escuros (tinta) na região. Apaga (pinta de branco) as
+    áreas cobertas por TEXTO IMPRESSO (palavras), para que cláusulas/legendas
+    acima da linha NÃO sejam confundidas com assinatura — sobra só o manuscrito."""
     if img is None:
         return 0.0
+    from PIL import ImageDraw
     W, H = img.size
     x0, y0, x1, y1 = box
     l, t, r, b = int(x0 * W), int(y0 * H), int(x1 * W), int(y1 * H)
     if r - l < 2 or b - t < 2:
         return 0.0
     crop = img.crop((l, t, r, b)).convert('L')
+    if mask_words:
+        d = ImageDraw.Draw(crop)
+        for w in mask_words:
+            wx0, wy0, wx1, wy1 = w['box']
+            ix0, iy0 = max(x0, wx0), max(y0, wy0)
+            ix1, iy1 = min(x1, wx1), min(y1, wy1)
+            if ix1 <= ix0 or iy1 <= iy0:
+                continue
+            d.rectangle([(ix0 - x0) * W - 1, (iy0 - y0) * H - 1,
+                         (ix1 - x0) * W + 1, (iy1 - y0) * H + 1], fill=255)
     hist = crop.histogram()
     tot = sum(hist) or 1
     dark = sum(hist[:130])     # pixels escuros (tinta)
@@ -265,9 +312,10 @@ def _caption_center(pages, anchor_pi, anchor_word, anchor_box):
     return cx, u[1], rot
 
 
-def detect_signatures(pages, threshold=0.004):
-    """Acha as áreas de assinatura e mede se há tinta (algo escrito) acima de
-    cada legenda. Devolve dict {checked, signed, fields[]}."""
+def detect_signatures(pages, threshold=0.006):
+    """Acha as áreas de assinatura e mede se há MANUSCRITO (tinta que não seja
+    texto impresso) na faixa logo acima de cada legenda/linha. Devolve dict
+    {checked, signed, fields[]}."""
     anchors = []
     for pi, pg in enumerate(pages):
         for w in pg['words']:
@@ -276,16 +324,13 @@ def detect_signatures(pages, threshold=0.004):
     fields = []
     for pi, txt, box in anchors:
         cx, cap_top, rot = _caption_center(pages, pi, txt, box)
-        # área onde se assina: faixa ACIMA da legenda (e acima da linha impressa)
-        region = (max(0.0, cx - 0.20), max(0.0, cap_top - 0.11),
-                  min(1.0, cx + 0.20), max(0.0, cap_top - 0.022))
+        # faixa de assinatura: logo ACIMA da legenda e da linha impressa.
+        region = (max(0.0, cx - 0.19), max(0.0, cap_top - 0.075),
+                  min(1.0, cx + 0.19), max(0.0, cap_top - 0.012))
         img = pages[pi].get('image')
-        ratio = _ink_ratio(img, region)
-        # também conta como assinada se o OCR achou texto manuscrito na área
-        has_word = any(region[0] <= (w['box'][0] + w['box'][2]) / 2 <= region[2]
-                       and region[1] <= (w['box'][1] + w['box'][3]) / 2 <= region[3]
-                       for w in pages[pi]['words'])
-        signed = ratio >= threshold or has_word
+        # mascara o texto impresso (cláusulas/legendas) p/ não dar falso positivo
+        ratio = _ink_ratio(img, region, mask_words=pages[pi]['words'])
+        signed = ratio >= threshold
         fields.append({'label': rot, 'signed': bool(signed), 'page': pi,
                        'box': list(region), 'ink': round(ratio, 4)})
     # de-duplica por rótulo mantendo a "mais assinada"
