@@ -15,6 +15,7 @@ export default function OperatingCompanyManager({ canEdit = true }) {
   const [saving,  setSaving]  = useState(false)
   const [form, setForm] = useState({
     company_name: '', cnpj: '', seller: '', phone: '', mobile: '', email: '', address: '',
+    default_signature_type: 'fisica',
   })
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function OperatingCompanyManager({ canEdit = true }) {
         setForm({
           company_name: d.company_name ?? '', cnpj: d.cnpj ?? '', seller: d.seller ?? '',
           phone: d.phone ?? '', mobile: d.mobile ?? '', email: d.email ?? '', address: d.address ?? '',
+          default_signature_type: d.default_signature_type ?? 'fisica',
         })
       })
       .catch(() => toast.error('Erro ao carregar dados da operadora.'))
@@ -81,6 +83,23 @@ export default function OperatingCompanyManager({ canEdit = true }) {
       <div>
         <label style={lbl}>Endereço</label>
         <input style={{ ...inp, width:'100%' }} value={form.address} onChange={set('address')} disabled={!canEdit} />
+      </div>
+
+      <div>
+        <label style={lbl}>Assinatura padrão dos contratos</label>
+        <div style={{ display:'flex', gap:8 }}>
+          {[{ v:'fisica', label:'Física (imprimir e assinar)' }, { v:'digital', label:'Digital' }].map(o => {
+            const active = form.default_signature_type === o.v
+            return (
+              <button key={o.v} type="button" disabled={!canEdit}
+                onClick={() => canEdit && setForm(f => ({ ...f, default_signature_type: o.v }))}
+                style={{ flex:1, padding:'9px 10px', borderRadius:7, border:`1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background:active ? '#eff6ff' : '#fff', color:active ? '#1a2d4f' : '#64748b', fontSize:12.5, fontWeight:active ? 700 : 500, cursor:canEdit ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
+                {active ? '● ' : '○ '}{o.label}
+              </button>
+            )
+          })}
+        </div>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:'5px 0 0' }}>Padrão para contratos novos — cada contrato pode mudar no topo do formulário.</p>
       </div>
 
       {canEdit && (

@@ -357,7 +357,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     agency: null, itinerary: null, contratante: null,
     package_name: '', departure_date: '', return_date: '', departure_airport: '', observations: '',
     exchange_rate: '', received_down_payment_brl: '', received_installments_brl: '',
-    round_step: 0, round_mode: 'nearest', round_currency: 'brl',
+    round_step: 0, round_mode: 'nearest', round_currency: 'brl', signature_type: 'fisica',
   })
   // Pagante manual — usado quando não há contratante selecionado entre os
   // passageiros cadastrados (pode ser uma pessoa física ou uma empresa).
@@ -387,7 +387,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     Promise.all([
       agenciesApi.list(), passengersApi.list({ page_size: 1000 }), itinerariesApi.list({ page_size: 1000 }),
       configApi.accommodations(), configApi.contractClauses(), configApi.paymentMethods(), configApi.exchangeRates(),
-    ]).then(([ag, pax, it, ac, cl, pm, er]) => {
+      configApi.operatingCompany(),
+    ]).then(([ag, pax, it, ac, cl, pm, er, oc]) => {
       setAgencies(ag.data.results ?? ag.data)
       setPassengers(pax.data.results ?? pax.data)
       setItineraries(it.data.results ?? it.data)
@@ -397,7 +398,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       if (!isEdit) {
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
-        if (usdBrl) setForm(f => ({ ...f, exchange_rate: Number(usdBrl.rate) }))
+        // Contrato novo herda a forma de assinatura padrão da Operadora.
+        setForm(f => ({ ...f, signature_type: oc.data?.default_signature_type || 'fisica',
+          ...(usdBrl ? { exchange_rate: Number(usdBrl.rate) } : {}) }))
       }
     }).catch(() => toast.error('Erro ao carregar dados auxiliares.'))
   }, [])
@@ -416,6 +419,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         received_down_payment_brl: d.received_down_payment_brl ?? '',
         received_installments_brl: d.received_installments_brl ?? '',
         round_step: d.round_step ?? 0, round_mode: d.round_mode ?? 'nearest', round_currency: d.round_currency ?? 'brl',
+        signature_type: d.signature_type ?? 'fisica',
       })
       if (d.departure_airport) setDepartureAirportObj({ name: d.departure_airport })
       setPayer({
@@ -776,6 +780,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       received_down_payment_brl: form.received_down_payment_brl || null,
       received_installments_brl: form.received_installments_brl || null,
       round_step: Number(form.round_step) || 0, round_mode: form.round_mode || 'nearest', round_currency: form.round_currency || 'brl',
+      signature_type: form.signature_type || 'fisica',
       accommodation_lines: accomLines.filter(l => l.accommodation_type).map(l => ({
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd || 0,
         taxes_usd: l.taxes_usd || 0, quantity: l.quantity || 1,
@@ -852,6 +857,31 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
           <p style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
         ) : (
           <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
+
+            {/* Forma de assinatura */}
+            <div style={card}>
+              <p style={sectionTitle}><Ic n="docs" s={14} /> Forma de assinatura</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[
+                  { v: 'fisica', label: 'Física', hint: 'Imprimir, assinar à mão e enviar o PDF' },
+                  { v: 'digital', label: 'Digital', hint: 'Assinatura digital (em breve)' },
+                ].map(opt => {
+                  const active = form.signature_type === opt.v
+                  return (
+                    <button key={opt.v} type="button" onClick={() => setForm(f => ({ ...f, signature_type: opt.v }))}
+                      style={{ flex: 1, textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: active ? '#1a2d4f' : '#475569' }}>
+                        {active ? '● ' : '○ '}{opt.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{opt.hint}</div>
+                    </button>
+                  )
+                })}
+              </div>
+              <p style={{ fontSize: 11, color: '#94a3b8', margin: '8px 0 0' }}>
+                Aparece em destaque no cabeçalho do PDF. (A assinatura digital em si será implementada depois.)
+              </p>
+            </div>
 
             {totalMismatch && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', fontSize: 12.5 }}>

@@ -116,7 +116,13 @@ export async function generateContractPDF(contract) {
   doc.text('EXCLUSIVO PARA GRUPOS', pw / 2 + 8, y + 9, { align: 'center' })
   doc.setFontSize(8.5)
   doc.text(`Reserva nº ${contract.reservation_number || '—'}    ·    Data desta contratação: ${fmtDateBR(contract.contract_date)}`, pw / 2 + 8, y + 13, { align: 'center' })
-  y += 17
+  // Forma de assinatura — em destaque no cabeçalho.
+  const sigLabel = contract.signature_type === 'digital' ? 'ASSINADO DIGITALMENTE' : 'ASSINADO FISICAMENTE'
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...NAV)
+  doc.text(sigLabel, pw / 2 + 8, y + 17.5, { align: 'center' })
+  y += 21
 
   // Agência
   y = sectionHeader(doc, 'AGÊNCIA DE VIAGEM (INTERMEDIADORA)', y)

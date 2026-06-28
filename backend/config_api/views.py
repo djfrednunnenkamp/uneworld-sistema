@@ -1331,7 +1331,8 @@ def system_settings(request):
 class OperatingCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model  = OperatingCompany
-        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address', 'updated_at']
+        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address',
+                  'default_signature_type', 'updated_at']
 
 
 @api_view(['GET', 'PATCH'])

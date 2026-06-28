@@ -120,7 +120,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'payer_email', 'payer_phone', 'payer_address',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'total_usd', 'total_brl', 'exchange_rate',
-                  'round_step', 'round_mode', 'round_currency',
+                  'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
@@ -248,6 +248,10 @@ class ContractSerializer(serializers.ModelSerializer):
 
         # Data da contratação é sempre hoje — não é um campo preenchido pelo usuário.
         validated_data['contract_date'] = timezone.now().date()
+        # Sem forma de assinatura informada, herda o padrão global da Operadora.
+        if not validated_data.get('signature_type'):
+            from config_api.models import OperatingCompany
+            validated_data['signature_type'] = OperatingCompany.get().default_signature_type
         # Totais (USD/BRL) são sempre calculados — nunca aceitos do payload.
         validated_data.pop('total_usd', None)
         validated_data.pop('total_brl', None)

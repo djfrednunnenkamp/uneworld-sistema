@@ -64,6 +64,11 @@ class Contract(models.Model):
     clauses = models.ManyToManyField('config_api.ContractClause', blank=True,
                                      related_name='contracts', verbose_name='Cláusulas')
 
+    # Forma de assinatura escolhida para este contrato (a assinatura digital em si
+    # será implementada depois — por ora é só o modo, exibido no PDF).
+    SIGNATURE_CHOICES = [('fisica', 'Física (imprimir e assinar)'), ('digital', 'Digital')]
+    signature_type = models.CharField('Forma de assinatura', max_length=10, choices=SIGNATURE_CHOICES, default='fisica')
+
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
                                    related_name='contracts_created')

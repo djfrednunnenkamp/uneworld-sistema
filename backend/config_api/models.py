@@ -336,6 +336,9 @@ class OperatingCompany(models.Model):
     mobile         = models.CharField('Celular', max_length=20, blank=True)
     email          = models.EmailField('E-mail', blank=True)
     address        = models.CharField('Endereço', max_length=300, blank=True)
+    SIGNATURE_CHOICES = [('fisica', 'Física (imprimir e assinar)'), ('digital', 'Digital')]
+    default_signature_type = models.CharField('Assinatura padrão dos contratos', max_length=10,
+                                              choices=SIGNATURE_CHOICES, default='fisica')
     updated_at     = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:
