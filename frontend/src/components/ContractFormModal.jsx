@@ -371,6 +371,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const [adjustments, setAdjustments] = useState([]) // [{ description, kind, value_usd }]
   const [showAdjustments, setShowAdjustments] = useState(false)
   const [showRounding, setShowRounding] = useState(false)
+  const [step, setStep] = useState(0)
+  const STEPS = [
+    { key: 'geral',       title: 'Geral' },
+    { key: 'passageiros', title: 'Passageiros' },
+    { key: 'valores',     title: 'Valores' },
+    { key: 'pagamento',   title: 'Pagamento' },
+    { key: 'clausulas',   title: 'Cláusulas' },
+    { key: 'revisao',     title: 'Revisão' },
+  ]
+  const lastStep = STEPS.length - 1
   const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
   const [rooms, setRooms]           = useState([]) // [{ id, type }]  type = id da acomodação | null
   const roomSeqRef                  = useRef(1)     // gera ids estáveis de quarto
@@ -837,6 +847,104 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     doSave()
   }
 
+  // Passo final: "papel completo" — resumo read-only com seções bem divididas.
+  const renderReview = () => {
+    const fmtN = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2 }))
+    const typeName = (id) => accomTypes.find(t => t.id === id)?.name ?? '—'
+    const ag = agencies.find(a => a.id === form.agency)
+    const it = itineraries.find(i => i.id === form.itinerary)
+    const contratanteName = form.contratante
+      ? (passengers.find(p => p.id === form.contratante)?.full_name ?? '—')
+      : (payer.payer_name ? `${payer.payer_name} (CNPJ)` : '—')
+
+    const sec = (title, children) => (
+      <div style={{ border: '1px solid #e6eaf1', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: '#f8fafc', borderBottom: '1px solid #eef2f7', padding: '8px 14px', fontSize: 11.5, fontWeight: 800, color: '#1a2d4f', textTransform: 'uppercase', letterSpacing: '.04em' }}>{title}</div>
+        <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>{children}</div>
+      </div>
+    )
+    const row = (k, v, key) => (
+      <div key={key ?? k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+        <span style={{ color: '#64748b' }}>{k}</span>
+        <span style={{ color: '#1e293b', fontWeight: 500, textAlign: 'right' }}>{v}</span>
+      </div>
+    )
+    const unassigned = guests.filter(g => g.room == null)
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <p style={{ fontSize: 12.5, color: '#64748b', margin: 0 }}>
+          Confira o contrato completo abaixo. Para mudar algo, clique no passo correspondente lá em cima.
+        </p>
+
+        {sec('Assinatura', [
+          row('Forma de assinatura', form.signature_type === 'digital' ? 'Digital' : 'Física (imprimir e assinar)', 'sig'),
+        ])}
+
+        {sec('Agência, roteiro e contratante', [
+          row('Agência', ag ? agencyLabel(ag) : '—', 'ag'),
+          row('Roteiro / pacote', it ? it.name : (form.package_name || '—'), 'rot'),
+          row('Contratante / pagante', contratanteName, 'ct'),
+        ])}
+
+        {sec('Pacote de viagem', [
+          row('Nome do pacote', form.package_name || '—', 'pn'),
+          row('Datas', `${fmtDateBR(form.departure_date) || '—'}  →  ${fmtDateBR(form.return_date) || '—'}`, 'dt'),
+          row('Aeroporto de embarque', form.departure_airport || '—', 'ap'),
+        ])}
+
+        {sec(`Passageiros e quartos (${guests.length})`, [
+          ...(rooms.length === 0 && guests.length === 0 ? [<span key="np" style={{ fontSize: 13, color: '#94a3b8' }}>Nenhum passageiro.</span>] : []),
+          ...rooms.map((r, idx) => {
+            const occ = guests.filter(g => g.room === r.id)
+            return (
+              <div key={`room${r.id}`} style={{ fontSize: 13 }}>
+                <span style={{ fontWeight: 700, color: '#1e293b' }}>Quarto {idx + 1}</span>
+                <span style={{ color: '#64748b' }}> — {typeName(r.type)}: </span>
+                <span style={{ color: '#475569' }}>{occ.length ? occ.map(g => guestName(g.passenger)).join(', ') : '(vazio)'}</span>
+              </div>
+            )
+          }),
+          ...(unassigned.length ? [(
+            <div key="semquarto" style={{ fontSize: 13 }}>
+              <span style={{ fontWeight: 700, color: '#b45309' }}>Sem quarto: </span>
+              <span style={{ color: '#475569' }}>{unassigned.map(g => guestName(g.passenger)).join(', ')}</span>
+            </div>
+          )] : []),
+        ])}
+
+        {sec('Valores', [
+          ...accomLines.filter(l => l.accommodation_type).map((l, i) =>
+            row(`${typeName(l.accommodation_type)} × ${l.quantity}`, `US$ ${fmtN((Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1))}`, `al${i}`)),
+          ...adjustments.filter(a => Number(a.value_usd) || Number(a.percent)).map((a, i) => {
+            const amt = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
+            const signed = (a.kind === 'desconto' ? -1 : 1) * amt
+            return row(a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'), `${signed < 0 ? '−' : '+'} US$ ${fmtN(Math.abs(signed))}`, `aj${i}`)
+          }),
+          ...(Number(form.round_step) > 0 ? [row('Arredondamento', `${form.round_currency === 'usd' ? 'US$' : 'R$'} · múltiplo de ${Number(form.round_step).toLocaleString('pt-BR')}`, 'rd')] : []),
+          <div key="tot" style={{ borderTop: '1px solid #eef2f7', paddingTop: 8, marginTop: 2 }}>
+            {row(<strong>Soma total (USD)</strong>, <strong>US$ {fmtN(computedTotalUsd)}</strong>, 'tu')}
+            {row(<strong>Total (BRL)</strong>, <strong>R$ {fmtN(computedTotalBrl)}</strong>, 'tb')}
+          </div>,
+        ])}
+
+        {sec('Pagamento', [
+          row('Entrada', `R$ ${fmtN(entrada.value_brl)}${entrada.due_date ? `  ·  ${fmtDateBR(entrada.due_date)}` : ''}`, 'ent'),
+          ...(installments.length === 0 ? [<span key="sp" style={{ fontSize: 13, color: '#94a3b8' }}>Sem parcelas.</span>]
+            : installments.map((it2, i) => row(`Parcela ${i + 1}${it2.due_date ? `  ·  ${fmtDateBR(it2.due_date)}` : ''}`, `R$ ${fmtN(it2.value_brl)}`, `par${i}`))),
+        ])}
+
+        {sec('Cláusulas', (() => {
+          const sel = clauses.filter(c => c.is_default || selectedClauses.includes(c.id))
+          if (!sel.length) return [<span key="nc" style={{ fontSize: 13, color: '#94a3b8' }}>Nenhuma cláusula.</span>]
+          return sel.map(c => (
+            <div key={c.id} style={{ fontSize: 13, color: '#1e293b' }}>• {c.name}{c.is_default ? <span style={{ color: '#94a3b8' }}> (sempre)</span> : ''}</div>
+          ))
+        })())}
+      </div>
+    )
+  }
+
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
@@ -856,8 +964,28 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         {loading ? (
           <p style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
         ) : (
-          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {/* Barra de passos */}
+            <div style={{ display: 'flex', gap: 6, padding: '14px 20px 0', flexWrap: 'wrap' }}>
+              {STEPS.map((s, idx) => (
+                <button key={s.key} type="button" onClick={() => setStep(idx)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, border: `1px solid ${idx === step ? '#2e6db4' : '#e6eaf1'}`, background: idx === step ? '#eff6ff' : '#fff', color: idx === step ? '#1a2d4f' : '#64748b', fontSize: 12, fontWeight: idx === step ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', fontSize: 10, fontWeight: 700, background: idx === step ? '#2e6db4' : (idx < step ? '#22c55e' : '#e2e8f0'), color: idx <= step ? '#fff' : '#94a3b8' }}>
+                    {idx < step ? '✓' : idx + 1}
+                  </span>
+                  {s.title}
+                </button>
+              ))}
+            </div>
+            {totalMismatch && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 20px 0', padding: '10px 14px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', fontSize: 12.5 }}>
+                <Ic n="warn" s={15} />
+                Entrada + parcelas ({sumFilled.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) não somam o total ({computedTotalBrl?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
+              </div>
+            )}
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
 
+            {step === 0 && (<>
             {/* Forma de assinatura */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="docs" s={14} /> Forma de assinatura</p>
@@ -882,13 +1010,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                 Aparece em destaque no cabeçalho do PDF. (A assinatura digital em si será implementada depois.)
               </p>
             </div>
-
-            {totalMismatch && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', fontSize: 12.5 }}>
-                <Ic n="warn" s={15} />
-                Os valores de entrada + parcelas ({sumFilled.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) não somam o total do contrato ({computedTotalBrl?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
-              </div>
-            )}
 
             {/* Agência / Lista / Contratante */}
             <div style={card}>
@@ -1006,6 +1127,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
               </div>
             </div>
 
+            </>)}
+
+            {step === 1 && (<>
             {/* Hóspedes + Quartos */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="users" s={14} /> Nome dos passageiros / quartos</p>
@@ -1096,6 +1220,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
               )}
             </div>
 
+            </>)}
+
+            {step === 2 && (<>
             {/* Tipos de Acomodação / Valores */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="bed" s={14} /> Tipos de acomodação / valores por pessoa</p>
@@ -1197,6 +1324,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
               </div>
             </div>
 
+            </>)}
+
+            {step === 3 && (<>
             {/* Parcelas */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="clock" s={14} /> Parcelas</p>
@@ -1253,6 +1383,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
               )}
             </div>
 
+            </>)}
+
+            {step === 4 && (<>
             {/* Cláusulas */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="docs" s={14} /> Cláusulas do contrato</p>
@@ -1274,17 +1407,37 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                 </div>
               )}
             </div>
+            </>)}
+
+            {step === lastStep && renderReview()}
+            </div>
           </div>
         )}
 
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 8 }}>
           <button onClick={onClose} disabled={saving}
             style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
             Cancelar
           </button>
-          <button onClick={handleSaveClick} disabled={saving || loading} style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Ic n="check" s={13} />{saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar contrato'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>Passo {step + 1} de {STEPS.length}</span>
+            {step > 0 && (
+              <button type="button" onClick={() => setStep(s => s - 1)} disabled={saving}
+                style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Voltar
+              </button>
+            )}
+            {step < lastStep ? (
+              <button type="button" onClick={() => setStep(s => Math.min(s + 1, lastStep))}
+                style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Próximo <Ic n="chevron" s={13} />
+              </button>
+            ) : (
+              <button onClick={handleSaveClick} disabled={saving || loading} style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Ic n="check" s={13} />{saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar contrato'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
