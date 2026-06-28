@@ -291,17 +291,23 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const handleSelectItinerary = (ids) => {
     const id = ids[0] ?? null
     const it = id ? itineraries.find(x => x.id === id) : null
-    // Selecionar um roteiro preenche nome do pacote e datas (roteiro não tem
-    // aeroporto — esse continua manual).
-    setForm(f => ({
-      ...f,
-      itinerary: id,
-      ...(it ? {
-        package_name: it.name ?? f.package_name,
-        departure_date: it.start_date || f.departure_date,
-        return_date: it.end_date || f.return_date,
-      } : {}),
-    }))
+    if (it) {
+      // Selecionar: preenche nome do pacote e datas a partir do roteiro (ficam
+      // travados enquanto o roteiro estiver selecionado).
+      setForm(f => ({
+        ...f, itinerary: id,
+        package_name: it.name ?? '',
+        departure_date: it.start_date || '',
+        return_date: it.end_date || '',
+      }))
+    } else {
+      // Remover o roteiro: limpa tudo que ele havia preenchido (e o aeroporto).
+      setDepartureAirportObj(null)
+      setForm(f => ({
+        ...f, itinerary: null,
+        package_name: '', departure_date: '', return_date: '', departure_airport: '',
+      }))
+    }
   }
 
   // ── Tipos de Acomodação / Valores — auto-gerado a partir dos hóspedes ──
@@ -599,22 +605,40 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             <div style={card}>
               <p style={sectionTitle}><Ic n="plane" s={14} /> Pacote de viagem</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ flex: 2 }}>
-                    <label style={lbl}>Nome do pacote</label>
-                    <input style={inp} value={form.package_name} onChange={set('package_name')} />
+                {form.itinerary ? (
+                  /* Roteiro selecionado — nome e datas vêm dele e ficam travados */
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ flex: 2 }}>
+                      <label style={lbl}>Nome do pacote</label>
+                      <input style={inpRO} readOnly value={form.package_name} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Data de início</label>
+                      <input style={inpRO} readOnly value={fmtDateBR(form.departure_date) || '—'} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Data de término</label>
+                      <input style={inpRO} readOnly value={fmtDateBR(form.return_date) || '—'} />
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Data de início</label>
-                    <DatePicker value={form.departure_date} relatedDate={form.return_date || null}
-                      onChange={v => setForm(f => ({ ...f, departure_date: v }))} fixed />
+                ) : (
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ flex: 2 }}>
+                      <label style={lbl}>Nome do pacote</label>
+                      <input style={inp} value={form.package_name} onChange={set('package_name')} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Data de início</label>
+                      <DatePicker value={form.departure_date} relatedDate={form.return_date || null}
+                        onChange={v => setForm(f => ({ ...f, departure_date: v }))} fixed />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Data de término</label>
+                      <DatePicker value={form.return_date} relatedDate={form.departure_date || null}
+                        onChange={v => setForm(f => ({ ...f, return_date: v }))} fixed />
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Data de término</label>
-                    <DatePicker value={form.return_date} relatedDate={form.departure_date || null}
-                      onChange={v => setForm(f => ({ ...f, return_date: v }))} fixed />
-                  </div>
-                </div>
+                )}
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Aeroporto de embarque</label>
