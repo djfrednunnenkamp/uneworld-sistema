@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 
 from django.utils import timezone
 from rest_framework import serializers
@@ -120,6 +120,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'payer_email', 'payer_phone', 'payer_address',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'total_usd', 'total_brl', 'exchange_rate',
+                  'round_step', 'round_mode', 'round_currency',
                   'received_down_payment_brl', 'received_installments_brl',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
@@ -213,6 +214,25 @@ class ContractSerializer(serializers.ModelSerializer):
         total_usd = accom_total + adj_total
         exchange_rate = contract.exchange_rate or _default_exchange_rate()
         total_brl = total_usd * exchange_rate if exchange_rate else None
+
+        # Arredondamento opcional: arredonda a moeda escolhida pro múltiplo de
+        # round_step e deriva a outra pelo câmbio (mantém total_usd*câmbio = total_brl).
+        step = contract.round_step or 0
+        if step > 0:
+            def _round(v):
+                q = Decimal(v) / step
+                if contract.round_mode == 'up':     q = q.to_integral_value(rounding=ROUND_CEILING)
+                elif contract.round_mode == 'down': q = q.to_integral_value(rounding=ROUND_FLOOR)
+                else:                               q = q.to_integral_value(rounding=ROUND_HALF_UP)
+                return q * step
+            if contract.round_currency == 'usd':
+                total_usd = _round(total_usd)
+                total_brl = total_usd * exchange_rate if exchange_rate else None
+            elif total_brl is not None:
+                total_brl = _round(total_brl)
+                if exchange_rate:
+                    total_usd = (total_brl / exchange_rate).quantize(Decimal('0.01'))
+
         contract.total_usd     = total_usd
         contract.exchange_rate = exchange_rate
         contract.total_brl     = total_brl

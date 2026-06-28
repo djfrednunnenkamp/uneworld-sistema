@@ -53,6 +53,14 @@ class Contract(models.Model):
     received_down_payment_brl = models.DecimalField('Recebido na entrada (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     received_installments_brl = models.DecimalField('Recebido a prazo (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
 
+    # Arredondamento do total: arredonda o valor da moeda escolhida para o múltiplo
+    # de round_step (0 = não arredonda); a outra moeda é derivada pelo câmbio.
+    ROUND_CURRENCY_CHOICES = [('brl', 'Real (BRL)'), ('usd', 'Dólar (USD)')]
+    ROUND_MODE_CHOICES     = [('nearest', 'Mais próximo'), ('up', 'Pra cima'), ('down', 'Pra baixo')]
+    round_step     = models.PositiveIntegerField('Arredondar para múltiplo de', default=0)
+    round_mode     = models.CharField('Direção do arredondamento', max_length=8, choices=ROUND_MODE_CHOICES, default='nearest')
+    round_currency = models.CharField('Moeda do arredondamento', max_length=3, choices=ROUND_CURRENCY_CHOICES, default='brl')
+
     clauses = models.ManyToManyField('config_api.ContractClause', blank=True,
                                      related_name='contracts', verbose_name='Cláusulas')
 

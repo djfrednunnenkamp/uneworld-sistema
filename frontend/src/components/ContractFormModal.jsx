@@ -271,6 +271,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     agency: null, itinerary: null, contratante: null,
     package_name: '', departure_date: '', return_date: '', departure_airport: '', observations: '',
     exchange_rate: '', received_down_payment_brl: '', received_installments_brl: '',
+    round_step: 0, round_mode: 'nearest', round_currency: 'brl',
   })
   // Pagante manual — usado quando não há contratante selecionado entre os
   // passageiros cadastrados (pode ser uma pessoa física ou uma empresa).
@@ -327,6 +328,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         exchange_rate: d.exchange_rate != null ? Number(d.exchange_rate) : '',
         received_down_payment_brl: d.received_down_payment_brl ?? '',
         received_installments_brl: d.received_installments_brl ?? '',
+        round_step: d.round_step ?? 0, round_mode: d.round_mode ?? 'nearest', round_currency: d.round_currency ?? 'brl',
       })
       if (d.departure_airport) setDepartureAirportObj({ name: d.departure_airport })
       setPayer({
@@ -392,8 +394,28 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     const amount = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
     return s + (a.kind === 'desconto' ? -1 : 1) * amount
   }, 0), [adjustments, accomSubtotalUsd])
-  const computedTotalUsd = useMemo(() => accomSubtotalUsd + adjustmentsTotalUsd, [accomSubtotalUsd, adjustmentsTotalUsd])
-  const computedTotalBrl = form.exchange_rate ? computedTotalUsd * Number(form.exchange_rate) : null
+  const roundTo = (v, step, mode) => {
+    if (!step || v == null) return v
+    const q = v / step
+    const r = mode === 'up' ? Math.ceil(q) : mode === 'down' ? Math.floor(q) : Math.round(q)
+    return r * step
+  }
+  // Total cru (acomodações + ajustes) e, por cima, o arredondamento opcional da
+  // moeda escolhida — a outra moeda é derivada pelo câmbio.
+  const [computedTotalUsd, computedTotalBrl] = useMemo(() => {
+    const rawUsd = accomSubtotalUsd + adjustmentsTotalUsd
+    const rate = Number(form.exchange_rate) || 0
+    const rawBrl = rate ? rawUsd * rate : null
+    const step = Number(form.round_step) || 0
+    if (!step) return [rawUsd, rawBrl]
+    if (form.round_currency === 'usd') {
+      const u = roundTo(rawUsd, step, form.round_mode)
+      return [u, rate ? u * rate : null]
+    }
+    if (rawBrl == null) return [rawUsd, null]
+    const b = roundTo(rawBrl, step, form.round_mode)
+    return [rate ? b / rate : rawUsd, b]
+  }, [accomSubtotalUsd, adjustmentsTotalUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
   const sumFilled = round2(Number(entrada.value_brl || 0) + installments.reduce((s, it) => s + Number(it.value_brl || 0), 0))
@@ -662,6 +684,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       ...contratanteFields,
       received_down_payment_brl: form.received_down_payment_brl || null,
       received_installments_brl: form.received_installments_brl || null,
+      round_step: Number(form.round_step) || 0, round_mode: form.round_mode || 'nearest', round_currency: form.round_currency || 'brl',
       accommodation_lines: accomLines.filter(l => l.accommodation_type).map(l => ({
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd || 0,
         taxes_usd: l.taxes_usd || 0, quantity: l.quantity || 1,
@@ -1024,6 +1047,46 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                     <p style={{ fontSize: 10.5, color: '#94a3b8', margin: '3px 0 0' }}>Preenchido de Configurações → Câmbio.</p>
                   </div>
                 </div>
+
+                {/* Arredondamento do total */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  <div>
+                    <label style={lbl}>Arredondar total</label>
+                    <div style={{ width: 160 }}>
+                      <Dropdown value={Number(form.round_step) || 0} clearable={false}
+                        options={[
+                          { value: 0, label: 'Não arredondar' },
+                          { value: 10, label: 'Múltiplo de 10' },
+                          { value: 50, label: 'Múltiplo de 50' },
+                          { value: 100, label: 'Múltiplo de 100' },
+                          { value: 500, label: 'Múltiplo de 500' },
+                          { value: 1000, label: 'Múltiplo de 1.000' },
+                        ]}
+                        onChange={v => setForm(f => ({ ...f, round_step: Number(v) || 0 }))} />
+                    </div>
+                  </div>
+                  {Number(form.round_step) > 0 && (
+                    <>
+                      <div>
+                        <label style={lbl}>Moeda</label>
+                        <div style={{ width: 140 }}>
+                          <Dropdown value={form.round_currency} clearable={false}
+                            options={[{ value: 'brl', label: 'em BRL (R$)' }, { value: 'usd', label: 'em USD (US$)' }]}
+                            onChange={v => setForm(f => ({ ...f, round_currency: v || 'brl' }))} />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={lbl}>Direção</label>
+                        <div style={{ width: 150 }}>
+                          <Dropdown value={form.round_mode} clearable={false}
+                            options={[{ value: 'nearest', label: 'Mais próximo' }, { value: 'up', label: 'Pra cima' }, { value: 'down', label: 'Pra baixo' }]}
+                            onChange={v => setForm(f => ({ ...f, round_mode: v || 'nearest' }))} />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Recebido na entrada (BRL)</label>
