@@ -93,6 +93,9 @@ class ContractGuest(models.Model):
                                            related_name='contract_guest_entries')
     accommodation_type = models.ForeignKey('config_api.ConfigAccommodation', on_delete=models.SET_NULL,
                                            null=True, blank=True, related_name='+')
+    # Agrupamento de quarto: hóspedes com o mesmo room_group dividem a mesma
+    # acomodação (quem fica com quem). Null = ainda sem quarto.
+    room_group         = models.PositiveIntegerField('Quarto', null=True, blank=True)
     order              = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:

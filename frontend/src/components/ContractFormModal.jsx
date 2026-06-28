@@ -195,7 +195,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const [showPayerModal, setShowPayerModal] = useState(false)
   const [departureAirportObj, setDepartureAirportObj] = useState(null)
   const [accomLines, setAccomLines] = useState([])
-  const [guests, setGuests]         = useState([]) // [{ passenger, accommodation_type }]
+  const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
+  const [rooms, setRooms]           = useState([]) // [{ id, type }]  type = id da acomodação | null
+  const roomSeqRef                  = useRef(1)     // gera ids estáveis de quarto
   const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '', payment_method: '' })
   const [installmentsCount, setInstallmentsCount] = useState(0)
   const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
@@ -246,7 +248,23 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd,
         taxes_usd: l.taxes_usd, quantity: l.quantity,
       })))
-      setGuests((d.guests ?? []).map(g => ({ passenger: g.passenger, accommodation_type: g.accommodation_type })))
+      // Reconstrói os quartos a partir do room_group salvo. Contrato antigo (sem
+      // room_group) com tipo definido vira um quarto por hóspede, preservando o tipo.
+      const roomById = new Map()
+      let compatSeq = 900000
+      const loadedGuests = (d.guests ?? []).map(g => {
+        let rg = g.room_group
+        if (!rg && g.accommodation_type) { compatSeq += 1; rg = compatSeq }
+        if (rg) {
+          if (!roomById.has(rg)) roomById.set(rg, { id: rg, type: g.accommodation_type ?? null })
+          return { passenger: g.passenger, room: rg }
+        }
+        return { passenger: g.passenger, room: null }
+      })
+      const loadedRooms = [...roomById.values()]
+      roomSeqRef.current = (loadedRooms.length ? Math.max(...loadedRooms.map(r => r.id)) : 0) + 1
+      setRooms(loadedRooms)
+      setGuests(loadedGuests)
       const entradaRow = (d.installments ?? []).find(i => i.kind === 'entrada')
       const parcelaRows = (d.installments ?? []).filter(i => i.kind === 'parcela').sort((a, b) => a.installment_number - b.installment_number)
       if (entradaRow) setEntrada({
@@ -310,32 +328,61 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     }
   }
 
-  // ── Tipos de Acomodação / Valores — auto-gerado a partir dos hóspedes ──
-  // Cada tipo de acomodação tem uma capacidade (ex: Duplo = 2 pessoas); a
-  // quantidade de unidades necessárias é arredondada pra cima (3 pessoas em
-  // quartos duplos = 2 quartos). Continua editável manualmente depois.
+  // ── Tipos de Acomodação / Valores — auto-gerado a partir dos QUARTOS ──
+  // Cada quarto montado é uma unidade. A quantidade por tipo = número de quartos
+  // daquele tipo. Os valores (USD/taxas) são preservados e editáveis.
   useEffect(() => {
     const counts = {}
-    guests.forEach(g => { if (g.accommodation_type) counts[g.accommodation_type] = (counts[g.accommodation_type] || 0) + 1 })
-    if (Object.keys(counts).length === 0) return
+    rooms.forEach(r => { if (r.type) counts[r.type] = (counts[r.type] || 0) + 1 })
     setAccomLines(prev => {
-      const next = [...prev]
-      Object.entries(counts).forEach(([typeIdStr, count]) => {
+      const next = []
+      Object.entries(counts).forEach(([typeIdStr, qty]) => {
         const typeId = Number(typeIdStr)
-        const type = accomTypes.find(t => t.id === typeId)
-        const capacity = type?.capacity || 1
-        const neededQty = Math.ceil(count / capacity)
-        const idx = next.findIndex(l => l.accommodation_type === typeId)
-        if (idx >= 0) next[idx] = { ...next[idx], quantity: neededQty }
-        else next.push({ accommodation_type: typeId, value_per_person_usd: 0, taxes_usd: 0, quantity: neededQty })
+        const existing = prev.find(l => l.accommodation_type === typeId)
+        next.push(existing ? { ...existing, quantity: qty }
+                           : { accommodation_type: typeId, value_per_person_usd: 0, taxes_usd: 0, quantity: qty })
       })
+      // mantém linhas adicionadas manualmente que não têm tipo vinculado a quarto
+      prev.forEach(l => { if (!l.accommodation_type) next.push(l) })
       return next
     })
-  }, [guests, accomTypes])
+  }, [rooms])
 
   const addAccomLine = () => setAccomLines(a => [...a, { accommodation_type: null, value_per_person_usd: 0, taxes_usd: 0, quantity: 1 }])
   const updateAccomLine = (idx, key, value) => setAccomLines(a => a.map((l, i) => i === idx ? { ...l, [key]: value } : l))
   const removeAccomLine = (idx) => setAccomLines(a => a.filter((_, i) => i !== idx))
+
+  // ── Quartos ──
+  const addRoom    = () => { const id = roomSeqRef.current++; setRooms(r => [...r, { id, type: null }]) }
+  const removeRoom = (id) => {
+    setRooms(r => r.filter(x => x.id !== id))
+    setGuests(gs => gs.map(g => g.room === id ? { ...g, room: null } : g))
+  }
+  const setRoomType   = (id, type)        => setRooms(r => r.map(x => x.id === id ? { ...x, type } : x))
+  const assignGuest   = (passenger, room) => setGuests(gs => gs.map(g => g.passenger === passenger ? { ...g, room } : g))
+  const roomTypeOf    = (room)            => rooms.find(r => r.id === room)?.type ?? null
+  const guestName     = (pid)             => passengers.find(x => x.id === pid)?.full_name ?? `#${pid}`
+
+  // Cartãozinho de hóspede — arrastável (drag pra um quarto) + dropdown "mover".
+  const renderGuestChip = (g) => (
+    <div key={g.passenger} draggable
+      onDragStart={e => e.dataTransfer.setData('text/plain', String(g.passenger))}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 6px 4px 9px', fontSize: 12.5, cursor: 'grab' }}>
+      <span style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1, flexShrink: 0 }}>⠿</span>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1e293b' }}>{guestName(g.passenger)}</span>
+      <select value={g.room ?? ''} title="Mover para…"
+        onChange={e => assignGuest(g.passenger, e.target.value === '' ? null : Number(e.target.value))}
+        style={{ fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 4, padding: '2px 3px', color: '#475569', background: '#f8fafc', cursor: 'pointer', fontFamily: 'inherit' }}>
+        <option value="">Sem quarto</option>
+        {rooms.map((r, i) => <option key={r.id} value={r.id}>Quarto {i + 1}</option>)}
+      </select>
+      <button type="button" title="Remover do contrato"
+        onClick={() => setGuests(prev => prev.filter(x => x.passenger !== g.passenger))}
+        style={{ display: 'flex', padding: 2, borderRadius: 4, border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
+        <Ic n="x" s={13} />
+      </button>
+    </div>
+  )
 
   // ── Hóspedes ──
   // O contratante escolhido entre os passageiros cadastrados já entra
@@ -345,19 +392,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     if (!form.contratante) return
     setGuests(prev => prev.some(g => g.passenger === form.contratante)
       ? prev
-      : [{ passenger: form.contratante, accommodation_type: null }, ...prev])
+      : [{ passenger: form.contratante, room: null }, ...prev])
   }, [form.contratante])
 
   const guestIds = guests.map(g => g.passenger)
   const handleGuestsChange = (ids) => {
     setGuests(prev => {
       const kept = prev.filter(g => ids.includes(g.passenger))
-      const added = ids.filter(id => !prev.some(g => g.passenger === id)).map(id => ({ passenger: id, accommodation_type: null }))
+      const added = ids.filter(id => !prev.some(g => g.passenger === id)).map(id => ({ passenger: id, room: null }))
       return [...kept, ...added]
     })
   }
-  const updateGuestAccom = (passengerId, accommodation_type) =>
-    setGuests(prev => prev.map(g => g.passenger === passengerId ? { ...g, accommodation_type } : g))
 
   // ── Parcelas ──
   // Define quantas parcelas existem e já divide o valor restante (total -
@@ -469,7 +514,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd || 0,
         taxes_usd: l.taxes_usd || 0, quantity: l.quantity || 1,
       })),
-      guests: guests.filter(g => g.passenger).map(g => ({ passenger: g.passenger, accommodation_type: g.accommodation_type })),
+      guests: guests.filter(g => g.passenger).map(g => ({
+        passenger: g.passenger,
+        accommodation_type: roomTypeOf(g.room),
+        room_group: g.room ?? null,
+      })),
       installments: installmentsPayload,
       clauses: selectedClauses,
     }
@@ -654,35 +703,79 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Hóspedes */}
+            {/* Hóspedes + Quartos */}
             <div style={card}>
-              <p style={sectionTitle}><Ic n="users" s={14} /> Nome dos passageiros</p>
+              <p style={sectionTitle}><Ic n="users" s={14} /> Nome dos passageiros / quartos</p>
               <label style={lbl}>Hóspedes (contratante e demais usuários dos serviços)</label>
               <EntityPicker items={passengerItems} selectedIds={guestIds} onChange={handleGuestsChange}
                 multiple title="Selecionar hóspedes" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar hóspedes —"
                 emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
 
               {guests.length > 0 && (
-                <div style={{ marginTop: 12, border: '1px solid #f1f5f9', borderRadius: 6, overflow: 'hidden' }}>
-                  {guests.map((g, i) => {
-                    const p = passengers.find(x => x.id === g.passenger)
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0 }}>
+                    Monte os quartos: arraste cada passageiro para um quarto (ou use o seletor "mover"). A acomodação escolhida vale para todos que estão no quarto.
+                  </p>
+
+                  {/* Pool: sem quarto */}
+                  {(() => {
+                    const unassigned = guests.filter(g => g.room == null)
                     return (
-                      <div key={g.passenger} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: i < guests.length - 1 ? '1px solid #f8fafc' : 'none' }}>
-                        <span style={{ fontSize: 13, color: '#1e293b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {p?.full_name ?? `#${g.passenger}`}
-                        </span>
-                        <div style={{ width: 220 }}>
-                          <Dropdown value={g.accommodation_type ?? null} options={accomTypeOptions} placeholder="— Acomodação —"
-                            onChange={v => updateGuestAccom(g.passenger, v)} />
+                      <div onDragOver={e => e.preventDefault()}
+                        onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); if (pid) assignGuest(pid, null) }}
+                        style={{ border: '1px dashed #cbd5e1', borderRadius: 8, padding: 10, background: '#fafbfc' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>
+                          Sem quarto ({unassigned.length})
                         </div>
-                        <button type="button" onClick={() => setGuests(prev => prev.filter(x => x.passenger !== g.passenger))}
-                          title="Remover hóspede"
-                          style={{ padding: 6, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', flexShrink: 0, display: 'flex' }}>
-                          <Ic n="trash" s={13} />
-                        </button>
+                        {unassigned.length === 0 ? (
+                          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Todos os passageiros já estão em um quarto.</p>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{unassigned.map(renderGuestChip)}</div>
+                        )}
                       </div>
                     )
-                  })}
+                  })()}
+
+                  {/* Quartos */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 10 }}>
+                    {rooms.map((room, idx) => {
+                      const occ = guests.filter(g => g.room === room.id)
+                      const cap = accomTypes.find(t => t.id === room.type)?.capacity
+                      const over = cap ? occ.length > cap : false
+                      return (
+                        <div key={room.id}
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); if (pid) assignGuest(pid, room.id) }}
+                          style={{ border: `1px solid ${over ? '#fca5a5' : '#e2e8f0'}`, borderRadius: 8, padding: 10, background: over ? '#fef2f2' : '#fff', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                              Quarto {idx + 1}
+                              <span style={{ fontSize: 11, fontWeight: 500, color: over ? '#dc2626' : '#94a3b8', marginLeft: 6 }}>
+                                {occ.length}{cap ? `/${cap}` : ''}
+                              </span>
+                            </span>
+                            <button type="button" onClick={() => removeRoom(room.id)} title="Excluir quarto"
+                              style={{ display: 'flex', padding: 4, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>
+                              <Ic n="trash" s={12} />
+                            </button>
+                          </div>
+                          <Dropdown value={room.type ?? null} options={accomTypeOptions} placeholder="— Acomodação —"
+                            onChange={v => setRoomType(room.id, v)} />
+                          {occ.length === 0 ? (
+                            <p style={{ fontSize: 12, color: '#cbd5e1', margin: '2px 0', textAlign: 'center' }}>Arraste passageiros pra cá</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{occ.map(renderGuestChip)}</div>
+                          )}
+                          {over && <span style={{ fontSize: 11, color: '#dc2626' }}>Acima da capacidade do tipo</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <button type="button" onClick={addRoom}
+                    style={{ alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    + Adicionar quarto
+                  </button>
                 </div>
               )}
             </div>
@@ -691,7 +784,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             <div style={card}>
               <p style={sectionTitle}><Ic n="bed" s={14} /> Tipos de acomodação / valores por pessoa</p>
               <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '0 0 10px' }}>
-                As linhas e quantidades abaixo são geradas automaticamente a partir da acomodação escolhida pra cada hóspede — pode ajustar manualmente se precisar.
+                As linhas e quantidades abaixo são geradas automaticamente a partir dos quartos montados acima (cada quarto = 1 unidade) — pode ajustar os valores manualmente se precisar.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {accomLines.map((line, idx) => (

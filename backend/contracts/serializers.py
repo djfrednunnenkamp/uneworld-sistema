@@ -52,7 +52,7 @@ class ContractGuestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ContractGuest
-        fields = ['id', 'passenger', 'passenger_data', 'accommodation_type', 'accommodation_type_name', 'order']
+        fields = ['id', 'passenger', 'passenger_data', 'accommodation_type', 'accommodation_type_name', 'room_group', 'order']
 
     def get_passenger_data(self, obj):
         return _passenger_brief(obj.passenger)
