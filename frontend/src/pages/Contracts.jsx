@@ -293,6 +293,15 @@ export default function Contracts() {
     } catch { toast.error('Erro ao enviar para assinatura.') }
   }
 
+  const handleReopen = async (row) => {
+    try {
+      await contractsApi.reopen(row.id)
+      toast.success('Contrato voltou para edição.')
+      setTab('em_edicao')   // segue o contrato de volta para a aba de edição
+      load()
+    } catch { toast.error('Erro ao voltar o contrato para edição.') }
+  }
+
   const handleUploadFile = async (file) => {
     try {
       await contractsApi.uploadSigned(uploadRow.id, file)
@@ -378,7 +387,12 @@ export default function Contracts() {
           docsTitle={tab === 'assinado' ? 'Ver contrato assinado' : 'Ver / baixar contrato'}
           extraActions={canEdit ? (row) => (
             tab === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
-            : tab === 'enviado' ? actBtn('Anexar contrato assinado', 'check', '#059669', () => setUploadRow(row))
+            : tab === 'enviado' ? (
+              <>
+                {actBtn('Voltar para edição', 'rotate', '#b45309', () => handleReopen(row))}
+                {actBtn('Anexar contrato assinado', 'check', '#059669', () => setUploadRow(row))}
+              </>
+            )
             : null
           ) : undefined}
           onDelete={canDelete ? (row) => setDelRow(row) : undefined}
