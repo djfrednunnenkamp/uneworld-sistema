@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import axios from 'axios'
 import { toast } from 'sonner'
 import { contractsApi, agenciesApi, passengersApi, listsApi, configApi } from '../api'
 import EntityPicker from './EntityPicker'
 import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
 import Dropdown from './Dropdown'
+import CnpjInput from './CnpjInput'
 import { Ic } from './Icon'
 
 /* Confirmação específica pra "valores não somam o total" — não reaproveita o
@@ -39,60 +41,89 @@ function MismatchConfirm({ sumFilled, total, onOk, onCancel }) {
   )
 }
 
-/* Popup do pagante avulso (pessoa OU empresa/CNPJ não cadastrada). Antes esses
- * campos ficavam num bloco fixo abaixo do seletor; agora abrem neste popup pelo
- * botão "+" ao lado do campo. Os dados continuam indo nos campos payer_* do
- * contrato — nada muda no backend. */
+/* Popup do pagante avulso — SÓ empresa (CNPJ). Pessoa física que paga precisa
+ * estar cadastrada como passageiro (e ser escolhida no seletor). Aqui digita-se
+ * o CNPJ e a lupa puxa os dados pela BrasilAPI. Os dados continuam indo nos
+ * campos payer_* do contrato — nada muda no backend. */
+function maskPhoneBR(digits) {
+  const d = (digits || '').replace(/\D/g, '')
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  return d
+}
+
 function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
-  const setField = (k) => (e) => { onClearContratante(); setPayer(p => ({ ...p, [k]: e.target.value })) }
-  const setPick  = (k) => (v)  => { onClearContratante(); setPayer(p => ({ ...p, [k]: v })) }
+  const [cnpjLoading, setCnpjLoading] = useState(false)
+  const setField = (k) => (e) => { onClearContratante(); setPayer(p => ({ ...p, payer_type: 'juridica', [k]: e.target.value })) }
+
+  const lookupCnpj = async () => {
+    const cnpj = (payer.payer_document || '').replace(/\D/g, '')
+    if (cnpj.length !== 14) { toast.error('CNPJ incompleto (14 dígitos).'); return }
+    setCnpjLoading(true)
+    try {
+      const r = await axios.get(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`)
+      const d = r.data
+      const rawPhone = d.ddd_telefone_1 || d.telefone || ''
+      const addr = [
+        [d.logradouro, d.numero].filter(Boolean).join(', '),
+        d.bairro,
+        [d.municipio, d.uf].filter(Boolean).join('/'),
+      ].filter(Boolean).join(' - ')
+      onClearContratante()
+      setPayer(p => ({
+        ...p,
+        payer_type: 'juridica',
+        payer_name: d.razao_social || p.payer_name,
+        payer_email: d.email || p.payer_email,
+        payer_phone: rawPhone ? maskPhoneBR(rawPhone) : p.payer_phone,
+        payer_address: addr || p.payer_address,
+      }))
+      toast.success('Dados preenchidos via CNPJ.')
+    } catch { toast.error('CNPJ não encontrado ou inválido.') }
+    finally { setCnpjLoading(false) }
+  }
+
   return (
     <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
       <div className="mbox" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
         <div className="mhead">
-          <span className="mtitle">Pagante avulso (não cadastrado)</span>
+          <span className="mtitle">Empresa pagante (CNPJ)</span>
           <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
         </div>
         <div className="mbody">
           <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
-            Use quando quem paga não está entre os passageiros cadastrados — pode ser uma pessoa física ou uma empresa (CNPJ).
+            Para empresa não cadastrada. Digite o CNPJ e clique na lupa para puxar os dados automaticamente. Pessoa física precisa estar cadastrada como passageiro.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <label style={lbl}>Tipo</label>
-                <Dropdown value={payer.payer_type} onChange={setPick('payer_type')} options={PAYER_TYPE_OPTS} />
-              </div>
-              <div style={{ flex: 2 }}>
-                <label style={lbl}>{payer.payer_type === 'juridica' ? 'Razão social' : 'Nome completo'}</label>
-                <input style={inp} value={payer.payer_name} onChange={setField('payer_name')} />
+            <div>
+              <label style={lbl}>CNPJ</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <CnpjInput value={payer.payer_document}
+                    onChange={v => { onClearContratante(); setPayer(p => ({ ...p, payer_type: 'juridica', payer_document: v })) }} />
+                </div>
+                <button type="button" className="cep-btn" onClick={lookupCnpj} disabled={cnpjLoading} title="Buscar dados pelo CNPJ">
+                  <Ic n="search" s={13} />{cnpjLoading ? 'Buscando…' : 'Buscar'}
+                </button>
               </div>
             </div>
+            <div>
+              <label style={lbl}>Razão social</label>
+              <input style={inp} value={payer.payer_name} onChange={setField('payer_name')} />
+            </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <label style={lbl}>{payer.payer_type === 'juridica' ? 'CNPJ' : 'CPF'}</label>
-                <input style={inp} value={payer.payer_document} onChange={setField('payer_document')} />
-              </div>
-              {payer.payer_type !== 'juridica' && (
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Data de nascimento</label>
-                  <DatePicker value={payer.payer_birth_date} onChange={setPick('payer_birth_date')} fixed />
-                </div>
-              )}
               <div style={{ flex: 1 }}>
                 <label style={lbl}>Celular</label>
                 <input style={inp} value={payer.payer_phone} onChange={setField('payer_phone')} />
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <label style={lbl}>E-mail</label>
                 <input style={inp} type="email" value={payer.payer_email} onChange={setField('payer_email')} />
               </div>
-              <div style={{ flex: 1 }}>
-                <label style={lbl}>Endereço</label>
-                <input style={inp} value={payer.payer_address} onChange={setField('payer_address')} />
-              </div>
+            </div>
+            <div>
+              <label style={lbl}>Endereço</label>
+              <input style={inp} value={payer.payer_address} onChange={setField('payer_address')} />
             </div>
           </div>
         </div>
@@ -129,11 +160,6 @@ const addMonthsIso = (iso, n) => {
 }
 
 const round2 = (n) => Math.round(n * 100) / 100
-
-const PAYER_TYPE_OPTS = [
-  { value: 'fisica', label: 'Pessoa física' },
-  { value: 'juridica', label: 'Pessoa jurídica / Empresa' },
-]
 
 export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const isEdit = !!contractId
@@ -532,7 +558,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                         emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
                     </div>
                     <button type="button" onClick={() => setShowPayerModal(true)}
-                      title="Cadastrar um pagante avulso (pessoa ou CNPJ)"
+                      title="Cadastrar empresa pagante (CNPJ)"
                       style={{ flexShrink: 0, width: 42, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Ic n="plus" s={18} />
                     </button>
@@ -543,9 +569,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
                           {payer.payer_name}
-                          <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b', marginLeft: 6 }}>
-                            ({payer.payer_type === 'juridica' ? 'CNPJ' : 'Pessoa física'})
-                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b', marginLeft: 6 }}>(CNPJ)</span>
                         </div>
                         <div style={{ fontSize: 12, color: '#64748b' }}>{payer.payer_document || 'Pagante avulso'}</div>
                       </div>
