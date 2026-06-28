@@ -7,6 +7,7 @@ import TrashTab from '../components/TrashTab'
 import ContractFormModal from '../components/ContractFormModal'
 import ContractViewModal from '../components/ContractViewModal'
 import SignedFileViewer from '../components/SignedFileViewer'
+import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import { useAuth } from '../context/AuthContext'
@@ -50,6 +51,16 @@ const STATUS_OPTS = [
   { value: 'cancelado', label: 'Cancelado' },
 ]
 
+const STAGE_META = {
+  em_edicao: { label: 'Em edição',       color: '#2563eb', bg: '#eff6ff' },
+  enviado:   { label: 'Para assinatura', color: '#b45309', bg: '#fffbeb' },
+  assinado:  { label: 'Assinado',        color: '#047857', bg: '#ecfdf5' },
+}
+function StageBadge({ stage }) {
+  const m = STAGE_META[stage] || { label: stage || '—', color: '#64748b', bg: '#f1f5f9' }
+  return <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 11px', borderRadius: 20, background: m.bg, color: m.color }}>{m.label}</span>
+}
+
 const COLS = [
   { key: 'reservation_number', label: 'Reserva',     align: 'center', render: (v) => v || <span style={{ color: '#cbd5e1' }}>—</span> },
   { key: 'contratante_name',   label: 'Contratante', align: 'center' },
@@ -57,7 +68,7 @@ const COLS = [
   { key: 'package_name',       label: 'Pacote',      align: 'center', render: (v) => v || <span style={{ color: '#cbd5e1' }}>—</span> },
   { key: 'departure_date',     label: 'Data viagem',  align: 'center', render: (v) => v ? fmtDateBR(v) : <span style={{ color: '#cbd5e1' }}>—</span> },
   { key: 'total_brl',          label: 'Total (BRL)',  align: 'center', render: (v) => v ? fmtBRL(v) : <span style={{ color: '#cbd5e1' }}>—</span> },
-  { key: 'status',             label: 'Status',       align: 'center', render: (v) => <StatusBadge value={v} /> },
+  { key: 'stage',              label: 'Etapa',        align: 'center', render: (v, row) => <StageBadge stage={row.stage} /> },
 ]
 
 /* ── Popup de upload do contrato assinado (arrastar e soltar) ── */
@@ -171,6 +182,7 @@ export default function Contracts() {
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
   const [signedUrl, setSignedUrl] = useState(null)   // url do assinado em visualização
+  const [previewId, setPreviewId] = useState(null)   // contrato p/ pré-visualizar o PDF gerado
 
   const load = () => {
     setLoading(true)
@@ -216,10 +228,21 @@ export default function Contracts() {
     }
   }
 
-  // Baixar/ver: na etapa "assinado" abre o arquivo assinado num popup; senão gera o PDF.
+  // Baixar/ver: "assinado" → arquivo assinado anexado; senão → pré-visualiza o PDF
+  // gerado num popup (com opção de baixar lá dentro).
   const handleDocs = (row) => {
     if (row.stage === 'assinado' && row.signed_file) { setSignedUrl(row.signed_file); return }
-    handleDownloadPdf(row)
+    setPreviewId(row.id)
+  }
+
+  const handlePublish = async (id) => {
+    try {
+      await contractsApi.sendForSignature(id)
+      toast.success('Contrato enviado para assinatura.')
+      setModal(null)
+      setTab('enviado')
+      load()
+    } catch { toast.error('Erro ao enviar para assinatura.') }
   }
 
   // Enviar para assinatura → muda a etapa E leva o usuário para a aba "Para assinatura".
@@ -314,7 +337,7 @@ export default function Contracts() {
             row.stage === 'enviado' ? row.signature_type === 'fisica'
             : row.stage === 'assinado' ? !!row.signed_file
             : false}
-          docsTitle={tab === 'assinado' ? 'Baixar contrato assinado' : 'Baixar PDF'}
+          docsTitle={tab === 'assinado' ? 'Ver contrato assinado' : 'Ver / baixar contrato'}
           extraActions={canEdit ? (row) => (
             tab === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
             : tab === 'enviado' ? actBtn('Anexar contrato assinado', 'check', '#059669', () => setUploadRow(row))
@@ -331,6 +354,9 @@ export default function Contracts() {
       {signedUrl && (
         <SignedFileModal url={signedUrl} onClose={() => setSignedUrl(null)} />
       )}
+      {previewId && (
+        <ContractPdfPreviewModal contractId={previewId} onClose={() => setPreviewId(null)} />
+      )}
       {viewId && (
         <ContractViewModal
           contractId={viewId}
@@ -344,6 +370,7 @@ export default function Contracts() {
           contractId={modal === 'new' ? null : modal}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
+          onPublish={handlePublish}
         />
       )}
       {delRow && (

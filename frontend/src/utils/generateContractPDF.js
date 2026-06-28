@@ -85,7 +85,7 @@ function dataTable(doc, y, head, body) {
   return doc.lastAutoTable.finalY
 }
 
-export async function generateContractPDF(contract) {
+export async function generateContractPDF(contract, opts = {}) {
   let logoDataUrl = null
   try {
     const resp = await fetch('/logo.png')
@@ -299,5 +299,8 @@ export async function generateContractPDF(contract) {
   }
 
   const filename = `contrato_${contract.reservation_number || contract.id}.pdf`
+  // Para pré-visualizar (em vez de baixar): retorna o PDF como blob URL.
+  if (opts.output === 'blob')    return doc.output('blob')
+  if (opts.output === 'bloburl') return URL.createObjectURL(doc.output('blob'))
   doc.save(filename)
 }

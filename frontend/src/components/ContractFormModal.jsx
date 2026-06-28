@@ -7,6 +7,7 @@ import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
 import Dropdown from './Dropdown'
 import CnpjInput from './CnpjInput'
+import ContractPdfPreviewModal from './ContractPdfPreviewModal'
 import { Ic } from './Icon'
 import { usePrefs } from '../context/PrefsContext'
 
@@ -334,7 +335,7 @@ const addMonthsIso = (iso, n) => {
 
 const round2 = (n) => Math.round(n * 100) / 100
 
-export default function ContractFormModal({ contractId, onClose, onSaved }) {
+export default function ContractFormModal({ contractId, onClose, onSaved, onPublish }) {
   const isEdit = !!contractId
   const [loading, setLoading] = useState(isEdit)
   const [saving,  setSaving]  = useState(false)
@@ -376,6 +377,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   // Layout: 'steps' (passo a passo) ou 'full' (completo). Vem do perfil do usuário
   // (separado para criar/editar). Trocar aqui salva o novo padrão no perfil.
   const [layout, setLayout] = useState(isEdit ? contractEditLayout : contractCreateLayout)
+  const [showPreview, setShowPreview] = useState(false)
+  const [loadedStage, setLoadedStage] = useState('em_edicao')
   const changeLayout = (v) => { setLayout(v); setContractLayout(isEdit, v) }
   const [step, setStep] = useState(0)
   const STEPS = [
@@ -427,6 +430,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       const d = r.data
       setReservationNumber(d.reservation_number ?? '')
       setContractDate(d.contract_date ?? '')
+      setLoadedStage(d.stage ?? 'em_edicao')
       setForm({
         agency: d.agency, itinerary: d.itinerary, contratante: d.contratante,
         package_name: d.package_name ?? '', departure_date: d.departure_date ?? '', return_date: d.return_date ?? '',
@@ -965,16 +969,24 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
               </span>
             )}
           </p>
-          <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }} title="Como você prefere preencher — fica salvo no seu perfil">
-            {[{ v: 'steps', label: 'Passo a passo' }, { v: 'full', label: 'Completo' }].map(o => {
-              const active = layout === o.v
-              return (
-                <button key={o.v} type="button" onClick={() => changeLayout(o.v)}
-                  style={{ padding: '6px 12px', border: 'none', background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {o.label}
-                </button>
-              )
-            })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {isEdit && (
+              <button type="button" onClick={() => setShowPreview(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="eye" s={13} /> Ver documento
+              </button>
+            )}
+            <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }} title="Como você prefere preencher — fica salvo no seu perfil">
+              {[{ v: 'steps', label: 'Passo a passo' }, { v: 'full', label: 'Completo' }].map(o => {
+                const active = layout === o.v
+                return (
+                  <button key={o.v} type="button" onClick={() => changeLayout(o.v)}
+                    style={{ padding: '6px 12px', border: 'none', background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {o.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
 
@@ -1493,6 +1505,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
           roundedUsd={computedTotalUsd}
           roundedBrl={computedTotalBrl}
           onClose={() => setShowRounding(false)}
+        />
+      )}
+      {showPreview && (
+        <ContractPdfPreviewModal
+          contractId={contractId}
+          onClose={() => setShowPreview(false)}
+          footerExtra={(loadedStage === 'em_edicao' && onPublish) ? (
+            <button type="button" onClick={() => onPublish(contractId)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Ic n="mail" s={14} /> Enviar para assinatura
+            </button>
+          ) : null}
         />
       )}
     </div>
