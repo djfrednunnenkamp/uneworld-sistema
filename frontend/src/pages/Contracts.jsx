@@ -81,6 +81,9 @@ function SignedUploadModal({ onClose, onUpload }) {
           <button onClick={onClose} style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}><Ic n="x" s={14} /></button>
         </div>
         <div style={{ padding: 20 }}>
+          <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#64748b', lineHeight: 1.5 }}>
+            Envie aqui o contrato que a pessoa assinou (PDF ou foto/imagem). Ao anexar, o contrato vai para a aba <strong>Assinados</strong>.
+          </p>
           <input ref={inputRef} type="file" accept="application/pdf,image/*" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setFile(f) }} />
           <div onClick={() => inputRef.current?.click()}
@@ -111,7 +114,12 @@ function SignedUploadModal({ onClose, onUpload }) {
 
 /* ── Popup de visualização do contrato assinado ── */
 function SignedFileModal({ url, onClose }) {
-  const isPdf = /\.pdf(\?|$)/i.test(url)
+  // O backend devolve URL absoluta (ex.: http://localhost:8000/media/...) que
+  // quebra quando o app é acessado de outro host. Usamos só o caminho relativo,
+  // servido pela própria origem do app (proxy /media em dev, nginx em prod).
+  let rel = url
+  try { const u = new URL(url, window.location.origin); rel = u.pathname + u.search } catch { /* já é relativo */ }
+  const isPdf = /\.pdf(\?|$)/i.test(rel)
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
@@ -119,15 +127,15 @@ function SignedFileModal({ url, onClose }) {
         <div style={{ padding: '14px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>Contrato assinado</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => window.open(url, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Abrir em nova aba</button>
-            <a href={url} download style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>Baixar</a>
+            <a href={rel} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Abrir em nova aba</a>
+            <a href={rel} download style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>Baixar</a>
             <button onClick={onClose} style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}><Ic n="x" s={15} /></button>
           </div>
         </div>
         <div style={{ flex: 1, background: '#f1f5f9', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {isPdf
-            ? <iframe title="Contrato assinado" src={url} style={{ width: '100%', height: '100%', border: 'none' }} />
-            : <img src={url} alt="Contrato assinado" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
+            ? <iframe title="Contrato assinado" src={rel} style={{ width: '100%', height: '100%', border: 'none' }} />
+            : <img src={rel} alt="Contrato assinado" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
         </div>
       </div>
     </div>
@@ -206,8 +214,8 @@ export default function Contracts() {
     try {
       await contractsApi.sendForSignature(row.id)
       toast.success('Contrato enviado para assinatura.')
-      await new Promise(res => contractsApi.list().then(r => { setRows(r.data.results ?? r.data); res() }).catch(res))
-      setTab('enviado')
+      setTab('enviado')   // segue o contrato para a aba de destino
+      load()
     } catch { toast.error('Erro ao enviar para assinatura.') }
   }
 
@@ -216,8 +224,8 @@ export default function Contracts() {
       await contractsApi.uploadSigned(uploadRow.id, file)
       toast.success('Contrato assinado anexado.')
       setUploadRow(null)
-      await new Promise(res => contractsApi.list().then(r => { setRows(r.data.results ?? r.data); res() }).catch(res))
-      setTab('assinado')
+      setTab('assinado')   // segue o contrato para "Assinados"
+      load()
     } catch { toast.error('Erro ao anexar o contrato assinado.') }
   }
 
