@@ -120,3 +120,22 @@ class ContractInstallment(models.Model):
 
     class Meta:
         ordering = ['order']
+
+
+class ContractAdjustment(models.Model):
+    """Acréscimo (valor extra) ou desconto aplicado ao total do contrato, em USD.
+    Entra no cálculo da Soma total (USD) — acréscimo soma, desconto subtrai."""
+    KIND_CHOICES = [('acrescimo', 'Acréscimo'), ('desconto', 'Desconto')]
+
+    contract    = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='adjustments')
+    description = models.CharField('Descrição', max_length=200, blank=True)
+    kind        = models.CharField('Tipo', max_length=10, choices=KIND_CHOICES, default='acrescimo')
+    value_usd   = models.DecimalField('Valor (USD)', max_digits=12, decimal_places=2, default=0)
+    order       = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    @property
+    def signed_value(self):
+        return self.value_usd if self.kind == 'acrescimo' else -self.value_usd

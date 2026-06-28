@@ -135,6 +135,71 @@ function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
   )
 }
 
+/* Popup de valores extras (acréscimos) e descontos — entram na Soma total (USD). */
+function AdjustmentsModal({ adjustments, setAdjustments, onClose }) {
+  const add    = () => setAdjustments(a => [...a, { description: '', kind: 'acrescimo', value_usd: '' }])
+  const update = (i, k, v) => setAdjustments(a => a.map((x, idx) => idx === i ? { ...x, [k]: v } : x))
+  const remove = (i) => setAdjustments(a => a.filter((_, idx) => idx !== i))
+  const net = adjustments.reduce((s, a) => s + (a.kind === 'desconto' ? -1 : 1) * Number(a.value_usd || 0), 0)
+  return (
+    <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
+      <div className="mbox" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <span className="mtitle">Valores extras e descontos</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
+        </div>
+        <div className="mbody">
+          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+            Acréscimos somam e descontos subtraem da <strong>Soma total (USD)</strong> do contrato.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {adjustments.length === 0 && (
+              <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum valor adicionado ainda.</p>
+            )}
+            {adjustments.map((a, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                <div style={{ flex: 2 }}>
+                  {i === 0 && <label style={lbl}>Descrição</label>}
+                  <input style={inp} value={a.description} onChange={e => update(i, 'description', e.target.value)}
+                    placeholder="Ex: Taxa de embarque, Desconto fidelidade…" />
+                </div>
+                <div style={{ flex: 1.3 }}>
+                  {i === 0 && <label style={lbl}>Tipo</label>}
+                  <Dropdown value={a.kind}
+                    options={[{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]}
+                    onChange={v => update(i, 'kind', v || 'acrescimo')} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  {i === 0 && <label style={lbl}>Valor (USD)</label>}
+                  <input style={inp} type="number" step="0.01" min="0" value={a.value_usd}
+                    onChange={e => update(i, 'value_usd', e.target.value)} />
+                </div>
+                <button type="button" onClick={() => remove(i)}
+                  style={{ padding: 8, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
+                  <Ic n="trash" s={13} />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={add}
+              style={{ alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+              + Adicionar valor
+            </button>
+          </div>
+        </div>
+        <div className="mfoot" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, color: '#475569' }}>
+            Efeito no total:{' '}
+            <strong style={{ color: net < 0 ? '#dc2626' : '#15803d' }}>
+              {net >= 0 ? '+' : '−'} {Math.abs(net).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} USD
+            </strong>
+          </span>
+          <button className="btn btn-primary" onClick={onClose}>Concluir</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const lbl = { fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
 const inpRO = { ...inp, background: '#f8fafc', color: '#64748b' }
@@ -195,6 +260,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const [showPayerModal, setShowPayerModal] = useState(false)
   const [departureAirportObj, setDepartureAirportObj] = useState(null)
   const [accomLines, setAccomLines] = useState([])
+  const [adjustments, setAdjustments] = useState([]) // [{ description, kind, value_usd }]
+  const [showAdjustments, setShowAdjustments] = useState(false)
   const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
   const [rooms, setRooms]           = useState([]) // [{ id, type }]  type = id da acomodação | null
   const roomSeqRef                  = useRef(1)     // gera ids estáveis de quarto
@@ -250,6 +317,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd,
         taxes_usd: l.taxes_usd, quantity: l.quantity,
       })))
+      setAdjustments((d.adjustments ?? []).map(a => ({
+        description: a.description ?? '', kind: a.kind ?? 'acrescimo', value_usd: a.value_usd ?? '',
+      })))
       // Reconstrói os quartos a partir do room_group salvo. Contrato antigo (sem
       // room_group) com tipo definido vira um quarto por hóspede, preservando o tipo.
       const roomById = new Map()
@@ -292,9 +362,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
   // Soma total (USD) sempre calculada a partir das linhas de acomodação —
   // nunca digitada. Total em BRL deriva da soma total e do câmbio.
+  const adjustmentsTotalUsd = useMemo(() => adjustments.reduce(
+    (s, a) => s + (a.kind === 'desconto' ? -1 : 1) * Number(a.value_usd || 0), 0
+  ), [adjustments])
   const computedTotalUsd = useMemo(() => accomLines.reduce(
     (sum, l) => sum + (Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1), 0
-  ), [accomLines])
+  ) + adjustmentsTotalUsd, [accomLines, adjustmentsTotalUsd])
   const computedTotalBrl = form.exchange_rate ? computedTotalUsd * Number(form.exchange_rate) : null
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
@@ -573,6 +646,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         accommodation_type: roomTypeOf(g.room),
         room_group: g.room ?? null,
       })),
+      adjustments: adjustments
+        .filter(a => Number(a.value_usd) !== 0 || (a.description || '').trim())
+        .map(a => ({ description: a.description || '', kind: a.kind || 'acrescimo', value_usd: Number(a.value_usd) || 0 })),
       installments: installmentsPayload,
       clauses: selectedClauses,
     }
@@ -891,7 +967,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
             {/* Dados de pagamento */}
             <div style={card}>
-              <p style={sectionTitle}><Ic n="card" s={14} /> Dados dos pagamentos / valores</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                <p style={{ ...sectionTitle, margin: 0 }}><Ic n="card" s={14} /> Dados dos pagamentos / valores</p>
+                <button type="button" onClick={() => setShowAdjustments(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Ic n="plus" s={13} /> Valores extras / descontos
+                  {adjustments.length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: adjustmentsTotalUsd < 0 ? '#dc2626' : '#15803d' }}>
+                      ({adjustmentsTotalUsd >= 0 ? '+' : '−'}{Math.abs(adjustmentsTotalUsd).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} USD)
+                    </span>
+                  )}
+                </button>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
@@ -1029,6 +1116,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
           setPayer={setPayer}
           onClearContratante={() => setForm(f => ({ ...f, contratante: null }))}
           onClose={() => setShowPayerModal(false)}
+        />
+      )}
+      {showAdjustments && (
+        <AdjustmentsModal
+          adjustments={adjustments}
+          setAdjustments={setAdjustments}
+          onClose={() => setShowAdjustments(false)}
         />
       )}
     </div>

@@ -153,6 +153,17 @@ export async function generateContractPDF(contract) {
   y = dataTable(doc, y, ['Tipo de Acomodação', 'Valor/pessoa (USD)', 'Taxas (USD)', 'Quantidade', 'Total (USD)'],
     accomRows.length ? accomRows : [['—', '', '', '', '']])
 
+  // Valores extras / descontos (só aparece quando há)
+  const adjRows = (contract.adjustments || []).map(a => [
+    a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'),
+    a.kind === 'desconto' ? 'Desconto' : 'Acréscimo',
+    `${a.kind === 'desconto' ? '- ' : '+ '}${fmtMoney(a.value_usd)}`,
+  ])
+  if (adjRows.length) {
+    y = sectionHeader(doc, 'VALORES EXTRAS / DESCONTOS', y + 1.5)
+    y = dataTable(doc, y, ['Descrição', 'Tipo', 'Valor (USD)'], adjRows)
+  }
+
   // Dados de pagamento
   y = sectionHeader(doc, 'DADOS DOS PAGAMENTOS / VALORES', y + 1.5)
   y = kvTable(doc, y, [

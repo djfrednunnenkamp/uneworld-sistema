@@ -8,7 +8,8 @@ from config_api.models import ConfigAccommodation, ConfigExchangeRate, ContractC
 from passengers.models import Passenger
 from trips.models import PassengerList
 
-from .models import Contract, ContractAccommodationLine, ContractGuest, ContractInstallment
+from .models import (Contract, ContractAccommodationLine, ContractGuest,
+                     ContractInstallment, ContractAdjustment)
 
 
 def _default_exchange_rate(from_currency='USD', to_currency='BRL'):
@@ -67,6 +68,12 @@ class ContractInstallmentSerializer(serializers.ModelSerializer):
         fields = ['id', 'kind', 'installment_number', 'detail', 'due_date', 'value_brl', 'payment_method', 'order']
 
 
+class ContractAdjustmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ContractAdjustment
+        fields = ['id', 'description', 'kind', 'value_usd', 'order']
+
+
 class ContractListSerializer(serializers.ModelSerializer):
     agency_name      = serializers.SerializerMethodField()
     contratante_name = serializers.SerializerMethodField()
@@ -88,6 +95,7 @@ class ContractSerializer(serializers.ModelSerializer):
     accommodation_lines = ContractAccommodationLineSerializer(many=True, required=False)
     guests              = ContractGuestSerializer(many=True, required=False)
     installments        = ContractInstallmentSerializer(many=True, required=False)
+    adjustments         = ContractAdjustmentSerializer(many=True, required=False)
     clauses             = serializers.PrimaryKeyRelatedField(many=True, queryset=ContractClause.objects.all(), required=False)
 
     agency_data      = serializers.SerializerMethodField()
@@ -113,7 +121,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'total_usd', 'total_brl', 'exchange_rate',
                   'received_down_payment_brl', 'received_installments_brl',
-                  'accommodation_lines', 'guests', 'installments', 'clauses', 'clauses_data',
+                  'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def validate(self, attrs):
@@ -155,7 +163,13 @@ class ContractSerializer(serializers.ModelSerializer):
         return {'id': pl.id, 'name': pl.name, 'start_date': pl.start_date, 'end_date': pl.end_date,
                 'airport_name': pl.default_airport.name if pl.default_airport_id else ''}
 
-    def _save_children(self, contract, accommodation_lines, guests, installments, clauses):
+    def _save_children(self, contract, accommodation_lines, guests, installments, clauses, adjustments=None):
+        if adjustments is not None:
+            contract.adjustments.all().delete()
+            ContractAdjustment.objects.bulk_create([
+                ContractAdjustment(contract=contract, order=i, **row)
+                for i, row in enumerate(adjustments)
+            ])
         if accommodation_lines is not None:
             contract.accommodation_lines.all().delete()
             ContractAccommodationLine.objects.bulk_create([
@@ -190,6 +204,8 @@ class ContractSerializer(serializers.ModelSerializer):
             (line.value_per_person_usd + line.taxes_usd) * line.quantity
             for line in contract.accommodation_lines.all()
         )
+        # Acréscimos somam, descontos subtraem (em USD).
+        total_usd += sum((a.signed_value for a in contract.adjustments.all()), Decimal('0'))
         exchange_rate = contract.exchange_rate or _default_exchange_rate()
         total_brl = total_usd * exchange_rate if exchange_rate else None
         contract.total_usd     = total_usd
@@ -201,6 +217,7 @@ class ContractSerializer(serializers.ModelSerializer):
         accommodation_lines = validated_data.pop('accommodation_lines', [])
         guests              = validated_data.pop('guests', [])
         installments        = validated_data.pop('installments', [])
+        adjustments         = validated_data.pop('adjustments', [])
         clauses              = validated_data.pop('clauses', [])
         request = self.context.get('request')
 
@@ -226,7 +243,7 @@ class ContractSerializer(serializers.ModelSerializer):
             contract.reservation_number = f'{contract.id:06d}'
             contract.save(update_fields=['reservation_number'])
 
-        self._save_children(contract, accommodation_lines, guests, installments, clauses)
+        self._save_children(contract, accommodation_lines, guests, installments, clauses, adjustments)
         self._recalc_totals(contract)
         return contract
 
@@ -234,6 +251,7 @@ class ContractSerializer(serializers.ModelSerializer):
         accommodation_lines = validated_data.pop('accommodation_lines', None)
         guests              = validated_data.pop('guests', None)
         installments        = validated_data.pop('installments', None)
+        adjustments         = validated_data.pop('adjustments', None)
         clauses              = validated_data.pop('clauses', None)
         # Data da contratação e reserva nº são imutáveis após a criação.
         validated_data.pop('contract_date', None)
@@ -252,6 +270,6 @@ class ContractSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        self._save_children(instance, accommodation_lines, guests, installments, clauses)
+        self._save_children(instance, accommodation_lines, guests, installments, clauses, adjustments)
         self._recalc_totals(instance)
         return instance
