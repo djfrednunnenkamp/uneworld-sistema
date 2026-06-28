@@ -39,6 +39,71 @@ function MismatchConfirm({ sumFilled, total, onOk, onCancel }) {
   )
 }
 
+/* Popup do pagante avulso (pessoa OU empresa/CNPJ não cadastrada). Antes esses
+ * campos ficavam num bloco fixo abaixo do seletor; agora abrem neste popup pelo
+ * botão "+" ao lado do campo. Os dados continuam indo nos campos payer_* do
+ * contrato — nada muda no backend. */
+function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
+  const setField = (k) => (e) => { onClearContratante(); setPayer(p => ({ ...p, [k]: e.target.value })) }
+  const setPick  = (k) => (v)  => { onClearContratante(); setPayer(p => ({ ...p, [k]: v })) }
+  return (
+    <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
+      <div className="mbox" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <span className="mtitle">Pagante avulso (não cadastrado)</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
+        </div>
+        <div className="mbody">
+          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+            Use quando quem paga não está entre os passageiros cadastrados — pode ser uma pessoa física ou uma empresa (CNPJ).
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>Tipo</label>
+                <Dropdown value={payer.payer_type} onChange={setPick('payer_type')} options={PAYER_TYPE_OPTS} />
+              </div>
+              <div style={{ flex: 2 }}>
+                <label style={lbl}>{payer.payer_type === 'juridica' ? 'Razão social' : 'Nome completo'}</label>
+                <input style={inp} value={payer.payer_name} onChange={setField('payer_name')} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>{payer.payer_type === 'juridica' ? 'CNPJ' : 'CPF'}</label>
+                <input style={inp} value={payer.payer_document} onChange={setField('payer_document')} />
+              </div>
+              {payer.payer_type !== 'juridica' && (
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Data de nascimento</label>
+                  <DatePicker value={payer.payer_birth_date} onChange={setPick('payer_birth_date')} fixed />
+                </div>
+              )}
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>Celular</label>
+                <input style={inp} value={payer.payer_phone} onChange={setField('payer_phone')} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>E-mail</label>
+                <input style={inp} type="email" value={payer.payer_email} onChange={setField('payer_email')} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>Endereço</label>
+                <input style={inp} value={payer.payer_address} onChange={setField('payer_address')} />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="mfoot">
+          <button className="btn btn-primary" onClick={onClose}>Concluir</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const lbl = { fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
 const inpRO = { ...inp, background: '#f8fafc', color: '#64748b' }
@@ -101,6 +166,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     payer_type: 'fisica', payer_name: '', payer_document: '', payer_birth_date: '',
     payer_gender: '', payer_email: '', payer_phone: '', payer_address: '',
   })
+  const [showPayerModal, setShowPayerModal] = useState(false)
   const [departureAirportObj, setDepartureAirportObj] = useState(null)
   const [accomLines, setAccomLines] = useState([])
   const [guests, setGuests]         = useState([]) // [{ passenger, accommodation_type }]
@@ -192,7 +258,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     Math.abs(sumFilled - round2(computedTotalBrl)) > 0.01
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
-  const setPayerField = (k) => (e) => setPayer(p => ({ ...p, [k]: e.target.value }))
+  const clearPayer = () => setPayer({
+    payer_type: 'fisica', payer_name: '', payer_document: '', payer_birth_date: '',
+    payer_gender: '', payer_email: '', payer_phone: '', payer_address: '',
+  })
 
   const handleSelectList = (ids) => {
     const id = ids[0] ?? null
@@ -455,53 +524,40 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                 </div>
                 <div>
                   <label style={lbl}>Cliente: contratante / responsável pelo pagamento *</label>
-                  <EntityPicker items={passengerItems} selectedIds={form.contratante ? [form.contratante] : []}
-                    onChange={(ids) => setForm(f => ({ ...f, contratante: ids[0] ?? null }))}
-                    title="Selecionar contratante" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar contratante —"
-                    emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <EntityPicker items={passengerItems} selectedIds={form.contratante ? [form.contratante] : []}
+                        onChange={(ids) => { setForm(f => ({ ...f, contratante: ids[0] ?? null })); if (ids[0]) clearPayer() }}
+                        title="Selecionar contratante" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar contratante —"
+                        emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
+                    </div>
+                    <button type="button" onClick={() => setShowPayerModal(true)}
+                      title="Cadastrar um pagante avulso (pessoa ou CNPJ)"
+                      style={{ flexShrink: 0, width: 42, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ic n="plus" s={18} />
+                    </button>
+                  </div>
 
-                  {!form.contratante && (
-                    <div style={{ marginTop: 10, padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
-                      <p style={{ fontSize: 11.5, color: '#64748b', margin: '0 0 10px' }}>
-                        Sem um contratante cadastrado selecionado acima — preencha os dados manualmente (pode ser uma empresa pagando, não só uma pessoa física).
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <div style={{ flex: 1 }}>
-                            <label style={lbl}>Tipo</label>
-                            <Dropdown value={payer.payer_type} onChange={v => setPayer(p => ({ ...p, payer_type: v }))} options={PAYER_TYPE_OPTS} />
-                          </div>
-                          <div style={{ flex: 2 }}>
-                            <label style={lbl}>{payer.payer_type === 'juridica' ? 'Razão social' : 'Nome completo'}</label>
-                            <input style={inp} value={payer.payer_name} onChange={setPayerField('payer_name')} />
-                          </div>
+                  {!form.contratante && payer.payer_name.trim() && (
+                    <div style={{ marginTop: 10, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                          {payer.payer_name}
+                          <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b', marginLeft: 6 }}>
+                            ({payer.payer_type === 'juridica' ? 'CNPJ' : 'Pessoa física'})
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <div style={{ flex: 1 }}>
-                            <label style={lbl}>{payer.payer_type === 'juridica' ? 'CNPJ' : 'CPF'}</label>
-                            <input style={inp} value={payer.payer_document} onChange={setPayerField('payer_document')} />
-                          </div>
-                          {payer.payer_type !== 'juridica' && (
-                            <div style={{ flex: 1 }}>
-                              <label style={lbl}>Data de nascimento</label>
-                              <DatePicker value={payer.payer_birth_date} onChange={v => setPayer(p => ({ ...p, payer_birth_date: v }))} fixed />
-                            </div>
-                          )}
-                          <div style={{ flex: 1 }}>
-                            <label style={lbl}>Celular</label>
-                            <input style={inp} value={payer.payer_phone} onChange={setPayerField('payer_phone')} />
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <div style={{ flex: 1 }}>
-                            <label style={lbl}>E-mail</label>
-                            <input style={inp} type="email" value={payer.payer_email} onChange={setPayerField('payer_email')} />
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <label style={lbl}>Endereço</label>
-                            <input style={inp} value={payer.payer_address} onChange={setPayerField('payer_address')} />
-                          </div>
-                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>{payer.payer_document || 'Pagante avulso'}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button type="button" onClick={() => setShowPayerModal(true)}
+                          style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Editar
+                        </button>
+                        <button type="button" onClick={clearPayer}
+                          style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Remover
+                        </button>
                       </div>
                     </div>
                   )}
@@ -774,6 +830,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
           total={computedTotalBrl}
           onOk={() => { setConfirmMismatch(false); doSave() }}
           onCancel={() => setConfirmMismatch(false)}
+        />
+      )}
+      {showPayerModal && (
+        <PayerModal
+          payer={payer}
+          setPayer={setPayer}
+          onClearContratante={() => setForm(f => ({ ...f, contratante: null }))}
+          onClose={() => setShowPayerModal(false)}
         />
       )}
     </div>
