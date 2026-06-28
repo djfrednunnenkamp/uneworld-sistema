@@ -1404,7 +1404,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
               {/* Forma: à vista ou parcelado */}
               <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
-                {[['a_vista', 'Pago na hora (à vista)'], ['parcelado', 'Parcelado']].map(([val, label]) => {
+                {[['a_vista', 'À vista'], ['parcelado', 'Parcelado']].map(([val, label]) => {
                   const sel = paymentType === val
                   return (
                     <button key={val} type="button" onClick={() => setPaymentType(val)}
