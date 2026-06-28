@@ -212,6 +212,7 @@ export default function Contracts() {
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
+  const [reopenRow, setReopenRow] = useState(null)   // contrato a voltar p/ edição (confirma antes)
   const [modal,   setModal]   = useState(null)   // null | 'new' | contractId
   const [viewId,  setViewId]  = useState(null)   // id do contrato em visualização
   const [statusF, setStatusF] = useState('all')
@@ -293,10 +294,12 @@ export default function Contracts() {
     } catch { toast.error('Erro ao enviar para assinatura.') }
   }
 
-  const handleReopen = async (row) => {
+  const handleReopen = async () => {
+    if (!reopenRow) return
     try {
-      await contractsApi.reopen(row.id)
+      await contractsApi.reopen(reopenRow.id)
       toast.success('Contrato voltou para edição.')
+      setReopenRow(null)
       setTab('em_edicao')   // segue o contrato de volta para a aba de edição
       load()
     } catch { toast.error('Erro ao voltar o contrato para edição.') }
@@ -389,8 +392,8 @@ export default function Contracts() {
             tab === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
             : tab === 'enviado' ? (
               <>
-                {actBtn('Voltar para edição', 'rotate', '#b45309', () => handleReopen(row))}
-                {actBtn('Anexar contrato assinado', 'check', '#059669', () => setUploadRow(row))}
+                {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
+                {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
               </>
             )
             : null
@@ -430,6 +433,29 @@ export default function Contracts() {
           name={delRow.reservation_number ? `Contrato ${delRow.reservation_number}` : `Contrato #${delRow.id}`}
           onOk={handleDelete} onCancel={() => setDelRow(null)} recoverable
         />
+      )}
+      {reopenRow && (
+        <div className="overlay" onClick={() => setReopenRow(null)}>
+          <div className="mbox" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="mhead">
+              <span className="mtitle">Voltar para edição</span>
+              <button className="mclose" onClick={() => setReopenRow(null)}><Ic n="x" s={15} /></button>
+            </div>
+            <div className="mbody">
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{ color: '#f59e0b', flexShrink: 0, marginTop: 2 }}><Ic n="warn" s={20} /></div>
+                <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7 }}>
+                  Tem certeza que deseja voltar o <strong style={{ color: '#1e293b' }}>{reopenRow.reservation_number ? `Contrato ${reopenRow.reservation_number}` : `Contrato #${reopenRow.id}`}</strong> para <strong style={{ color: '#1e293b' }}>Em edição</strong>?<br />
+                  Ele sai da aba "Para assinatura" e você poderá editá-lo de novo.
+                </p>
+              </div>
+            </div>
+            <div className="mfoot">
+              <button className="btn btn-outline" onClick={() => setReopenRow(null)}>Cancelar</button>
+              <button className="btn" style={{ background: '#1a2d4f', color: '#fff', border: 'none' }} onClick={handleReopen}>Voltar para edição</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
