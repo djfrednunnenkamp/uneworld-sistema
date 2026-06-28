@@ -9,6 +9,7 @@ import ContractViewModal from '../components/ContractViewModal'
 import SignedFileViewer from '../components/SignedFileViewer'
 import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
 import DateRangeDrop from '../components/DateRangeDrop'
+import Dropdown from '../components/Dropdown'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import { useAuth } from '../context/AuthContext'
@@ -23,24 +24,17 @@ const fmtDateBR = (iso) => {
 
 const fmtBRL = (v) => v == null ? '' : `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 
-const STATUS_OPTS = [
-  { value: 'all',       label: 'Todos' },
-  { value: 'ativo',     label: 'Ativo' },
-  { value: 'cancelado', label: 'Cancelado' },
-]
-
 const DASH = <span style={{ color: '#cbd5e1' }}>—</span>
 const fmtDateTimeBR = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') }
 
 const VALUE_OPTS = [
-  { value: 'all',         label: 'Todos' },
   { value: '0-5000',      label: 'Até R$ 5.000' },
   { value: '5000-20000',  label: 'R$ 5.000 – 20.000' },
   { value: '20000-50000', label: 'R$ 20.000 – 50.000' },
   { value: '50000+',      label: 'Acima de R$ 50.000' },
 ]
 const valueInRange = (v, key) => {
-  if (key === 'all') return true
+  if (!key) return true
   if (v == null) return false
   v = Number(v)
   if (key === '0-5000')      return v <= 5000
@@ -50,31 +44,12 @@ const valueInRange = (v, key) => {
   return true
 }
 
-/* ── FDrop — dropdown de filtro ao lado da busca (mesmo padrão das outras
- * páginas: Passageiros, Agências, Configurações) ── */
-function FDrop({ label, value, onChange, options, active }) {
-  const [open, setOpen] = useState(false)
-  const sel = options.find(o => o.value === value)
+/* Filtro em formato de campo com busca (Dropdown pesquisável: digitar, setas
+ * ↑↓ e Enter). Largura fixa, rótulo como placeholder, vazio = sem filtro. */
+function FilterField({ label, value, onChange, options, searchable = true, width = 180 }) {
   return (
-    <div style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 6, border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff', color: active ? '#2e6db4' : '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', maxWidth: 220 }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}{active && sel && sel.value !== 'all' ? `: ${sel.label}` : ''}</span>
-        <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
-      </button>
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 200 }} />
-          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 201, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,.10)', minWidth: 180, maxWidth: 280, maxHeight: 300, overflowY: 'auto' }}>
-            {options.map(opt => (
-              <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false) }}
-                style={{ display: 'block', width: '100%', padding: '9px 14px', background: value === opt.value ? '#eff6ff' : 'transparent', border: 'none', color: value === opt.value ? '#2e6db4' : '#1e293b', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+    <div style={{ width }}>
+      <Dropdown value={value} onChange={(v) => onChange(v || null)} options={options} placeholder={label} searchable={searchable} />
     </div>
   )
 }
@@ -223,11 +198,10 @@ export default function Contracts() {
   const [reopenRow, setReopenRow] = useState(null)   // contrato a voltar p/ edição (confirma antes)
   const [modal,   setModal]   = useState(null)   // null | 'new' | contractId
   const [viewId,  setViewId]  = useState(null)   // id do contrato em visualização
-  const [statusF, setStatusF] = useState('all')
-  const [fPayer, setFPayer] = useState('all')
-  const [fTraveler, setFTraveler] = useState('all')
-  const [fAgency, setFAgency] = useState('all')
-  const [fValue, setFValue] = useState('all')
+  const [fPayer, setFPayer] = useState(null)
+  const [fTraveler, setFTraveler] = useState(null)
+  const [fAgency, setFAgency] = useState(null)
+  const [fValue, setFValue] = useState(null)
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
   const [tab, setTab] = useState('em_edicao')   // em_edicao | enviado | assinado | trash
@@ -332,27 +306,23 @@ export default function Contracts() {
   const stageRows = tab === 'trash' ? [] : rows.filter(r => r.stage === tab)
   const stageCount = (s) => rows.filter(r => r.stage === s).length
 
-  const optsFrom = (values, allLabel) => {
-    const names = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b))
-    return [{ value: 'all', label: allLabel }, ...names.map(n => ({ value: n, label: n }))]
-  }
-  const agencyOpts   = useMemo(() => optsFrom(rows.map(r => r.agency_name), 'Todas'), [rows])
-  const payerOpts    = useMemo(() => optsFrom(rows.map(r => r.contratante_name), 'Todos'), [rows])
-  const travelerOpts = useMemo(() => optsFrom(rows.flatMap(r => r.guest_names || []), 'Todos'), [rows])
+  const namesOpts = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))
+  const agencyOpts   = useMemo(() => namesOpts(rows.map(r => r.agency_name)), [rows])
+  const payerOpts    = useMemo(() => namesOpts(rows.map(r => r.contratante_name)), [rows])
+  const travelerOpts = useMemo(() => namesOpts(rows.flatMap(r => r.guest_names || [])), [rows])
 
   const filtered = stageRows.filter(r => {
-    if (statusF !== 'all' && r.status !== statusF) return false
-    if (fPayer !== 'all' && r.contratante_name !== fPayer) return false
-    if (fTraveler !== 'all' && !(r.guest_names || []).includes(fTraveler)) return false
-    if (fAgency !== 'all' && r.agency_name !== fAgency) return false
+    if (fPayer && r.contratante_name !== fPayer) return false
+    if (fTraveler && !(r.guest_names || []).includes(fTraveler)) return false
+    if (fAgency && r.agency_name !== fAgency) return false
     if (!valueInRange(r.total_brl, fValue)) return false
     if (fDateFrom && (!r.contract_date || r.contract_date < fDateFrom)) return false
     if (fDateTo && (!r.contract_date || r.contract_date > fDateTo)) return false
     return true
   })
 
-  const activeFilters = [statusF !== 'all', fPayer !== 'all', fTraveler !== 'all', fAgency !== 'all', fValue !== 'all', !!fDateFrom, !!fDateTo].filter(Boolean).length
-  const clearFilters = () => { setStatusF('all'); setFPayer('all'); setFTraveler('all'); setFAgency('all'); setFValue('all'); setFDateFrom(''); setFDateTo('') }
+  const activeFilters = [fPayer, fTraveler, fAgency, fValue, !!fDateFrom, !!fDateTo].filter(Boolean).length
+  const clearFilters = () => { setFPayer(null); setFTraveler(null); setFAgency(null); setFValue(null); setFDateFrom(''); setFDateTo('') }
 
   // Coluna de data muda conforme a aba: criado / enviado / assinado.
   const cols = useMemo(() => {
@@ -374,16 +344,18 @@ export default function Contracts() {
 
   const filterBar = (
     <>
-      <FDrop label="Pagante"  value={fPayer}    onChange={setFPayer}    options={payerOpts}    active={fPayer !== 'all'} />
-      <FDrop label="Viajante" value={fTraveler} onChange={setFTraveler} options={travelerOpts}  active={fTraveler !== 'all'} />
-      <FDrop label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts}    active={fAgency !== 'all'} />
-      <FDrop label="Valor"    value={fValue}    onChange={setFValue}    options={VALUE_OPTS}    active={fValue !== 'all'} />
+      <FilterField label="Pagante"  value={fPayer}    onChange={setFPayer}    options={payerOpts} />
+      <FilterField label="Viajante" value={fTraveler} onChange={setFTraveler} options={travelerOpts} />
+      <FilterField label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts} />
+      <FilterField label="Valor"    value={fValue}    onChange={setFValue}    options={VALUE_OPTS} searchable={false} width={160} />
       <DateRangeDrop label="Período" from={fDateFrom} to={fDateTo} onFrom={setFDateFrom} onTo={setFDateTo} />
-      <FDrop label="Status"   value={statusF}   onChange={setStatusF}   options={STATUS_OPTS}   active={statusF !== 'all'} />
       {activeFilters > 0 && (
-        <button onClick={clearFilters} title="Limpar filtros"
-          style={{ padding: '6px 11px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
-          ✕ <span style={{ background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '0 5px' }}>{activeFilters}</span>
+        <button onClick={clearFilters} title="Limpar todos os filtros"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#dc2626' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b' }}>
+          <Ic n="x" s={13} /> Limpar filtros
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '0 6px', borderRadius: 10, background: '#eff6ff', color: '#2e6db4' }}>{activeFilters}</span>
         </button>
       )}
       {activeFilters > 0 && (
