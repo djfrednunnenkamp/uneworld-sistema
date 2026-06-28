@@ -5,6 +5,7 @@ import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import TrashTab from '../components/TrashTab'
 import ContractFormModal from '../components/ContractFormModal'
+import ContractViewModal from '../components/ContractViewModal'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -66,6 +67,7 @@ export default function Contracts() {
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
   const [modal,   setModal]   = useState(null)   // null | 'new' | contractId
+  const [viewId,  setViewId]  = useState(null)   // id do contrato em visualização
   const [statusF, setStatusF] = useState('all')
   const [showTrash, setShowTrash] = useState(false)
   const [deletedCount, setDeletedCount] = useState(0)
@@ -168,14 +170,23 @@ export default function Contracts() {
           searchKeys={['reservation_number', 'contratante_name', 'agency_name', 'package_name']}
           extraFilters={filterBar}
           onAdd={canEdit ? () => setModal('new') : undefined}
-          onEdit={canEdit ? (row) => setModal(row.id) : undefined}
-          onView={(row) => setModal(row.id)}
+          onView={(row) => setViewId(row.id)}
           onDocs={(row) => handleDownloadPdf(row)}
+          showDocs={(row) => row.signature_type === 'fisica'}
+          docsTitle="Baixar PDF"
           onDelete={canDelete ? (row) => setDelRow(row) : undefined}
           loading={loading}
         />
       )}
 
+      {viewId && (
+        <ContractViewModal
+          contractId={viewId}
+          canEdit={canEdit}
+          onClose={() => setViewId(null)}
+          onEdit={() => { const id = viewId; setViewId(null); setModal(id) }}
+        />
+      )}
       {modal && (
         <ContractFormModal
           contractId={modal === 'new' ? null : modal}

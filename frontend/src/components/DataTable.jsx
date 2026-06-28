@@ -48,7 +48,7 @@ export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
   extraFilters, topBar, onLog, bulkBar,
-  onAdd, onEdit, onView, onDelete, onDocs, loading,
+  onAdd, onEdit, onView, onDelete, onDocs, showDocs, docsTitle = 'Documentos', docsIcon = 'docs', loading,
 }) {
   const [q,   setQ]   = useState('')
   const [flt, setFlt] = useState('Todos')
@@ -170,7 +170,7 @@ export default function DataTable({
                   <td>
                     <div className="r-acts">
                       {onEdit && <button className="r-btn edit" title="Editar"     onClick={() => onEdit(row)}><Ic n="edit" s={13}/></button>}
-                      {onDocs  && <button className="r-btn view" title="Documentos" onClick={() => onDocs(row)}><Ic n="docs"  s={13}/></button>}
+                      {onDocs && (!showDocs || showDocs(row)) && <button className="r-btn view" title={docsTitle} onClick={() => onDocs(row)}><Ic n={docsIcon}  s={13}/></button>}
                       <button className="r-btn view" title="Visualizar" onClick={() => onView?.(row)}><Ic n="eye"  s={13}/></button>
                       {onDelete && <button className="r-btn del" title="Excluir" onClick={() => onDelete(row)}><Ic n="trash" s={13}/></button>}
                     </div>

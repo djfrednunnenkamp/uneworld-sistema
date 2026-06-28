@@ -82,7 +82,7 @@ class ContractListSerializer(serializers.ModelSerializer):
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_name',
                   'contratante', 'contratante_name', 'package_name', 'departure_date',
-                  'total_brl', 'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+                  'total_brl', 'status', 'signature_type', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def get_agency_name(self, obj):
         return _agency_brief(obj.agency)['name'] if obj.agency_id else ''
