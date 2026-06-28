@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { itinerariesApi } from '../api'
 import DataTable from '../components/DataTable'
 import DelModal from '../components/DelModal'
-import TrashTab from '../components/TrashTab'
+import TrashRowActions from '../components/TrashRowActions'
 import ItineraryCreateModal from '../components/ItineraryCreateModal'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -38,7 +38,7 @@ export default function Itineraries() {
   const [delRow,  setDelRow]  = useState(null)
   const [showCreate, setShowCreate] = useState(false)
   const [showTrash, setShowTrash] = useState(false)
-  const [deletedCount, setDeletedCount] = useState(0)
+  const [deletedRows, setDeletedRows] = useState([])
 
   const load = () => {
     setLoading(true)
@@ -47,13 +47,15 @@ export default function Itineraries() {
       .catch(() => toast.error('Erro ao carregar roteiros.'))
       .finally(() => setLoading(false))
   }
+  const loadDeleted = useCallback(() => {
+    if (!canDelete) return
+    itinerariesApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canDelete])
   useEffect(() => { load() }, [])
-
-  useEffect(() => {
-    if (canDelete) {
-      itinerariesApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDelete, showTrash])
+  useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+  const deletedCount = deletedRows.length
+  const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
+  const reloadAll = () => { load(); loadDeleted() }
 
   const silentReload = useCallback(() => {
     itinerariesApi.list().then(r => setRows(r.data.results ?? r.data)).catch(() => {})
@@ -68,9 +70,10 @@ export default function Itineraries() {
     await itinerariesApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
     toast.success('Roteiro excluído.')
     setDelRow(null)
-    load()
-    setDeletedCount(c => c + 1)
+    reloadAll()
   }
+
+  const getLabel = (row) => row.name || `#${row.id}`
 
   const trashTabBar = canDelete && (
     <div style={{ display: 'flex', gap: 0, borderBottom: '1.5px solid #e2e8f0', marginBottom: 4 }}>
@@ -99,31 +102,21 @@ export default function Itineraries() {
   return (
     <>
       {canDelete && trashTabBar}
-      {showTrash ? (
-        <TrashTab
-          fetchDeleted={() => itinerariesApi.deleted().then(r => r.data.results ?? r.data)}
-          onRestore={(id) => itinerariesApi.restore(id)}
-          onPurge={(id) => itinerariesApi.purge(id)}
-          getLabel={row => row.name}
-          getSubtitle={row => row.slug}
-          isSuperuser={!!user?.is_superuser}
-          emptyText="Nenhum roteiro excluído."
-          onCountChange={setDeletedCount}
-        />
-      ) : (
-        <DataTable
-          title="Roteiros"
-          addLabel="Adicionar Roteiro"
-          data={rows}
-          cols={COLS}
-          searchKeys={['name', 'slug']}
-          onAdd={canEdit ? () => setShowCreate(true) : undefined}
-          onEdit={canEdit ? (row) => navigate(`/roteiros/${row.id}`) : undefined}
-          onView={(row) => navigate(`/roteiros/${row.id}`)}
-          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-          loading={loading}
-        />
-      )}
+      <DataTable
+        title={showTrash ? 'Excluídos' : 'Roteiros'}
+        addLabel="Adicionar Roteiro"
+        data={showTrash ? deletedRows : rows}
+        cols={COLS}
+        searchKeys={['name', 'slug']}
+        onAdd={!showTrash && canEdit ? () => setShowCreate(true) : undefined}
+        onEdit={!showTrash && canEdit ? (row) => navigate(`/roteiros/${row.id}`) : undefined}
+        onView={(row) => navigate(`/roteiros/${row.id}`)}
+        onDelete={!showTrash && canDelete ? (row) => setDelRow(row) : undefined}
+        extraActions={showTrash
+          ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={itinerariesApi.restore} onPurge={itinerariesApi.purge} canPurge={canPurge} onChanged={reloadAll} />
+          : undefined}
+        loading={loading}
+      />
 
       {showCreate && (
         <ItineraryCreateModal

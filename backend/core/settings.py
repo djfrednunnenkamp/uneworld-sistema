@@ -9,6 +9,11 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
+# Libera a EXCLUSÃO DEFINITIVA (purge) de itens da lixeira — destrutiva e
+# irreversível. Mesmo habilitada, só superusuário pode usar. Manter False em
+# produção; ligar só quando precisar limpar de vez (ex.: fase de teste).
+ALLOW_HARD_DELETE = config('ALLOW_HARD_DELETE', default=False, cast=bool)
+
 INSTALLED_APPS = [
     'daphne',               # deve vir antes de staticfiles para substituir runserver
     'django.contrib.admin',

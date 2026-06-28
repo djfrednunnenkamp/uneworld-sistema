@@ -6,7 +6,7 @@ import { usersApi, agendaApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
-import TrashTab from '../components/TrashTab'
+import TrashRowActions from '../components/TrashRowActions'
 import PasswordInput from '../components/PasswordInput'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
@@ -796,7 +796,7 @@ export default function Users() {
   const [permProfiles,  setPermProfiles]  = useState([])
   const [modifiedTo,    setModifiedTo]    = useState('')
   const [showTrash,     setShowTrash]     = useState(false)
-  const [deletedCount,  setDeletedCount]  = useState(0)
+  const [deletedRows,   setDeletedRows]   = useState([])
   const { user: me } = useAuth()
   const navigate = useNavigate()
   const myP        = me?.permissions ?? {}
@@ -817,15 +817,21 @@ export default function Users() {
       .finally(() => setLoading(false))
   }
 
+  const loadDeleted = useCallback(() => {
+    if (!canDeleteU) return
+    usersApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canDeleteU])
+
   useEffect(() => { load() }, [])
   useEffect(() => {
     configApi.permissionProfiles().then(r => setPermProfiles(r.data)).catch(() => {})
   }, [])
-  useEffect(() => {
-    if (canDeleteU) {
-      usersApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDeleteU, showTrash])
+  useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+
+  const deletedCount = deletedRows.length
+  const canPurge = !!me?.is_superuser && !!me?.allow_hard_delete
+  const reloadAll = () => { load(); loadDeleted() }
+  const getLabel = (row) => row.full_name || row.username || row.email || `#${row.id}`
 
   const matchProfile = u =>
     !u.is_superuser
@@ -857,8 +863,7 @@ export default function Users() {
   const handleDelete = async () => {
     await usersApi.remove(actionUser.id).catch(e => { toast.error(e.response?.data?.error ?? 'Erro ao excluir.'); throw e })
     toast.success('Usuário excluído.')
-    load()
-    setDeletedCount(c => c + 1)
+    reloadAll()
   }
 
   const handleUnblock = async (u) => {
@@ -887,7 +892,8 @@ export default function Users() {
     setModifiedFrom(''); setModifiedTo('')
   }
 
-  const filtered = users.filter(u => {
+  const tableSource = showTrash ? deletedRows : users
+  const filtered = tableSource.filter(u => {
     const s = q.trim().toLowerCase()
     if (s) {
       const matchQ = (u.full_name || '').toLowerCase().includes(s)
@@ -957,8 +963,7 @@ export default function Users() {
     setBulkDel(false)
     clearSel()
     toast.success(`${ok} usuário${ok !== 1 ? 's' : ''} excluído${ok !== 1 ? 's' : ''}.${fail ? ` ${fail} com erro.` : ''}`)
-    load()
-    setDeletedCount(c => c + ok)
+    reloadAll()
   }
 
   const trashTabBar = canDeleteU && (
@@ -1007,19 +1012,6 @@ export default function Users() {
 
       {trashTabBar}
 
-      {showTrash ? (
-        <TrashTab
-          fetchDeleted={() => usersApi.deleted().then(r => r.data.results ?? r.data)}
-          onRestore={(id) => usersApi.restore(id)}
-          onPurge={(id) => usersApi.purge(id)}
-          getLabel={row => row.full_name || row.username}
-          getSubtitle={row => row.email}
-          isSuperuser={!!me?.is_superuser}
-          emptyText="Nenhum usuário excluído."
-          onCountChange={setDeletedCount}
-        />
-      ) : (
-      <>
       <div className="search-row">
         <div className="search-wrap">
           <span className="search-ico"><Ic n="search" s={14}/></span>
@@ -1060,7 +1052,7 @@ export default function Users() {
         )}
       </div>
 
-      {sel.size > 0 && (
+      {!showTrash && sel.size > 0 && (
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', marginBottom:12, background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:10 }}>
           <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
             {sel.size} selecionado{sel.size > 1 ? 's' : ''}
@@ -1087,16 +1079,18 @@ export default function Users() {
           <div className="empty-state"><p style={{color:'#94a3b8'}}>Carregando…</p></div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
-            <div style={{ color:'#cbd5e1' }}><Ic n="search" s={28}/></div>
-            <p>Nenhum resultado encontrado</p>
+            <div style={{ color:'#cbd5e1' }}><Ic n={showTrash ? 'trash' : 'search'} s={28}/></div>
+            <p>{showTrash ? 'Nenhum usuário excluído.' : 'Nenhum resultado encontrado'}</p>
           </div>
         ) : (
           <table className="dt">
             <thead>
               <tr>
-                <th style={{width:40,textAlign:'center'}}>
-                  <input type="checkbox" className="chk" checked={allSel} onChange={togAll} disabled={selectable.length === 0} />
-                </th>
+                {!showTrash && (
+                  <th style={{width:40,textAlign:'center'}}>
+                    <input type="checkbox" className="chk" checked={allSel} onChange={togAll} disabled={selectable.length === 0} />
+                  </th>
+                )}
                 <th>Usuário</th>
                 <th style={{textAlign:'center'}}>E-mail</th>
                 <th style={{textAlign:'center'}}>Perfil</th>
@@ -1107,11 +1101,13 @@ export default function Users() {
             <tbody>
               {filtered.map((u, i) => (
                 <tr key={u.id}>
-                  <td style={{textAlign:'center'}}>
-                    {u.id !== me?.id && (
-                      <input type="checkbox" className="chk" checked={sel.has(u.id)} onChange={() => tog1(u.id)} />
-                    )}
-                  </td>
+                  {!showTrash && (
+                    <td style={{textAlign:'center'}}>
+                      {u.id !== me?.id && (
+                        <input type="checkbox" className="chk" checked={sel.has(u.id)} onChange={() => tog1(u.id)} />
+                      )}
+                    </td>
+                  )}
                   <td>
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
                       <div style={{width:32,height:32,borderRadius:'50%',background:PALETTE[i%PALETTE.length],display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:12,fontWeight:700,flexShrink:0}}>
@@ -1152,7 +1148,9 @@ export default function Users() {
                   </td>
                   <td style={{textAlign:'center'}}>
                     <div className="r-acts">
-                      {u.is_active ? (<>
+                      {showTrash ? (
+                        <TrashRowActions row={u} getLabel={getLabel} onRestore={usersApi.restore} onPurge={usersApi.purge} canPurge={canPurge} onChanged={reloadAll} />
+                      ) : u.is_active ? (<>
                         {canCreate && <button className="r-btn edit" title="Editar perfil" onClick={() => setModal({ user: u, mode: 'profile' })}><Ic n="edit" s={13}/></button>}
                         {canManagePerms && <button className="r-btn" title="Editar permissões" style={{color:'#475569'}} onClick={() => setModal({ user: u, mode: 'perms' })}><Ic n="shield" s={13}/></button>}
                         {canKeyMenu && (
@@ -1190,8 +1188,6 @@ export default function Users() {
           </table>
         )}
       </div>
-      </>
-      )}
 
       {modal && (
         <UserModal

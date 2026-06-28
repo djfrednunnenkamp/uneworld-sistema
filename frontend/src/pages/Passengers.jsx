@@ -7,7 +7,7 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
-import TrashTab from '../components/TrashTab'
+import TrashRowActions from '../components/TrashRowActions'
 import MergeModal from '../components/MergeModal'
 import NewPassengerModal from '../components/NewPassengerModal'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
@@ -196,7 +196,7 @@ export default function Passengers() {
   const [docsRow,   setDocsRow]   = useState(null)
   const [mergeRows, setMergeRows] = useState(null)
   const [showTrash, setShowTrash] = useState(false)
-  const [deletedCount, setDeletedCount] = useState(0)
+  const [deletedRows, setDeletedRows] = useState([])
   const navigate                  = useNavigate()
   const { user } = useAuth()
   const perms      = user?.permissions ?? {}
@@ -232,13 +232,19 @@ export default function Passengers() {
       .catch(() => {})
   }, [])
 
+  const loadDeleted = useCallback(() => {
+    if (!canDelete) return
+    passengersApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canDelete])
+
   useEffect(() => { load() }, [])
 
-  useEffect(() => {
-    if (canDelete) {
-      passengersApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDelete, showTrash])
+  useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+
+  const deletedCount = deletedRows.length
+  const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
+  const reloadAll = () => { load(); loadDeleted() }
+  const getLabel = (row) => row.full_name || `#${row.id}`
 
   const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback((msg) => {
@@ -251,13 +257,13 @@ export default function Passengers() {
     await passengersApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
     toast.success('Passageiro excluído.')
     setDelRow(null)
-    load()
-    setDeletedCount(c => c + 1)
+    reloadAll()
   }
 
   /* Aplica filtros client-side */
+  const filterSource = showTrash ? deletedRows : rows
   const todayMonth = new Date().getMonth() + 1
-  const filtered = rows.filter(p => {
+  const filtered = filterSource.filter(p => {
     if (statusF !== 'all' && p.status !== statusF) return false
     if (foreignF === 'foreign'  &&  !p.is_foreign) return false
     if (foreignF === 'national' &&   p.is_foreign) return false
@@ -332,7 +338,7 @@ export default function Passengers() {
       )}
       {activeFilters > 0 && (
         <span style={{ fontSize:12, color:'#94a3b8', whiteSpace:'nowrap' }}>
-          {filtered.length}/{rows.length}
+          {filtered.length}/{filterSource.length}
         </span>
       )}
     </>
@@ -372,48 +378,38 @@ export default function Passengers() {
   return (
     <>
       {canDelete && trashTabBar}
-      {showTrash ? (
-        <TrashTab
-          fetchDeleted={() => passengersApi.deleted().then(r => r.data.results ?? r.data)}
-          onRestore={(id) => passengersApi.restore(id)}
-          onPurge={(id) => passengersApi.purge(id)}
-          getLabel={row => row.full_name}
-          getSubtitle={row => row.email}
-          isSuperuser={!!user?.is_superuser}
-          emptyText="Nenhum passageiro excluído."
-          onCountChange={setDeletedCount}
-        />
-      ) : (
-        <DataTable
-          title="Passageiros"
-          addLabel="Adicionar Passageiro"
-          data={filtered}
-          cols={cols}
-          searchKeys={['full_name','email','cpf','phone1']}
-          extraFilters={filterBar}
-          onAdd={(canEdit && canFull) ? () => setShowNew(true) : undefined}
-          onLog={canViewLog ? () => navigate('/log?scope=passengers') : undefined}
-          onDocs={canDocs ? (row) => setDocsRow(row) : undefined}
-          onView={(row) => setViewRow(row)}
-          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-          loading={loading}
-          bulkBar={(canEdit && canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
-            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:10 }}>
-              <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
-                {selRows.length} selecionados
-              </span>
-              <button type="button" onClick={() => setMergeRows({ rows: selRows, clearSelection })}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                <Ic n="merge" s={12}/> Mesclar
-              </button>
-              <button type="button" onClick={clearSelection}
-                style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
-                Cancelar
-              </button>
-            </div>
-          ) : undefined}
-        />
-      )}
+      <DataTable
+        title="Passageiros"
+        addLabel="Adicionar Passageiro"
+        data={filtered}
+        cols={cols}
+        searchKeys={['full_name','email','cpf','phone1']}
+        extraFilters={filterBar}
+        onAdd={(!showTrash && canEdit && canFull) ? () => setShowNew(true) : undefined}
+        onLog={canViewLog ? () => navigate('/log?scope=passengers') : undefined}
+        onDocs={(!showTrash && canDocs) ? (row) => setDocsRow(row) : undefined}
+        onView={(row) => setViewRow(row)}
+        onDelete={(!showTrash && canDelete) ? (row) => setDelRow(row) : undefined}
+        extraActions={showTrash
+          ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={passengersApi.restore} onPurge={passengersApi.purge} canPurge={canPurge} onChanged={reloadAll} />
+          : undefined}
+        loading={loading}
+        bulkBar={(!showTrash && canEdit && canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
+          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:10 }}>
+            <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
+              {selRows.length} selecionados
+            </span>
+            <button type="button" onClick={() => setMergeRows({ rows: selRows, clearSelection })}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:7, border:'none', background:'#1a2d4f', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              <Ic n="merge" s={12}/> Mesclar
+            </button>
+            <button type="button" onClick={clearSelection}
+              style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+              Cancelar
+            </button>
+          </div>
+        ) : undefined}
+      />
 
       {mergeRows && (
         <MergeModal

@@ -48,6 +48,9 @@ def serialize_user(u, perms=None):
         'is_deleted':   perms.is_deleted,
         'deleted_at':   perms.deleted_at,
         'needs_terms_acceptance': _needs_terms_acceptance(perms),
+        # Exclusão definitiva (purge) liberada por .env — o front só mostra o
+        # botão quando isto é True E o usuário é superusuário.
+        'allow_hard_delete': bool(getattr(settings, 'ALLOW_HARD_DELETE', False)),
     }
 
 

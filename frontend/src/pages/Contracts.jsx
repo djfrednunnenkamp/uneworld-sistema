@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { contractsApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
-import TrashTab from '../components/TrashTab'
+import TrashRowActions from '../components/TrashRowActions'
 import ContractFormModal from '../components/ContractFormModal'
 import ContractViewModal from '../components/ContractViewModal'
 import SignedFileViewer from '../components/SignedFileViewer'
@@ -278,7 +278,7 @@ export default function Contracts() {
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
   const [tab, setTab] = useState('em_edicao')   // em_edicao | enviado | assinado | trash
-  const [deletedCount, setDeletedCount] = useState(0)
+  const [deletedRows, setDeletedRows] = useState([])
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
   const [signedUrl, setSignedUrl] = useState(null)   // url do assinado em visualização
@@ -291,13 +291,15 @@ export default function Contracts() {
       .catch(() => toast.error('Erro ao carregar contratos.'))
       .finally(() => setLoading(false))
   }
+  const loadDeleted = useCallback(() => {
+    if (!canDelete) return
+    contractsApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canDelete])
   useEffect(() => { load() }, [])
-
-  useEffect(() => {
-    if (canDelete) {
-      contractsApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDelete, tab])
+  useEffect(() => { loadDeleted() }, [loadDeleted, tab])
+  const deletedCount = deletedRows.length
+  const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
+  const reloadAll = () => { load(); loadDeleted() }
 
   const silentReload = useCallback(() => {
     contractsApi.list().then(r => setRows(r.data.results ?? r.data)).catch(() => {})
@@ -312,8 +314,7 @@ export default function Contracts() {
     await contractsApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
     toast.success('Contrato excluído.')
     setDelRow(null)
-    load()
-    setDeletedCount(c => c + 1)
+    reloadAll()
   }
 
   const handleDownloadPdf = async (row) => {
@@ -376,16 +377,18 @@ export default function Contracts() {
     } catch { toast.error('Erro ao anexar o contrato assinado.') }
   }
 
-  const stageRows = tab === 'trash' ? [] : rows.filter(r => r.stage === tab)
+  // Aba Excluídos usa a MESMA tabela/filtros — só muda a fonte (itens excluídos).
+  const stageRows = tab === 'trash' ? deletedRows : rows.filter(r => r.stage === tab)
+  const filterSource = tab === 'trash' ? deletedRows : rows
   const stageCount = (s) => rows.filter(r => r.stage === s).length
 
   const namesOpts = (values, allLabel) => [
     { value: '', label: allLabel },
     ...[...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n })),
   ]
-  const agencyOpts   = useMemo(() => namesOpts(rows.map(r => r.agency_name), 'Todas'), [rows])
-  const payerOpts    = useMemo(() => namesOpts(rows.map(r => r.contratante_name), 'Todos'), [rows])
-  const travelerOpts = useMemo(() => namesOpts(rows.flatMap(r => r.guest_names || []), 'Todos'), [rows])
+  const agencyOpts   = useMemo(() => namesOpts(filterSource.map(r => r.agency_name), 'Todas'), [filterSource])
+  const payerOpts    = useMemo(() => namesOpts(filterSource.map(r => r.contratante_name), 'Todos'), [filterSource])
+  const travelerOpts = useMemo(() => namesOpts(filterSource.flatMap(r => r.guest_names || []), 'Todos'), [filterSource])
 
   const filtered = stageRows.filter(r => {
     if (fPayer && r.contratante_name !== fPayer) return false
@@ -400,12 +403,14 @@ export default function Contracts() {
   const activeFilters = [fPayer, fTraveler, fAgency, fValue, !!fDateFrom, !!fDateTo].filter(Boolean).length
   const clearFilters = () => { setFPayer(''); setFTraveler(''); setFAgency(''); setFValue(''); setFDateFrom(''); setFDateTo('') }
 
-  // Coluna de data muda conforme a aba: criado / enviado / assinado.
+  // Coluna de data muda conforme a aba: criado / enviado / assinado / excluído.
   const cols = useMemo(() => {
     const dateCol = tab === 'enviado'
       ? { key: 'sent_at',   label: 'Enviado em',  align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : tab === 'assinado'
       ? { key: 'signed_at', label: 'Assinado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      : tab === 'trash'
+      ? { key: 'deleted_at', label: 'Excluído em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH }
     return [
       { key: 'reservation_number', label: 'Reserva',     align: 'center', render: (v) => v || DASH },
@@ -475,50 +480,42 @@ export default function Contracts() {
     </button>
   )
 
+  const getLabel = (row) => row.reservation_number ? `Contrato ${row.reservation_number}` : `Contrato #${row.id}`
+
   return (
     <>
       {tabBar}
-      {tab === 'trash' ? (
-        <TrashTab
-          fetchDeleted={() => contractsApi.deleted().then(r => r.data.results ?? r.data)}
-          onRestore={(id) => contractsApi.restore(id)}
-          onPurge={(id) => contractsApi.purge(id)}
-          getLabel={row => row.reservation_number ? `Contrato ${row.reservation_number}` : `Contrato #${row.id}`}
-          getSubtitle={row => row.contratante_name}
-          isSuperuser={!!user?.is_superuser}
-          emptyText="Nenhum contrato excluído."
-          onCountChange={setDeletedCount}
-        />
-      ) : (
-        <DataTable
-          title={TABS.find(t => t.key === tab)?.label || 'Contratos'}
-          addLabel="Adicionar Contrato"
-          data={filtered}
-          cols={cols}
-          searchKeys={['reservation_number', 'contratante_name', 'agency_name', 'package_name']}
-          extraFilters={filterBar}
-          onAdd={canEdit && tab === 'em_edicao' ? () => setModal('new') : undefined}
-          onView={(row) => setViewId(row.id)}
-          onDocs={handleDocs}
-          showDocs={(row) =>
-            row.stage === 'enviado' ? row.signature_type === 'fisica'
-            : row.stage === 'assinado' ? !!row.signed_file
-            : false}
-          docsTitle={tab === 'assinado' ? 'Ver contrato assinado' : 'Ver / baixar contrato'}
-          extraActions={canEdit ? (row) => (
-            tab === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
-            : tab === 'enviado' ? (
-              <>
-                {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
-                {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
-              </>
-            )
-            : null
-          ) : undefined}
-          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-          loading={loading}
-        />
-      )}
+      <DataTable
+        title={TABS.find(t => t.key === tab)?.label || 'Contratos'}
+        addLabel="Adicionar Contrato"
+        data={filtered}
+        cols={cols}
+        searchKeys={['reservation_number', 'contratante_name', 'agency_name', 'package_name']}
+        extraFilters={filterBar}
+        onAdd={canEdit && tab === 'em_edicao' ? () => setModal('new') : undefined}
+        onView={(row) => setViewId(row.id)}
+        onDocs={tab === 'trash' ? undefined : handleDocs}
+        showDocs={(row) =>
+          row.stage === 'enviado' ? row.signature_type === 'fisica'
+          : row.stage === 'assinado' ? !!row.signed_file
+          : false}
+        docsTitle={tab === 'assinado' ? 'Ver contrato assinado' : 'Ver / baixar contrato'}
+        extraActions={
+          tab === 'trash'
+            ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={contractsApi.restore} onPurge={contractsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
+            : canEdit ? (row) => (
+              tab === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
+              : tab === 'enviado' ? (
+                <>
+                  {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
+                  {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
+                </>
+              )
+              : null
+            ) : undefined}
+        onDelete={tab !== 'trash' && canDelete ? (row) => setDelRow(row) : undefined}
+        loading={loading}
+      />
 
       {uploadRow && (
         <SignedUploadModal contractId={uploadRow.id} onClose={() => setUploadRow(null)} onUpload={handleUploadFile} />

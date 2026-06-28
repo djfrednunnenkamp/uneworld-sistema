@@ -2,6 +2,7 @@
 removido do banco. "Excluir" só marca is_deleted/deleted_at — o item vai
 pra aba "Excluídos" da área, de onde só um superusuário pode restaurar ou
 remover de vez (purge)."""
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import action
@@ -38,6 +39,10 @@ class SoftDeleteViewSetMixin:
     def purge(self, request, pk=None):
         if not request.user.is_superuser:
             return Response({'error': 'Apenas superusuário pode excluir definitivamente.'}, status=403)
+        # Exclusão definitiva é destrutiva e irreversível — só liberada quando
+        # explicitamente habilitada no .env (ALLOW_HARD_DELETE), ex.: fase de teste.
+        if not getattr(settings, 'ALLOW_HARD_DELETE', False):
+            return Response({'error': 'Exclusão definitiva está desabilitada (ALLOW_HARD_DELETE).'}, status=403)
         model = self.queryset.model
         # Purge é o passo final da lixeira: exige que o item já esteja excluído.
         instance = get_object_or_404(model, pk=pk, is_deleted=True)

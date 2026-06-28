@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { agenciesApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
-import TrashTab from '../components/TrashTab'
+import TrashRowActions from '../components/TrashRowActions'
 import MergeModal from '../components/MergeModal'
 import NewAgencyModal from '../components/NewAgencyModal'
 import { Ic } from '../components/Icon'
@@ -265,7 +265,7 @@ export default function Agencies() {
   const [viewRow, setViewRow] = useState(null)
   const [statusF, setStatusF] = useState('all')
   const [showTrash, setShowTrash] = useState(false)
-  const [deletedCount, setDeletedCount] = useState(0)
+  const [deletedRows, setDeletedRows] = useState([])
   const [mergeRows, setMergeRows] = useState(null)
 
   const load = () => {
@@ -275,13 +275,15 @@ export default function Agencies() {
       .catch(() => toast.error('Erro ao carregar agências.'))
       .finally(() => setLoading(false))
   }
+  const loadDeleted = useCallback(() => {
+    if (!canDelete) return
+    agenciesApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canDelete])
   useEffect(() => { load() }, [])
-
-  useEffect(() => {
-    if (canDelete) {
-      agenciesApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDelete, showTrash])
+  useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+  const deletedCount = deletedRows.length
+  const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
+  const reloadAll = () => { load(); loadDeleted() }
 
   const silentReload = useCallback(() => {
     agenciesApi.list()
@@ -298,11 +300,13 @@ export default function Agencies() {
     await agenciesApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
     toast.success('Agência excluída.')
     setDelRow(null)
-    load()
-    setDeletedCount(c => c + 1)
+    reloadAll()
   }
 
-  const filtered = statusF === 'all' ? rows : rows.filter(r => r.status === statusF)
+  // Aba Excluídos usa a MESMA tabela/filtros — só muda a fonte (itens excluídos).
+  const filterSource = showTrash ? deletedRows : rows
+  const filtered = statusF === 'all' ? filterSource : filterSource.filter(r => r.status === statusF)
+  const getLabel = (row) => row.company_name || row.name || `#${row.id}`
 
   const filterBar = (
     <FDrop label="Status" value={statusF} onChange={setStatusF} options={STATUS_OPTS} active={statusF !== 'all'} />
@@ -342,31 +346,22 @@ export default function Agencies() {
   return (
     <>
       {canDelete && trashTabBar}
-      {showTrash ? (
-        <TrashTab
-          fetchDeleted={() => agenciesApi.deleted().then(r => r.data.results ?? r.data)}
-          onRestore={(id) => agenciesApi.restore(id)}
-          onPurge={(id) => agenciesApi.purge(id)}
-          getLabel={row => row.company_name || row.name}
-          getSubtitle={row => row.email}
-          isSuperuser={!!user?.is_superuser}
-          emptyText="Nenhuma agência excluída."
-          onCountChange={setDeletedCount}
-        />
-      ) : (
-        <DataTable
+      <DataTable
           title="Agências"
           addLabel="Adicionar Agência"
           data={filtered}
           cols={COLS}
           searchKeys={['name', 'company_name', 'email', 'cnpj', 'city', 'phone']}
           extraFilters={filterBar}
-          onAdd={canEdit ? () => setShowNew(true) : undefined}
+          onAdd={canEdit && !showTrash ? () => setShowNew(true) : undefined}
           onLog={canViewLog ? () => navigate('/log?scope=agencies') : undefined}
           onView={(row) => setViewRow(row)}
-          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
+          onDelete={canDelete && !showTrash ? (row) => setDelRow(row) : undefined}
+          extraActions={showTrash
+            ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={agenciesApi.restore} onPurge={agenciesApi.purge} canPurge={canPurge} onChanged={reloadAll} />
+            : undefined}
           loading={loading}
-          bulkBar={(canEdit && canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
+          bulkBar={(canEdit && canDelete && !showTrash) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
             <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:10 }}>
               <span style={{ fontSize:13, fontWeight:700, color:'#1d4ed8', flex:1 }}>
                 {selRows.length} selecionados
@@ -382,7 +377,6 @@ export default function Agencies() {
             </div>
           ) : undefined}
         />
-      )}
 
       {mergeRows && (
         <MergeModal

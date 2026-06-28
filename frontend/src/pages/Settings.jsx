@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi, listsApi, auditApi } from '../api'
 import ConfirmModal from '../components/ConfirmModal'
-import TrashTab from '../components/TrashTab'
+import TrashRowActions from '../components/TrashRowActions'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import DocTypesManager from '../components/DocTypesManager'
@@ -1018,7 +1018,7 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
   const [delItem,         setDelItem]         = useState(null)
   const [showImportPopup, setShowImportPopup] = useState(false)
   const [showTrash,       setShowTrash]       = useState(false)
-  const [deletedCount,    setDeletedCount]    = useState(0)
+  const [deletedRows,     setDeletedRows]     = useState([])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -1029,17 +1029,23 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
   }, [])
   useEffect(load, [load])
 
-  useEffect(() => {
-    if (canDelete) {
-      configApi.deletedPermissionProfiles().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDelete, showTrash])
+  const loadDeleted = useCallback(() => {
+    if (!canDelete) return
+    configApi.deletedPermissionProfiles().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canDelete])
+  useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+
+  const deletedCount = deletedRows.length
+  const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
+  const reloadAll = () => { load(); loadDeleted() }
 
   const handleDelete = async () => {
-    try { await configApi.delPermissionProfile(delItem.id); load(); setDeletedCount(c => c + 1) }
+    try { await configApi.delPermissionProfile(delItem.id); reloadAll() }
     catch { toast.error('Erro ao excluir perfil.') }
     finally { setDelItem(null) }
   }
+
+  const getLabel = (row) => row.name || `#${row.id}`
 
   const handleImport = async (file) => {
     const csvText = await file.text()
@@ -1054,8 +1060,9 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return profiles.filter(p => p.name.toLowerCase().includes(q))
-  }, [profiles, search])
+    const src = showTrash ? deletedRows : profiles
+    return src.filter(p => (p.name || '').toLowerCase().includes(q))
+  }, [profiles, deletedRows, showTrash, search])
 
   const trashTabBar = canDelete && (
     <div style={{ display:'flex', gap:0, borderBottom:'1.5px solid #e2e8f0', marginBottom:12 }}>
@@ -1088,23 +1095,6 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
     </div>
   )
 
-  if (showTrash) {
-    return (
-      <div>
-        {trashTabBar}
-        <TrashTab
-          fetchDeleted={() => configApi.deletedPermissionProfiles().then(r => r.data.results ?? r.data)}
-          onRestore={(id) => configApi.restorePermissionProfile(id)}
-          onPurge={(id) => configApi.purgePermissionProfile(id)}
-          getLabel={row => row.name}
-          isSuperuser={!!user?.is_superuser}
-          emptyText="Nenhum perfil excluído."
-          onCountChange={setDeletedCount}
-        />
-      </div>
-    )
-  }
-
   return (
     <>
     <div>
@@ -1114,32 +1104,38 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
           style={{ ...inp, flex:1, minWidth:160 }}
           onFocus={e => e.target.style.borderColor='#1a2d4f'}
           onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
-        {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
-        <div style={{ display:'flex', gap:6 }}>
-          {canExport && <button style={btnCsv('#059669')} onClick={() => exportSectionCsv('perm_profiles', 'Perfis de Permissão', profiles, 'perfis_permissao.csv')} title="Exportar como CSV">⬇ Exportar</button>}
-          {canImport && <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>}
-          {canImport && showImportPopup && (
-            <CsvImportPopup
-              title="Importar Perfis de Permissão"
-              sampleContent={CSV_SAMPLES.perm_profiles?.content}
-              sampleFilename={CSV_SAMPLES.perm_profiles?.filename}
-              onClose={() => setShowImportPopup(false)}
-              onFile={handleImport}
-            />
-          )}
-        </div>
+        {!showTrash && canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
+        {!showTrash && (
+          <div style={{ display:'flex', gap:6 }}>
+            {canExport && <button style={btnCsv('#059669')} onClick={() => exportSectionCsv('perm_profiles', 'Perfis de Permissão', profiles, 'perfis_permissao.csv')} title="Exportar como CSV">⬇ Exportar</button>}
+            {canImport && <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>}
+            {canImport && showImportPopup && (
+              <CsvImportPopup
+                title="Importar Perfis de Permissão"
+                sampleContent={CSV_SAMPLES.perm_profiles?.content}
+                sampleFilename={CSV_SAMPLES.perm_profiles?.filename}
+                onClose={() => setShowImportPopup(false)}
+                onFile={handleImport}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
-        {loading ? 'Carregando…' : `${filtered.length} de ${profiles.length} ${profiles.length !== 1 ? 'perfis' : 'perfil'}`}
+        {loading && !showTrash ? 'Carregando…' : showTrash
+          ? `${filtered.length} de ${deletedRows.length} ${deletedRows.length !== 1 ? 'perfis' : 'perfil'}`
+          : `${filtered.length} de ${profiles.length} ${profiles.length !== 1 ? 'perfis' : 'perfil'}`}
       </p>
 
       <div style={{ border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', maxHeight:460, overflowY:'auto' }}>
-        {loading ? (
+        {loading && !showTrash ? (
           <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>Carregando…</p>
         ) : filtered.length === 0 ? (
           <p style={{ textAlign:'center', padding:'32px 0', color:'#94a3b8', fontSize:13 }}>
-            {profiles.length === 0 ? 'Nenhum perfil criado ainda.' : 'Nenhum resultado.'}
+            {showTrash
+              ? (deletedRows.length === 0 ? 'Nenhum perfil excluído.' : 'Nenhum resultado.')
+              : (profiles.length === 0 ? 'Nenhum perfil criado ainda.' : 'Nenhum resultado.')}
           </p>
         ) : filtered.map((p, idx) => {
           const count = Object.values(p.permissions ?? {}).filter(Boolean).length
@@ -1155,7 +1151,18 @@ function PermissionProfilesManager({ canEdit = true, canDelete = true, canImport
                 <span style={{ fontWeight:500 }}>{p.name}</span>
                 <span style={{ marginLeft:10, fontSize:12, color:'#94a3b8' }}>{count} permiss{count !== 1 ? 'ões' : 'ão'}</span>
               </div>
-              {(canEdit || canDelete) && (
+              {showTrash ? (
+                <div className="r-acts" style={{ display:'flex', gap:6 }}>
+                  <TrashRowActions
+                    row={p}
+                    getLabel={getLabel}
+                    onRestore={configApi.restorePermissionProfile}
+                    onPurge={configApi.purgePermissionProfile}
+                    canPurge={canPurge}
+                    onChanged={reloadAll}
+                  />
+                </div>
+              ) : (canEdit || canDelete) && (
                 <div className="r-acts">
                   {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => setModal(p)}><Ic n="edit"  s={13}/></button>}
                   {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setDelItem(p)}><Ic n="trash" s={13}/></button>}

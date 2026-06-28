@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import DataTable from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import ListModal from '../components/ListModal'
-import TrashTab from '../components/TrashTab'
+import TrashRowActions from '../components/TrashRowActions'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { dashboardWsUrl } from '../utils/ws'
 
@@ -103,13 +103,7 @@ export default function Trips() {
   const [delRow,  setDelRow]  = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [phase,   setPhase]   = useState('criacao')
-  const [deletedCount, setDeletedCount] = useState(0)
-
-  useEffect(() => {
-    if (canDelete) {
-      listsApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
-    }
-  }, [canDelete, phase])
+  const [deletedRows, setDeletedRows] = useState([])
 
   const load = () => {
     setLoading(true)
@@ -118,7 +112,15 @@ export default function Trips() {
       .catch(() => toast.error('Erro ao carregar listas.'))
       .finally(() => setLoading(false))
   }
+  const loadDeleted = useCallback(() => {
+    if (!canDelete) return
+    listsApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canDelete])
   useEffect(() => { load() }, [])
+  useEffect(() => { loadDeleted() }, [loadDeleted, phase])
+  const deletedCount = deletedRows.length
+  const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
+  const reloadAll = () => { load(); loadDeleted() }
 
   const silentReload = useCallback(() => {
     listsApi.list()
@@ -137,8 +139,7 @@ export default function Trips() {
     await listsApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
     toast.success('Lista de passageiros excluída.')
     setDelRow(null)
-    load()
-    setDeletedCount(c => c + 1)
+    reloadAll()
   }
 
   const handleSaved = (data) => {
@@ -149,7 +150,10 @@ export default function Trips() {
   const counts  = { criacao: 0, andamento: 0, finalizada: 0 }
   rows.forEach(r => { const p = getPhase(r); if (counts[p] !== undefined) counts[p]++ })
 
-  const filtered = rows.filter(r => getPhase(r) === phase)
+  const isTrash = phase === 'excluidos'
+  const filtered = isTrash ? deletedRows : rows.filter(r => getPhase(r) === phase)
+
+  const getLabel = (row) => row.name || `#${row.id}`
 
   const activePhase = PHASES.find(p => p.key === phase)
 
@@ -188,38 +192,22 @@ export default function Trips() {
 
   return (
     <>
-      {phase === 'excluidos' ? (
-        <div>
-          <div className="ph"><h1 className="ph-title">Listas de Passageiros</h1></div>
-          {tabBar}
-          <div style={{ marginTop: 16 }}>
-            <TrashTab
-              fetchDeleted={() => listsApi.deleted().then(r => r.data.results ?? r.data)}
-              onRestore={(id) => listsApi.restore(id)}
-              onPurge={(id) => listsApi.purge(id)}
-              getLabel={row => row.name}
-              getSubtitle={row => `${TYPE_LABEL[row.list_type] || row.list_type} · ${row.category}`}
-              isSuperuser={!!user?.is_superuser}
-              emptyText="Nenhuma lista de passageiros excluída."
-              onCountChange={setDeletedCount}
-            />
-          </div>
-        </div>
-      ) : (
-        <DataTable
-          title="Listas de Passageiros"
-          addLabel="Adicionar Lista de Passageiros"
-          data={filtered}
-          cols={makeCols(navigate)}
-          searchKeys={['name']}
-          topBar={tabBar}
-          onAdd={canEdit ? () => setShowNew(true) : undefined}
-          onView={(row) => navigate(`/viagens/${row.id}`)}
-          onDelete={canDelete ? (row) => setDelRow(row) : undefined}
-          onLog={canViewLog ? () => navigate('/log?scope=lists') : undefined}
-          loading={loading}
-        />
-      )}
+      <DataTable
+        title="Listas de Passageiros"
+        addLabel="Adicionar Lista de Passageiros"
+        data={filtered}
+        cols={makeCols(navigate)}
+        searchKeys={['name']}
+        topBar={tabBar}
+        onAdd={!isTrash && canEdit ? () => setShowNew(true) : undefined}
+        onView={(row) => navigate(`/viagens/${row.id}`)}
+        onDelete={!isTrash && canDelete ? (row) => setDelRow(row) : undefined}
+        onLog={canViewLog ? () => navigate('/log?scope=lists') : undefined}
+        extraActions={isTrash
+          ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={listsApi.restore} onPurge={listsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
+          : undefined}
+        loading={loading}
+      />
 
       {showNew && (
         <ListModal onClose={() => setShowNew(false)} onSaved={handleSaved} />
