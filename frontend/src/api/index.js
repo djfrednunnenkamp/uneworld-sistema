@@ -108,7 +108,7 @@ export const contractsApi = {
   purge:   (id)     => api.delete(`/contracts/${id}/purge/`),
   sendForSignature: (id) => api.post(`/contracts/${id}/send-for-signature/`),
   reopen:           (id) => api.post(`/contracts/${id}/reopen/`),
-  uploadSigned:     (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/upload-signed/`, fd) },
+  uploadSigned:     (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/upload-signed/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
 }
 
 export const itinerariesApi = {
