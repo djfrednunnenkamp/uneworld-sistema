@@ -153,7 +153,7 @@ function SignedFileModal({ url, onClose }) {
         </div>
         {/* #toolbar=0&navpanes=0 esconde a barra/miniaturas nativas do navegador — visual limpo */}
         <div style={{ flex: 1, background: '#3f4651', overflow: 'hidden', position: 'relative' }}>
-          <iframe title="Contrato assinado" src={src} style={{ width: '100%', height: '100%', border: 'none', display: 'block' }} />
+          <iframe key={zoom == null ? 'fit' : zoom} title="Contrato assinado" src={src} style={{ width: '100%', height: '100%', border: 'none', display: 'block' }} />
           {/* Controles de zoom próprios (o scroll/ctrl+scroll do navegador continua funcionando) */}
           <div style={{ position: 'absolute', right: 16, bottom: 16, display: 'flex', alignItems: 'center', gap: 4, background: '#fff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.3)', padding: 5 }}>
             <button onClick={() => setZoom(z => Math.max((z ?? 100) - 25, 25))} title="Diminuir zoom" style={zbtn}>−</button>
