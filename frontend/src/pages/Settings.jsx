@@ -12,6 +12,7 @@ import AirportsManager from '../components/AirportsManager'
 import AirlinesManager from '../components/AirlinesManager'
 import BusMapsManager from '../components/BusMapsManager'
 import ContractClausesManager from '../components/ContractClausesManager'
+import OperatingCompanyManager from '../components/OperatingCompanyManager'
 import ItineraryTemplatesManager from '../components/ItineraryTemplatesManager'
 import ExchangeRateManager from '../components/ExchangeRateManager'
 import TermsAndConditionsManager from '../components/TermsAndConditionsManager'
@@ -863,6 +864,7 @@ const LIST_DEFS = [
   { key:'airlines',         label:'Companhias Aéreas',        perm:'settings_airlines',          areas:['listas'] },
   { key:'bus_maps',         label:'Mapas de Ônibus',          perm:'settings_bus_maps',          areas:['listas'] },
   { key:'contract_clauses', label:'Cláusulas de Contrato',    perm:'settings_contract_clauses', areas:['contratos'] },
+  { key:'operating_company', label:'Operadora',               perm:'settings_operating_company', areas:['contratos','sistema'] },
   { key:'terms',            label:'Termos e Condições',       perm:'settings_terms',             areas:['sistema'] },
   { key:'payment_methods',  label:'Formas de Pagamento',      perm:'settings_payment_methods',  areas:['contratos'] },
   { key:'exchange_rates',   label:'Câmbio',                   perm:'settings_exchange_rates',   areas:['contratos'] },
@@ -2005,6 +2007,7 @@ export default function Settings() {
                 {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} canImport={can('settings_airlines','bulk_import')} canExport={can('settings_airlines','view')} canImportWeb={can('settings_airlines','import_web')} />}
                 {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} canImport={can('settings_bus_maps','edit')} canExport={can('settings_bus_maps','view')} />}
                 {activeDef.key === 'contract_clauses' && <ContractClausesManager canEdit={can('settings_contract_clauses','edit')} canDelete={can('settings_contract_clauses','delete')} canImport={can('settings_contract_clauses','edit')} canExport={can('settings_contract_clauses','view')} />}
+                {activeDef.key === 'operating_company' && <OperatingCompanyManager canEdit={can('settings_operating_company','edit')} />}
                 {activeDef.key === 'itinerary_templates' && <ItineraryTemplatesManager canEdit={can('settings_itinerary_templates','edit')} canDelete={can('settings_itinerary_templates','delete')} />}
                 {activeDef.key === 'terms'           && <TermsAndConditionsManager canEdit={can('settings_terms','edit')} canImport={can('settings_terms','edit')} canExport={can('settings_terms','view')} onSaved={() => setActiveList(null)} />}
               </div>

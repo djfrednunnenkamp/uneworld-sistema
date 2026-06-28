@@ -1338,12 +1338,12 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
 @permission_classes([IsAuthenticated])
 def operating_company(request):
     from users_api.permissions import has_any_perm
-    if not has_any_perm(request.user, 'manage_settings', 'settings_contract_clauses_view',
-                         'settings_contract_clauses_edit'):
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_view',
+                         'settings_operating_company_edit'):
         return Response(status=403)
     obj = OperatingCompany.get()
     if request.method == 'PATCH':
-        if not has_any_perm(request.user, 'manage_settings', 'settings_contract_clauses_edit'):
+        if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_edit'):
             return Response({'error': 'Você não tem permissão para executar esta ação.'}, status=403)
         ser = OperatingCompanySerializer(obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)

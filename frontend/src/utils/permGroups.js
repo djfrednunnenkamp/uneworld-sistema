@@ -175,6 +175,13 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Operadora', icon: 'building', hue: 70,
+        items: [
+          ['settings_operating_company_view', 'Ver dados da operadora'],
+          ['settings_operating_company_edit', 'Editar dados da operadora'],
+        ],
+      },
+      {
         label: 'Formas de Pagamento', icon: 'card', hue: 200,
         items: [
           ['settings_payment_methods_view',   'Ver formas de pagamento'],
@@ -478,6 +485,9 @@ export const PERM_DEPENDENCIES = {
   settings_contract_clauses_view:   'settings_view',
   settings_contract_clauses_edit:   'settings_contract_clauses_view',
   settings_contract_clauses_delete: 'settings_contract_clauses_view',
+
+  settings_operating_company_view: 'settings_view',
+  settings_operating_company_edit: 'settings_operating_company_view',
 
   settings_payment_methods_view:   'settings_view',
   settings_payment_methods_edit:   'settings_payment_methods_view',

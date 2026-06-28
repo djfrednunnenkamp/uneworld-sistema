@@ -205,6 +205,8 @@ class UserPermissions(models.Model):
     settings_contract_clauses_delete = models.BooleanField(default=False)
     settings_terms_view              = models.BooleanField(default=False)
     settings_terms_edit              = models.BooleanField(default=False)
+    settings_operating_company_view  = models.BooleanField(default=False)
+    settings_operating_company_edit  = models.BooleanField(default=False)
     settings_itinerary_categories_view        = models.BooleanField(default=False)
     settings_itinerary_categories_edit        = models.BooleanField(default=False)
     settings_itinerary_categories_delete      = models.BooleanField(default=False)

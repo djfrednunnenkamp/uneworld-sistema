@@ -20,6 +20,7 @@ export const CARD_META = {
   airlines:        { icon: 'ticket',    hue: 195, desc: 'Companhias aéreas disponíveis para voos.' },
   bus_maps:        { icon: 'mapicon',   hue: 45,  desc: 'Mapas de assentos dos ônibus por empresa.' },
   contract_clauses:{ icon: 'docs',      hue: 70,  desc: 'Cláusulas de contrato — base para o futuro gerador de contratos.' },
+  operating_company:{ icon: 'building',  hue: 70,  desc: 'Dados da operadora (UneWorld) que pré-preenchem a seção "Operadora" de todo contrato novo.' },
   terms:           { icon: 'shield',    hue: 5,   desc: 'Termos e condições que todo usuário precisa aceitar.' },
   payment_methods: { icon: 'card',      hue: 200, desc: 'Formas de pagamento disponíveis nos contratos.' },
   exchange_rates:  { icon: 'globe',     hue: 160, desc: 'Câmbio usado para preencher automaticamente os contratos.' },
