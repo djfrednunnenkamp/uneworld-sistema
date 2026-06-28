@@ -67,7 +67,9 @@ function FDrop({ label, value, onChange, options, icon = 'list', avatar = false,
   const ref = useRef(null)
   const active = !!value
   const selected = options.find(o => o.value === value)
-  const searchable = options.length > 8
+  // Avatares (Pagante/Viajante/Agência) sempre têm busca no topo; senão, só
+  // quando a lista é grande.
+  const searchable = avatar || options.length > 8
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
