@@ -17,7 +17,7 @@ import { Ic } from './Icon'
  *   placeholder — texto quando nada selecionado
  *   disabled
  */
-export default function Dropdown({ value, onChange, options, placeholder = '— Selecione —', disabled = false }) {
+export default function Dropdown({ value, onChange, options, placeholder = '— Selecione —', disabled = false, clearable = true }) {
   const [open,        setOpen]        = useState(false)
   const [query,       setQuery]       = useState('')
   const [highlighted, setHighlighted] = useState(-1)
@@ -81,7 +81,7 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
             boxShadow: open ? '0 0 0 3px rgba(46,109,180,.1)' : 'none', transition: 'border-color .12s, box-shadow .12s',
           }} />
         <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          {selected && !disabled && (
+          {selected && !disabled && clearable && (
             <span
               role="button"
               tabIndex={-1}

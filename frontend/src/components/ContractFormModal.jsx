@@ -171,13 +171,13 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
                   </div>
                   <div style={{ flex: 1.3 }}>
                     {i === 0 && <label style={lbl}>Tipo</label>}
-                    <Dropdown value={a.kind}
+                    <Dropdown value={a.kind} clearable={false}
                       options={[{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]}
                       onChange={v => update(i, 'kind', v || 'acrescimo')} />
                   </div>
                   <div style={{ flex: 1.3 }}>
                     {i === 0 && <label style={lbl}>Modo</label>}
-                    <Dropdown value={a.mode}
+                    <Dropdown value={a.mode} clearable={false}
                       options={[{ value: 'valor', label: 'Valor (US$)' }, { value: 'percentual', label: 'Percentual (%)' }]}
                       onChange={v => update(i, 'mode', v || 'valor')} />
                   </div>
