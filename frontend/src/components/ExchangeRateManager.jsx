@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import { Ic } from './Icon'
+import TimePicker from './TimePicker'
 import ConfirmModal from './ConfirmModal'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
@@ -102,7 +103,7 @@ function RateModal({ initial, onSave, onClose }) {
               </div>
               <div>
                 <label style={lbl}>Horário específico (opcional)</label>
-                <input style={{ ...inp, width:160 }} type="time" value={updateTime} onChange={e => setUpdateTime(e.target.value)} />
+                <div style={{ width:170 }}><TimePicker value={updateTime} onChange={setUpdateTime} fixed /></div>
                 <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Se vazio, usa o <strong>horário geral</strong>. O acréscimo (%) é reaplicado após puxar a taxa.</p>
               </div>
             </>
@@ -294,7 +295,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
                 Horário em que as moedas com atualização automática são puxadas da internet. Cada moeda pode ter um <strong>horário próprio</strong>, que sobrescreve este geral.
               </p>
               <label style={lbl}>Horário</label>
-              <input style={{ ...inp, width:160 }} type="time" value={defaultTime} onChange={e => setDefaultTime(e.target.value)} />
+              <div style={{ width:170 }}><TimePicker value={defaultTime} onChange={setDefaultTime} fixed /></div>
               <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0' }}>Deixe vazio para não atualizar nada automaticamente sem horário próprio.</p>
             </div>
             <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
