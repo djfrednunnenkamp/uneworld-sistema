@@ -153,12 +153,19 @@ export async function generateContractPDF(contract) {
   y = dataTable(doc, y, ['Tipo de Acomodação', 'Valor/pessoa (USD)', 'Taxas (USD)', 'Quantidade', 'Total (USD)'],
     accomRows.length ? accomRows : [['—', '', '', '', '']])
 
-  // Valores extras / descontos (só aparece quando há)
-  const adjRows = (contract.adjustments || []).map(a => [
-    a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'),
-    a.kind === 'desconto' ? 'Desconto' : 'Acréscimo',
-    `${a.kind === 'desconto' ? '- ' : '+ '}${fmtMoney(a.value_usd)}`,
-  ])
+  // Valores extras / descontos (só aparece quando há). Percentual incide sobre o
+  // subtotal das acomodações.
+  const accomSubtotal = (contract.accommodation_lines || []).reduce(
+    (s, l) => s + (Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1), 0)
+  const adjRows = (contract.adjustments || []).map(a => {
+    const amount = a.mode === 'percentual' ? accomSubtotal * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
+    const tipo = `${a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'}${a.mode === 'percentual' ? ` (${Number(a.percent || 0)}%)` : ''}`
+    return [
+      a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'),
+      tipo,
+      `${a.kind === 'desconto' ? '- ' : '+ '}${fmtMoney(amount)}`,
+    ]
+  })
   if (adjRows.length) {
     y = sectionHeader(doc, 'VALORES EXTRAS / DESCONTOS', y + 1.5)
     y = dataTable(doc, y, ['Descrição', 'Tipo', 'Valor (USD)'], adjRows)

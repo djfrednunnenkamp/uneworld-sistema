@@ -123,19 +123,23 @@ class ContractInstallment(models.Model):
 
 
 class ContractAdjustment(models.Model):
-    """Acréscimo (valor extra) ou desconto aplicado ao total do contrato, em USD.
-    Entra no cálculo da Soma total (USD) — acréscimo soma, desconto subtrai."""
+    """Acréscimo (valor extra) ou desconto aplicado ao total do contrato.
+    Pode ser um valor fixo em USD (mode='valor') ou um percentual sobre o
+    subtotal das acomodações (mode='percentual'). Acréscimo soma, desconto subtrai."""
     KIND_CHOICES = [('acrescimo', 'Acréscimo'), ('desconto', 'Desconto')]
+    MODE_CHOICES = [('valor', 'Valor (USD)'), ('percentual', 'Percentual (%)')]
 
     contract    = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='adjustments')
     description = models.CharField('Descrição', max_length=200, blank=True)
     kind        = models.CharField('Tipo', max_length=10, choices=KIND_CHOICES, default='acrescimo')
+    mode        = models.CharField('Modo', max_length=12, choices=MODE_CHOICES, default='valor')
     value_usd   = models.DecimalField('Valor (USD)', max_digits=12, decimal_places=2, default=0)
+    percent     = models.DecimalField('Percentual', max_digits=6, decimal_places=2, default=0)
     order       = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:
         ordering = ['order']
 
-    @property
-    def signed_value(self):
-        return self.value_usd if self.kind == 'acrescimo' else -self.value_usd
+    def amount_usd(self, base_usd):
+        """Valor absoluto (positivo) deste ajuste, dado o subtotal-base em USD."""
+        return (base_usd * self.percent / 100) if self.mode == 'percentual' else self.value_usd

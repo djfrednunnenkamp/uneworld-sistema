@@ -135,49 +135,70 @@ function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
   )
 }
 
-/* Popup de valores extras (acréscimos) e descontos — entram na Soma total (USD). */
-function AdjustmentsModal({ adjustments, setAdjustments, onClose }) {
-  const add    = () => setAdjustments(a => [...a, { description: '', kind: 'acrescimo', value_usd: '' }])
+/* Popup de valores extras (acréscimos) e descontos — entram na Soma total (USD).
+ * Cada linha pode ser um valor fixo (US$) ou um percentual sobre o subtotal das
+ * acomodações (baseUsd). */
+function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose }) {
+  const add    = () => setAdjustments(a => [...a, { description: '', kind: 'acrescimo', mode: 'valor', value_usd: '', percent: '' }])
   const update = (i, k, v) => setAdjustments(a => a.map((x, idx) => idx === i ? { ...x, [k]: v } : x))
   const remove = (i) => setAdjustments(a => a.filter((_, idx) => idx !== i))
-  const net = adjustments.reduce((s, a) => s + (a.kind === 'desconto' ? -1 : 1) * Number(a.value_usd || 0), 0)
+  const amountOf = (a) => a.mode === 'percentual' ? baseUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
+  const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+  const net = adjustments.reduce((s, a) => s + (a.kind === 'desconto' ? -1 : 1) * amountOf(a), 0)
   return (
     <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
-      <div className="mbox" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+      <div className="mbox" style={{ maxWidth: 720 }} onClick={e => e.stopPropagation()}>
         <div className="mhead">
           <span className="mtitle">Valores extras e descontos</span>
           <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
         </div>
         <div className="mbody">
           <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
-            Acréscimos somam e descontos subtraem da <strong>Soma total (USD)</strong> do contrato.
+            Acréscimos somam e descontos subtraem da <strong>Soma total (USD)</strong>. O percentual
+            incide sobre o subtotal das acomodações (US$ {fmt(baseUsd)}).
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {adjustments.length === 0 && (
               <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum valor adicionado ainda.</p>
             )}
             {adjustments.map((a, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                <div style={{ flex: 2 }}>
-                  {i === 0 && <label style={lbl}>Descrição</label>}
-                  <input style={inp} value={a.description} onChange={e => update(i, 'description', e.target.value)}
-                    placeholder="Ex: Taxa de embarque, Desconto fidelidade…" />
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 2 }}>
+                    {i === 0 && <label style={lbl}>Descrição</label>}
+                    <input style={inp} value={a.description} onChange={e => update(i, 'description', e.target.value)}
+                      placeholder="Ex: Taxa de embarque, Desconto fidelidade…" />
+                  </div>
+                  <div style={{ flex: 1.3 }}>
+                    {i === 0 && <label style={lbl}>Tipo</label>}
+                    <Dropdown value={a.kind}
+                      options={[{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]}
+                      onChange={v => update(i, 'kind', v || 'acrescimo')} />
+                  </div>
+                  <div style={{ flex: 1.3 }}>
+                    {i === 0 && <label style={lbl}>Modo</label>}
+                    <Dropdown value={a.mode}
+                      options={[{ value: 'valor', label: 'Valor (US$)' }, { value: 'percentual', label: 'Percentual (%)' }]}
+                      onChange={v => update(i, 'mode', v || 'valor')} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    {i === 0 && <label style={lbl}>{a.mode === 'percentual' ? 'Percentual' : 'Valor (USD)'}</label>}
+                    {a.mode === 'percentual'
+                      ? <input style={inp} type="number" step="0.01" min="0" value={a.percent} placeholder="%"
+                          onChange={e => update(i, 'percent', e.target.value)} />
+                      : <input style={inp} type="number" step="0.01" min="0" value={a.value_usd}
+                          onChange={e => update(i, 'value_usd', e.target.value)} />}
+                  </div>
+                  <button type="button" onClick={() => remove(i)}
+                    style={{ padding: 8, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
+                    <Ic n="trash" s={13} />
+                  </button>
                 </div>
-                <div style={{ flex: 1.3 }}>
-                  {i === 0 && <label style={lbl}>Tipo</label>}
-                  <Dropdown value={a.kind}
-                    options={[{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]}
-                    onChange={v => update(i, 'kind', v || 'acrescimo')} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  {i === 0 && <label style={lbl}>Valor (USD)</label>}
-                  <input style={inp} type="number" step="0.01" min="0" value={a.value_usd}
-                    onChange={e => update(i, 'value_usd', e.target.value)} />
-                </div>
-                <button type="button" onClick={() => remove(i)}
-                  style={{ padding: 8, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
-                  <Ic n="trash" s={13} />
-                </button>
+                {a.mode === 'percentual' && (
+                  <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
+                    {Number(a.percent || 0)}% de US$ {fmt(baseUsd)} = {a.kind === 'desconto' ? '−' : '+'} US$ {fmt(amountOf(a))}
+                  </div>
+                )}
               </div>
             ))}
             <button type="button" onClick={add}
@@ -190,7 +211,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, onClose }) {
           <span style={{ fontSize: 13, color: '#475569' }}>
             Efeito no total:{' '}
             <strong style={{ color: net < 0 ? '#dc2626' : '#15803d' }}>
-              {net >= 0 ? '+' : '−'} {Math.abs(net).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} USD
+              {net >= 0 ? '+' : '−'} {fmt(Math.abs(net))} USD
             </strong>
           </span>
           <button className="btn btn-primary" onClick={onClose}>Concluir</button>
@@ -318,7 +339,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         taxes_usd: l.taxes_usd, quantity: l.quantity,
       })))
       setAdjustments((d.adjustments ?? []).map(a => ({
-        description: a.description ?? '', kind: a.kind ?? 'acrescimo', value_usd: a.value_usd ?? '',
+        description: a.description ?? '', kind: a.kind ?? 'acrescimo', mode: a.mode ?? 'valor',
+        value_usd: a.value_usd ?? '', percent: a.percent ?? '',
       })))
       // Reconstrói os quartos a partir do room_group salvo. Contrato antigo (sem
       // room_group) com tipo definido vira um quarto por hóspede, preservando o tipo.
@@ -362,12 +384,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
   // Soma total (USD) sempre calculada a partir das linhas de acomodação —
   // nunca digitada. Total em BRL deriva da soma total e do câmbio.
-  const adjustmentsTotalUsd = useMemo(() => adjustments.reduce(
-    (s, a) => s + (a.kind === 'desconto' ? -1 : 1) * Number(a.value_usd || 0), 0
-  ), [adjustments])
-  const computedTotalUsd = useMemo(() => accomLines.reduce(
+  const accomSubtotalUsd = useMemo(() => accomLines.reduce(
     (sum, l) => sum + (Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1), 0
-  ) + adjustmentsTotalUsd, [accomLines, adjustmentsTotalUsd])
+  ), [accomLines])
+  // Percentual incide sobre o subtotal das acomodações; valor é absoluto em USD.
+  const adjustmentsTotalUsd = useMemo(() => adjustments.reduce((s, a) => {
+    const amount = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
+    return s + (a.kind === 'desconto' ? -1 : 1) * amount
+  }, 0), [adjustments, accomSubtotalUsd])
+  const computedTotalUsd = useMemo(() => accomSubtotalUsd + adjustmentsTotalUsd, [accomSubtotalUsd, adjustmentsTotalUsd])
   const computedTotalBrl = form.exchange_rate ? computedTotalUsd * Number(form.exchange_rate) : null
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
@@ -647,8 +672,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         room_group: g.room ?? null,
       })),
       adjustments: adjustments
-        .filter(a => Number(a.value_usd) !== 0 || (a.description || '').trim())
-        .map(a => ({ description: a.description || '', kind: a.kind || 'acrescimo', value_usd: Number(a.value_usd) || 0 })),
+        .filter(a => Number(a.value_usd) !== 0 || Number(a.percent) !== 0 || (a.description || '').trim())
+        .map(a => ({
+          description: a.description || '', kind: a.kind || 'acrescimo', mode: a.mode || 'valor',
+          value_usd: a.mode === 'percentual' ? 0 : (Number(a.value_usd) || 0),
+          percent: a.mode === 'percentual' ? (Number(a.percent) || 0) : 0,
+        })),
       installments: installmentsPayload,
       clauses: selectedClauses,
     }
@@ -1122,6 +1151,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
         <AdjustmentsModal
           adjustments={adjustments}
           setAdjustments={setAdjustments}
+          baseUsd={accomSubtotalUsd}
           onClose={() => setShowAdjustments(false)}
         />
       )}

@@ -71,7 +71,7 @@ class ContractInstallmentSerializer(serializers.ModelSerializer):
 class ContractAdjustmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ContractAdjustment
-        fields = ['id', 'description', 'kind', 'value_usd', 'order']
+        fields = ['id', 'description', 'kind', 'mode', 'value_usd', 'percent', 'order']
 
 
 class ContractListSerializer(serializers.ModelSerializer):
@@ -200,12 +200,17 @@ class ContractSerializer(serializers.ModelSerializer):
         """Soma total (USD) vem das linhas de acomodação; câmbio vem da
         configuração de Câmbio quando o contrato não tem um valor próprio;
         total em BRL é derivado dos dois — nada disso é digitado manualmente."""
-        total_usd = sum(
+        accom_total = sum(
             (line.value_per_person_usd + line.taxes_usd) * line.quantity
             for line in contract.accommodation_lines.all()
         )
-        # Acréscimos somam, descontos subtraem (em USD).
-        total_usd += sum((a.signed_value for a in contract.adjustments.all()), Decimal('0'))
+        # Acréscimos somam, descontos subtraem. Percentual incide sobre o subtotal
+        # das acomodações (accom_total).
+        adj_total = Decimal('0')
+        for a in contract.adjustments.all():
+            amount = a.amount_usd(accom_total)
+            adj_total += amount if a.kind == 'acrescimo' else -amount
+        total_usd = accom_total + adj_total
         exchange_rate = contract.exchange_rate or _default_exchange_rate()
         total_brl = total_usd * exchange_rate if exchange_rate else None
         contract.total_usd     = total_usd
