@@ -106,6 +106,9 @@ export const contractsApi = {
   deleted: ()       => api.get('/contracts/', { params: { deleted: 1 } }),
   restore: (id)     => api.post(`/contracts/${id}/restore/`),
   purge:   (id)     => api.delete(`/contracts/${id}/purge/`),
+  sendForSignature: (id) => api.post(`/contracts/${id}/send-for-signature/`),
+  reopen:           (id) => api.post(`/contracts/${id}/reopen/`),
+  uploadSigned:     (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/upload-signed/`, fd) },
 }
 
 export const itinerariesApi = {

@@ -48,7 +48,7 @@ export default function DataTable({
   title, addLabel, data = [], cols = [],
   searchKeys = [], filterKey = 'status', filterOpts,
   extraFilters, topBar, onLog, bulkBar,
-  onAdd, onEdit, onView, onDelete, onDocs, showDocs, docsTitle = 'Documentos', docsIcon = 'docs', loading,
+  onAdd, onEdit, onView, onDelete, onDocs, showDocs, docsTitle = 'Documentos', docsIcon = 'docs', extraActions, loading,
 }) {
   const [q,   setQ]   = useState('')
   const [flt, setFlt] = useState('Todos')
@@ -169,6 +169,7 @@ export default function DataTable({
                   ))}
                   <td>
                     <div className="r-acts">
+                      {extraActions && extraActions(row)}
                       {onEdit && <button className="r-btn edit" title="Editar"     onClick={() => onEdit(row)}><Ic n="edit" s={13}/></button>}
                       {onDocs && (!showDocs || showDocs(row)) && <button className="r-btn view" title={docsTitle} onClick={() => onDocs(row)}><Ic n={docsIcon}  s={13}/></button>}
                       <button className="r-btn view" title="Visualizar" onClick={() => onView?.(row)}><Ic n="eye"  s={13}/></button>

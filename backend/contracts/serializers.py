@@ -82,7 +82,8 @@ class ContractListSerializer(serializers.ModelSerializer):
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_name',
                   'contratante', 'contratante_name', 'package_name', 'departure_date',
-                  'total_brl', 'status', 'signature_type', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+                  'total_brl', 'status', 'signature_type', 'stage', 'signed_file',
+                  'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def get_agency_name(self, obj):
         return _agency_brief(obj.agency)['name'] if obj.agency_id else ''
@@ -104,6 +105,9 @@ class ContractSerializer(serializers.ModelSerializer):
     itinerary_data      = serializers.SerializerMethodField()
     clauses_data        = serializers.SerializerMethodField()
 
+    # Etapa e arquivo assinado mudam só pelas ações (send-for-signature/upload-signed).
+    stage         = serializers.CharField(read_only=True)
+    signed_file   = serializers.FileField(read_only=True)
     # Calculados pelo backend — nunca digitados (ver _recalc_totals).
     total_usd     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_brl     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -122,6 +126,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'total_usd', 'total_brl', 'exchange_rate',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
+                  'stage', 'signed_file',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 

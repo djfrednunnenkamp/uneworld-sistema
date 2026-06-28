@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { contractsApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
@@ -6,6 +6,7 @@ import DelModal from '../components/DelModal'
 import TrashTab from '../components/TrashTab'
 import ContractFormModal from '../components/ContractFormModal'
 import ContractViewModal from '../components/ContractViewModal'
+import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -69,9 +70,11 @@ export default function Contracts() {
   const [modal,   setModal]   = useState(null)   // null | 'new' | contractId
   const [viewId,  setViewId]  = useState(null)   // id do contrato em visualização
   const [statusF, setStatusF] = useState('all')
-  const [showTrash, setShowTrash] = useState(false)
+  const [tab, setTab] = useState('em_edicao')   // em_edicao | enviado | assinado | trash
   const [deletedCount, setDeletedCount] = useState(0)
   const [downloadingId, setDownloadingId] = useState(null)
+  const [pendingUploadId, setPendingUploadId] = useState(null)
+  const fileInputRef = useRef(null)
 
   const load = () => {
     setLoading(true)
@@ -86,7 +89,7 @@ export default function Contracts() {
     if (canDelete) {
       contractsApi.deleted().then(r => setDeletedCount((r.data.results ?? r.data).length)).catch(() => {})
     }
-  }, [canDelete, showTrash])
+  }, [canDelete, tab])
 
   const silentReload = useCallback(() => {
     contractsApi.list().then(r => setRows(r.data.results ?? r.data)).catch(() => {})
@@ -117,18 +120,47 @@ export default function Contracts() {
     }
   }
 
-  const filtered = statusF === 'all' ? rows : rows.filter(r => r.status === statusF)
+  // Baixar: na etapa "assinado" baixa o arquivo assinado; senão gera o PDF.
+  const handleDocs = (row) => {
+    if (row.stage === 'assinado' && row.signed_file) { window.open(row.signed_file, '_blank'); return }
+    handleDownloadPdf(row)
+  }
+
+  const handleSend = async (row) => {
+    try { await contractsApi.sendForSignature(row.id); toast.success('Contrato enviado para assinatura.'); load() }
+    catch { toast.error('Erro ao enviar para assinatura.') }
+  }
+
+  const handleUploadClick = (row) => { setPendingUploadId(row.id); fileInputRef.current?.click() }
+  const handleFileChosen = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !pendingUploadId) return
+    try { await contractsApi.uploadSigned(pendingUploadId, file); toast.success('Contrato assinado anexado.'); load() }
+    catch { toast.error('Erro ao anexar o contrato assinado.') }
+    finally { setPendingUploadId(null) }
+  }
+
+  const stageRows = tab === 'trash' ? [] : rows.filter(r => r.stage === tab)
+  const filtered  = statusF === 'all' ? stageRows : stageRows.filter(r => r.status === statusF)
+  const stageCount = (s) => rows.filter(r => r.stage === s).length
 
   const filterBar = (
     <FDrop label="Status" value={statusF} onChange={setStatusF} options={STATUS_OPTS} active={statusF !== 'all'} />
   )
 
-  const trashTabBar = canDelete && (
-    <div style={{ display: 'flex', gap: 0, borderBottom: '1.5px solid #e2e8f0', marginBottom: 4 }}>
-      {[{ key: false, label: 'Contratos', color: '#2563eb' }, { key: true, label: 'Excluídos', color: '#dc2626' }].map(t => {
-        const sel = showTrash === t.key
+  const TABS = [
+    { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
+    { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
+    { key: 'assinado',  label: 'Assinados',        color: '#059669', count: stageCount('assinado') },
+    ...(canDelete ? [{ key: 'trash', label: 'Excluídos', color: '#dc2626', count: deletedCount }] : []),
+  ]
+  const tabBar = (
+    <div style={{ display: 'flex', gap: 0, borderBottom: '1.5px solid #e2e8f0', marginBottom: 4, flexWrap: 'wrap' }}>
+      {TABS.map(t => {
+        const sel = tab === t.key
         return (
-          <button key={String(t.key)} type="button" onClick={() => setShowTrash(t.key)}
+          <button key={t.key} type="button" onClick={() => setTab(t.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', cursor: 'pointer',
               fontFamily: 'inherit', background: 'transparent', fontSize: 13.5, fontWeight: sel ? 600 : 400,
@@ -136,21 +168,27 @@ export default function Contracts() {
               marginBottom: '-1.5px', transition: 'color .15s, border-color .15s', outline: 'none',
             }}>
             {t.label}
-            {t.key && (
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 20, background: sel ? '#fee2e2' : '#f1f5f9', color: sel ? t.color : '#94a3b8' }}>
-                {deletedCount}
-              </span>
-            )}
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 20, background: sel ? `${t.color}1a` : '#f1f5f9', color: sel ? t.color : '#94a3b8' }}>
+              {t.count}
+            </span>
           </button>
         )
       })}
     </div>
   )
 
+  const actBtn = (title, icon, color, onClick) => (
+    <button type="button" title={title} onClick={onClick}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${color}33`, background: `${color}14`, color, cursor: 'pointer', flexShrink: 0 }}>
+      <Ic n={icon} s={13} />
+    </button>
+  )
+
   return (
     <>
-      {canDelete && trashTabBar}
-      {showTrash ? (
+      {tabBar}
+      <input ref={fileInputRef} type="file" accept="application/pdf,image/*" style={{ display: 'none' }} onChange={handleFileChosen} />
+      {tab === 'trash' ? (
         <TrashTab
           fetchDeleted={() => contractsApi.deleted().then(r => r.data.results ?? r.data)}
           onRestore={(id) => contractsApi.restore(id)}
@@ -163,17 +201,25 @@ export default function Contracts() {
         />
       ) : (
         <DataTable
-          title="Contratos"
+          title={TABS.find(t => t.key === tab)?.label || 'Contratos'}
           addLabel="Adicionar Contrato"
           data={filtered}
           cols={COLS}
           searchKeys={['reservation_number', 'contratante_name', 'agency_name', 'package_name']}
           extraFilters={filterBar}
-          onAdd={canEdit ? () => setModal('new') : undefined}
+          onAdd={canEdit && tab === 'em_edicao' ? () => setModal('new') : undefined}
           onView={(row) => setViewId(row.id)}
-          onDocs={(row) => handleDownloadPdf(row)}
-          showDocs={(row) => row.signature_type === 'fisica'}
-          docsTitle="Baixar PDF"
+          onDocs={handleDocs}
+          showDocs={(row) =>
+            row.stage === 'enviado' ? row.signature_type === 'fisica'
+            : row.stage === 'assinado' ? !!row.signed_file
+            : false}
+          docsTitle={tab === 'assinado' ? 'Baixar contrato assinado' : 'Baixar PDF'}
+          extraActions={canEdit ? (row) => (
+            tab === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
+            : tab === 'enviado' ? actBtn('Anexar contrato assinado', 'check', '#059669', () => handleUploadClick(row))
+            : null
+          ) : undefined}
           onDelete={canDelete ? (row) => setDelRow(row) : undefined}
           loading={loading}
         />
