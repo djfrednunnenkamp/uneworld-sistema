@@ -44,10 +44,23 @@ const valueInRange = (v, key) => {
   return true
 }
 
-/* ── FDrop — filtro estilo "Logs": botão fixo que abre um dropdown logo abaixo,
- * com busca (quando há muitas opções) e navegação por teclado (↑↓ + Enter).
- * options[0] é sempre a opção "Todos" (value ''). ── */
-function FDrop({ label, value, onChange, options }) {
+function initialsOf(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || name[0].toUpperCase()
+}
+function Avatar({ name, size = 22 }) {
+  return (
+    <span style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: !name ? '#94a3b8' : '#2e6db4', color: '#fff', fontSize: size * 0.4, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '.02em' }}>
+      {initialsOf(name)}
+    </span>
+  )
+}
+
+/* ── FDrop — filtro no mesmo estilo do filtro "Usuário" da página de Logs:
+ * botão fixo → dropdown logo abaixo com busca, avatar (iniciais) por item e
+ * navegação por teclado (↑↓ + Enter). options[0] é a opção "Todos" (value ''). ── */
+function FDrop({ label, value, onChange, options, icon = 'list', avatar = false, searchPlaceholder = 'Buscar…' }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [hl, setHl] = useState(-1)
@@ -75,16 +88,17 @@ function FDrop({ label, value, onChange, options }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8, border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff', color: active ? '#2e6db4' : '#475569', fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', maxWidth: 240, transition: 'all .12s' }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{active && selected ? `${label}: ${selected.label}` : label}</span>
-        <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▼</span>
+        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 8, border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff', color: active ? '#2e6db4' : '#475569', fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', maxWidth: 220, transition: 'all .12s' }}>
+        {active && avatar ? <Avatar name={selected?.label} size={18} /> : <Ic n={icon} s={13} />}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{active && selected ? selected.label : label}</span>
+        <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>▼</span>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 12px 28px rgba(15,23,42,.12)', minWidth: 220, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 12px 28px rgba(15,23,42,.12)', minWidth: 240, overflow: 'hidden' }}>
           {searchable && (
             <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
               <input autoFocus value={q} onChange={e => { setQ(e.target.value); setHl(-1) }} onKeyDown={onKey}
-                placeholder="Buscar…"
+                placeholder={searchPlaceholder}
                 style={{ width: '100%', padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12.5, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
             </div>
           )}
@@ -94,10 +108,12 @@ function FDrop({ label, value, onChange, options }) {
             ) : filtered.map((opt, idx) => {
               const sel = value === opt.value
               const isHl = idx === hl
+              const isAll = opt.value === ''
               return (
                 <button key={opt.value || 'all'} type="button" onClick={() => pick(opt.value)} onMouseEnter={() => setHl(idx)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 14px', gap: 10, background: sel ? '#eff6ff' : (isHl ? '#f8fafc' : 'transparent'), border: 'none', color: sel ? '#2e6db4' : '#1e293b', fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: isAll ? '8px 14px' : '7px 14px', background: sel ? '#eff6ff' : (isHl ? '#f8fafc' : 'transparent'), border: 'none', color: sel ? '#2e6db4' : '#1e293b', fontSize: 13, fontWeight: sel ? 600 : 400, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                  {isAll ? <Ic n={icon} s={13} /> : (avatar ? <Avatar name={opt.label} size={22} /> : <span style={{ width: 13 }} />)}
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
                   {sel && <Ic n="check" s={13} />}
                 </button>
               )
@@ -402,10 +418,10 @@ export default function Contracts() {
 
   const filterBar = (
     <>
-      <FDrop label="Pagante"  value={fPayer}    onChange={setFPayer}    options={payerOpts} />
-      <FDrop label="Viajante" value={fTraveler} onChange={setFTraveler} options={travelerOpts} />
-      <FDrop label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts} />
-      <FDrop label="Valor"    value={fValue}    onChange={setFValue}    options={VALUE_OPTS} />
+      <FDrop label="Pagante"  value={fPayer}    onChange={setFPayer}    options={payerOpts}    icon="users"    avatar searchPlaceholder="Buscar pagante…" />
+      <FDrop label="Viajante" value={fTraveler} onChange={setFTraveler} options={travelerOpts}  icon="users"    avatar searchPlaceholder="Buscar viajante…" />
+      <FDrop label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts}    icon="building" avatar searchPlaceholder="Buscar agência…" />
+      <FDrop label="Valor"    value={fValue}    onChange={setFValue}    options={VALUE_OPTS}    icon="card" />
       <DateRangeDrop label="Período" from={fDateFrom} to={fDateTo} onFrom={setFDateFrom} onTo={setFDateTo} />
       {activeFilters > 0 && (
         <button onClick={clearFilters} title="Limpar todos os filtros"
