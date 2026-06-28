@@ -8,6 +8,7 @@ import AirportPicker from './AirportPicker'
 import Dropdown from './Dropdown'
 import CnpjInput from './CnpjInput'
 import { Ic } from './Icon'
+import { usePrefs } from '../context/PrefsContext'
 
 /* Confirmação específica pra "valores não somam o total" — não reaproveita o
  * ConfirmModal genérico porque ele sempre mostra "Esta ação não pode ser
@@ -371,6 +372,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   const [adjustments, setAdjustments] = useState([]) // [{ description, kind, value_usd }]
   const [showAdjustments, setShowAdjustments] = useState(false)
   const [showRounding, setShowRounding] = useState(false)
+  const { contractCreateLayout, contractEditLayout, setContractLayout } = usePrefs()
+  // Layout: 'steps' (passo a passo) ou 'full' (completo). Vem do perfil do usuário
+  // (separado para criar/editar). Trocar aqui salva o novo padrão no perfil.
+  const [layout, setLayout] = useState(isEdit ? contractEditLayout : contractCreateLayout)
+  const changeLayout = (v) => { setLayout(v); setContractLayout(isEdit, v) }
   const [step, setStep] = useState(0)
   const STEPS = [
     { key: 'geral',       title: 'Geral' },
@@ -950,7 +956,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
         style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 920, maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)' }}>
-        <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+        <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
             {isEdit ? 'Editar contrato' : 'Novo contrato'}
             {isEdit && reservationNumber && (
@@ -959,13 +965,25 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
               </span>
             )}
           </p>
+          <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }} title="Como você prefere preencher — fica salvo no seu perfil">
+            {[{ v: 'steps', label: 'Passo a passo' }, { v: 'full', label: 'Completo' }].map(o => {
+              const active = layout === o.v
+              return (
+                <button key={o.v} type="button" onClick={() => changeLayout(o.v)}
+                  style={{ padding: '6px 12px', border: 'none', background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {o.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {loading ? (
           <p style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            {/* Barra de passos */}
+            {/* Barra de passos — só no modo passo a passo */}
+            {layout === 'steps' && (
             <div style={{ display: 'flex', gap: 6, padding: '14px 20px 0', flexWrap: 'wrap' }}>
               {STEPS.map((s, idx) => (
                 <button key={s.key} type="button" onClick={() => setStep(idx)}
@@ -977,6 +995,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                 </button>
               ))}
             </div>
+            )}
             {totalMismatch && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 20px 0', padding: '10px 14px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', fontSize: 12.5 }}>
                 <Ic n="warn" s={15} />
@@ -985,7 +1004,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             )}
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
 
-            {step === 0 && (<>
+            {(layout === 'full' || step === 0) && (<>
             {/* Forma de assinatura */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="docs" s={14} /> Forma de assinatura</p>
@@ -1129,7 +1148,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
             </>)}
 
-            {step === 1 && (<>
+            {(layout === 'full' || step === 1) && (<>
             {/* Hóspedes + Quartos */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="users" s={14} /> Nome dos passageiros / quartos</p>
@@ -1222,7 +1241,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
             </>)}
 
-            {step === 2 && (<>
+            {(layout === 'full' || step === 2) && (<>
             {/* Tipos de Acomodação / Valores */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="bed" s={14} /> Tipos de acomodação / valores por pessoa</p>
@@ -1326,7 +1345,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
             </>)}
 
-            {step === 3 && (<>
+            {(layout === 'full' || step === 3) && (<>
             {/* Parcelas */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="clock" s={14} /> Parcelas</p>
@@ -1385,7 +1404,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
             </>)}
 
-            {step === 4 && (<>
+            {(layout === 'full' || step === 4) && (<>
             {/* Cláusulas */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="docs" s={14} /> Cláusulas do contrato</p>
@@ -1409,7 +1428,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             </div>
             </>)}
 
-            {step === lastStep && renderReview()}
+            {layout === 'steps' && step === lastStep && renderReview()}
             </div>
           </div>
         )}
@@ -1420,14 +1439,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             Cancelar
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>Passo {step + 1} de {STEPS.length}</span>
-            {step > 0 && (
+            {layout === 'steps' && <span style={{ fontSize: 12, color: '#94a3b8' }}>Passo {step + 1} de {STEPS.length}</span>}
+            {layout === 'steps' && step > 0 && (
               <button type="button" onClick={() => setStep(s => s - 1)} disabled={saving}
                 style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Voltar
               </button>
             )}
-            {step < lastStep ? (
+            {(layout === 'steps' && step < lastStep) ? (
               <button type="button" onClick={() => setStep(s => Math.min(s + 1, lastStep))}
                 style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
                 Próximo <Ic n="chevron" s={13} />

@@ -9,7 +9,8 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
         fields = ['time_format', 'digest_enabled', 'digest_frequency', 'digest_send_hour',
                   'reminder_enabled', 'reminder_days_before',
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
-                  'send_hour', 'side_panel_enabled', 'side_panel_position']
+                  'send_hour', 'side_panel_enabled', 'side_panel_position',
+                  'contract_create_layout', 'contract_edit_layout']
 
     def _validate_hour(self, value):
         if not (0 <= value <= 23):
