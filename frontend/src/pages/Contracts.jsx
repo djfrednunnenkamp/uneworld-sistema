@@ -6,6 +6,7 @@ import DelModal from '../components/DelModal'
 import TrashTab from '../components/TrashTab'
 import ContractFormModal from '../components/ContractFormModal'
 import ContractViewModal from '../components/ContractViewModal'
+import SignedFileViewer from '../components/SignedFileViewer'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import { useAuth } from '../context/AuthContext'
@@ -123,14 +124,11 @@ function SignedUploadModal({ onClose, onUpload }) {
 
 /* ── Popup de visualização do contrato assinado ── */
 function SignedFileModal({ url, onClose }) {
-  const [zoom, setZoom] = useState(null)   // null = ajustar à largura (normal); número = %
   // O backend devolve URL absoluta (ex.: http://localhost:8000/media/...) que
   // quebra quando o app é acessado de outro host. Usamos só o caminho relativo,
   // servido pela própria origem do app (proxy /media em dev, nginx em prod).
   let rel = url
   try { const u = new URL(url, window.location.origin); rel = u.pathname + u.search } catch { /* já é relativo */ }
-  const src = `${rel}#toolbar=0&navpanes=0&scrollbar=0&${zoom == null ? 'view=FitH' : `zoom=${zoom}`}`
-  const zbtn = { width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: 'none', background: '#f1f5f9', color: '#1e293b', fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
@@ -151,19 +149,7 @@ function SignedFileModal({ url, onClose }) {
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8' }}><Ic n="x" s={15} /></button>
           </div>
         </div>
-        {/* #toolbar=0&navpanes=0 esconde a barra/miniaturas nativas do navegador — visual limpo */}
-        <div style={{ flex: 1, background: '#3f4651', overflow: 'hidden', position: 'relative' }}>
-          <iframe key={zoom == null ? 'fit' : zoom} title="Contrato assinado" src={src} style={{ width: '100%', height: '100%', border: 'none', display: 'block' }} />
-          {/* Controles de zoom próprios (o scroll/ctrl+scroll do navegador continua funcionando) */}
-          <div style={{ position: 'absolute', right: 16, bottom: 16, display: 'flex', alignItems: 'center', gap: 4, background: '#fff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.3)', padding: 5 }}>
-            <button onClick={() => setZoom(z => Math.max((z ?? 100) - 25, 25))} title="Diminuir zoom" style={zbtn}>−</button>
-            <button onClick={() => setZoom(null)} title="Zoom normal (ajustar à largura)"
-              style={{ minWidth: 58, height: 32, padding: '0 8px', borderRadius: 8, border: 'none', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              {zoom == null ? 'Ajustar' : `${zoom}%`}
-            </button>
-            <button onClick={() => setZoom(z => Math.min((z ?? 100) + 25, 400))} title="Aumentar zoom" style={zbtn}>+</button>
-          </div>
-        </div>
+        <SignedFileViewer url={rel} />
       </div>
     </div>
   )
