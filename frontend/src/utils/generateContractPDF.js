@@ -185,16 +185,22 @@ export async function generateContractPDF(contract, opts = {}) {
     ['Recebido na entrada', fmtMoney(contract.received_down_payment_brl), 'Recebido a prazo', fmtMoney(contract.received_installments_brl)],
   ])
 
-  // Parcelas
+  // Pagamento — à vista (uma linha) ou parcelado (entrada + parcelas)
   const installments = contract.installments || []
+  const aVista = contract.payment_type === 'a_vista'
   const entrada  = installments.find(i => i.kind === 'entrada')
   const parcelas = installments.filter(i => i.kind === 'parcela').sort((a, b) => a.installment_number - b.installment_number)
   const installmentRows = []
-  if (entrada) installmentRows.push(['Entrada', entrada.detail || '', fmtDateBR(entrada.due_date), fmtMoney(entrada.value_brl), entrada.payment_method || ''])
-  parcelas.forEach(p => installmentRows.push([`${p.installment_number}ª parcela`, p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl), p.payment_method || '']))
+  if (aVista) {
+    const p = parcelas[0] || entrada
+    if (p) installmentRows.push(['À vista', p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl), p.payment_method || ''])
+  } else {
+    if (entrada) installmentRows.push(['Entrada', entrada.detail || '', fmtDateBR(entrada.due_date), fmtMoney(entrada.value_brl), entrada.payment_method || ''])
+    parcelas.forEach(p => installmentRows.push([`${p.installment_number}ª parcela`, p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl), p.payment_method || '']))
+  }
   if (installmentRows.length) {
-    y = sectionHeader(doc, 'PARCELAS', y + 1.5)
-    y = dataTable(doc, y, ['Parcela', 'Detalhe do pagamento', 'Para (data)', 'Valor (BRL)', 'Forma de pagamento'], installmentRows)
+    y = sectionHeader(doc, aVista ? 'PAGAMENTO' : 'PARCELAS', y + 1.5)
+    y = dataTable(doc, y, [aVista ? 'Pagamento' : 'Parcela', 'Detalhe do pagamento', 'Para (data)', 'Valor (BRL)', 'Forma de pagamento'], installmentRows)
   }
 
   // Cliente contratante — só força nova página se realmente não houver espaço.

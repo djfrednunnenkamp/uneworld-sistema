@@ -135,7 +135,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
                   'payer_email', 'payer_phone', 'payer_address',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
-                  'total_usd', 'total_brl', 'exchange_rate',
+                  'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'stage', 'signed_file', 'signed_verification',

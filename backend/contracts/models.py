@@ -57,6 +57,8 @@ class Contract(models.Model):
     observations      = models.TextField('Observações', blank=True)
 
     # Pagamento
+    PAYMENT_TYPE_CHOICES = [('a_vista', 'À vista'), ('parcelado', 'Parcelado')]
+    payment_type              = models.CharField('Forma de pagamento', max_length=10, choices=PAYMENT_TYPE_CHOICES, default='parcelado')
     total_usd                 = models.DecimalField('Soma total (USD)', max_digits=12, decimal_places=2, null=True, blank=True)
     total_brl                 = models.DecimalField('Total em (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     exchange_rate             = models.DecimalField('Câmbio', max_digits=10, decimal_places=4, null=True, blank=True)

@@ -395,6 +395,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const roomSeqRef                  = useRef(1)     // gera ids estáveis de quarto
   const [draggingId, setDraggingId] = useState(null) // passageiro sendo arrastado
   const [dragOverKey, setDragOverKey] = useState(null) // zona destacada no arraste ('pool' | id do quarto | 'new')
+  const [paymentType, setPaymentType] = useState('parcelado') // 'a_vista' | 'parcelado'
+  const [avista, setAvista]         = useState({ due_date: '', value_brl: '', payment_method: '' }) // pagamento à vista
+  const [hasEntrada, setHasEntrada] = useState(false)
   const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '', payment_method: '' })
   const [installmentsCount, setInstallmentsCount] = useState(0)
   const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
@@ -474,14 +477,22 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       setGuests(loadedGuests)
       const entradaRow = (d.installments ?? []).find(i => i.kind === 'entrada')
       const parcelaRows = (d.installments ?? []).filter(i => i.kind === 'parcela').sort((a, b) => a.installment_number - b.installment_number)
-      if (entradaRow) setEntrada({
-        detail: entradaRow.detail ?? '', due_date: entradaRow.due_date ?? '',
-        value_brl: entradaRow.value_brl ?? '', payment_method: entradaRow.payment_method ?? '',
-      })
-      setInstallmentsCount(parcelaRows.length)
-      setInstallments(parcelaRows.map(r => ({
-        detail: r.detail ?? '', due_date: r.due_date ?? '', value_brl: r.value_brl ?? '', payment_method: r.payment_method ?? '',
-      })))
+      const ptype = d.payment_type || 'parcelado'
+      setPaymentType(ptype)
+      if (ptype === 'a_vista') {
+        const p = parcelaRows[0] || entradaRow
+        if (p) setAvista({ due_date: p.due_date ?? '', value_brl: p.value_brl ?? '', payment_method: p.payment_method ?? '' })
+      } else {
+        setHasEntrada(!!entradaRow)
+        if (entradaRow) setEntrada({
+          detail: entradaRow.detail ?? '', due_date: entradaRow.due_date ?? '',
+          value_brl: entradaRow.value_brl ?? '', payment_method: entradaRow.payment_method ?? '',
+        })
+        setInstallmentsCount(parcelaRows.length)
+        setInstallments(parcelaRows.map(r => ({
+          detail: r.detail ?? '', due_date: r.due_date ?? '', value_brl: r.value_brl ?? '', payment_method: r.payment_method ?? '',
+        })))
+      }
       setSelectedClauses((d.clauses ?? []))
     }).catch(() => toast.error('Erro ao carregar contrato.')).finally(() => {
       setLoading(false)
@@ -533,8 +544,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const rawTotalBrl = Number(form.exchange_rate) ? rawTotalUsd * Number(form.exchange_rate) : null
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
-  const sumFilled = round2(Number(entrada.value_brl || 0) + installments.reduce((s, it) => s + Number(it.value_brl || 0), 0))
-  const totalMismatch = computedTotalBrl != null && (entrada.value_brl || installments.some(i => i.value_brl)) &&
+  const sumFilled = paymentType === 'a_vista'
+    ? round2(Number(avista.value_brl || 0))
+    : round2((hasEntrada ? Number(entrada.value_brl || 0) : 0) + installments.reduce((s, it) => s + Number(it.value_brl || 0), 0))
+  const anyPaymentFilled = paymentType === 'a_vista'
+    ? !!avista.value_brl
+    : ((hasEntrada && entrada.value_brl) || installments.some(i => i.value_brl))
+  const totalMismatch = computedTotalBrl != null && anyPaymentFilled &&
     Math.abs(sumFilled - round2(computedTotalBrl)) > 0.01
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -697,9 +713,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // Define quantas parcelas existem e já divide o valor restante (total -
   // entrada) igualmente entre elas — a última absorve a diferença de
   // arredondamento. Continua editável depois, linha a linha.
+  const entradaValue = () => (hasEntrada ? Number(entrada.value_brl || 0) : 0)
   const setInstallmentsCountClamped = (n) => {
-    const count = Math.max(0, Math.min(12, n))
-    const remaining = (computedTotalBrl || 0) - Number(entrada.value_brl || 0)
+    const count = Math.max(0, Math.min(360, Math.floor(n) || 0))   // sem limite prático (cap só pra evitar travar a tela)
+    const remaining = (computedTotalBrl || 0) - entradaValue()
     const base = count > 0 ? Math.floor((remaining / count) * 100) / 100 : 0
     setInstallmentsCount(count)
     setInstallments(prev => {
@@ -718,7 +735,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   useEffect(() => {
     if (!initializedRef.current) return
     if (installmentsCount === 0) return
-    const remaining = (computedTotalBrl || 0) - Number(entrada.value_brl || 0)
+    const remaining = (computedTotalBrl || 0) - entradaValue()
     const base = Math.floor((remaining / installmentsCount) * 100) / 100
     setInstallments(prev => prev.map((it, i) => {
       const isLast = i === installmentsCount - 1
@@ -726,7 +743,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       return { ...it, value_brl: value }
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [computedTotalBrl, entrada.value_brl])
+  }, [computedTotalBrl, entrada.value_brl, hasEntrada])
+
+  // À vista: valor já vem com o total do contrato (editável depois). Não
+  // sobrescreve o valor salvo ao abrir um contrato existente (initializedRef).
+  useEffect(() => {
+    if (!initializedRef.current) return
+    if (paymentType !== 'a_vista') return
+    setAvista(p => ({ ...p, value_brl: computedTotalBrl != null ? computedTotalBrl : '' }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentType, computedTotalBrl])
 
   const updateInstallment = (idx, key, value) => {
     setInstallments(prev => {
@@ -748,30 +774,41 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // Recebido na entrada / a prazo são preenchidos automaticamente a partir
   // do que foi definido na entrada e nas parcelas — o total já é conhecido.
   useEffect(() => {
-    setForm(f => ({ ...f, received_down_payment_brl: entrada.value_brl || '' }))
-  }, [entrada.value_brl])
-  useEffect(() => {
-    if (installments.length === 0) return
-    const sum = installments.reduce((s, it) => s + Number(it.value_brl || 0), 0)
-    setForm(f => ({ ...f, received_installments_brl: sum }))
-  }, [installments])
+    if (paymentType === 'a_vista') {
+      setForm(f => ({ ...f, received_down_payment_brl: avista.value_brl || '', received_installments_brl: '' }))
+    } else {
+      const dp = hasEntrada ? (entrada.value_brl || '') : ''
+      const sum = installments.reduce((s, it) => s + Number(it.value_brl || 0), 0)
+      setForm(f => ({ ...f, received_down_payment_brl: dp, received_installments_brl: installments.length ? sum : '' }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentType, avista.value_brl, hasEntrada, entrada.value_brl, installments])
 
   const buildPayload = () => {
     const installmentsPayload = []
-    if (entrada.detail || entrada.due_date || entrada.value_brl || entrada.payment_method) {
+    if (paymentType === 'a_vista') {
+      // Pagamento único, guardado como uma parcela (nº 1); o payment_type marca à vista.
       installmentsPayload.push({
-        kind: 'entrada', installment_number: null, detail: entrada.detail,
-        due_date: entrada.due_date || null, value_brl: entrada.value_brl || null,
-        payment_method: entrada.payment_method,
+        kind: 'parcela', installment_number: 1, detail: '',
+        due_date: avista.due_date || null, value_brl: avista.value_brl || null,
+        payment_method: avista.payment_method,
+      })
+    } else {
+      if (hasEntrada && (entrada.detail || entrada.due_date || entrada.value_brl || entrada.payment_method)) {
+        installmentsPayload.push({
+          kind: 'entrada', installment_number: null, detail: entrada.detail,
+          due_date: entrada.due_date || null, value_brl: entrada.value_brl || null,
+          payment_method: entrada.payment_method,
+        })
+      }
+      installments.forEach((it, i) => {
+        installmentsPayload.push({
+          kind: 'parcela', installment_number: i + 1, detail: it.detail,
+          due_date: it.due_date || null, value_brl: it.value_brl || null,
+          payment_method: it.payment_method,
+        })
       })
     }
-    installments.forEach((it, i) => {
-      installmentsPayload.push({
-        kind: 'parcela', installment_number: i + 1, detail: it.detail,
-        due_date: it.due_date || null, value_brl: it.value_brl || null,
-        payment_method: it.payment_method,
-      })
-    })
 
     // Nome do pacote e datas já vêm preenchidos do roteiro selecionado (e podem
     // ser ajustados); o aeroporto é sempre manual (roteiro não tem aeroporto).
@@ -794,6 +831,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     return {
       agency: form.agency, itinerary: form.itinerary,
       observations: form.observations,
+      payment_type: paymentType,
       exchange_rate: form.exchange_rate || null,
       ...packageFields,
       ...contratanteFields,
@@ -938,11 +976,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           </div>,
         ])}
 
-        {sec('Pagamento', [
-          row('Entrada', `R$ ${fmtN(entrada.value_brl)}${entrada.due_date ? `  ·  ${fmtDateBR(entrada.due_date)}` : ''}`, 'ent'),
-          ...(installments.length === 0 ? [<span key="sp" style={{ fontSize: 13, color: '#94a3b8' }}>Sem parcelas.</span>]
-            : installments.map((it2, i) => row(`Parcela ${i + 1}${it2.due_date ? `  ·  ${fmtDateBR(it2.due_date)}` : ''}`, `R$ ${fmtN(it2.value_brl)}`, `par${i}`))),
-        ])}
+        {sec('Pagamento', paymentType === 'a_vista'
+          ? [row('À vista', `R$ ${fmtN(avista.value_brl)}${avista.due_date ? `  ·  ${fmtDateBR(avista.due_date)}` : ''}`, 'av')]
+          : [
+            ...(hasEntrada ? [row('Entrada', `R$ ${fmtN(entrada.value_brl)}${entrada.due_date ? `  ·  ${fmtDateBR(entrada.due_date)}` : ''}`, 'ent')] : []),
+            ...(installments.length === 0 ? [<span key="sp" style={{ fontSize: 13, color: '#94a3b8' }}>Sem parcelas.</span>]
+              : installments.map((it2, i) => row(`Parcela ${i + 1}${it2.due_date ? `  ·  ${fmtDateBR(it2.due_date)}` : ''}`, `R$ ${fmtN(it2.value_brl)}`, `par${i}`))),
+          ])}
 
         {sec('Cláusulas', (() => {
           const sel = clauses.filter(c => c.is_default || selectedClauses.includes(c.id))
@@ -1358,59 +1398,107 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             </>)}
 
             {(layout === 'full' || step === 3) && (<>
-            {/* Parcelas */}
+            {/* Pagamento */}
             <div style={card}>
-              <p style={sectionTitle}><Ic n="clock" s={14} /> Parcelas</p>
+              <p style={sectionTitle}><Ic n="clock" s={14} /> Pagamento</p>
 
-              <div style={{ marginBottom: 10 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#475569', margin: '0 0 4px' }}>Entrada</p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input style={{ ...inp, flex: 2 }} placeholder="Detalhe do pagamento" value={entrada.detail}
-                    onChange={e => setEntrada(p => ({ ...p, detail: e.target.value }))} />
-                  <div style={{ flex: 1 }}>
-                    <DatePicker value={entrada.due_date} onChange={v => setEntrada(p => ({ ...p, due_date: v }))} fixed />
-                  </div>
-                  <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={entrada.value_brl}
-                    onChange={e => setEntrada(p => ({ ...p, value_brl: e.target.value }))} />
-                  <div style={{ flex: 1 }}>
-                    <Dropdown value={entrada.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
-                      onChange={v => setEntrada(p => ({ ...p, payment_method: v }))} />
-                  </div>
-                </div>
+              {/* Forma: à vista ou parcelado */}
+              <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
+                {[['a_vista', 'Pago na hora (à vista)'], ['parcelado', 'Parcelado']].map(([val, label]) => {
+                  const sel = paymentType === val
+                  return (
+                    <button key={val} type="button" onClick={() => setPaymentType(val)}
+                      style={{ padding: '8px 16px', border: 'none', background: sel ? '#1a2d4f' : '#fff', color: sel ? '#fff' : '#475569', fontSize: 13, fontWeight: sel ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <label style={lbl}>Número de parcelas</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button type="button" onClick={() => setInstallmentsCountClamped(installmentsCount - 1)}
-                    style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>−</button>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', minWidth: 20, textAlign: 'center' }}>{installmentsCount}</span>
-                  <button type="button" onClick={() => setInstallmentsCountClamped(installmentsCount + 1)}
-                    style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>(0 a 12 — o valor restante já é dividido igualmente)</span>
+              {paymentType === 'a_vista' ? (
+                <div>
+                  <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px' }}>O valor total é pago de uma vez — o valor já vem com o total do contrato e pode ser ajustado.</p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Data</label>
+                      <DatePicker value={avista.due_date} onChange={v => setAvista(p => ({ ...p, due_date: v }))} fixed />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Valor (BRL)</label>
+                      <input style={inp} type="number" step="0.01" placeholder="Valor (BRL)" value={avista.value_brl}
+                        onChange={e => setAvista(p => ({ ...p, value_brl: e.target.value }))} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Forma de pagamento</label>
+                      <Dropdown value={avista.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
+                        onChange={v => setAvista(p => ({ ...p, payment_method: v }))} />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  {/* Entrada (opcional) */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: hasEntrada ? 8 : 12 }}>
+                    <input type="checkbox" checked={hasEntrada} onChange={e => setHasEntrada(e.target.checked)}
+                      style={{ width: 15, height: 15, accentColor: '#1a2d4f', cursor: 'pointer' }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Tem entrada?</span>
+                  </label>
+                  {hasEntrada && (
+                    <div style={{ marginBottom: 12 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: '#475569', margin: '0 0 4px' }}>Entrada</p>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input style={{ ...inp, flex: 2 }} placeholder="Detalhe do pagamento" value={entrada.detail}
+                          onChange={e => setEntrada(p => ({ ...p, detail: e.target.value }))} />
+                        <div style={{ flex: 1 }}>
+                          <DatePicker value={entrada.due_date} onChange={v => setEntrada(p => ({ ...p, due_date: v }))} fixed />
+                        </div>
+                        <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={entrada.value_brl}
+                          onChange={e => setEntrada(p => ({ ...p, value_brl: e.target.value }))} />
+                        <div style={{ flex: 1 }}>
+                          <Dropdown value={entrada.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
+                            onChange={v => setEntrada(p => ({ ...p, payment_method: v }))} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-              {installments.map((it, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: '#64748b', width: 70, flexShrink: 0, paddingTop: 8 }}>{idx + 1}ª parcela</span>
-                  <input style={{ ...inp, flex: 2 }} placeholder="Detalhe do pagamento" value={it.detail}
-                    onChange={e => updateInstallment(idx, 'detail', e.target.value)} />
-                  <div style={{ flex: 1 }}>
-                    <DatePicker value={it.due_date} onChange={v => updateInstallment(idx, 'due_date', v)} fixed />
+                  {/* Número de parcelas — digitável, sem limite */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <label style={lbl}>Número de parcelas</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button type="button" onClick={() => setInstallmentsCountClamped(installmentsCount - 1)}
+                        style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>−</button>
+                      <input type="number" min="0" value={installmentsCount}
+                        onChange={e => setInstallmentsCountClamped(parseInt(e.target.value, 10))}
+                        style={{ width: 64, textAlign: 'center', padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 14, fontWeight: 700, color: '#1e293b', fontFamily: 'inherit', outline: 'none' }} />
+                      <button type="button" onClick={() => setInstallmentsCountClamped(installmentsCount + 1)}
+                        style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>(o valor restante é dividido igualmente)</span>
+                    </div>
                   </div>
-                  <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={it.value_brl}
-                    onChange={e => updateInstallment(idx, 'value_brl', e.target.value)} />
-                  <div style={{ flex: 1 }}>
-                    <Dropdown value={it.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
-                      onChange={v => updateInstallment(idx, 'payment_method', v)} />
-                  </div>
-                </div>
-              ))}
-              {installments.length > 1 && (
-                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
-                  Definir a forma de pagamento da 1ª parcela já aplica pras demais — ainda editável individualmente.
-                </p>
+
+                  {installments.map((it, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: '#64748b', width: 70, flexShrink: 0, paddingTop: 8 }}>{idx + 1}ª parcela</span>
+                      <input style={{ ...inp, flex: 2 }} placeholder="Detalhe do pagamento" value={it.detail}
+                        onChange={e => updateInstallment(idx, 'detail', e.target.value)} />
+                      <div style={{ flex: 1 }}>
+                        <DatePicker value={it.due_date} onChange={v => updateInstallment(idx, 'due_date', v)} fixed />
+                      </div>
+                      <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={it.value_brl}
+                        onChange={e => updateInstallment(idx, 'value_brl', e.target.value)} />
+                      <div style={{ flex: 1 }}>
+                        <Dropdown value={it.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
+                          onChange={v => updateInstallment(idx, 'payment_method', v)} />
+                      </div>
+                    </div>
+                  ))}
+                  {installments.length > 1 && (
+                    <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
+                      Definir a data e a forma de pagamento da 1ª parcela já aplica pras demais — ainda editável individualmente.
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
