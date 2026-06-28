@@ -62,9 +62,12 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
         {/* Header */}
         <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: '0 0 2px' }}>
               Contrato {c?.reservation_number ? `nº ${c.reservation_number}` : ''}
             </p>
+            {c && (it?.name || c.package_name) && (
+              <p title={it?.name || c.package_name} style={{ fontSize: 12.5, color: '#64748b', margin: '0 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it?.name || c.package_name}</p>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {c && <StatusBadge value={c.status} />}
               {c && <span style={{ fontSize: 11, fontWeight: 600, color: c.signature_type === 'digital' ? '#7c3aed' : '#0891b2', background: c.signature_type === 'digital' ? '#f3e8ff' : '#e0f2fe', padding: '1px 8px', borderRadius: 6 }}>
@@ -91,14 +94,13 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
               </p>
               <SecLabel>Geral</SecLabel>
               <Row label="Reserva nº" value={c.reservation_number} />
+              <Row label="Nome da viagem" value={it?.name || c.package_name} />
+              <Row label="Pagante" value={c.contratante_data?.full_name} />
+              <Row label="Agência" value={c.agency_data?.name} />
               <Row label="Data do contrato" value={fmtDateBR(c.contract_date)} />
               <Row label="Assinatura" value={c.signature_type === 'digital' ? 'Digital' : 'Física (imprimir e assinar)'} />
-              <Row label="Agência" value={c.agency_data?.name} />
-              <Row label="Roteiro / pacote" value={it?.name || c.package_name} />
-              <Row label="Contratante" value={c.contratante_data?.full_name} />
 
               <SecLabel>Viagem</SecLabel>
-              <Row label="Nome do pacote" value={c.package_name} />
               <Row label="Datas" value={datas} />
               <Row label="Aeroporto" value={c.departure_airport} />
 

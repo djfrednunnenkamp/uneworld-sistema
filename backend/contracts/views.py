@@ -15,7 +15,7 @@ from .serializers import ContractListSerializer, ContractSerializer
 
 class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset        = Contract.objects.select_related('agency', 'contratante', 'passenger_list', 'itinerary').prefetch_related(
-        'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses')
+        'accommodation_lines', 'guests__passenger', 'installments', 'adjustments', 'clauses')
     pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields   = ['reservation_number', 'package_name', 'contratante__full_name',
@@ -36,9 +36,11 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='send-for-signature')
     def send_for_signature(self, request, pk=None):
         """Em edição → Enviado para assinatura (libera o download para imprimir/assinar)."""
+        from django.utils import timezone
         contract = self.get_object()
         contract.stage = 'enviado'
-        contract.save(update_fields=['stage'])
+        contract.sent_at = timezone.now()
+        contract.save(update_fields=['stage', 'sent_at'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['get'], url_path='signed-file')
@@ -85,7 +87,9 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             f = validate_document_file(f)
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+        from django.utils import timezone
         contract.signed_file = f
         contract.stage = 'assinado'
-        contract.save(update_fields=['signed_file', 'stage'])
+        contract.signed_at = timezone.now()
+        contract.save(update_fields=['signed_file', 'stage', 'signed_at'])
         return Response(ContractSerializer(contract, context={'request': request}).data)

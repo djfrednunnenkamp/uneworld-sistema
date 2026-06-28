@@ -77,21 +77,25 @@ class ContractAdjustmentSerializer(serializers.ModelSerializer):
 class ContractListSerializer(serializers.ModelSerializer):
     agency_name      = serializers.SerializerMethodField()
     contratante_name = serializers.SerializerMethodField()
+    guest_names      = serializers.SerializerMethodField()
     signed_file      = serializers.SerializerMethodField()
     signed_verification = serializers.JSONField(read_only=True)
 
     class Meta:
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_name',
-                  'contratante', 'contratante_name', 'package_name', 'departure_date',
-                  'total_brl', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
-                  'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+                  'contratante', 'contratante_name', 'guest_names', 'package_name', 'departure_date',
+                  'total_brl', 'total_usd', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
+                  'created_at', 'updated_at', 'sent_at', 'signed_at', 'is_deleted', 'deleted_at']
 
     def get_agency_name(self, obj):
         return _agency_brief(obj.agency)['name'] if obj.agency_id else ''
 
     def get_contratante_name(self, obj):
         return obj.contratante.full_name if obj.contratante_id else obj.payer_name
+
+    def get_guest_names(self, obj):
+        return [g.passenger.full_name for g in obj.guests.all() if g.passenger_id and g.passenger.full_name]
 
     def get_signed_file(self, obj):
         return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None

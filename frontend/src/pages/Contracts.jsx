@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { contractsApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
@@ -8,6 +8,7 @@ import ContractFormModal from '../components/ContractFormModal'
 import ContractViewModal from '../components/ContractViewModal'
 import SignedFileViewer from '../components/SignedFileViewer'
 import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
+import DatePicker from '../components/DatePicker'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import { useAuth } from '../context/AuthContext'
@@ -22,54 +23,77 @@ const fmtDateBR = (iso) => {
 
 const fmtBRL = (v) => v == null ? '' : `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 
-function FDrop({ label, value, onChange, options, active }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 6, border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff', color: active ? '#2e6db4' : '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-        {label}<span style={{ fontSize: 9, opacity: .7 }}>▼</span>
-      </button>
-      {open && (
-        <div onMouseLeave={() => setOpen(false)}
-          style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 200, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,.10)', minWidth: 160, overflow: 'hidden' }}>
-          {options.map(opt => (
-            <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false) }}
-              style={{ display: 'block', width: '100%', padding: '9px 14px', background: value === opt.value ? '#eff6ff' : 'transparent', border: 'none', color: value === opt.value ? '#2e6db4' : '#1e293b', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const STATUS_OPTS = [
   { value: 'all',       label: 'Todos' },
   { value: 'ativo',     label: 'Ativo' },
   { value: 'cancelado', label: 'Cancelado' },
 ]
 
-const STAGE_META = {
-  em_edicao: { label: 'Em edição',       color: '#2563eb', bg: '#eff6ff' },
-  enviado:   { label: 'Para assinatura', color: '#b45309', bg: '#fffbeb' },
-  assinado:  { label: 'Assinado',        color: '#047857', bg: '#ecfdf5' },
-}
-function StageBadge({ stage }) {
-  const m = STAGE_META[stage] || { label: stage || '—', color: '#64748b', bg: '#f1f5f9' }
-  return <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 11px', borderRadius: 20, background: m.bg, color: m.color }}>{m.label}</span>
-}
+const DASH = <span style={{ color: '#cbd5e1' }}>—</span>
+const fmtDateTimeBR = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') }
 
-const COLS = [
-  { key: 'reservation_number', label: 'Reserva',     align: 'center', render: (v) => v || <span style={{ color: '#cbd5e1' }}>—</span> },
-  { key: 'contratante_name',   label: 'Contratante', align: 'center' },
-  { key: 'agency_name',        label: 'Agência',     align: 'center' },
-  { key: 'package_name',       label: 'Pacote',      align: 'center', render: (v) => v || <span style={{ color: '#cbd5e1' }}>—</span> },
-  { key: 'departure_date',     label: 'Data viagem',  align: 'center', render: (v) => v ? fmtDateBR(v) : <span style={{ color: '#cbd5e1' }}>—</span> },
-  { key: 'total_brl',          label: 'Total (BRL)',  align: 'center', render: (v) => v ? fmtBRL(v) : <span style={{ color: '#cbd5e1' }}>—</span> },
-  { key: 'stage',              label: 'Etapa',        align: 'center', render: (v, row) => <StageBadge stage={row.stage} /> },
-]
+/* Painel de filtros (popover) — Pagante, Viajante, Agência, Valor, Período, Status. */
+function FiltersPanel({ f, set, agencyOpts, activeCount, onClear }) {
+  const [open, setOpen] = useState(false)
+  const lbl = { fontSize: 11, fontWeight: 700, color: '#64748b', margin: '0 0 4px', display: 'block' }
+  const inp = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box' }
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 6, border: `1px solid ${activeCount ? '#2e6db4' : '#e2e8f0'}`, background: activeCount ? '#eff6ff' : '#fff', color: activeCount ? '#2e6db4' : '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+        <Ic n="filter" s={13} /> Filtros
+        {activeCount > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '0 6px', borderRadius: 10, background: '#2e6db4', color: '#fff' }}>{activeCount}</span>}
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 250 }} />
+          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 251, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 12px 32px rgba(0,0,0,.14)', width: 300, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={lbl}>Pagante</label>
+              <input value={f.payer} onChange={e => set.payer(e.target.value)} placeholder="Nome do pagante" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Viajante</label>
+              <input value={f.traveler} onChange={e => set.traveler(e.target.value)} placeholder="Nome de um passageiro" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Agência</label>
+              <select value={f.agency} onChange={e => set.agency(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+                {agencyOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Valor (BRL)</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="number" value={f.valMin} onChange={e => set.valMin(e.target.value)} placeholder="mín." style={inp} />
+                <span style={{ color: '#94a3b8', fontSize: 12 }}>até</span>
+                <input type="number" value={f.valMax} onChange={e => set.valMax(e.target.value)} placeholder="máx." style={inp} />
+              </div>
+            </div>
+            <div>
+              <label style={lbl}>Período (data do contrato)</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ flex: 1 }}><DatePicker value={f.dateFrom} onChange={set.dateFrom} placeholder="De" fixed /></div>
+                <span style={{ color: '#94a3b8', fontSize: 12 }}>até</span>
+                <div style={{ flex: 1 }}><DatePicker value={f.dateTo} onChange={set.dateTo} placeholder="Até" fixed /></div>
+              </div>
+            </div>
+            <div>
+              <label style={lbl}>Status</label>
+              <select value={f.status} onChange={e => set.status(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+                {STATUS_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
+              <button type="button" onClick={onClear} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Limpar filtros</button>
+              <button type="button" onClick={() => setOpen(false)} style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Fechar</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 /* ── Popup de upload do contrato assinado (arrastar e soltar + pré-visualização) ──
  * Mostra o documento ao lado para conferência VISUAL (humana) e pede confirmação
@@ -216,6 +240,13 @@ export default function Contracts() {
   const [modal,   setModal]   = useState(null)   // null | 'new' | contractId
   const [viewId,  setViewId]  = useState(null)   // id do contrato em visualização
   const [statusF, setStatusF] = useState('all')
+  const [fPayer, setFPayer] = useState('')
+  const [fTraveler, setFTraveler] = useState('')
+  const [fAgency, setFAgency] = useState('all')
+  const [fValMin, setFValMin] = useState('')
+  const [fValMax, setFValMax] = useState('')
+  const [fDateFrom, setFDateFrom] = useState('')
+  const [fDateTo, setFDateTo] = useState('')
   const [tab, setTab] = useState('em_edicao')   // em_edicao | enviado | assinado | trash
   const [deletedCount, setDeletedCount] = useState(0)
   const [downloadingId, setDownloadingId] = useState(null)
@@ -316,11 +347,54 @@ export default function Contracts() {
   }
 
   const stageRows = tab === 'trash' ? [] : rows.filter(r => r.stage === tab)
-  const filtered  = statusF === 'all' ? stageRows : stageRows.filter(r => r.status === statusF)
   const stageCount = (s) => rows.filter(r => r.stage === s).length
 
+  const agencyOpts = useMemo(() => {
+    const names = [...new Set(rows.map(r => r.agency_name).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+    return [{ value: 'all', label: 'Todas' }, ...names.map(n => ({ value: n, label: n }))]
+  }, [rows])
+
+  const nrm = (s) => (s || '').toString().toLowerCase()
+  const filtered = stageRows.filter(r => {
+    if (statusF !== 'all' && r.status !== statusF) return false
+    if (fPayer && !nrm(r.contratante_name).includes(nrm(fPayer))) return false
+    if (fTraveler && !(r.guest_names || []).some(g => nrm(g).includes(nrm(fTraveler)))) return false
+    if (fAgency !== 'all' && r.agency_name !== fAgency) return false
+    const v = r.total_brl != null ? Number(r.total_brl) : null
+    if (fValMin !== '' && (v == null || v < Number(fValMin))) return false
+    if (fValMax !== '' && (v == null || v > Number(fValMax))) return false
+    if (fDateFrom && (!r.contract_date || r.contract_date < fDateFrom)) return false
+    if (fDateTo && (!r.contract_date || r.contract_date > fDateTo)) return false
+    return true
+  })
+
+  const activeFilters = [statusF !== 'all', fPayer, fTraveler, fAgency !== 'all', fValMin !== '', fValMax !== '', fDateFrom, fDateTo].filter(Boolean).length
+  const clearFilters = () => { setStatusF('all'); setFPayer(''); setFTraveler(''); setFAgency('all'); setFValMin(''); setFValMax(''); setFDateFrom(''); setFDateTo('') }
+
+  // Coluna de data muda conforme a aba: criado / enviado / assinado.
+  const cols = useMemo(() => {
+    const dateCol = tab === 'enviado'
+      ? { key: 'sent_at',   label: 'Enviado em',  align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      : tab === 'assinado'
+      ? { key: 'signed_at', label: 'Assinado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH }
+    return [
+      { key: 'reservation_number', label: 'Reserva',     align: 'center', render: (v) => v || DASH },
+      { key: 'contratante_name',   label: 'Pagante',     align: 'center' },
+      { key: 'agency_name',        label: 'Agência',     align: 'center' },
+      { key: 'package_name',       label: 'Viagem',      align: 'center', render: (v) => v || DASH },
+      { key: 'departure_date',     label: 'Data viagem', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH },
+      { key: 'total_brl',          label: 'Total (BRL)', align: 'center', render: (v) => v ? fmtBRL(v) : DASH },
+      dateCol,
+    ]
+  }, [tab])
+
   const filterBar = (
-    <FDrop label="Status" value={statusF} onChange={setStatusF} options={STATUS_OPTS} active={statusF !== 'all'} />
+    <FiltersPanel
+      f={{ payer: fPayer, traveler: fTraveler, agency: fAgency, valMin: fValMin, valMax: fValMax, dateFrom: fDateFrom, dateTo: fDateTo, status: statusF }}
+      set={{ payer: setFPayer, traveler: setFTraveler, agency: setFAgency, valMin: setFValMin, valMax: setFValMax, dateFrom: setFDateFrom, dateTo: setFDateTo, status: setStatusF }}
+      agencyOpts={agencyOpts} activeCount={activeFilters} onClear={clearFilters}
+    />
   )
 
   const TABS = [
@@ -377,7 +451,7 @@ export default function Contracts() {
           title={TABS.find(t => t.key === tab)?.label || 'Contratos'}
           addLabel="Adicionar Contrato"
           data={filtered}
-          cols={COLS}
+          cols={cols}
           searchKeys={['reservation_number', 'contratante_name', 'agency_name', 'package_name']}
           extraFilters={filterBar}
           onAdd={canEdit && tab === 'em_edicao' ? () => setModal('new') : undefined}

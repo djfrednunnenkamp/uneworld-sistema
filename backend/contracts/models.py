@@ -86,6 +86,9 @@ class Contract(models.Model):
     # Resultado da conferência automática (OCR/leitura) do contrato assinado contra
     # os dados do contrato. Guardado para o aviso de divergências ficar persistente.
     signed_verification = models.JSONField('Conferência do assinado', null=True, blank=True)
+    # Momentos das transições de etapa (para a coluna de data por aba).
+    sent_at   = models.DateTimeField('Enviado para assinatura em', null=True, blank=True)
+    signed_at = models.DateTimeField('Assinado em', null=True, blank=True)
 
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
