@@ -16,19 +16,35 @@ const btnCsv = (color) => ({
   cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
 })
 
-/* ── Popup de criação/edição de um câmbio ── */
+/* ── Popup de criação/edição de um câmbio ──
+ * Taxa de mercado + acréscimo (%) → o câmbio efetivo (usado nos contratos) é
+ * taxa × (1 + %/100). Pode atualizar automaticamente todo dia num horário. */
 function RateModal({ initial, onSave, onClose }) {
   const isEdit = !!initial
   const [fromCurrency, setFromCurrency] = useState(initial?.from_currency ?? 'USD')
   const [toCurrency,   setToCurrency]   = useState(initial?.to_currency ?? 'BRL')
-  const [rate,         setRate]         = useState(initial?.rate ?? '')
+  const [baseRate,     setBaseRate]     = useState(initial?.base_rate ?? initial?.rate ?? '')
+  const [markup,       setMarkup]       = useState(initial?.markup_percent ?? 0)
+  const [autoUpdate,   setAutoUpdate]   = useState(initial?.auto_update ?? false)
+  const [updateTime,   setUpdateTime]   = useState((initial?.update_time ?? '').slice(0, 5))
   const [saving,        setSaving]       = useState(false)
 
+  const effective = baseRate !== '' && !isNaN(Number(baseRate))
+    ? Number(baseRate) * (1 + (Number(markup) || 0) / 100) : null
+
   const save = async () => {
-    if (!fromCurrency.trim() || !toCurrency.trim() || !rate) { toast.error('Preencha as moedas e a taxa.'); return }
+    if (!fromCurrency.trim() || !toCurrency.trim() || baseRate === '') { toast.error('Preencha as moedas e a taxa de mercado.'); return }
+    if (autoUpdate && !updateTime) { toast.error('Defina o horário da atualização automática.'); return }
     setSaving(true)
     try {
-      await onSave({ from_currency: fromCurrency.trim().toUpperCase(), to_currency: toCurrency.trim().toUpperCase(), rate })
+      await onSave({
+        from_currency: fromCurrency.trim().toUpperCase(),
+        to_currency: toCurrency.trim().toUpperCase(),
+        base_rate: baseRate,
+        markup_percent: Number(markup) || 0,
+        auto_update: autoUpdate,
+        update_time: autoUpdate ? updateTime : null,
+      })
       onClose()
     } finally { setSaving(false) }
   }
@@ -37,7 +53,7 @@ function RateModal({ initial, onSave, onClose }) {
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:380, boxShadow:'0 24px 64px rgba(0,0,0,.24)' }}>
+        style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:420, boxShadow:'0 24px 64px rgba(0,0,0,.24)' }}>
         <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0' }}>
           <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>{isEdit ? 'Editar câmbio' : 'Novo câmbio'}</p>
         </div>
@@ -52,11 +68,35 @@ function RateModal({ initial, onSave, onClose }) {
               <input style={{ ...inp, width:'100%' }} value={toCurrency} onChange={e => setToCurrency(e.target.value)} placeholder="BRL" />
             </div>
           </div>
-          <div>
-            <label style={lbl}>Taxa (1 {fromCurrency || 'USD'} = X {toCurrency || 'BRL'})</label>
-            <input style={{ ...inp, width:'100%' }} type="number" step="0.0001" value={rate}
-              onChange={e => setRate(e.target.value)} placeholder="5.30" />
+          <div style={{ display:'flex', gap:12 }}>
+            <div style={{ flex:1 }}>
+              <label style={lbl}>Taxa de mercado</label>
+              <input style={{ ...inp, width:'100%' }} type="number" step="0.0001" value={baseRate}
+                onChange={e => setBaseRate(e.target.value)} placeholder="5.30" />
+            </div>
+            <div style={{ flex:1 }}>
+              <label style={lbl}>Acréscimo (%)</label>
+              <input style={{ ...inp, width:'100%' }} type="number" step="0.01" value={markup}
+                onChange={e => setMarkup(e.target.value)} placeholder="0" />
+            </div>
           </div>
+          {effective != null && (
+            <div style={{ background:'#f0f6ff', border:'1px solid #d6e4fb', borderRadius:8, padding:'9px 12px', fontSize:12.5, color:'#1a2d4f' }}>
+              Câmbio final: <strong>1 {fromCurrency || 'USD'} = {effective.toLocaleString('pt-BR', { minimumFractionDigits: 4 })} {toCurrency || 'BRL'}</strong>
+            </div>
+          )}
+          <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginTop:2 }}>
+            <input type="checkbox" checked={autoUpdate} onChange={e => setAutoUpdate(e.target.checked)}
+              style={{ width:15, height:15, accentColor:'#1a2d4f', cursor:'pointer' }} />
+            <span style={{ fontSize:13, fontWeight:600, color:'#475569' }}>Atualizar automaticamente da internet, todo dia</span>
+          </label>
+          {autoUpdate && (
+            <div>
+              <label style={lbl}>Horário da atualização</label>
+              <input style={{ ...inp, width:160 }} type="time" value={updateTime} onChange={e => setUpdateTime(e.target.value)} />
+              <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>A taxa de mercado é puxada da internet nesse horário; o acréscimo (%) é reaplicado.</p>
+            </div>
+          )}
         </div>
         <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
           <button onClick={onClose} disabled={saving}
@@ -73,13 +113,21 @@ function RateModal({ initial, onSave, onClose }) {
 }
 
 /* ── Lista de câmbios — usada para preencher automaticamente os contratos ── */
-export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, onAdd, onUpdate, onDelete }) {
+export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, onAdd, onUpdate, onDelete, onPullInternet }) {
   const navigate = useNavigate()
   const [search,  setSearch]  = useState('')
   const [modal,   setModal]   = useState(null) // null | 'new' | item
   const [delItem, setDelItem] = useState(null)
   const [exporting, setExporting] = useState(false)
   const [showImportPopup, setShowImportPopup] = useState(false)
+  const [confirmPull, setConfirmPull] = useState(false)
+  const [pulling, setPulling] = useState(false)
+
+  const handlePull = async () => {
+    setPulling(true)
+    try { await onPullInternet?.(); setConfirmPull(false) }
+    finally { setPulling(false) }
+  }
 
   const itemsWithName = useMemo(() => items.map(i => ({ ...i, name: `${i.from_currency} → ${i.to_currency}` })), [items])
 
@@ -115,6 +163,11 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
             onFocus={e => e.target.style.borderColor='#1a2d4f'}
             onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
           {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
+          {canEdit && onPullInternet && (
+            <button onClick={() => setConfirmPull(true)} disabled={pulling} style={btnCsv('#7c3aed')} title="Puxar todas as moedas da internet (→ BRL)">
+              <Ic n="globe" s={13} /> {pulling ? 'Puxando…' : 'Atualizar da internet'}
+            </button>
+          )}
           <div style={{ display:'flex', gap:6 }}>
             {canExport && (
               <button style={btnCsv('#059669')} onClick={handleExport} disabled={exporting} title="Exportar como CSV">
@@ -153,7 +206,18 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
             }}
               onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
               onMouseLeave={e => e.currentTarget.style.background='#fff'}>
-              <span style={{ fontWeight:500 }}>{item.from_currency} → {item.to_currency}</span>
+              <span style={{ fontWeight:500, display:'flex', alignItems:'center', gap:7 }}>
+                {item.from_currency} → {item.to_currency}
+                {item.auto_update && (
+                  <span title={`Atualiza automaticamente${item.update_time ? ` às ${String(item.update_time).slice(0,5)}` : ''}`}
+                    style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:10.5, fontWeight:700, color:'#7c3aed', background:'#f3e8ff', padding:'1px 7px', borderRadius:10 }}>
+                    <Ic n="clock" s={10} /> auto{item.update_time ? ` ${String(item.update_time).slice(0,5)}` : ''}
+                  </span>
+                )}
+                {Number(item.markup_percent) > 0 && (
+                  <span title="Acréscimo sobre a taxa de mercado" style={{ fontSize:10.5, fontWeight:700, color:'#b45309', background:'#fffbeb', padding:'1px 7px', borderRadius:10 }}>+{Number(item.markup_percent)}%</span>
+                )}
+              </span>
               <span style={{ color:'#64748b' }}>1 {item.from_currency} = {Number(item.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {item.to_currency}</span>
               {(canEdit || canDelete) && (
                 <div className="r-acts" style={{ flexShrink:0 }}>
@@ -178,6 +242,15 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
           message={`Remover o câmbio "${delItem.from_currency} → ${delItem.to_currency}"?`}
           onOk={() => { onDelete(delItem.id); setDelItem(null) }}
           onCancel={() => setDelItem(null)}
+        />
+      )}
+      {confirmPull && (
+        <ConfirmModal
+          title="Atualizar câmbio da internet"
+          message="Puxar as taxas de todas as moedas do mundo (→ BRL) da internet? Isso cria/atualiza um câmbio para cada moeda, mantendo o acréscimo (%) já configurado em cada um."
+          okLabel={pulling ? 'Puxando…' : 'Puxar da internet'}
+          onOk={handlePull}
+          onCancel={() => !pulling && setConfirmPull(false)}
         />
       )}
     </>

@@ -890,16 +890,43 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
 
 
 class ExchangeRateSerializer(serializers.ModelSerializer):
+    base_rate = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, allow_null=True)
+
     class Meta:
         model = ConfigExchangeRate
-        fields = ['id', 'from_currency', 'to_currency', 'rate', 'updated_at']
+        fields = ['id', 'from_currency', 'to_currency', 'base_rate', 'markup_percent',
+                  'rate', 'auto_update', 'update_time', 'last_auto_update', 'updated_at']
+        read_only_fields = ['rate', 'last_auto_update', 'updated_at']
+
+    def to_internal_value(self, data):
+        # Compatibilidade: payloads que mandam só `rate` (importação/antigos) usam
+        # esse valor como taxa de mercado (base_rate); a taxa efetiva é recalculada.
+        if hasattr(data, 'get') and (data.get('base_rate') in (None, '')) and (data.get('rate') not in (None, '')):
+            try:
+                data = dict(data)
+                data['base_rate'] = data['rate']
+            except Exception:
+                pass
+        return super().to_internal_value(data)
 
 
 class ExchangeRateViewSet(viewsets.ModelViewSet):
     queryset = ConfigExchangeRate.objects.all()
     serializer_class = ExchangeRateSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_exchange_rates')
+    get_permissions = _settings_perm('settings_exchange_rates', extra_write=['pull_internet'])
+
+    @action(detail=False, methods=['post'], url_path='pull-internet')
+    def pull_internet(self, request):
+        """Puxa as taxas de TODAS as moedas → BRL da internet, criando/atualizando
+        os câmbios. Mantém o acréscimo (%) já configurado em cada um."""
+        from .exchange_service import pull_all_from_internet
+        try:
+            created, updated = pull_all_from_internet()
+        except Exception as e:
+            return Response({'error': f'Não foi possível puxar da internet: {e}'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'created': created, 'updated': updated})
 
 
 class ListCategorySerializer(serializers.ModelSerializer):

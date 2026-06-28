@@ -273,6 +273,7 @@ export const configApi = {
   addExchangeRate:   (data) => api.post('/config/exchange-rates/', data),
   updateExchangeRate: (id, data) => api.patch(`/config/exchange-rates/${id}/`, data),
   delExchangeRate:   (id)   => api.delete(`/config/exchange-rates/${id}/`),
+  pullExchangeInternet: () => api.post('/config/exchange-rates/pull-internet/'),
   // Categorias de roteiro
   itineraryCategories:    () => api.get('/config/itinerary-categories/'),
   addItineraryCategory:   (name) => api.post('/config/itinerary-categories/', { name }),

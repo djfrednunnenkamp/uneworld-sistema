@@ -4,6 +4,7 @@ import time
 from datetime import timedelta
 
 CHECK_INTERVAL = 3600  # 1 hora
+EXCHANGE_INTERVAL = 60  # 1 minuto — câmbio precisa de precisão de minutos
 
 _started = False
 
@@ -14,6 +15,7 @@ def start():
         return
     _started = True
     threading.Thread(target=_loop, daemon=True).start()
+    threading.Thread(target=_exchange_loop, daemon=True).start()
 
 
 def _loop():
@@ -23,6 +25,18 @@ def _loop():
         except Exception as e:
             print(f'[AGENDA SCHEDULER] erro: {e}')
         time.sleep(CHECK_INTERVAL)
+
+
+def _exchange_loop():
+    """Verifica de minuto em minuto os câmbios com atualização automática, para
+    honrar o horário (HH:MM) configurado em cada um."""
+    while True:
+        try:
+            from config_api.exchange_service import update_due
+            update_due()
+        except Exception as e:
+            print(f'[CÂMBIO SCHEDULER] erro: {e}')
+        time.sleep(EXCHANGE_INTERVAL)
 
 
 def run_once():

@@ -75,10 +75,20 @@ class ConfigPaymentMethod(models.Model):
 
 class ConfigExchangeRate(models.Model):
     """Taxa de conversão entre duas moedas — usada para preencher automaticamente
-    o câmbio e o total em BRL nos contratos (ver app `contracts`)."""
+    o câmbio e o total em BRL nos contratos (ver app `contracts`).
+
+    `rate` é a taxa EFETIVA (usada nos contratos) = base_rate × (1 + markup_percent/100).
+    `base_rate` é a taxa de mercado (digitada ou puxada da internet); `markup_percent`
+    é o acréscimo que a operadora soma por cima."""
     from_currency = models.CharField('De', max_length=10, default='USD')
     to_currency   = models.CharField('Para', max_length=10, default='BRL')
-    rate          = models.DecimalField('Taxa', max_digits=10, decimal_places=4)
+    base_rate     = models.DecimalField('Taxa de mercado', max_digits=12, decimal_places=4, null=True, blank=True)
+    markup_percent = models.DecimalField('Acréscimo (%)', max_digits=6, decimal_places=2, default=0)
+    rate          = models.DecimalField('Taxa', max_digits=12, decimal_places=4)
+    # Atualização automática diária a partir da internet.
+    auto_update   = models.BooleanField('Atualizar automaticamente', default=False)
+    update_time   = models.TimeField('Horário da atualização', null=True, blank=True)
+    last_auto_update = models.DateField('Última atualização automática', null=True, blank=True)
     updated_at    = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:
@@ -86,6 +96,16 @@ class ConfigExchangeRate(models.Model):
         verbose_name = 'Câmbio'
         verbose_name_plural = 'Câmbio'
         unique_together = ('from_currency', 'to_currency')
+
+    def save(self, *args, **kwargs):
+        from decimal import Decimal
+        # Sem taxa de mercado informada, a própria taxa efetiva vira a base
+        # (compatível com câmbios antigos e com importação que manda só `rate`).
+        if self.base_rate is None:
+            self.base_rate = self.rate
+        markup = self.markup_percent or Decimal('0')
+        self.rate = (self.base_rate * (Decimal('1') + markup / Decimal('100'))).quantize(Decimal('0.0001'))
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.from_currency} → {self.to_currency}: {self.rate}'
