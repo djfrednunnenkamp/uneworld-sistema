@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { configApi } from '../api'
 import { Ic } from './Icon'
 import ConfirmModal from './ConfirmModal'
 import CsvImportPopup from './CsvImportPopup'
@@ -26,6 +27,7 @@ function RateModal({ initial, onSave, onClose }) {
   const [baseRate,     setBaseRate]     = useState(initial?.base_rate ?? initial?.rate ?? '')
   const [markup,       setMarkup]       = useState(initial?.markup_percent ?? 0)
   const [autoUpdate,   setAutoUpdate]   = useState(initial?.auto_update ?? false)
+  const [sourceUrl,    setSourceUrl]    = useState(initial?.source_url ?? '')
   const [updateTime,   setUpdateTime]   = useState((initial?.update_time ?? '').slice(0, 5))
   const [saving,        setSaving]       = useState(false)
 
@@ -34,7 +36,6 @@ function RateModal({ initial, onSave, onClose }) {
 
   const save = async () => {
     if (!fromCurrency.trim() || !toCurrency.trim() || baseRate === '') { toast.error('Preencha as moedas e a taxa de mercado.'); return }
-    if (autoUpdate && !updateTime) { toast.error('Defina o horário da atualização automática.'); return }
     setSaving(true)
     try {
       await onSave({
@@ -43,7 +44,8 @@ function RateModal({ initial, onSave, onClose }) {
         base_rate: baseRate,
         markup_percent: Number(markup) || 0,
         auto_update: autoUpdate,
-        update_time: autoUpdate ? updateTime : null,
+        source_url: autoUpdate ? sourceUrl.trim() : '',
+        update_time: (autoUpdate && updateTime) ? updateTime : null,
       })
       onClose()
     } finally { setSaving(false) }
@@ -91,11 +93,19 @@ function RateModal({ initial, onSave, onClose }) {
             <span style={{ fontSize:13, fontWeight:600, color:'#475569' }}>Atualizar automaticamente da internet, todo dia</span>
           </label>
           {autoUpdate && (
-            <div>
-              <label style={lbl}>Horário da atualização</label>
-              <input style={{ ...inp, width:160 }} type="time" value={updateTime} onChange={e => setUpdateTime(e.target.value)} />
-              <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>A taxa de mercado é puxada da internet nesse horário; o acréscimo (%) é reaplicado.</p>
-            </div>
+            <>
+              <div>
+                <label style={lbl}>Link da taxa (opcional)</label>
+                <input style={{ ...inp, width:'100%' }} type="url" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)}
+                  placeholder="https://… (JSON com a taxa)" />
+                <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Se preenchido, a taxa desta moeda é puxada deste link (JSON). Vazio = usa a fonte global.</p>
+              </div>
+              <div>
+                <label style={lbl}>Horário específico (opcional)</label>
+                <input style={{ ...inp, width:160 }} type="time" value={updateTime} onChange={e => setUpdateTime(e.target.value)} />
+                <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Se vazio, usa o <strong>horário geral</strong>. O acréscimo (%) é reaplicado após puxar a taxa.</p>
+              </div>
+            </>
           )}
         </div>
         <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
@@ -122,11 +132,29 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
   const [showImportPopup, setShowImportPopup] = useState(false)
   const [confirmPull, setConfirmPull] = useState(false)
   const [pulling, setPulling] = useState(false)
+  const [showDefaultTime, setShowDefaultTime] = useState(false)
+  const [defaultTime, setDefaultTime] = useState('')
+  const [savingDT, setSavingDT] = useState(false)
 
   const handlePull = async () => {
     setPulling(true)
     try { await onPullInternet?.(); setConfirmPull(false) }
     finally { setPulling(false) }
+  }
+
+  const openDefaultTime = async () => {
+    setShowDefaultTime(true)
+    try { const r = await configApi.exchangeDefaultTime(); setDefaultTime((r.data?.default_update_time ?? '').slice(0, 5)) }
+    catch { /* mantém vazio */ }
+  }
+  const saveDefaultTime = async () => {
+    setSavingDT(true)
+    try {
+      await configApi.setExchangeDefaultTime(defaultTime || null)
+      toast.success(defaultTime ? `Horário geral definido para ${defaultTime}.` : 'Horário geral removido.')
+      setShowDefaultTime(false)
+    } catch { toast.error('Erro ao salvar o horário geral.') }
+    finally { setSavingDT(false) }
   }
 
   const itemsWithName = useMemo(() => items.map(i => ({ ...i, name: `${i.from_currency} → ${i.to_currency}` })), [items])
@@ -166,6 +194,11 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
           {canEdit && onPullInternet && (
             <button onClick={() => setConfirmPull(true)} disabled={pulling} style={btnCsv('#7c3aed')} title="Puxar todas as moedas da internet (→ BRL)">
               <Ic n="globe" s={13} /> {pulling ? 'Puxando…' : 'Atualizar da internet'}
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={openDefaultTime} style={btnCsv('#b45309')} title="Horário geral da atualização automática">
+              <Ic n="clock" s={13} /> Horário geral
             </button>
           )}
           <div style={{ display:'flex', gap:6 }}>
@@ -209,9 +242,14 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
               <span style={{ fontWeight:500, display:'flex', alignItems:'center', gap:7 }}>
                 {item.from_currency} → {item.to_currency}
                 {item.auto_update && (
-                  <span title={`Atualiza automaticamente${item.update_time ? ` às ${String(item.update_time).slice(0,5)}` : ''}`}
+                  <span title={item.update_time ? `Atualiza automaticamente às ${String(item.update_time).slice(0,5)}` : 'Atualiza automaticamente no horário geral'}
                     style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:10.5, fontWeight:700, color:'#7c3aed', background:'#f3e8ff', padding:'1px 7px', borderRadius:10 }}>
-                    <Ic n="clock" s={10} /> auto{item.update_time ? ` ${String(item.update_time).slice(0,5)}` : ''}
+                    <Ic n="clock" s={10} /> auto {item.update_time ? String(item.update_time).slice(0,5) : '(geral)'}
+                  </span>
+                )}
+                {item.auto_update && item.source_url && (
+                  <span title={`Link próprio: ${item.source_url}`} style={{ display:'inline-flex', alignItems:'center', color:'#2e6db4' }}>
+                    <Ic n="globe" s={11} />
                   </span>
                 )}
                 {Number(item.markup_percent) > 0 && (
@@ -243,6 +281,31 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
           onOk={() => { onDelete(delItem.id); setDelItem(null) }}
           onCancel={() => setDelItem(null)}
         />
+      )}
+      {showDefaultTime && (
+        <div onClick={e => { if (e.target === e.currentTarget && !savingDT) setShowDefaultTime(false) }}
+          style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:400, boxShadow:'0 24px 64px rgba(0,0,0,.24)' }}>
+            <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0' }}>
+              <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Horário geral de atualização</p>
+            </div>
+            <div style={{ padding:'16px 20px' }}>
+              <p style={{ fontSize:12.5, color:'#64748b', margin:'0 0 12px', lineHeight:1.5 }}>
+                Horário em que as moedas com atualização automática são puxadas da internet. Cada moeda pode ter um <strong>horário próprio</strong>, que sobrescreve este geral.
+              </p>
+              <label style={lbl}>Horário</label>
+              <input style={{ ...inp, width:160 }} type="time" value={defaultTime} onChange={e => setDefaultTime(e.target.value)} />
+              <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0' }}>Deixe vazio para não atualizar nada automaticamente sem horário próprio.</p>
+            </div>
+            <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
+              <button onClick={() => setShowDefaultTime(false)} disabled={savingDT}
+                style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>Cancelar</button>
+              <button onClick={saveDefaultTime} disabled={savingDT} style={{ ...btnPri, display:'flex', alignItems:'center', gap:6 }}>
+                <Ic n="check" s={13}/>{savingDT ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {confirmPull && (
         <ConfirmModal

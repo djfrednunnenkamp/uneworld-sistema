@@ -274,6 +274,8 @@ export const configApi = {
   updateExchangeRate: (id, data) => api.patch(`/config/exchange-rates/${id}/`, data),
   delExchangeRate:   (id)   => api.delete(`/config/exchange-rates/${id}/`),
   pullExchangeInternet: () => api.post('/config/exchange-rates/pull-internet/'),
+  exchangeDefaultTime:    () => api.get('/config/exchange-rates/default-time/'),
+  setExchangeDefaultTime: (t) => api.post('/config/exchange-rates/default-time/', { default_update_time: t }),
   // Categorias de roteiro
   itineraryCategories:    () => api.get('/config/itinerary-categories/'),
   addItineraryCategory:   (name) => api.post('/config/itinerary-categories/', { name }),

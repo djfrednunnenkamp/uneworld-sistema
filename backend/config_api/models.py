@@ -87,6 +87,9 @@ class ConfigExchangeRate(models.Model):
     rate          = models.DecimalField('Taxa', max_digits=12, decimal_places=4)
     # Atualização automática diária a partir da internet.
     auto_update   = models.BooleanField('Atualizar automaticamente', default=False)
+    # Link próprio (JSON) de onde puxar a taxa desta moeda; vazio = API global.
+    source_url    = models.CharField('Link da taxa', max_length=500, blank=True)
+    # Horário específico desta moeda; vazio = usa o horário geral (singleton abaixo).
     update_time   = models.TimeField('Horário da atualização', null=True, blank=True)
     last_auto_update = models.DateField('Última atualização automática', null=True, blank=True)
     updated_at    = models.DateTimeField('Atualizado em', auto_now=True)
@@ -109,6 +112,24 @@ class ConfigExchangeRate(models.Model):
 
     def __str__(self):
         return f'{self.from_currency} → {self.to_currency}: {self.rate}'
+
+
+class ConfigExchangeSettings(models.Model):
+    """Singleton com as configurações gerais de câmbio — por ora, o horário geral
+    de atualização automática (usado pelas moedas que não têm horário próprio)."""
+    default_update_time = models.TimeField('Horário geral de atualização', null=True, blank=True)
+    updated_at          = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configurações de câmbio'
+        verbose_name_plural = 'Configurações de câmbio'
+
+    @classmethod
+    def get(cls):
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj
 
 
 class ConfigVaccine(models.Model):
