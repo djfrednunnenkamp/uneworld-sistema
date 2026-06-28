@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import axios from 'axios'
 import { toast } from 'sonner'
-import { contractsApi, agenciesApi, passengersApi, listsApi, configApi } from '../api'
+import { contractsApi, agenciesApi, passengersApi, itinerariesApi, configApi } from '../api'
 import EntityPicker from './EntityPicker'
 import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
@@ -176,13 +176,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
   // Fontes de dados pros pickers
   const [agencies,   setAgencies]   = useState([])
   const [passengers, setPassengers] = useState([])
-  const [lists,       setLists]       = useState([])
+  const [itineraries, setItineraries] = useState([])
   const [accomTypes,  setAccomTypes] = useState([])
   const [clauses,     setClauses]    = useState([])
   const [paymentMethods, setPaymentMethods] = useState([])
 
   const [form, setForm] = useState({
-    agency: null, passenger_list: null, contratante: null,
+    agency: null, itinerary: null, contratante: null,
     package_name: '', departure_date: '', return_date: '', departure_airport: '', observations: '',
     exchange_rate: '', received_down_payment_brl: '', received_installments_brl: '',
   })
@@ -205,12 +205,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
   useEffect(() => {
     Promise.all([
-      agenciesApi.list(), passengersApi.list({ page_size: 1000 }), listsApi.list(),
+      agenciesApi.list(), passengersApi.list({ page_size: 1000 }), itinerariesApi.list({ page_size: 1000 }),
       configApi.accommodations(), configApi.contractClauses(), configApi.paymentMethods(), configApi.exchangeRates(),
-    ]).then(([ag, pax, ls, ac, cl, pm, er]) => {
+    ]).then(([ag, pax, it, ac, cl, pm, er]) => {
       setAgencies(ag.data.results ?? ag.data)
       setPassengers(pax.data.results ?? pax.data)
-      setLists(ls.data.results ?? ls.data)
+      setItineraries(it.data.results ?? it.data)
       setAccomTypes(ac.data.results ?? ac.data)
       setClauses(cl.data)
       setPaymentMethods(pm.data)
@@ -229,7 +229,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       setReservationNumber(d.reservation_number ?? '')
       setContractDate(d.contract_date ?? '')
       setForm({
-        agency: d.agency, passenger_list: d.passenger_list, contratante: d.contratante,
+        agency: d.agency, itinerary: d.itinerary, contratante: d.contratante,
         package_name: d.package_name ?? '', departure_date: d.departure_date ?? '', return_date: d.return_date ?? '',
         departure_airport: d.departure_airport ?? '', observations: d.observations ?? '',
         exchange_rate: d.exchange_rate != null ? Number(d.exchange_rate) : '',
@@ -266,8 +266,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
 
   const agencyItems = useMemo(() => agencies.map(a => ({ id: a.id, label: agencyLabel(a), sublabel: a.cnpj || a.cpf })), [agencies])
   const passengerItems = useMemo(() => passengers.map(p => ({ id: p.id, label: p.full_name, sublabel: p.cpf || p.email })), [passengers])
-  const listItems = useMemo(() => lists.map(l => ({ id: l.id, label: l.name, sublabel: l.start_date ? `Início: ${fmtDateBR(l.start_date)}` : '' })), [lists])
-  const selectedList = useMemo(() => lists.find(l => l.id === form.passenger_list) ?? null, [lists, form.passenger_list])
+  const itineraryItems = useMemo(() => itineraries.map(i => ({ id: i.id, label: i.name, sublabel: i.start_date ? `Início: ${fmtDateBR(i.start_date)}` : '' })), [itineraries])
   const accomTypeOptions = useMemo(() => accomTypes.map(at => ({ value: at.id, label: at.name })), [accomTypes])
   const paymentMethodOptions = useMemo(() => paymentMethods.map(pm => ({ value: pm.name, label: pm.name })), [paymentMethods])
 
@@ -289,9 +288,20 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
     payer_gender: '', payer_email: '', payer_phone: '', payer_address: '',
   })
 
-  const handleSelectList = (ids) => {
+  const handleSelectItinerary = (ids) => {
     const id = ids[0] ?? null
-    setForm(f => ({ ...f, passenger_list: id }))
+    const it = id ? itineraries.find(x => x.id === id) : null
+    // Selecionar um roteiro preenche nome do pacote e datas (roteiro não tem
+    // aeroporto — esse continua manual).
+    setForm(f => ({
+      ...f,
+      itinerary: id,
+      ...(it ? {
+        package_name: it.name ?? f.package_name,
+        departure_date: it.start_date || f.departure_date,
+        return_date: it.end_date || f.return_date,
+      } : {}),
+    }))
   }
 
   // ── Tipos de Acomodação / Valores — auto-gerado a partir dos hóspedes ──
@@ -423,14 +433,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
       })
     })
 
-    // Quando há lista vinculada, pacote/datas/aeroporto vêm sempre dela —
-    // os campos manuais ficam ocultos e não devem sobrescrever com vazio.
-    const packageFields = selectedList ? {
-      package_name: selectedList.name,
-      departure_date: selectedList.start_date || null,
-      return_date: selectedList.end_date || null,
-      departure_airport: selectedList.default_airport_data?.name ?? '',
-    } : {
+    // Nome do pacote e datas já vêm preenchidos do roteiro selecionado (e podem
+    // ser ajustados); o aeroporto é sempre manual (roteiro não tem aeroporto).
+    const packageFields = {
       package_name: form.package_name,
       departure_date: form.departure_date || null,
       return_date: form.return_date || null,
@@ -447,7 +452,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
           payer_phone: payer.payer_phone, payer_address: payer.payer_address }
 
     return {
-      agency: form.agency, passenger_list: form.passenger_list,
+      agency: form.agency, itinerary: form.itinerary,
       observations: form.observations,
       exchange_rate: form.exchange_rate || null,
       ...packageFields,
@@ -539,13 +544,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                     emptyLabel="Nenhuma agência encontrada" createLink={{ label: 'Adicionar nova agência', to: '/agencias' }} />
                 </div>
                 <div>
-                  <label style={lbl}>Lista de passageiros / pacote</label>
-                  <EntityPicker items={listItems} selectedIds={form.passenger_list ? [form.passenger_list] : []}
-                    onChange={handleSelectList}
-                    title="Selecionar lista de passageiros" searchPlaceholder="Buscar lista…" placeholder="— Selecionar lista —"
-                    emptyLabel="Nenhuma lista encontrada" />
+                  <label style={lbl}>Roteiro / pacote</label>
+                  <EntityPicker items={itineraryItems} selectedIds={form.itinerary ? [form.itinerary] : []}
+                    onChange={handleSelectItinerary}
+                    title="Selecionar roteiro" searchPlaceholder="Buscar roteiro…" placeholder="— Selecionar roteiro —"
+                    emptyLabel="Nenhum roteiro encontrado" />
                   <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
-                    Selecionando uma lista, o nome do pacote, as datas e o aeroporto vêm dela automaticamente.
+                    Selecionando um roteiro, o nome do pacote e as datas são preenchidos automaticamente (e podem ser ajustados).
                   </p>
                 </div>
                 <div>
@@ -594,53 +599,30 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
             <div style={card}>
               <p style={sectionTitle}><Ic n="plane" s={14} /> Pacote de viagem</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {selectedList ? (
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <div style={{ flex: 2 }}>
-                      <label style={lbl}>Nome do pacote</label>
-                      <input style={inpRO} readOnly value={selectedList.name} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={lbl}>Data de início</label>
-                      <input style={inpRO} readOnly value={fmtDateBR(selectedList.start_date) || '—'} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={lbl}>Data de término</label>
-                      <input style={inpRO} readOnly value={fmtDateBR(selectedList.end_date) || '—'} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={lbl}>Aeroporto de embarque</label>
-                      <input style={inpRO} readOnly value={selectedList.default_airport_data?.name || '—'} />
-                    </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: 2 }}>
+                    <label style={lbl}>Nome do pacote</label>
+                    <input style={inp} value={form.package_name} onChange={set('package_name')} />
                   </div>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ flex: 2 }}>
-                        <label style={lbl}>Nome do pacote</label>
-                        <input style={inp} value={form.package_name} onChange={set('package_name')} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={lbl}>Data de início</label>
-                        <DatePicker value={form.departure_date} relatedDate={form.return_date || null}
-                          onChange={v => setForm(f => ({ ...f, departure_date: v }))} fixed />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={lbl}>Data de término</label>
-                        <DatePicker value={form.return_date} relatedDate={form.departure_date || null}
-                          onChange={v => setForm(f => ({ ...f, return_date: v }))} fixed />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={lbl}>Aeroporto de embarque</label>
-                        <AirportPicker value={departureAirportObj}
-                          onChange={a => { setDepartureAirportObj(a); setForm(f => ({ ...f, departure_airport: a?.name ?? '' })) }}
-                          placeholder="Buscar aeroporto…" />
-                      </div>
-                    </div>
-                  </>
-                )}
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Data de início</label>
+                    <DatePicker value={form.departure_date} relatedDate={form.return_date || null}
+                      onChange={v => setForm(f => ({ ...f, departure_date: v }))} fixed />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Data de término</label>
+                    <DatePicker value={form.return_date} relatedDate={form.departure_date || null}
+                      onChange={v => setForm(f => ({ ...f, return_date: v }))} fixed />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Aeroporto de embarque</label>
+                    <AirportPicker value={departureAirportObj}
+                      onChange={a => { setDepartureAirportObj(a); setForm(f => ({ ...f, departure_airport: a?.name ?? '' })) }}
+                      placeholder="Buscar aeroporto…" />
+                  </div>
+                </div>
                 <div>
                   <label style={lbl}>Observações</label>
                   <textarea style={{ ...inp, minHeight: 60, resize: 'vertical' }} value={form.observations} onChange={set('observations')} />

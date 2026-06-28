@@ -19,6 +19,11 @@ class Contract(models.Model):
                                      related_name='contracts', verbose_name='Agência de viagem')
     passenger_list = models.ForeignKey('trips.PassengerList', on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='contracts', verbose_name='Lista de passageiros')
+    # Roteiro de onde vêm nome do pacote e datas. Substitui a antiga vinculação à
+    # Lista de Passageiros neste formulário (passenger_list fica só por
+    # compatibilidade com contratos antigos).
+    itinerary    = models.ForeignKey('itineraries.Itinerary', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='contracts', verbose_name='Roteiro')
     # Contratante pode ser um passageiro já cadastrado OU dados preenchidos à
     # mão (payer_*) quando quem paga não está cadastrado no sistema — inclusive
     # uma empresa (payer_type='juridica'), não necessariamente uma pessoa física.

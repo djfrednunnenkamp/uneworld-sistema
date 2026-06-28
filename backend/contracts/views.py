@@ -9,7 +9,7 @@ from .serializers import ContractListSerializer, ContractSerializer
 
 
 class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
-    queryset        = Contract.objects.select_related('agency', 'contratante', 'passenger_list').prefetch_related(
+    queryset        = Contract.objects.select_related('agency', 'contratante', 'passenger_list', 'itinerary').prefetch_related(
         'accommodation_lines', 'guests', 'installments', 'clauses')
     pagination_class = StandardResultsPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]

@@ -93,6 +93,7 @@ class ContractSerializer(serializers.ModelSerializer):
     agency_data      = serializers.SerializerMethodField()
     contratante_data = serializers.SerializerMethodField()
     passenger_list_data = serializers.SerializerMethodField()
+    itinerary_data      = serializers.SerializerMethodField()
     clauses_data        = serializers.SerializerMethodField()
 
     # Calculados pelo backend — nunca digitados (ver _recalc_totals).
@@ -105,7 +106,8 @@ class ContractSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_data',
-                  'passenger_list', 'passenger_list_data', 'contratante', 'contratante_data',
+                  'passenger_list', 'passenger_list_data', 'itinerary', 'itinerary_data',
+                  'contratante', 'contratante_data',
                   'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
                   'payer_email', 'payer_phone', 'payer_address',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
@@ -139,6 +141,12 @@ class ContractSerializer(serializers.ModelSerializer):
                 'payer_type': obj.payer_type,
             }
         return None
+
+    def get_itinerary_data(self, obj):
+        if not obj.itinerary_id:
+            return None
+        it = obj.itinerary
+        return {'id': it.id, 'name': it.name, 'start_date': it.start_date, 'end_date': it.end_date}
 
     def get_passenger_list_data(self, obj):
         if not obj.passenger_list_id:
