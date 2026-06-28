@@ -308,7 +308,7 @@ function RoundingModal({ form, setForm, rawUsd, rawBrl, roundedUsd, roundedBrl, 
   )
 }
 
-const lbl = { fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
+const lbl = { fontSize: 11, fontWeight: 700, color: '#2e6db4', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
 const inpRO = { ...inp, background: '#f8fafc', color: '#64748b' }
 const btnPri = { padding: '8px 16px', borderRadius: 7, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }
