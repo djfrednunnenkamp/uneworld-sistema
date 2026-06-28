@@ -550,22 +550,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                 </div>
                 <div>
                   <label style={lbl}>Cliente: contratante / responsável pelo pagamento *</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <EntityPicker items={passengerItems} selectedIds={form.contratante ? [form.contratante] : []}
-                        onChange={(ids) => { setForm(f => ({ ...f, contratante: ids[0] ?? null })); if (ids[0]) clearPayer() }}
-                        title="Selecionar contratante" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar contratante —"
-                        emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
-                    </div>
-                    <button type="button" onClick={() => setShowPayerModal(true)}
-                      title="Cadastrar empresa pagante (CNPJ)"
-                      style={{ flexShrink: 0, width: 42, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ic n="plus" s={18} />
-                    </button>
-                  </div>
-
-                  {!form.contratante && payer.payer_name.trim() && (
-                    <div style={{ marginTop: 10, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  {(!form.contratante && payer.payer_name.trim()) ? (
+                    /* CNPJ definido — esconde a busca e o "+", mostra só o cartão da empresa */
+                    <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
                           {payer.payer_name}
@@ -583,6 +570,20 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                           Remover
                         </button>
                       </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <EntityPicker items={passengerItems} selectedIds={form.contratante ? [form.contratante] : []}
+                          onChange={(ids) => { setForm(f => ({ ...f, contratante: ids[0] ?? null })); if (ids[0]) clearPayer() }}
+                          title="Selecionar contratante" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar contratante —"
+                          emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
+                      </div>
+                      <button type="button" onClick={() => setShowPayerModal(true)}
+                        title="Cadastrar empresa pagante (CNPJ)"
+                        style={{ flexShrink: 0, width: 42, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ic n="plus" s={18} />
+                      </button>
                     </div>
                   )}
                 </div>
