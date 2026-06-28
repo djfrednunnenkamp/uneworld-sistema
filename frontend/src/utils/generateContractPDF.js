@@ -151,12 +151,13 @@ export async function generateContractPDF(contract, opts = {}) {
   ])
 
   // Tipos de acomodação
+  const cc = contract.base_currency || 'USD'   // moeda base do contrato (rótulos)
   y = sectionHeader(doc, 'TIPOS DE ACOMODAÇÃO / VALORES POR PESSOA', y + 1.5)
   const accomRows = (contract.accommodation_lines || []).map(l => [
     l.accommodation_type_name || '', fmtMoney(l.value_per_person_usd), fmtMoney(l.taxes_usd),
     String(l.quantity ?? ''), fmtMoney(l.total_usd),
   ])
-  y = dataTable(doc, y, ['Tipo de Acomodação', 'Valor/pessoa (USD)', 'Taxas (USD)', 'Quantidade', 'Total (USD)'],
+  y = dataTable(doc, y, ['Tipo de Acomodação', `Valor/pessoa (${cc})`, `Taxas (${cc})`, 'Quantidade', `Total (${cc})`],
     accomRows.length ? accomRows : [['—', '', '', '', '']])
 
   // Valores extras / descontos (só aparece quando há). Percentual incide sobre o
@@ -174,13 +175,13 @@ export async function generateContractPDF(contract, opts = {}) {
   })
   if (adjRows.length) {
     y = sectionHeader(doc, 'VALORES EXTRAS / DESCONTOS', y + 1.5)
-    y = dataTable(doc, y, ['Descrição', 'Tipo', 'Valor (USD)'], adjRows)
+    y = dataTable(doc, y, ['Descrição', 'Tipo', `Valor (${cc})`], adjRows)
   }
 
   // Dados de pagamento
   y = sectionHeader(doc, 'DADOS DOS PAGAMENTOS / VALORES', y + 1.5)
   y = kvTable(doc, y, [
-    ['Soma total (USD)', fmtMoney(contract.total_usd), 'Total em (BRL)', fmtMoney(contract.total_brl)],
+    [`Soma total (${cc})`, fmtMoney(contract.total_usd), 'Total em (BRL)', fmtMoney(contract.total_brl)],
     ['Câmbio', fmtRate(contract.exchange_rate), '', ''],
     ['Recebido na entrada', fmtMoney(contract.received_down_payment_brl), 'Recebido a prazo', fmtMoney(contract.received_installments_brl)],
   ])

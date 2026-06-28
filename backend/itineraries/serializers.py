@@ -84,6 +84,6 @@ class ItineraryListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Itinerary
-        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type',
+        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'base_currency',
                   'category_name', 'continent_name', 'created_at', 'updated_at',
                   'is_deleted', 'deleted_at']

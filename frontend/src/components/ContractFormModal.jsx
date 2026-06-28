@@ -140,7 +140,7 @@ function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
 /* Popup de valores extras (acréscimos) e descontos — entram na Soma total (USD).
  * Cada linha pode ser um valor fixo (US$) ou um percentual sobre o subtotal das
  * acomodações (baseUsd). */
-function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose }) {
+function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, cur = 'US$', onClose }) {
   const add    = () => setAdjustments(a => [...a, { description: '', kind: 'acrescimo', mode: 'valor', value_usd: '', percent: '' }])
   const update = (i, k, v) => setAdjustments(a => a.map((x, idx) => idx === i ? { ...x, [k]: v } : x))
   const remove = (i) => setAdjustments(a => a.filter((_, idx) => idx !== i))
@@ -148,7 +148,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
   const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
   const net = adjustments.reduce((s, a) => s + (a.kind === 'desconto' ? -1 : 1) * amountOf(a), 0)
   const KIND_OPTS = [{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]
-  const MODE_OPTS = [{ value: 'valor', label: 'Valor (US$)' }, { value: 'percentual', label: 'Percentual (%)' }]
+  const MODE_OPTS = [{ value: 'valor', label: `Valor (${cur})` }, { value: 'percentual', label: 'Percentual (%)' }]
   return (
     <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
       <div className="mbox" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
@@ -158,8 +158,8 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
         </div>
         <div className="mbody">
           <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
-            Acréscimos somam e descontos subtraem da <strong>Soma total (USD)</strong>. O percentual
-            incide sobre o subtotal das acomodações (<strong>US$ {fmt(baseUsd)}</strong>).
+            Acréscimos somam e descontos subtraem da <strong>Soma total ({cur})</strong>. O percentual
+            incide sobre o subtotal das acomodações (<strong>{cur} {fmt(baseUsd)}</strong>).
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {adjustments.length === 0 && (
@@ -196,16 +196,16 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
                         placeholder={a.mode === 'percentual' ? '0' : '0,00'}
                         onChange={e => update(i, a.mode === 'percentual' ? 'percent' : 'value_usd', e.target.value)} />
                       <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8', pointerEvents: 'none' }}>
-                        {a.mode === 'percentual' ? '%' : 'US$'}
+                        {a.mode === 'percentual' ? '%' : cur}
                       </span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
                     <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {a.mode === 'percentual' ? `${Number(a.percent || 0)}% de US$ ${fmt(baseUsd)}` : 'Valor fixo'}
+                      {a.mode === 'percentual' ? `${Number(a.percent || 0)}% de ${cur} ${fmt(baseUsd)}` : 'Valor fixo'}
                     </span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: signed < 0 ? '#dc2626' : '#15803d' }}>
-                      {signed >= 0 ? '+' : '−'} US$ {fmt(Math.abs(signed))}
+                      {signed >= 0 ? '+' : '−'} {cur} {fmt(Math.abs(signed))}
                     </span>
                   </div>
                 </div>
@@ -221,7 +221,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
           <span style={{ fontSize: 13, color: '#475569' }}>
             Efeito no total:{' '}
             <strong style={{ color: net < 0 ? '#dc2626' : (net > 0 ? '#15803d' : '#1e293b') }}>
-              {net >= 0 ? '+' : '−'} US$ {fmt(Math.abs(net))}
+              {net >= 0 ? '+' : '−'} {cur} {fmt(Math.abs(net))}
             </strong>
           </span>
           <button className="btn btn-primary" onClick={onClose}>Concluir</button>
@@ -233,7 +233,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
 
 /* Popup de arredondamento do total — arredonda a moeda escolhida (USD ou BRL)
  * para um múltiplo; a outra acompanha pelo câmbio. */
-function RoundingModal({ form, setForm, rawUsd, rawBrl, roundedUsd, roundedBrl, onClose }) {
+function RoundingModal({ form, setForm, rawUsd, rawBrl, roundedUsd, roundedBrl, cur = 'US$', onClose }) {
   const set  = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const step = Number(form.round_step) || 0
   const fmt  = (n) => n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
@@ -276,7 +276,7 @@ function RoundingModal({ form, setForm, rawUsd, rawBrl, roundedUsd, roundedBrl, 
                   <label style={lbl}>Moeda</label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {seg(form.round_currency === 'brl', 'Real (R$)', () => set('round_currency', 'brl'))}
-                    {seg(form.round_currency === 'usd', 'Dólar (US$)', () => set('round_currency', 'usd'))}
+                    {seg(form.round_currency === 'usd', `Moeda base (${cur})`, () => set('round_currency', 'usd'))}
                   </div>
                 </div>
                 <div>
@@ -290,11 +290,11 @@ function RoundingModal({ form, setForm, rawUsd, rawBrl, roundedUsd, roundedBrl, 
                 <div style={{ background: '#f8fafc', border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, fontSize: 13 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                     <span>Atual</span>
-                    <span>US$ {fmt(rawUsd)} · R$ {fmt(rawBrl)}</span>
+                    <span>{cur} {fmt(rawUsd)} · R$ {fmt(rawBrl)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontWeight: 700, color: '#15803d' }}>
                     <span>Arredondado</span>
-                    <span>US$ {fmt(roundedUsd)} · R$ {fmt(roundedBrl)}</span>
+                    <span>{cur} {fmt(roundedUsd)} · R$ {fmt(roundedBrl)}</span>
                   </div>
                 </div>
               </>
@@ -335,6 +335,10 @@ const addMonthsIso = (iso, n) => {
 
 const round2 = (n) => Math.round(n * 100) / 100
 
+// Símbolo da moeda base (rótulos do contrato). Cai pro próprio código se desconhecida.
+const CUR_SYMBOL = { USD: 'US$', EUR: '€', BRL: 'R$', GBP: '£', ARS: 'AR$', CLP: 'CLP$', PYG: '₲', UYU: '$U' }
+const curSym = (code) => CUR_SYMBOL[code] || code || 'US$'
+
 export default function ContractFormModal({ contractId, onClose, onSaved, onPublish }) {
   const isEdit = !!contractId
   const [loading, setLoading] = useState(isEdit)
@@ -355,9 +359,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [clauses,     setClauses]    = useState([])
   const [paymentMethods, setPaymentMethods] = useState([])
 
+  const [exchangeRates, setExchangeRates] = useState([])   // [{from_currency, to_currency, rate}]
   const [form, setForm] = useState({
     agency: null, itinerary: null, contratante: null,
     package_name: '', departure_date: '', return_date: '', departure_airport: '', observations: '',
+    base_currency: 'USD',
     exchange_rate: '', received_down_payment_brl: '', received_installments_brl: '',
     round_step: 0, round_mode: 'nearest', round_currency: 'brl', signature_type: 'fisica',
   })
@@ -417,6 +423,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       setAccomTypes(ac.data.results ?? ac.data)
       setClauses(cl.data)
       setPaymentMethods(pm.data)
+      setExchangeRates(er.data || [])
       if (!isEdit) {
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
@@ -438,6 +445,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         agency: d.agency, itinerary: d.itinerary, contratante: d.contratante,
         package_name: d.package_name ?? '', departure_date: d.departure_date ?? '', return_date: d.return_date ?? '',
         departure_airport: d.departure_airport ?? '', observations: d.observations ?? '',
+        base_currency: d.base_currency ?? 'USD',
         exchange_rate: d.exchange_rate != null ? Number(d.exchange_rate) : '',
         received_down_payment_brl: d.received_down_payment_brl ?? '',
         received_installments_brl: d.received_installments_brl ?? '',
@@ -559,17 +567,43 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     payer_gender: '', payer_email: '', payer_phone: '', payer_address: '',
   })
 
+  // Câmbio moeda → BRL (1 quando a moeda já é BRL; null se não houver conversão).
+  const rateFor = (cur) => {
+    if (cur === 'BRL') return 1
+    const r = exchangeRates.find(x => x.from_currency === cur && x.to_currency === 'BRL')
+    return r ? Number(r.rate) : null
+  }
+  // Moedas disponíveis: as que têm conversão para BRL (Configurações → Câmbio) + BRL.
+  const currencyOptions = useMemo(() => {
+    const set = new Set(exchangeRates.filter(r => r.to_currency === 'BRL').map(r => r.from_currency))
+    set.add('BRL')
+    if (form.base_currency) set.add(form.base_currency)
+    return [...set].sort().map(c => ({ value: c, label: `${c} — ${curSym(c)}` }))
+  }, [exchangeRates, form.base_currency])
+  // Com roteiro selecionado, a moeda vem dele e fica travada.
+  const currencyLocked = !!form.itinerary
+  const cur = curSym(form.base_currency)   // símbolo da moeda base p/ rótulos
+
+  const setBaseCurrency = (cur) => {
+    const rate = rateFor(cur)
+    setForm(f => ({ ...f, base_currency: cur, ...(rate != null ? { exchange_rate: rate } : {}) }))
+  }
+
   const handleSelectItinerary = (ids) => {
     const id = ids[0] ?? null
     const it = id ? itineraries.find(x => x.id === id) : null
     if (it) {
-      // Selecionar: preenche nome do pacote e datas a partir do roteiro (ficam
-      // travados enquanto o roteiro estiver selecionado).
+      // Selecionar: preenche nome do pacote, datas e MOEDA a partir do roteiro
+      // (ficam travados enquanto o roteiro estiver selecionado).
+      const cur = it.base_currency || 'USD'
+      const rate = rateFor(cur)
       setForm(f => ({
         ...f, itinerary: id,
         package_name: it.name ?? '',
         departure_date: it.start_date || '',
         return_date: it.end_date || '',
+        base_currency: cur,
+        ...(rate != null ? { exchange_rate: rate } : {}),
       }))
     } else {
       // Remover o roteiro: limpa tudo que ele havia preenchido (e o aeroporto).
@@ -831,6 +865,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     return {
       agency: form.agency, itinerary: form.itinerary,
       observations: form.observations,
+      base_currency: form.base_currency || 'USD',
       payment_type: paymentType,
       exchange_rate: form.exchange_rate || null,
       ...packageFields,
@@ -963,15 +998,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
         {sec('Valores', [
           ...accomLines.filter(l => l.accommodation_type).map((l, i) =>
-            row(`${typeName(l.accommodation_type)} × ${l.quantity}`, `US$ ${fmtN((Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1))}`, `al${i}`)),
+            row(`${typeName(l.accommodation_type)} × ${l.quantity}`, `${cur} ${fmtN((Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1))}`, `al${i}`)),
           ...adjustments.filter(a => Number(a.value_usd) || Number(a.percent)).map((a, i) => {
             const amt = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
             const signed = (a.kind === 'desconto' ? -1 : 1) * amt
-            return row(a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'), `${signed < 0 ? '−' : '+'} US$ ${fmtN(Math.abs(signed))}`, `aj${i}`)
+            return row(a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'), `${signed < 0 ? '−' : '+'} ${cur} ${fmtN(Math.abs(signed))}`, `aj${i}`)
           }),
-          ...(Number(form.round_step) > 0 ? [row('Arredondamento', `${form.round_currency === 'usd' ? 'US$' : 'R$'} · múltiplo de ${Number(form.round_step).toLocaleString('pt-BR')}`, 'rd')] : []),
+          ...(Number(form.round_step) > 0 ? [row('Arredondamento', `${form.round_currency === 'usd' ? cur : 'R$'} · múltiplo de ${Number(form.round_step).toLocaleString('pt-BR')}`, 'rd')] : []),
           <div key="tot" style={{ borderTop: '1px solid #eef2f7', paddingTop: 8, marginTop: 2 }}>
-            {row(<strong>Soma total (USD)</strong>, <strong>US$ {fmtN(computedTotalUsd)}</strong>, 'tu')}
+            {row(<strong>Soma total ({cur})</strong>, <strong>{cur} {fmtN(computedTotalUsd)}</strong>, 'tu')}
             {row(<strong>Total (BRL)</strong>, <strong>R$ {fmtN(computedTotalBrl)}</strong>, 'tb')}
           </div>,
         ])}
@@ -1001,14 +1036,30 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       <div onClick={e => e.stopPropagation()}
         style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 920, maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)' }}>
         <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-            {isEdit ? 'Editar contrato' : 'Novo contrato'}
-            {isEdit && reservationNumber && (
-              <span style={{ fontSize: 12, fontWeight: 400, color: '#94a3b8', marginLeft: 10 }}>
-                Reserva nº {reservationNumber} · {fmtDateBR(contractDate)}
-              </span>
-            )}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+              {isEdit ? 'Editar contrato' : 'Novo contrato'}
+              {isEdit && reservationNumber && (
+                <span style={{ fontSize: 12, fontWeight: 400, color: '#94a3b8', marginLeft: 10 }}>
+                  Reserva nº {reservationNumber} · {fmtDateBR(contractDate)}
+                </span>
+              )}
+            </p>
+            {/* Moeda base — do roteiro (travada) ou escolhida quando não há roteiro */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Moeda base</span>
+              {currencyLocked ? (
+                <span title="Definida pelo roteiro selecionado — para trocar, mude ou remova o roteiro"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontSize: 12.5, fontWeight: 700 }}>
+                  {form.base_currency} — {curSym(form.base_currency)} <Ic n="key" s={11} />
+                </span>
+              ) : (
+                <div style={{ width: 140 }}>
+                  <Dropdown value={form.base_currency} onChange={(v) => setBaseCurrency(v || 'USD')} options={currencyOptions} clearable={false} placeholder="Moeda" />
+                </div>
+              )}
+            </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {isEdit && (
               <button type="button" onClick={() => setShowPreview(true)}
@@ -1309,12 +1360,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                         onChange={v => updateAccomLine(idx, 'accommodation_type', v)} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      {idx === 0 && <label style={lbl}>Valor/pessoa (USD)</label>}
+                      {idx === 0 && <label style={lbl}>Valor/pessoa ({cur})</label>}
                       <input style={inp} type="number" step="0.01" value={line.value_per_person_usd}
                         onChange={e => updateAccomLine(idx, 'value_per_person_usd', e.target.value)} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      {idx === 0 && <label style={lbl}>Taxas (USD)</label>}
+                      {idx === 0 && <label style={lbl}>Taxas ({cur})</label>}
                       <input style={inp} type="number" step="0.01" value={line.taxes_usd}
                         onChange={e => updateAccomLine(idx, 'taxes_usd', e.target.value)} />
                     </div>
@@ -1355,7 +1406,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     <span style={{ fontSize: 14, lineHeight: 1 }}>≈</span> Arredondar total
                     {Number(form.round_step) > 0 && (
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#1a2d4f' }}>
-                        ({form.round_currency === 'usd' ? 'US$' : 'R$'} · {Number(form.round_step).toLocaleString('pt-BR')})
+                        ({form.round_currency === 'usd' ? cur : 'R$'} · {Number(form.round_step).toLocaleString('pt-BR')})
                       </span>
                     )}
                   </button>
@@ -1364,7 +1415,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
-                    <label style={lbl}>Soma total (USD)</label>
+                    <label style={lbl}>Soma total ({cur})</label>
                     <input style={inpRO} readOnly value={computedTotalUsd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} />
                   </div>
                   <div style={{ flex: 1 }}>
@@ -1372,7 +1423,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     <input style={inpRO} readOnly value={computedTotalBrl != null ? computedTotalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={lbl}>Câmbio</label>
+                    <label style={lbl}>Câmbio ({form.base_currency} → BRL)</label>
                     <input style={inp} type="number" step="0.0001" value={form.exchange_rate} onChange={set('exchange_rate')} />
                     <p style={{ fontSize: 10.5, color: '#94a3b8', margin: '3px 0 0' }}>Preenchido de Configurações → Câmbio.</p>
                   </div>
@@ -1581,6 +1632,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           adjustments={adjustments}
           setAdjustments={setAdjustments}
           baseUsd={accomSubtotalUsd}
+          cur={cur}
           onClose={() => setShowAdjustments(false)}
         />
       )}
@@ -1592,6 +1644,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           rawBrl={rawTotalBrl}
           roundedUsd={computedTotalUsd}
           roundedBrl={computedTotalBrl}
+          cur={cur}
           onClose={() => setShowRounding(false)}
         />
       )}

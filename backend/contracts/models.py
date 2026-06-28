@@ -57,6 +57,9 @@ class Contract(models.Model):
     observations      = models.TextField('Observações', blank=True)
 
     # Pagamento
+    # Moeda base do contrato (em que estão os valores de acomodação/ajustes/total).
+    # O total em BRL vem da conversão por exchange_rate. Vinda do roteiro quando há um.
+    base_currency             = models.CharField('Moeda base', max_length=3, default='USD')
     PAYMENT_TYPE_CHOICES = [('a_vista', 'À vista'), ('parcelado', 'Parcelado')]
     payment_type              = models.CharField('Forma de pagamento', max_length=10, choices=PAYMENT_TYPE_CHOICES, default='parcelado')
     total_usd                 = models.DecimalField('Soma total (USD)', max_digits=12, decimal_places=2, null=True, blank=True)

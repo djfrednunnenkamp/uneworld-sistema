@@ -135,7 +135,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
                   'payer_email', 'payer_phone', 'payer_address',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
-                  'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
+                  'base_currency', 'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'stage', 'signed_file', 'signed_verification',
@@ -172,7 +172,8 @@ class ContractSerializer(serializers.ModelSerializer):
         if not obj.itinerary_id:
             return None
         it = obj.itinerary
-        return {'id': it.id, 'name': it.name, 'start_date': it.start_date, 'end_date': it.end_date}
+        return {'id': it.id, 'name': it.name, 'start_date': it.start_date, 'end_date': it.end_date,
+                'base_currency': it.base_currency}
 
     def get_signed_file(self, obj):
         return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None
