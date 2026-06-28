@@ -29,7 +29,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [RequirePermission('contracts_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
-                           'send_for_signature', 'upload_signed', 'reopen'):
+                           'send_for_signature', 'upload_signed', 'verify_signed', 'reopen'):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
 
@@ -65,13 +65,36 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.save(update_fields=['stage'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
+    @action(detail=True, methods=['post'], url_path='verify-signed', parser_classes=[MultiPartParser, FormParser])
+    def verify_signed(self, request, pk=None):
+        """Confere o documento enviado campo a campo contra os dados do contrato,
+        SEM salvar (pré-visualização do upload). A leitura (texto do PDF ou OCR de
+        foto/scan) roda no servidor."""
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from passengers.validators import validate_document_file
+        from .verify import verify_signed_contract
+
+        contract = self.get_object()
+        f = request.FILES.get('file')
+        if not f:
+            return Response({'error': 'Envie o arquivo (campo "file").'}, status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            f = validate_document_file(f)
+        except DjangoValidationError as e:
+            return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+        content = f.read()
+        result = verify_signed_contract(contract, content, getattr(f, 'name', ''), getattr(f, 'content_type', ''))
+        return Response(result)
+
     @action(detail=True, methods=['post'], url_path='upload-signed', parser_classes=[MultiPartParser, FormParser])
     def upload_signed(self, request, pk=None):
         """Upload do contrato assinado → move para 'Assinado'. Valida o arquivo
-        (tamanho, extensão PDF/JPEG/PNG, magic bytes e re-processa imagens) e
-        salva com nome seguro (UUID)."""
+        (tamanho, extensão PDF/JPEG/PNG, magic bytes e re-processa imagens),
+        salva com nome seguro (UUID) e guarda a conferência campo a campo (para o
+        aviso de divergências ficar persistente)."""
         from django.core.exceptions import ValidationError as DjangoValidationError
         from passengers.validators import validate_document_file
+        from .verify import verify_signed_contract
 
         contract = self.get_object()
         f = request.FILES.get('file')
@@ -81,7 +104,11 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             f = validate_document_file(f)
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+        content = f.read()
+        f.seek(0)
+        contract.signed_verification = verify_signed_contract(
+            contract, content, getattr(f, 'name', ''), getattr(f, 'content_type', ''))
         contract.signed_file = f
         contract.stage = 'assinado'
-        contract.save(update_fields=['signed_file', 'stage'])
+        contract.save(update_fields=['signed_file', 'stage', 'signed_verification'])
         return Response(ContractSerializer(contract, context={'request': request}).data)

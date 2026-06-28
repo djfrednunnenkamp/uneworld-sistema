@@ -78,12 +78,13 @@ class ContractListSerializer(serializers.ModelSerializer):
     agency_name      = serializers.SerializerMethodField()
     contratante_name = serializers.SerializerMethodField()
     signed_file      = serializers.SerializerMethodField()
+    signed_verification = serializers.JSONField(read_only=True)
 
     class Meta:
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_name',
                   'contratante', 'contratante_name', 'package_name', 'departure_date',
-                  'total_brl', 'status', 'signature_type', 'stage', 'signed_file',
+                  'total_brl', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def get_agency_name(self, obj):
@@ -113,6 +114,8 @@ class ContractSerializer(serializers.ModelSerializer):
     stage         = serializers.CharField(read_only=True)
     # URL autenticada (não a pública de /media) — null quando não há arquivo.
     signed_file   = serializers.SerializerMethodField()
+    # Conferência automática do assinado (só leitura; gravada no upload-signed).
+    signed_verification = serializers.JSONField(read_only=True)
     # Calculados pelo backend — nunca digitados (ver _recalc_totals).
     total_usd     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_brl     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -131,7 +134,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'total_usd', 'total_brl', 'exchange_rate',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
-                  'stage', 'signed_file',
+                  'stage', 'signed_file', 'signed_verification',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 

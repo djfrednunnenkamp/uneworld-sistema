@@ -10,7 +10,6 @@ import SignedFileViewer from '../components/SignedFileViewer'
 import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
-import { verifySignedContract } from '../utils/verifySignedContract'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { dashboardWsUrl } from '../utils/ws'
@@ -72,20 +71,60 @@ const COLS = [
   { key: 'stage',              label: 'Etapa',        align: 'center', render: (v, row) => <StageBadge stage={row.stage} /> },
 ]
 
+/* ── Conferência (checklist) do contrato assinado — reutilizada no upload e na
+ * visualização do assinado. `v` = { items:[{label,value,ok}], all_ok, ocr,
+ * readable }. */
+function SignedVerificationPanel({ v, compact = false }) {
+  if (!v) return null
+  const divergences = (v.items || []).filter(i => !i.ok).length
+  const Check = ({ ok }) => (
+    <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: ok ? '#dcfce7' : '#fef3c7', color: ok ? '#16a34a' : '#b45309', fontSize: 11, fontWeight: 800 }}>{ok ? '✓' : '!'}</span>
+  )
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>Conferência campo a campo</span>
+        {v.ocr && <span style={{ fontSize: 10.5, fontWeight: 600, color: '#b45309', background: '#fffbeb', padding: '2px 7px', borderRadius: 5, whiteSpace: 'nowrap' }}>via OCR — pode ter imprecisão</span>}
+      </div>
+      {!v.readable && (
+        <div style={{ padding: '10px 12px', marginBottom: 8, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e' }}>
+          Quase nenhum texto foi lido do documento (foto de baixa qualidade ou sem OCR no servidor). A conferência pode não ser confiável — revise à mão.
+        </div>
+      )}
+      {divergences > 0 && (
+        <div style={{ marginBottom: 10, padding: '11px 13px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
+          <strong>⚠ {divergences} campo{divergences > 1 ? 's' : ''} não localizado{divergences > 1 ? 's' : ''} no documento.</strong> Pode ser uma edição no contrato assinado — ou apenas falha de leitura (foto/scan). Revise.
+        </div>
+      )}
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+        {(!v.items || v.items.length === 0) && (
+          <p style={{ margin: 0, padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>Sem campos para conferir neste contrato.</p>
+        )}
+        {(v.items || []).map((it, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: compact ? '7px 11px' : '8px 12px', borderTop: i ? '1px solid #f1f5f9' : 'none', background: it.ok ? '#fff' : '#fffdf7' }}>
+            <Check ok={it.ok} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${it.label}: ${it.value}`}>{it.label}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: it.ok ? '#16a34a' : '#b45309', flexShrink: 0 }}>{it.ok ? 'confere' : 'não localizado'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── Popup de upload do contrato assinado (arrastar e soltar + conferência) ──
- * Ao anexar, o documento é lido (texto do PDF ou OCR de foto/scan) e conferido
- * campo a campo contra os dados do contrato. Se algo divergir, mostra uma flag
- * com os erros e o botão vira "Enviar mesmo assim". A assinatura é confirmada
- * manualmente (não dá pra validar com segurança por OCR). */
+ * Ao anexar, o documento é enviado ao servidor, que lê o PDF (texto) ou faz OCR
+ * de foto/scan e confere campo a campo contra os dados do contrato. O documento
+ * é exibido ao lado para conferência visual. Se algo divergir, mostra uma flag
+ * e o botão vira "Enviar mesmo assim". A assinatura é confirmada manualmente. */
 function SignedUploadModal({ contractId, onClose, onUpload }) {
   const [file, setFile] = useState(null)
   const [drag, setDrag] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [contract, setContract] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [result, setResult] = useState(null)   // { items, allOk, ocr, readable, error }
+  const [result, setResult] = useState(null)   // { items, all_ok, ocr, readable } | { error, message }
   const [sigOk, setSigOk] = useState(false)
+  const [objUrl, setObjUrl] = useState(null)
   const inputRef = useRef(null)
   const seq = useRef(0)
   const analyzedFile = useRef(null)
@@ -99,31 +138,30 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
     return () => { window.removeEventListener('dragover', prevent); window.removeEventListener('drop', prevent) }
   }, [])
 
-  // Carrega os dados do contrato (valores esperados para a conferência).
+  // URL local do arquivo selecionado, para o visualizador de pré-conferência.
   useEffect(() => {
-    let cancelled = false
-    if (contractId != null) contractsApi.get(contractId).then(r => { if (!cancelled) setContract(r.data) }).catch(() => {})
-    return () => { cancelled = true }
-  }, [contractId])
+    if (!file) { setObjUrl(null); return }
+    const u = URL.createObjectURL(file)
+    setObjUrl(u)
+    return () => URL.revokeObjectURL(u)
+  }, [file])
 
+  // Conferência no servidor (lê PDF/OCR e compara). Uma vez por arquivo.
   const analyze = async (f) => {
     const my = ++seq.current
-    setAnalyzing(true); setProgress(0); setResult(null)
+    setAnalyzing(true); setResult(null)
     try {
-      const res = await verifySignedContract(f, contract, p => { if (my === seq.current) setProgress(p) })
-      if (my === seq.current) setResult(res)
-    } catch {
-      if (my === seq.current) setResult({ items: [], allOk: false, readable: false, error: true })
+      const { data } = await contractsApi.verifySigned(contractId, f)
+      if (my === seq.current) setResult(data)
+    } catch (e) {
+      if (my === seq.current) setResult({ error: true, message: e?.response?.data?.error })
     } finally {
       if (my === seq.current) setAnalyzing(false)
     }
   }
-
-  // Dispara a conferência quando o arquivo e o contrato estiverem prontos
-  // (uma única vez por arquivo — OCR é caro).
   useEffect(() => {
-    if (file && contract && analyzedFile.current !== file) { analyzedFile.current = file; analyze(file) }
-  }, [file, contract]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (file && analyzedFile.current !== file) { analyzedFile.current = file; analyze(file) }
+  }, [file]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (f) => { setFile(f); setResult(null); setSigOk(false); analyzedFile.current = null }
 
@@ -133,122 +171,103 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
     try { await onUpload(file) } finally { setBusy(false) }
   }
 
-  const divergences = result && !result.error ? result.items.filter(i => !i.ok).length : 0
+  const hasResult = result && !result.error
   const canSend = !!file && !busy && !analyzing && sigOk
-  const sendLabel = busy ? 'Enviando…' : (result && !result.allOk ? 'Enviar mesmo assim' : 'Enviar')
-
-  const Check = ({ ok }) => (
-    <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: ok ? '#dcfce7' : '#fef3c7', color: ok ? '#16a34a' : '#b45309', fontSize: 11, fontWeight: 800 }}>{ok ? '✓' : '!'}</span>
-  )
+  const sendLabel = busy ? 'Enviando…' : (hasResult && !result.all_ok ? 'Enviar mesmo assim' : 'Enviar')
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 520, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: file ? 1040 : 520, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)', overflow: 'hidden', transition: 'max-width .15s' }}>
         <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>Anexar contrato assinado</span>
           <button onClick={onClose} style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}><Ic n="x" s={14} /></button>
         </div>
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
-          <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#64748b', lineHeight: 1.5 }}>
-            Envie aqui o contrato que a pessoa assinou (PDF ou foto/imagem). Vamos conferir os campos contra o contrato antes de anexar. Ao confirmar, ele vai para a aba <strong>Assinados</strong>.
-          </p>
-          <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pick(f) }} />
-          <div onClick={() => inputRef.current?.click()}
-            onDragOver={e => { e.preventDefault(); setDrag(true) }}
-            onDragLeave={() => setDrag(false)}
-            onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) pick(f) }}
-            style={{ border: `2px dashed ${drag ? '#2e6db4' : '#cbd5e1'}`, borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: drag ? '#eff6ff' : '#fafbfc', transition: 'all .12s' }}>
-            <div style={{ color: drag ? '#2e6db4' : '#94a3b8', display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Ic n="docs" s={28} /></div>
-            {file ? (
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{file.name}</p>
-            ) : (
-              <>
-                <p style={{ margin: '0 0 4px', fontSize: 13.5, fontWeight: 600, color: '#475569' }}>Arraste o arquivo aqui</p>
-                <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>ou clique para escolher (PDF ou imagem)</p>
-              </>
-            )}
-          </div>
-          {file && <p style={{ margin: '8px 2px 0', fontSize: 11.5, color: '#2e6db4', cursor: 'pointer' }} onClick={() => inputRef.current?.click()}>Trocar arquivo</p>}
 
-          {/* Progresso da leitura/OCR */}
-          {file && analyzing && (
-            <div style={{ marginTop: 16, padding: '14px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <p style={{ margin: '0 0 8px', fontSize: 12.5, fontWeight: 600, color: '#475569' }}>Lendo e conferindo o documento… {Math.round(progress * 100)}%</p>
-              <div style={{ height: 6, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.max(6, progress * 100)}%`, background: '#2e6db4', borderRadius: 4, transition: 'width .2s' }} />
-              </div>
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* Pré-visualização do documento enviado */}
+          {file && (
+            <div style={{ flex: 1.35, display: 'flex', minWidth: 0, minHeight: 0, borderRight: '1px solid #e2e8f0' }}>
+              {objUrl ? <SignedFileViewer url={objUrl} /> : <div style={{ flex: 1, background: '#3f4651' }} />}
             </div>
           )}
 
-          {/* Resultado da conferência */}
-          {file && result && !analyzing && (
-            <div style={{ marginTop: 16 }}>
-              {result.error ? (
-                <div style={{ padding: '12px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12.5, color: '#b91c1c' }}>
-                  Não foi possível ler o documento automaticamente. Confira manualmente antes de anexar.
-                </div>
+          {/* Painel de upload + conferência */}
+          <div style={{ width: file ? 412 : '100%', flexShrink: 0, padding: 20, overflowY: 'auto' }}>
+            <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#64748b', lineHeight: 1.5 }}>
+              Envie o contrato que a pessoa assinou (PDF ou foto/imagem). O sistema confere os campos contra o contrato. Ao confirmar, ele vai para a aba <strong>Assinados</strong>.
+            </p>
+            <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pick(f) }} />
+            <div onClick={() => inputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDrag(true) }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) pick(f) }}
+              style={{ border: `2px dashed ${drag ? '#2e6db4' : '#cbd5e1'}`, borderRadius: 12, padding: file ? '16px 16px' : '32px 20px', textAlign: 'center', cursor: 'pointer', background: drag ? '#eff6ff' : '#fafbfc', transition: 'all .12s' }}>
+              <div style={{ color: drag ? '#2e6db4' : '#94a3b8', display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Ic n="docs" s={file ? 20 : 28} /></div>
+              {file ? (
+                <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</p>
               ) : (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>Conferência campo a campo</span>
-                    {result.ocr && <span style={{ fontSize: 10.5, fontWeight: 600, color: '#b45309', background: '#fffbeb', padding: '2px 7px', borderRadius: 5 }}>via OCR — pode ter imprecisão</span>}
-                  </div>
-                  {!result.readable && (
-                    <div style={{ padding: '10px 12px', marginBottom: 8, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e' }}>
-                      Quase nenhum texto foi lido (foto de baixa qualidade?). A conferência pode não ser confiável — revise o documento à mão.
-                    </div>
-                  )}
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-                    {result.items.length === 0 && (
-                      <p style={{ margin: 0, padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>Sem campos para conferir neste contrato.</p>
-                    )}
-                    {result.items.map((it, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderTop: i ? '1px solid #f1f5f9' : 'none', background: it.ok ? '#fff' : '#fffdf7' }}>
-                        <Check ok={it.ok} />
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${it.label}: ${it.value}`}>{it.label}</span>
-                        <span style={{ fontSize: 11.5, fontWeight: 600, color: it.ok ? '#16a34a' : '#b45309', flexShrink: 0 }}>{it.ok ? 'confere' : 'não localizado'}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {divergences > 0 && (
-                    <div style={{ marginTop: 10, padding: '11px 13px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
-                      <strong>{divergences} campo{divergences > 1 ? 's' : ''} não localizado{divergences > 1 ? 's' : ''} no documento.</strong> Isso pode ser uma edição no contrato assinado — ou apenas falha de leitura (foto/scan). Revise antes de continuar.
-                    </div>
-                  )}
+                  <p style={{ margin: '0 0 4px', fontSize: 13.5, fontWeight: 600, color: '#475569' }}>Arraste o arquivo aqui</p>
+                  <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>ou clique para escolher (PDF ou imagem)</p>
                 </>
               )}
-
-              {/* Confirmação manual da assinatura */}
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 14, padding: '11px 13px', background: '#f8fafc', border: `1px solid ${sigOk ? '#2e6db4' : '#e2e8f0'}`, borderRadius: 9, cursor: 'pointer' }}>
-                <input type="checkbox" checked={sigOk} onChange={e => setSigOk(e.target.checked)} style={{ marginTop: 1, accentColor: '#2e6db4', width: 15, height: 15, flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, color: '#334155', lineHeight: 1.45 }}>Confirmo que conferi o documento e que ele está <strong>assinado</strong>.</span>
-              </label>
             </div>
-          )}
+            {file && <p style={{ margin: '8px 2px 0', fontSize: 11.5, color: '#2e6db4', cursor: 'pointer' }} onClick={() => inputRef.current?.click()}>Trocar arquivo</p>}
+
+            {/* Conferência no servidor */}
+            {file && analyzing && (
+              <div style={{ marginTop: 16, padding: '14px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ width: 16, height: 16, border: '2px solid #cbd5e1', borderTopColor: '#2e6db4', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: '#475569' }}>Lendo e conferindo o documento no servidor…</span>
+              </div>
+            )}
+
+            {file && result && !analyzing && (
+              <div style={{ marginTop: 16 }}>
+                {result.error ? (
+                  <div style={{ padding: '12px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12.5, color: '#b91c1c' }}>
+                    {result.message || 'Não foi possível conferir o documento automaticamente.'} Confira manualmente antes de anexar.
+                  </div>
+                ) : (
+                  <SignedVerificationPanel v={result} />
+                )}
+
+                {/* Confirmação manual da assinatura */}
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 14, padding: '11px 13px', background: '#f8fafc', border: `1px solid ${sigOk ? '#2e6db4' : '#e2e8f0'}`, borderRadius: 9, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={sigOk} onChange={e => setSigOk(e.target.checked)} style={{ marginTop: 1, accentColor: '#2e6db4', width: 15, height: 15, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12.5, color: '#334155', lineHeight: 1.45 }}>Confirmo que conferi o documento e que ele está <strong>assinado</strong>.</span>
+                </label>
+              </div>
+            )}
+          </div>
         </div>
+
         <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           <button onClick={onClose} disabled={busy} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
           <button onClick={submit} disabled={!canSend} title={!file ? 'Escolha um arquivo' : analyzing ? 'Aguarde a conferência' : !sigOk ? 'Confirme a assinatura' : ''}
-            style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: !canSend ? '#94a3b8' : (result && !result.allOk ? '#b45309' : '#1a2d4f'), color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canSend ? 'default' : 'pointer', fontFamily: 'inherit' }}>{sendLabel}</button>
+            style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: !canSend ? '#94a3b8' : (hasResult && !result.all_ok ? '#b45309' : '#1a2d4f'), color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canSend ? 'default' : 'pointer', fontFamily: 'inherit' }}>{sendLabel}</button>
         </div>
       </div>
     </div>
   )
 }
 
-/* ── Popup de visualização do contrato assinado ── */
-function SignedFileModal({ url, onClose }) {
+/* ── Popup de visualização do contrato assinado ──
+ * Mostra o documento e, ao lado, a conferência automática gravada no upload
+ * (aviso persistente de divergências, se houver). */
+function SignedFileModal({ url, verification, onClose }) {
   // O backend devolve URL absoluta (ex.: http://localhost:8000/media/...) que
   // quebra quando o app é acessado de outro host. Usamos só o caminho relativo,
   // servido pela própria origem do app (proxy /media em dev, nginx em prod).
   let rel = url
   try { const u = new URL(url, window.location.origin); rel = u.pathname + u.search } catch { /* já é relativo */ }
+  const divergences = verification?.items ? verification.items.filter(i => !i.ok).length : 0
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 920, height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.32)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: verification ? 1080 : 920, height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.32)' }}>
         <div style={{ padding: '13px 16px 13px 18px', background: '#fff', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eff6ff', color: '#2e6db4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic n="docs" s={18} /></div>
@@ -256,6 +275,9 @@ function SignedFileModal({ url, onClose }) {
               <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Contrato assinado</p>
               <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>Documento enviado pelo cliente</p>
             </div>
+            {divergences > 0 && (
+              <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '3px 9px', borderRadius: 6 }}>⚠ {divergences} divergência{divergences > 1 ? 's' : ''} na conferência</span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <a href={rel} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Abrir em nova aba</a>
@@ -265,7 +287,15 @@ function SignedFileModal({ url, onClose }) {
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8' }}><Ic n="x" s={15} /></button>
           </div>
         </div>
-        <SignedFileViewer url={rel} />
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          <SignedFileViewer url={rel} />
+          {verification && (
+            <div style={{ width: 380, flexShrink: 0, borderLeft: '1px solid #e2e8f0', padding: 18, overflowY: 'auto' }}>
+              <SignedVerificationPanel v={verification} compact />
+              <p style={{ margin: '12px 2px 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>Conferência feita automaticamente no momento do anexo. Serve de apoio — a validação final é sempre humana.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -336,7 +366,7 @@ export default function Contracts() {
   // Baixar/ver: "assinado" → arquivo assinado anexado; senão → pré-visualiza o PDF
   // gerado num popup (com opção de baixar lá dentro).
   const handleDocs = (row) => {
-    if (row.stage === 'assinado' && row.signed_file) { setSignedUrl(row.signed_file); return }
+    if (row.stage === 'assinado' && row.signed_file) { setSignedUrl({ url: row.signed_file, verification: row.signed_verification }); return }
     setPreviewId(row.id)
   }
 
@@ -457,7 +487,7 @@ export default function Contracts() {
         <SignedUploadModal contractId={uploadRow.id} onClose={() => setUploadRow(null)} onUpload={handleUploadFile} />
       )}
       {signedUrl && (
-        <SignedFileModal url={signedUrl} onClose={() => setSignedUrl(null)} />
+        <SignedFileModal url={signedUrl.url} verification={signedUrl.verification} onClose={() => setSignedUrl(null)} />
       )}
       {previewId && (
         <ContractPdfPreviewModal contractId={previewId} onClose={() => setPreviewId(null)} />

@@ -15,3 +15,8 @@ maxminddb==3.1.1
 psycopg2-binary==2.9.10
 whitenoise==6.11.0
 svix==1.62.0
+# Conferência do contrato assinado: leitura de PDF + OCR (precisa do binário
+# do sistema "tesseract-ocr" e "tesseract-ocr-por" para fotos/scans).
+pypdf==6.14.2
+pytesseract==0.3.13
+pdf2image==1.17.0

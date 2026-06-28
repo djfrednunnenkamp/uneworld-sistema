@@ -83,6 +83,9 @@ class Contract(models.Model):
     STAGE_CHOICES = [('em_edicao', 'Em edição'), ('enviado', 'Enviado para assinatura'), ('assinado', 'Assinado')]
     stage       = models.CharField('Etapa', max_length=12, choices=STAGE_CHOICES, default='em_edicao', db_index=True)
     signed_file = models.FileField('Contrato assinado', upload_to=secure_signed_path, null=True, blank=True)
+    # Resultado da conferência automática (OCR/leitura) do contrato assinado contra
+    # os dados do contrato. Guardado para o aviso de divergências ficar persistente.
+    signed_verification = models.JSONField('Conferência do assinado', null=True, blank=True)
 
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
