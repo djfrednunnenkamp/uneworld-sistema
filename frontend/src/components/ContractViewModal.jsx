@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { contractsApi } from '../api'
 import { StatusBadge } from './DataTable'
+import ContractPdfPreviewModal from './ContractPdfPreviewModal'
 import { Ic } from './Icon'
 
 const fmtDateBR = (iso) => {
@@ -17,6 +18,7 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
   const [c, setC] = useState(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
+  const [showPdf, setShowPdf] = useState(false)
 
   useEffect(() => {
     contractsApi.get(contractId)
@@ -109,19 +111,29 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
         </div>
 
         {/* Rodapé */}
-        <div style={{ padding: '12px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          {canEdit ? (
-            <button onClick={onEdit}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Ic n="edit" s={13} /> Editar
+        <div style={{ padding: '12px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowPdf(true)} title="Ver o documento (PDF) como ficará"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Ic n="docs" s={13} /> Ver PDF
             </button>
-          ) : <span />}
+            {canEdit && (
+              <button onClick={onEdit}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="edit" s={13} /> Editar
+              </button>
+            )}
+          </div>
           <button onClick={onClose}
             style={{ padding: '8px 20px', borderRadius: 7, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             OK
           </button>
         </div>
       </div>
+
+      {showPdf && (
+        <ContractPdfPreviewModal contractId={contractId} onClose={() => setShowPdf(false)} />
+      )}
     </div>
   )
 }
