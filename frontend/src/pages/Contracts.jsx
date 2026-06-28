@@ -71,43 +71,104 @@ const COLS = [
   { key: 'stage',              label: 'Etapa',        align: 'center', render: (v, row) => <StageBadge stage={row.stage} /> },
 ]
 
-/* ── Conferência (checklist) do contrato assinado — reutilizada no upload e na
- * visualização do assinado. `v` = { items:[{label,value,ok}], all_ok, ocr,
- * readable }. */
-function SignedVerificationPanel({ v, compact = false }) {
+/* Normaliza o resultado da conferência (schema novo com data+signature, ou o
+ * antigo plano {items, all_ok}). */
+function normVerif(v) {
   if (!v) return null
-  const divergences = (v.items || []).filter(i => !i.ok).length
-  const Check = ({ ok }) => (
-    <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: ok ? '#dcfce7' : '#fef3c7', color: ok ? '#16a34a' : '#b45309', fontSize: 11, fontWeight: 800 }}>{ok ? '✓' : '!'}</span>
+  const data = v.data || { items: v.items || [], all_ok: v.all_ok }
+  return { ocr: v.ocr, readable: v.readable, data, signature: v.signature || null }
+}
+
+const STATUS_META = {
+  confere:        { txt: 'confere',        color: '#16a34a', icon: '✓', chip: '#dcfce7' },
+  divergente:     { txt: 'não confere',    color: '#dc2626', icon: '✕', chip: '#fee2e2' },
+  nao_preenchido: { txt: 'não preenchido', color: '#d97706', icon: '○', chip: '#fef3c7' },
+  nao_localizado: { txt: 'não localizado', color: '#94a3b8', icon: '?', chip: '#f1f5f9' },
+}
+
+/* Caixas vermelhas/âmbar a desenhar sobre o documento (campos errados + áreas
+ * de assinatura em branco). Página do backend é 0-based; o visualizador é 1-based. */
+function verifAnnotations(v) {
+  const nv = normVerif(v)
+  if (!nv) return []
+  const out = []
+  for (const it of nv.data.items || []) {
+    if (it.ok || !it.box) continue
+    const amber = it.status === 'nao_preenchido'
+    out.push({
+      page: (it.page ?? 0) + 1, box: it.box,
+      color: amber ? '#d97706' : '#dc2626',
+      label: it.label,
+      sub: amber ? 'Campo em branco no documento.' : `Não confere com o contrato. Esperado: ${it.value}`,
+    })
+  }
+  for (const f of nv.signature?.fields || []) {
+    if (f.signed || !f.box) continue
+    out.push({ page: (f.page ?? 0) + 1, box: f.box, color: '#dc2626', label: f.label, sub: 'Sem assinatura — área em branco.' })
+  }
+  return out
+}
+
+/* ── Conferência (checklist) do contrato assinado — reutilizada no upload e na
+ * visualização. Mostra DUAS verificações: dados (campo a campo) e assinatura. */
+function SignedVerificationPanel({ v, compact = false }) {
+  const nv = normVerif(v)
+  if (!nv) return null
+  const items = nv.data.items || []
+  const sig = nv.signature
+  const Row = ({ icon, color, chip, label, status, title }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: compact ? '7px 11px' : '8px 12px', borderTop: '1px solid #f1f5f9', background: color === '#16a34a' ? '#fff' : '#fffdf8' }}>
+      <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: chip, color, fontSize: 11, fontWeight: 800 }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={title}>{label}</span>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color, flexShrink: 0 }}>{status}</span>
+    </div>
   )
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>Conferência campo a campo</span>
-        {v.ocr && <span style={{ fontSize: 10.5, fontWeight: 600, color: '#b45309', background: '#fffbeb', padding: '2px 7px', borderRadius: 5, whiteSpace: 'nowrap' }}>via OCR — pode ter imprecisão</span>}
-      </div>
-      {!v.readable && (
-        <div style={{ padding: '10px 12px', marginBottom: 8, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e' }}>
+      {nv.ocr && <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'flex-end' }}><span style={{ fontSize: 10.5, fontWeight: 600, color: '#b45309', background: '#fffbeb', padding: '2px 7px', borderRadius: 5 }}>leitura via OCR — pode ter imprecisão</span></div>}
+      {!nv.readable && (
+        <div style={{ padding: '10px 12px', marginBottom: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e' }}>
           Quase nenhum texto foi lido do documento (foto de baixa qualidade ou sem OCR no servidor). A conferência pode não ser confiável — revise à mão.
         </div>
       )}
-      {divergences > 0 && (
-        <div style={{ marginBottom: 10, padding: '11px 13px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
-          <strong>⚠ {divergences} campo{divergences > 1 ? 's' : ''} não localizado{divergences > 1 ? 's' : ''} no documento.</strong> Pode ser uma edição no contrato assinado — ou apenas falha de leitura (foto/scan). Revise.
-        </div>
-      )}
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-        {(!v.items || v.items.length === 0) && (
-          <p style={{ margin: 0, padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>Sem campos para conferir neste contrato.</p>
-        )}
-        {(v.items || []).map((it, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: compact ? '7px 11px' : '8px 12px', borderTop: i ? '1px solid #f1f5f9' : 'none', background: it.ok ? '#fff' : '#fffdf7' }}>
-            <Check ok={it.ok} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${it.label}: ${it.value}`}>{it.label}</span>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: it.ok ? '#16a34a' : '#b45309', flexShrink: 0 }}>{it.ok ? 'confere' : 'não localizado'}</span>
-          </div>
-        ))}
+
+      {/* 1) Verificação dos dados */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>1. Dados do contrato</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: nv.data.all_ok ? '#16a34a' : '#dc2626' }}>{nv.data.all_ok ? '✓ tudo confere' : '⚠ há divergências'}</span>
       </div>
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+        {items.length === 0 && <p style={{ margin: 0, padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>Sem campos para conferir.</p>}
+        {items.map((it, i) => {
+          const m = STATUS_META[it.status] || STATUS_META.nao_localizado
+          return <div key={i} style={{ borderTop: i ? undefined : 'none' }}><Row icon={m.icon} color={m.color} chip={m.chip} label={it.label} status={m.txt} title={`${it.label}: ${it.value}`} /></div>
+        })}
+      </div>
+
+      {/* 2) Verificação da assinatura */}
+      {sig && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 6px', gap: 8 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>2. Assinatura</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: !sig.checked ? '#94a3b8' : sig.signed ? '#16a34a' : '#dc2626' }}>
+              {!sig.checked ? 'não avaliada' : sig.signed ? '✓ assinado' : '⚠ falta assinatura'}
+            </span>
+          </div>
+          {!sig.checked ? (
+            <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: 12, color: '#64748b' }}>
+              Não localizei as áreas de assinatura no documento — confira manualmente.
+            </div>
+          ) : (
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+              {sig.fields.map((f, i) => (
+                <div key={i} style={{ borderTop: i ? undefined : 'none' }}>
+                  <Row icon={f.signed ? '✓' : '✕'} color={f.signed ? '#16a34a' : '#dc2626'} chip={f.signed ? '#dcfce7' : '#fee2e2'} label={f.label} status={f.signed ? 'assinado' : 'em branco'} title={f.label} />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -172,8 +233,11 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
   }
 
   const hasResult = result && !result.error
+  const nv = hasResult ? normVerif(result) : null
+  const allGood = nv ? (nv.data.all_ok && (!nv.signature?.checked || nv.signature.signed)) : false
+  const annotations = hasResult ? verifAnnotations(result) : []
   const canSend = !!file && !busy && !analyzing && sigOk
-  const sendLabel = busy ? 'Enviando…' : (hasResult && !result.all_ok ? 'Enviar mesmo assim' : 'Enviar')
+  const sendLabel = busy ? 'Enviando…' : (hasResult && !allGood ? 'Enviar mesmo assim' : 'Enviar')
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -188,7 +252,7 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
           {/* Pré-visualização do documento enviado */}
           {file && (
             <div style={{ flex: 1.35, display: 'flex', minWidth: 0, minHeight: 0, borderRight: '1px solid #e2e8f0' }}>
-              {objUrl ? <SignedFileViewer url={objUrl} /> : <div style={{ flex: 1, background: '#3f4651' }} />}
+              {objUrl ? <SignedFileViewer url={objUrl} annotations={annotations} /> : <div style={{ flex: 1, background: '#3f4651' }} />}
             </div>
           )}
 
@@ -247,7 +311,7 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
         <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           <button onClick={onClose} disabled={busy} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
           <button onClick={submit} disabled={!canSend} title={!file ? 'Escolha um arquivo' : analyzing ? 'Aguarde a conferência' : !sigOk ? 'Confirme a assinatura' : ''}
-            style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: !canSend ? '#94a3b8' : (hasResult && !result.all_ok ? '#b45309' : '#1a2d4f'), color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canSend ? 'default' : 'pointer', fontFamily: 'inherit' }}>{sendLabel}</button>
+            style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: !canSend ? '#94a3b8' : (hasResult && !allGood ? '#b45309' : '#1a2d4f'), color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canSend ? 'default' : 'pointer', fontFamily: 'inherit' }}>{sendLabel}</button>
         </div>
       </div>
     </div>
@@ -263,7 +327,8 @@ function SignedFileModal({ url, verification, onClose }) {
   // servido pela própria origem do app (proxy /media em dev, nginx em prod).
   let rel = url
   try { const u = new URL(url, window.location.origin); rel = u.pathname + u.search } catch { /* já é relativo */ }
-  const divergences = verification?.items ? verification.items.filter(i => !i.ok).length : 0
+  const annotations = verifAnnotations(verification)
+  const divergences = annotations.length
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
@@ -276,7 +341,7 @@ function SignedFileModal({ url, verification, onClose }) {
               <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>Documento enviado pelo cliente</p>
             </div>
             {divergences > 0 && (
-              <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '3px 9px', borderRadius: 6 }}>⚠ {divergences} divergência{divergences > 1 ? 's' : ''} na conferência</span>
+              <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '3px 9px', borderRadius: 6 }}>⚠ {divergences} ponto{divergences > 1 ? 's' : ''} de atenção</span>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -288,7 +353,7 @@ function SignedFileModal({ url, verification, onClose }) {
           </div>
         </div>
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <SignedFileViewer url={rel} />
+          <SignedFileViewer url={rel} annotations={annotations} />
           {verification && (
             <div style={{ width: 380, flexShrink: 0, borderLeft: '1px solid #e2e8f0', padding: 18, overflowY: 'auto' }}>
               <SignedVerificationPanel v={verification} compact />
