@@ -145,73 +145,81 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, onClose })
   const amountOf = (a) => a.mode === 'percentual' ? baseUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
   const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
   const net = adjustments.reduce((s, a) => s + (a.kind === 'desconto' ? -1 : 1) * amountOf(a), 0)
+  const KIND_OPTS = [{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]
+  const MODE_OPTS = [{ value: 'valor', label: 'Valor (US$)' }, { value: 'percentual', label: 'Percentual (%)' }]
   return (
     <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
-      <div className="mbox" style={{ maxWidth: 720 }} onClick={e => e.stopPropagation()}>
+      <div className="mbox" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
         <div className="mhead">
           <span className="mtitle">Valores extras e descontos</span>
           <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
         </div>
         <div className="mbody">
-          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
             Acréscimos somam e descontos subtraem da <strong>Soma total (USD)</strong>. O percentual
-            incide sobre o subtotal das acomodações (US$ {fmt(baseUsd)}).
+            incide sobre o subtotal das acomodações (<strong>US$ {fmt(baseUsd)}</strong>).
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {adjustments.length === 0 && (
-              <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '12px 0', margin: 0 }}>Nenhum valor adicionado ainda.</p>
-            )}
-            {adjustments.map((a, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                  <div style={{ flex: 2 }}>
-                    {i === 0 && <label style={lbl}>Descrição</label>}
-                    <input style={inp} value={a.description} onChange={e => update(i, 'description', e.target.value)}
-                      placeholder="Ex: Taxa de embarque, Desconto fidelidade…" />
-                  </div>
-                  <div style={{ flex: 1.3 }}>
-                    {i === 0 && <label style={lbl}>Tipo</label>}
-                    <Dropdown value={a.kind} clearable={false}
-                      options={[{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]}
-                      onChange={v => update(i, 'kind', v || 'acrescimo')} />
-                  </div>
-                  <div style={{ flex: 1.3 }}>
-                    {i === 0 && <label style={lbl}>Modo</label>}
-                    <Dropdown value={a.mode} clearable={false}
-                      options={[{ value: 'valor', label: 'Valor (US$)' }, { value: 'percentual', label: 'Percentual (%)' }]}
-                      onChange={v => update(i, 'mode', v || 'valor')} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    {i === 0 && <label style={lbl}>{a.mode === 'percentual' ? 'Percentual' : 'Valor (USD)'}</label>}
-                    {a.mode === 'percentual'
-                      ? <input style={inp} type="number" step="0.01" min="0" value={a.percent} placeholder="%"
-                          onChange={e => update(i, 'percent', e.target.value)} />
-                      : <input style={inp} type="number" step="0.01" min="0" value={a.value_usd}
-                          onChange={e => update(i, 'value_usd', e.target.value)} />}
-                  </div>
-                  <button type="button" onClick={() => remove(i)}
-                    style={{ padding: 8, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
-                    <Ic n="trash" s={13} />
-                  </button>
-                </div>
-                {a.mode === 'percentual' && (
-                  <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
-                    {Number(a.percent || 0)}% de US$ {fmt(baseUsd)} = {a.kind === 'desconto' ? '−' : '+'} US$ {fmt(amountOf(a))}
-                  </div>
-                )}
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13, border: '1px dashed #e2e8f0', borderRadius: 10 }}>
+                Nenhum valor adicionado ainda.
               </div>
-            ))}
+            )}
+            {adjustments.map((a, i) => {
+              const signed = (a.kind === 'desconto' ? -1 : 1) * amountOf(a)
+              return (
+                <div key={i} style={{ border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input style={{ ...inp, flex: 1 }} value={a.description} onChange={e => update(i, 'description', e.target.value)}
+                      placeholder="Descrição (ex: Taxa de embarque, Desconto fidelidade…)" />
+                    <button type="button" onClick={() => remove(i)} title="Remover"
+                      onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}
+                      style={{ display: 'flex', padding: 6, borderRadius: 6, border: 'none', background: 'transparent', color: '#cbd5e1', cursor: 'pointer', flexShrink: 0, transition: 'color .12s' }}>
+                      <Ic n="trash" s={15} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ width: 150 }}>
+                      <Dropdown value={a.kind} clearable={false} searchable={false} options={KIND_OPTS}
+                        onChange={v => update(i, 'kind', v || 'acrescimo')} />
+                    </div>
+                    <div style={{ width: 158 }}>
+                      <Dropdown value={a.mode} clearable={false} searchable={false} options={MODE_OPTS}
+                        onChange={v => update(i, 'mode', v || 'valor')} />
+                    </div>
+                    <div style={{ position: 'relative', flex: 1, minWidth: 96 }}>
+                      <input style={{ ...inp, paddingRight: 34 }} type="number" step="0.01" min="0"
+                        value={a.mode === 'percentual' ? a.percent : a.value_usd}
+                        placeholder={a.mode === 'percentual' ? '0' : '0,00'}
+                        onChange={e => update(i, a.mode === 'percentual' ? 'percent' : 'value_usd', e.target.value)} />
+                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8', pointerEvents: 'none' }}>
+                        {a.mode === 'percentual' ? '%' : 'US$'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                      {a.mode === 'percentual' ? `${Number(a.percent || 0)}% de US$ ${fmt(baseUsd)}` : 'Valor fixo'}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: signed < 0 ? '#dc2626' : '#15803d' }}>
+                      {signed >= 0 ? '+' : '−'} US$ {fmt(Math.abs(signed))}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
             <button type="button" onClick={add}
-              style={{ alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-              + Adicionar valor
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', borderRadius: 8, border: '1.5px dashed #cbd5e1', background: '#fafbfc', color: '#1a2d4f', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Ic n="plus" s={14} /> Adicionar valor
             </button>
           </div>
         </div>
         <div className="mfoot" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 13, color: '#475569' }}>
             Efeito no total:{' '}
-            <strong style={{ color: net < 0 ? '#dc2626' : '#15803d' }}>
-              {net >= 0 ? '+' : '−'} {fmt(Math.abs(net))} USD
+            <strong style={{ color: net < 0 ? '#dc2626' : (net > 0 ? '#15803d' : '#1e293b') }}>
+              {net >= 0 ? '+' : '−'} US$ {fmt(Math.abs(net))}
             </strong>
           </span>
           <button className="btn btn-primary" onClick={onClose}>Concluir</button>
@@ -1053,7 +1061,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                   <div>
                     <label style={lbl}>Arredondar total</label>
                     <div style={{ width: 160 }}>
-                      <Dropdown value={Number(form.round_step) || 0} clearable={false}
+                      <Dropdown value={Number(form.round_step) || 0} clearable={false} searchable={false}
                         options={[
                           { value: 0, label: 'Não arredondar' },
                           { value: 10, label: 'Múltiplo de 10' },
@@ -1070,7 +1078,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                       <div>
                         <label style={lbl}>Moeda</label>
                         <div style={{ width: 140 }}>
-                          <Dropdown value={form.round_currency} clearable={false}
+                          <Dropdown value={form.round_currency} clearable={false} searchable={false}
                             options={[{ value: 'brl', label: 'em BRL (R$)' }, { value: 'usd', label: 'em USD (US$)' }]}
                             onChange={v => setForm(f => ({ ...f, round_currency: v || 'brl' }))} />
                         </div>
@@ -1078,7 +1086,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved }) {
                       <div>
                         <label style={lbl}>Direção</label>
                         <div style={{ width: 150 }}>
-                          <Dropdown value={form.round_mode} clearable={false}
+                          <Dropdown value={form.round_mode} clearable={false} searchable={false}
                             options={[{ value: 'nearest', label: 'Mais próximo' }, { value: 'up', label: 'Pra cima' }, { value: 'down', label: 'Pra baixo' }]}
                             onChange={v => setForm(f => ({ ...f, round_mode: v || 'nearest' }))} />
                         </div>

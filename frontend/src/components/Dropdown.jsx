@@ -17,7 +17,7 @@ import { Ic } from './Icon'
  *   placeholder — texto quando nada selecionado
  *   disabled
  */
-export default function Dropdown({ value, onChange, options, placeholder = '— Selecione —', disabled = false, clearable = true }) {
+export default function Dropdown({ value, onChange, options, placeholder = '— Selecione —', disabled = false, clearable = true, searchable = true }) {
   const [open,        setOpen]        = useState(false)
   const [query,       setQuery]       = useState('')
   const [highlighted, setHighlighted] = useState(-1)
@@ -35,7 +35,7 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
   }, [])
 
   const selected = options.find(o => o.value === value)
-  const filtered = options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+  const filtered = searchable ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : options
 
   const openDrop = () => {
     if (disabled) return
@@ -67,9 +67,11 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
       <div style={{ position: 'relative' }}>
         <input
           ref={inputRef}
-          value={open ? query : (selected?.label ?? '')}
-          onChange={e => { setQuery(e.target.value); if (!open) openDrop(); else setHighlighted(-1) }}
-          onFocus={openDrop}
+          readOnly={!searchable}
+          value={searchable && open ? query : (selected?.label ?? '')}
+          onChange={searchable ? (e => { setQuery(e.target.value); if (!open) openDrop(); else setHighlighted(-1) }) : undefined}
+          onMouseDown={!searchable ? (e => { e.preventDefault(); if (open) setOpen(false); else { openDrop(); inputRef.current?.focus() } }) : undefined}
+          onFocus={searchable ? openDrop : undefined}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={selected ? selected.label : placeholder}
@@ -77,8 +79,9 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
             width: '100%', boxSizing: 'border-box', padding: `8px ${clearable ? 56 : 30}px 8px 10px`,
             border: `1px solid ${open ? '#2e6db4' : '#e2e8f0'}`, borderRadius: 6, fontSize: 13,
             outline: 'none', fontFamily: 'inherit', color: disabled ? '#94a3b8' : '#1e293b',
-            background: disabled ? '#f8fafc' : '#fff', cursor: disabled ? 'not-allowed' : 'text',
+            background: disabled ? '#f8fafc' : '#fff', cursor: disabled ? 'not-allowed' : (searchable ? 'text' : 'pointer'),
             boxShadow: open ? '0 0 0 3px rgba(46,109,180,.1)' : 'none', transition: 'border-color .12s, box-shadow .12s',
+            userSelect: searchable ? 'auto' : 'none',
           }} />
         <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4 }}>
           {selected && !disabled && clearable && (
