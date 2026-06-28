@@ -109,7 +109,6 @@ export const contractsApi = {
   sendForSignature: (id) => api.post(`/contracts/${id}/send-for-signature/`),
   reopen:           (id) => api.post(`/contracts/${id}/reopen/`),
   uploadSigned:     (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/upload-signed/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
-  verifySigned:     (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/verify-signed/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
 }
 
 export const itinerariesApi = {

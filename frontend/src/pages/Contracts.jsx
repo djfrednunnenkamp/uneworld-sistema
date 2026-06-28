@@ -71,124 +71,17 @@ const COLS = [
   { key: 'stage',              label: 'Etapa',        align: 'center', render: (v, row) => <StageBadge stage={row.stage} /> },
 ]
 
-/* Normaliza o resultado da conferência (schema novo com data+signature, ou o
- * antigo plano {items, all_ok}). */
-function normVerif(v) {
-  if (!v) return null
-  const data = v.data || { items: v.items || [], all_ok: v.all_ok }
-  return { ocr: v.ocr, readable: v.readable, data, signature: v.signature || null }
-}
-
-const STATUS_META = {
-  confere:        { txt: 'confere',        color: '#16a34a', icon: '✓', chip: '#dcfce7' },
-  divergente:     { txt: 'não confere',    color: '#dc2626', icon: '✕', chip: '#fee2e2' },
-  nao_preenchido: { txt: 'não preenchido', color: '#d97706', icon: '○', chip: '#fef3c7' },
-  nao_localizado: { txt: 'não localizado', color: '#94a3b8', icon: '?', chip: '#f1f5f9' },
-}
-
-/* Caixas vermelhas/âmbar a desenhar sobre o documento (campos errados + áreas
- * de assinatura em branco). Página do backend é 0-based; o visualizador é 1-based. */
-function verifAnnotations(v) {
-  const nv = normVerif(v)
-  if (!nv) return []
-  const out = []
-  for (const it of nv.data.items || []) {
-    if (it.ok || !it.box) continue
-    const amber = it.status === 'nao_preenchido'
-    out.push({
-      page: (it.page ?? 0) + 1, box: it.box,
-      color: amber ? '#d97706' : '#dc2626',
-      label: it.label,
-      sub: amber ? 'Campo em branco no documento.' : `Não confere com o contrato. Esperado: ${it.value}`,
-    })
-  }
-  for (const f of nv.signature?.fields || []) {
-    if (f.signed || !f.box) continue
-    out.push({ page: (f.page ?? 0) + 1, box: f.box, color: '#dc2626', label: f.label, sub: 'Sem assinatura — área em branco.' })
-  }
-  return out
-}
-
-/* ── Conferência (checklist) do contrato assinado — reutilizada no upload e na
- * visualização. Mostra DUAS verificações: dados (campo a campo) e assinatura. */
-function SignedVerificationPanel({ v, compact = false }) {
-  const nv = normVerif(v)
-  if (!nv) return null
-  const items = nv.data.items || []
-  const sig = nv.signature
-  const Row = ({ icon, color, chip, label, status, title }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: compact ? '7px 11px' : '8px 12px', borderTop: '1px solid #f1f5f9', background: color === '#16a34a' ? '#fff' : '#fffdf8' }}>
-      <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: chip, color, fontSize: 11, fontWeight: 800 }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={title}>{label}</span>
-      <span style={{ fontSize: 11.5, fontWeight: 600, color, flexShrink: 0 }}>{status}</span>
-    </div>
-  )
-  return (
-    <div>
-      {nv.ocr && <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'flex-end' }}><span style={{ fontSize: 10.5, fontWeight: 600, color: '#b45309', background: '#fffbeb', padding: '2px 7px', borderRadius: 5 }}>leitura via OCR — pode ter imprecisão</span></div>}
-      {!nv.readable && (
-        <div style={{ padding: '10px 12px', marginBottom: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12, color: '#92400e' }}>
-          Quase nenhum texto foi lido do documento (foto de baixa qualidade ou sem OCR no servidor). A conferência pode não ser confiável — revise à mão.
-        </div>
-      )}
-
-      {/* 1) Verificação dos dados */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>1. Dados do contrato</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: nv.data.all_ok ? '#16a34a' : '#dc2626' }}>{nv.data.all_ok ? '✓ tudo confere' : '⚠ há divergências'}</span>
-      </div>
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-        {items.length === 0 && <p style={{ margin: 0, padding: '12px 14px', fontSize: 12, color: '#94a3b8' }}>Sem campos para conferir.</p>}
-        {items.map((it, i) => {
-          const m = STATUS_META[it.status] || STATUS_META.nao_localizado
-          return <div key={i} style={{ borderTop: i ? undefined : 'none' }}><Row icon={m.icon} color={m.color} chip={m.chip} label={it.label} status={m.txt} title={`${it.label}: ${it.value}`} /></div>
-        })}
-      </div>
-
-      {/* 2) Verificação da assinatura */}
-      {sig && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 6px', gap: 8 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>2. Assinatura</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: !sig.checked ? '#94a3b8' : sig.signed ? '#16a34a' : '#dc2626' }}>
-              {!sig.checked ? 'não avaliada' : sig.signed ? '✓ assinado' : '⚠ falta assinatura'}
-            </span>
-          </div>
-          {!sig.checked ? (
-            <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: 12, color: '#64748b' }}>
-              Não localizei as áreas de assinatura no documento — confira manualmente.
-            </div>
-          ) : (
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-              {sig.fields.map((f, i) => (
-                <div key={i} style={{ borderTop: i ? undefined : 'none' }}>
-                  <Row icon={f.signed ? '✓' : '✕'} color={f.signed ? '#16a34a' : '#dc2626'} chip={f.signed ? '#dcfce7' : '#fee2e2'} label={f.label} status={f.signed ? 'assinado' : 'em branco'} title={f.label} />
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-/* ── Popup de upload do contrato assinado (arrastar e soltar + conferência) ──
- * Ao anexar, o documento é enviado ao servidor, que lê o PDF (texto) ou faz OCR
- * de foto/scan e confere campo a campo contra os dados do contrato. O documento
- * é exibido ao lado para conferência visual. Se algo divergir, mostra uma flag
- * e o botão vira "Enviar mesmo assim". A assinatura é confirmada manualmente. */
+/* ── Popup de upload do contrato assinado (arrastar e soltar + pré-visualização) ──
+ * Mostra o documento ao lado para conferência VISUAL (humana) e pede confirmação
+ * manual de que está assinado. A conferência automática (OCR/IA) está pausada —
+ * ver backend contracts/verify.py para retomar no futuro. */
 function SignedUploadModal({ contractId, onClose, onUpload }) {
   const [file, setFile] = useState(null)
   const [drag, setDrag] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [result, setResult] = useState(null)   // { items, all_ok, ocr, readable } | { error, message }
   const [sigOk, setSigOk] = useState(false)
   const [objUrl, setObjUrl] = useState(null)
   const inputRef = useRef(null)
-  const seq = useRef(0)
-  const analyzedFile = useRef(null)
 
   // Enquanto o popup está aberto, impede o navegador de abrir o arquivo solto
   // fora da zona de drop (comportamento padrão que abria o PDF numa página nova).
@@ -199,7 +92,7 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
     return () => { window.removeEventListener('dragover', prevent); window.removeEventListener('drop', prevent) }
   }, [])
 
-  // URL local do arquivo selecionado, para o visualizador de pré-conferência.
+  // URL local do arquivo selecionado, para o visualizador.
   useEffect(() => {
     if (!file) { setObjUrl(null); return }
     const u = URL.createObjectURL(file)
@@ -207,24 +100,7 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
     return () => URL.revokeObjectURL(u)
   }, [file])
 
-  // Conferência no servidor (lê PDF/OCR e compara). Uma vez por arquivo.
-  const analyze = async (f) => {
-    const my = ++seq.current
-    setAnalyzing(true); setResult(null)
-    try {
-      const { data } = await contractsApi.verifySigned(contractId, f)
-      if (my === seq.current) setResult(data)
-    } catch (e) {
-      if (my === seq.current) setResult({ error: true, message: e?.response?.data?.error })
-    } finally {
-      if (my === seq.current) setAnalyzing(false)
-    }
-  }
-  useEffect(() => {
-    if (file && analyzedFile.current !== file) { analyzedFile.current = file; analyze(file) }
-  }, [file]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const pick = (f) => { setFile(f); setResult(null); setSigOk(false); analyzedFile.current = null }
+  const pick = (f) => { setFile(f); setSigOk(false) }
 
   const submit = async () => {
     if (!file) return
@@ -232,12 +108,7 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
     try { await onUpload(file) } finally { setBusy(false) }
   }
 
-  const hasResult = result && !result.error
-  const nv = hasResult ? normVerif(result) : null
-  const allGood = nv ? (nv.data.all_ok && (!nv.signature?.checked || nv.signature.signed)) : false
-  const annotations = hasResult ? verifAnnotations(result) : []
-  const canSend = !!file && !busy && !analyzing && sigOk
-  const sendLabel = busy ? 'Enviando…' : (hasResult && !allGood ? 'Enviar mesmo assim' : 'Enviar')
+  const canSend = !!file && !busy && sigOk
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -252,14 +123,14 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
           {/* Pré-visualização do documento enviado */}
           {file && (
             <div style={{ flex: 1.35, display: 'flex', minWidth: 0, minHeight: 0, borderRight: '1px solid #e2e8f0' }}>
-              {objUrl ? <SignedFileViewer url={objUrl} annotations={annotations} /> : <div style={{ flex: 1, background: '#3f4651' }} />}
+              {objUrl ? <SignedFileViewer url={objUrl} /> : <div style={{ flex: 1, background: '#3f4651' }} />}
             </div>
           )}
 
-          {/* Painel de upload + conferência */}
+          {/* Painel de upload */}
           <div style={{ width: file ? 412 : '100%', flexShrink: 0, padding: 20, overflowY: 'auto' }}>
             <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#64748b', lineHeight: 1.5 }}>
-              Envie o contrato que a pessoa assinou (PDF ou foto/imagem). O sistema confere os campos contra o contrato. Ao confirmar, ele vai para a aba <strong>Assinados</strong>.
+              Envie o contrato que a pessoa assinou (PDF ou foto/imagem). Confira o documento ao lado antes de anexar. Ao confirmar, ele vai para a aba <strong>Assinados</strong>.
             </p>
             <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pick(f) }} />
@@ -280,59 +151,37 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
             </div>
             {file && <p style={{ margin: '8px 2px 0', fontSize: 11.5, color: '#2e6db4', cursor: 'pointer' }} onClick={() => inputRef.current?.click()}>Trocar arquivo</p>}
 
-            {/* Conferência no servidor */}
-            {file && analyzing && (
-              <div style={{ marginTop: 16, padding: '14px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 16, height: 16, border: '2px solid #cbd5e1', borderTopColor: '#2e6db4', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: '#475569' }}>Lendo e conferindo o documento no servidor…</span>
-              </div>
-            )}
-
-            {file && result && !analyzing && (
-              <div style={{ marginTop: 16 }}>
-                {result.error ? (
-                  <div style={{ padding: '12px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12.5, color: '#b91c1c' }}>
-                    {result.message || 'Não foi possível conferir o documento automaticamente.'} Confira manualmente antes de anexar.
-                  </div>
-                ) : (
-                  <SignedVerificationPanel v={result} />
-                )}
-
-                {/* Confirmação manual da assinatura */}
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 14, padding: '11px 13px', background: '#f8fafc', border: `1px solid ${sigOk ? '#2e6db4' : '#e2e8f0'}`, borderRadius: 9, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={sigOk} onChange={e => setSigOk(e.target.checked)} style={{ marginTop: 1, accentColor: '#2e6db4', width: 15, height: 15, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12.5, color: '#334155', lineHeight: 1.45 }}>Confirmo que conferi o documento e que ele está <strong>assinado</strong>.</span>
-                </label>
-              </div>
+            {/* Confirmação manual da assinatura */}
+            {file && (
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 16, padding: '11px 13px', background: '#f8fafc', border: `1px solid ${sigOk ? '#2e6db4' : '#e2e8f0'}`, borderRadius: 9, cursor: 'pointer' }}>
+                <input type="checkbox" checked={sigOk} onChange={e => setSigOk(e.target.checked)} style={{ marginTop: 1, accentColor: '#2e6db4', width: 15, height: 15, flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5, color: '#334155', lineHeight: 1.45 }}>Confirmo que conferi o documento e que ele está <strong>assinado</strong>.</span>
+              </label>
             )}
           </div>
         </div>
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           <button onClick={onClose} disabled={busy} style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
-          <button onClick={submit} disabled={!canSend} title={!file ? 'Escolha um arquivo' : analyzing ? 'Aguarde a conferência' : !sigOk ? 'Confirme a assinatura' : ''}
-            style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: !canSend ? '#94a3b8' : (hasResult && !allGood ? '#b45309' : '#1a2d4f'), color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canSend ? 'default' : 'pointer', fontFamily: 'inherit' }}>{sendLabel}</button>
+          <button onClick={submit} disabled={!canSend} title={!file ? 'Escolha um arquivo' : !sigOk ? 'Confirme a assinatura' : ''}
+            style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: !canSend ? '#94a3b8' : '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canSend ? 'default' : 'pointer', fontFamily: 'inherit' }}>{busy ? 'Enviando…' : 'Enviar'}</button>
         </div>
       </div>
     </div>
   )
 }
 
-/* ── Popup de visualização do contrato assinado ──
- * Mostra o documento e, ao lado, a conferência automática gravada no upload
- * (aviso persistente de divergências, se houver). */
-function SignedFileModal({ url, verification, onClose }) {
+/* ── Popup de visualização do contrato assinado ── */
+function SignedFileModal({ url, onClose }) {
   // O backend devolve URL absoluta (ex.: http://localhost:8000/media/...) que
   // quebra quando o app é acessado de outro host. Usamos só o caminho relativo,
   // servido pela própria origem do app (proxy /media em dev, nginx em prod).
   let rel = url
   try { const u = new URL(url, window.location.origin); rel = u.pathname + u.search } catch { /* já é relativo */ }
-  const annotations = verifAnnotations(verification)
-  const divergences = annotations.length
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: verification ? 1080 : 920, height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.32)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 920, height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.32)' }}>
         <div style={{ padding: '13px 16px 13px 18px', background: '#fff', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eff6ff', color: '#2e6db4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic n="docs" s={18} /></div>
@@ -340,9 +189,6 @@ function SignedFileModal({ url, verification, onClose }) {
               <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Contrato assinado</p>
               <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>Documento enviado pelo cliente</p>
             </div>
-            {divergences > 0 && (
-              <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '3px 9px', borderRadius: 6 }}>⚠ {divergences} ponto{divergences > 1 ? 's' : ''} de atenção</span>
-            )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <a href={rel} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Abrir em nova aba</a>
@@ -352,15 +198,7 @@ function SignedFileModal({ url, verification, onClose }) {
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8' }}><Ic n="x" s={15} /></button>
           </div>
         </div>
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <SignedFileViewer url={rel} annotations={annotations} />
-          {verification && (
-            <div style={{ width: 380, flexShrink: 0, borderLeft: '1px solid #e2e8f0', padding: 18, overflowY: 'auto' }}>
-              <SignedVerificationPanel v={verification} compact />
-              <p style={{ margin: '12px 2px 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>Conferência feita automaticamente no momento do anexo. Serve de apoio — a validação final é sempre humana.</p>
-            </div>
-          )}
-        </div>
+        <SignedFileViewer url={rel} />
       </div>
     </div>
   )
@@ -431,7 +269,7 @@ export default function Contracts() {
   // Baixar/ver: "assinado" → arquivo assinado anexado; senão → pré-visualiza o PDF
   // gerado num popup (com opção de baixar lá dentro).
   const handleDocs = (row) => {
-    if (row.stage === 'assinado' && row.signed_file) { setSignedUrl({ url: row.signed_file, verification: row.signed_verification }); return }
+    if (row.stage === 'assinado' && row.signed_file) { setSignedUrl(row.signed_file); return }
     setPreviewId(row.id)
   }
 
@@ -552,7 +390,7 @@ export default function Contracts() {
         <SignedUploadModal contractId={uploadRow.id} onClose={() => setUploadRow(null)} onUpload={handleUploadFile} />
       )}
       {signedUrl && (
-        <SignedFileModal url={signedUrl.url} verification={signedUrl.verification} onClose={() => setSignedUrl(null)} />
+        <SignedFileModal url={signedUrl} onClose={() => setSignedUrl(null)} />
       )}
       {previewId && (
         <ContractPdfPreviewModal contractId={previewId} onClose={() => setPreviewId(null)} />
