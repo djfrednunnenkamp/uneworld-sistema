@@ -74,7 +74,7 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
           disabled={disabled}
           placeholder={selected ? selected.label : placeholder}
           style={{
-            width: '100%', boxSizing: 'border-box', padding: '8px 56px 8px 10px',
+            width: '100%', boxSizing: 'border-box', padding: `8px ${clearable ? 56 : 30}px 8px 10px`,
             border: `1px solid ${open ? '#2e6db4' : '#e2e8f0'}`, borderRadius: 6, fontSize: 13,
             outline: 'none', fontFamily: 'inherit', color: disabled ? '#94a3b8' : '#1e293b',
             background: disabled ? '#f8fafc' : '#fff', cursor: disabled ? 'not-allowed' : 'text',
