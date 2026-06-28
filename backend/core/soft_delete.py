@@ -2,7 +2,10 @@
 removido do banco. "Excluir" só marca is_deleted/deleted_at — o item vai
 pra aba "Excluídos" da área, de onde só um superusuário pode restaurar ou
 remover de vez (purge)."""
+from collections import Counter
+
 from django.conf import settings
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import action
@@ -46,5 +49,18 @@ class SoftDeleteViewSetMixin:
         model = self.queryset.model
         # Purge é o passo final da lixeira: exige que o item já esteja excluído.
         instance = get_object_or_404(model, pk=pk, is_deleted=True)
-        instance.delete()
+        try:
+            instance.delete()
+        except ProtectedError as e:
+            # Está amarrado a outros registros (on_delete=PROTECT) — ex.: agência
+            # ainda usada em contratos. Mensagem amigável em vez de erro 500.
+            by_model = Counter(type(obj) for obj in e.protected_objects)
+            partes = [
+                f'{n} {(m._meta.verbose_name if n == 1 else m._meta.verbose_name_plural)}'
+                for m, n in by_model.items()
+            ]
+            return Response(
+                {'error': 'Não é possível excluir definitivamente: ainda está em uso em '
+                          + ', '.join(partes) + '. Remova ou ajuste esses registros antes.'},
+                status=status.HTTP_409_CONFLICT)
         return Response(status=status.HTTP_204_NO_CONTENT)
