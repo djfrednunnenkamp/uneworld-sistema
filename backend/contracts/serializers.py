@@ -77,6 +77,7 @@ class ContractAdjustmentSerializer(serializers.ModelSerializer):
 class ContractListSerializer(serializers.ModelSerializer):
     agency_name      = serializers.SerializerMethodField()
     contratante_name = serializers.SerializerMethodField()
+    signed_file      = serializers.SerializerMethodField()
 
     class Meta:
         model  = Contract
@@ -90,6 +91,9 @@ class ContractListSerializer(serializers.ModelSerializer):
 
     def get_contratante_name(self, obj):
         return obj.contratante.full_name if obj.contratante_id else obj.payer_name
+
+    def get_signed_file(self, obj):
+        return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None
 
 
 class ContractSerializer(serializers.ModelSerializer):
@@ -107,7 +111,8 @@ class ContractSerializer(serializers.ModelSerializer):
 
     # Etapa e arquivo assinado mudam só pelas ações (send-for-signature/upload-signed).
     stage         = serializers.CharField(read_only=True)
-    signed_file   = serializers.FileField(read_only=True)
+    # URL autenticada (não a pública de /media) — null quando não há arquivo.
+    signed_file   = serializers.SerializerMethodField()
     # Calculados pelo backend — nunca digitados (ver _recalc_totals).
     total_usd     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_brl     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -161,6 +166,9 @@ class ContractSerializer(serializers.ModelSerializer):
             return None
         it = obj.itinerary
         return {'id': it.id, 'name': it.name, 'start_date': it.start_date, 'end_date': it.end_date}
+
+    def get_signed_file(self, obj):
+        return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None
 
     def get_passenger_list_data(self, obj):
         if not obj.passenger_list_id:

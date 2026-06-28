@@ -1,5 +1,15 @@
+import os
+import uuid
+
 from django.conf import settings
 from django.db import models
+
+
+def secure_signed_path(instance, filename):
+    """Nome de arquivo seguro (UUID) — descarta o nome original enviado pelo
+    usuário, mantendo só a extensão. Evita path traversal e colisões."""
+    ext = os.path.splitext(filename)[1].lower()
+    return f"contracts/signed/{uuid.uuid4().hex}{ext}"
 
 
 class Contract(models.Model):
@@ -72,7 +82,7 @@ class Contract(models.Model):
     # Etapa do ciclo de vida: em edição → enviado para assinatura → assinado.
     STAGE_CHOICES = [('em_edicao', 'Em edição'), ('enviado', 'Enviado para assinatura'), ('assinado', 'Assinado')]
     stage       = models.CharField('Etapa', max_length=12, choices=STAGE_CHOICES, default='em_edicao', db_index=True)
-    signed_file = models.FileField('Contrato assinado', upload_to='contracts/signed/', null=True, blank=True)
+    signed_file = models.FileField('Contrato assinado', upload_to=secure_signed_path, null=True, blank=True)
 
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,

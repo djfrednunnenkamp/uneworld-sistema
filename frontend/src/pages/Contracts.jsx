@@ -66,6 +66,15 @@ function SignedUploadModal({ onClose, onUpload }) {
   const [busy, setBusy] = useState(false)
   const inputRef = useRef(null)
 
+  // Enquanto o popup está aberto, impede o navegador de abrir o arquivo solto
+  // fora da zona de drop (comportamento padrão que abria o PDF numa página nova).
+  useEffect(() => {
+    const prevent = (e) => e.preventDefault()
+    window.addEventListener('dragover', prevent)
+    window.addEventListener('drop', prevent)
+    return () => { window.removeEventListener('dragover', prevent); window.removeEventListener('drop', prevent) }
+  }, [])
+
   const submit = async () => {
     if (!file) return
     setBusy(true)
@@ -84,7 +93,7 @@ function SignedUploadModal({ onClose, onUpload }) {
           <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#64748b', lineHeight: 1.5 }}>
             Envie aqui o contrato que a pessoa assinou (PDF ou foto/imagem). Ao anexar, o contrato vai para a aba <strong>Assinados</strong>.
           </p>
-          <input ref={inputRef} type="file" accept="application/pdf,image/*" style={{ display: 'none' }}
+          <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setFile(f) }} />
           <div onClick={() => inputRef.current?.click()}
             onDragOver={e => { e.preventDefault(); setDrag(true) }}
@@ -119,7 +128,6 @@ function SignedFileModal({ url, onClose }) {
   // servido pela própria origem do app (proxy /media em dev, nginx em prod).
   let rel = url
   try { const u = new URL(url, window.location.origin); rel = u.pathname + u.search } catch { /* já é relativo */ }
-  const isPdf = /\.pdf(\?|$)/i.test(rel)
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
@@ -132,10 +140,8 @@ function SignedFileModal({ url, onClose }) {
             <button onClick={onClose} style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}><Ic n="x" s={15} /></button>
           </div>
         </div>
-        <div style={{ flex: 1, background: '#f1f5f9', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {isPdf
-            ? <iframe title="Contrato assinado" src={rel} style={{ width: '100%', height: '100%', border: 'none' }} />
-            : <img src={rel} alt="Contrato assinado" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
+        <div style={{ flex: 1, background: '#f1f5f9', overflow: 'auto' }}>
+          <iframe title="Contrato assinado" src={rel} style={{ width: '100%', height: '100%', border: 'none' }} />
         </div>
       </div>
     </div>
