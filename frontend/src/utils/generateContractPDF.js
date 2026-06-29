@@ -188,49 +188,49 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     : `<div class="logo"></div>`
 
   const css = `
-    .ctpdf { --blue-dark:#192D58; --blue:#0B4F9F; --blue-light:#0E9EDD; --line:#C9D8EE; --soft:#F6F9FD; --text:#0D1B35; color:var(--text); font-family:Arial,Helvetica,sans-serif; font-size:11px; }
+    .ctpdf { --blue-dark:#192D58; --blue:#0B4F9F; --blue-light:#0E9EDD; --line:#C9D8EE; --soft:#F6F9FD; --text:#0D1B35; color:var(--text); font-family:Arial,Helvetica,sans-serif; font-size:9.5px; }
     .ctpdf * { box-sizing:border-box; }
-    .ctpdf .page { width:184mm; background:white; padding:0; position:relative; }
-    .ctpdf .header { display:grid; grid-template-columns:170px 1fr 165px; gap:22px; align-items:start; padding-bottom:14px; border-bottom:1px solid var(--line); }
-    .ctpdf .logo { width:155px; display:block; }
-    .ctpdf .title { border-left:1px solid var(--line); padding-left:24px; }
-    .ctpdf .title h1 { margin:0; color:var(--blue-dark); font-size:26px; line-height:1.15; font-weight:800; text-transform:uppercase; }
-    .ctpdf .title p { margin:8px 0 0; color:var(--blue); font-size:11px; font-weight:700; text-transform:uppercase; }
-    .ctpdf .meta { color:var(--blue-dark); font-weight:800; text-transform:uppercase; padding-top:12px; }
-    .ctpdf .meta .label { font-size:12px; margin-bottom:5px; }
-    .ctpdf .meta .value { font-size:18px; margin-bottom:12px; }
-    .ctpdf .signature-card { width:100%; padding:10px 12px; border-radius:8px; background:linear-gradient(135deg,#0B4F9F,#0E9EDD); color:white; font-size:11px; font-weight:700; text-transform:uppercase; box-shadow:0 4px 14px rgba(11,79,159,.25); }
-    .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:16px; margin-top:14px; }
-    .ctpdf .grid-mid { display:grid; grid-template-columns:230px 1fr; gap:16px; margin-top:12px; }
-    .ctpdf .section { border:1px solid var(--line); border-radius:9px; padding:12px 11px; background:linear-gradient(180deg,#fff,#fbfdff); }
-    .ctpdf .section-title { display:flex; align-items:center; gap:8px; color:var(--blue-dark); font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; }
+    .ctpdf .page { width:188mm; background:white; padding:0; position:relative; }
+    .ctpdf .header { display:grid; grid-template-columns:160px 1fr 160px; gap:18px; align-items:start; padding-bottom:8px; border-bottom:1px solid var(--line); }
+    .ctpdf .logo { width:140px; display:block; }
+    .ctpdf .title { border-left:1px solid var(--line); padding-left:18px; }
+    .ctpdf .title h1 { margin:0; color:var(--blue-dark); font-size:20px; line-height:1.12; font-weight:800; text-transform:uppercase; }
+    .ctpdf .title p { margin:6px 0 0; color:var(--blue); font-size:9.5px; font-weight:700; text-transform:uppercase; }
+    .ctpdf .meta { color:var(--blue-dark); font-weight:800; text-transform:uppercase; padding-top:6px; }
+    .ctpdf .meta .label { font-size:10px; margin-bottom:3px; }
+    .ctpdf .meta .value { font-size:14px; margin-bottom:7px; }
+    .ctpdf .signature-card { width:100%; padding:7px 10px; border-radius:7px; background:linear-gradient(135deg,#0B4F9F,#0E9EDD); color:white; font-size:10px; font-weight:700; text-transform:uppercase; box-shadow:0 3px 10px rgba(11,79,159,.25); }
+    .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:12px; margin-top:9px; }
+    .ctpdf .grid-mid { display:grid; grid-template-columns:230px 1fr; gap:12px; margin-top:8px; }
+    .ctpdf .section { border:1px solid var(--line); border-radius:8px; padding:9px 9px; background:linear-gradient(180deg,#fff,#fbfdff); }
+    .ctpdf .section-title { display:flex; align-items:center; gap:7px; color:var(--blue-dark); font-weight:800; font-size:11.5px; text-transform:uppercase; margin-bottom:8px; }
     .ctpdf .section-title .ttl { display:block; }
-    .ctpdf .icon { position:relative; min-width:32px; width:32px; height:32px; border-radius:50%; background:var(--blue); }
-    .ctpdf .icon img { position:absolute; top:7px; left:7px; width:18px; height:18px; display:block; }
-    .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-    .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:14px; }
-    .ctpdf h3 { margin:0 0 11px; color:var(--blue); font-size:11px; text-transform:uppercase; }
-    .ctpdf .field { margin-bottom:9px; line-height:1.35; }
+    .ctpdf .icon { position:relative; min-width:27px; width:27px; height:27px; border-radius:50%; background:var(--blue); }
+    .ctpdf .icon img { position:absolute; top:6px; left:6px; width:15px; height:15px; display:block; }
+    .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:12px; }
+    .ctpdf h3 { margin:0 0 7px; color:var(--blue); font-size:10px; text-transform:uppercase; }
+    .ctpdf .field { margin-bottom:5px; line-height:1.25; }
     .ctpdf .field strong { color:var(--blue-dark); margin-right:4px; }
-    .ctpdf .travel-row { display:grid; grid-template-columns:24px 1fr; gap:8px; padding:7px 0; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .travel-row { display:grid; grid-template-columns:22px 1fr; gap:7px; padding:4.5px 0; border-bottom:1px solid #D8E3F3; }
     .ctpdf .travel-row:last-child { border-bottom:0; }
     .ctpdf .mini-icon { text-align:center; padding-top:1px; }
-    .ctpdf .mini-img { width:15px; height:15px; display:inline-block; vertical-align:middle; }
-    .ctpdf .client, .ctpdf .passengers, .ctpdf .accommodations { margin-top:12px; }
-    .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:12px; border-top:1px solid #D8E3F3; padding-top:9px; }
-    .ctpdf .client-grid .field { border-right:1px solid #D8E3F3; min-height:28px; padding-right:8px; margin:0; }
+    .ctpdf .mini-img { width:14px; height:14px; display:inline-block; vertical-align:middle; }
+    .ctpdf .client, .ctpdf .passengers, .ctpdf .accommodations { margin-top:8px; }
+    .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:10px; border-top:1px solid #D8E3F3; padding-top:7px; }
+    .ctpdf .client-grid .field { border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
-    .ctpdf table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9.5px; background:white; }
-    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:white; text-transform:uppercase; padding:5px; font-size:8.5px; border-right:1px solid rgba(255,255,255,.25); }
-    .ctpdf td { padding:4px 5px; text-align:center; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
+    .ctpdf table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9px; background:white; }
+    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:white; text-transform:uppercase; padding:4px; font-size:8.5px; border-right:1px solid rgba(255,255,255,.25); }
+    .ctpdf td { padding:3px 5px; text-align:center; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
     .ctpdf td:nth-child(2), .ctpdf .accommodations td:first-child { text-align:left; }
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
-    .ctpdf .values-list { display:grid; gap:11px; padding-top:6px; }
-    .ctpdf .value-row { display:grid; grid-template-columns:25px 1fr auto; gap:8px; align-items:start; padding-bottom:7px; border-bottom:1px solid #D8E3F3; }
-    .ctpdf .value-row .mini-icon { line-height:18px; padding-top:0; }
-    .ctpdf .value-row span:nth-child(2), .ctpdf .value-row strong { line-height:18px; }
-    .ctpdf .value-row.total { color:var(--blue); font-size:15px; font-weight:800; }
+    .ctpdf .values-list { display:grid; gap:7px; padding-top:4px; }
+    .ctpdf .value-row { display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:start; padding-bottom:5px; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .value-row .mini-icon { line-height:16px; padding-top:0; }
+    .ctpdf .value-row span:nth-child(2), .ctpdf .value-row strong { line-height:16px; }
+    .ctpdf .value-row.total { color:var(--blue); font-size:13.5px; font-weight:800; }
   `
 
   return `<style>${css}</style>
@@ -375,7 +375,7 @@ export async function generateContractPDF(contract, opts = {}) {
   const ph  = doc.internal.pageSize.getHeight()
 
   // ── 1ª página: layout Uneworld, capturado bloco a bloco ──
-  const marginX = 13, marginTop = 14, marginBottom = 12, blockGap = 3.5
+  const marginX = 11, marginTop = 10, marginBottom = 9, blockGap = 2.5
   const contentW = pw - marginX * 2
   const icons  = await prepareIcons()
   const html   = buildFirstPageHTML(contract, company, logoDataUrl, icons)
