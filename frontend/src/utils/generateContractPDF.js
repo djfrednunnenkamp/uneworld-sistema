@@ -129,8 +129,7 @@ export async function generateContractPDF(contract, opts = {}) {
   const ag = contract.agency_data || {}
   y = kvTable(doc, y, [
     ['Empresa', ag.name || '', 'CNPJ', ag.cnpj || ''],
-    ['Telefone', ag.phone || '', 'Celular', ag.mobile || ''],
-    ['E-mail', ag.email || '', 'Responsável', ag.responsible || ''],
+    ['Telefone', ag.phone || '', 'E-mail', ag.email || ''],
     ['Endereço', { content: ag.address || '', colSpan: 3 }],
   ])
 
