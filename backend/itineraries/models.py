@@ -123,3 +123,23 @@ class ItineraryServiceLine(models.Model):
 
     def __str__(self):
         return f'{self.supplier} ({self.percentage}%)'
+
+
+class ItineraryAccommodationLine(models.Model):
+    """Tabela de preços de acomodação do Roteiro — valor por pessoa e taxas de
+    cada tipo de acomodação, na moeda base do roteiro. São puxados automaticamente
+    para o contrato quando o roteiro é selecionado."""
+    itinerary          = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='accommodation_lines')
+    accommodation_type = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True,
+                                            on_delete=models.SET_NULL, related_name='+', verbose_name='Tipo de acomodação')
+    value_per_person   = models.DecimalField('Valor por pessoa', max_digits=12, decimal_places=2, default=0)
+    taxes              = models.DecimalField('Taxas', max_digits=12, decimal_places=2, default=0)
+    order              = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Linha de acomodação'
+        verbose_name_plural = 'Linhas de acomodação'
+
+    def __str__(self):
+        return f'{self.accommodation_type} ({self.value_per_person})'

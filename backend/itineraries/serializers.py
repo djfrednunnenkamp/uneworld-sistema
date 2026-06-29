@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Itinerary, ItineraryServiceLine
+from .models import Itinerary, ItineraryServiceLine, ItineraryAccommodationLine
 
 
 def _country_brief(c):
@@ -23,13 +23,22 @@ class ItineraryServiceLineSerializer(serializers.ModelSerializer):
         return [{'id': s.id, 'name': s.name} for s in obj.services.all()]
 
 
+class ItineraryAccommodationLineSerializer(serializers.ModelSerializer):
+    accommodation_type_name = serializers.CharField(source='accommodation_type.name', read_only=True, default=None)
+
+    class Meta:
+        model  = ItineraryAccommodationLine
+        fields = ['id', 'accommodation_type', 'accommodation_type_name', 'value_per_person', 'taxes', 'order']
+
+
 class ItinerarySerializer(serializers.ModelSerializer):
     countries_data    = serializers.SerializerMethodField()
     destinations_data = serializers.SerializerMethodField()
     category_name  = serializers.CharField(source='category.name', read_only=True, default=None)
     continent_name = serializers.CharField(source='continent.name', read_only=True, default=None)
     holiday_name   = serializers.CharField(source='holiday.name', read_only=True, default=None)
-    service_lines  = ItineraryServiceLineSerializer(many=True, required=False)
+    service_lines       = ItineraryServiceLineSerializer(many=True, required=False)
+    accommodation_lines = ItineraryAccommodationLineSerializer(many=True, required=False)
 
     class Meta:
         model  = Itinerary
@@ -40,7 +49,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'holiday', 'holiday_name', 'is_featured', 'is_active', 'is_full', 'is_listed',
                   'has_notice', 'notice_color', 'notice_message',
                   'day_count_correction', 'cash_discount_percent', 'base_currency', 'additional_spread_percent',
-                  'service_lines',
+                  'service_lines', 'accommodation_lines',
                   'about_destination', 'day_by_day', 'package_includes', 'package_excludes',
                   'insurance_info', 'pricing_info', 'payment_info', 'terms_info',
                   'hotels_reserved', 'transport_info', 'documentation_info', 'extras',
@@ -64,17 +73,27 @@ class ItinerarySerializer(serializers.ModelSerializer):
             obj = ItineraryServiceLine.objects.create(itinerary=itinerary, order=i, **line)
             obj.services.set(services)
 
+    def _save_accommodation_lines(self, itinerary, lines):
+        itinerary.accommodation_lines.all().delete()
+        for i, line in enumerate(lines):
+            ItineraryAccommodationLine.objects.create(itinerary=itinerary, order=i, **line)
+
     def create(self, validated_data):
         service_lines = validated_data.pop('service_lines', [])
+        accommodation_lines = validated_data.pop('accommodation_lines', [])
         itinerary = super().create(validated_data)
         self._save_service_lines(itinerary, service_lines)
+        self._save_accommodation_lines(itinerary, accommodation_lines)
         return itinerary
 
     def update(self, instance, validated_data):
         service_lines = validated_data.pop('service_lines', None)
+        accommodation_lines = validated_data.pop('accommodation_lines', None)
         instance = super().update(instance, validated_data)
         if service_lines is not None:
             self._save_service_lines(instance, service_lines)
+        if accommodation_lines is not None:
+            self._save_accommodation_lines(instance, accommodation_lines)
         return instance
 
 

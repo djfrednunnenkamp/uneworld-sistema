@@ -10,7 +10,8 @@ from .serializers import ItinerarySerializer, ItineraryListSerializer
 
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = Itinerary.objects.select_related('category', 'continent', 'holiday').prefetch_related(
-        'countries', 'destinations', 'service_lines__supplier', 'service_lines__services')
+        'countries', 'destinations', 'service_lines__supplier', 'service_lines__services',
+        'accommodation_lines__accommodation_type')
     pagination_class = StandardResultsPagination
     filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
     search_fields    = ['name', 'slug']

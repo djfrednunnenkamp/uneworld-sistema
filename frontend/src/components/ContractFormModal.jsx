@@ -395,6 +395,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [showPayerModal, setShowPayerModal] = useState(false)
   const [departureAirportObj, setDepartureAirportObj] = useState(null)
   const [accomLines, setAccomLines] = useState([])
+  // Tabela de preços de acomodação puxada do roteiro selecionado
+  // (accommodation_type id -> { value_per_person_usd, taxes_usd }).
+  const itinAccomPricingRef = useRef({})
   const [adjustments, setAdjustments] = useState([]) // [{ description, kind, value_usd }]
   const [showAdjustments, setShowAdjustments] = useState(false)
   const [showRounding, setShowRounding] = useState(false)
@@ -630,7 +633,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     setForm(f => ({ ...f, base_currency: cur, ...(rate != null ? { exchange_rate: rate } : {}) }))
   }
 
-  const handleSelectItinerary = (ids) => {
+  const handleSelectItinerary = async (ids) => {
     const id = ids[0] ?? null
     const it = id ? itineraries.find(x => x.id === id) : null
     if (it) {
@@ -646,8 +649,28 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         base_currency: cur,
         ...(rate != null ? { exchange_rate: rate } : {}),
       }))
+      // Puxa os valores de acomodação cadastrados no roteiro (valor por pessoa e
+      // taxas, na moeda base do roteiro) e aplica nos tipos já presentes.
+      try {
+        const r = await itinerariesApi.get(id)
+        const pricing = {}
+        ;(r.data?.accommodation_lines || []).forEach(l => {
+          if (l.accommodation_type != null) {
+            pricing[l.accommodation_type] = {
+              value_per_person_usd: Number(l.value_per_person) || 0,
+              taxes_usd: Number(l.taxes) || 0,
+            }
+          }
+        })
+        itinAccomPricingRef.current = pricing
+        setAccomLines(prev => prev.map(line => {
+          const p = pricing[line.accommodation_type]
+          return p ? { ...line, value_per_person_usd: p.value_per_person_usd, taxes_usd: p.taxes_usd } : line
+        }))
+      } catch { /* mantém os valores atuais se a busca falhar */ }
     } else {
       // Remover o roteiro: limpa tudo que ele havia preenchido (e o aeroporto).
+      itinAccomPricingRef.current = {}
       setDepartureAirportObj(null)
       setForm(f => ({
         ...f, itinerary: null,
@@ -667,8 +690,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       Object.entries(counts).forEach(([typeIdStr, qty]) => {
         const typeId = Number(typeIdStr)
         const existing = prev.find(l => l.accommodation_type === typeId)
+        const priced = itinAccomPricingRef.current[typeId]
         next.push(existing ? { ...existing, quantity: qty }
-                           : { accommodation_type: typeId, value_per_person_usd: 0, taxes_usd: 0, quantity: qty })
+                           : {
+                               accommodation_type: typeId,
+                               value_per_person_usd: priced?.value_per_person_usd || 0,
+                               taxes_usd: priced?.taxes_usd || 0,
+                               quantity: qty,
+                             })
       })
       // mantém linhas adicionadas manualmente que não têm tipo vinculado a quarto
       prev.forEach(l => { if (!l.accommodation_type) next.push(l) })

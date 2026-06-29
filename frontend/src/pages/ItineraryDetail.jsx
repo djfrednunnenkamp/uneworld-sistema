@@ -167,6 +167,7 @@ export default function ItineraryDetail() {
   const [holidayOpts, setHolidayOpts] = useState([])
   const [supplierOpts, setSupplierOpts] = useState([])
   const [serviceOpts, setServiceOpts] = useState([])
+  const [accommodationOpts, setAccommodationOpts] = useState([])
   const [templatesByKind, setTemplatesByKind] = useState({})
 
   const load = useCallback(() => {
@@ -185,6 +186,7 @@ export default function ItineraryDetail() {
     configApi.holidays().then(r => setHolidayOpts(r.data)).catch(() => {})
     listsApi.suppliers().then(r => setSupplierOpts(r.data.results ?? r.data)).catch(() => {})
     configApi.services().then(r => setServiceOpts(r.data)).catch(() => {})
+    configApi.accommodations().then(r => setAccommodationOpts(r.data.results ?? r.data)).catch(() => {})
     ;['seguro', 'pagamento', 'condicoes', 'documentacao'].forEach(k => {
       configApi.itineraryTemplates(k).then(r => setTemplatesByKind(prev => ({ ...prev, [k]: r.data }))).catch(() => {})
     })
@@ -208,6 +210,9 @@ export default function ItineraryDetail() {
         base_currency: data.base_currency, additional_spread_percent: data.additional_spread_percent || 0,
         service_lines: (data.service_lines || []).map(l => ({
           supplier: l.supplier, services: (l.services_data || []).map(s => s.id), percentage: l.percentage || 0,
+        })),
+        accommodation_lines: (data.accommodation_lines || []).map(l => ({
+          accommodation_type: l.accommodation_type, value_per_person: l.value_per_person || 0, taxes: l.taxes || 0,
         })),
         about_destination: data.about_destination, day_by_day: data.day_by_day,
         package_includes: data.package_includes, package_excludes: data.package_excludes,
@@ -244,6 +249,13 @@ export default function ItineraryDetail() {
   const addServiceLine = () => setData(d => ({ ...d, service_lines: [...(d.service_lines || []), { supplier: null, services_data: [], percentage: 0 }] }))
   const updateServiceLine = (idx, patch) => setData(d => ({ ...d, service_lines: d.service_lines.map((l, i) => i === idx ? { ...l, ...patch } : l) }))
   const removeServiceLine = (idx) => setData(d => ({ ...d, service_lines: d.service_lines.filter((_, i) => i !== idx) }))
+
+  const accommodationOptions = accommodationOpts.map(a => ({ value: a.id, label: a.name }))
+  const currencyLabel = (CURRENCY_OPTS.find(c => c.value === data.base_currency)?.value) || data.base_currency || ''
+  const accomLines = data.accommodation_lines || []
+  const addAccomLine = () => setData(d => ({ ...d, accommodation_lines: [...(d.accommodation_lines || []), { accommodation_type: null, value_per_person: 0, taxes: 0 }] }))
+  const updateAccomLine = (idx, patch) => setData(d => ({ ...d, accommodation_lines: d.accommodation_lines.map((l, i) => i === idx ? { ...l, ...patch } : l) }))
+  const removeAccomLine = (idx) => setData(d => ({ ...d, accommodation_lines: d.accommodation_lines.filter((_, i) => i !== idx) }))
 
   const regenerateShortDescription = () => {
     const names = data.destinations_data.map(d => d.name)
@@ -507,6 +519,53 @@ export default function ItineraryDetail() {
               <button type="button" onClick={addServiceLine}
                 style={{ alignSelf: 'flex-start', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 <Ic n="plus" s={13} /> Adicionar linha
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'info' && (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,.04)', marginTop: 20 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }}>
+            Valores das acomodações
+          </p>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px' }}>
+            Valor por pessoa e taxas de cada tipo de acomodação, na moeda base do roteiro{currencyLabel ? ` (${currencyLabel})` : ''}. Puxados automaticamente no contrato ao escolher este roteiro.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+              <span style={{ width: 32, flexShrink: 0 }}>#</span>
+              <span style={{ flex: 2 }}>Tipo de acomodação</span>
+              <span style={{ flex: 1 }}>Valor por pessoa{currencyLabel ? ` (${currencyLabel})` : ''}</span>
+              <span style={{ flex: 1 }}>Taxas{currencyLabel ? ` (${currencyLabel})` : ''}</span>
+              <span style={{ width: 32, flexShrink: 0 }} />
+            </div>
+            {accomLines.map((line, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ width: 32, flexShrink: 0, paddingTop: 8, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>{idx + 1}</div>
+                <div style={{ flex: 2 }}>
+                  <Dropdown value={line.accommodation_type} options={accommodationOptions} disabled={!canEdit}
+                    onChange={v => updateAccomLine(idx, { accommodation_type: v })} placeholder="Selecione a acomodação" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <input style={inp} type="number" step="0.01" value={line.value_per_person} disabled={!canEdit}
+                    onChange={e => updateAccomLine(idx, { value_per_person: e.target.value })} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <input style={inp} type="number" step="0.01" value={line.taxes} disabled={!canEdit}
+                    onChange={e => updateAccomLine(idx, { taxes: e.target.value })} />
+                </div>
+                <button type="button" onClick={() => removeAccomLine(idx)} disabled={!canEdit}
+                  style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: canEdit ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ic n="x" s={13} />
+                </button>
+              </div>
+            ))}
+            {canEdit && (
+              <button type="button" onClick={addAccomLine}
+                style={{ alignSelf: 'flex-start', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="plus" s={13} /> Adicionar acomodação
               </button>
             )}
           </div>
