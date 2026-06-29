@@ -50,6 +50,23 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
 
+    @action(detail=False, methods=['post'], url_path='preview')
+    def preview(self, request):
+        """Gera a representação do contrato a partir do payload SEM persistir —
+        usado pra pré-visualizar o PDF com as edições ainda não salvas. Salva e
+        desfaz dentro de uma transação, reaproveitando exatamente a mesma lógica
+        do serializer (totais, *_data, cláusulas padrão) para que a prévia fique
+        idêntica ao documento final."""
+        from django.db import transaction
+        ser = ContractSerializer(data=request.data, context={'request': request})
+        ser.is_valid(raise_exception=True)
+        data = None
+        with transaction.atomic():
+            instance = ser.save()
+            data = ContractSerializer(instance, context={'request': request}).data
+            transaction.set_rollback(True)
+        return Response(data)
+
     @action(detail=False, methods=['get'], url_path='sellers')
     def sellers(self, request):
         """Usuários selecionáveis como vendedor do contrato (ativos, não excluídos).

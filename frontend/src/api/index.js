@@ -100,6 +100,7 @@ export const agenciesApi = {
 export const contractsApi = {
   list:    (params) => api.get('/contracts/', { params }),
   sellers: ()       => api.get('/contracts/sellers/'),
+  preview: (data)   => api.post('/contracts/preview/', data),
   get:     (id)     => api.get(`/contracts/${id}/`),
   create:  (data)   => api.post('/contracts/', data),
   update:  (id, d)  => api.put(`/contracts/${id}/`, d),

@@ -7,24 +7,32 @@ import { Ic } from './Icon'
 /* Pré-visualização do contrato (PDF gerado) num popup elegante — mesma cara do
  * documento final. Tem "Baixar" e, opcionalmente, uma ação extra no rodapé (ex.:
  * "Enviar para assinatura"). Editar o contrato continua possível por trás. */
-export default function ContractPdfPreviewModal({ contractId, title = 'Pré-visualização do contrato', onClose, footerExtra }) {
+export default function ContractPdfPreviewModal({ contractId, previewPayload = null, overrides = null, title = 'Pré-visualização do contrato', onClose, footerExtra }) {
   const [blobUrl, setBlobUrl] = useState(null)
   const [reservation, setReservation] = useState('')
   const [status, setStatus] = useState('loading')   // loading | ready | error
 
   useEffect(() => {
     let url, cancelled = false
-    contractsApi.get(contractId)
-      .then(async r => {
+    // Com `previewPayload` (edição em andamento) a prévia é gerada a partir do
+    // payload ainda não salvo — o backend monta a representação completa (totais,
+    // *_data, cláusulas) numa transação que é desfeita. Sem ele, busca o contrato
+    // salvo. Os `overrides` recolocam o nº de reserva/data reais (o save da prévia
+    // gera um número provisório que é descartado no rollback).
+    const fetchData = previewPayload
+      ? contractsApi.preview(previewPayload).then(r => ({ ...r.data, ...(overrides || {}) }))
+      : contractsApi.get(contractId).then(r => r.data)
+    fetchData
+      .then(async data => {
         if (cancelled) return
-        setReservation(r.data.reservation_number || '')
-        url = await generateContractPDF(r.data, { output: 'bloburl' })
+        setReservation(data.reservation_number || '')
+        url = await generateContractPDF(data, { output: 'bloburl' })
         if (cancelled) { URL.revokeObjectURL(url); return }
         setBlobUrl(url); setStatus('ready')
       })
       .catch(() => { if (!cancelled) setStatus('error') })
     return () => { cancelled = true; if (url) URL.revokeObjectURL(url) }
-  }, [contractId])
+  }, [contractId, previewPayload, overrides])
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}

@@ -389,6 +389,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // (separado para criar/editar). Trocar aqui salva o novo padrão no perfil.
   const [layout, setLayout] = useState(isEdit ? contractEditLayout : contractCreateLayout)
   const [showPreview, setShowPreview] = useState(false)
+  const [previewData, setPreviewData] = useState(null)
   const [loadedStage, setLoadedStage] = useState('em_edicao')
   const changeLayout = (v) => { setLayout(v); setContractLayout(isEdit, v) }
   const [step, setStep] = useState(0)
@@ -1092,7 +1093,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {isEdit && (
-              <button type="button" onClick={() => setShowPreview(true)}
+              <button type="button" onClick={() => { setPreviewData({ payload: buildPayload(), overrides: { reservation_number: reservationNumber, contract_date: contractDate || null } }); setShowPreview(true) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 <Ic n="eye" s={13} /> Ver documento
               </button>
@@ -1702,6 +1703,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       {showPreview && (
         <ContractPdfPreviewModal
           contractId={contractId}
+          previewPayload={previewData?.payload}
+          overrides={previewData?.overrides}
           onClose={() => setShowPreview(false)}
           footerExtra={(loadedStage === 'em_edicao' && onPublish) ? (
             <button type="button" onClick={() => onPublish(contractId)}
