@@ -127,10 +127,15 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         if scope in scope_perms and not scope_perms[scope]:
             return qs.none()
 
-        # Sem nenhuma permissão de log e sem pedir um escopo específico (lista,
-        # passageiro, agência…): em vez de não mostrar nada, mostra só as
-        # próprias ações da pessoa — todo usuário pode ver seu próprio histórico.
-        if not has_any_area and not (list_id or passenger_id or agency_id or contract_id or scope):
+        # Sem NENHUMA permissão de log (e sem acesso global): a pessoa só pode
+        # ver as PRÓPRIAS ações — nunca o log de terceiros. Isso precisa valer
+        # MESMO quando ela passa list_id/passenger_id/agency_id/contract_id/
+        # scope na URL: sem essa trava, bastava forjar um desses parâmetros pra
+        # furar a permissão e cair no fluxo abaixo (que, sem área permitida,
+        # não filtra nada) e acabar enxergando TODOS os logs do sistema.
+        # has_any_area já embute has_global (liga todas as áreas), então esse
+        # return nunca atinge quem tem acesso amplo ou de alguma área.
+        if not has_any_area:
             return qs.filter(user=current_user)
 
         # Se não tem acesso global, filtra apenas as áreas com permissão
