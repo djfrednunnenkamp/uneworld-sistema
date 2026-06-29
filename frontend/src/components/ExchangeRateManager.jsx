@@ -130,6 +130,9 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
                       <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>
                     )}
                   </div>
+                  {testResult?.output && (
+                    <pre style={{ margin:'6px 0 0', padding:'8px 10px', background:'#0f172a', color:'#cbd5e1', borderRadius:6, fontSize:11.5, lineHeight:1.5, maxHeight:120, overflow:'auto', whiteSpace:'pre-wrap', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{testResult.output}</pre>
+                  )}
                   <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0', lineHeight:1.5 }}>
                     Roda num <strong>sandbox seguro</strong> (sem acesso a arquivos/sistema, com tempo limite). Tem <strong>precedência</strong> sobre o link. Defina a variável <code>result</code> com a taxa.
                   </p>

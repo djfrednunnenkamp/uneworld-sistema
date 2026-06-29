@@ -88,7 +88,7 @@ def _market_rate_for(row, global_rates):
     próprio; senão a API global."""
     if (row.script or '').strip():
         from .exchange_runner import run_script
-        ok, val = run_script(row.script)
+        ok, val, _out = run_script(row.script)
         return val.quantize(Decimal('0.0001')) if ok else None
     if row.source_url:
         return fetch_from_url(row.source_url)

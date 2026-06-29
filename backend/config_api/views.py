@@ -943,10 +943,10 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
         if not request.user.is_superuser:
             return Response({'error': 'Apenas superusuário pode testar scripts.'}, status=403)
         from .exchange_runner import run_script
-        ok, val = run_script(request.data.get('script') or '')
+        ok, val, out = run_script(request.data.get('script') or '')
         if ok:
-            return Response({'rate': str(val)})
-        return Response({'error': val})
+            return Response({'rate': str(val), 'output': out})
+        return Response({'error': val, 'output': out})
 
     @action(detail=False, methods=['get', 'post'], url_path='default-time')
     def default_time(self, request):

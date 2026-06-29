@@ -58,6 +58,7 @@ def _build_env():
     from RestrictedPython import compile_restricted, safe_builtins, safe_globals  # noqa: F401
     from RestrictedPython.Guards import guarded_iter_unpack_sequence, safer_getattr
     from RestrictedPython.Eval import default_guarded_getitem, default_guarded_getiter
+    from RestrictedPython.PrintCollector import PrintCollector
     import builtins as _bi
 
     b = dict(safe_builtins)
@@ -73,39 +74,54 @@ def _build_env():
     env['_getiter_'] = default_guarded_getiter
     env['_getattr_'] = safer_getattr
     env['_iter_unpack_sequence_'] = guarded_iter_unpack_sequence
+    env['_print_'] = PrintCollector   # habilita print() (saída coletada)
     env['fetch_json'] = fetch_json
     env['fetch_text'] = fetch_text
     env['Decimal'] = Decimal
     return env
 
 
-def _run_target(source, q):
+def _printed(loc):
+    """Texto acumulado pelos print() do script (PrintCollector), se houver."""
+    pc = loc.get('_print')
+    if pc is None:
+        return ''
     try:
+        return str(pc())[:4000]
+    except Exception:
+        return ''
+
+
+def _run_target(source, q):
+    loc = {}
+    try:
+        import warnings
         from RestrictedPython import compile_restricted
-        byte_code = compile_restricted(source, '<cambio-script>', 'exec')
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', SyntaxWarning)
+            byte_code = compile_restricted(source, '<cambio-script>', 'exec')
         env = _build_env()
-        loc = {}
         exec(byte_code, env, loc)  # noqa: S102 — sandbox RestrictedPython
         result = loc.get('result', env.get('result'))
         if result is None:
-            q.put(('err', "O script precisa definir a variável 'result' com a taxa."))
+            q.put(('err', "O script precisa definir a variável 'result' com a taxa.", _printed(loc)))
             return
         try:
             d = Decimal(str(result))
         except (InvalidOperation, ValueError, TypeError):
-            q.put(('err', f'O result não é um número válido: {result!r}'))
+            q.put(('err', f'O result não é um número válido: {result!r}', _printed(loc)))
             return
-        q.put(('ok', str(d)))
+        q.put(('ok', str(d), _printed(loc)))
     except SyntaxError as e:
-        q.put(('err', f'Bloqueado/erro de sintaxe: {e}'))
+        q.put(('err', f'Bloqueado/erro de sintaxe: {e}', _printed(loc)))
     except Exception as e:  # noqa: BLE001
-        q.put(('err', f'{type(e).__name__}: {e}'))
+        q.put(('err', f'{type(e).__name__}: {e}', _printed(loc)))
 
 
 def run_script(source, timeout=DEFAULT_TIMEOUT):
-    """Executa o script no sandbox. Devolve (True, Decimal) ou (False, mensagem)."""
+    """Executa o script no sandbox. Devolve (ok, valor_ou_erro, saida_print)."""
     if not (source or '').strip():
-        return (False, 'Script vazio.')
+        return (False, 'Script vazio.', '')
     ctx = multiprocessing.get_context('spawn')
     q = ctx.Queue()
     p = ctx.Process(target=_run_target, args=(source, q), daemon=True)
@@ -114,11 +130,11 @@ def run_script(source, timeout=DEFAULT_TIMEOUT):
     if p.is_alive():
         p.terminate()
         p.join(1)
-        return (False, 'Tempo excedido — o script demorou demais e foi interrompido.')
+        return (False, 'Tempo excedido — o script demorou demais e foi interrompido.', '')
     try:
-        status, payload = q.get_nowait()
+        status, payload, out = q.get_nowait()
     except Exception:
-        return (False, 'O script não retornou nada (pode ter travado ou sido morto).')
+        return (False, 'O script não retornou nada (pode ter travado ou sido morto).', '')
     if status == 'ok':
-        return (True, Decimal(payload))
-    return (False, payload)
+        return (True, Decimal(payload), out)
+    return (False, payload, out)
