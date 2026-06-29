@@ -24,6 +24,13 @@ export function parseMoney(raw) {
   return Number.isFinite(n) ? String(n) : ''
 }
 
+// arredonda à precisão do campo, devolvendo o canônico ("100.555" -> "100.56")
+function roundCanonical(canonical, decimals) {
+  if (canonical === '' || canonical == null) return ''
+  const n = Number(canonical)
+  return Number.isFinite(n) ? String(Number(n.toFixed(decimals))) : ''
+}
+
 // "1234.56" -> "1.234,56"
 export function formatMoney(value, { min = 2, max = 2 } = {}) {
   if (value === '' || value == null) return ''
@@ -54,11 +61,11 @@ export default function MoneyInput({ value, onChange, style, placeholder, minDec
       onChange={(e) => {
         const raw = e.target.value.replace(/[^\d.,]/g, '')
         setText(raw)
-        onChange(parseMoney(raw))
+        onChange(roundCanonical(parseMoney(raw), maxDecimals))
       }}
       onBlur={() => {
         setFocused(false)
-        onChange(parseMoney(text))
+        onChange(roundCanonical(parseMoney(text), maxDecimals))
       }}
     />
   )

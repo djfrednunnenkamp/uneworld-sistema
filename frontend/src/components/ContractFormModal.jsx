@@ -340,6 +340,13 @@ const addMonthsIso = (iso, n) => {
 }
 
 const round2 = (n) => Math.round(n * 100) / 100
+// Arredonda à precisão do campo do backend (evita 400 "máx. N casas decimais"
+// quando vem precisão alta de divisões/somas ou do que foi digitado).
+const toDec = (v, places = 2) => {
+  if (v === '' || v == null) return null
+  const n = Number(v)
+  return Number.isFinite(n) ? Number(n.toFixed(places)) : null
+}
 
 // Símbolo da moeda base (rótulos do contrato). Cai pro próprio código se desconhecida.
 const CUR_SYMBOL = { USD: 'US$', EUR: '€', BRL: 'R$', GBP: '£', ARS: 'AR$', CLP: 'CLP$', PYG: '₲', UYU: '$U' }
@@ -856,21 +863,21 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       // Pagamento único, guardado como uma parcela (nº 1); o payment_type marca à vista.
       installmentsPayload.push({
         kind: 'parcela', installment_number: 1, detail: '',
-        due_date: avista.due_date || null, value_brl: avista.value_brl || null,
+        due_date: avista.due_date || null, value_brl: toDec(avista.value_brl),
         payment_method: avista.payment_method,
       })
     } else {
       if (hasEntrada && (entrada.detail || entrada.due_date || entrada.value_brl || entrada.payment_method)) {
         installmentsPayload.push({
           kind: 'entrada', installment_number: null, detail: entrada.detail,
-          due_date: entrada.due_date || null, value_brl: entrada.value_brl || null,
+          due_date: entrada.due_date || null, value_brl: toDec(entrada.value_brl),
           payment_method: entrada.payment_method,
         })
       }
       installments.forEach((it, i) => {
         installmentsPayload.push({
           kind: 'parcela', installment_number: i + 1, detail: it.detail,
-          due_date: it.due_date || null, value_brl: it.value_brl || null,
+          due_date: it.due_date || null, value_brl: toDec(it.value_brl),
           payment_method: it.payment_method,
         })
       })
@@ -902,16 +909,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       observations: form.observations,
       base_currency: form.base_currency || 'USD',
       payment_type: paymentType,
-      exchange_rate: form.exchange_rate || null,
+      exchange_rate: toDec(form.exchange_rate, 4),
       ...packageFields,
       ...contratanteFields,
-      received_down_payment_brl: form.received_down_payment_brl || null,
-      received_installments_brl: form.received_installments_brl || null,
+      received_down_payment_brl: toDec(form.received_down_payment_brl),
+      received_installments_brl: toDec(form.received_installments_brl),
       round_step: Number(form.round_step) || 0, round_mode: form.round_mode || 'nearest', round_currency: form.round_currency || 'brl',
       signature_type: form.signature_type || 'fisica',
       accommodation_lines: accomLines.filter(l => l.accommodation_type).map(l => ({
-        accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd || 0,
-        taxes_usd: l.taxes_usd || 0, quantity: l.quantity || 1,
+        accommodation_type: l.accommodation_type, value_per_person_usd: toDec(l.value_per_person_usd) ?? 0,
+        taxes_usd: toDec(l.taxes_usd) ?? 0, quantity: l.quantity || 1,
       })),
       guests: guests.filter(g => g.passenger).map(g => ({
         passenger: g.passenger,
@@ -922,8 +929,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         .filter(a => Number(a.value_usd) !== 0 || Number(a.percent) !== 0 || (a.description || '').trim())
         .map(a => ({
           description: a.description || '', kind: a.kind || 'acrescimo', mode: a.mode || 'valor',
-          value_usd: a.mode === 'percentual' ? 0 : (Number(a.value_usd) || 0),
-          percent: a.mode === 'percentual' ? (Number(a.percent) || 0) : 0,
+          value_usd: a.mode === 'percentual' ? 0 : (toDec(a.value_usd) ?? 0),
+          percent: a.mode === 'percentual' ? (toDec(a.percent) ?? 0) : 0,
         })),
       installments: installmentsPayload,
       clauses: selectedClauses,
