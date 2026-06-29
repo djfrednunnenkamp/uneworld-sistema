@@ -134,7 +134,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
   const css = `
     .ctpdf { --blue-dark:#192D58; --blue:#0B4F9F; --blue-light:#0E9EDD; --line:#C9D8EE; --soft:#F6F9FD; --text:#0D1B35; color:var(--text); font-family:Arial,Helvetica,sans-serif; font-size:11px; }
     .ctpdf * { box-sizing:border-box; }
-    .ctpdf .page { width:210mm; min-height:297mm; background:white; padding:14mm 13mm 10mm; position:relative; overflow:hidden; }
+    .ctpdf .page { width:184mm; background:white; padding:0; position:relative; }
     .ctpdf .header { display:grid; grid-template-columns:170px 1fr 165px; gap:22px; align-items:start; padding-bottom:14px; border-bottom:1px solid var(--line); }
     .ctpdf .logo { width:155px; display:block; }
     .ctpdf .title { border-left:1px solid var(--line); padding-left:24px; }
@@ -147,8 +147,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
     .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:16px; margin-top:14px; }
     .ctpdf .grid-mid { display:grid; grid-template-columns:230px 1fr; gap:16px; margin-top:12px; }
     .ctpdf .section { border:1px solid var(--line); border-radius:9px; padding:12px 11px; background:linear-gradient(180deg,#fff,#fbfdff); }
-    .ctpdf .section-title { display:flex; align-items:center; gap:8px; color:var(--blue-dark); font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; }
-    .ctpdf .icon { min-width:32px; height:32px; border-radius:50%; background:var(--blue); color:white; display:inline-flex; align-items:center; justify-content:center; font-size:17px; font-weight:700; }
+    .ctpdf .section-title { color:var(--blue-dark); font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; line-height:32px; }
+    .ctpdf .icon { width:32px; height:32px; border-radius:50%; background:var(--blue); color:white; display:inline-block; text-align:center; line-height:32px; font-size:16px; font-weight:700; vertical-align:middle; margin-right:8px; }
     .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
     .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:14px; }
     .ctpdf h3 { margin:0 0 11px; color:var(--blue); font-size:11px; text-transform:uppercase; }
@@ -273,19 +273,25 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
   </div>`
 }
 
-/* Renderiza o HTML da 1ª página offscreen e devolve o canvas (html2canvas). */
-async function renderFirstPageCanvas(html) {
+/* Renderiza o HTML da 1ª página offscreen e devolve UM canvas por bloco de
+ * nível superior (cabeçalho, cada seção…). Capturar bloco a bloco — em vez de
+ * uma imagem única fatiada — permite encaixar cada bloco inteiro na página,
+ * sem cortes feios na divisão entre páginas. */
+async function renderFirstPageBlocks(html) {
   const holder = document.createElement('div')
-  holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1;'
+  holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:184mm;background:#fff;z-index:-1;'
   holder.innerHTML = html
   document.body.appendChild(holder)
   try {
-    const pageEl = holder.querySelector('.page')
     // Garante que imagens (logo) terminem de carregar antes de capturar.
     await Promise.all(Array.from(holder.querySelectorAll('img')).map(img =>
       img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res })))
-    const canvas = await html2canvas(pageEl, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false })
-    return canvas
+    const pageEl = holder.querySelector('.page')
+    const canvases = []
+    for (const block of Array.from(pageEl.children)) {
+      canvases.push(await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false }))
+    }
+    return canvases
   } finally {
     document.body.removeChild(holder)
   }
@@ -308,33 +314,27 @@ export async function generateContractPDF(contract, opts = {}) {
   const pw  = doc.internal.pageSize.getWidth()
   const ph  = doc.internal.pageSize.getHeight()
 
-  // ── 1ª página: layout Uneworld renderizado a partir do HTML ──
+  // ── 1ª página: layout Uneworld, capturado bloco a bloco ──
+  const marginX = 13, marginTop = 14, marginBottom = 12, blockGap = 3.5
+  const contentW = pw - marginX * 2
   const html   = buildFirstPageHTML(contract, company, logoDataUrl)
-  const canvas = await renderFirstPageCanvas(html)
-  const imgData = canvas.toDataURL('image/jpeg', 0.92)
-  const imgW = pw
-  const imgH = canvas.height * pw / canvas.width
-  // Cola a imagem ocupando a largura A4; se passar de uma página (muitas
-  // parcelas/passageiros), fatia em páginas adicionais.
-  let position = 0
-  let heightLeft = imgH
-  doc.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
-  heightLeft -= ph
-  while (heightLeft > 0) {
-    position -= ph
-    doc.addPage()
-    doc.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
-    heightLeft -= ph
+  const blocks = await renderFirstPageBlocks(html)
+  let y = marginTop
+  for (const canvas of blocks) {
+    const h = canvas.height * contentW / canvas.width
+    // Encaixa o bloco inteiro: se não couber no que resta da página, joga
+    // pra próxima (mas não cria página em branco se já está no topo).
+    if (y + h > ph - marginBottom && y > marginTop) { doc.addPage(); y = marginTop }
+    doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', marginX, y, contentW, h)
+    y += h + blockGap
   }
 
-  // A partir daqui o conteúdo segue em páginas novas (texto vetorial).
-  let y = ph
-
-  // ── Cláusulas contratuais — texto corrido, começando em página nova ──
+  // ── Cláusulas contratuais — seguem logo após as informações, na mesma
+  //    página se houver espaço (sem forçar página nova). ──
   const clauses = contract.clauses_data || []
   if (clauses.length) {
-    doc.addPage()
-    y = 14
+    y += 4
+    if (y + 16 > ph - marginBottom) { doc.addPage(); y = marginTop }
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
     doc.setTextColor(...NAV)
@@ -342,24 +342,23 @@ export async function generateContractPDF(contract, opts = {}) {
     y += 8
 
     const lineHeight = 5.2
-    const maxWidth   = pw - 20
 
     clauses.forEach((clause) => {
-      if (y + 12 > ph - 15) { doc.addPage(); y = 14 }
+      if (y + 12 > ph - marginBottom) { doc.addPage(); y = marginTop }
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
       doc.setTextColor(...NAV)
-      doc.text(clause.name, 10, y)
+      doc.text(clause.name, marginX, y)
       y += 6.5
 
       const text  = htmlToText(clause.content)
-      const lines = doc.splitTextToSize(text, maxWidth)
+      const lines = doc.splitTextToSize(text, contentW)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10.5)
       doc.setTextColor(30, 41, 59)
       lines.forEach((line) => {
-        if (y + lineHeight > ph - 15) { doc.addPage(); y = 14 }
-        doc.text(line, 10, y)
+        if (y + lineHeight > ph - marginBottom) { doc.addPage(); y = marginTop }
+        doc.text(line, marginX, y)
         y += lineHeight
       })
       y += 4
@@ -369,20 +368,20 @@ export async function generateContractPDF(contract, opts = {}) {
   // ── Assinaturas — só no contrato FÍSICO (impresso e assinado à mão). No
   //    digital a assinatura é feita na Autentique, então não desenha os campos. ──
   if (contract.signature_type !== 'digital') {
-    if (y + 38 > ph - 15) { doc.addPage(); y = 14 }
+    if (y + 38 > ph - marginBottom) { doc.addPage(); y = marginTop }
     y += 16
     const sigGap = 14
-    const sigColW = (pw - 20 - sigGap) / 2
+    const sigColW = (contentW - sigGap) / 2
     doc.setDrawColor(100, 116, 139)
     doc.setLineWidth(0.3)
-    doc.line(10, y, 10 + sigColW, y)
-    doc.line(10 + sigColW + sigGap, y, pw - 10, y)
+    doc.line(marginX, y, marginX + sigColW, y)
+    doc.line(marginX + sigColW + sigGap, y, pw - marginX, y)
     y += 5
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(71, 85, 105)
-    doc.text('Assinatura do Contratante', 10 + sigColW / 2, y, { align: 'center' })
-    doc.text('Assinatura da Operadora / Agência', 10 + sigColW + sigGap + sigColW / 2, y, { align: 'center' })
+    doc.text('Assinatura do Contratante', marginX + sigColW / 2, y, { align: 'center' })
+    doc.text('Assinatura da Operadora / Agência', marginX + sigColW + sigGap + sigColW / 2, y, { align: 'center' })
   }
 
   // ── Numeração de página ──
