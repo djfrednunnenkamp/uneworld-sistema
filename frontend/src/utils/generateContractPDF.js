@@ -35,14 +35,70 @@ const dash = (s) => { const t = String(s ?? '').trim(); return t ? esc(t) : '—
 const addr = (s) => { const t = String(s ?? '').trim(); return t ? esc(t).replace(/\n/g, '<br>') : '—' }
 const money = (v) => { const m = fmtMoney(v); return m === '' ? '0,00' : m }
 
+/* ── Ícones em SVG (não emoji) ──────────────────────────────────────────────
+ * Emoji é renderizado de forma imprevisível pelo html2canvas (o glifo sai
+ * descentralizado e varia conforme o sistema). Usamos SVG de traço como <img>
+ * data-URI: tamanho fixo e centralização por posição absoluta = determinístico.
+ * Corpos no padrão Lucide (viewBox 0 0 24 24, traço, cantos arredondados). */
+const ICON_PATHS = {
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  plane: '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
+  takeoff: '<path d="M2 22h20"/><path d="M6.36 17.4 4 17l-2-4 1.1-.55a2 2 0 0 1 1.8 0l.17.1a2 2 0 0 0 1.8 0L8 12 5 6l.9-.45a2 2 0 0 1 2.09.2l4.02 3 4.99-.99a2 2 0 0 1 2.37 1.47 2 2 0 0 1-1.32 2.39L7.66 17.16a2 2 0 0 1-1.3.24z"/>',
+  building: '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h.01"/><path d="M9 12h.01"/><path d="M9 15h.01"/><path d="M9 18h.01"/>',
+  dollar: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  card: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/>',
+  exchange: '<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  wallet: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+}
+const svgMarkup = (name, color, sw = 2) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[name]}</svg>`
+
+/* Rasteriza um SVG para PNG data-URI. O browser decodifica o vetor
+ * corretamente para o canvas; o html2canvas, por sua vez, desenha PNG de forma
+ * confiável (SVG ele renderiza errado). Resolve com null se falhar. */
+function svgToPng(svgString, size) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const c = document.createElement('canvas')
+      c.width = size; c.height = size
+      c.getContext('2d').drawImage(img, 0, 0, size, size)
+      try { resolve(c.toDataURL('image/png')) } catch { resolve(null) }
+    }
+    img.onerror = () => resolve(null)
+    img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgString)
+  })
+}
+
+const CIRCLE_ICONS = ['users', 'plane', 'user', 'building', 'dollar', 'card']
+const MINI_ICONS   = ['briefcase', 'calendar', 'takeoff', 'message', 'dollar', 'receipt', 'exchange', 'wallet', 'file']
+
+/* Pré-rasteriza todos os ícones (brancos p/ os círculos, azuis p/ os de apoio)
+ * num mapa nome→PNG, usado depois no HTML. */
+async function prepareIcons() {
+  const icons = {}
+  for (const n of CIRCLE_ICONS) icons['w_' + n] = await svgToPng(svgMarkup(n, '#ffffff', 2.1), 44)
+  for (const n of MINI_ICONS)   icons['b_' + n] = await svgToPng(svgMarkup(n, '#0B4F9F', 2), 36)
+  return icons
+}
+
 /* Monta o HTML da nova 1ª página do contrato (layout Uneworld). O CSS é todo
  * escopado em `.ctpdf` para não vazar para o resto do app durante a
  * renderização offscreen. */
-function buildFirstPageHTML(contract, company, logoDataUrl) {
+function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   const cc = contract.base_currency || 'USD'
   const ag = contract.agency_data || {}
   const ct = contract.contratante_data || {}
   const isJuridica = ct.payer_type === 'juridica'
+  // Ícone branco dentro do círculo azul da seção / ícone azul de apoio.
+  const circleIcon = (name) => `<span class="icon"><img src="${icons['w_' + name] || ''}"/></span>`
+  const miniIcon = (name) => `<img class="mini-img" src="${icons['b_' + name] || ''}"/>`
 
   const periodo = (contract.departure_date || contract.return_date)
     ? `${fmtDateBR(contract.departure_date)} a ${fmtDateBR(contract.return_date)}`
@@ -148,7 +204,9 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
     .ctpdf .grid-mid { display:grid; grid-template-columns:230px 1fr; gap:16px; margin-top:12px; }
     .ctpdf .section { border:1px solid var(--line); border-radius:9px; padding:12px 11px; background:linear-gradient(180deg,#fff,#fbfdff); }
     .ctpdf .section-title { display:flex; align-items:center; gap:8px; color:var(--blue-dark); font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; }
-    .ctpdf .icon { min-width:32px; width:32px; height:32px; border-radius:50%; background:var(--blue); color:white; display:inline-block; text-align:center; line-height:32px; font-size:16px; font-weight:700; }
+    .ctpdf .section-title .ttl { display:block; }
+    .ctpdf .icon { position:relative; min-width:32px; width:32px; height:32px; border-radius:50%; background:var(--blue); }
+    .ctpdf .icon img { position:absolute; top:7px; left:7px; width:18px; height:18px; display:block; }
     .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
     .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:14px; }
     .ctpdf h3 { margin:0 0 11px; color:var(--blue); font-size:11px; text-transform:uppercase; }
@@ -156,7 +214,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
     .ctpdf .field strong { color:var(--blue-dark); margin-right:4px; }
     .ctpdf .travel-row { display:grid; grid-template-columns:24px 1fr; gap:8px; padding:7px 0; border-bottom:1px solid #D8E3F3; }
     .ctpdf .travel-row:last-child { border-bottom:0; }
-    .ctpdf .mini-icon { color:var(--blue); font-size:16px; line-height:1; text-align:center; padding-top:2px; }
+    .ctpdf .mini-icon { text-align:center; padding-top:1px; }
+    .ctpdf .mini-img { width:15px; height:15px; display:inline-block; vertical-align:middle; }
     .ctpdf .client, .ctpdf .passengers, .ctpdf .accommodations { margin-top:12px; }
     .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:12px; border-top:1px solid #D8E3F3; padding-top:9px; }
     .ctpdf .client-grid .field { border-right:1px solid #D8E3F3; min-height:28px; padding-right:8px; margin:0; }
@@ -193,7 +252,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
 
       <section class="grid-top">
         <div class="section">
-          <div class="section-title"><span class="icon">👥</span>1. Partes Contratantes</div>
+          <div class="section-title">${circleIcon('users')}<span class="ttl">1. Partes Contratantes</span></div>
           <div class="two-cols">
             <div class="col">
               <h3>Agência Intermediadora</h3>
@@ -215,21 +274,21 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
         </div>
 
         <div class="section">
-          <div class="section-title"><span class="icon">✈️</span>2. Resumo da Viagem</div>
-          <div class="travel-row"><div class="mini-icon">🧳</div><div><strong>Pacote:</strong><br>${dash(contract.package_name)}</div></div>
-          <div class="travel-row"><div class="mini-icon">📅</div><div><strong>Período da viagem:</strong><br>${periodo}</div></div>
-          <div class="travel-row"><div class="mini-icon">🛫</div><div><strong>Aeroporto de embarque:</strong><br>${dash(contract.departure_airport)}</div></div>
-          <div class="travel-row"><div class="mini-icon">💬</div><div><strong>Observações:</strong><br>${addr(contract.observations)}</div></div>
+          <div class="section-title">${circleIcon('plane')}<span class="ttl">2. Resumo da Viagem</span></div>
+          <div class="travel-row"><div class="mini-icon">${miniIcon('briefcase')}</div><div><strong>Pacote:</strong><br>${dash(contract.package_name)}</div></div>
+          <div class="travel-row"><div class="mini-icon">${miniIcon('calendar')}</div><div><strong>Período da viagem:</strong><br>${periodo}</div></div>
+          <div class="travel-row"><div class="mini-icon">${miniIcon('takeoff')}</div><div><strong>Aeroporto de embarque:</strong><br>${dash(contract.departure_airport)}</div></div>
+          <div class="travel-row"><div class="mini-icon">${miniIcon('message')}</div><div><strong>Observações:</strong><br>${addr(contract.observations)}</div></div>
         </div>
       </section>
 
       <section class="section client">
-        <div class="section-title"><span class="icon">👤</span>3. Cliente Contratante <span style="font-size:10px;">(Responsável pelo pagamento)</span></div>
+        <div class="section-title">${circleIcon('user')}<span class="ttl">3. Cliente Contratante <span style="font-size:10px;">(Responsável pelo pagamento)</span></span></div>
         <div class="client-grid">${clientGrid}</div>
       </section>
 
       <section class="section passengers">
-        <div class="section-title"><span class="icon">👥</span>4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></div>
+        <div class="section-title">${circleIcon('users')}<span class="ttl">4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></span></div>
         <table>
           <thead><tr>
             <th style="width:42%">Nome completo</th><th>Sexo</th><th>Data de nascimento</th><th>Passaporte/CPF</th><th>Acomodação</th>
@@ -239,7 +298,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
       </section>
 
       <section class="section accommodations">
-        <div class="section-title"><span class="icon">🏨</span>5. Acomodações Contratadas</div>
+        <div class="section-title">${circleIcon('building')}<span class="ttl">5. Acomodações Contratadas</span></div>
         <table>
           <thead><tr>
             <th>Tipo de acomodação</th><th>Valor/pessoa (${esc(cc)})</th><th>Taxas (${esc(cc)})</th><th>Quantidade</th><th>Total (${esc(cc)})</th>
@@ -250,18 +309,18 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
 
       <section class="grid-mid">
         <div class="section">
-          <div class="section-title"><span class="icon">$</span>6. Valores e Condições</div>
+          <div class="section-title">${circleIcon('dollar')}<span class="ttl">6. Valores e Condições</span></div>
           <div class="values-list">
-            <div class="value-row"><span class="mini-icon">💵</span><span>Valor por pessoa (${esc(cc)})</span><strong>${money(baseSum)}</strong></div>
-            <div class="value-row"><span class="mini-icon">🪙</span><span>Taxas (${esc(cc)})</span><strong>${money(taxSum)}</strong></div>
-            <div class="value-row"><span class="mini-icon">🔁</span><span>Câmbio</span><strong>${dash(fmtRate(contract.exchange_rate))}</strong></div>
-            <div class="value-row total"><span class="mini-icon">💰</span><span>Total (${esc(cc)})</span><strong>${money(contract.total_usd)}</strong></div>
-            <div class="value-row"><span class="mini-icon">🧾</span><span>Total em (BRL)</span><strong>${money(contract.total_brl)}</strong></div>
+            <div class="value-row"><span class="mini-icon">${miniIcon('dollar')}</span><span>Valor por pessoa (${esc(cc)})</span><strong>${money(baseSum)}</strong></div>
+            <div class="value-row"><span class="mini-icon">${miniIcon('receipt')}</span><span>Taxas (${esc(cc)})</span><strong>${money(taxSum)}</strong></div>
+            <div class="value-row"><span class="mini-icon">${miniIcon('exchange')}</span><span>Câmbio</span><strong>${dash(fmtRate(contract.exchange_rate))}</strong></div>
+            <div class="value-row total"><span class="mini-icon">${miniIcon('wallet')}</span><span>Total (${esc(cc)})</span><strong>${money(contract.total_usd)}</strong></div>
+            <div class="value-row"><span class="mini-icon">${miniIcon('file')}</span><span>Total em (BRL)</span><strong>${money(contract.total_brl)}</strong></div>
           </div>
         </div>
 
         <div class="section">
-          <div class="section-title"><span class="icon">💳</span>7. Plano de Pagamento</div>
+          <div class="section-title">${circleIcon('card')}<span class="ttl">7. Plano de Pagamento</span></div>
           <table>
             <thead><tr>
               <th>Parcela</th><th>Detalhe</th><th>Vencimento</th><th>Valor (BRL)</th><th>Forma de pagamento</th><th>Status</th>
@@ -318,7 +377,8 @@ export async function generateContractPDF(contract, opts = {}) {
   // ── 1ª página: layout Uneworld, capturado bloco a bloco ──
   const marginX = 13, marginTop = 14, marginBottom = 12, blockGap = 3.5
   const contentW = pw - marginX * 2
-  const html   = buildFirstPageHTML(contract, company, logoDataUrl)
+  const icons  = await prepareIcons()
+  const html   = buildFirstPageHTML(contract, company, logoDataUrl, icons)
   const blocks = await renderFirstPageBlocks(html)
   let y = marginTop
   for (const canvas of blocks) {
