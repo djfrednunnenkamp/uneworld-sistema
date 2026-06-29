@@ -345,12 +345,8 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
   return (
     <>
       <div>
-        <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por moeda…"
-            style={{ ...inp, flex:1, minWidth:160 }}
-            onFocus={e => e.target.style.borderColor='#1a2d4f'}
-            onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
-          {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
+        {/* Linha de cima — botões utilitários */}
+        <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
           {canEdit && onPullInternet && (
             <button onClick={() => setConfirmPull(true)} disabled={pulling} style={btnCsv('#7c3aed')} title="Puxar todas as moedas da internet (→ BRL)">
               <Ic n="globe" s={13} /> {pulling ? 'Puxando…' : 'Atualizar da internet'}
@@ -361,25 +357,32 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
               <Ic n="clock" s={13} /> Horário geral
             </button>
           )}
-          <div style={{ display:'flex', gap:6 }}>
-            {canExport && (
-              <button style={btnCsv('#059669')} onClick={handleExport} disabled={exporting} title="Exportar como CSV">
-                {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
-              </button>
-            )}
-            {canImport && (
-              <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>
-            )}
-            {canImport && showImportPopup && (
-              <CsvImportPopup
-                title="Importar Câmbio"
-                sampleContent={CSV_SAMPLES.exchange_rates?.content}
-                sampleFilename={CSV_SAMPLES.exchange_rates?.filename}
-                onClose={() => setShowImportPopup(false)}
-                onFile={handleImportFile}
-              />
-            )}
-          </div>
+          {canExport && (
+            <button style={btnCsv('#059669')} onClick={handleExport} disabled={exporting} title="Exportar como CSV">
+              {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
+            </button>
+          )}
+          {canImport && (
+            <button style={btnCsv('#2e6db4')} onClick={() => setShowImportPopup(true)} title="Importar de CSV">⬆ Importar</button>
+          )}
+          {canImport && showImportPopup && (
+            <CsvImportPopup
+              title="Importar Câmbio"
+              sampleContent={CSV_SAMPLES.exchange_rates?.content}
+              sampleFilename={CSV_SAMPLES.exchange_rates?.filename}
+              onClose={() => setShowImportPopup(false)}
+              onFile={handleImportFile}
+            />
+          )}
+        </div>
+
+        {/* Linha de baixo — busca + adicionar */}
+        <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por moeda…"
+            style={{ ...inp, flex:1, minWidth:160 }}
+            onFocus={e => e.target.style.borderColor='#1a2d4f'}
+            onBlur={e  => e.target.style.borderColor='#e2e8f0'} />
+          {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
         </div>
 
         <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 8px' }}>
