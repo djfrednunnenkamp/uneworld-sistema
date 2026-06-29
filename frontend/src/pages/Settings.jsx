@@ -255,22 +255,37 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
   return (
     <>
     <div>
-      {/* Toolbar: busca + adicionar + CSV */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
-          style={{ ...inp, flex: 1, minWidth: 160 }}
-          onFocus={e => e.target.style.borderColor = '#1a2d4f'}
-          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
-        {onAdd && <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>}
-        {onImportWeb && (
-          <button onClick={handleImportWeb} disabled={importing}
-            style={{ padding:'6px 11px', borderRadius:7, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}
-            title="Importar lista pronta da internet">
-            {importing ? '⏳ Iniciando…' : '🌐 Importar da internet'}
-          </button>
-        )}
-        <CsvButtons items={items} filename={filename} type={type} canImport={canImport} canExport={canExport} />
-      </div>
+      {onImportWeb ? (
+        /* Layout em duas linhas (igual ao Câmbio): botões utilitários
+           centralizados em cima, busca + adicionar embaixo. */
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+            <CsvButtons items={items} filename={filename} type={type} canImport={canImport} canExport={canExport} />
+            <button onClick={handleImportWeb} disabled={importing}
+              style={{ padding:'6px 11px', borderRadius:7, border:'1.5px solid #7c3aed20', background:'#7c3aed10', color:'#7c3aed', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}
+              title="Importar lista pronta da internet">
+              {importing ? '⏳ Iniciando…' : '🌐 Importar da internet'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
+              style={{ ...inp, flex: 1, minWidth: 160 }}
+              onFocus={e => e.target.style.borderColor = '#1a2d4f'}
+              onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+            {onAdd && <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>}
+          </div>
+        </div>
+      ) : (
+        /* Toolbar padrão (uma linha): busca + adicionar + CSV */
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar…"
+            style={{ ...inp, flex: 1, minWidth: 160 }}
+            onFocus={e => e.target.style.borderColor = '#1a2d4f'}
+            onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+          {onAdd && <button onClick={() => setShowAdd(true)} style={btnPri}>+ Adicionar</button>}
+          <CsvButtons items={items} filename={filename} type={type} canImport={canImport} canExport={canExport} />
+        </div>
+      )}
 
       <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
         {loading ? 'Carregando…' : `${filtered.length} de ${items.length} ${items.length !== 1 ? 'itens' : 'item'}`}
