@@ -147,8 +147,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
     .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:16px; margin-top:14px; }
     .ctpdf .grid-mid { display:grid; grid-template-columns:230px 1fr; gap:16px; margin-top:12px; }
     .ctpdf .section { border:1px solid var(--line); border-radius:9px; padding:12px 11px; background:linear-gradient(180deg,#fff,#fbfdff); }
-    .ctpdf .section-title { color:var(--blue-dark); font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; line-height:32px; }
-    .ctpdf .icon { width:32px; height:32px; border-radius:50%; background:var(--blue); color:white; display:inline-block; text-align:center; line-height:32px; font-size:16px; font-weight:700; vertical-align:middle; margin-right:8px; }
+    .ctpdf .section-title { display:flex; align-items:center; gap:8px; color:var(--blue-dark); font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; }
+    .ctpdf .icon { min-width:32px; width:32px; height:32px; border-radius:50%; background:var(--blue); color:white; display:inline-block; text-align:center; line-height:32px; font-size:16px; font-weight:700; }
     .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
     .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:14px; }
     .ctpdf h3 { margin:0 0 11px; color:var(--blue); font-size:11px; text-transform:uppercase; }
@@ -168,7 +168,9 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
     .ctpdf .values-list { display:grid; gap:11px; padding-top:6px; }
-    .ctpdf .value-row { display:grid; grid-template-columns:25px 1fr auto; gap:8px; align-items:center; padding-bottom:7px; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .value-row { display:grid; grid-template-columns:25px 1fr auto; gap:8px; align-items:start; padding-bottom:7px; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .value-row .mini-icon { line-height:18px; padding-top:0; }
+    .ctpdf .value-row span:nth-child(2), .ctpdf .value-row strong { line-height:18px; }
     .ctpdf .value-row.total { color:var(--blue); font-size:15px; font-weight:800; }
   `
 
@@ -255,7 +257,6 @@ function buildFirstPageHTML(contract, company, logoDataUrl) {
             <div class="value-row"><span class="mini-icon">🔁</span><span>Câmbio</span><strong>${dash(fmtRate(contract.exchange_rate))}</strong></div>
             <div class="value-row total"><span class="mini-icon">💰</span><span>Total (${esc(cc)})</span><strong>${money(contract.total_usd)}</strong></div>
             <div class="value-row"><span class="mini-icon">🧾</span><span>Total em (BRL)</span><strong>${money(contract.total_brl)}</strong></div>
-            <div class="value-row"><span class="mini-icon">📥</span><span>Recebido<br>(entrada / prazo)</span><strong>${money(contract.received_down_payment_brl)} / ${money(contract.received_installments_brl)}</strong></div>
           </div>
         </div>
 
