@@ -228,7 +228,7 @@ def _log_client_event(request, action, default_model_name, default_model_label):
     AuditLog.objects.create(
         user=user, user_display=user_display(user), action=action,
         model_name=request.data.get('model_name') or default_model_name, model_label=model_label,
-        object_id='', object_repr=label,
+        object_id=str(request.data.get('object_id') or ''), object_repr=label,
         changes=summary if isinstance(summary, dict) else {},
         ip_address=get_current_ip(),
     )

@@ -229,7 +229,11 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
 }
 
 /* ── Popup de visualização do contrato assinado ── */
-function SignedFileModal({ url, onClose }) {
+function SignedFileModal({ url, contractId, contractLabel, onClose }) {
+  const logDl = () => auditApi.logDownload({
+    label: `Baixou o contrato assinado — ${contractLabel || `Contrato #${contractId}`}`,
+    model_name: 'Contract', model_label: 'Contrato', object_id: contractId,
+  }).catch(() => {})
   // O backend devolve URL absoluta (ex.: http://localhost:8000/media/...) que
   // quebra quando o app é acessado de outro host. Usamos só o caminho relativo,
   // servido pela própria origem do app (proxy /media em dev, nginx em prod).
@@ -249,7 +253,7 @@ function SignedFileModal({ url, onClose }) {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <a href={rel} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Abrir em nova aba</a>
-            <a href={rel} download style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>Baixar</a>
+            <a href={rel} download onClick={logDl} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>Baixar</a>
             <button onClick={onClose} title="Fechar" style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#1e293b'; e.currentTarget.style.color = '#1e293b' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8' }}><Ic n="x" s={15} /></button>
@@ -327,7 +331,7 @@ export default function Contracts() {
       await generateContractPDF(r.data)
       auditApi.logDownload({
         label: `Baixou o PDF do ${getLabel(row)}`,
-        model_name: 'Contract', model_label: 'Contrato',
+        model_name: 'Contract', model_label: 'Contrato', object_id: row.id,
       }).catch(() => {})
     } catch {
       toast.error('Erro ao gerar o PDF do contrato.')
@@ -339,7 +343,7 @@ export default function Contracts() {
   // Baixar/ver: "assinado" → arquivo assinado anexado; senão → pré-visualiza o PDF
   // gerado num popup (com opção de baixar lá dentro).
   const handleDocs = (row) => {
-    if (row.stage === 'assinado' && row.signed_file) { setSignedUrl(row.signed_file); return }
+    if (row.stage === 'assinado' && row.signed_file) { setSignedUrl({ url: row.signed_file, id: row.id, label: getLabel(row) }); return }
     setPreviewId(row.id)
   }
 
@@ -529,7 +533,7 @@ export default function Contracts() {
         <SignedUploadModal contractId={uploadRow.id} onClose={() => setUploadRow(null)} onUpload={handleUploadFile} />
       )}
       {signedUrl && (
-        <SignedFileModal url={signedUrl} onClose={() => setSignedUrl(null)} />
+        <SignedFileModal url={signedUrl.url} contractId={signedUrl.id} contractLabel={signedUrl.label} onClose={() => setSignedUrl(null)} />
       )}
       {previewId && (
         <ContractPdfPreviewModal contractId={previewId} onClose={() => setPreviewId(null)} />

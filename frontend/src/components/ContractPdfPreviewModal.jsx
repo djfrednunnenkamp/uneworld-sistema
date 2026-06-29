@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { contractsApi } from '../api'
+import { contractsApi, auditApi } from '../api'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import SignedFileViewer from './SignedFileViewer'
 import { Ic } from './Icon'
@@ -51,6 +51,10 @@ export default function ContractPdfPreviewModal({ contractId, title = 'Pré-visu
           <div>{footerExtra}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {blobUrl && <a href={blobUrl} download={`contrato_${reservation || contractId}.pdf`}
+              onClick={() => auditApi.logDownload({
+                label: `Baixou o PDF do ${reservation ? `Contrato ${reservation}` : `Contrato #${contractId}`}`,
+                model_name: 'Contract', model_label: 'Contrato', object_id: contractId,
+              }).catch(() => {})}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>Baixar</a>}
             <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Fechar</button>
           </div>

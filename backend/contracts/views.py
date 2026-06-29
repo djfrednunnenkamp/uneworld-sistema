@@ -15,8 +15,9 @@ from .serializers import ContractListSerializer, ContractSerializer
 
 def _log_contract_event(request, contract, action, label):
     """Registra no log de auditoria uma ação sobre o contrato que NÃO passa por
-    save() (ex: download do arquivo assinado) — as criações/edições/mudanças de
-    etapa já são capturadas automaticamente pelos sinais em audit/tracking.py."""
+    save() — download do arquivo assinado/PDF e upload do contrato assinado.
+    (Criação, edição e mudança de etapa já são capturadas automaticamente pelos
+    sinais em audit/tracking.py.) `label` descreve a ação no detalhe do evento."""
     from audit.models import AuditLog
     from audit.middleware import get_current_ip
     from audit.tracking import user_display
@@ -25,7 +26,7 @@ def _log_contract_event(request, contract, action, label):
         user=user, user_display=user_display(user), action=action,
         model_name='Contract', model_label='Contrato',
         object_id=str(contract.pk), object_repr=str(contract)[:500],
-        changes={}, ip_address=get_current_ip(),
+        changes={'Ação': label} if label else {}, ip_address=get_current_ip(),
     )
 
 
@@ -110,4 +111,6 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.stage = 'assinado'
         contract.signed_at = timezone.now()
         contract.save(update_fields=['signed_file', 'stage', 'signed_at'])
+        _log_contract_event(request, contract, 'upload',
+                            'Enviou (upload) o contrato assinado')
         return Response(ContractSerializer(contract, context={'request': request}).data)
