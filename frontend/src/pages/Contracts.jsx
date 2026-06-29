@@ -301,6 +301,7 @@ export default function Contracts() {
   const [fValue, setFValue] = useState('')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
+  const [fSort, setFSort] = useState('recent')   // ordem da aba Geral: recent (mais recentes) | old (mais antigos)
   const [tab, setTab] = useState('geral')   // geral | em_edicao | enviado | assinado | trash
   const [deletedRows, setDeletedRows] = useState([])
   const [downloadingId, setDownloadingId] = useState(null)
@@ -406,14 +407,15 @@ export default function Contracts() {
   }
 
   // Aba Excluídos usa a MESMA tabela/filtros — só muda a fonte (itens excluídos).
-  // Aba Geral mostra TODOS os contratos, do primeiro criado para o último.
+  // Aba Geral mostra TODOS os contratos, ordenados por data de criação — mais
+  // recentes primeiro por padrão; o filtro "Ordenar" inverte para mais antigos.
   const stageRows = tab === 'trash'
     ? deletedRows
     : tab === 'geral'
     ? [...rows].sort((a, b) => {
         const av = a.created_at || '', bv = b.created_at || ''
-        if (av !== bv) return av < bv ? -1 : 1
-        return (a.id || 0) - (b.id || 0)
+        const cmp = av !== bv ? (av < bv ? -1 : 1) : (a.id || 0) - (b.id || 0)
+        return fSort === 'recent' ? -cmp : cmp
       })
     : rows.filter(r => r.stage === tab)
   const filterSource = tab === 'trash' ? deletedRows : rows
@@ -464,6 +466,10 @@ export default function Contracts() {
 
   const filterBar = (
     <>
+      {tab === 'geral' && (
+        <FDrop label="Ordenar" value={fSort} onChange={setFSort} icon="list"
+          options={[{ value: 'recent', label: 'Mais recentes' }, { value: 'old', label: 'Mais antigos' }]} />
+      )}
       <FDrop label="Pagante"  value={fPayer}    onChange={setFPayer}    options={payerOpts}    icon="users"    avatar searchPlaceholder="Buscar pagante…" />
       <FDrop label="Viajante" value={fTraveler} onChange={setFTraveler} options={travelerOpts}  icon="users"    avatar searchPlaceholder="Buscar viajante…" />
       <FDrop label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts}    icon="building" avatar searchPlaceholder="Buscar agência…" />
