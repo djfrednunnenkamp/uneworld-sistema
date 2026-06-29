@@ -133,6 +133,7 @@ export const PERM_GROUPS = [
           ['settings_list_additionals_delete',      'Excluir itens adicionais de lista'],
           ['settings_list_additionals_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_list_additionals_bulk_import', 'Importação em massa via CSV'],
+          ['settings_list_additionals_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -144,6 +145,7 @@ export const PERM_GROUPS = [
           ['settings_airports_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_airports_bulk_import', 'Importação em massa via CSV'],
           ['settings_airports_import_web',  'Importar base mundial da internet'],
+          ['settings_airports_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -155,6 +157,7 @@ export const PERM_GROUPS = [
           ['settings_prof_cards_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_prof_cards_bulk_import', 'Importação em massa via CSV'],
           ['settings_prof_cards_import_web',  'Importar lista pronta da internet'],
+          ['settings_prof_cards_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -165,6 +168,7 @@ export const PERM_GROUPS = [
           ['settings_list_categories_delete',      'Excluir categorias de acomodação'],
           ['settings_list_categories_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_list_categories_bulk_import', 'Importação em massa via CSV'],
+          ['settings_list_categories_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -173,13 +177,15 @@ export const PERM_GROUPS = [
           ['settings_contract_clauses_view',   'Ver cláusulas de contrato'],
           ['settings_contract_clauses_edit',   'Criar / Editar cláusulas de contrato'],
           ['settings_contract_clauses_delete', 'Excluir cláusulas de contrato'],
+          ['settings_contract_clauses_export', 'Exportar como CSV (download)'],
         ],
       },
       {
         label: 'Operadora', icon: 'building', hue: 70,
         items: [
-          ['settings_operating_company_view', 'Ver dados da operadora'],
-          ['settings_operating_company_edit', 'Editar dados da operadora'],
+          ['settings_operating_company_view',   'Ver dados da operadora'],
+          ['settings_operating_company_edit',   'Editar dados da operadora'],
+          ['settings_operating_company_export', 'Exportar como CSV (download)'],
         ],
       },
       {
@@ -188,6 +194,7 @@ export const PERM_GROUPS = [
           ['settings_payment_methods_view',   'Ver formas de pagamento'],
           ['settings_payment_methods_edit',   'Criar / Editar formas de pagamento'],
           ['settings_payment_methods_delete', 'Excluir formas de pagamento'],
+          ['settings_payment_methods_export', 'Exportar como CSV (download)'],
         ],
       },
       {
@@ -196,6 +203,7 @@ export const PERM_GROUPS = [
           ['settings_exchange_rates_view',   'Ver câmbio'],
           ['settings_exchange_rates_edit',   'Criar / Editar câmbio'],
           ['settings_exchange_rates_delete', 'Excluir câmbio'],
+          ['settings_exchange_rates_export', 'Exportar como CSV (download)'],
         ],
       },
       {
@@ -207,6 +215,7 @@ export const PERM_GROUPS = [
           ['settings_airlines_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_airlines_bulk_import', 'Importação em massa via CSV'],
           ['settings_airlines_import_web',  'Importar base mundial da internet'],
+          ['settings_airlines_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -217,6 +226,7 @@ export const PERM_GROUPS = [
           ['settings_doc_types_delete',       'Excluir tipos de documento'],
           ['settings_doc_types_bulk_delete',  'Exclusão em massa via CSV'],
           ['settings_doc_types_bulk_import',  'Importação em massa via CSV'],
+          ['settings_doc_types_export',       'Exportar como CSV (download)'],
         ],
       },
       {
@@ -227,6 +237,7 @@ export const PERM_GROUPS = [
           ['settings_crew_roles_delete',      'Excluir funções de tripulante'],
           ['settings_crew_roles_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_crew_roles_bulk_import', 'Importação em massa via CSV'],
+          ['settings_crew_roles_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -237,6 +248,7 @@ export const PERM_GROUPS = [
           ['settings_genders_delete',      'Excluir gêneros'],
           ['settings_genders_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_genders_bulk_import', 'Importação em massa via CSV'],
+          ['settings_genders_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -248,6 +260,7 @@ export const PERM_GROUPS = [
           ['settings_languages_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_languages_bulk_import', 'Importação em massa via CSV'],
           ['settings_languages_import_web',  'Importar lista pronta da internet'],
+          ['settings_languages_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -256,6 +269,7 @@ export const PERM_GROUPS = [
           ['settings_bus_maps_view',   'Ver mapas de ônibus'],
           ['settings_bus_maps_edit',   'Criar / Editar mapas de ônibus'],
           ['settings_bus_maps_delete', 'Excluir mapas de ônibus'],
+          ['settings_bus_maps_export', 'Exportar como CSV (download)'],
         ],
       },
       {
@@ -267,6 +281,7 @@ export const PERM_GROUPS = [
           ['settings_countries_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_countries_bulk_import', 'Importação em massa via CSV'],
           ['settings_countries_import_web',  'Importar países / estados / cidades da internet'],
+          ['settings_countries_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -275,6 +290,7 @@ export const PERM_GROUPS = [
           ['settings_user_profiles_view',   'Ver perfis de permissão'],
           ['settings_user_profiles_edit',   'Criar / Editar perfis de permissão'],
           ['settings_user_profiles_delete', 'Excluir perfis de permissão'],
+          ['settings_user_profiles_export', 'Exportar como CSV (download)'],
         ],
       },
       {
@@ -286,13 +302,15 @@ export const PERM_GROUPS = [
           ['settings_professions_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_professions_bulk_import', 'Importação em massa via CSV'],
           ['settings_professions_import_web',  'Importar lista pronta da internet'],
+          ['settings_professions_export',      'Exportar como CSV (download)'],
         ],
       },
       {
         label: 'Termos e Condições', icon: 'shield', hue: 5,
         items: [
-          ['settings_terms_view', 'Ver termos e condições'],
-          ['settings_terms_edit', 'Editar termos e condições'],
+          ['settings_terms_view',   'Ver termos e condições'],
+          ['settings_terms_edit',   'Editar termos e condições'],
+          ['settings_terms_export', 'Exportar como CSV (download)'],
         ],
       },
       {
@@ -301,7 +319,9 @@ export const PERM_GROUPS = [
           ['settings_itinerary_categories_view',        'Ver categorias de roteiro'],
           ['settings_itinerary_categories_edit',        'Criar / Editar categorias de roteiro'],
           ['settings_itinerary_categories_delete',      'Excluir categorias de roteiro'],
+          ['settings_itinerary_categories_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_itinerary_categories_bulk_import', 'Importação em massa via CSV'],
+          ['settings_itinerary_categories_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -310,7 +330,9 @@ export const PERM_GROUPS = [
           ['settings_destinations_view',        'Ver destinos'],
           ['settings_destinations_edit',        'Criar / Editar destinos'],
           ['settings_destinations_delete',      'Excluir destinos'],
+          ['settings_destinations_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_destinations_bulk_import', 'Importação em massa via CSV'],
+          ['settings_destinations_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -319,15 +341,20 @@ export const PERM_GROUPS = [
           ['settings_holidays_view',        'Ver feriados'],
           ['settings_holidays_edit',        'Criar / Editar feriados'],
           ['settings_holidays_delete',      'Excluir feriados'],
+          ['settings_holidays_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_holidays_bulk_import', 'Importação em massa via CSV'],
+          ['settings_holidays_export',      'Exportar como CSV (download)'],
         ],
       },
       {
         label: 'Modelos de Texto do Roteiro', icon: 'docs', hue: 250,
         items: [
-          ['settings_itinerary_templates_view',   'Ver modelos de texto'],
-          ['settings_itinerary_templates_edit',   'Criar / Editar modelos de texto'],
-          ['settings_itinerary_templates_delete', 'Excluir modelos de texto'],
+          ['settings_itinerary_templates_view',        'Ver modelos de texto'],
+          ['settings_itinerary_templates_edit',        'Criar / Editar modelos de texto'],
+          ['settings_itinerary_templates_delete',      'Excluir modelos de texto'],
+          ['settings_itinerary_templates_bulk_delete', 'Exclusão em massa via CSV'],
+          ['settings_itinerary_templates_bulk_import', 'Importação em massa via CSV'],
+          ['settings_itinerary_templates_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -336,7 +363,9 @@ export const PERM_GROUPS = [
           ['settings_services_view',        'Ver serviços'],
           ['settings_services_edit',        'Criar / Editar serviços'],
           ['settings_services_delete',      'Excluir serviços'],
+          ['settings_services_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_services_bulk_import', 'Importação em massa via CSV'],
+          ['settings_services_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -347,6 +376,7 @@ export const PERM_GROUPS = [
           ['settings_accommodations_delete',      'Excluir tipos de acomodação'],
           ['settings_accommodations_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_accommodations_bulk_import', 'Importação em massa via CSV'],
+          ['settings_accommodations_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -358,6 +388,7 @@ export const PERM_GROUPS = [
           ['settings_vaccines_bulk_delete', 'Exclusão em massa via CSV'],
           ['settings_vaccines_bulk_import', 'Importação em massa via CSV'],
           ['settings_vaccines_import_web',  'Importar lista pronta da internet'],
+          ['settings_vaccines_export',      'Exportar como CSV (download)'],
         ],
       },
     ],
@@ -564,6 +595,41 @@ export const PERM_DEPENDENCIES = {
     'settings_airports_bulk_import', 'settings_airlines_bulk_import',
     'settings_itinerary_categories_bulk_import', 'settings_destinations_bulk_import', 'settings_holidays_bulk_import', 'settings_services_bulk_import',
   ],
+
+  // Exportar CSV (download) — granular por área; depende só de _view
+  settings_professions_export:          'settings_professions_view',
+  settings_languages_export:            'settings_languages_view',
+  settings_countries_export:            'settings_countries_view',
+  settings_genders_export:              'settings_genders_view',
+  settings_vaccines_export:             'settings_vaccines_view',
+  settings_doc_types_export:            'settings_doc_types_view',
+  settings_prof_cards_export:           'settings_prof_cards_view',
+  settings_user_profiles_export:        'settings_user_profiles_view',
+  settings_destinations_export:         'settings_destinations_view',
+  settings_list_additionals_export:     'settings_list_additionals_view',
+  settings_crew_roles_export:           'settings_crew_roles_view',
+  settings_accommodations_export:       'settings_accommodations_view',
+  settings_list_categories_export:      'settings_list_categories_view',
+  settings_airports_export:             'settings_airports_view',
+  settings_airlines_export:             'settings_airlines_view',
+  settings_bus_maps_export:             'settings_bus_maps_view',
+  settings_contract_clauses_export:     'settings_contract_clauses_view',
+  settings_payment_methods_export:      'settings_payment_methods_view',
+  settings_exchange_rates_export:       'settings_exchange_rates_view',
+  settings_terms_export:                'settings_terms_view',
+  settings_operating_company_export:    'settings_operating_company_view',
+  settings_itinerary_categories_export: 'settings_itinerary_categories_view',
+  settings_holidays_export:             'settings_holidays_view',
+  settings_services_export:             'settings_services_view',
+  settings_itinerary_templates_export:  'settings_itinerary_templates_view',
+
+  // Granularidade de massa completada nos campos de Roteiro
+  settings_itinerary_categories_bulk_delete: 'settings_itinerary_categories_delete',
+  settings_destinations_bulk_delete:         'settings_destinations_delete',
+  settings_holidays_bulk_delete:             'settings_holidays_delete',
+  settings_services_bulk_delete:             'settings_services_delete',
+  settings_itinerary_templates_bulk_delete:  'settings_itinerary_templates_delete',
+  settings_itinerary_templates_bulk_import:  'settings_itinerary_templates_edit',
 
   settings_view_logs: 'settings_view',
 

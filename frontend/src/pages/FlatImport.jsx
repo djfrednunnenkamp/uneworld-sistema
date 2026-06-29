@@ -335,6 +335,11 @@ const BULK_DELETE_PERM = {
   perm_profiles:   'settings_user_profiles_delete',
   payment_methods: 'settings_payment_methods_delete',
   exchange_rates:  'settings_exchange_rates_delete',
+  itinerary_categories: 'settings_itinerary_categories_bulk_delete',
+  destinations:    'settings_destinations_bulk_delete',
+  holidays:        'settings_holidays_bulk_delete',
+  services:        'settings_services_bulk_delete',
+  itinerary_templates: 'settings_itinerary_templates_bulk_delete',
 }
 
 export default function FlatImport() {

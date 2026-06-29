@@ -214,7 +214,7 @@ def geo_import_action(request):
 
 
 @api_view(['GET'])
-@permission_classes([RequirePermission('manage_settings', 'settings_csv_export', 'settings_countries', 'settings_countries_view')])
+@permission_classes([RequirePermission('manage_settings', 'settings_csv_export', 'settings_countries_export')])
 def geo_export(request):
     """
     Exporta todos os continentes, países, estados e cidades em um único CSV:

@@ -228,6 +228,41 @@ class UserPermissions(models.Model):
     settings_itinerary_templates_edit         = models.BooleanField(default=False)
     settings_itinerary_templates_delete       = models.BooleanField(default=False)
 
+    # Exportar CSV (download) — granular por área. Antes o download dependia só
+    # de "_view"; agora cada área tem permissão própria de download.
+    settings_professions_export          = models.BooleanField(default=False)
+    settings_languages_export            = models.BooleanField(default=False)
+    settings_countries_export            = models.BooleanField(default=False)
+    settings_genders_export              = models.BooleanField(default=False)
+    settings_vaccines_export             = models.BooleanField(default=False)
+    settings_doc_types_export            = models.BooleanField(default=False)
+    settings_prof_cards_export           = models.BooleanField(default=False)
+    settings_user_profiles_export        = models.BooleanField(default=False)
+    settings_destinations_export         = models.BooleanField(default=False)
+    settings_list_additionals_export     = models.BooleanField(default=False)
+    settings_crew_roles_export           = models.BooleanField(default=False)
+    settings_accommodations_export       = models.BooleanField(default=False)
+    settings_list_categories_export      = models.BooleanField(default=False)
+    settings_airports_export             = models.BooleanField(default=False)
+    settings_airlines_export             = models.BooleanField(default=False)
+    settings_bus_maps_export             = models.BooleanField(default=False)
+    settings_contract_clauses_export     = models.BooleanField(default=False)
+    settings_payment_methods_export      = models.BooleanField(default=False)
+    settings_exchange_rates_export       = models.BooleanField(default=False)
+    settings_terms_export                = models.BooleanField(default=False)
+    settings_operating_company_export    = models.BooleanField(default=False)
+    settings_itinerary_categories_export = models.BooleanField(default=False)
+    settings_holidays_export             = models.BooleanField(default=False)
+    settings_services_export             = models.BooleanField(default=False)
+    settings_itinerary_templates_export  = models.BooleanField(default=False)
+    # Granularidade de massa completada nos campos de Roteiro (antes só item a item)
+    settings_itinerary_categories_bulk_delete = models.BooleanField(default=False)
+    settings_destinations_bulk_delete         = models.BooleanField(default=False)
+    settings_holidays_bulk_delete             = models.BooleanField(default=False)
+    settings_services_bulk_delete             = models.BooleanField(default=False)
+    settings_itinerary_templates_bulk_delete  = models.BooleanField(default=False)
+    settings_itinerary_templates_bulk_import  = models.BooleanField(default=False)
+
     # Log do sistema — por área usa a mesma permissão "_view_logs" de cada
     # área (passengers_view_logs, lists_view_logs, agencies_view_logs,
     # users_view_logs, settings_view_logs), em vez de duplicar aqui.
