@@ -229,6 +229,7 @@ export async function generateContractPDF(contract, opts = {}) {
     ['Nome completo', ct.full_name || '', 'Sexo', ct.gender || ''],
     ['Data de nascimento', fmtDateBR(ct.birth_date), 'CPF', ct.cpf || ''],
     ['Celular', ct.mobile || '', 'E-mail', ct.email || ''],
+    ['Endereço', { content: ct.address || '', colSpan: 3 }],
   ])
 
   // Nome dos passageiros — precisa de espaço pro título + cabeçalho da
