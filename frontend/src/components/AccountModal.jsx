@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { authApi, agendaApi } from '../api'
+import { authApi, agendaApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
 import FormSelect from './FormSelect'
@@ -109,7 +109,12 @@ export default function AccountModal({ onClose, onSaved }) {
     receive_task_emails:     false,
     receive_birthday_emails: false,
     send_hour:               8,
+    dashboard_currencies:    [],
   })
+
+  // Lista de câmbios disponíveis para o usuário escolher quais ver na Visão Geral.
+  const canSeeExchange = user?.is_superuser || !!user?.permissions?.settings_exchange_rates_view
+  const [rates, setRates] = useState([])
 
   const hourOpts = useMemo(() =>
     Array.from({length: 24}, (_, h) => ({ value: h, label: fmtHour(h, prefs.time_format) })),
@@ -130,11 +135,24 @@ export default function AccountModal({ onClose, onSaved }) {
         receive_task_emails:     !!r.data.receive_task_emails,
         receive_birthday_emails: !!r.data.receive_birthday_emails,
         send_hour:               r.data.send_hour ?? 8,
+        dashboard_currencies:    Array.isArray(r.data.dashboard_currencies) ? r.data.dashboard_currencies : [],
       })))
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (!canSeeExchange) return
+    configApi.exchangeRates()
+      .then(r => setRates(r.data || []))
+      .catch(() => {})
+  }, [canSeeExchange])
+
   const set = (key, val) => setPrefs(p => ({ ...p, [key]: val }))
+
+  const toggleCurrency = (id) => setPrefs(p => {
+    const cur = p.dashboard_currencies || []
+    return { ...p, dashboard_currencies: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] }
+  })
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -151,6 +169,7 @@ export default function AccountModal({ onClose, onSaved }) {
         receive_task_emails:     prefs.receive_task_emails,
         receive_birthday_emails: prefs.receive_birthday_emails,
         send_hour:               prefs.send_hour,
+        dashboard_currencies:    prefs.dashboard_currencies,
       })
       setTimeFormat(prefs.time_format)
       await onSaved()
@@ -208,6 +227,31 @@ export default function AccountModal({ onClose, onSaved }) {
               })}
             </div>
           </Section>
+
+          {/* Moedas no câmbio da Visão Geral */}
+          {canSeeExchange && (
+            <Section title="Moedas no câmbio (Visão Geral)">
+              <p style={{ margin: '0 0 10px', fontSize: 12, color: '#94a3b8', lineHeight: 1.45 }}>
+                Escolha quais moedas aparecem na faixa de câmbio do seu painel. Sem nenhuma marcada, mostramos as moedas favoritas (★).
+              </p>
+              {rates.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>Nenhuma moeda cadastrada em Configurações.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 220, overflowY: 'auto', border: '1px solid #eef2f7', borderRadius: 10, padding: 6 }}>
+                  {rates.map(r => {
+                    const checked = (prefs.dashboard_currencies || []).includes(r.id)
+                    return (
+                      <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 9px', borderRadius: 8, cursor: 'pointer', background: checked ? '#f1f5f9' : 'transparent' }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleCurrency(r.id)} style={{ width: 16, height: 16, accentColor: '#1a2d4f', cursor: 'pointer' }} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{r.from_currency} → {r.to_currency}</span>
+                        {r.is_favorite && <span style={{ fontSize: 12, color: '#f59e0b' }}>★</span>}
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+            </Section>
+          )}
 
           {/* Resumo do calendário */}
           <Section title="Resumo do calendário">

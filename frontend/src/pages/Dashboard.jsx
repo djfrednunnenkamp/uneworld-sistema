@@ -103,7 +103,6 @@ function ExchangeStrip({ rates, timeFormat, clickable, onClick }) {
     return r.to_currency === 'BRL' ? `R$ ${n}` : n
   }
   const target = rates.length && rates.every((r) => r.to_currency === rates[0].to_currency) ? rates[0].to_currency : null
-  const lastUpd = rates.reduce((acc, r) => (r.updated_at && (!acc || r.updated_at > acc) ? r.updated_at : acc), null)
   return (
     <div className="tcard" onClick={clickable ? onClick : undefined}
       style={{ padding: 0, overflow: 'hidden', marginBottom: 22, cursor: clickable ? 'pointer' : 'default' }}>
@@ -113,7 +112,7 @@ function ExchangeStrip({ rates, timeFormat, clickable, onClick }) {
           CÂMBIO{target ? ` · ${target}` : ''}
         </div>
         <div style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>
-          7 dias{lastUpd ? ` · ${fmtDateTime(lastUpd, timeFormat)}` : ''}
+          últimos 7 dias
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'stretch' }}>
@@ -133,6 +132,9 @@ function ExchangeStrip({ rates, timeFormat, clickable, onClick }) {
                   )}
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', letterSpacing: '-.02em', whiteSpace: 'nowrap', marginTop: 2 }}>{fmtRate(r)}</div>
+                {r.updated_at && (
+                  <div style={{ fontSize: 9.5, color: '#94a3b8', marginTop: 2, whiteSpace: 'nowrap' }}>{fmtDateTime(r.updated_at, timeFormat)}</div>
+                )}
               </div>
               <div style={{ width: 62, height: 30, flexShrink: 0 }}>
                 <Sparkline data={r.history} />

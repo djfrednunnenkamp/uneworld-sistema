@@ -62,7 +62,17 @@ def dashboard_stats(request):
 
     exchange_rates = None
     if has_any_perm(user, 'settings_exchange_rates_view'):
-        favs = ConfigExchangeRate.objects.filter(is_favorite=True).order_by('from_currency', 'to_currency')
+        # Cada usuário pode escolher quais moedas ver (configurações pessoais).
+        # Sem escolha, mostra as favoritas globais.
+        chosen_ids = []
+        pref = getattr(user, 'calendar_preference', None)
+        if pref and pref.dashboard_currencies:
+            chosen_ids = list(pref.dashboard_currencies)
+        if chosen_ids:
+            rows = {r.id: r for r in ConfigExchangeRate.objects.filter(id__in=chosen_ids)}
+            favs = [rows[i] for i in chosen_ids if i in rows]   # preserva a ordem escolhida
+        else:
+            favs = list(ConfigExchangeRate.objects.filter(is_favorite=True).order_by('from_currency', 'to_currency'))
         exchange_rates = [
             {
                 'id': r.id,
