@@ -187,7 +187,7 @@ def log_save(sender, instance, created, **kwargs):
         # explícito quando ele foi ENVIADO para assinatura e quando foi ASSINADO/
         # recebido — vale para física, digital e o retorno da Autentique (webhook).
         elif sender.__name__ == 'Contract' and FIELD_LABELS['stage'] in changes:
-            action = {'enviado': 'send', 'assinado': 'sign'}.get(instance.stage, 'update')
+            action = {'enviado': 'send', 'assinado': 'sign', 'em_edicao': 'reopen'}.get(instance.stage, 'update')
 
     try:
         repr_str = str(instance)[:500]
