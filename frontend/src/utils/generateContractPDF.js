@@ -1,31 +1,13 @@
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import html2canvas from 'html2canvas'
 import { configApi } from '../api'
 
-const NAV    = [26, 45, 79]      // #1a2d4f
-const BORDER = [226, 232, 240]   // #e2e8f0
-const MUTED  = [71, 85, 105]
-
-// Fonte base 11pt — o usuário pediu pra não ir abaixo disso por legibilidade,
-// preferindo espaçamento mais apertado a letra menor pra caber numa página.
-const FONT_BODY = 11
-const FONT_HEAD = 11
-// Espaçamento apertado pra caber tudo na 1ª página sem reduzir a fonte abaixo
-// de 11pt (legibilidade). PAD = padding interno das células; GAP = respiro
-// antes de cada faixa de seção.
-const PAD       = 0.9
-const GAP       = 0.8
+const NAV = [26, 45, 79]      // #1a2d4f
 
 const fmtDateBR = (iso) => {
   if (!iso) return ''
   const [y, m, d] = String(iso).split('-')
   return (y && m && d) ? `${d}/${m}/${y}` : String(iso)
-}
-
-const fmtDateRangeBR = (start, end) => {
-  if (!start && !end) return ''
-  if (start && end) return `${fmtDateBR(start)} – ${fmtDateBR(end)}`
-  return fmtDateBR(start || end)
 }
 
 const fmtMoney = (v) => v == null || v === '' ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
@@ -45,48 +27,268 @@ function htmlToText(html) {
   return div.textContent.replace(/\n{3,}/g, '\n\n').trim()
 }
 
-function sectionHeader(doc, title, y) {
-  const pw = doc.internal.pageSize.getWidth()
-  doc.setFillColor(...NAV)
-  doc.rect(10, y, pw - 20, 4.8, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  doc.setTextColor(255, 255, 255)
-  doc.text(title, 13, y + 3.45)
-  return y + 4.8
+// ── Helpers de escape pra montar o HTML da 1ª página com dados do usuário ──
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+// Texto com travessão de fallback quando vazio.
+const dash = (s) => { const t = String(s ?? '').trim(); return t ? esc(t) : '—' }
+// Endereço (ou outro multilinha) preservando quebras como <br>.
+const addr = (s) => { const t = String(s ?? '').trim(); return t ? esc(t).replace(/\n/g, '<br>') : '—' }
+const money = (v) => { const m = fmtMoney(v); return m === '' ? '0,00' : m }
+
+/* Monta o HTML da nova 1ª página do contrato (layout Uneworld). O CSS é todo
+ * escopado em `.ctpdf` para não vazar para o resto do app durante a
+ * renderização offscreen. */
+function buildFirstPageHTML(contract, company, logoDataUrl) {
+  const cc = contract.base_currency || 'USD'
+  const ag = contract.agency_data || {}
+  const ct = contract.contratante_data || {}
+  const isJuridica = ct.payer_type === 'juridica'
+
+  const periodo = (contract.departure_date || contract.return_date)
+    ? `${fmtDateBR(contract.departure_date)} a ${fmtDateBR(contract.return_date)}`
+    : '—'
+
+  const sigText = contract.signature_type === 'digital' ? '✓ Assinado Digitalmente' : '✓ Assinado Fisicamente'
+
+  // ── Passageiros ──
+  const guests = contract.guests || []
+  const guestRows = guests.map((g, i) => {
+    const p = g.passenger_data || {}
+    return `<tr>
+      <td>${i + 1}. ${dash(p.full_name)}</td>
+      <td>${dash(p.gender)}</td>
+      <td>${p.birth_date ? fmtDateBR(p.birth_date) : '—'}</td>
+      <td>${dash(p.passport || p.cpf)}</td>
+      <td>${dash(g.accommodation_type_name)}</td>
+    </tr>`
+  }).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+
+  // ── Acomodações contratadas ──
+  const lines = contract.accommodation_lines || []
+  const accomRows = lines.map(l => `<tr>
+      <td>${dash(l.accommodation_type_name)}</td>
+      <td>${money(l.value_per_person_usd)}</td>
+      <td>${money(l.taxes_usd)}</td>
+      <td>${dash(l.quantity)}</td>
+      <td><strong>${money(l.total_usd)}</strong></td>
+    </tr>`).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+
+  // ── Valores (resumo) ── soma das bases e das taxas (×quantidade) para
+  // bater com o Total do contrato.
+  const baseSum = lines.reduce((s, l) => s + Number(l.value_per_person_usd || 0) * Number(l.quantity || 1), 0)
+  const taxSum  = lines.reduce((s, l) => s + Number(l.taxes_usd || 0) * Number(l.quantity || 1), 0)
+
+  // ── Plano de pagamento ──
+  const insts = contract.installments || []
+  const aVista = contract.payment_type === 'a_vista'
+  const entrada  = insts.find(i => i.kind === 'entrada')
+  const parcelas = insts.filter(i => i.kind === 'parcela').sort((a, b) => (a.installment_number || 0) - (b.installment_number || 0))
+  let payRows
+  if (aVista) {
+    const p = parcelas[0] || entrada
+    payRows = p
+      ? `<tr><td>01</td><td>${dash(p.detail || 'À vista')}</td><td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td><td>${money(p.value_brl)}</td><td>${dash(p.payment_method)}</td><td>Pendente</td></tr>`
+      : ''
+  } else {
+    const ordered = [...(entrada ? [entrada] : []), ...parcelas]
+    payRows = ordered.map((p, idx) => {
+      const isLast = idx === ordered.length - 1
+      let detail
+      if (p.kind === 'entrada') detail = p.detail || 'Entrada (Sinal)'
+      else detail = p.detail || `Parcela ${p.installment_number ?? idx}`
+      if (isLast && p.kind === 'parcela' && !/final/i.test(detail)) detail += ' / Final'
+      return `<tr>
+        <td>${String(idx + 1).padStart(2, '0')}</td>
+        <td>${dash(detail)}</td>
+        <td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td>
+        <td>${money(p.value_brl)}</td>
+        <td>${dash(p.payment_method)}</td>
+        <td>Pendente</td>
+      </tr>`
+    }).join('')
+  }
+  if (!payRows) payRows = `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+
+  // ── Bloco do cliente contratante (físico × jurídico) ──
+  const clientFields = isJuridica ? [
+    ['Razão social', dash(ct.full_name)],
+    ['CNPJ', dash(ct.cpf)],
+    ['E-mail', dash(ct.email)],
+    ['Celular', dash(ct.mobile)],
+    ['Endereço', addr(ct.address)],
+  ] : [
+    ['Nome', dash(ct.full_name)],
+    ['Sexo', dash(ct.gender)],
+    ['Data de nascimento', ct.birth_date ? fmtDateBR(ct.birth_date) : '—'],
+    ['CPF', dash(ct.cpf)],
+    ['E-mail', dash(ct.email)],
+    ['Celular', dash(ct.mobile)],
+    ['Endereço', addr(ct.address)],
+  ]
+  const clientGrid = clientFields.map(([k, v]) => `<div class="field"><strong>${k}:</strong><br>${v}</div>`).join('')
+
+  const logoTag = logoDataUrl
+    ? `<img class="logo" src="${logoDataUrl}" alt="Uneworld" />`
+    : `<div class="logo"></div>`
+
+  const css = `
+    .ctpdf { --blue-dark:#192D58; --blue:#0B4F9F; --blue-light:#0E9EDD; --line:#C9D8EE; --soft:#F6F9FD; --text:#0D1B35; color:var(--text); font-family:Arial,Helvetica,sans-serif; font-size:11px; }
+    .ctpdf * { box-sizing:border-box; }
+    .ctpdf .page { width:210mm; min-height:297mm; background:white; padding:14mm 13mm 10mm; position:relative; overflow:hidden; }
+    .ctpdf .header { display:grid; grid-template-columns:170px 1fr 165px; gap:22px; align-items:start; padding-bottom:14px; border-bottom:1px solid var(--line); }
+    .ctpdf .logo { width:155px; display:block; }
+    .ctpdf .title { border-left:1px solid var(--line); padding-left:24px; }
+    .ctpdf .title h1 { margin:0; color:var(--blue-dark); font-size:26px; line-height:1.15; font-weight:800; text-transform:uppercase; }
+    .ctpdf .title p { margin:8px 0 0; color:var(--blue); font-size:11px; font-weight:700; text-transform:uppercase; }
+    .ctpdf .meta { color:var(--blue-dark); font-weight:800; text-transform:uppercase; padding-top:12px; }
+    .ctpdf .meta .label { font-size:12px; margin-bottom:5px; }
+    .ctpdf .meta .value { font-size:18px; margin-bottom:12px; }
+    .ctpdf .signature-card { width:100%; padding:10px 12px; border-radius:8px; background:linear-gradient(135deg,#0B4F9F,#0E9EDD); color:white; font-size:11px; font-weight:700; text-transform:uppercase; box-shadow:0 4px 14px rgba(11,79,159,.25); }
+    .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:16px; margin-top:14px; }
+    .ctpdf .grid-mid { display:grid; grid-template-columns:230px 1fr; gap:16px; margin-top:12px; }
+    .ctpdf .section { border:1px solid var(--line); border-radius:9px; padding:12px 11px; background:linear-gradient(180deg,#fff,#fbfdff); }
+    .ctpdf .section-title { display:flex; align-items:center; gap:8px; color:var(--blue-dark); font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; }
+    .ctpdf .icon { min-width:32px; height:32px; border-radius:50%; background:var(--blue); color:white; display:inline-flex; align-items:center; justify-content:center; font-size:17px; font-weight:700; }
+    .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:14px; }
+    .ctpdf h3 { margin:0 0 11px; color:var(--blue); font-size:11px; text-transform:uppercase; }
+    .ctpdf .field { margin-bottom:9px; line-height:1.35; }
+    .ctpdf .field strong { color:var(--blue-dark); margin-right:4px; }
+    .ctpdf .travel-row { display:grid; grid-template-columns:24px 1fr; gap:8px; padding:7px 0; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .travel-row:last-child { border-bottom:0; }
+    .ctpdf .mini-icon { color:var(--blue); font-size:16px; line-height:1; text-align:center; padding-top:2px; }
+    .ctpdf .client, .ctpdf .passengers, .ctpdf .accommodations { margin-top:12px; }
+    .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:12px; border-top:1px solid #D8E3F3; padding-top:9px; }
+    .ctpdf .client-grid .field { border-right:1px solid #D8E3F3; min-height:28px; padding-right:8px; margin:0; }
+    .ctpdf .client-grid .field:last-child { border-right:0; }
+    .ctpdf table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9.5px; background:white; }
+    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:white; text-transform:uppercase; padding:5px; font-size:8.5px; border-right:1px solid rgba(255,255,255,.25); }
+    .ctpdf td { padding:4px 5px; text-align:center; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
+    .ctpdf td:nth-child(2), .ctpdf .accommodations td:first-child { text-align:left; }
+    .ctpdf tr:last-child td { border-bottom:0; }
+    .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
+    .ctpdf .values-list { display:grid; gap:11px; padding-top:6px; }
+    .ctpdf .value-row { display:grid; grid-template-columns:25px 1fr auto; gap:8px; align-items:center; padding-bottom:7px; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .value-row.total { color:var(--blue); font-size:15px; font-weight:800; }
+  `
+
+  return `<style>${css}</style>
+  <div class="ctpdf">
+    <main class="page">
+      <header class="header">
+        ${logoTag}
+        <div class="title">
+          <h1>Contrato de<br>Prestação de<br>Serviços Turísticos</h1>
+          <p>Instrumento particular de contratação de viagem</p>
+        </div>
+        <div class="meta">
+          <div class="label">Reserva nº ${dash(contract.reservation_number)}</div>
+          <div class="label">Data da contratação</div>
+          <div class="value">${contract.contract_date ? fmtDateBR(contract.contract_date) : '—'}</div>
+          <div class="signature-card">${sigText}</div>
+        </div>
+      </header>
+
+      <section class="grid-top">
+        <div class="section">
+          <div class="section-title"><span class="icon">👥</span>1. Partes Contratantes</div>
+          <div class="two-cols">
+            <div class="col">
+              <h3>Agência Intermediadora</h3>
+              <div class="field"><strong>Empresa:</strong> ${dash(ag.name)}</div>
+              <div class="field"><strong>CNPJ:</strong> ${dash(ag.cnpj)}</div>
+              <div class="field"><strong>Telefone:</strong> ${dash(ag.phone)}</div>
+              <div class="field"><strong>E-mail:</strong> ${dash(ag.email)}</div>
+              <div class="field"><strong>Endereço:</strong><br>${addr(ag.address)}</div>
+            </div>
+            <div class="col">
+              <h3>Operadora Fornecedora</h3>
+              <div class="field"><strong>Empresa:</strong> ${dash(company.company_name)}</div>
+              <div class="field"><strong>CNPJ:</strong> ${dash(company.cnpj)}</div>
+              <div class="field"><strong>Telefone:</strong> ${dash(company.mobile || company.phone)}</div>
+              <div class="field"><strong>E-mail:</strong> ${dash(company.email)}</div>
+              <div class="field"><strong>Endereço:</strong><br>${addr(company.address)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title"><span class="icon">✈️</span>2. Resumo da Viagem</div>
+          <div class="travel-row"><div class="mini-icon">🧳</div><div><strong>Pacote:</strong><br>${dash(contract.package_name)}</div></div>
+          <div class="travel-row"><div class="mini-icon">📅</div><div><strong>Período da viagem:</strong><br>${periodo}</div></div>
+          <div class="travel-row"><div class="mini-icon">🛫</div><div><strong>Aeroporto de embarque:</strong><br>${dash(contract.departure_airport)}</div></div>
+          <div class="travel-row"><div class="mini-icon">💬</div><div><strong>Observações:</strong><br>${addr(contract.observations)}</div></div>
+        </div>
+      </section>
+
+      <section class="section client">
+        <div class="section-title"><span class="icon">👤</span>3. Cliente Contratante <span style="font-size:10px;">(Responsável pelo pagamento)</span></div>
+        <div class="client-grid">${clientGrid}</div>
+      </section>
+
+      <section class="section passengers">
+        <div class="section-title"><span class="icon">👥</span>4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></div>
+        <table>
+          <thead><tr>
+            <th style="width:42%">Nome completo</th><th>Sexo</th><th>Data de nascimento</th><th>Passaporte/CPF</th><th>Acomodação</th>
+          </tr></thead>
+          <tbody>${guestRows}</tbody>
+        </table>
+      </section>
+
+      <section class="section accommodations">
+        <div class="section-title"><span class="icon">🏨</span>5. Acomodações Contratadas</div>
+        <table>
+          <thead><tr>
+            <th>Tipo de acomodação</th><th>Valor/pessoa (${esc(cc)})</th><th>Taxas (${esc(cc)})</th><th>Quantidade</th><th>Total (${esc(cc)})</th>
+          </tr></thead>
+          <tbody>${accomRows}</tbody>
+        </table>
+      </section>
+
+      <section class="grid-mid">
+        <div class="section">
+          <div class="section-title"><span class="icon">$</span>6. Valores e Condições</div>
+          <div class="values-list">
+            <div class="value-row"><span class="mini-icon">💵</span><span>Valor por pessoa (${esc(cc)})</span><strong>${money(baseSum)}</strong></div>
+            <div class="value-row"><span class="mini-icon">🪙</span><span>Taxas (${esc(cc)})</span><strong>${money(taxSum)}</strong></div>
+            <div class="value-row"><span class="mini-icon">🔁</span><span>Câmbio</span><strong>${dash(fmtRate(contract.exchange_rate))}</strong></div>
+            <div class="value-row total"><span class="mini-icon">💰</span><span>Total (${esc(cc)})</span><strong>${money(contract.total_usd)}</strong></div>
+            <div class="value-row"><span class="mini-icon">🧾</span><span>Total em (BRL)</span><strong>${money(contract.total_brl)}</strong></div>
+            <div class="value-row"><span class="mini-icon">📥</span><span>Recebido<br>(entrada / prazo)</span><strong>${money(contract.received_down_payment_brl)} / ${money(contract.received_installments_brl)}</strong></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title"><span class="icon">💳</span>7. Plano de Pagamento</div>
+          <table>
+            <thead><tr>
+              <th>Parcela</th><th>Detalhe</th><th>Vencimento</th><th>Valor (BRL)</th><th>Forma de pagamento</th><th>Status</th>
+            </tr></thead>
+            <tbody>${payRows}</tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>`
 }
 
-function kvTable(doc, y, rows) {
-  // rows: [[label, value, label2, value2]] — 4 colunas (2 pares label/valor por linha)
-  autoTable(doc, {
-    startY: y,
-    body: rows,
-    theme: 'grid',
-    styles: { font: 'helvetica', fontSize: FONT_BODY, cellPadding: PAD, lineColor: BORDER, lineWidth: 0.2, textColor: [30, 41, 59] },
-    columnStyles: {
-      0: { fontStyle: 'bold', textColor: MUTED, cellWidth: 33 },
-      1: { cellWidth: 62 },
-      2: { fontStyle: 'bold', textColor: MUTED, cellWidth: 33 },
-      3: { cellWidth: 'auto' },
-    },
-    margin: { left: 10, right: 10 },
-    tableLineColor: BORDER,
-    tableLineWidth: 0.2,
-  })
-  return doc.lastAutoTable.finalY
-}
-
-function dataTable(doc, y, head, body) {
-  autoTable(doc, {
-    startY: y,
-    head: [head],
-    body,
-    theme: 'grid',
-    styles: { font: 'helvetica', fontSize: FONT_BODY, cellPadding: PAD, lineColor: BORDER, lineWidth: 0.2 },
-    headStyles: { fillColor: NAV, textColor: 255, fontStyle: 'bold', fontSize: FONT_HEAD },
-    margin: { left: 10, right: 10 },
-  })
-  return doc.lastAutoTable.finalY
+/* Renderiza o HTML da 1ª página offscreen e devolve o canvas (html2canvas). */
+async function renderFirstPageCanvas(html) {
+  const holder = document.createElement('div')
+  holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;background:#fff;z-index:-1;'
+  holder.innerHTML = html
+  document.body.appendChild(holder)
+  try {
+    const pageEl = holder.querySelector('.page')
+    // Garante que imagens (logo) terminem de carregar antes de capturar.
+    await Promise.all(Array.from(holder.querySelectorAll('img')).map(img =>
+      img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res })))
+    const canvas = await html2canvas(pageEl, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false })
+    return canvas
+  } finally {
+    document.body.removeChild(holder)
+  }
 }
 
 export async function generateContractPDF(contract, opts = {}) {
@@ -104,155 +306,35 @@ export async function generateContractPDF(contract, opts = {}) {
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw  = doc.internal.pageSize.getWidth()
-  let y = 8
+  const ph  = doc.internal.pageSize.getHeight()
 
-  // ── Cabeçalho compacto: logo + título + reserva/data na mesma área ──
-  if (logoDataUrl) {
-    try { doc.addImage(logoDataUrl, 'PNG', 10, y, 17, 11) } catch {}
-  }
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11.5)
-  doc.setTextColor(...NAV)
-  doc.text('COMPRA DE SERVIÇOS TURÍSTICOS E CONTRATO DE VIAGEM POR ADESÃO', pw / 2 + 8, y + 4, { align: 'center' })
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...MUTED)
-  doc.text('EXCLUSIVO PARA GRUPOS', pw / 2 + 8, y + 8, { align: 'center' })
-  doc.setFontSize(8.5)
-  doc.text(`Reserva nº ${contract.reservation_number || '—'}    ·    Data desta contratação: ${fmtDateBR(contract.contract_date)}`, pw / 2 + 8, y + 11.5, { align: 'center' })
-  // Forma de assinatura — em destaque no cabeçalho.
-  const sigLabel = contract.signature_type === 'digital' ? 'ASSINADO DIGITALMENTE' : 'ASSINADO FISICAMENTE'
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(...NAV)
-  doc.text(sigLabel, pw / 2 + 8, y + 15.5, { align: 'center' })
-  y += 18
-
-  // Agência
-  y = sectionHeader(doc, 'AGÊNCIA DE VIAGEM (INTERMEDIADORA)', y)
-  const ag = contract.agency_data || {}
-  y = kvTable(doc, y, [
-    ['Empresa', ag.name || '', 'CNPJ', ag.cnpj || ''],
-    ['Telefone', ag.phone || '', 'E-mail', ag.email || ''],
-    ['Endereço', { content: ag.address || '', colSpan: 3 }],
-  ])
-
-  // Operadora
-  // Vendedor (nome, e-mail e telefone) vem do contrato — o usuário escolhido no
-  // campo "Vendedor", ou o próprio criador por padrão. Cai pro texto da config
-  // da Operadora se o contrato (antigo) não tiver vendedor.
-  const seller = contract.seller_data || {}
-  const sellerName  = seller.name || company.seller || ''
-  const sellerEmail = seller.email || company.email || ''
-  const sellerPhone = seller.phone || company.mobile || company.phone || ''
-  y = sectionHeader(doc, 'OPERADORA (FORNECEDORA DO PACOTE TURÍSTICO)', y + GAP)
-  y = kvTable(doc, y, [
-    ['Nome/Empresa', company.company_name || '', 'CNPJ', company.cnpj || ''],
-    ['Vendedor', sellerName, 'Contato', [sellerPhone, sellerEmail].filter(Boolean).join('   ·   ')],
-    ['Telefone fixo', company.phone || '', 'Endereço', company.address || ''],
-  ])
-
-  // Pacote de viagem
-  y = sectionHeader(doc, 'PACOTE DE VIAGEM', y + GAP)
-  y = kvTable(doc, y, [
-    ['Nome do pacote', contract.package_name || '', 'Data da viagem', fmtDateRangeBR(contract.departure_date, contract.return_date)],
-    ['Aeroporto de embarque', contract.departure_airport || '', 'Observações', contract.observations || ''],
-  ])
-
-  // Tipos de acomodação
-  const cc = contract.base_currency || 'USD'   // moeda base do contrato (rótulos)
-  y = sectionHeader(doc, 'TIPOS DE ACOMODAÇÃO / VALORES POR PESSOA', y + GAP)
-  const accomRows = (contract.accommodation_lines || []).map(l => [
-    l.accommodation_type_name || '', fmtMoney(l.value_per_person_usd), fmtMoney(l.taxes_usd),
-    String(l.quantity ?? ''), fmtMoney(l.total_usd),
-  ])
-  y = dataTable(doc, y, ['Tipo de Acomodação', `Valor/pessoa (${cc})`, `Taxas (${cc})`, 'Quantidade', `Total (${cc})`],
-    accomRows.length ? accomRows : [['—', '', '', '', '']])
-
-  // Valores extras / descontos (só aparece quando há). Percentual incide sobre o
-  // subtotal das acomodações.
-  const accomSubtotal = (contract.accommodation_lines || []).reduce(
-    (s, l) => s + (Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1), 0)
-  const adjRows = (contract.adjustments || []).map(a => {
-    const amount = a.mode === 'percentual' ? accomSubtotal * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
-    const tipo = `${a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'}${a.mode === 'percentual' ? ` (${Number(a.percent || 0)}%)` : ''}`
-    return [
-      a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'),
-      tipo,
-      `${a.kind === 'desconto' ? '- ' : '+ '}${fmtMoney(amount)}`,
-    ]
-  })
-  if (adjRows.length) {
-    y = sectionHeader(doc, 'VALORES EXTRAS / DESCONTOS', y + GAP)
-    y = dataTable(doc, y, ['Descrição', 'Tipo', `Valor (${cc})`], adjRows)
+  // ── 1ª página: layout Uneworld renderizado a partir do HTML ──
+  const html   = buildFirstPageHTML(contract, company, logoDataUrl)
+  const canvas = await renderFirstPageCanvas(html)
+  const imgData = canvas.toDataURL('image/jpeg', 0.92)
+  const imgW = pw
+  const imgH = canvas.height * pw / canvas.width
+  // Cola a imagem ocupando a largura A4; se passar de uma página (muitas
+  // parcelas/passageiros), fatia em páginas adicionais.
+  let position = 0
+  let heightLeft = imgH
+  doc.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+  heightLeft -= ph
+  while (heightLeft > 0) {
+    position -= ph
+    doc.addPage()
+    doc.addImage(imgData, 'JPEG', 0, position, imgW, imgH)
+    heightLeft -= ph
   }
 
-  // Dados de pagamento
-  y = sectionHeader(doc, 'DADOS DOS PAGAMENTOS / VALORES', y + GAP)
-  y = kvTable(doc, y, [
-    [`Soma total (${cc})`, fmtMoney(contract.total_usd), 'Total em (BRL)', fmtMoney(contract.total_brl)],
-    ['Câmbio', fmtRate(contract.exchange_rate), 'Recebido (entrada / prazo)', `${fmtMoney(contract.received_down_payment_brl) || '0,00'} / ${fmtMoney(contract.received_installments_brl) || '0,00'}`],
-  ])
+  // A partir daqui o conteúdo segue em páginas novas (texto vetorial).
+  let y = ph
 
-  // Pagamento — à vista (uma linha) ou parcelado (entrada + parcelas)
-  const installments = contract.installments || []
-  const aVista = contract.payment_type === 'a_vista'
-  const entrada  = installments.find(i => i.kind === 'entrada')
-  const parcelas = installments.filter(i => i.kind === 'parcela').sort((a, b) => a.installment_number - b.installment_number)
-  const installmentRows = []
-  if (aVista) {
-    const p = parcelas[0] || entrada
-    if (p) installmentRows.push(['À vista', p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl), p.payment_method || ''])
-  } else {
-    if (entrada) installmentRows.push(['Entrada', entrada.detail || '', fmtDateBR(entrada.due_date), fmtMoney(entrada.value_brl), entrada.payment_method || ''])
-    parcelas.forEach(p => installmentRows.push([`${p.installment_number}ª parcela`, p.detail || '', fmtDateBR(p.due_date), fmtMoney(p.value_brl), p.payment_method || '']))
-  }
-  if (installmentRows.length) {
-    y = sectionHeader(doc, aVista ? 'PAGAMENTO' : 'PARCELAS', y + GAP)
-    y = dataTable(doc, y, [aVista ? 'Pagamento' : 'Parcela', 'Detalhe do pagamento', 'Para (data)', 'Valor (BRL)', 'Forma de pagamento'], installmentRows)
-  }
-
-  // Cliente contratante — só força nova página se realmente não houver espaço.
-  const checkPageBreak = (needed) => {
-    const ph = doc.internal.pageSize.getHeight()
-    if (y + needed > ph - 12) { doc.addPage(); y = 10 }
-  }
-  const ct = contract.contratante_data || {}
-  const isJuridica = ct.payer_type === 'juridica'
-  checkPageBreak(28)
-  y = sectionHeader(doc, 'CLIENTE: CONTRATANTE / RESPONSÁVEL PELO PAGAMENTO', y + GAP)
-  y = kvTable(doc, y, isJuridica ? [
-    ['Razão social', ct.full_name || '', 'CNPJ', ct.cpf || ''],
-    ['Celular', ct.mobile || '', 'E-mail', ct.email || ''],
-    ['Endereço', { content: ct.address || '', colSpan: 3 }],
-  ] : [
-    ['Nome completo', ct.full_name || '', 'Sexo', ct.gender || ''],
-    ['Data de nascimento', fmtDateBR(ct.birth_date), 'CPF', ct.cpf || ''],
-    ['Celular', ct.mobile || '', 'E-mail', ct.email || ''],
-    ['Endereço', { content: ct.address || '', colSpan: 3 }],
-  ])
-
-  // Nome dos passageiros — precisa de espaço pro título + cabeçalho da
-  // tabela + ao menos 1 linha; senão o autoTable desenha o cabeçalho
-  // sozinho no fim da página e só as linhas no topo da seguinte.
-  checkPageBreak(28)
-  y = sectionHeader(doc, 'NOME DOS PASSAGEIROS (CONTRATANTE E DEMAIS USUÁRIOS)', y + GAP)
-  const guestRows = (contract.guests || []).map(g => {
-    const p = g.passenger_data || {}
-    return [p.full_name || '', p.gender || '', fmtDateBR(p.birth_date), p.passport || '', p.cpf || '', g.accommodation_type_name || '']
-  })
-  y = dataTable(doc, y, ['Nome completo', 'Sexo', 'Data de nascimento', 'Passaporte', 'CPF', 'Acomodação'],
-    guestRows.length ? guestRows : [['—', '', '', '', '', '']])
-
-  // ── Cláusulas contratuais — texto corrido ──
-  // Começa direto após o conteúdo anterior se ainda houver espaço razoável
-  // na página atual; só quebra pra uma nova se realmente não couber o
-  // título + começo da primeira cláusula (evita página quase vazia no meio
-  // do documento).
+  // ── Cláusulas contratuais — texto corrido, começando em página nova ──
   const clauses = contract.clauses_data || []
   if (clauses.length) {
-    const phClauses = doc.internal.pageSize.getHeight()
-    if (y + 30 > phClauses - 15) { doc.addPage(); y = 14 } else { y += 8 }
+    doc.addPage()
+    y = 14
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
     doc.setTextColor(...NAV)
@@ -263,7 +345,6 @@ export async function generateContractPDF(contract, opts = {}) {
     const maxWidth   = pw - 20
 
     clauses.forEach((clause) => {
-      const ph = doc.internal.pageSize.getHeight()
       if (y + 12 > ph - 15) { doc.addPage(); y = 14 }
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
@@ -277,8 +358,7 @@ export async function generateContractPDF(contract, opts = {}) {
       doc.setFontSize(10.5)
       doc.setTextColor(30, 41, 59)
       lines.forEach((line) => {
-        const ph2 = doc.internal.pageSize.getHeight()
-        if (y + lineHeight > ph2 - 15) { doc.addPage(); y = 14 }
+        if (y + lineHeight > ph - 15) { doc.addPage(); y = 14 }
         doc.text(line, 10, y)
         y += lineHeight
       })
@@ -289,8 +369,7 @@ export async function generateContractPDF(contract, opts = {}) {
   // ── Assinaturas — só no contrato FÍSICO (impresso e assinado à mão). No
   //    digital a assinatura é feita na Autentique, então não desenha os campos. ──
   if (contract.signature_type !== 'digital') {
-    const phSig = doc.internal.pageSize.getHeight()
-    if (y + 38 > phSig - 15) { doc.addPage(); y = 14 }
+    if (y + 38 > ph - 15) { doc.addPage(); y = 14 }
     y += 16
     const sigGap = 14
     const sigColW = (pw - 20 - sigGap) / 2
@@ -310,7 +389,6 @@ export async function generateContractPDF(contract, opts = {}) {
   const pageCount = doc.internal.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    const ph = doc.internal.pageSize.getHeight()
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(148, 163, 184)
@@ -319,6 +397,7 @@ export async function generateContractPDF(contract, opts = {}) {
 
   // Nome do arquivo: "Contrato - <viagem> - <1º nome do pagante> - <empresa>".
   // Partes vazias são omitidas; caracteres inválidos pra nome de arquivo são removidos.
+  const ct = contract.contratante_data || {}
   const firstName   = (ct.full_name || '').trim().split(/\s+/)[0] || ''
   const tripName    = contract.package_name || ''
   const companyName = company.company_name || ''
