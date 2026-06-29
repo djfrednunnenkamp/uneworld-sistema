@@ -7,6 +7,7 @@ import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
 import Dropdown from './Dropdown'
 import CnpjInput from './CnpjInput'
+import MoneyInput from './MoneyInput'
 import ContractPdfPreviewModal from './ContractPdfPreviewModal'
 import { Ic } from './Icon'
 import { usePrefs } from '../context/PrefsContext'
@@ -192,10 +193,14 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, cur = 'US$
                         onChange={v => update(i, 'mode', v || 'valor')} />
                     </div>
                     <div style={{ position: 'relative', flex: 1, minWidth: 96 }}>
-                      <input style={{ ...inp, paddingRight: 34 }} type="number" step="0.01" min="0"
-                        value={a.mode === 'percentual' ? a.percent : a.value_usd}
-                        placeholder={a.mode === 'percentual' ? '0' : '0,00'}
-                        onChange={e => update(i, a.mode === 'percentual' ? 'percent' : 'value_usd', e.target.value)} />
+                      {a.mode === 'percentual' ? (
+                        <input style={{ ...inp, paddingRight: 34 }} type="number" step="0.01" min="0"
+                          value={a.percent} placeholder="0"
+                          onChange={e => update(i, 'percent', e.target.value)} />
+                      ) : (
+                        <MoneyInput style={{ ...inp, paddingRight: 34 }} value={a.value_usd} placeholder="0,00"
+                          onChange={v => update(i, 'value_usd', v)} />
+                      )}
                       <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8', pointerEvents: 'none' }}>
                         {a.mode === 'percentual' ? '%' : cur}
                       </span>
@@ -1413,13 +1418,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Valor/pessoa ({cur})</label>}
-                      <input style={inp} type="number" step="0.01" value={line.value_per_person_usd}
-                        onChange={e => updateAccomLine(idx, 'value_per_person_usd', e.target.value)} />
+                      <MoneyInput style={inp} value={line.value_per_person_usd}
+                        onChange={v => updateAccomLine(idx, 'value_per_person_usd', v)} />
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Taxas ({cur})</label>}
-                      <input style={inp} type="number" step="0.01" value={line.taxes_usd}
-                        onChange={e => updateAccomLine(idx, 'taxes_usd', e.target.value)} />
+                      <MoneyInput style={inp} value={line.taxes_usd}
+                        onChange={v => updateAccomLine(idx, 'taxes_usd', v)} />
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Quantidade</label>}
@@ -1476,7 +1481,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Câmbio ({form.base_currency} → BRL)</label>
-                    <input style={inp} type="number" step="0.0001" value={form.exchange_rate} onChange={set('exchange_rate')} />
+                    <MoneyInput style={inp} value={form.exchange_rate} maxDecimals={4}
+                      onChange={v => setForm(f => ({ ...f, exchange_rate: v }))} />
                     <p style={{ fontSize: 10.5, color: '#94a3b8', margin: '3px 0 0' }}>Preenchido de Configurações → Câmbio.</p>
                   </div>
                 </div>
@@ -1528,8 +1534,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Valor (BRL)</label>
-                      <input style={inp} type="number" step="0.01" placeholder="Valor (BRL)" value={avista.value_brl}
-                        onChange={e => setAvista(p => ({ ...p, value_brl: e.target.value }))} />
+                      <MoneyInput style={inp} placeholder="Valor (BRL)" value={avista.value_brl}
+                        onChange={v => setAvista(p => ({ ...p, value_brl: v }))} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Forma de pagamento</label>
@@ -1555,8 +1561,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                         <div style={{ flex: 1 }}>
                           <DatePicker value={entrada.due_date} onChange={v => setEntrada(p => ({ ...p, due_date: v }))} fixed />
                         </div>
-                        <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={entrada.value_brl}
-                          onChange={e => setEntrada(p => ({ ...p, value_brl: e.target.value }))} />
+                        <MoneyInput style={{ ...inp, flex: 1 }} placeholder="Valor (BRL)" value={entrada.value_brl}
+                          onChange={v => setEntrada(p => ({ ...p, value_brl: v }))} />
                         <div style={{ flex: 1 }}>
                           <Dropdown value={entrada.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
                             onChange={v => setEntrada(p => ({ ...p, payment_method: v }))} />
@@ -1588,8 +1594,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                       <div style={{ flex: 1 }}>
                         <DatePicker value={it.due_date} onChange={v => updateInstallment(idx, 'due_date', v)} fixed />
                       </div>
-                      <input style={{ ...inp, flex: 1 }} type="number" step="0.01" placeholder="Valor (BRL)" value={it.value_brl}
-                        onChange={e => updateInstallment(idx, 'value_brl', e.target.value)} />
+                      <MoneyInput style={{ ...inp, flex: 1 }} placeholder="Valor (BRL)" value={it.value_brl}
+                        onChange={v => updateInstallment(idx, 'value_brl', v)} />
                       <div style={{ flex: 1 }}>
                         <Dropdown value={it.payment_method || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
                           onChange={v => updateInstallment(idx, 'payment_method', v)} />
