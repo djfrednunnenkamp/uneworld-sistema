@@ -317,7 +317,14 @@ export async function generateContractPDF(contract, opts = {}) {
     doc.text(`Página ${i} de ${pageCount}`, pw / 2, ph - 8, { align: 'center' })
   }
 
-  const filename = `contrato_${contract.reservation_number || contract.id}.pdf`
+  // Nome do arquivo: "Contrato - <viagem> - <1º nome do pagante> - <empresa>".
+  // Partes vazias são omitidas; caracteres inválidos pra nome de arquivo são removidos.
+  const firstName   = (ct.full_name || '').trim().split(/\s+/)[0] || ''
+  const tripName    = contract.package_name || ''
+  const companyName = company.company_name || ''
+  const clean = (s) => String(s).replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim()
+  const parts = ['Contrato', tripName, firstName, companyName].map(clean).filter(Boolean)
+  const filename = `${(parts.length > 1 ? parts.join(' - ') : `Contrato ${contract.reservation_number || contract.id}`)}.pdf`
   // Para pré-visualizar (em vez de baixar): retorna o PDF como blob URL.
   if (opts.output === 'blob')    return doc.output('blob')
   if (opts.output === 'bloburl') return URL.createObjectURL(doc.output('blob'))
