@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { configApi } from '../api'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 const cache = {}
 async function cached(key, fetcher) {
@@ -83,14 +84,8 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
 
   /* Recalcula a posição do dropdown (flip cima/baixo conforme o espaço) */
   const reposition = () => {
-    const rect = inputRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const spaceBelow = window.innerHeight - rect.bottom - 8
-    if (spaceBelow >= 220) {
-      setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
-    } else {
-      setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
-    }
+    if (!inputRef.current) return
+    setPos(computeAnchor(inputRef.current, { gap: 4, cap: 320, minWidth: 220 }))
   }
 
   useEffect(() => {
@@ -159,10 +154,10 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
 
       {open && (
         <div style={{
-          position:'fixed', top:pos.top, bottom:pos.bottom, left:pos.left, width: Math.max(pos.width, 220),
+          ...pos,
           background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8,
           boxShadow:'0 8px 28px rgba(0,0,0,.14)', zIndex:9999,
-          display:'flex', flexDirection:'column', maxHeight:280,
+          display:'flex', flexDirection:'column', overflowY:'auto',
         }}>
           {/* Breadcrumb */}
           <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px 5px', borderBottom:'1px solid #f1f5f9', flexShrink:0 }}>

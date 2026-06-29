@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { usePrefs } from '../context/PrefsContext'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 const pad = n => String(n).padStart(2, '0')
 
@@ -57,9 +58,8 @@ export default function TimePicker({ value, onChange, placeholder = 'HH:MM', fix
 
   const reposition = () => {
     if (!fixed) return
-    const rect = ref.current?.getBoundingClientRect()
-    if (!rect) return
-    setPopupPos({ top: rect.bottom + 6, left: rect.left })
+    if (!ref.current) return
+    setPopupPos(computeAnchor(ref.current, { gap: 6, cap: 300, width: 200 }))
   }
 
   useEffect(() => {
@@ -154,7 +154,7 @@ export default function TimePicker({ value, onChange, placeholder = 'HH:MM', fix
 
       {open && (
         <div onClick={e => e.stopPropagation()}
-          style={{ position: fixed ? 'fixed' : 'absolute', top: fixed ? popupPos.top : 'calc(100% + 6px)', left: fixed ? popupPos.left : 0, zIndex: 9999, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 10px 32px rgba(0,0,0,.13)', width:200, overflow:'hidden' }}>
+          style={{ ...(fixed ? popupPos : { position:'absolute', top:'calc(100% + 6px)', left:0 }), zIndex: 9999, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 10px 32px rgba(0,0,0,.13)', width:200, overflow:'hidden' }}>
           {/* Display */}
           <div style={{ textAlign:'center', padding:'12px 10px 10px', borderBottom:'1px solid #f1f5f9' }}>
             <span style={{ fontSize:22, fontWeight:700, color:'#1e293b', letterSpacing:2, fontVariantNumeric:'tabular-nums' }}>

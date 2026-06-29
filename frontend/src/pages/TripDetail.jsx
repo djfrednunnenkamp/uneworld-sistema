@@ -24,6 +24,7 @@ import RichTextEditor from '../components/RichTextEditor'
 import { BusLayoutPreview } from '../components/BusLayoutPreview'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { dashboardWsUrl } from '../utils/ws'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 // Encontra o tipo pelo nome mais longo que bate como prefixo — evita "Duplo" engolir "Duplo Casal"
 const findAccomType = (types, roomName) =>
@@ -522,7 +523,7 @@ function AirportPicker({ value, onChange, placeholder }) {
   }, [query, open])
 
   const reposition = () => {
-    if (inputRef.current) setRect(inputRef.current.getBoundingClientRect())
+    if (inputRef.current) setRect(computeAnchor(inputRef.current, { gap: 2, cap: 280 }))
   }
   const handleFocus = () => {
     reposition()
@@ -544,7 +545,7 @@ function AirportPicker({ value, onChange, placeholder }) {
   const display = value ? `${value.iata_code ? value.iata_code + ' — ' : ''}${value.name}` : ''
 
   const dropdown = open && rect && createPortal(
-    <div style={{ position:'fixed', top: rect.bottom + 2, left: rect.left, width: rect.width, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:260, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
+    <div style={{ ...rect, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.12)' }}>
       {!query && options.length > 0 && (
         <p style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', padding:'8px 12px 4px', margin:0 }}>
           ★ Favoritos
@@ -579,7 +580,7 @@ function AirportPicker({ value, onChange, placeholder }) {
       <input
         ref={inputRef}
         value={open ? query : display}
-        onChange={e => { setQuery(e.target.value); if (!open && inputRef.current) setRect(inputRef.current.getBoundingClientRect()); setOpen(true) }}
+        onChange={e => { setQuery(e.target.value); if (!open && inputRef.current) setRect(computeAnchor(inputRef.current, { gap: 2, cap: 280 })); setOpen(true) }}
         onFocus={handleFocus}
         placeholder={placeholder || 'Buscar aeroporto…'}
         style={{ width:'100%', padding:'8px 10px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box' }}
@@ -1924,10 +1925,7 @@ function AccomPicker({ onSelect, existingRooms = [], enrolledList = [] }) {
   })()
 
   const reposition = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect()
-      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
-    }
+    if (inputRef.current) setDropPos(computeAnchor(inputRef.current, { gap: 4, cap: 300 }))
   }
   const openDrop = () => {
     reposition()
@@ -1971,7 +1969,7 @@ function AccomPicker({ onSelect, existingRooms = [], enrolledList = [] }) {
         style={{ width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }}
       />
       {open && opts.length > 0 && (
-        <div style={{ position:'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflow:'hidden', maxHeight:300, overflowY:'auto' }}>
+        <div style={{ ...dropPos, zIndex:900, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.14)', overflowY:'auto' }}>
           {opts.map((opt, i) => {
             const isSel = i === cursor
             return (

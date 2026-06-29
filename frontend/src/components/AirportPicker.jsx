@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { configApi } from '../api'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 /**
  * AirportPicker — campo de busca de aeroporto com dropdown via portal.
@@ -34,8 +35,7 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
 
   const reposition = () => {
     if (!inputRef.current) return
-    const r = inputRef.current.getBoundingClientRect()
-    setDropStyle({ top: r.bottom + 2, left: r.left, width: r.width })
+    setDropStyle(computeAnchor(inputRef.current, { gap: 2, cap: 280 }))
   }
 
   const openDrop = () => {
@@ -109,7 +109,7 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
       </div>
       {open && createPortal(
         <div data-airport-drop
-          style={{ position:'fixed', ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:240, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
+          style={{ ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
           {!query && options.length > 0 && (
             <p style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.05em', padding:'8px 12px 4px', margin:0 }}>
               ★ Favoritos

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 /**
  * FormSelect — combobox para campos de formulário.
@@ -50,17 +51,8 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
   }, [query, options])
 
   const reposition = () => {
-    const rect = inputRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const spaceBelow = window.innerHeight - rect.bottom - 8
-    if (spaceBelow >= 180) {
-      // Espaço suficiente abaixo → top do dropdown cola na parte inferior do input
-      setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
-    } else {
-      // Sem espaço abaixo → bottom do dropdown cola na parte superior do input
-      // Independente do tamanho da lista, fica sempre grudado no input
-      setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
-    }
+    if (!inputRef.current) return
+    setPos(computeAnchor(inputRef.current, { gap: 4, cap: 320, minWidth: 180 }))
   }
 
   useEffect(() => {
@@ -128,10 +120,10 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
       {/* Lista — position:fixed para escapar de overflow do modal */}
       {open && (
         <div ref={dropRef} style={{
-          position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 180),
+          ...pos,
           background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 8,
           boxShadow: '0 8px 28px rgba(0,0,0,.12)', zIndex: 9999,
-          maxHeight: 280, overflowY: 'auto',
+          overflowY: 'auto',
         }}>
           {filtered.length === 0 ? (
             <p style={{ padding: '10px 14px', fontSize: 13, color: '#94a3b8', margin: 0 }}>Nenhum resultado</p>

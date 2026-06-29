@@ -11,6 +11,7 @@ import { exportSectionCsv } from '../utils/sectionCsv'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useAuth } from '../context/AuthContext'
 import { dashboardWsUrl } from '../utils/ws'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 let _cachedCountries = null
 
@@ -44,10 +45,8 @@ function CountryField({ value, onChange }) {
   }, [])
 
   const reposition = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect()
-      setDropStyle({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 220) })
-    }
+    if (!inputRef.current) return
+    setDropStyle(computeAnchor(inputRef.current, { gap: 2, cap: 240, minWidth: 220 }))
   }
   const openDrop = () => {
     reposition()
@@ -101,7 +100,7 @@ function CountryField({ value, onChange }) {
       />
       {open && createPortal(
         <div data-cntry-drop
-          style={{ position:'fixed', ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:220, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
+          style={{ ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
           {filtered.length === 0 ? (
             <p style={{ textAlign:'center', padding:'12px 0', color:'#94a3b8', fontSize:13, margin:0 }}>
               {all.length === 0 ? 'Carregando…' : 'Nenhum país encontrado.'}

@@ -8,6 +8,7 @@ import { Ic } from './Icon'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
+import { computeAnchor } from '../utils/dropdownAnchor'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useAuth } from '../context/AuthContext'
 import { dashboardWsUrl } from '../utils/ws'
@@ -46,10 +47,8 @@ function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled
 
   // Calcula posição fixed quando abre
   const reposition = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect()
-      setDropStyle({ top: r.bottom + 2, left: r.left, width: r.width })
-    }
+    if (!inputRef.current) return
+    setDropStyle(computeAnchor(inputRef.current, { gap: 2, cap: 240 }))
   }
   const openDropdown = () => {
     reposition()
@@ -95,7 +94,7 @@ function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled
       />
       {open && options.length > 0 && createPortal(
         <div data-suggest-dropdown
-          style={{ position:'fixed', ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, maxHeight:220, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
+          style={{ ...dropStyle, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:8, overflowY:'auto', zIndex:9999, boxShadow:'0 8px 24px rgba(0,0,0,.14)' }}>
           {options.map((opt, i) => (
             <div key={i}
               onMouseDown={e => { e.preventDefault(); select(opt) }}

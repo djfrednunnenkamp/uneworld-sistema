@@ -7,6 +7,7 @@ import { Ic } from './Icon'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 const btnCsv = (color) => ({
   padding: '6px 11px', borderRadius: 7, border: `1.5px solid ${color}20`,
@@ -53,22 +54,8 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…', co
   }, [open])
 
   const reposition = () => {
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const estHeight  = Math.min(options.length * 42 + 8, 280)
-    const spaceBelow = window.innerHeight - rect.bottom - 8
-    const spaceAbove = rect.top - 8
-    let top
-    if (spaceBelow >= estHeight) {
-      top = rect.bottom + 4                          // cabe abaixo → abre pra baixo
-    } else if (spaceAbove >= estHeight) {
-      top = rect.top - estHeight - 4                // cabe acima → abre pra cima
-    } else if (spaceBelow >= spaceAbove) {
-      top = rect.bottom + 4                         // mais espaço abaixo → com scroll
-    } else {
-      top = Math.max(8, rect.top - estHeight - 4)  // mais espaço acima → com scroll
-    }
-    setPos({ top, left: rect.left, width: rect.width })
+    if (!triggerRef.current) return
+    setPos(computeAnchor(triggerRef.current, { gap: 4, cap: 280, minWidth: 220 }))
   }
 
   useEffect(() => {
@@ -118,13 +105,10 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…', co
       {/* Lista — renderizada com position:fixed para não ser cortada pelo modal */}
       {open && (
         <div style={{
-          position: 'fixed',
-          top:   pos.top,
-          left:  pos.left,
-          width: Math.max(pos.width, 220),
+          ...pos,
           background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 8,
           boxShadow: '0 8px 32px rgba(0,0,0,.18)', zIndex: 9999,
-          maxHeight: 280, overflowY: 'auto',
+          overflowY: 'auto',
         }}>
           {options.map(opt => {
             const isActive = opt.value === value

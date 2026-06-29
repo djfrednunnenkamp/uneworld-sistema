@@ -5,6 +5,7 @@ import FormSelect from './FormSelect'
 import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
 import { BusLayoutPreview } from './BusLayoutPreview'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 /* ── Opções ── */
 const TYPE_OPTS = [
@@ -43,10 +44,8 @@ function DocMultiSelect({ selected, onToggle }) {
   }, [])
 
   const reposition = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
-    }
+    if (!btnRef.current) return
+    setPos(computeAnchor(btnRef.current, { gap: 4, cap: 240 }))
   }
   const toggle = () => {
     if (!open) reposition()
@@ -78,7 +77,7 @@ function DocMultiSelect({ selected, onToggle }) {
         <span style={{ fontSize:10, color:'#94a3b8', marginLeft:8 }}>▼</span>
       </button>
       {open && (
-        <div style={{ position:'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
+        <div style={{ ...pos, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflowY:'auto' }}>
           {DOC_OPTS.map(opt => {
             const checked = selected.includes(opt.value)
             return (
@@ -167,10 +166,8 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
   }, [])
 
   const reposition = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
-    }
+    if (!btnRef.current) return
+    setPos(computeAnchor(btnRef.current, { gap: 4, cap: 300 }))
   }
   const toggle = () => {
     if (!open) reposition()
@@ -205,9 +202,9 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
         <span style={{ fontSize:10, color:'#94a3b8', marginLeft:8 }}>▼</span>
       </button>
       {open && (
-        <div style={{ position:'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden' }}>
+        <div style={{ ...pos, zIndex:700, background:'#fff', borderRadius:10, border:'1px solid #e2e8f0', boxShadow:'0 12px 32px rgba(0,0,0,.15)', overflow:'hidden', display:'flex', flexDirection:'column' }}>
           {/* Busca + botão adicionar */}
-          <div style={{ padding:'8px 10px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:6 }}>
+          <div style={{ padding:'8px 10px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:6, flexShrink:0 }}>
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Pesquisar…"
               style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e2e8f0', borderRadius:6, fontSize:12, outline:'none', fontFamily:'inherit' }}
@@ -219,7 +216,7 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
               +
             </button>
           </div>
-          <div style={{ maxHeight:180, overflowY:'auto' }}>
+          <div style={{ flex:1, minHeight:0, overflowY:'auto' }}>
             {options.length === 0
               ? <p style={{ textAlign:'center', color:'#94a3b8', fontSize:12, padding:'10px 0', margin:0 }}>Nenhum cadastrado</p>
               : filtered.length === 0

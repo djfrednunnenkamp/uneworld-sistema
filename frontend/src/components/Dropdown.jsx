@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Ic } from './Icon'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 /**
  * Dropdown — seletor estilizado de uma opção entre poucas, com busca por
@@ -39,8 +40,7 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
 
   const reposition = () => {
     if (!inputRef.current) return
-    const r = inputRef.current.getBoundingClientRect()
-    setDropStyle({ top: r.bottom + 4, left: r.left, width: r.width })
+    setDropStyle(computeAnchor(inputRef.current, { gap: 4, cap: 320 }))
   }
 
   const openDrop = () => {
@@ -117,8 +117,8 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
       {open && createPortal(
         <div data-dropdown-panel
           style={{
-            position: 'fixed', ...dropStyle, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
-            maxHeight: 260, overflowY: 'auto', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,.14)',
+            ...dropStyle, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+            overflowY: 'auto', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,.14)',
           }}>
           {filtered.length === 0 ? (
             <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12.5, padding: '12px 0', margin: 0 }}>

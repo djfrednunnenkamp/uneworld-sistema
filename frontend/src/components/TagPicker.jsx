@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Ic } from './Icon'
+import { computeAnchor } from '../utils/dropdownAnchor'
 
 /**
  * TagPicker — seleção múltipla exibida como chips removíveis (× Nome),
@@ -45,8 +46,7 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
 
   const reposition = () => {
     if (!btnRef.current) return
-    const r = btnRef.current.getBoundingClientRect()
-    setDropStyle({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 260) })
+    setDropStyle(computeAnchor(btnRef.current, { gap: 4, cap: 300, minWidth: 260 }))
   }
 
   const toggleOpen = () => {
@@ -113,14 +113,15 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
       {open && createPortal(
         <div data-tagpicker-drop
           style={{
-            position: 'fixed', ...dropStyle, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+            ...dropStyle, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
             zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,.14)', overflow: 'hidden',
+            display: 'flex', flexDirection: 'column',
           }}>
-          <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
             <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
               style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
           </div>
-          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          <div style={{ overflowY: 'auto' }}>
             {filteredOptions.length === 0 && !showCreate && (
               <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12.5, padding: '12px 0', margin: 0 }}>
                 {query ? 'Nenhum resultado.' : 'Digite para buscar…'}
