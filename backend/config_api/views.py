@@ -906,6 +906,23 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
             attrs.pop('script')
         return attrs
 
+    def to_representation(self, instance):
+        # A leitura da lista de câmbio é liberada para qualquer autenticado (a taxa
+        # é usada em vários lugares), mas `script` (código Python do servidor) e
+        # `source_url` (endpoints internos) não devem vazar para quem não administra
+        # o câmbio. `script` só para superusuário; `source_url` só para quem tem
+        # acesso de câmbio (view/edit) ou manage_settings.
+        from users_api.permissions import has_any_perm
+        data = super().to_representation(instance)
+        req = self.context.get('request')
+        user = getattr(req, 'user', None)
+        if not (user and user.is_superuser):
+            data.pop('script', None)
+        if not (user and has_any_perm(user, 'manage_settings',
+                                      'settings_exchange_rates_view', 'settings_exchange_rates_edit')):
+            data.pop('source_url', None)
+        return data
+
     def to_internal_value(self, data):
         # Compatibilidade: payloads que mandam só `rate` (importação/antigos) usam
         # esse valor como taxa de mercado (base_rate); a taxa efetiva é recalculada.
