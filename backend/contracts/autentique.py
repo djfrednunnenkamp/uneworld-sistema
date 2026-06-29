@@ -151,19 +151,26 @@ def _delivery_method():
 
 
 def build_signer(email='', phone=''):
-    """Monta um signatário no formato da Autentique. E-mail é o canal padrão;
-    telefone é incluído quando há (necessário para WhatsApp/SMS)."""
-    signer = {'action': 'SIGN'}
-    if email:
-        signer['email'] = email
+    """Monta um signatário no formato da Autentique.
+
+    A Autentique aceita UM canal de entrega por signatário — enviar e-mail e
+    telefone juntos dá erro (`only_one_allowed`), e telefone sem `delivery_method`
+    também (`is_required_when_present`). Então:
+      - entrega por e-mail (padrão):  {action, email}
+      - entrega por WhatsApp/SMS:     {action, phone E.164 com +, delivery_method}
+    Retorna None quando não há contato compatível com o canal configurado."""
+    method = _delivery_method()  # None => e-mail
     digits = ''.join(c for c in (phone or '') if c.isdigit())
-    if digits:
-        # Telefone E.164 (assume BR quando vier sem DDI).
-        signer['phone'] = digits if digits.startswith('55') else f'55{digits}'
-    method = _delivery_method()
-    if method and digits:
-        signer['delivery_method'] = method
-    return signer
+    if method:
+        # Entrega por telefone (WhatsApp/SMS): exige telefone válido E.164.
+        if not digits:
+            return None
+        e164 = digits if digits.startswith('55') else f'55{digits}'
+        return {'action': 'SIGN', 'phone': f'+{e164}', 'delivery_method': method}
+    # Entrega por e-mail (padrão).
+    if not email:
+        return None
+    return {'action': 'SIGN', 'email': email}
 
 
 def create_document(name, pdf_bytes, signers):

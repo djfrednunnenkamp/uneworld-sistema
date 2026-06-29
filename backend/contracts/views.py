@@ -31,8 +31,9 @@ def _contract_signers(contract):
         c_email = (contract.payer_email or '').strip()
         c_phone = (contract.payer_phone or '').strip()
         c_name  = contract.payer_name or 'Cliente'
-    if c_email or c_phone:
-        signers.append(autentique.build_signer(email=c_email, phone=c_phone))
+    c_signer = autentique.build_signer(email=c_email, phone=c_phone)
+    if c_signer:
+        signers.append(c_signer)
     else:
         missing.append(f'cliente ({c_name})')
 
@@ -41,8 +42,9 @@ def _contract_signers(contract):
     if ag:
         a_email = (ag.email or '').strip()
         a_phone = (ag.mobile or ag.phone or '').strip()
-        if a_email or a_phone:
-            signers.append(autentique.build_signer(email=a_email, phone=a_phone))
+        a_signer = autentique.build_signer(email=a_email, phone=a_phone)
+        if a_signer:
+            signers.append(a_signer)
         else:
             missing.append(f'agência ({ag.name or ag.company_name})')
 
@@ -177,8 +179,9 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                 status=http_status.HTTP_400_BAD_REQUEST)
             signers, missing = _contract_signers(contract)
             if missing:
-                return Response({'error': 'Sem e-mail/telefone para: ' + ', '.join(missing) +
-                                          '. Preencha o contato antes de enviar para assinatura digital.'},
+                contato = 'telefone' if autentique._delivery_method() else 'e-mail'
+                return Response({'error': f'Sem {contato} para: ' + ', '.join(missing) +
+                                          f'. Preencha o {contato} antes de enviar para assinatura digital.'},
                                 status=http_status.HTTP_400_BAD_REQUEST)
             name = f'Contrato {contract.reservation_number}'.strip() if contract.reservation_number else f'Contrato #{contract.id}'
             try:
