@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
+import EmailInput from '../components/EmailInput'
 import CnpjInput from '../components/CnpjInput'
 import CpfInput from '../components/CpfInput'
 import CountryStatePicker from '../components/CountryStatePicker'
@@ -124,8 +125,8 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
         <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
           <div>
             <label style={lbl}>E-mail</label>
-            <input value={form.email} onChange={set('email')} placeholder="email@exemplo.com"
-              style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            <EmailInput value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))}
+              placeholder="email@exemplo.com" style={inp} />
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
             <div>
@@ -195,8 +196,8 @@ function EditAgencyUserPopup({ user, onSaved, onClose }) {
         <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
           <div>
             <label style={lbl}>E-mail</label>
-            <input value={form.email} onChange={set('email')} placeholder="email@exemplo.com"
-              style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            <EmailInput value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))}
+              placeholder="email@exemplo.com" style={inp} />
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
             <div>

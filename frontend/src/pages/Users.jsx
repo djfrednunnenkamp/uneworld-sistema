@@ -8,6 +8,7 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
 import TrashRowActions from '../components/TrashRowActions'
 import PasswordInput from '../components/PasswordInput'
+import EmailInput from '../components/EmailInput'
 import PhoneInput from '../components/PhoneInput'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
@@ -289,7 +290,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
           </div>
           <div>
             <label style={lbl}>E-mail * <span style={{fontWeight:400,textTransform:'none',color:'#94a3b8'}}>(será o login)</span></label>
-            <input style={{...inp,...(fe.email?{border:'1px solid #ef4444',background:'#fef2f2'}:{}),...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" />
+            <EmailInput style={{...inp,...(fe.email?{border:'1px solid #ef4444',background:'#fef2f2'}:{}),...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} errStyle={{border:'1px solid #ef4444',background:'#fef2f2'}} disabled={!canEditProfile} value={form.email} onChange={v => set('email')({ target: { value: v } })} placeholder="ana@uneworld.com.br" />
             {fe.email && <p style={{fontSize:11,color:'#dc2626',margin:'3px 0 0',fontWeight:500}}>E-mail obrigatório</p>}
           </div>
           <div>

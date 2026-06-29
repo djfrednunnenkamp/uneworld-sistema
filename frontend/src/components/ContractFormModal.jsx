@@ -8,6 +8,7 @@ import AirportPicker from './AirportPicker'
 import Dropdown from './Dropdown'
 import CnpjInput from './CnpjInput'
 import MoneyInput from './MoneyInput'
+import EmailInput from './EmailInput'
 import ContractPdfPreviewModal from './ContractPdfPreviewModal'
 import { Ic } from './Icon'
 import { usePrefs } from '../context/PrefsContext'
@@ -122,7 +123,8 @@ function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
               </div>
               <div style={{ flex: 1 }}>
                 <label style={lbl}>E-mail</label>
-                <input style={inp} type="email" value={payer.payer_email} onChange={setField('payer_email')} />
+                <EmailInput style={inp} value={payer.payer_email}
+                  onChange={v => setField('payer_email')({ target: { value: v } })} />
               </div>
             </div>
             <div>

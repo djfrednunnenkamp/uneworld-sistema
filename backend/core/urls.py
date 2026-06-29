@@ -4,6 +4,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import FileResponse
 
+from .views import validate_email
+
 
 def _serve_email_logo(request):
     logo_path = settings.BASE_DIR.parent / 'frontend' / 'public' / 'logo-email.png'
@@ -14,6 +16,7 @@ urlpatterns = [
     path('assets/logo.png', _serve_email_logo, name='email-logo'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('django.contrib.auth.urls')),
+    path('api/validate-email/', validate_email, name='validate-email'),
     path('api/users/',     include('users_api.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/agencies/',  include('agencies.urls')),

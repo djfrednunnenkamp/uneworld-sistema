@@ -23,3 +23,5 @@ pdf2image==1.17.0
 pymupdf==1.27.2.3
 requests==2.34.2
 RestrictedPython==8.3
+# Verificação de e-mail no cadastro: consulta de registros MX do domínio.
+dnspython==2.8.0

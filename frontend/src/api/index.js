@@ -1,5 +1,8 @@
 import api from './client'
 
+// Verifica formato + domínio (MX) de um e-mail e sugere correção de domínio.
+export const validateEmailApi = (email) => api.get('/validate-email/', { params: { email } })
+
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/'),
 }

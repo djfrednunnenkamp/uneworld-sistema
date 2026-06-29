@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
+import EmailInput from '../components/EmailInput'
 import AgencyPicker from '../components/AgencyPicker'
 import LocationPicker from '../components/LocationPicker'
 import NationalityPicker from '../components/NationalityPicker'
@@ -987,6 +988,13 @@ export default function PassengerDetail() {
           onChange={(v) => { set(k)({ target: { value: v } }) }}
           errStyle={fieldErrors[k] ? errStyle : undefined}
         />
+      )
+    }
+    if (type === 'email') {
+      return (
+        <EmailInput className="fi" value={form[k] ?? ''}
+          onChange={(v) => setB(k)(v)} placeholder={placeholder || ''}
+          errStyle={fieldErrors[k] ? errStyle : undefined} />
       )
     }
     return (
