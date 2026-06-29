@@ -12,6 +12,8 @@ class AuditLog(models.Model):
         ('merge', 'Mesclado'),
         ('download', 'Baixado'),
         ('upload', 'Enviado'),
+        ('send', 'Enviado p/ assinatura'),
+        ('sign', 'Assinado'),
         ('login', 'Login'),
         ('logout', 'Logout'),
         ('view', 'Visitou'),

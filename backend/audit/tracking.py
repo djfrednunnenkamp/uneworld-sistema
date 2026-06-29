@@ -183,6 +183,11 @@ def log_save(sender, instance, created, **kwargs):
             # changes já vem serializado ('Sim'/'Não'), por isso lemos o valor
             # bruto direto da instância em vez do dict de changes.
             action = 'delete' if instance.is_deleted else 'restore'
+        # Transições de etapa do contrato ganham ação própria no log, para deixar
+        # explícito quando ele foi ENVIADO para assinatura e quando foi ASSINADO/
+        # recebido — vale para física, digital e o retorno da Autentique (webhook).
+        elif sender.__name__ == 'Contract' and FIELD_LABELS['stage'] in changes:
+            action = {'enviado': 'send', 'assinado': 'sign'}.get(instance.stage, 'update')
 
     try:
         repr_str = str(instance)[:500]

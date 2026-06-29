@@ -287,8 +287,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.stage = 'assinado'
         contract.signed_at = timezone.now()
         contract.save(update_fields=['signed_file', 'stage', 'signed_at'])
-        _log_contract_event(request, contract, 'upload',
-                            'Enviou (upload) o contrato assinado')
+        # A mudança de etapa para 'assinado' já é registrada no log como ação
+        # 'sign' (Assinado) pelo sinal em audit/tracking.py — não duplicamos aqui.
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
 
