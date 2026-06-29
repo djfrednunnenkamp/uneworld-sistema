@@ -895,7 +895,7 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigExchangeRate
         fields = ['id', 'from_currency', 'to_currency', 'base_rate', 'markup_percent',
-                  'rate', 'auto_update', 'source_url', 'script', 'update_time',
+                  'rate', 'auto_update', 'is_favorite', 'source_url', 'script', 'update_time',
                   'last_auto_update', 'updated_at']
         read_only_fields = ['rate', 'last_auto_update', 'updated_at']
 
@@ -923,6 +923,12 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
     serializer_class = ExchangeRateSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_exchange_rates', extra_write=['pull_internet', 'default_time', 'test_script'])
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get('favorites') in ('1', 'true', 'True'):
+            qs = qs.filter(is_favorite=True)
+        return qs.order_by('-is_favorite', 'from_currency', 'to_currency')
 
     @action(detail=False, methods=['post'], url_path='pull-internet')
     def pull_internet(self, request):

@@ -575,10 +575,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   }
   // Moedas disponíveis: as que têm conversão para BRL (Configurações → Câmbio) + BRL.
   const currencyOptions = useMemo(() => {
-    const set = new Set(exchangeRates.filter(r => r.to_currency === 'BRL').map(r => r.from_currency))
-    set.add('BRL')
-    if (form.base_currency) set.add(form.base_currency)
-    return [...set].sort().map(c => ({ value: c, label: `${c} — ${curSym(c)}` }))
+    const brl = exchangeRates.filter(r => r.to_currency === 'BRL')
+    const favSet = new Set(brl.filter(r => r.is_favorite).map(r => r.from_currency))
+    const all = new Set(brl.map(r => r.from_currency))
+    all.add('BRL')
+    if (form.base_currency) all.add(form.base_currency)
+    const arr = [...all]
+    // Favoritos primeiro, depois o resto — cada grupo em ordem alfabética.
+    const byName = (a, b) => a.localeCompare(b)
+    const ordered = [...arr.filter(c => favSet.has(c)).sort(byName), ...arr.filter(c => !favSet.has(c)).sort(byName)]
+    return ordered.map(c => ({ value: c, label: `${favSet.has(c) ? '★ ' : ''}${c} — ${curSym(c)}` }))
   }, [exchangeRates, form.base_currency])
   // Com roteiro selecionado, a moeda vem dele e fica travada.
   const currencyLocked = !!form.itinerary

@@ -403,6 +403,13 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
               onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
               onMouseLeave={e => e.currentTarget.style.background='#fff'}>
               <span style={{ fontWeight:500, display:'flex', alignItems:'center', gap:7 }}>
+                {canEdit && (
+                  <button type="button" onClick={() => onUpdate(item.id, { is_favorite: !item.is_favorite })}
+                    title={item.is_favorite ? 'Remover dos favoritos' : 'Marcar como favorito'}
+                    style={{ background:'none', border:'none', cursor:'pointer', padding:0, fontSize:15, lineHeight:1, color: item.is_favorite ? '#f59e0b' : '#cbd5e1', flexShrink:0 }}>
+                    {item.is_favorite ? '★' : '☆'}
+                  </button>
+                )}
                 {item.from_currency} → {item.to_currency}
                 {item.auto_update && (
                   <span title={item.update_time ? `Atualiza automaticamente às ${String(item.update_time).slice(0,5)}` : 'Atualiza automaticamente no horário geral'}

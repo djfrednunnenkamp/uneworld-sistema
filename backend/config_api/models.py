@@ -87,6 +87,7 @@ class ConfigExchangeRate(models.Model):
     rate          = models.DecimalField('Taxa', max_digits=12, decimal_places=4)
     # Atualização automática diária a partir da internet.
     auto_update   = models.BooleanField('Atualizar automaticamente', default=False)
+    is_favorite   = models.BooleanField('Favorito', default=False, db_index=True)
     # Link próprio (JSON) de onde puxar a taxa desta moeda; vazio = API global.
     source_url    = models.CharField('Link da taxa', max_length=500, blank=True)
     # Script Python (sandbox) que calcula a taxa de mercado — tem precedência sobre
