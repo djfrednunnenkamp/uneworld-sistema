@@ -377,6 +377,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [loadedSellerData, setLoadedSellerData] = useState(null)  // seller_data do contrato carregado
   const { user: me } = useAuth()
   const canChangeSeller = !!me?.is_superuser || !!me?.permissions?.contracts_change_seller
+  const canEditExchangeRate = !!me?.is_superuser || !!me?.permissions?.contracts_edit_exchange_rate
 
   const [exchangeRates, setExchangeRates] = useState([])   // [{from_currency, to_currency, rate}]
   const [form, setForm] = useState({
@@ -398,6 +399,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // Tabela de preços de acomodação puxada do roteiro selecionado
   // (accommodation_type id -> { value_per_person_usd, taxes_usd }).
   const itinAccomPricingRef = useRef({})
+  // Tipos de acomodação cujo valor veio do roteiro — ficam travados (não editáveis).
+  const [pricedTypeIds, setPricedTypeIds] = useState(() => new Set())
   const [adjustments, setAdjustments] = useState([]) // [{ description, kind, value_usd }]
   const [showAdjustments, setShowAdjustments] = useState(false)
   const [showRounding, setShowRounding] = useState(false)
@@ -663,6 +666,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           }
         })
         itinAccomPricingRef.current = pricing
+        setPricedTypeIds(new Set(Object.keys(pricing).map(Number)))
         setAccomLines(prev => prev.map(line => {
           const p = pricing[line.accommodation_type]
           return p ? { ...line, value_per_person_usd: p.value_per_person_usd, taxes_usd: p.taxes_usd } : line
@@ -671,6 +675,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     } else {
       // Remover o roteiro: limpa tudo que ele havia preenchido (e o aeroporto).
       itinAccomPricingRef.current = {}
+      setPricedTypeIds(new Set())
       setDepartureAirportObj(null)
       setForm(f => ({
         ...f, itinerary: null,
@@ -1444,10 +1449,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             <div style={card}>
               <p style={sectionTitle}><Ic n="bed" s={14} /> Tipos de acomodação / valores por pessoa</p>
               <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '0 0 10px' }}>
-                As linhas e quantidades abaixo são geradas automaticamente a partir dos quartos montados acima (cada quarto = 1 unidade) — pode ajustar os valores manualmente se precisar.
+                As linhas e quantidades abaixo são geradas automaticamente a partir dos quartos montados acima (cada quarto = 1 unidade) — pode ajustar os valores manualmente se precisar. Tipos cujo valor já vem do roteiro ficam travados.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {accomLines.map((line, idx) => (
+                {accomLines.map((line, idx) => {
+                  const locked = pricedTypeIds.has(line.accommodation_type)
+                  return (
                   <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 2 }}>
                       {idx === 0 && <label style={lbl}>Tipo de acomodação</label>}
@@ -1456,12 +1463,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Valor/pessoa ({cur})</label>}
-                      <MoneyInput style={inp} value={line.value_per_person_usd}
+                      <MoneyInput style={locked ? inpRO : inp} value={line.value_per_person_usd}
+                        disabled={locked} readOnly={locked}
                         onChange={v => updateAccomLine(idx, 'value_per_person_usd', v)} />
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Taxas ({cur})</label>}
-                      <MoneyInput style={inp} value={line.taxes_usd}
+                      <MoneyInput style={locked ? inpRO : inp} value={line.taxes_usd}
+                        disabled={locked} readOnly={locked}
                         onChange={v => updateAccomLine(idx, 'taxes_usd', v)} />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -1474,7 +1483,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                       <Ic n="trash" s={13} />
                     </button>
                   </div>
-                ))}
+                  )
+                })}
                 <button type="button" onClick={addAccomLine}
                   style={{ alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                   + Adicionar linha
@@ -1519,9 +1529,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Câmbio ({form.base_currency} → BRL)</label>
-                    <MoneyInput style={inp} value={form.exchange_rate} maxDecimals={4}
+                    <MoneyInput style={canEditExchangeRate ? inp : inpRO} value={form.exchange_rate} maxDecimals={4}
+                      disabled={!canEditExchangeRate} readOnly={!canEditExchangeRate}
                       onChange={v => setForm(f => ({ ...f, exchange_rate: v }))} />
-                    <p style={{ fontSize: 10.5, color: '#94a3b8', margin: '3px 0 0' }}>Preenchido de Configurações → Câmbio.</p>
+                    <p style={{ fontSize: 10.5, color: '#94a3b8', margin: '3px 0 0' }}>
+                      {canEditExchangeRate
+                        ? 'Preenchido de Configurações → Câmbio (você pode ajustar).'
+                        : 'Valor fixo de Configurações → Câmbio.'}
+                    </p>
                   </div>
                 </div>
 
@@ -1564,7 +1579,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
               {paymentType === 'a_vista' ? (
                 <div>
-                  <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px' }}>O valor total é pago de uma vez — o valor já vem com o total do contrato e pode ser ajustado.</p>
+                  <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px' }}>O valor total é pago de uma vez — o valor já vem fixo com o total do contrato.</p>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Data</label>
@@ -1572,7 +1587,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Valor (BRL)</label>
-                      <MoneyInput style={inp} placeholder="Valor (BRL)" value={avista.value_brl}
+                      <MoneyInput style={inpRO} placeholder="Valor (BRL)" value={avista.value_brl}
+                        disabled readOnly
                         onChange={v => setAvista(p => ({ ...p, value_brl: v }))} />
                     </div>
                     <div style={{ flex: 1 }}>
