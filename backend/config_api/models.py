@@ -89,6 +89,9 @@ class ConfigExchangeRate(models.Model):
     auto_update   = models.BooleanField('Atualizar automaticamente', default=False)
     # Link próprio (JSON) de onde puxar a taxa desta moeda; vazio = API global.
     source_url    = models.CharField('Link da taxa', max_length=500, blank=True)
+    # Script Python (sandbox) que calcula a taxa de mercado — tem precedência sobre
+    # o link. Ex.: pegar de 2 fontes, tirar a média e somar um percentual.
+    script        = models.TextField('Script de cálculo (Python)', blank=True)
     # Horário específico desta moeda; vazio = usa o horário geral (singleton abaixo).
     update_time   = models.TimeField('Horário da atualização', null=True, blank=True)
     last_auto_update = models.DateField('Última atualização automática', null=True, blank=True)

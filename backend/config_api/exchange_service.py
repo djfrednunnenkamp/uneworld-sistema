@@ -84,7 +84,12 @@ def fetch_brl_rates():
 
 
 def _market_rate_for(row, global_rates):
-    """Taxa de mercado de uma linha: do link próprio se houver, senão da API global."""
+    """Taxa de mercado de uma linha: script (sandbox) tem precedência; senão link
+    próprio; senão a API global."""
+    if (row.script or '').strip():
+        from .exchange_runner import run_script
+        ok, val = run_script(row.script)
+        return val.quantize(Decimal('0.0001')) if ok else None
     if row.source_url:
         return fetch_from_url(row.source_url)
     return global_rates.get(row.from_currency.upper())
@@ -138,8 +143,9 @@ def update_due(now=None):
     if not due:
         return 0
 
-    # Busca a API global só se alguma linha sem link precisar.
-    global_rates = fetch_brl_rates() if any(not r.source_url for r in due) else {}
+    # Busca a API global só se alguma linha precisar (sem script e sem link).
+    needs_global = any(not (r.script or '').strip() and not r.source_url for r in due)
+    global_rates = fetch_brl_rates() if needs_global else {}
     n = 0
     for row in due:
         try:

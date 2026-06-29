@@ -895,8 +895,16 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigExchangeRate
         fields = ['id', 'from_currency', 'to_currency', 'base_rate', 'markup_percent',
-                  'rate', 'auto_update', 'source_url', 'update_time', 'last_auto_update', 'updated_at']
+                  'rate', 'auto_update', 'source_url', 'script', 'update_time',
+                  'last_auto_update', 'updated_at']
         read_only_fields = ['rate', 'last_auto_update', 'updated_at']
+
+    def validate(self, attrs):
+        # Só superusuário define/edita o script (execução de código no servidor).
+        req = self.context.get('request')
+        if 'script' in attrs and not (req and req.user and req.user.is_superuser):
+            attrs.pop('script')
+        return attrs
 
     def to_internal_value(self, data):
         # Compatibilidade: payloads que mandam só `rate` (importação/antigos) usam
@@ -914,7 +922,7 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
     queryset = ConfigExchangeRate.objects.all()
     serializer_class = ExchangeRateSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_exchange_rates', extra_write=['pull_internet', 'default_time'])
+    get_permissions = _settings_perm('settings_exchange_rates', extra_write=['pull_internet', 'default_time', 'test_script'])
 
     @action(detail=False, methods=['post'], url_path='pull-internet')
     def pull_internet(self, request):
@@ -927,6 +935,18 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
             return Response({'error': f'Não foi possível puxar da internet: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)
         return Response({'created': created, 'updated': updated})
+
+    @action(detail=False, methods=['post'], url_path='test-script')
+    def test_script(self, request):
+        """Roda o script no sandbox e devolve a taxa calculada (ou o erro). Só
+        superusuário — é execução de código no servidor."""
+        if not request.user.is_superuser:
+            return Response({'error': 'Apenas superusuário pode testar scripts.'}, status=403)
+        from .exchange_runner import run_script
+        ok, val = run_script(request.data.get('script') or '')
+        if ok:
+            return Response({'rate': str(val)})
+        return Response({'error': val})
 
     @action(detail=False, methods=['get', 'post'], url_path='default-time')
     def default_time(self, request):

@@ -21,7 +21,7 @@ const btnCsv = (color) => ({
 /* ── Popup de criação/edição de um câmbio ──
  * Taxa de mercado + acréscimo (%) → o câmbio efetivo (usado nos contratos) é
  * taxa × (1 + %/100). Pode atualizar automaticamente todo dia num horário. */
-function RateModal({ initial, onSave, onClose }) {
+function RateModal({ initial, onSave, onClose, canScript = false }) {
   const isEdit = !!initial
   const [fromCurrency, setFromCurrency] = useState(initial?.from_currency ?? 'USD')
   const [toCurrency,   setToCurrency]   = useState(initial?.to_currency ?? 'BRL')
@@ -29,8 +29,18 @@ function RateModal({ initial, onSave, onClose }) {
   const [markup,       setMarkup]       = useState(initial?.markup_percent ?? 0)
   const [autoUpdate,   setAutoUpdate]   = useState(initial?.auto_update ?? false)
   const [sourceUrl,    setSourceUrl]    = useState(initial?.source_url ?? '')
+  const [script,       setScript]       = useState(initial?.script ?? '')
+  const [testing,      setTesting]      = useState(false)
+  const [testResult,   setTestResult]   = useState(null)
   const [updateTime,   setUpdateTime]   = useState((initial?.update_time ?? '').slice(0, 5))
   const [saving,        setSaving]       = useState(false)
+
+  const testScript = async () => {
+    setTesting(true); setTestResult(null)
+    try { const r = await configApi.testExchangeScript(script); setTestResult(r.data) }
+    catch (e) { setTestResult({ error: e?.response?.data?.error || 'Erro ao testar o script.' }) }
+    finally { setTesting(false) }
+  }
 
   const effective = baseRate !== '' && !isNaN(Number(baseRate))
     ? Number(baseRate) * (1 + (Number(markup) || 0) / 100) : null
@@ -47,6 +57,7 @@ function RateModal({ initial, onSave, onClose }) {
         auto_update: autoUpdate,
         source_url: autoUpdate ? sourceUrl.trim() : '',
         update_time: (autoUpdate && updateTime) ? updateTime : null,
+        ...(canScript ? { script: autoUpdate ? script : '' } : {}),
       })
       onClose()
     } finally { setSaving(false) }
@@ -101,6 +112,29 @@ function RateModal({ initial, onSave, onClose }) {
                   placeholder="https://… (JSON com a taxa)" />
                 <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Se preenchido, a taxa desta moeda é puxada deste link (JSON). Vazio = usa a fonte global.</p>
               </div>
+              {canScript && (
+                <div>
+                  <label style={lbl}>Script de cálculo — Python (opcional)</label>
+                  <textarea value={script} onChange={e => { setScript(e.target.value); setTestResult(null) }}
+                    rows={7} spellCheck={false} placeholder={'# Defina result com a taxa de mercado (X → BRL).\n# Helpers: fetch_json(url), fetch_text(url), Decimal\na = fetch_json("https://fonte1...")["rate"]\nb = fetch_json("https://fonte2...")["rate"]\nresult = (a + b) / 2 * 1.02   # média + 2%'}
+                    style={{ ...inp, width:'100%', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize:12, lineHeight:1.5, resize:'vertical', background:'#0f172a', color:'#e2e8f0', border:'1px solid #334155' }} />
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6 }}>
+                    <button type="button" onClick={testScript} disabled={testing || !script.trim()}
+                      style={{ ...btnCsv('#059669'), opacity: (testing || !script.trim()) ? .6 : 1 }}>
+                      {testing ? 'Testando…' : '▶ Testar'}
+                    </button>
+                    {testResult?.rate != null && (
+                      <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>✓ Taxa: {Number(testResult.rate).toLocaleString('pt-BR', { minimumFractionDigits:4 })}</span>
+                    )}
+                    {testResult?.error && (
+                      <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>
+                    )}
+                  </div>
+                  <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0', lineHeight:1.5 }}>
+                    Roda num <strong>sandbox seguro</strong> (sem acesso a arquivos/sistema, com tempo limite). Tem <strong>precedência</strong> sobre o link. Defina a variável <code>result</code> com a taxa.
+                  </p>
+                </div>
+              )}
               <div>
                 <label style={lbl}>Horário específico (opcional)</label>
                 <div style={{ width:170 }}><TimePicker value={updateTime} onChange={setUpdateTime} fixed /></div>
@@ -124,7 +158,7 @@ function RateModal({ initial, onSave, onClose }) {
 }
 
 /* ── Lista de câmbios — usada para preencher automaticamente os contratos ── */
-export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, onAdd, onUpdate, onDelete, onPullInternet }) {
+export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, canScript = false, onAdd, onUpdate, onDelete, onPullInternet }) {
   const navigate = useNavigate()
   const [search,  setSearch]  = useState('')
   const [modal,   setModal]   = useState(null) // null | 'new' | item
@@ -248,7 +282,10 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
                     <Ic n="clock" s={10} /> auto {item.update_time ? String(item.update_time).slice(0,5) : '(geral)'}
                   </span>
                 )}
-                {item.auto_update && item.source_url && (
+                {item.auto_update && item.script && (
+                  <span title="Calculado por script Python" style={{ fontSize:10, fontWeight:800, color:'#0f172a', background:'#e2e8f0', padding:'1px 6px', borderRadius:10, letterSpacing:.3 }}>Py</span>
+                )}
+                {item.auto_update && !item.script && item.source_url && (
                   <span title={`Link próprio: ${item.source_url}`} style={{ display:'inline-flex', alignItems:'center', color:'#2e6db4' }}>
                     <Ic n="globe" s={11} />
                   </span>
@@ -272,6 +309,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
       {modal && (
         <RateModal
           initial={modal === 'new' ? null : modal}
+          canScript={canScript}
           onSave={(data) => modal === 'new' ? onAdd(data) : onUpdate(modal.id, data)}
           onClose={() => setModal(null)}
         />

@@ -276,6 +276,7 @@ export const configApi = {
   pullExchangeInternet: () => api.post('/config/exchange-rates/pull-internet/'),
   exchangeDefaultTime:    () => api.get('/config/exchange-rates/default-time/'),
   setExchangeDefaultTime: (t) => api.post('/config/exchange-rates/default-time/', { default_update_time: t }),
+  testExchangeScript:     (script) => api.post('/config/exchange-rates/test-script/', { script }),
   // Categorias de roteiro
   itineraryCategories:    () => api.get('/config/itinerary-categories/'),
   addItineraryCategory:   (name) => api.post('/config/itinerary-categories/', { name }),
