@@ -44,6 +44,22 @@ function StageBadge({ stage }) {
   )
 }
 
+// Forma de assinatura do contrato — física (impresso e assinado à mão) ou
+// digital (via Autentique).
+const SIGNATURE_META = {
+  fisica:  { label: 'Física',  color: '#7c3aed', ic: 'edit' },
+  digital: { label: 'Digital', color: '#0891b2', ic: 'shield' },
+}
+function SignatureBadge({ type }) {
+  const m = SIGNATURE_META[type] || { label: '—', color: '#94a3b8', ic: null }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: m.color, background: `${m.color}14`, border: `1px solid ${m.color}33`, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+      {m.ic && <Ic n={m.ic} s={12} />}
+      {m.label}
+    </span>
+  )
+}
+
 const VALUE_OPTS = [
   { value: '',            label: 'Qualquer valor' },
   { value: '0-5000',      label: 'Até R$ 5.000' },
@@ -614,6 +630,7 @@ export default function Contracts() {
       { key: 'package_name',       label: 'Viagem',      align: 'center', render: (v) => v || DASH },
       { key: 'departure_date',     label: 'Data viagem', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH },
       { key: 'total_brl',          label: 'Total (BRL)', align: 'center', render: (v) => v ? fmtBRL(v) : DASH },
+      { key: 'signature_type',     label: 'Assinatura',  align: 'center', render: (v) => <SignatureBadge type={v} /> },
       // Coluna de status só na aba Geral (nas demais a aba já define a etapa).
       ...(tab === 'geral' ? [{ key: 'stage', label: 'Status', align: 'center', render: (v) => <StageBadge stage={v} /> }] : []),
       dateCol,
