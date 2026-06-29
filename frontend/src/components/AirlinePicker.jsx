@@ -34,14 +34,27 @@ export default function AirlinePicker({ value, onChange, placeholder = 'Buscar c
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  const reposition = () => {
+    if (!inputRef.current) return
+    const r = inputRef.current.getBoundingClientRect()
+    setDropStyle({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 260) })
+  }
+
   const openDrop = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect()
-      setDropStyle({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 260) })
-    }
+    reposition()
     setOpen(true)
     setHighlighted(-1)
   }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Busca com debounce — sem texto digitado, mostra só os favoritos
   // (marcados em Configurações > Companhias Aéreas); com texto, busca em todas.

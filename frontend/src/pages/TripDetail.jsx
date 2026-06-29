@@ -521,11 +521,25 @@ function AirportPicker({ value, onChange, placeholder }) {
     return () => clearTimeout(t)
   }, [query, open])
 
-  const handleFocus = () => {
+  const reposition = () => {
     if (inputRef.current) setRect(inputRef.current.getBoundingClientRect())
+  }
+  const handleFocus = () => {
+    reposition()
     setQuery('')
     setOpen(true)
   }
+
+  // Reposiciona o dropdown ao rolar/redimensionar enquanto aberto
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const display = value ? `${value.iata_code ? value.iata_code + ' — ' : ''}${value.name}` : ''
 
@@ -1909,13 +1923,27 @@ function AccomPicker({ onSelect, existingRooms = [], enrolledList = [] }) {
     return result
   })()
 
-  const openDrop = () => {
+  const reposition = () => {
     if (inputRef.current) {
       const r = inputRef.current.getBoundingClientRect()
       setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
     }
+  }
+  const openDrop = () => {
+    reposition()
     setOpen(true); setCursor(-1)
   }
+
+  // Reposiciona o dropdown ao rolar/redimensionar enquanto aberto
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (opt) => {
     if (onSelect) onSelect(opt.room)

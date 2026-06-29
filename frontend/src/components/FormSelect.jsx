@@ -49,20 +49,33 @@ export default function FormSelect({ value, onChange, options = [], placeholder 
     return options.filter(o => !q || o.label.toLowerCase().includes(q))
   }, [query, options])
 
+  const reposition = () => {
+    const rect = inputRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    if (spaceBelow >= 180) {
+      // Espaço suficiente abaixo → top do dropdown cola na parte inferior do input
+      setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
+    } else {
+      // Sem espaço abaixo → bottom do dropdown cola na parte superior do input
+      // Independente do tamanho da lista, fica sempre grudado no input
+      setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const openDrop = () => {
     if (open) return
-    const rect = inputRef.current?.getBoundingClientRect()
-    if (rect) {
-      const spaceBelow = window.innerHeight - rect.bottom - 8
-      if (spaceBelow >= 180) {
-        // Espaço suficiente abaixo → top do dropdown cola na parte inferior do input
-        setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
-      } else {
-        // Sem espaço abaixo → bottom do dropdown cola na parte superior do input
-        // Independente do tamanho da lista, fica sempre grudado no input
-        setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
-      }
-    }
+    reposition()
     setQuery('')
     setHighlighted(-1)
     setOpen(true)

@@ -43,14 +43,27 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
     return () => clearTimeout(t)
   }, [query, open, search])
 
+  const reposition = () => {
+    if (!btnRef.current) return
+    const r = btnRef.current.getBoundingClientRect()
+    setDropStyle({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 260) })
+  }
+
   const toggleOpen = () => {
-    if (!open && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      setDropStyle({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 260) })
-    }
+    if (!open) reposition()
     setQuery('')
     setOpen(o => !o)
   }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (item) => { onAdd(item); setOpen(false) }
   const selectedIds = new Set(selected.map(s => s.id))

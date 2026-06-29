@@ -42,13 +42,27 @@ function DocMultiSelect({ selected, onToggle }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const toggle = () => {
-    if (!open && btnRef.current) {
+  const reposition = () => {
+    if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
       setPos({ top: r.bottom + 4, left: r.left, width: r.width })
     }
+  }
+  const toggle = () => {
+    if (!open) reposition()
     setOpen(o => !o)
   }
+
+  // Reposiciona o dropdown ao rolar/redimensionar enquanto aberto
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayVal = selected.length === 0
     ? 'Nada selecionado'
@@ -152,14 +166,28 @@ function MultiPicker({ label, selected, options, onToggle, onCreate, onDelete })
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const toggle = () => {
-    if (!open && btnRef.current) {
+  const reposition = () => {
+    if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
       setPos({ top: r.bottom + 4, left: r.left, width: r.width })
     }
+  }
+  const toggle = () => {
+    if (!open) reposition()
     setOpen(o => !o)
     setSearch('')
   }
+
+  // Reposiciona o dropdown ao rolar/redimensionar enquanto aberto
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = options.filter(o => o.name.toLowerCase().includes(search.toLowerCase()))
 

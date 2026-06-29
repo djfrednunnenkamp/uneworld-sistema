@@ -45,13 +45,27 @@ function SuggestInput({ value, onChange, fetchSuggestions, placeholder, disabled
   }, [])
 
   // Calcula posição fixed quando abre
-  const openDropdown = () => {
+  const reposition = () => {
     if (inputRef.current) {
       const r = inputRef.current.getBoundingClientRect()
       setDropStyle({ top: r.bottom + 2, left: r.left, width: r.width })
     }
+  }
+  const openDropdown = () => {
+    reposition()
     setOpen(true)
   }
+
+  // Reposiciona o dropdown ao rolar/redimensionar enquanto aberto
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Busca com debounce
   useEffect(() => {

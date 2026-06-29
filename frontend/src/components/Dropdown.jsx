@@ -37,16 +37,29 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
   const selected = options.find(o => o.value === value)
   const filtered = searchable ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : options
 
+  const reposition = () => {
+    if (!inputRef.current) return
+    const r = inputRef.current.getBoundingClientRect()
+    setDropStyle({ top: r.bottom + 4, left: r.left, width: r.width })
+  }
+
   const openDrop = () => {
     if (disabled) return
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect()
-      setDropStyle({ top: r.bottom + 4, left: r.left, width: r.width })
-    }
+    reposition()
     setQuery('')
     setHighlighted(-1)
     setOpen(true)
   }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const select = (v) => { onChange(v); setOpen(false); setQuery('') }
 

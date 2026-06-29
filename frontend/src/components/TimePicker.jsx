@@ -55,12 +55,16 @@ export default function TimePicker({ value, onChange, placeholder = 'HH:MM', fix
   const curM = typedM != null && !isNaN(typedM) ? typedM : valM          // 0..59
   const curH12 = curH != null && !isNaN(curH) ? (curH % 12 || 12) : null
 
+  const reposition = () => {
+    if (!fixed) return
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect) return
+    setPopupPos({ top: rect.bottom + 6, left: rect.left })
+  }
+
   useEffect(() => {
     if (!open) return
-    if (fixed && ref.current) {
-      const rect = ref.current.getBoundingClientRect()
-      setPopupPos({ top: rect.bottom + 6, left: rect.left })
-    }
+    reposition()
     setTimeout(() => {
       const hIdx = is12 ? (curH12 != null ? curH12 : null) : curH    // coluna de horas começa em 1 (12h) ou 0 (24h)
       if (hourRef.current && hIdx != null && !isNaN(hIdx)) {
@@ -71,6 +75,16 @@ export default function TimePicker({ value, onChange, placeholder = 'HH:MM', fix
         minRef.current.children[curM + 1]?.scrollIntoView({ block: 'center', behavior: 'instant' })
       }
     }, 20)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

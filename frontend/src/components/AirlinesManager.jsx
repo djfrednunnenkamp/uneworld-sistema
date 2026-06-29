@@ -43,14 +43,28 @@ function CountryField({ value, onChange }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const openDrop = () => {
+  const reposition = () => {
     if (inputRef.current) {
       const r = inputRef.current.getBoundingClientRect()
       setDropStyle({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 220) })
     }
+  }
+  const openDrop = () => {
+    reposition()
     setOpen(true)
     setHighlighted(-1)
   }
+
+  // Reposiciona o dropdown ao rolar/redimensionar enquanto aberto
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = all.filter(c =>
     c.name.toLowerCase().includes((query || '').toLowerCase())

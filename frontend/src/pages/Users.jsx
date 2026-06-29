@@ -84,8 +84,20 @@ function BadgeTooltip({ badge, children }) {
   const [rect, setRect] = useState(null)
   const ref = useRef(null)
 
-  const show = () => { setRect(ref.current.getBoundingClientRect()); setOpen(true) }
+  const reposition = () => { if (ref.current) setRect(ref.current.getBoundingClientRect()) }
+  const show = () => { reposition(); setOpen(true) }
   const hide = () => setOpen(false)
+
+  // Reposiciona o tooltip ao rolar/redimensionar enquanto aberto
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <span ref={ref} onMouseEnter={show} onMouseLeave={hide} style={{ display:'inline-block' }}>

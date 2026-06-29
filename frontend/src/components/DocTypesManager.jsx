@@ -52,26 +52,39 @@ function IconSelect({ options, value, onChange, placeholder = 'Selecione…', co
     return () => document.removeEventListener('mousedown', h)
   }, [open])
 
+  const reposition = () => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const estHeight  = Math.min(options.length * 42 + 8, 280)
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    let top
+    if (spaceBelow >= estHeight) {
+      top = rect.bottom + 4                          // cabe abaixo → abre pra baixo
+    } else if (spaceAbove >= estHeight) {
+      top = rect.top - estHeight - 4                // cabe acima → abre pra cima
+    } else if (spaceBelow >= spaceAbove) {
+      top = rect.bottom + 4                         // mais espaço abaixo → com scroll
+    } else {
+      top = Math.max(8, rect.top - estHeight - 4)  // mais espaço acima → com scroll
+    }
+    setPos({ top, left: rect.left, width: rect.width })
+  }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const openDrop = (e) => {
     e.preventDefault()
     if (open) { setOpen(false); return }
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (rect) {
-      const estHeight  = Math.min(options.length * 42 + 8, 280)
-      const spaceBelow = window.innerHeight - rect.bottom - 8
-      const spaceAbove = rect.top - 8
-      let top
-      if (spaceBelow >= estHeight) {
-        top = rect.bottom + 4                          // cabe abaixo → abre pra baixo
-      } else if (spaceAbove >= estHeight) {
-        top = rect.top - estHeight - 4                // cabe acima → abre pra cima
-      } else if (spaceBelow >= spaceAbove) {
-        top = rect.bottom + 4                         // mais espaço abaixo → com scroll
-      } else {
-        top = Math.max(8, rect.top - estHeight - 4)  // mais espaço acima → com scroll
-      }
-      setPos({ top, left: rect.left, width: rect.width })
-    }
+    reposition()
     setOpen(true)
   }
 

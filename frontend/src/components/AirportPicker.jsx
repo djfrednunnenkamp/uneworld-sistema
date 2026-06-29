@@ -32,15 +32,28 @@ export default function AirportPicker({ value, onChange, placeholder = 'Buscar a
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  const reposition = () => {
+    if (!inputRef.current) return
+    const r = inputRef.current.getBoundingClientRect()
+    setDropStyle({ top: r.bottom + 2, left: r.left, width: r.width })
+  }
+
   const openDrop = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect()
-      setDropStyle({ top: r.bottom + 2, left: r.left, width: r.width })
-    }
+    reposition()
     setQuery('')
     setOpen(true)
     setHighlighted(-1)
   }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Busca com debounce — sem texto digitado, mostra só os favoritos
   // (marcados em Configurações > Aeroportos); com texto, busca em todos.

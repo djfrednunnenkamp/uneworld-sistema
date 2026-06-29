@@ -81,19 +81,31 @@ export default function CountryStatePicker({ country, state, onChangeCountry, on
 
   const back = () => { setSearch(''); setStep('country') }
 
+  /* Recalcula a posição do dropdown (flip cima/baixo conforme o espaço) */
+  const reposition = () => {
+    const rect = inputRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    if (spaceBelow >= 220) {
+      setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
+    } else {
+      setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /* Abre o dropdown calculando se há espaço abaixo do campo — senão, abre para cima */
   const openDrop = () => {
-    if (!open) {
-      const rect = inputRef.current?.getBoundingClientRect()
-      if (rect) {
-        const spaceBelow = window.innerHeight - rect.bottom - 8
-        if (spaceBelow >= 220) {
-          setPos({ top: rect.bottom + 4, bottom: 'auto', left: rect.left, width: rect.width })
-        } else {
-          setPos({ top: 'auto', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
-        }
-      }
-    }
+    if (!open) reposition()
     setSearch('')
     setOpen(true)
   }
