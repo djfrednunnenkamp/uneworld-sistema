@@ -174,38 +174,42 @@ export const PERM_GROUPS = [
       {
         label: 'Cláusulas de Contrato', icon: 'docs', hue: 70,
         items: [
-          ['settings_contract_clauses_view',   'Ver cláusulas de contrato'],
-          ['settings_contract_clauses_edit',   'Criar / Editar cláusulas de contrato'],
-          ['settings_contract_clauses_delete', 'Excluir cláusulas de contrato'],
-          ['settings_contract_clauses_export', 'Exportar como CSV (download)'],
+          ['settings_contract_clauses_view',        'Ver cláusulas de contrato'],
+          ['settings_contract_clauses_edit',        'Criar / Editar cláusulas de contrato'],
+          ['settings_contract_clauses_delete',      'Excluir cláusulas de contrato'],
+          ['settings_contract_clauses_bulk_import', 'Importação em massa via CSV'],
+          ['settings_contract_clauses_export',      'Exportar como CSV (download)'],
         ],
       },
       {
         label: 'Operadora', icon: 'building', hue: 70,
         items: [
-          ['settings_operating_company_view',   'Ver dados da operadora'],
-          ['settings_operating_company_edit',   'Editar dados da operadora'],
-          ['settings_operating_company_export', 'Exportar como CSV (download)'],
+          ['settings_operating_company_view',        'Ver dados da operadora'],
+          ['settings_operating_company_edit',        'Editar dados da operadora'],
+          ['settings_operating_company_bulk_import', 'Importação em massa via CSV'],
+          ['settings_operating_company_export',      'Exportar como CSV (download)'],
         ],
       },
       {
         label: 'Formas de Pagamento', icon: 'card', hue: 200,
         items: [
-          ['settings_payment_methods_view',   'Ver formas de pagamento'],
-          ['settings_payment_methods_edit',   'Criar / Editar formas de pagamento'],
-          ['settings_payment_methods_delete', 'Excluir formas de pagamento'],
-          ['settings_payment_methods_export', 'Exportar como CSV (download)'],
+          ['settings_payment_methods_view',        'Ver formas de pagamento'],
+          ['settings_payment_methods_edit',        'Criar / Editar formas de pagamento'],
+          ['settings_payment_methods_delete',      'Excluir formas de pagamento'],
+          ['settings_payment_methods_bulk_import', 'Importação em massa via CSV'],
+          ['settings_payment_methods_export',      'Exportar como CSV (download)'],
         ],
       },
       {
         label: 'Câmbio', icon: 'globe', hue: 160,
         items: [
-          ['settings_exchange_rates_view',     'Ver câmbio'],
-          ['settings_exchange_rates_edit',     'Criar / Editar câmbio'],
-          ['settings_exchange_rates_advanced', 'Opções avançadas (auto-atualização / fonte externa)'],
-          ['settings_exchange_rates_rounding', 'Opções de arredondamento'],
-          ['settings_exchange_rates_delete',   'Excluir câmbio'],
-          ['settings_exchange_rates_export',   'Exportar como CSV (download)'],
+          ['settings_exchange_rates_view',        'Ver câmbio'],
+          ['settings_exchange_rates_edit',        'Criar / Editar câmbio'],
+          ['settings_exchange_rates_advanced',    'Opções avançadas (auto-atualização / fonte externa)'],
+          ['settings_exchange_rates_rounding',    'Opções de arredondamento'],
+          ['settings_exchange_rates_delete',      'Excluir câmbio'],
+          ['settings_exchange_rates_bulk_import', 'Importação em massa via CSV'],
+          ['settings_exchange_rates_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -268,10 +272,11 @@ export const PERM_GROUPS = [
       {
         label: 'Mapas de Ônibus', icon: 'mapicon', hue: 45,
         items: [
-          ['settings_bus_maps_view',   'Ver mapas de ônibus'],
-          ['settings_bus_maps_edit',   'Criar / Editar mapas de ônibus'],
-          ['settings_bus_maps_delete', 'Excluir mapas de ônibus'],
-          ['settings_bus_maps_export', 'Exportar como CSV (download)'],
+          ['settings_bus_maps_view',        'Ver mapas de ônibus'],
+          ['settings_bus_maps_edit',        'Criar / Editar mapas de ônibus'],
+          ['settings_bus_maps_delete',      'Excluir mapas de ônibus'],
+          ['settings_bus_maps_bulk_import', 'Importação em massa via CSV'],
+          ['settings_bus_maps_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -289,10 +294,11 @@ export const PERM_GROUPS = [
       {
         label: 'Perfis de permissão', icon: 'shield', hue: 252,
         items: [
-          ['settings_user_profiles_view',   'Ver perfis de permissão'],
-          ['settings_user_profiles_edit',   'Criar / Editar perfis de permissão'],
-          ['settings_user_profiles_delete', 'Excluir perfis de permissão'],
-          ['settings_user_profiles_export', 'Exportar como CSV (download)'],
+          ['settings_user_profiles_view',        'Ver perfis de permissão'],
+          ['settings_user_profiles_edit',        'Criar / Editar perfis de permissão'],
+          ['settings_user_profiles_delete',      'Excluir perfis de permissão'],
+          ['settings_user_profiles_bulk_import', 'Importação em massa via CSV'],
+          ['settings_user_profiles_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -310,9 +316,10 @@ export const PERM_GROUPS = [
       {
         label: 'Termos e Condições', icon: 'shield', hue: 5,
         items: [
-          ['settings_terms_view',   'Ver termos e condições'],
-          ['settings_terms_edit',   'Editar termos e condições'],
-          ['settings_terms_export', 'Exportar como CSV (download)'],
+          ['settings_terms_view',        'Ver termos e condições'],
+          ['settings_terms_edit',        'Editar termos e condições'],
+          ['settings_terms_bulk_import', 'Importação em massa via CSV'],
+          ['settings_terms_export',      'Exportar como CSV (download)'],
         ],
       },
       {
@@ -571,6 +578,15 @@ export const PERM_DEPENDENCIES = {
   settings_airports_bulk_import:         'settings_airports_edit',
   settings_airlines_bulk_import:         'settings_airlines_edit',
   settings_countries_bulk_import:        'settings_countries_edit',
+  // Configs que antes só tinham _edit pra importar — agora com toggle próprio de
+  // importação em massa via CSV, sempre dependente do _edit da própria config.
+  settings_payment_methods_bulk_import:  'settings_payment_methods_edit',
+  settings_exchange_rates_bulk_import:   'settings_exchange_rates_edit',
+  settings_bus_maps_bulk_import:         'settings_bus_maps_edit',
+  settings_contract_clauses_bulk_import: 'settings_contract_clauses_edit',
+  settings_user_profiles_bulk_import:    'settings_user_profiles_edit',
+  settings_terms_bulk_import:            'settings_terms_edit',
+  settings_operating_company_bulk_import:'settings_operating_company_edit',
 
   // import_web ("Importar da internet") depende só de _view — é uma ação independente do CSV
   settings_professions_import_web: 'settings_professions_view',
