@@ -56,18 +56,23 @@ const STATS_CFG = [
  * dar um toque visual. Precisa de pelo menos 2 pontos pra virar uma linha. */
 function Sparkline({ data, color = '#b45309' }) {
   if (!data || data.length < 2) return null
-  const w = 100, h = 32
+  const w = 100, h = 28
   const min = Math.min(...data), max = Math.max(...data)
   const span = max - min || 1
   const pts = data.map((v, i) => {
     const x = (i / (data.length - 1)) * w
     const y = h - ((v - min) / span) * h
     return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
+  })
+  const line = pts.join(' ')
+  const area = `0,${h} ${line} ${w},${h}`
+  const up = data[data.length - 1] >= data[0]
+  const stroke = up ? '#16a34a' : '#dc2626'
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.22, pointerEvents: 'none' }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2"
+      style={{ width: '100%', height: '100%', display: 'block' }}>
+      <polygon points={area} fill={stroke} opacity="0.08" />
+      <polyline points={line} fill="none" stroke={stroke} strokeWidth="1.5"
         strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   )
@@ -366,12 +371,19 @@ export default function Dashboard() {
             </div>
             <div className="scard-label">Câmbio</div>
             {exchange_rates?.length ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
                 {exchange_rates.map((r) => (
-                  <div key={r.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '5px 2px', overflow: 'hidden' }}>
-                    <Sparkline data={r.history} />
-                    <span style={{ position: 'relative', fontSize: 12.5, fontWeight: 600, color: '#475569' }}>{r.from_currency} → {r.to_currency}</span>
-                    <span style={{ position: 'relative', fontSize: 16, fontWeight: 700, color: '#0f172a', letterSpacing: '-.02em' }}>{fmtRate(r)}</span>
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 2px' }}>
+                    <div style={{ minWidth: 0, flexShrink: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>{r.from_currency} → {r.to_currency}</div>
+                      {r.updated_at && (
+                        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1, whiteSpace: 'nowrap' }}>{fmtDateTime(r.updated_at, timeFormat)}</div>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 24, height: 28 }}>
+                      <Sparkline data={r.history} />
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', letterSpacing: '-.02em', whiteSpace: 'nowrap' }}>{fmtRate(r)}</span>
                   </div>
                 ))}
               </div>
