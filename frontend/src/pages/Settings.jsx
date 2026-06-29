@@ -130,7 +130,13 @@ function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, stat
     rows.push(`${q('Formas de Pagamento')},${q(pm.name)},,,,,`)
   })
   exchangeRates.forEach(er => {
-    const payload = JSON.stringify({ from_currency: er.from_currency, to_currency: er.to_currency, rate: er.rate })
+    const payload = JSON.stringify({
+      from_currency: er.from_currency, to_currency: er.to_currency,
+      base_rate: er.base_rate ?? er.rate, markup_percent: er.markup_percent ?? 0,
+      is_favorite: !!er.is_favorite, auto_update: !!er.auto_update,
+      source_url: er.source_url || '', script: er.script || '',
+      update_time: er.update_time ? String(er.update_time).slice(0, 5) : '',
+    })
     rows.push(`${q('Câmbio')},${q(`${er.from_currency} → ${er.to_currency}`)},,,,,${q(payload)}`)
   })
   downloadCsv(rows.join('\n'), filename, { model_label: 'Exportação CSV — Todas as configurações' })

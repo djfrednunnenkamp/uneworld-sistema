@@ -66,7 +66,7 @@ export const CSV_SAMPLES = {
   exchange_rates: {
     content: [
       'lista,nome,pessoas,casal,pais,estado,codigo',
-      'Câmbio,USD → BRL,,,,,"{""from_currency"":""USD"",""to_currency"":""BRL"",""rate"":5.3}"',
+      'Câmbio,USD → BRL,,,,,"{""from_currency"":""USD"",""to_currency"":""BRL"",""base_rate"":5.3,""markup_percent"":2,""is_favorite"":true,""auto_update"":false,""source_url"":"""",""script"":"""",""update_time"":""""}"',
     ].join('\n'),
     filename: 'modelo_cambio.csv',
   },

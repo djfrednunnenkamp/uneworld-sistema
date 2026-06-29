@@ -140,9 +140,16 @@ function parseCombinedCsv(text, labelToKey) {
     if (listKey === 'exchange_rates' && extras.code) {
       try {
         const parsed = JSON.parse(extras.code)
-        extras.from_currency = parsed.from_currency || 'USD'
-        extras.to_currency   = parsed.to_currency || 'BRL'
-        extras.rate          = parsed.rate
+        extras.from_currency  = parsed.from_currency || 'USD'
+        extras.to_currency    = parsed.to_currency || 'BRL'
+        extras.rate           = parsed.rate                    // compat com CSV antigo
+        extras.base_rate      = parsed.base_rate ?? parsed.rate
+        extras.markup_percent = parsed.markup_percent ?? 0
+        extras.is_favorite    = !!parsed.is_favorite
+        extras.auto_update    = !!parsed.auto_update
+        extras.source_url     = parsed.source_url || ''
+        extras.script         = parsed.script || ''
+        extras.update_time    = parsed.update_time || ''
       } catch { /* câmbio exportado em formato antigo/inválido */ }
     }
     return { listLabel, listKey, name, extras }
@@ -213,7 +220,12 @@ const API_MAP = {
   // Singleton — "adicionar" aqui só atualiza o texto vigente, nunca cria item novo
   terms:           { add: (name, extras) => configApi.updateTerms({ content: extras.content || '' }), del: null, label: 'Termos e Condições' },
   exchange_rates:  { add: (name, extras) => configApi.addExchangeRate({
-                       from_currency: extras.from_currency || 'USD', to_currency: extras.to_currency || 'BRL', rate: extras.rate,
+                       from_currency: extras.from_currency || 'USD', to_currency: extras.to_currency || 'BRL',
+                       base_rate: extras.base_rate ?? extras.rate ?? 0,
+                       markup_percent: extras.markup_percent ?? 0,
+                       is_favorite: !!extras.is_favorite, auto_update: !!extras.auto_update,
+                       source_url: extras.source_url || '', script: extras.script || '',
+                       update_time: extras.update_time || null,
                      }), del: (id) => configApi.delExchangeRate(id), label: 'Câmbio' },
 }
 
@@ -355,7 +367,11 @@ export default function FlatImport() {
     if (listKey === 'states' && !extras.parent_country) return 'error'
     if (listKey === 'cities' && (!extras.parent_country || !extras.parent_state)) return 'error'
     if (listKey === 'bus_maps' && !extras.rows) return 'error'
-    if (listKey === 'exchange_rates' && (extras.rate == null || extras.rate === '')) return 'error'
+    if (listKey === 'exchange_rates') {
+      const hasRate = !(extras.base_rate == null || extras.base_rate === '') || !(extras.rate == null || extras.rate === '')
+      const hasSource = (extras.script || '').trim() || (extras.source_url || '').trim()
+      if (!hasRate && !hasSource) return 'error'   // sem taxa e sem fonte (link/script) → inválido
+    }
     const set = existingSets[listKey ?? type]
     const key = listKey === 'cities'
       ? `${extras.parent_country || ''}|${extras.parent_state || ''}|${name}`.toLowerCase()

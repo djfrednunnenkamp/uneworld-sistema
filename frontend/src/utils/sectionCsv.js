@@ -39,7 +39,15 @@ export const SECTION_ROW_BUILDERS = {
     return `${q(label)},${q(t.name)},,,,,${q(payload)}`
   },
   exchange_rates: (label, er) => {
-    const payload = JSON.stringify({ from_currency: er.from_currency, to_currency: er.to_currency, rate: er.rate })
+    // Inclui TODAS as configs do câmbio (taxa de mercado, acréscimo, favorito,
+    // atualização automática, link e script) — pra reimportar idêntico.
+    const payload = JSON.stringify({
+      from_currency: er.from_currency, to_currency: er.to_currency,
+      base_rate: er.base_rate ?? er.rate, markup_percent: er.markup_percent ?? 0,
+      is_favorite: !!er.is_favorite, auto_update: !!er.auto_update,
+      source_url: er.source_url || '', script: er.script || '',
+      update_time: er.update_time ? String(er.update_time).slice(0, 5) : '',
+    })
     return `${q(label)},${q(`${er.from_currency} → ${er.to_currency}`)},,,,,${q(payload)}`
   },
 }
