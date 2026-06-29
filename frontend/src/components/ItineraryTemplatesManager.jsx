@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import { Ic } from './Icon'
 import RichTextEditor from './RichTextEditor'
 import ConfirmModal from './ConfirmModal'
+import CsvImportPopup from './CsvImportPopup'
+import { exportSectionCsv } from '../utils/sectionCsv'
+import { CSV_SAMPLES } from '../utils/csvSamples'
+
+const btnCsv = (color) => ({
+  padding: '8px 13px', borderRadius: 7, border: `1.5px solid ${color}20`,
+  background: `${color}10`, color, fontSize: 13, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+})
 
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box' }
 const lbl = { fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
@@ -79,13 +89,15 @@ function TemplateModal({ kind, template, onClose, onSaved }) {
 }
 
 /* ── Gerenciador de modelos de texto do Roteiro — uma aba por tipo ── */
-export default function ItineraryTemplatesManager({ canEdit = true, canDelete = true }) {
+export default function ItineraryTemplatesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+  const navigate = useNavigate()
   const [kind,      setKind]      = useState(TEMPLATE_KINDS[0].value)
   const [templates, setTemplates] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [search,    setSearch]    = useState('')
   const [modal,     setModal]     = useState(null)
   const [delItem,   setDelItem]   = useState(null)
+  const [showImport, setShowImport] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -108,6 +120,28 @@ export default function ItineraryTemplatesManager({ canEdit = true, canDelete = 
     return templates.filter(t => t.name.toLowerCase().includes(q))
   }, [templates, search])
 
+  /* Exporta TODOS os modelos (de todos os tipos), não só os da aba atual */
+  const handleExport = async () => {
+    try {
+      const r = await configApi.itineraryTemplates()
+      const all = r.data
+      if (!all.length) { toast.error('Nenhum modelo para exportar.'); return }
+      exportSectionCsv('itinerary_templates', 'Modelos de Texto do Roteiro', all, 'modelos_roteiro.csv')
+    } catch { toast.error('Erro ao exportar modelos.') }
+  }
+
+  const handleImportFile = async (file) => {
+    const csvText = await file.text()
+    const r = await configApi.itineraryTemplates().catch(() => ({ data: templates }))
+    const all = r.data
+    navigate('/configuracoes/import', {
+      state: {
+        csvText, filename: file.name, type: 'itinerary_templates',
+        existingNames: all.map(t => t.name), existingItems: all,
+      },
+    })
+  }
+
   return (
     <>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
@@ -129,6 +163,8 @@ export default function ItineraryTemplatesManager({ canEdit = true, canDelete = 
           onFocus={e => e.target.style.borderColor = '#1a2d4f'}
           onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
         {canEdit && <button onClick={() => setModal('new')} style={btnPri}>+ Adicionar</button>}
+        {canExport && <button onClick={handleExport} style={btnCsv('#059669')} title="Exportar como CSV">⬇ Exportar</button>}
+        {canImport && <button onClick={() => setShowImport(true)} style={btnCsv('#2e6db4')} title="Importar de CSV">⬆ Importar</button>}
       </div>
 
       <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
@@ -167,6 +203,15 @@ export default function ItineraryTemplatesManager({ canEdit = true, canDelete = 
           template={modal === 'new' ? null : modal}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
+        />
+      )}
+      {canImport && showImport && (
+        <CsvImportPopup
+          title="Importar Modelos de Texto do Roteiro"
+          sampleContent={CSV_SAMPLES.itinerary_templates?.content}
+          sampleFilename={CSV_SAMPLES.itinerary_templates?.filename}
+          onClose={() => setShowImport(false)}
+          onFile={handleImportFile}
         />
       )}
       {delItem && (

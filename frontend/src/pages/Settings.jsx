@@ -74,7 +74,7 @@ function splitCsvLineSettings(line) {
                   + tipos de documento + aeroportos + companhias aéreas
                   + perfis de permissão + mapas de ônibus
    Formato: lista,nome,pessoas,casal,pais,estado,codigo */
-function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, paymentMethods = [], exchangeRates = [], filename) {
+function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, paymentMethods = [], exchangeRates = [], itineraryTemplates = [], operatingCompany = null, filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
   const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
@@ -139,6 +139,19 @@ function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, stat
     })
     rows.push(`${q('Câmbio')},${q(`${er.from_currency} → ${er.to_currency}`)},,,,,${q(payload)}`)
   })
+  itineraryTemplates.forEach(t => {
+    const payload = JSON.stringify({ kind: t.kind, content: t.content || '' })
+    rows.push(`${q('Modelos de Texto do Roteiro')},${q(t.name)},,,,,${q(payload)}`)
+  })
+  if (operatingCompany) {
+    const o = operatingCompany
+    const payload = JSON.stringify({
+      company_name: o.company_name || '', cnpj: o.cnpj || '', seller: o.seller || '',
+      phone: o.phone || '', mobile: o.mobile || '', email: o.email || '', address: o.address || '',
+      default_signature_type: o.default_signature_type || 'fisica',
+    })
+    rows.push(`${q('Operadora')},${q(o.company_name || 'Operadora')},,,,,${q(payload)}`)
+  }
   downloadCsv(rows.join('\n'), filename, { model_label: 'Exportação CSV — Todas as configurações' })
 }
 
@@ -1677,13 +1690,15 @@ export default function Settings() {
       const viewTerms       = can('settings_terms', 'view') && include('terms')
       const viewPaymentMethods = can('settings_payment_methods', 'view') && include('payment_methods')
       const viewExchangeRates  = can('settings_exchange_rates',  'view') && include('exchange_rates')
+      const viewItineraryTemplates = can('settings_itinerary_templates', 'view') && include('itinerary_templates')
+      const viewOperatingCompany   = can('settings_operating_company',   'view') && include('operating_company')
       // Continentes → Países → Estados → Cidades: cada nível inclui os anteriores.
       const wantCountries = geoLevel === 'paises' || geoLevel === 'estados' || geoLevel === 'cidades'
       const wantStates    = geoLevel === 'estados' || geoLevel === 'cidades'
       const wantCities    = geoLevel === 'cidades'
       let ctRes = { data: [] }, cRes = { data: [] }, sRes = { data: [] }, cities = []
       let dtData = [], apData = [], alData = [], ppData = [], bmData = [], ccData = [], termsContent = null
-      let pmData = [], erData = []
+      let pmData = [], erData = [], itData = [], ocData = null
       const fetches = []
       if (viewCountries) fetches.push(configApi.continents().then(r => { ctRes = r }))
       if (viewCountries && wantCountries) fetches.push(
@@ -1708,8 +1723,10 @@ export default function Settings() {
       if (viewTerms) fetches.push(configApi.terms().then(r => { termsContent = r.data.content || '' }))
       if (viewPaymentMethods) fetches.push(configApi.paymentMethods().then(r => { pmData = r.data }))
       if (viewExchangeRates)  fetches.push(configApi.exchangeRates().then(r => { erData = r.data }))
+      if (viewItineraryTemplates) fetches.push(configApi.itineraryTemplates().then(r => { itData = r.data }))
+      if (viewOperatingCompany)   fetches.push(configApi.operatingCompany().then(r => { ocData = r.data }))
       await Promise.all(fetches)
-      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], ctRes.data, cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, pmData, erData, 'todas_as_configuracoes.csv')
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], ctRes.data, cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, pmData, erData, itData, ocData, 'todas_as_configuracoes.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -1727,8 +1744,10 @@ export default function Settings() {
     const canImportTerms = can('settings_terms', 'edit')
     const canImportPaymentMethods = can('settings_payment_methods', 'edit')
     const canImportExchangeRates  = can('settings_exchange_rates',  'edit')
+    const canImportItineraryTemplates = can('settings_itinerary_templates', 'edit')
+    const canImportOperatingCompany   = can('settings_operating_company',   'edit')
     let allContinents = [], allCountries = [], allStates = [], allCities = [], allDocTypes = [], allAirports = [], allAirlines = [], allBusMaps = [], allPermProfiles = [], allContractClauses = [], allTermsContent = null
-    let allPaymentMethods = [], allExchangeRates = []
+    let allPaymentMethods = [], allExchangeRates = [], allItineraryTemplates = []
     const fetches2 = []
     if (canImportCountries) fetches2.push(configApi.continents().then(r => { allContinents = r.data }).catch(() => {}))
     if (canImportCountries) fetches2.push(
@@ -1750,6 +1769,7 @@ export default function Settings() {
     if (canImportTerms) fetches2.push(configApi.terms().then(r => { allTermsContent = r.data.content || '' }).catch(() => {}))
     if (canImportPaymentMethods) fetches2.push(configApi.paymentMethods().then(r => { allPaymentMethods = r.data }).catch(() => {}))
     if (canImportExchangeRates)  fetches2.push(configApi.exchangeRates().then(r => { allExchangeRates = r.data }).catch(() => {}))
+    if (canImportItineraryTemplates) fetches2.push(configApi.itineraryTemplates().then(r => { allItineraryTemplates = r.data }).catch(() => {}))
     await Promise.all(fetches2)
     const permittedKeys = [
       ...importableGroups.map(g => g.key),
@@ -1764,6 +1784,8 @@ export default function Settings() {
       ...(canImportTerms     ? ['terms']                            : []),
       ...(canImportPaymentMethods ? ['payment_methods']             : []),
       ...(canImportExchangeRates  ? ['exchange_rates']              : []),
+      ...(canImportItineraryTemplates ? ['itinerary_templates']     : []),
+      ...(canImportOperatingCompany   ? ['operating_company']       : []),
     ]
     navigate('/configuracoes/import', {
       state: {
@@ -1785,6 +1807,7 @@ export default function Settings() {
           ...(canImportContractClauses ? { contract_clauses: allContractClauses.map(c => c.name) } : {}),
           ...(canImportPaymentMethods ? { payment_methods: allPaymentMethods.map(pm => pm.name) } : {}),
           ...(canImportExchangeRates  ? { exchange_rates: allExchangeRates.map(er => `${er.from_currency} → ${er.to_currency}`) } : {}),
+          ...(canImportItineraryTemplates ? { itinerary_templates: allItineraryTemplates.map(t => t.name) } : {}),
         },
         existingItemsByType: {
           ...Object.fromEntries(importableGroups.map(g => [g.key, g.items])),
@@ -1798,6 +1821,7 @@ export default function Settings() {
           ...(canImportContractClauses ? { contract_clauses: allContractClauses }                          : {}),
           ...(canImportPaymentMethods ? { payment_methods: allPaymentMethods }                              : {}),
           ...(canImportExchangeRates  ? { exchange_rates: allExchangeRates.map(er => ({ ...er, name: `${er.from_currency} → ${er.to_currency}` })) } : {}),
+          ...(canImportItineraryTemplates ? { itinerary_templates: allItineraryTemplates } : {}),
         },
         permittedKeys,
         allCountries,
@@ -1954,6 +1978,8 @@ export default function Settings() {
           ...(can('settings_terms', 'view') ? [{ key: 'terms', label: 'Termos e Condições' }] : []),
           ...(can('settings_payment_methods', 'view') ? [{ key: 'payment_methods', label: 'Formas de Pagamento' }] : []),
           ...(can('settings_exchange_rates',  'view') ? [{ key: 'exchange_rates',  label: 'Câmbio' }] : []),
+          ...(can('settings_itinerary_templates', 'view') ? [{ key: 'itinerary_templates', label: 'Modelos de Texto do Roteiro' }] : []),
+          ...(can('settings_operating_company',   'view') ? [{ key: 'operating_company',   label: 'Operadora' }] : []),
         ]
         return (
           <CsvExportModal
@@ -2029,8 +2055,8 @@ export default function Settings() {
                 {activeDef.key === 'airlines'        && <AirlinesManager canEdit={can('settings_airlines','edit')} canDelete={can('settings_airlines','delete')} canImport={can('settings_airlines','bulk_import')} canExport={can('settings_airlines','view')} canImportWeb={can('settings_airlines','import_web')} />}
                 {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} canImport={can('settings_bus_maps','edit')} canExport={can('settings_bus_maps','view')} />}
                 {activeDef.key === 'contract_clauses' && <ContractClausesManager canEdit={can('settings_contract_clauses','edit')} canDelete={can('settings_contract_clauses','delete')} canImport={can('settings_contract_clauses','edit')} canExport={can('settings_contract_clauses','view')} />}
-                {activeDef.key === 'operating_company' && <OperatingCompanyManager canEdit={can('settings_operating_company','edit')} />}
-                {activeDef.key === 'itinerary_templates' && <ItineraryTemplatesManager canEdit={can('settings_itinerary_templates','edit')} canDelete={can('settings_itinerary_templates','delete')} />}
+                {activeDef.key === 'operating_company' && <OperatingCompanyManager canEdit={can('settings_operating_company','edit')} canImport={can('settings_operating_company','edit')} canExport={can('settings_operating_company','view')} />}
+                {activeDef.key === 'itinerary_templates' && <ItineraryTemplatesManager canEdit={can('settings_itinerary_templates','edit')} canDelete={can('settings_itinerary_templates','delete')} canImport={can('settings_itinerary_templates','edit')} canExport={can('settings_itinerary_templates','view')} />}
                 {activeDef.key === 'terms'           && <TermsAndConditionsManager canEdit={can('settings_terms','edit')} canImport={can('settings_terms','edit')} canExport={can('settings_terms','view')} onSaved={() => setActiveList(null)} />}
               </div>
             </div>

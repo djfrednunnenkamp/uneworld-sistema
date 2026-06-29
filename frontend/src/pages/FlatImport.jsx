@@ -137,6 +137,26 @@ function parseCombinedCsv(text, labelToKey) {
         extras.content = parsed.content || ''
       } catch { /* formato antigo/inválido */ }
     }
+    if (listKey === 'itinerary_templates' && extras.code) {
+      try {
+        const parsed = JSON.parse(extras.code)
+        extras.kind = parsed.kind || 'condicoes'
+        extras.content = parsed.content || ''
+      } catch { /* modelo exportado em formato antigo/inválido */ }
+    }
+    if (listKey === 'operating_company' && extras.code) {
+      try {
+        const p = JSON.parse(extras.code)
+        extras.company_name = p.company_name || ''
+        extras.cnpj    = p.cnpj || ''
+        extras.seller  = p.seller || ''
+        extras.phone   = p.phone || ''
+        extras.mobile  = p.mobile || ''
+        extras.email   = p.email || ''
+        extras.address = p.address || ''
+        extras.default_signature_type = p.default_signature_type || 'fisica'
+      } catch { /* operadora exportada em formato antigo/inválido */ }
+    }
     if (listKey === 'exchange_rates' && extras.code) {
       try {
         const parsed = JSON.parse(extras.code)
@@ -219,6 +239,16 @@ const API_MAP = {
                      }), del: (id) => configApi.delContractClause(id), label: 'Cláusulas de Contrato' },
   // Singleton — "adicionar" aqui só atualiza o texto vigente, nunca cria item novo
   terms:           { add: (name, extras) => configApi.updateTerms({ content: extras.content || '' }), del: null, label: 'Termos e Condições' },
+  itinerary_templates: { add: (name, extras) => configApi.addItineraryTemplate({
+                       kind: extras.kind || 'condicoes', name, content: extras.content || '',
+                     }), del: (id) => configApi.delItineraryTemplate(id), label: 'Modelos de Texto do Roteiro' },
+  // Singleton — "adicionar" aqui só atualiza os dados vigentes da operadora
+  operating_company: { add: (name, extras) => configApi.updateOperatingCompany({
+                       company_name: extras.company_name || name || '', cnpj: extras.cnpj || '',
+                       seller: extras.seller || '', phone: extras.phone || '', mobile: extras.mobile || '',
+                       email: extras.email || '', address: extras.address || '',
+                       default_signature_type: extras.default_signature_type || 'fisica',
+                     }), del: null, label: 'Operadora' },
   exchange_rates:  { add: (name, extras) => configApi.addExchangeRate({
                        from_currency: extras.from_currency || 'USD', to_currency: extras.to_currency || 'BRL',
                        base_rate: extras.base_rate ?? extras.rate ?? 0,
@@ -234,7 +264,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Tipos com campos extras (não só "nome") — usam o mesmo parser rico do CSV combinado
-const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms', 'exchange_rates'])
+const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms', 'exchange_rates', 'itinerary_templates', 'operating_company'])
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
 const EXPORT_ONLY_KEYS = new Set()

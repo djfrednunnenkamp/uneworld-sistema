@@ -38,6 +38,22 @@ export const SECTION_ROW_BUILDERS = {
     const payload = JSON.stringify({ content: t.content || '' })
     return `${q(label)},${q(t.name)},,,,,${q(payload)}`
   },
+  itinerary_templates: (label, t) => {
+    // Guarda o tipo (seguro/pagamento/condições/documentação) e o conteúdo
+    // rico no JSON da coluna "codigo" — pra reimportar idêntico.
+    const payload = JSON.stringify({ kind: t.kind, content: t.content || '' })
+    return `${q(label)},${q(t.name)},,,,,${q(payload)}`
+  },
+  operating_company: (label, o) => {
+    // Singleton — exporta como uma única linha, com todos os dados da operadora
+    // embutidos no JSON da coluna "codigo".
+    const payload = JSON.stringify({
+      company_name: o.company_name || '', cnpj: o.cnpj || '', seller: o.seller || '',
+      phone: o.phone || '', mobile: o.mobile || '', email: o.email || '', address: o.address || '',
+      default_signature_type: o.default_signature_type || 'fisica',
+    })
+    return `${q(label)},${q(o.company_name || 'Operadora')},,,,,${q(payload)}`
+  },
   exchange_rates: (label, er) => {
     // Inclui TODAS as configs do câmbio (taxa de mercado, acréscimo, favorito,
     // atualização automática, link e script) — pra reimportar idêntico.

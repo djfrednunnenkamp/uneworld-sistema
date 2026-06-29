@@ -77,6 +77,21 @@ export const CSV_SAMPLES = {
     ].join('\n'),
     filename: 'modelo_termos_e_condicoes.csv',
   },
+  itinerary_templates: {
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Modelos de Texto do Roteiro,Condições padrão,,,,,"{""kind"":""condicoes"",""content"":""<p>Condições gerais para compra do pacote…</p>""}"',
+      'Modelos de Texto do Roteiro,Seguro premium,,,,,"{""kind"":""seguro"",""content"":""<p>Texto do adicional de seguro viagem…</p>""}"',
+    ].join('\n'),
+    filename: 'modelo_modelos_roteiro.csv',
+  },
+  operating_company: {
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Operadora,UneWorld Viagens,,,,,"{""company_name"":""UneWorld Viagens"",""cnpj"":""00.000.000/0000-00"",""seller"":""Fulano de Tal"",""phone"":""(00) 0000-0000"",""mobile"":""(00) 90000-0000"",""email"":""contato@uneworld.com"",""address"":""Rua Exemplo, 123"",""default_signature_type"":""fisica""}"',
+    ].join('\n'),
+    filename: 'modelo_operadora.csv',
+  },
   countries: {
     content: [
       'lista,nome,pessoas,casal,pais,estado,codigo',
