@@ -36,6 +36,41 @@ def _token():
     return token
 
 
+# Traduções amigáveis dos erros de validação mais comuns da Autentique.
+_VALIDATION_PT = {
+    'format_is_invalid':            'formato inválido',
+    'required':                     'obrigatório',
+    'is_required':                  'obrigatório',
+    'is_required_when_none_present': 'informe e-mail ou telefone',
+    'email':                        'e-mail inválido',
+}
+_FIELD_PT = {'email': 'e-mail', 'phone': 'telefone', 'name': 'nome'}
+
+
+def _format_graphql_errors(errors):
+    """Monta uma mensagem legível a partir dos erros GraphQL da Autentique,
+    expandindo `extensions.validation` (ex.: signatário 1 — e-mail: formato
+    inválido) em vez de devolver só "validation"."""
+    parts = []
+    for err in errors:
+        validation = ((err.get('extensions') or {}).get('validation')) or {}
+        for path, problems in validation.items():
+            # path ex.: "signers.0.email" -> "signatário 1 (e-mail)"
+            who = path
+            bits = path.split('.')
+            if len(bits) == 3 and bits[0] == 'signers' and bits[1].isdigit():
+                field = _FIELD_PT.get(bits[2], bits[2])
+                who = f'signatário {int(bits[1]) + 1} ({field})'
+            elif len(bits) == 1:
+                who = _FIELD_PT.get(bits[0], bits[0])
+            # alguns códigos vêm como "codigo:campoA / campoB" — usa só o código.
+            reason = ', '.join(_VALIDATION_PT.get(p.split(':')[0], p.split(':')[0]) for p in problems)
+            parts.append(f'{who}: {reason}')
+        if not validation:
+            parts.append(err.get('message', '') or 'erro desconhecido')
+    return '; '.join(p for p in parts if p) or 'erro desconhecido'
+
+
 def _graphql(query, variables, upload=None):
     """Executa uma operação GraphQL. Quando há arquivo, usa o protocolo
     graphql-multipart-request (operations + map + arquivo)."""
@@ -63,8 +98,7 @@ def _graphql(query, variables, upload=None):
         raise AutentiqueError(f'Resposta inválida da Autentique (HTTP {resp.status_code}).')
 
     if 'errors' in body and body['errors']:
-        msg = '; '.join(e.get('message', '') for e in body['errors']) or 'erro desconhecido'
-        raise AutentiqueError(f'Autentique: {msg}')
+        raise AutentiqueError(f'Autentique: {_format_graphql_errors(body["errors"])}')
     if resp.status_code >= 400:
         raise AutentiqueError(f'Autentique respondeu HTTP {resp.status_code}.')
     return body.get('data') or {}
