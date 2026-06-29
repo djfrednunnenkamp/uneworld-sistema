@@ -79,7 +79,9 @@ def dashboard_stats(request):
                 'from_currency': r.from_currency,
                 'to_currency': r.to_currency,
                 'rate': r.rate,
-                'updated_at': r.updated_at,
+                # Mostra QUANDO a taxa de fato mudou (não o auto_now, que muda a
+                # cada save). Cai pro updated_at só nas linhas antigas sem registro.
+                'updated_at': r.rate_updated_at or r.updated_at,
                 'history': [p.get('r') for p in (r.rate_history or []) if p.get('r') is not None],
             }
             for r in favs

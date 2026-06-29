@@ -896,8 +896,9 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
         model = ConfigExchangeRate
         fields = ['id', 'from_currency', 'to_currency', 'base_rate', 'markup_percent',
                   'rate', 'auto_update', 'is_favorite', 'source_url', 'script', 'update_time',
-                  'last_auto_update', 'rounding_decimals', 'rounding_mode', 'updated_at']
-        read_only_fields = ['rate', 'last_auto_update', 'updated_at']
+                  'last_auto_update', 'rounding_decimals', 'rounding_mode',
+                  'rate_updated_at', 'updated_at']
+        read_only_fields = ['rate', 'last_auto_update', 'rate_updated_at', 'updated_at']
 
     def validate(self, attrs):
         # Enforce server-side as permissões granulares do câmbio — não basta o

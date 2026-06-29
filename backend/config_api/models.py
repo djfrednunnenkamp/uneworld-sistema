@@ -105,6 +105,10 @@ class ConfigExchangeRate(models.Model):
     # Histórico curto da taxa (últimos ~7 dias, 1 ponto por dia) — alimenta o
     # mini-gráfico de câmbio na Visão Geral. Cada item: {"d": "AAAA-MM-DD", "r": 5.3}.
     rate_history  = models.JSONField('Histórico da taxa', default=list, blank=True)
+    # Quando a TAXA mudou de fato pela última vez. `updated_at` (auto_now) muda a
+    # cada save (estrelar favorito, mexer no markup…), então não serve pra mostrar
+    # "quando o câmbio atualizou". Este campo só avança quando `rate` muda mesmo.
+    rate_updated_at = models.DateTimeField('Taxa atualizada em', null=True, blank=True)
     updated_at    = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:
@@ -115,18 +119,29 @@ class ConfigExchangeRate(models.Model):
 
     def save(self, *args, **kwargs):
         from decimal import Decimal
+        from django.utils import timezone
         # Sem taxa de mercado informada, a própria taxa efetiva vira a base
         # (compatível com câmbios antigos e com importação que manda só `rate`).
         if self.base_rate is None:
             self.base_rate = self.rate
         markup = self.markup_percent or Decimal('0')
-        self.rate = self._apply_rounding(self.base_rate * (Decimal('1') + markup / Decimal('100')))
-        self._record_history_point()
+        new_rate = self._apply_rounding(self.base_rate * (Decimal('1') + markup / Decimal('100')))
+        # Só mexe no histórico e na data da taxa quando a taxa EFETIVA realmente
+        # muda — senão estrelar favorito ou abrir/salvar o câmbio sem alterar nada
+        # falsearia a "última atualização" e achataria o gráfico da Visão Geral.
+        old_rate = type(self).objects.filter(pk=self.pk).values_list('rate', flat=True).first() if self.pk else None
+        self.rate = new_rate
+        rate_changed = old_rate is None or old_rate != new_rate
+        extra_fields = set()
+        if rate_changed:
+            self._record_history_point()
+            self.rate_updated_at = timezone.now()
+            extra_fields |= {'rate_history', 'rate_updated_at'}
         # Quando o save é parcial (update_fields), garante que a taxa recalculada
-        # e o histórico também sejam gravados — senão o ponto do dia se perde.
+        # (e o histórico/data, quando mudou) também sejam gravados.
         uf = kwargs.get('update_fields')
         if uf is not None:
-            kwargs['update_fields'] = set(uf) | {'rate', 'rate_history'}
+            kwargs['update_fields'] = set(uf) | {'rate'} | extra_fields
         super().save(*args, **kwargs)
 
     def _apply_rounding(self, value):
