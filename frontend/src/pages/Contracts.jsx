@@ -27,6 +27,23 @@ const fmtBRL = (v) => v == null ? '' : `R$ ${Number(v).toLocaleString('pt-BR', {
 const DASH = <span style={{ color: '#cbd5e1' }}>—</span>
 const fmtDateTimeBR = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') }
 
+// Etapas do contrato — rótulo e cor compartilhados entre as abas e a coluna
+// "Status" da aba Geral.
+const STAGE_META = {
+  em_edicao: { label: 'Em edição',      color: '#2563eb' },
+  enviado:   { label: 'Para assinatura', color: '#d97706' },
+  assinado:  { label: 'Assinado',        color: '#059669' },
+}
+function StageBadge({ stage }) {
+  const m = STAGE_META[stage] || { label: stage || '—', color: '#94a3b8' }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: m.color, background: `${m.color}14`, border: `1px solid ${m.color}33`, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.color, flexShrink: 0 }} />
+      {m.label}
+    </span>
+  )
+}
+
 const VALUE_OPTS = [
   { value: '',            label: 'Qualquer valor' },
   { value: '0-5000',      label: 'Até R$ 5.000' },
@@ -284,7 +301,7 @@ export default function Contracts() {
   const [fValue, setFValue] = useState('')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
-  const [tab, setTab] = useState('em_edicao')   // em_edicao | enviado | assinado | trash
+  const [tab, setTab] = useState('geral')   // geral | em_edicao | enviado | assinado | trash
   const [deletedRows, setDeletedRows] = useState([])
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
@@ -389,7 +406,16 @@ export default function Contracts() {
   }
 
   // Aba Excluídos usa a MESMA tabela/filtros — só muda a fonte (itens excluídos).
-  const stageRows = tab === 'trash' ? deletedRows : rows.filter(r => r.stage === tab)
+  // Aba Geral mostra TODOS os contratos, do primeiro criado para o último.
+  const stageRows = tab === 'trash'
+    ? deletedRows
+    : tab === 'geral'
+    ? [...rows].sort((a, b) => {
+        const av = a.created_at || '', bv = b.created_at || ''
+        if (av !== bv) return av < bv ? -1 : 1
+        return (a.id || 0) - (b.id || 0)
+      })
+    : rows.filter(r => r.stage === tab)
   const filterSource = tab === 'trash' ? deletedRows : rows
   const stageCount = (s) => rows.filter(r => r.stage === s).length
 
@@ -430,6 +456,8 @@ export default function Contracts() {
       { key: 'package_name',       label: 'Viagem',      align: 'center', render: (v) => v || DASH },
       { key: 'departure_date',     label: 'Data viagem', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH },
       { key: 'total_brl',          label: 'Total (BRL)', align: 'center', render: (v) => v ? fmtBRL(v) : DASH },
+      // Coluna de status só na aba Geral (nas demais a aba já define a etapa).
+      ...(tab === 'geral' ? [{ key: 'stage', label: 'Status', align: 'center', render: (v) => <StageBadge stage={v} /> }] : []),
       dateCol,
     ]
   }, [tab])
@@ -457,6 +485,7 @@ export default function Contracts() {
   )
 
   const TABS = [
+    { key: 'geral',     label: 'Geral',            color: '#1a2d4f', count: rows.length },
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'assinado',  label: 'Assinados',        color: '#059669', count: stageCount('assinado') },
@@ -504,7 +533,7 @@ export default function Contracts() {
         searchKeys={['reservation_number', 'contratante_name', 'agency_name', 'package_name']}
         extraFilters={filterBar}
         onLog={canViewLog ? () => navigate('/log?scope=contracts') : undefined}
-        onAdd={canEdit && tab === 'em_edicao' ? () => setModal('new') : undefined}
+        onAdd={canEdit && (tab === 'em_edicao' || tab === 'geral') ? () => setModal('new') : undefined}
         onView={(row) => setViewId(row.id)}
         onDocs={tab === 'trash' ? undefined : handleDocs}
         showDocs={(row) =>
@@ -515,16 +544,20 @@ export default function Contracts() {
         extraActions={
           tab === 'trash'
             ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={contractsApi.restore} onPurge={contractsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
-            : canEdit ? (row) => (
-              tab === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
-              : tab === 'enviado' ? (
-                <>
-                  {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
-                  {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
-                </>
+            : canEdit ? (row) => {
+              // Na aba Geral cada linha segue a SUA própria etapa; nas demais, a aba.
+              const stage = tab === 'geral' ? row.stage : tab
+              return (
+                stage === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
+                : stage === 'enviado' ? (
+                  <>
+                    {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
+                    {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
+                  </>
+                )
+                : null
               )
-              : null
-            ) : undefined}
+            } : undefined}
         onDelete={tab !== 'trash' && canDelete ? (row) => setDelRow(row) : undefined}
         loading={loading}
       />
