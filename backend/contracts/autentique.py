@@ -201,6 +201,26 @@ def get_document(document_id):
     return doc
 
 
+_DELETE_DOCUMENT = 'mutation DeleteDocument($id: UUID!) { deleteDocument(id: $id) }'
+
+
+def delete_document(document_id):
+    """Apaga o documento na Autentique — usado quando um contrato pendente volta
+    para edição, para que ninguém assine uma versão descartada. É idempotente:
+    se o documento já não existe, considera concluído (retorna True)."""
+    if not document_id:
+        return True
+    try:
+        _graphql(_DELETE_DOCUMENT, {'id': document_id})
+    except AutentiqueError as e:
+        # documento já inexistente => já estava apagado; trata como sucesso.
+        msg = str(e).lower()
+        if 'not_found' in msg or 'not found' in msg or 'não encontrado' in msg:
+            return True
+        raise
+    return True
+
+
 def is_fully_signed(doc):
     """True quando todos os signatários com ação de assinar já assinaram."""
     sigs = [s for s in (doc.get('signatures') or []) if (s.get('action') or {}).get('name') == 'SIGN']

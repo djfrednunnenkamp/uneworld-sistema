@@ -419,13 +419,18 @@ export default function Contracts() {
 
   const handleReopen = async () => {
     if (!reopenRow) return
+    const wasDigital = reopenRow.signature_type === 'digital' && !!reopenRow.autentique_document_id
     try {
       await contractsApi.reopen(reopenRow.id)
-      toast.success('Contrato voltou para edição.')
+      toast.success(wasDigital
+        ? 'Contrato voltou para edição. Assinatura na Autentique cancelada.'
+        : 'Contrato voltou para edição.')
       setReopenRow(null)
       setTab('em_edicao')   // segue o contrato de volta para a aba de edição
       load()
-    } catch { toast.error('Erro ao voltar o contrato para edição.') }
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Erro ao voltar o contrato para edição.')
+    }
   }
 
   const handleUploadFile = async (file) => {
@@ -658,6 +663,9 @@ export default function Contracts() {
                 <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7 }}>
                   Tem certeza que deseja voltar o <strong style={{ color: '#1e293b' }}>{reopenRow.reservation_number ? `Contrato ${reopenRow.reservation_number}` : `Contrato #${reopenRow.id}`}</strong> para <strong style={{ color: '#1e293b' }}>Em edição</strong>?<br />
                   Ele sai da aba "Para assinatura" e você poderá editá-lo de novo.
+                  {reopenRow.signature_type === 'digital' && reopenRow.autentique_document_id && (
+                    <><br /><strong style={{ color: '#b45309' }}>O documento será cancelado na Autentique</strong> e o pedido de assinatura enviado aos signatários deixará de valer.</>
+                  )}
                 </p>
               </div>
             </div>

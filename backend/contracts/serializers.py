@@ -101,6 +101,7 @@ class ContractListSerializer(serializers.ModelSerializer):
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_name',
                   'contratante', 'contratante_name', 'guest_names', 'package_name', 'departure_date',
                   'total_brl', 'total_usd', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
+                  'autentique_document_id',
                   'created_at', 'updated_at', 'sent_at', 'signed_at', 'is_deleted', 'deleted_at']
 
     def get_agency_name(self, obj):

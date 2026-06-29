@@ -234,10 +234,32 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='reopen')
     def reopen(self, request, pk=None):
-        """Volta o contrato para 'Em edição'."""
+        """Volta o contrato para 'Em edição'.
+
+        Contrato já assinado não pode voltar (o PDF assinado é final). Se for
+        digital e ainda pendente na Autentique, o documento é apagado lá antes —
+        assim ninguém assina uma versão que foi descartada para reedição."""
         contract = self.get_object()
+        if contract.stage == 'assinado':
+            return Response(
+                {'error': 'Contrato já assinado não pode voltar para edição.'},
+                status=http_status.HTTP_400_BAD_REQUEST)
+
+        update_fields = ['stage']
+        if contract.signature_type == 'digital' and contract.autentique_document_id:
+            try:
+                autentique.delete_document(contract.autentique_document_id)
+            except autentique.AutentiqueError as e:
+                return Response(
+                    {'error': f'Não foi possível cancelar a assinatura na Autentique: {e}. '
+                              'Tente novamente.'},
+                    status=http_status.HTTP_502_BAD_GATEWAY)
+            contract.autentique_document_id = ''
+            contract.autentique_data = None
+            update_fields += ['autentique_document_id', 'autentique_data']
+
         contract.stage = 'em_edicao'
-        contract.save(update_fields=['stage'])
+        contract.save(update_fields=update_fields)
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='upload-signed', parser_classes=[MultiPartParser, FormParser])
