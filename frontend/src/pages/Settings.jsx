@@ -233,12 +233,15 @@ function CsvButtons({ items, filename, type, canImport = false, canExport = true
 }
 
 /* ── ItemList (Profissões / Idiomas) ── */
+const ITEMLIST_PAGE_SIZE = 50
+
 function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addTitle, editTitle, filename, type, canImport = false, canExport = true, onImportWeb = null }) {
   const [search,    setSearch]    = useState('')
   const [confirm,   setConfirm]   = useState(null) // {id, name}
   const [showAdd,   setShowAdd]   = useState(false)
   const [editing,   setEditing]   = useState(null) // {id, name}
   const [importing, setImporting] = useState(false)
+  const [page,      setPage]      = useState(1)
 
   const handleImportWeb = async () => {
     setImporting(true)
@@ -251,6 +254,17 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
     const q = search.toLowerCase()
     return items.filter(i => i.name.toLowerCase().includes(q))
   }, [items, search])
+
+  // Paginação client-side — listas longas (ex.: Profissões) ganham botões de
+  // navegação embaixo, igual aos Aeroportos. Os botões só aparecem quando há
+  // mais de uma página.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMLIST_PAGE_SIZE))
+  useEffect(() => { setPage(1) }, [search, items])
+  const safePage = Math.min(page, totalPages)
+  const pageItems = useMemo(
+    () => filtered.slice((safePage - 1) * ITEMLIST_PAGE_SIZE, safePage * ITEMLIST_PAGE_SIZE),
+    [filtered, safePage]
+  )
 
   return (
     <>
@@ -298,11 +312,11 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
           <p style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
             {items.length === 0 ? 'Nenhum item.' : 'Nenhum resultado.'}
           </p>
-        ) : filtered.map((item, idx) => (
+        ) : pageItems.map((item, idx) => (
           <div key={item.id} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '9px 14px', fontSize: 13, color: '#0f172a',
-            borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none', background: '#fff',
+            borderBottom: idx < pageItems.length - 1 ? '1px solid #f1f5f9' : 'none', background: '#fff',
           }}
             onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
             onMouseLeave={e => e.currentTarget.style.background = '#fff'}
@@ -317,6 +331,20 @@ function ItemList({ items, loading, onDelete, onAdd, onUpdate, placeholder, addT
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginTop:10 }}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage <= 1}
+            style={{ padding:'5px 12px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor: safePage <= 1 ? 'not-allowed' : 'pointer', fontFamily:'inherit', opacity: safePage <= 1 ? .5 : 1 }}>
+            ‹ Anterior
+          </button>
+          <span style={{ fontSize:12, color:'#64748b' }}>Página {safePage} de {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+            style={{ padding:'5px 12px', borderRadius:7, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:12, fontWeight:600, cursor: safePage >= totalPages ? 'not-allowed' : 'pointer', fontFamily:'inherit', opacity: safePage >= totalPages ? .5 : 1 }}>
+            Próxima ›
+          </button>
+        </div>
+      )}
     </div>
     {confirm && onDelete && (
       <ConfirmModal
