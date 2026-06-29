@@ -346,7 +346,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
     <>
       <div>
         {/* Linha de cima — botões utilitários */}
-        <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
+        <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center', flexWrap:'wrap', justifyContent:'center' }}>
           {canEdit && onPullInternet && (
             <button onClick={() => setConfirmPull(true)} disabled={pulling} style={btnCsv('#7c3aed')} title="Puxar todas as moedas da internet (→ BRL)">
               <Ic n="globe" s={13} /> {pulling ? 'Puxando…' : 'Atualizar da internet'}
