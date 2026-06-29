@@ -64,7 +64,7 @@ function ScriptDocsModal({ onClose }) {
 /* ── Popup de criação/edição de um câmbio ──
  * Taxa de mercado + acréscimo (%) → o câmbio efetivo (usado nos contratos) é
  * taxa × (1 + %/100). Pode atualizar automaticamente todo dia num horário. */
-function RateModal({ initial, onSave, onClose, canScript = false }) {
+function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = true, canRounding = true }) {
   const isEdit = !!initial
   const [fromCurrency, setFromCurrency] = useState(initial?.from_currency ?? 'USD')
   const [toCurrency,   setToCurrency]   = useState(initial?.to_currency ?? 'BRL')
@@ -162,16 +162,17 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
           )}
 
           {/* Arredondamento da taxa final */}
-          <div style={{ border:'1px solid #e2e8f0', borderRadius:9, padding:'12px', background:'#f8fafc' }}>
-            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
-              <input type="checkbox" checked={roundEnabled} onChange={e => setRoundEnabled(e.target.checked)}
-                style={{ width:15, height:15, accentColor:'#1a2d4f', cursor:'pointer' }} />
+          <div style={{ border:'1px solid #e2e8f0', borderRadius:9, padding:'12px', background:'#f8fafc', opacity: canRounding ? 1 : .6 }}>
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor: canRounding ? 'pointer' : 'not-allowed' }} title={canRounding ? undefined : 'Você não tem permissão para as opções de arredondamento.'}>
+              <input type="checkbox" checked={roundEnabled} disabled={!canRounding} onChange={e => setRoundEnabled(e.target.checked)}
+                style={{ width:15, height:15, accentColor:'#1a2d4f', cursor: canRounding ? 'pointer' : 'not-allowed' }} />
               <span style={{ fontSize:13, fontWeight:600, color:'#475569' }}>Arredondar a taxa final</span>
+              {!canRounding && <span style={{ fontSize:10.5, color:'#94a3b8', fontWeight:500 }}>🔒 sem permissão</span>}
             </label>
             {!roundEnabled ? (
               <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0 23px' }}>Sem arredondar — mantém até 4 casas decimais.</p>
             ) : (
-              <div style={{ marginTop:10, marginLeft:23, display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ marginTop:10, marginLeft:23, display:'flex', flexDirection:'column', gap:10, ...(canRounding ? {} : { pointerEvents:'none', opacity:.6 }) }}>
                 <div>
                   <label style={{ ...lbl, marginBottom:5 }}>Casas decimais</label>
                   <div style={{ display:'flex', border:'1.5px solid #e2e8f0', borderRadius:8, overflow:'hidden', width:'fit-content' }}>
@@ -205,13 +206,14 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
               </div>
             )}
           </div>
-          <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginTop:2 }}>
-            <input type="checkbox" checked={autoUpdate} onChange={e => setAutoUpdate(e.target.checked)}
-              style={{ width:15, height:15, accentColor:'#1a2d4f', cursor:'pointer' }} />
+          <label style={{ display:'flex', alignItems:'center', gap:8, cursor: canAdvanced ? 'pointer' : 'not-allowed', marginTop:2, opacity: canAdvanced ? 1 : .6 }} title={canAdvanced ? undefined : 'Você não tem permissão para as opções avançadas.'}>
+            <input type="checkbox" checked={autoUpdate} disabled={!canAdvanced} onChange={e => setAutoUpdate(e.target.checked)}
+              style={{ width:15, height:15, accentColor:'#1a2d4f', cursor: canAdvanced ? 'pointer' : 'not-allowed' }} />
             <span style={{ fontSize:13, fontWeight:600, color:'#475569' }}>Atualizar automaticamente da internet, todo dia</span>
+            {!canAdvanced && <span style={{ fontSize:10.5, color:'#94a3b8', fontWeight:500 }}>🔒 sem permissão</span>}
           </label>
           {autoUpdate && (
-            <div style={{ display:'flex', flexDirection:'column', gap:12, marginTop:2, padding:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:9 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginTop:2, padding:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:9, ...(canAdvanced ? {} : { pointerEvents:'none', opacity:.6 }) }}>
 
               {/* Controle 1 — horário */}
               <div>
@@ -340,7 +342,7 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
 }
 
 /* ── Lista de câmbios — usada para preencher automaticamente os contratos ── */
-export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, canScript = false, onAdd, onUpdate, onDelete, onPullInternet }) {
+export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, canScript = false, canAdvanced = true, canRounding = true, onAdd, onUpdate, onDelete, onPullInternet }) {
   const navigate = useNavigate()
   const [search,  setSearch]  = useState('')
   const [modal,   setModal]   = useState(null) // null | 'new' | item
@@ -502,6 +504,8 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
         <RateModal
           initial={modal === 'new' ? null : modal}
           canScript={canScript}
+          canAdvanced={canAdvanced}
+          canRounding={canRounding}
           onSave={(data) => modal === 'new' ? onAdd(data) : onUpdate(modal.id, data)}
           onClose={() => setModal(null)}
         />

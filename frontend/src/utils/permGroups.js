@@ -200,10 +200,12 @@ export const PERM_GROUPS = [
       {
         label: 'Câmbio', icon: 'globe', hue: 160,
         items: [
-          ['settings_exchange_rates_view',   'Ver câmbio'],
-          ['settings_exchange_rates_edit',   'Criar / Editar câmbio'],
-          ['settings_exchange_rates_delete', 'Excluir câmbio'],
-          ['settings_exchange_rates_export', 'Exportar como CSV (download)'],
+          ['settings_exchange_rates_view',     'Ver câmbio'],
+          ['settings_exchange_rates_edit',     'Criar / Editar câmbio'],
+          ['settings_exchange_rates_advanced', 'Opções avançadas (auto-atualização / fonte externa)'],
+          ['settings_exchange_rates_rounding', 'Opções de arredondamento'],
+          ['settings_exchange_rates_delete',   'Excluir câmbio'],
+          ['settings_exchange_rates_export',   'Exportar como CSV (download)'],
         ],
       },
       {
@@ -526,9 +528,11 @@ export const PERM_DEPENDENCIES = {
   settings_payment_methods_edit:   'settings_payment_methods_view',
   settings_payment_methods_delete: 'settings_payment_methods_view',
 
-  settings_exchange_rates_view:    'settings_view',
-  settings_exchange_rates_edit:    'settings_exchange_rates_view',
-  settings_exchange_rates_delete:  'settings_exchange_rates_view',
+  settings_exchange_rates_view:     'settings_view',
+  settings_exchange_rates_edit:     'settings_exchange_rates_view',
+  settings_exchange_rates_advanced: 'settings_exchange_rates_edit',
+  settings_exchange_rates_rounding: 'settings_exchange_rates_edit',
+  settings_exchange_rates_delete:   'settings_exchange_rates_view',
 
   settings_terms_view: 'settings_view',
   settings_terms_edit: 'settings_terms_view',

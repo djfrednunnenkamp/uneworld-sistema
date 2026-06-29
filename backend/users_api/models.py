@@ -146,6 +146,10 @@ class UserPermissions(models.Model):
     settings_exchange_rates_view     = models.BooleanField(default=False)
     settings_exchange_rates_edit     = models.BooleanField(default=False)
     settings_exchange_rates_delete   = models.BooleanField(default=False)
+    # Câmbio: opções avançadas (auto-atualização / fonte externa) e arredondamento
+    # são capacidades extras, controladas à parte do edit básico (taxa + acréscimo).
+    settings_exchange_rates_advanced = models.BooleanField(default=False)
+    settings_exchange_rates_rounding = models.BooleanField(default=False)
     settings_vaccines_view           = models.BooleanField(default=False)
     settings_vaccines_edit           = models.BooleanField(default=False)
     settings_vaccines_delete         = models.BooleanField(default=False)

@@ -900,10 +900,29 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
         read_only_fields = ['rate', 'last_auto_update', 'updated_at']
 
     def validate(self, attrs):
-        # Só superusuário define/edita o script (execução de código no servidor).
+        # Enforce server-side as permissões granulares do câmbio — não basta o
+        # frontend desabilitar os campos. Quem não tem a permissão tem os campos
+        # correspondentes descartados do payload, preservando o valor já salvo.
+        from users_api.permissions import has_any_perm
         req = self.context.get('request')
-        if 'script' in attrs and not (req and req.user and req.user.is_superuser):
+        user = getattr(req, 'user', None)
+        is_su = bool(user and user.is_superuser)
+        has_advanced = is_su or bool(user and has_any_perm(
+            user, 'manage_settings', 'settings_exchange_rates_advanced'))
+        has_rounding = is_su or bool(user and has_any_perm(
+            user, 'manage_settings', 'settings_exchange_rates_rounding'))
+
+        # Script (execução de código no servidor) é exclusivo de superusuário.
+        if 'script' in attrs and not is_su:
             attrs.pop('script')
+        # Opções avançadas: auto-atualização e fonte externa (link/script/horário).
+        if not has_advanced:
+            for f in ('auto_update', 'source_url', 'script', 'update_time'):
+                attrs.pop(f, None)
+        # Arredondamento da taxa final.
+        if not has_rounding:
+            attrs.pop('rounding_decimals', None)
+            attrs.pop('rounding_mode', None)
         return attrs
 
     def to_representation(self, instance):
