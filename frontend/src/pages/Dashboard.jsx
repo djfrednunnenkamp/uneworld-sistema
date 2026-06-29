@@ -303,9 +303,17 @@ export default function Dashboard() {
     )
   }
 
-  const { stats, recent_lists, exchange_rate } = data
+  const { stats, recent_lists, exchange_rates } = data
   const showEmailLog = emailCfg?.can_view
   const showExchangeRate = can('settings_exchange_rates_view')
+
+  // Mostra a taxa formatada — "R$ X" quando a moeda de destino é o Real,
+  // senão o número puro (ex.: USD → EUR).
+  const fmtRate = (r) => {
+    if (r?.rate == null) return '—'
+    const n = Number(r.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+    return r.to_currency === 'BRL' ? `R$ ${n}` : n
+  }
 
   return (
     <div>
@@ -328,24 +336,37 @@ export default function Dashboard() {
           )
         })}
 
-        {showExchangeRate && (
-          <div className="scard"
-            onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
-            style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
-            <div className="scard-ico" style={{ background: '#fef3c7' }}>
-              <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
-            </div>
-            <div className="scard-label">Câmbio (USD → BRL)</div>
-            <div className="scard-val">
-              {exchange_rate?.rate != null ? `R$ ${Number(exchange_rate.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
-            </div>
-            {exchange_rate?.updated_at && (
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                Atualizado em {fmtDateTime(exchange_rate.updated_at, timeFormat)}
+        {showExchangeRate && (exchange_rates?.length
+          ? exchange_rates.map((r) => (
+            <div key={r.id} className="scard"
+              onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
+              style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
+              <div className="scard-ico" style={{ background: '#fef3c7' }}>
+                <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
               </div>
-            )}
-          </div>
-        )}
+              <div className="scard-label">Câmbio ({r.from_currency} → {r.to_currency})</div>
+              <div className="scard-val">{fmtRate(r)}</div>
+              {r.updated_at && (
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                  Atualizado em {fmtDateTime(r.updated_at, timeFormat)}
+                </div>
+              )}
+            </div>
+          ))
+          : (
+            <div className="scard"
+              onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
+              style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
+              <div className="scard-ico" style={{ background: '#fef3c7' }}>
+                <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
+              </div>
+              <div className="scard-label">Câmbio</div>
+              <div className="scard-val" style={{ fontSize: 15, color: '#94a3b8' }}>Nenhuma moeda favorita</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                Marque favoritas em Configurações
+              </div>
+            </div>
+          ))}
       </div>
 
       {/* ── Bottom row: listas + email log ── */}

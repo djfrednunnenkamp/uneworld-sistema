@@ -60,16 +60,22 @@ def dashboard_stats(request):
             for l in recent
         ]
 
-    exchange_rate = None
+    exchange_rates = None
     if has_any_perm(user, 'settings_exchange_rates_view'):
-        usd_brl = ConfigExchangeRate.objects.filter(from_currency='USD', to_currency='BRL').first()
-        exchange_rate = {
-            'rate': usd_brl.rate if usd_brl else None,
-            'updated_at': usd_brl.updated_at if usd_brl else None,
-        }
+        favs = ConfigExchangeRate.objects.filter(is_favorite=True).order_by('from_currency', 'to_currency')
+        exchange_rates = [
+            {
+                'id': r.id,
+                'from_currency': r.from_currency,
+                'to_currency': r.to_currency,
+                'rate': r.rate,
+                'updated_at': r.updated_at,
+            }
+            for r in favs
+        ]
 
     return Response({
         'stats': stats,
         'recent_lists': recent_lists,
-        'exchange_rate': exchange_rate,
+        'exchange_rates': exchange_rates,
     })
