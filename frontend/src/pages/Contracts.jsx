@@ -282,6 +282,81 @@ function SignedFileModal({ url, contractId, contractLabel, onClose }) {
   )
 }
 
+/* ── Status de cada signatário (Autentique) ──
+ * Rotula cada signatário pelo e-mail: casa com o do cliente (pagador) ou o da
+ * agência para mostrar o nome; senão, mostra o próprio e-mail (ou "Signatário N"
+ * quando a entrega é por WhatsApp/telefone e não há e-mail). */
+function contractSignersStatus(c) {
+  const signers = c?.autentique_data?.signers || []
+  const payerEmail  = (c?.payer_email || '').trim().toLowerCase()
+  const agencyEmail = (c?.agency_data?.email || '').trim().toLowerCase()
+  return signers.map((s, i) => {
+    const email = (s.email || '').trim()
+    const lc = email.toLowerCase()
+    let name = email || `Signatário ${i + 1}`
+    let role = ''
+    if (lc && lc === payerEmail)        { role = 'Cliente'; if (c.payer_name)        name = c.payer_name }
+    else if (lc && lc === agencyEmail)  { role = 'Agência'; if (c.agency_data?.name) name = c.agency_data.name }
+    const status = s.rejected ? 'rejected' : s.signed ? 'signed' : s.viewed ? 'viewed' : 'waiting'
+    return { name, role, email, status }
+  })
+}
+
+const SIGNER_STATUS = {
+  signed:   { txt: 'Assinou',                 bg: '#dcfce7', fg: '#15803d', ic: 'check' },
+  viewed:   { txt: 'Visualizou, não assinou', bg: '#fef3c7', fg: '#b45309', ic: 'eye'   },
+  waiting:  { txt: 'Aguardando',              bg: '#f1f5f9', fg: '#64748b', ic: 'clock' },
+  rejected: { txt: 'Recusou',                 bg: '#fee2e2', fg: '#dc2626', ic: 'x'     },
+}
+
+/* ── Popup "quem assinou / quem falta" — aberto ao verificar uma assinatura que
+ * ainda não está completa. ── */
+function SignersStatusModal({ data, contractLabel, onClose }) {
+  const signers = contractSignersStatus(data)
+  const signedCount = signers.filter(s => s.status === 'signed').length
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,.26)', overflow: 'hidden' }}>
+        <div style={{ padding: '15px 18px', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fff7ed', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic n="users" s={18} /></div>
+            <div>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Aguardando assinaturas</p>
+              <p style={{ margin: 0, fontSize: 11.5, color: '#94a3b8' }}>{contractLabel} · {signedCount} de {signers.length} assinaram</p>
+            </div>
+          </div>
+          <button onClick={onClose} title="Fechar" style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}><Ic n="x" s={15} /></button>
+        </div>
+        <div style={{ padding: '12px 18px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {signers.length === 0 ? (
+            <p style={{ margin: '8px 0', fontSize: 13, color: '#64748b', textAlign: 'center' }}>Nenhum signatário encontrado na Autentique.</p>
+          ) : signers.map((s, i) => {
+            const st = SIGNER_STATUS[s.status]
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', border: '1px solid #eef2f7', borderRadius: 9, background: '#fff' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {s.role && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', padding: '1px 7px', borderRadius: 10, marginRight: 6 }}>{s.role}</span>}
+                    {s.name}
+                  </div>
+                  {s.email && s.email !== s.name && <div style={{ fontSize: 11.5, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email}</div>}
+                </div>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color: st.fg, background: st.bg, padding: '4px 9px', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <Ic n={st.ic} s={12} />{st.txt}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ padding: '12px 18px', borderTop: '1px solid #eef2f7', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 8, background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Entendi</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Contracts() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -305,6 +380,9 @@ export default function Contracts() {
   const [tab, setTab] = useState('geral')   // geral | em_edicao | enviado | assinado | trash
   const [sendingIds, setSendingIds] = useState(() => new Set())   // contratos sendo enviados p/ assinatura (desabilita o botão)
   const sendingRef = useRef(new Set())   // guarda contra clique duplo (sem depender do re-render)
+  const [checkingIds, setCheckingIds] = useState(() => new Set())   // contratos com verificação de assinatura em andamento
+  const checkingRef = useRef(new Set())
+  const [signersModal, setSignersModal] = useState(null)   // { data, label } — popup de quem assinou / falta
   const [deletedRows, setDeletedRows] = useState([])
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
@@ -431,14 +509,31 @@ export default function Contracts() {
     finally { markSending(row.id, false) }
   }
 
-  // Verifica na Autentique se o contrato digital já foi assinado por todos.
+  const markChecking = (id, on) => {
+    if (on) checkingRef.current.add(id); else checkingRef.current.delete(id)
+    setCheckingIds(prev => { const n = new Set(prev); on ? n.add(id) : n.delete(id); return n })
+  }
+
+  // Verifica na Autentique se o contrato digital já foi assinado por todos. Mostra
+  // a barra de progresso (como no envio) enquanto consulta; se ainda faltar alguém,
+  // abre um popup dizendo quem já assinou e quem está pendente.
   const handleCheckSignature = async (row) => {
+    if (checkingRef.current.has(row.id)) return
+    markChecking(row.id, true)
+    const toastId = toast.loading('Verificando assinatura...')
     try {
       const r = await contractsApi.checkSignature(row.id)
-      if (r.data?.stage === 'assinado') { toast.success('Contrato assinado! Movido para "Assinados".'); setTab('assinado') }
-      else toast.info('Ainda aguardando a assinatura de todos os signatários.')
+      if (r.data?.stage === 'assinado') {
+        toast.success('Contrato assinado! Movido para "Assinados".', { id: toastId })
+        setTab('assinado')
+      } else {
+        toast.info('Ainda faltam assinaturas.', { id: toastId })
+        setSignersModal({ data: r.data, label: getLabel(row) })
+      }
       load()
-    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao verificar a assinatura.') }
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Erro ao verificar a assinatura.', { id: toastId })
+    } finally { markChecking(row.id, false) }
   }
 
   const handleReopen = async () => {
@@ -625,7 +720,7 @@ export default function Contracts() {
                 : stage === 'enviado' ? (
                   row.signature_type === 'digital' ? (
                     <>
-                      {actBtn('Verificar assinatura', 'check', '#2563eb', () => handleCheckSignature(row))}
+                      {actBtn(checkingIds.has(row.id) ? 'Verificando...' : 'Verificar assinatura', 'check', '#2563eb', () => handleCheckSignature(row), checkingIds.has(row.id))}
                       {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
                     </>
                   ) : (
@@ -647,6 +742,9 @@ export default function Contracts() {
       )}
       {signedUrl && (
         <SignedFileModal url={signedUrl.url} contractId={signedUrl.id} contractLabel={signedUrl.label} onClose={() => setSignedUrl(null)} />
+      )}
+      {signersModal && (
+        <SignersStatusModal data={signersModal.data} contractLabel={signersModal.label} onClose={() => setSignersModal(null)} />
       )}
       {previewId && (
         <ContractPdfPreviewModal contractId={previewId} allowDownload={canDownloadPdf(rows.find(r => r.id === previewId))} onClose={() => setPreviewId(null)} />
