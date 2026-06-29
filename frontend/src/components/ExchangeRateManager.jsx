@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { configApi } from '../api'
 import { Ic } from './Icon'
 import TimePicker from './TimePicker'
+import CodeEditor from './CodeEditor'
 import ConfirmModal from './ConfirmModal'
 import CsvImportPopup from './CsvImportPopup'
 import { CSV_SAMPLES } from '../utils/csvSamples'
@@ -17,6 +18,48 @@ const btnCsv = (color) => ({
   background: `${color}10`, color, fontSize: 12, fontWeight: 600,
   cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
 })
+
+/* ── Documentação do script de cálculo ── */
+function ScriptDocsModal({ onClose }) {
+  const code = { fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace', background:'#0f172a', color:'#e2e8f0', borderRadius:8, padding:'10px 12px', fontSize:12, lineHeight:1.6, whiteSpace:'pre-wrap', overflowX:'auto', margin:'6px 0 0' }
+  const h = { fontSize:13.5, fontWeight:700, color:'#1e293b', margin:'16px 0 4px' }
+  const p = { fontSize:13, color:'#475569', lineHeight:1.65, margin:'0 0 4px' }
+  const mono = { fontFamily:'ui-monospace, Menlo, monospace', background:'#f1f5f9', color:'#0f172a', padding:'1px 5px', borderRadius:4, fontSize:12 }
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.55)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:640, maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.3)', overflow:'hidden' }}>
+        <div style={{ padding:'14px 18px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <span style={{ fontSize:14, fontWeight:700, color:'#1e293b' }}>📖 Como escrever o script de câmbio</span>
+          <button onClick={onClose} style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer' }}><Ic n="x" s={14}/></button>
+        </div>
+        <div style={{ padding:'14px 20px', overflowY:'auto' }}>
+          <p style={p}>O script calcula a <strong>taxa de mercado</strong> da moeda (quanto vale <strong>1 unidade dela em BRL</strong>) e a coloca na variável <span style={mono}>result</span>. O <strong>Acréscimo (%)</strong> do formulário ainda é somado por cima — então, se quiser embutir o % no script, deixe o campo de acréscimo em 0.</p>
+
+          <p style={h}>Obrigatório</p>
+          <p style={p}>Defina <span style={mono}>result</span> com um número (a taxa). Sem isso, dá erro.</p>
+          <pre style={code}>{'result = 5.42'}</pre>
+
+          <p style={h}>Funções disponíveis</p>
+          <p style={p}>• <span style={mono}>fetch_json(url)</span> — faz GET e devolve o JSON (dicionário/lista). Ex.: <span style={mono}>fetch_json(url)["rates"]["BRL"]</span></p>
+          <p style={p}>• <span style={mono}>fetch_text(url)</span> — devolve o texto da resposta.</p>
+          <p style={p}>• <span style={mono}>Decimal("5.40")</span> — para precisão em dinheiro.</p>
+          <p style={p}>• <span style={mono}>print(...)</span> — para depurar; a saída aparece ao clicar em <strong>Testar</strong>.</p>
+          <p style={p}>• Cálculo: <span style={mono}>min, max, sum, round, abs, len, sorted, float, int, range, zip…</span></p>
+
+          <p style={h}>Exemplo — média de 2 fontes + 2%</p>
+          <pre style={code}>{'a = fetch_json("https://fonte1.com/usd")["rate"]\nb = fetch_json("https://fonte2.com/usd")["bid"]\nprint("fonte 1:", a, "| fonte 2:", b)\nresult = (float(a) + float(b)) / 2 * 1.02'}</pre>
+
+          <p style={h}>Segurança (o que NÃO é permitido)</p>
+          <p style={p}>Roda num <strong>sandbox isolado</strong>: sem <span style={mono}>import</span>, sem acesso a arquivos/sistema (<span style={mono}>open</span>, <span style={mono}>os</span>…), sem <span style={mono}>exec/eval</span>, sem URLs internas (localhost/rede interna) e com <strong>tempo limite</strong> (script travado é interrompido). Só superusuário pode escrever/rodar.</p>
+        </div>
+        <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'flex-end', flexShrink:0 }}>
+          <button onClick={onClose} style={btnPri}>Entendi</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /* ── Popup de criação/edição de um câmbio ──
  * Taxa de mercado + acréscimo (%) → o câmbio efetivo (usado nos contratos) é
@@ -32,6 +75,8 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
   const [script,       setScript]       = useState(initial?.script ?? '')
   const [testing,      setTesting]      = useState(false)
   const [testResult,   setTestResult]   = useState(null)
+  const [showBig,      setShowBig]      = useState(false)
+  const [showDocs,     setShowDocs]     = useState(false)
   const [updateTime,   setUpdateTime]   = useState((initial?.update_time ?? '').slice(0, 5))
   const [saving,        setSaving]       = useState(false)
 
@@ -64,6 +109,7 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
   }
 
   return (
+    <>
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}>
       <div onClick={e => e.stopPropagation()}
@@ -114,10 +160,15 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
               </div>
               {canScript && (
                 <div>
-                  <label style={lbl}>Script de cálculo — Python (opcional)</label>
-                  <textarea value={script} onChange={e => { setScript(e.target.value); setTestResult(null) }}
-                    rows={7} spellCheck={false} placeholder={'# Defina result com a taxa de mercado (X → BRL).\n# Helpers: fetch_json(url), fetch_text(url), Decimal\na = fetch_json("https://fonte1...")["rate"]\nb = fetch_json("https://fonte2...")["rate"]\nresult = (a + b) / 2 * 1.02   # média + 2%'}
-                    style={{ ...inp, width:'100%', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize:12, lineHeight:1.5, resize:'vertical', background:'#0f172a', color:'#e2e8f0', border:'1px solid #334155' }} />
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:5, flexWrap:'wrap' }}>
+                    <label style={{ ...lbl, marginBottom:0 }}>Script de cálculo — Python (opcional)</label>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button type="button" onClick={() => setShowDocs(true)} style={btnCsv('#2e6db4')} title="Como escrever o script">📖 Documentação</button>
+                      <button type="button" onClick={() => setShowBig(true)} style={btnCsv('#7c3aed')} title="Abrir editor grande">⤢ Abrir editor</button>
+                    </div>
+                  </div>
+                  <CodeEditor value={script} onChange={v => { setScript(v); setTestResult(null) }} minHeight={130}
+                    placeholder={'# Defina result com a taxa de mercado (X -> BRL).\n# Helpers: fetch_json(url), fetch_text(url), Decimal, print()\na = fetch_json("https://fonte1...")["rate"]\nb = fetch_json("https://fonte2...")["rate"]\nresult = (a + b) / 2'} />
                   <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6 }}>
                     <button type="button" onClick={testScript} disabled={testing || !script.trim()}
                       style={{ ...btnCsv('#059669'), opacity: (testing || !script.trim()) ? .6 : 1 }}>
@@ -157,6 +208,42 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
         </div>
       </div>
     </div>
+
+    {/* Editor grande */}
+    {showBig && (
+      <div onClick={e => { if (e.target === e.currentTarget) setShowBig(false) }}
+        style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.55)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}>
+        <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:840, height:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.3)', overflow:'hidden' }}>
+          <div style={{ padding:'14px 18px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexShrink:0 }}>
+            <span style={{ fontSize:14, fontWeight:700, color:'#1e293b' }}>Script de cálculo — {fromCurrency} → {toCurrency}</span>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <button type="button" onClick={() => setShowDocs(true)} style={btnCsv('#2e6db4')}>📖 Documentação</button>
+              <button type="button" onClick={() => setShowBig(false)} style={btnPri}>Concluir</button>
+            </div>
+          </div>
+          <div style={{ flex:1, minHeight:0, padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ flex:1, minHeight:0 }}>
+              <CodeEditor value={script} onChange={v => { setScript(v); setTestResult(null) }} minHeight={'100%'} autoFocus
+                placeholder={'# Defina result com a taxa de mercado (X -> BRL).\n# Helpers: fetch_json(url), fetch_text(url), Decimal, print()\n\na = fetch_json("https://fonte1...")["rate"]\nb = fetch_json("https://fonte2...")["rate"]\nresult = (a + b) / 2'} />
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+              <button type="button" onClick={testScript} disabled={testing || !script.trim()} style={{ ...btnCsv('#059669'), opacity:(testing || !script.trim()) ? .6 : 1 }}>
+                {testing ? 'Testando…' : '▶ Testar'}
+              </button>
+              {testResult?.rate != null && <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>✓ Taxa: {Number(testResult.rate).toLocaleString('pt-BR', { minimumFractionDigits:4 })}</span>}
+              {testResult?.error && <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>}
+            </div>
+            {testResult?.output && (
+              <pre style={{ margin:0, padding:'8px 10px', background:'#0f172a', color:'#cbd5e1', borderRadius:6, fontSize:11.5, lineHeight:1.5, maxHeight:120, overflow:'auto', whiteSpace:'pre-wrap', flexShrink:0, fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{testResult.output}</pre>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Documentação */}
+    {showDocs && <ScriptDocsModal onClose={() => setShowDocs(false)} />}
+    </>
   )
 }
 
