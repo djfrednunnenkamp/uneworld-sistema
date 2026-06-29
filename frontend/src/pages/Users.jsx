@@ -209,7 +209,7 @@ function PermGroupCard({ group, permissions, onToggle, onToggleAll, horizontal }
 }
 
 function UserModal({ user, mode = 'new', onClose, onSaved }) {
-  const { user: me } = useAuth()
+  const { user: me, refreshUser } = useAuth()
   const [form,         setForm]         = useState(user
     ? { ...user, password:'', is_superuser: !!user.is_superuser, permissions: sanitizePerms({ ...EMPTY_PERMISSIONS, ...user.permissions }) }
     : { ...EMPTY })
@@ -258,6 +258,9 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
       if (savedId || mode !== 'perms') {
         agendaApi.updateUserPrefs(savedId ?? user?.id, emailPrefs).catch(() => {})
       }
+      // Se o usuário editado for o próprio logado, atualiza o contexto de auth
+      // para que o pop-up "Minha conta" reflita na hora (telefone, nome, e-mail).
+      if (savedId && me?.id === savedId) { refreshUser?.().catch(() => {}) }
       onSaved()
     } catch (e) {
       toast.error(e.response?.data?.error ?? 'Erro ao salvar.')
