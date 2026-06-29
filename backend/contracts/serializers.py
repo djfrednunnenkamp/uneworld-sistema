@@ -158,7 +158,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'received_down_payment_brl', 'received_installments_brl',
                   'stage', 'signed_file', 'signed_verification',
                   'autentique_document_id', 'autentique_data',
-                  'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data',
+                  'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data', 'custom_clauses',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         read_only_fields = ['autentique_document_id', 'autentique_data']
 
@@ -178,7 +178,14 @@ class ContractSerializer(serializers.ModelSerializer):
         return _seller_brief(obj.seller or obj.created_by)
 
     def get_clauses_data(self, obj):
-        return [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
+        # Cláusulas cadastradas (M2M) + as personalizadas deste contrato. O PDF e a
+        # revisão consomem essa lista única, então as personalizadas aparecem sem
+        # nenhuma mudança extra de renderização.
+        data = [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
+        for cc in (obj.custom_clauses or []):
+            if isinstance(cc, dict) and (cc.get('name') or cc.get('content')):
+                data.append({'id': None, 'name': cc.get('name') or '', 'content': cc.get('content') or '', 'custom': True})
+        return data
 
     def get_contratante_data(self, obj):
         if obj.contratante_id:
@@ -317,6 +324,10 @@ class ContractSerializer(serializers.ModelSerializer):
         else:
             validated_data['seller'] = user
 
+        # Cláusulas personalizadas só são aceitas de quem tem a permissão.
+        if not (user and has_any_perm(user, 'contracts_custom_clauses')):
+            validated_data.pop('custom_clauses', None)
+
         contract = Contract.objects.create(
             created_by=user,
             **validated_data,
@@ -337,6 +348,12 @@ class ContractSerializer(serializers.ModelSerializer):
         installments        = validated_data.pop('installments', None)
         adjustments         = validated_data.pop('adjustments', None)
         clauses              = validated_data.pop('clauses', None)
+        # Cláusulas personalizadas só podem ser alteradas por quem tem a permissão.
+        if 'custom_clauses' in validated_data:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None) if request else None
+            if not (user and has_any_perm(user, 'contracts_custom_clauses')):
+                validated_data.pop('custom_clauses', None)
         # Data da contratação e reserva nº são imutáveis após a criação.
         validated_data.pop('contract_date', None)
         validated_data.pop('reservation_number', None)

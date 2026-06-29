@@ -79,6 +79,10 @@ class Contract(models.Model):
     clauses = models.ManyToManyField('config_api.ContractClause', blank=True,
                                      related_name='contracts', verbose_name='Cláusulas')
 
+    # Cláusulas escritas à mão só para este contrato (não ficam na lista global de
+    # Configurações). Lista de {'name': str, 'content': HTML}.
+    custom_clauses = models.JSONField('Cláusulas personalizadas', default=list, blank=True)
+
     # Forma de assinatura escolhida para este contrato (a assinatura digital em si
     # será implementada depois — por ora é só o modo, exibido no PDF).
     SIGNATURE_CHOICES = [('fisica', 'Física (imprimir e assinar)'), ('digital', 'Digital')]

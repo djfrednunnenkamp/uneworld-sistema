@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import axios from 'axios'
 import { toast } from 'sonner'
 import { contractsApi, agenciesApi, passengersApi, itinerariesApi, configApi } from '../api'
@@ -10,6 +11,7 @@ import CnpjInput from './CnpjInput'
 import MoneyInput from './MoneyInput'
 import EmailInput from './EmailInput'
 import ContractPdfPreviewModal from './ContractPdfPreviewModal'
+import RichTextEditor from './RichTextEditor'
 import { Ic } from './Icon'
 import { usePrefs } from '../context/PrefsContext'
 import { useAuth } from '../context/AuthContext'
@@ -324,6 +326,43 @@ const btnPri = { padding: '8px 16px', borderRadius: 7, border: 'none', backgroun
 const sectionTitle = { fontSize: 13, fontWeight: 700, color: '#1e40af', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 7, background: '#eff6ff', borderRadius: 7, padding: '7px 11px', borderLeft: '3px solid #2e6db4' }
 const card = { border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }
 
+/* Pop-up para escrever/editar uma cláusula personalizada deste contrato (título +
+ * editor de texto rico). `initial` null = nova cláusula. */
+function CustomClauseModal({ initial, onSave, onClose }) {
+  const [name, setName]       = useState(initial?.name || '')
+  const [content, setContent] = useState(initial?.content || '')
+
+  const submit = () => {
+    if (!name.trim()) { toast.error('Dê um título à cláusula.'); return }
+    onSave({ name: name.trim(), content })
+  }
+
+  return createPortal(
+    <div className="overlay" style={{ zIndex: 650 }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="mbox" style={{ maxWidth: 880, width: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="mhead">
+          <span className="mtitle">{initial ? 'Editar cláusula personalizada' : 'Nova cláusula personalizada'}</span>
+          <button className="mclose" onClick={onClose}><Ic n="x" s={16} /></button>
+        </div>
+        <div className="mbody" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={lbl}>Título da cláusula</label>
+            <input style={inp} value={name} autoFocus onChange={e => setName(e.target.value)}
+              placeholder="Ex.: Política de cancelamento" />
+          </div>
+          <RichTextEditor title="Texto da cláusula" value={content} onChange={setContent}
+            placeholder="Escreva o texto da cláusula…" />
+        </div>
+        <div className="mfoot" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+          <button style={btnPri} onClick={submit}>Salvar cláusula</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 const agencyLabel = (a) => {
   const name = a.person_type === 'fisica' ? (a.company_name || `${a.name} ${a.last_name}`.trim()) : (a.name || a.company_name)
   return name || `Agência #${a.id}`
@@ -378,6 +417,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const { user: me } = useAuth()
   const canChangeSeller = !!me?.is_superuser || !!me?.permissions?.contracts_change_seller
   const canEditExchangeRate = !!me?.is_superuser || !!me?.permissions?.contracts_edit_exchange_rate
+  const canCustomClauses = !!me?.is_superuser || !!me?.permissions?.contracts_custom_clauses
 
   const [exchangeRates, setExchangeRates] = useState([])   // [{from_currency, to_currency, rate}]
   const [form, setForm] = useState({
@@ -434,6 +474,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [installmentsCount, setInstallmentsCount] = useState(0)
   const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
   const [selectedClauses, setSelectedClauses] = useState([])
+  const [customClauses, setCustomClauses] = useState([]) // [{ name, content }] — só deste contrato
+  const [clauseEditor, setClauseEditor] = useState(null) // { index, initial } | null
   const [reservationNumber, setReservationNumber] = useState('')
   const [contractDate, setContractDate] = useState('')
 
@@ -533,6 +575,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         })))
       }
       setSelectedClauses((d.clauses ?? []))
+      setCustomClauses(Array.isArray(d.custom_clauses) ? d.custom_clauses : [])
     }).catch(() => toast.error('Erro ao carregar contrato.')).finally(() => {
       setLoading(false)
       setTimeout(() => { initializedRef.current = true }, 0)
@@ -970,6 +1013,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         })),
       installments: installmentsPayload,
       clauses: selectedClauses,
+      custom_clauses: customClauses,
     }
   }
 
@@ -1100,10 +1144,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
         {sec('Cláusulas', (() => {
           const sel = clauses.filter(c => c.is_default || selectedClauses.includes(c.id))
-          if (!sel.length) return [<span key="nc" style={{ fontSize: 13, color: '#94a3b8' }}>Nenhuma cláusula.</span>]
-          return sel.map(c => (
-            <div key={c.id} style={{ fontSize: 13, color: '#1e293b' }}>• {c.name}{c.is_default ? <span style={{ color: '#94a3b8' }}> (sempre)</span> : ''}</div>
-          ))
+          if (!sel.length && !customClauses.length) return [<span key="nc" style={{ fontSize: 13, color: '#94a3b8' }}>Nenhuma cláusula.</span>]
+          return [
+            ...sel.map(c => (
+              <div key={c.id} style={{ fontSize: 13, color: '#1e293b' }}>• {c.name}{c.is_default ? <span style={{ color: '#94a3b8' }}> (sempre)</span> : ''}</div>
+            )),
+            ...customClauses.map((c, i) => (
+              <div key={`cc${i}`} style={{ fontSize: 13, color: '#1e293b' }}>• {c.name || '(sem título)'}<span style={{ color: '#94a3b8' }}> (personalizada)</span></div>
+            )),
+          ]
         })())}
       </div>
     )
@@ -1674,6 +1723,42 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 </div>
               )}
             </div>
+
+            {/* Cláusulas personalizadas — escritas só para este contrato */}
+            {(canCustomClauses || customClauses.length > 0) && (
+              <div style={card}>
+                <p style={sectionTitle}><Ic n="edit" s={14} /> Cláusulas personalizadas deste contrato</p>
+                <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '0 0 10px' }}>
+                  Cláusulas escritas à mão só para este contrato — não entram na lista global de Configurações.
+                </p>
+                {customClauses.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: canCustomClauses ? 10 : 0 }}>
+                    {customClauses.map((c, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #e2e8f0', borderRadius: 6, padding: '7px 10px' }}>
+                        <Ic n="docs" s={13} />
+                        <span style={{ fontSize: 13, color: '#1e293b', flex: 1, fontWeight: 600 }}>{c.name || '(sem título)'}</span>
+                        {canCustomClauses && (<>
+                          <button type="button" onClick={() => setClauseEditor({ index: i, initial: c })}
+                            style={{ padding: 6, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }} title="Editar">
+                            <Ic n="edit" s={13} />
+                          </button>
+                          <button type="button" onClick={() => setCustomClauses(prev => prev.filter((_, j) => j !== i))}
+                            style={{ padding: 6, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }} title="Remover">
+                            <Ic n="trash" s={13} />
+                          </button>
+                        </>)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {canCustomClauses && (
+                  <button type="button" onClick={() => setClauseEditor({ index: -1, initial: null })}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 7, border: '1px solid #c7d6ee', background: '#eff6ff', color: '#1e40af', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Ic n="plus" s={13} /> Escrever cláusula
+                  </button>
+                )}
+              </div>
+            )}
             </>)}
 
             {layout === 'steps' && step === lastStep && renderReview()}
@@ -1758,6 +1843,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               <Ic n="mail" s={14} /> Enviar para assinatura
             </button>
           ) : null}
+        />
+      )}
+      {clauseEditor && (
+        <CustomClauseModal
+          initial={clauseEditor.initial}
+          onClose={() => setClauseEditor(null)}
+          onSave={(data) => {
+            setCustomClauses(prev => clauseEditor.index < 0
+              ? [...prev, data]
+              : prev.map((c, i) => i === clauseEditor.index ? data : c))
+            setClauseEditor(null)
+          }}
         />
       )}
     </div>
