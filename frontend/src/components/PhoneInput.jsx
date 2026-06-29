@@ -25,7 +25,7 @@ function cursorPosForDigits(masked, digitCount) {
   return masked.length
 }
 
-export default function PhoneInput({ value, onChange, placeholder }) {
+export default function PhoneInput({ value, onChange, placeholder, style, className = 'fi', disabled, onFocus, onBlur }) {
   const inputRef = useRef(null)
 
   const handleChange = (e) => {
@@ -49,7 +49,11 @@ export default function PhoneInput({ value, onChange, placeholder }) {
   return (
     <input
       ref={inputRef}
-      className="fi"
+      className={className}
+      style={style}
+      disabled={disabled}
+      onFocus={onFocus}
+      onBlur={onBlur}
       value={value ?? ''}
       onChange={handleChange}
       placeholder={placeholder ?? '(00) 00000-0000'}

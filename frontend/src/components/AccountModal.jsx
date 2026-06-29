@@ -3,6 +3,7 @@ import { authApi, agendaApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
 import FormSelect from './FormSelect'
+import PhoneInput from './PhoneInput'
 import { fmtHour } from '../utils/timeFormat'
 
 const FREQ_OPTS = [
@@ -214,7 +215,7 @@ export default function AccountModal({ onClose, onSaved }) {
           </div>
           <div>
             <label style={lbl}>Telefone / Celular</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(00) 00000-0000" style={inp}
+            <PhoneInput value={phone} onChange={setPhone} className="" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
 

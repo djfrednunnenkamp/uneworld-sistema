@@ -8,6 +8,7 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
 import TrashRowActions from '../components/TrashRowActions'
 import PasswordInput from '../components/PasswordInput'
+import PhoneInput from '../components/PhoneInput'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
@@ -290,7 +291,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
           </div>
           <div>
             <label style={lbl}>Telefone / Celular</label>
-            <input style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.phone ?? ''} onChange={set('phone')} placeholder="(00) 00000-0000" />
+            <PhoneInput className="" style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.phone ?? ''} onChange={(v) => setForm(f => ({ ...f, phone: v }))} />
           </div>
 
           {!isEdit && (
