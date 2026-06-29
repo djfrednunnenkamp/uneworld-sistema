@@ -19,23 +19,32 @@ def start():
 
 
 def _loop():
+    from django.db import connections
     while True:
         try:
             run_once()
         except Exception as e:
             print(f'[AGENDA SCHEDULER] erro: {e}')
+        finally:
+            # Threads de background não passam pelo ciclo de request do Django,
+            # então a conexão fica aberta entre as iterações. Com SQLite isso
+            # pode segurar um lock e causar "database is locked" nas requisições.
+            connections.close_all()
         time.sleep(CHECK_INTERVAL)
 
 
 def _exchange_loop():
     """Verifica de minuto em minuto os câmbios com atualização automática, para
     honrar o horário (HH:MM) configurado em cada um."""
+    from django.db import connections
     while True:
         try:
             from config_api.exchange_service import update_due
             update_due()
         except Exception as e:
             print(f'[CÂMBIO SCHEDULER] erro: {e}')
+        finally:
+            connections.close_all()
         time.sleep(EXCHANGE_INTERVAL)
 
 
