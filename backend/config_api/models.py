@@ -96,6 +96,12 @@ class ConfigExchangeRate(models.Model):
     # Horário específico desta moeda; vazio = usa o horário geral (singleton abaixo).
     update_time   = models.TimeField('Horário da atualização', null=True, blank=True)
     last_auto_update = models.DateField('Última atualização automática', null=True, blank=True)
+    # Arredondamento opcional da taxa EFETIVA. `rounding_decimals` = nº de casas
+    # (None = mantém o padrão de 4 casas, sem arredondar); `rounding_mode` = como
+    # arredondar (mais próximo / pra cima / pra baixo).
+    ROUNDING_MODE_CHOICES = [('nearest', 'Mais próximo'), ('up', 'Pra cima'), ('down', 'Pra baixo')]
+    rounding_decimals = models.PositiveSmallIntegerField('Casas do arredondamento', null=True, blank=True)
+    rounding_mode     = models.CharField('Modo do arredondamento', max_length=8, choices=ROUNDING_MODE_CHOICES, default='nearest')
     # Histórico curto da taxa (últimos ~7 dias, 1 ponto por dia) — alimenta o
     # mini-gráfico de câmbio na Visão Geral. Cada item: {"d": "AAAA-MM-DD", "r": 5.3}.
     rate_history  = models.JSONField('Histórico da taxa', default=list, blank=True)
@@ -114,7 +120,7 @@ class ConfigExchangeRate(models.Model):
         if self.base_rate is None:
             self.base_rate = self.rate
         markup = self.markup_percent or Decimal('0')
-        self.rate = (self.base_rate * (Decimal('1') + markup / Decimal('100'))).quantize(Decimal('0.0001'))
+        self.rate = self._apply_rounding(self.base_rate * (Decimal('1') + markup / Decimal('100')))
         self._record_history_point()
         # Quando o save é parcial (update_fields), garante que a taxa recalculada
         # e o histórico também sejam gravados — senão o ponto do dia se perde.
@@ -122,6 +128,17 @@ class ConfigExchangeRate(models.Model):
         if uf is not None:
             kwargs['update_fields'] = set(uf) | {'rate', 'rate_history'}
         super().save(*args, **kwargs)
+
+    def _apply_rounding(self, value):
+        """Arredonda a taxa efetiva conforme `rounding_decimals`/`rounding_mode`.
+        Sem casas definidas, mantém o padrão de 4 casas (sem arredondar de fato).
+        O campo `rate` tem 4 casas, então o resultado é sempre re-quantizado a 4."""
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_UP, ROUND_DOWN
+        if self.rounding_decimals is not None:
+            modes = {'up': ROUND_UP, 'down': ROUND_DOWN, 'nearest': ROUND_HALF_UP}
+            q = Decimal(1).scaleb(-int(self.rounding_decimals))   # ex.: 2 → 0.01
+            value = value.quantize(q, rounding=modes.get(self.rounding_mode, ROUND_HALF_UP))
+        return value.quantize(Decimal('0.0001'))
 
     def _record_history_point(self):
         """Guarda 1 ponto por dia (atualiza o do dia se a taxa mudar de novo) e

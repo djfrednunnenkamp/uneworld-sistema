@@ -81,6 +81,9 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
   const [showBig,      setShowBig]      = useState(false)
   const [showDocs,     setShowDocs]     = useState(false)
   const [updateTime,   setUpdateTime]   = useState((initial?.update_time ?? '').slice(0, 5))
+  const [roundEnabled, setRoundEnabled] = useState(initial?.rounding_decimals != null)
+  const [roundDecimals,setRoundDecimals]= useState(initial?.rounding_decimals ?? 2)
+  const [roundMode,    setRoundMode]    = useState(initial?.rounding_mode ?? 'nearest')
   const [saving,        setSaving]       = useState(false)
 
   const testScript = async () => {
@@ -90,8 +93,15 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
     finally { setTesting(false) }
   }
 
+  const applyRound = (v) => {
+    if (v == null || !roundEnabled) return v
+    const f = Math.pow(10, Number(roundDecimals) || 0)
+    if (roundMode === 'up')   return Math.ceil(v * f) / f
+    if (roundMode === 'down') return Math.floor(v * f) / f
+    return Math.round(v * f) / f
+  }
   const effective = baseRate !== '' && !isNaN(Number(baseRate))
-    ? Number(baseRate) * (1 + (Number(markup) || 0) / 100) : null
+    ? applyRound(Number(baseRate) * (1 + (Number(markup) || 0) / 100)) : null
 
   const save = async () => {
     if (!fromCurrency.trim() || !toCurrency.trim() || baseRate === '') { toast.error('Preencha as moedas e a taxa de mercado.'); return }
@@ -102,6 +112,8 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
         to_currency: toCurrency.trim().toUpperCase(),
         base_rate: baseRate,
         markup_percent: Number(markup) || 0,
+        rounding_decimals: roundEnabled ? Number(roundDecimals) : null,
+        rounding_mode: roundMode,
         auto_update: autoUpdate,
         source_url: (autoUpdate && customSource && sourceMode === 'link') ? sourceUrl.trim() : '',
         update_time: (autoUpdate && customTime && updateTime) ? updateTime : null,
@@ -145,9 +157,54 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
           </div>
           {effective != null && (
             <div style={{ background:'#f0f6ff', border:'1px solid #d6e4fb', borderRadius:8, padding:'9px 12px', fontSize:12.5, color:'#1a2d4f' }}>
-              Câmbio final: <strong>1 {fromCurrency || 'USD'} = {effective.toLocaleString('pt-BR', { minimumFractionDigits: 4 })} {toCurrency || 'BRL'}</strong>
+              Câmbio final: <strong>1 {fromCurrency || 'USD'} = {effective.toLocaleString('pt-BR', { minimumFractionDigits: roundEnabled ? 0 : 4, maximumFractionDigits: 4 })} {toCurrency || 'BRL'}</strong>
             </div>
           )}
+
+          {/* Arredondamento da taxa final */}
+          <div style={{ border:'1px solid #e2e8f0', borderRadius:9, padding:'12px', background:'#f8fafc' }}>
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+              <input type="checkbox" checked={roundEnabled} onChange={e => setRoundEnabled(e.target.checked)}
+                style={{ width:15, height:15, accentColor:'#1a2d4f', cursor:'pointer' }} />
+              <span style={{ fontSize:13, fontWeight:600, color:'#475569' }}>Arredondar a taxa final</span>
+            </label>
+            {!roundEnabled ? (
+              <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0 23px' }}>Sem arredondar — mantém até 4 casas decimais.</p>
+            ) : (
+              <div style={{ marginTop:10, marginLeft:23, display:'flex', flexDirection:'column', gap:10 }}>
+                <div>
+                  <label style={{ ...lbl, marginBottom:5 }}>Casas decimais</label>
+                  <div style={{ display:'flex', border:'1.5px solid #e2e8f0', borderRadius:8, overflow:'hidden', width:'fit-content' }}>
+                    {[0, 1, 2, 3, 4].map((d, i) => {
+                      const active = Number(roundDecimals) === d
+                      return (
+                        <button key={d} type="button" onClick={() => setRoundDecimals(d)} style={{
+                          padding:'6px 13px', border:'none', borderLeft: i === 0 ? 'none' : '1.5px solid #e2e8f0',
+                          background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#64748b',
+                          fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+                        }}>{d}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ ...lbl, marginBottom:5 }}>Modo</label>
+                  <div style={{ display:'flex', border:'1.5px solid #e2e8f0', borderRadius:8, overflow:'hidden', width:'fit-content' }}>
+                    {[['nearest','Mais próximo'],['up','↑ Pra cima'],['down','↓ Pra baixo']].map(([v, label], i) => {
+                      const active = roundMode === v
+                      return (
+                        <button key={v} type="button" onClick={() => setRoundMode(v)} style={{
+                          padding:'6px 13px', border:'none', borderLeft: i === 0 ? 'none' : '1.5px solid #e2e8f0',
+                          background: active ? '#1a2d4f' : '#fff', color: active ? '#fff' : '#64748b',
+                          fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+                        }}>{label}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginTop:2 }}>
             <input type="checkbox" checked={autoUpdate} onChange={e => setAutoUpdate(e.target.checked)}
               style={{ width:15, height:15, accentColor:'#1a2d4f', cursor:'pointer' }} />
