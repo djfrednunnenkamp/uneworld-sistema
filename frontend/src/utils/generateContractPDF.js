@@ -285,22 +285,25 @@ export async function generateContractPDF(contract, opts = {}) {
     })
   }
 
-  // ── Assinaturas — sempre no final do documento, depois de tudo ──
-  const phSig = doc.internal.pageSize.getHeight()
-  if (y + 38 > phSig - 15) { doc.addPage(); y = 14 }
-  y += 16
-  const sigGap = 14
-  const sigColW = (pw - 20 - sigGap) / 2
-  doc.setDrawColor(100, 116, 139)
-  doc.setLineWidth(0.3)
-  doc.line(10, y, 10 + sigColW, y)
-  doc.line(10 + sigColW + sigGap, y, pw - 10, y)
-  y += 5
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(71, 85, 105)
-  doc.text('Assinatura do Contratante', 10 + sigColW / 2, y, { align: 'center' })
-  doc.text('Assinatura da Operadora / Agência', 10 + sigColW + sigGap + sigColW / 2, y, { align: 'center' })
+  // ── Assinaturas — só no contrato FÍSICO (impresso e assinado à mão). No
+  //    digital a assinatura é feita na Autentique, então não desenha os campos. ──
+  if (contract.signature_type !== 'digital') {
+    const phSig = doc.internal.pageSize.getHeight()
+    if (y + 38 > phSig - 15) { doc.addPage(); y = 14 }
+    y += 16
+    const sigGap = 14
+    const sigColW = (pw - 20 - sigGap) / 2
+    doc.setDrawColor(100, 116, 139)
+    doc.setLineWidth(0.3)
+    doc.line(10, y, 10 + sigColW, y)
+    doc.line(10 + sigColW + sigGap, y, pw - 10, y)
+    y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(71, 85, 105)
+    doc.text('Assinatura do Contratante', 10 + sigColW / 2, y, { align: 'center' })
+    doc.text('Assinatura da Operadora / Agência', 10 + sigColW + sigGap + sigColW / 2, y, { align: 'center' })
+  }
 
   // ── Numeração de página ──
   const pageCount = doc.internal.getNumberOfPages()
