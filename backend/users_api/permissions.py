@@ -102,8 +102,12 @@ PERMISSION_FIELDS = [
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
 # (acesso administrativo — libera /usuarios, /configuracoes e /log no menu).
 STAFF_PERMISSION_FIELDS = [
-    # Legacy (mantidos para compatibilidade com usuários existentes)
-    'manage_users', 'manage_settings', 'view_audit_log',
+    # Legacy (mantidos para compatibilidade com usuários existentes).
+    # view_audit_log/log_view foram retirados daqui de propósito: são chaves
+    # de log aposentadas (somem da UI) e não devem mais marcar a pessoa como
+    # "Administrador" — senão um usuário sem nenhuma permissão visível, mas com
+    # esse campo ainda ligado no banco, aparece como admin sem ser.
+    'manage_users', 'manage_settings',
     # Usuários
     'users_view', 'users_edit', 'users_block', 'users_delete', 'users_manage_permissions', 'users_set_password',
     # Configurações
@@ -137,8 +141,10 @@ STAFF_PERMISSION_FIELDS = [
     'settings_holidays_view', 'settings_holidays_edit', 'settings_holidays_delete', 'settings_holidays_bulk_delete', 'settings_holidays_bulk_import', 'settings_holidays_export',
     'settings_services_view', 'settings_services_edit', 'settings_services_delete', 'settings_services_bulk_delete', 'settings_services_bulk_import', 'settings_services_export',
     'settings_itinerary_templates_view', 'settings_itinerary_templates_edit', 'settings_itinerary_templates_delete', 'settings_itinerary_templates_bulk_delete', 'settings_itinerary_templates_bulk_import', 'settings_itinerary_templates_export',
-    # Log do sistema
-    'log_view', 'log_page_views',
+    # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
+    # ninguém Administrador. log_page_views continua porque é uma permissão
+    # ativa e concedida de propósito.
+    'log_page_views',
 ]
 
 
