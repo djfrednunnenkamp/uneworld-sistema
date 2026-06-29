@@ -6026,7 +6026,7 @@ export default function TripDetail() {
   const { user } = useAuth()
   const perms          = user?.permissions ?? {}
   const canEditList    = !!user?.is_superuser || perms.lists_edit
-  const canViewLog     = !!user?.is_superuser || perms.lists_view_logs || perms.view_audit_log
+  const canViewLog     = !!user?.is_superuser || perms.lists_view_logs
   const canDownloadList = !!user?.is_superuser || perms.lists_download
 
   const [list,       setList]      = useState(null)

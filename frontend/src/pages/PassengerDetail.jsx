@@ -779,7 +779,7 @@ export default function PassengerDetail() {
   const canFull       = !!user?.is_superuser || perms.passengers_view_full
   const canDocs       = !!user?.is_superuser || perms.passengers_download_docs
   const canUploadDocs = !!user?.is_superuser || perms.passengers_upload_docs
-  const canViewLog    = !!user?.is_superuser || perms.passengers_view_logs || perms.view_audit_log
+  const canViewLog    = !!user?.is_superuser || perms.passengers_view_logs
   // Salvar exige ver os campos sensíveis (ex.: e-mail é obrigatório e fica oculto sem essa permissão)
   const canSave = canEdit && canFull
 

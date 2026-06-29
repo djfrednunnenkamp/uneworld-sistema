@@ -85,7 +85,14 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         show_nav     = self.request.query_params.get('show_nav') in ('1', 'true', 'True')
 
         current_user = self.request.user
-        has_global = has_any_perm(current_user, 'view_audit_log', 'log_view')
+        # "Ver TODOS os logs" é exclusivo do superusuário. As chaves legadas
+        # view_audit_log/log_view foram retiradas da UI de permissões e NÃO
+        # podem mais agir como um mestre invisível que libera o log inteiro —
+        # senão um usuário com esse campo ainda ligado no banco (sem conseguir
+        # desmarcar, porque some da tela) enxerga tudo. O acesso amplo agora é
+        # só do superusuário; os demais veem as próprias ações + as áreas cujo
+        # "_view_logs" granular foi concedido.
+        has_global = bool(current_user.is_superuser)
         # Cada área usa a MESMA permissão "_view_logs" já configurada na sua
         # própria seção (Passageiros, Agências, Listas, Usuários,
         # Configurações) — evita duplicar a mesma decisão em dois lugares.

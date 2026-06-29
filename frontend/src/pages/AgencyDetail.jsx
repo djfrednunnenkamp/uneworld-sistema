@@ -360,7 +360,7 @@ export default function AgencyDetail() {
   const { user }       = useAuth()
   const perms          = user?.permissions ?? {}
   const canEdit        = !!user?.is_superuser || perms.agencies_edit
-  const canViewLog     = !!user?.is_superuser || perms.agencies_view_logs || perms.view_audit_log
+  const canViewLog     = !!user?.is_superuser || perms.agencies_view_logs
 
   const [form,       setForm]       = useState(() => {
     if (isNew) {

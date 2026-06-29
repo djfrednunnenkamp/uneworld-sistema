@@ -806,7 +806,7 @@ export default function Users() {
   const canBlockU      = isSu || !!myP.manage_users || !!myP.users_block
   const canDeleteU     = isSu || !!myP.manage_users || !!myP.users_delete
   const canSetPassword = isSu || !!myP.manage_users || !!myP.users_set_password
-  const canViewLog     = isSu || !!myP.view_audit_log || !!myP.log_view || !!myP.users_view_logs
+  const canViewLog     = isSu || !!myP.users_view_logs
   const canKeyMenu     = canCreate || canSetPassword
 
   const load = () => {

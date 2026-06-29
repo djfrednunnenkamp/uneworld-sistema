@@ -708,7 +708,11 @@ export default function AuditLog() {
   // Tipo oferece áreas que sempre voltam vazias, e o de Usuário aparece pra
   // quem só pode ver as próprias ações (filtrar por outro usuário não faz
   // diferença nenhuma nesse caso).
-  const hasGlobalLog     = !!user?.is_superuser || !!myP.view_audit_log || !!myP.log_view
+  // Ver TODOS os logs é só do superusuário — as chaves legadas
+  // view_audit_log/log_view não valem mais como acesso amplo (ver backend
+  // audit/views.py). Quem não é superusuário vê só as próprias ações + as
+  // áreas de log concedidas individualmente.
+  const hasGlobalLog     = !!user?.is_superuser
   const hasPassengersLog = hasGlobalLog || !!myP.passengers_view_logs
   const hasListsLog      = hasGlobalLog || !!myP.lists_view_logs
   const hasAgenciesLog   = hasGlobalLog || !!myP.agencies_view_logs

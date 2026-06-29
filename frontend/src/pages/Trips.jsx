@@ -97,7 +97,7 @@ export default function Trips() {
   const perms     = user?.permissions ?? {}
   const canEdit   = !!user?.is_superuser || perms.lists_edit
   const canDelete = !!user?.is_superuser || perms.lists_delete
-  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.lists_view_logs || perms.log_view
+  const canViewLog = !!user?.is_superuser || perms.lists_view_logs
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
