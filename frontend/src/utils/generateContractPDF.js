@@ -221,8 +221,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .client-grid .field { border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
     .ctpdf table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9px; background:white; }
-    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:white; text-transform:uppercase; padding:3px 6px; font-size:8.5px; line-height:1.12; vertical-align:middle; border-right:1px solid rgba(255,255,255,.25); }
-    .ctpdf td { padding:3px 6px; line-height:1.2; vertical-align:middle; text-align:center; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
+    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:white; text-transform:uppercase; padding:5px 7px; font-size:8.5px; line-height:1.15; vertical-align:middle; border-right:1px solid rgba(255,255,255,.25); }
+    .ctpdf td { padding:5px 7px; line-height:1.15; vertical-align:middle; text-align:center; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
     .ctpdf td:nth-child(2), .ctpdf .accommodations td:first-child { text-align:left; }
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
