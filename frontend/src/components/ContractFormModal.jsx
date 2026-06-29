@@ -1539,21 +1539,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </p>
                   </div>
                 </div>
-
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Recebido na entrada (BRL)</label>
-                    <input style={inpRO} readOnly value={form.received_down_payment_brl ? Number(form.received_down_payment_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Recebido a prazo (BRL)</label>
-                    <input style={inpRO} readOnly value={form.received_installments_brl ? Number(form.received_installments_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} />
-                  </div>
-                </div>
-                <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
-                  "Recebido na entrada" e "Recebido a prazo" são preenchidos automaticamente a partir dos valores definidos na Entrada e nas Parcelas, abaixo.
-                </p>
               </div>
             </div>
 
