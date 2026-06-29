@@ -50,6 +50,19 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
 
+    @action(detail=False, methods=['get'], url_path='sellers')
+    def sellers(self, request):
+        """Usuários selecionáveis como vendedor do contrato (ativos, não excluídos).
+        Disponível para qualquer um que acesse contratos; trocar o vendedor de
+        fato é gated por contracts_change_seller no serializer."""
+        from django.contrib.auth.models import User
+        from .serializers import _seller_brief
+        users = (User.objects.filter(is_active=True)
+                 .exclude(permissions__is_deleted=True)
+                 .select_related('permissions')
+                 .order_by('first_name', 'last_name', 'username'))
+        return Response([_seller_brief(u) for u in users])
+
     @action(detail=True, methods=['post'], url_path='send-for-signature')
     def send_for_signature(self, request, pk=None):
         """Em edição → Enviado para assinatura (libera o download para imprimir/assinar)."""

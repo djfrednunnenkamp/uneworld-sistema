@@ -135,11 +135,18 @@ export async function generateContractPDF(contract, opts = {}) {
   ])
 
   // Operadora
+  // Vendedor (nome, e-mail e telefone) vem do contrato — o usuário escolhido no
+  // campo "Vendedor", ou o próprio criador por padrão. Cai pro texto da config
+  // da Operadora se o contrato (antigo) não tiver vendedor.
+  const seller = contract.seller_data || {}
+  const sellerName  = seller.name || company.seller || ''
+  const sellerEmail = seller.email || company.email || ''
+  const sellerPhone = seller.phone || company.mobile || company.phone || ''
   y = sectionHeader(doc, 'OPERADORA (FORNECEDORA DO PACOTE TURÍSTICO)', y + 1.5)
   y = kvTable(doc, y, [
     ['Nome/Empresa', company.company_name || '', 'CNPJ', company.cnpj || ''],
-    ['Vendedor', company.seller || '', 'Telefone fixo', company.phone || ''],
-    ['Celular', company.mobile || '', 'E-mail', company.email || ''],
+    ['Vendedor', sellerName, 'Telefone do vendedor', sellerPhone],
+    ['E-mail do vendedor', sellerEmail, 'Telefone fixo', company.phone || ''],
     ['Endereço', { content: company.address || '', colSpan: 3 }],
   ])
 

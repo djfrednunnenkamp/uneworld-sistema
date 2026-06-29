@@ -51,6 +51,7 @@ export const PERM_GROUPS = [
       ['contracts_view',   'Ver contratos'],
       ['contracts_edit',   'Criar / Editar'],
       ['contracts_delete', 'Excluir'],
+      ['contracts_change_seller', 'Alterar o vendedor (fazer contrato em nome de outra pessoa)'],
       ['contracts_view_logs', 'Ver log de atividades dos contratos'],
     ],
   },
@@ -433,6 +434,7 @@ export const PERM_DEPENDENCIES = {
 
   contracts_edit:   'contracts_view',
   contracts_delete: 'contracts_view',
+  contracts_change_seller: 'contracts_edit',
   contracts_view_logs: 'contracts_view',
 
   roteiros_edit:   'roteiros_view',

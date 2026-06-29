@@ -8,6 +8,8 @@ from config_api.models import ConfigAccommodation, ConfigExchangeRate, ContractC
 from passengers.models import Passenger
 from trips.models import PassengerList
 
+from users_api.permissions import has_any_perm
+
 from .models import (Contract, ContractAccommodationLine, ContractGuest,
                      ContractInstallment, ContractAdjustment)
 
@@ -32,6 +34,19 @@ def _agency_brief(a):
         'mobile': a.mobile, 'email': a.email, 'responsible': a.responsible,
         'address': ', '.join(filter(None, [a.street, a.number, a.neighborhood, a.city, a.state])),
     }
+
+
+def _seller_brief(u):
+    """Dados do vendedor que aparecem no contrato (nome, e-mail, telefone).
+    Telefone vem do perfil (UserPermissions.phone)."""
+    if not u:
+        return None
+    name = (f'{u.first_name} {u.last_name}'.strip()) or u.username or u.email
+    phone = ''
+    perms = getattr(u, 'permissions', None)
+    if perms is not None:
+        phone = perms.phone or ''
+    return {'id': u.id, 'name': name, 'email': u.email or '', 'phone': phone}
 
 
 class ContractAccommodationLineSerializer(serializers.ModelSerializer):
@@ -113,6 +128,7 @@ class ContractSerializer(serializers.ModelSerializer):
     passenger_list_data = serializers.SerializerMethodField()
     itinerary_data      = serializers.SerializerMethodField()
     clauses_data        = serializers.SerializerMethodField()
+    seller_data         = serializers.SerializerMethodField()
 
     # Etapa e arquivo assinado mudam só pelas ações (send-for-signature/upload-signed).
     stage         = serializers.CharField(read_only=True)
@@ -134,6 +150,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'contratante', 'contratante_data',
                   'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
                   'payer_email', 'payer_phone', 'payer_address',
+                  'seller', 'seller_data',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'base_currency', 'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
@@ -152,6 +169,10 @@ class ContractSerializer(serializers.ModelSerializer):
 
     def get_agency_data(self, obj):
         return _agency_brief(obj.agency) if obj.agency_id else None
+
+    def get_seller_data(self, obj):
+        # Vendedor que aparece no contrato: o escolhido ou, na falta, o criador.
+        return _seller_brief(obj.seller or obj.created_by)
 
     def get_clauses_data(self, obj):
         return [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
@@ -283,8 +304,18 @@ class ContractSerializer(serializers.ModelSerializer):
                       'payer_gender', 'payer_email', 'payer_phone', 'payer_address'):
                 validated_data.pop(f, None)
 
+        user = getattr(request, 'user', None) if request else None
+        # Vendedor: por padrão é o próprio criador. Só pode ser outro usuário se
+        # quem cria tiver a permissão contracts_change_seller — senão é forçado
+        # ao criador, mesmo que o payload tente mandar outro.
+        requested_seller = validated_data.pop('seller', None)
+        if requested_seller and user and has_any_perm(user, 'contracts_change_seller'):
+            validated_data['seller'] = requested_seller
+        else:
+            validated_data['seller'] = user
+
         contract = Contract.objects.create(
-            created_by=getattr(request, 'user', None) if request else None,
+            created_by=user,
             **validated_data,
         )
         # Reserva nº: sequencial e único — gerado a partir do próprio id, sem
@@ -308,6 +339,13 @@ class ContractSerializer(serializers.ModelSerializer):
         validated_data.pop('reservation_number', None)
         validated_data.pop('total_usd', None)
         validated_data.pop('total_brl', None)
+        # Vendedor só pode ser alterado por quem tem contracts_change_seller —
+        # caso contrário a mudança é ignorada (mantém o que já está no contrato).
+        if 'seller' in validated_data:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None) if request else None
+            if not (user and has_any_perm(user, 'contracts_change_seller')):
+                validated_data.pop('seller', None)
         if validated_data.get('contratante'):
             for f in ('payer_type', 'payer_name', 'payer_document', 'payer_birth_date',
                       'payer_gender', 'payer_email', 'payer_phone', 'payer_address'):

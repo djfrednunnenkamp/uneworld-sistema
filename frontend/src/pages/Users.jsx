@@ -37,7 +37,7 @@ const ROLE_OPTS = [
 ]
 
 
-const EMPTY = { first_name:'', last_name:'', email:'', password:'', is_active:true, is_superuser:false, permissions: { ...EMPTY_PERMISSIONS } }
+const EMPTY = { first_name:'', last_name:'', email:'', phone:'', password:'', is_active:true, is_superuser:false, permissions: { ...EMPTY_PERMISSIONS } }
 
 /* ── Toggle (switch) ── */
 function Toggle({ checked, onChange, disabled }) {
@@ -287,6 +287,10 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
             <label style={lbl}>E-mail * <span style={{fontWeight:400,textTransform:'none',color:'#94a3b8'}}>(será o login)</span></label>
             <input style={{...inp,...(fe.email?{border:'1px solid #ef4444',background:'#fef2f2'}:{}),...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} type="email" value={form.email} onChange={set('email')} placeholder="ana@uneworld.com.br" />
             {fe.email && <p style={{fontSize:11,color:'#dc2626',margin:'3px 0 0',fontWeight:500}}>E-mail obrigatório</p>}
+          </div>
+          <div>
+            <label style={lbl}>Telefone / Celular</label>
+            <input style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.phone ?? ''} onChange={set('phone')} placeholder="(00) 00000-0000" />
           </div>
 
           {!isEdit && (

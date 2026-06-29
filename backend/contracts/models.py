@@ -98,6 +98,10 @@ class Contract(models.Model):
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
                                    related_name='contracts_created')
+    # Vendedor que aparece no contrato (e-mail/telefone). Por padrão é o próprio
+    # criador; só pode ser outro usuário se quem cria tiver contracts_change_seller.
+    seller     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='contracts_as_seller', verbose_name='Vendedor')
     created_at = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at = models.DateTimeField('Atualizado em', auto_now=True)
     is_deleted = models.BooleanField('Excluído', default=False, db_index=True)

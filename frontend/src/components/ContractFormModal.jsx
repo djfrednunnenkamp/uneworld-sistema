@@ -10,6 +10,7 @@ import CnpjInput from './CnpjInput'
 import ContractPdfPreviewModal from './ContractPdfPreviewModal'
 import { Ic } from './Icon'
 import { usePrefs } from '../context/PrefsContext'
+import { useAuth } from '../context/AuthContext'
 
 /* Confirmação específica pra "valores não somam o total" — não reaproveita o
  * ConfirmModal genérico porque ele sempre mostra "Esta ação não pode ser
@@ -358,10 +359,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [accomTypes,  setAccomTypes] = useState([])
   const [clauses,     setClauses]    = useState([])
   const [paymentMethods, setPaymentMethods] = useState([])
+  const [sellers, setSellers] = useState([])   // [{id, name, email, phone}]
+  const [loadedSellerData, setLoadedSellerData] = useState(null)  // seller_data do contrato carregado
+  const { user: me } = useAuth()
+  const canChangeSeller = !!me?.is_superuser || !!me?.permissions?.contracts_change_seller
 
   const [exchangeRates, setExchangeRates] = useState([])   // [{from_currency, to_currency, rate}]
   const [form, setForm] = useState({
-    agency: null, itinerary: null, contratante: null,
+    agency: null, itinerary: null, contratante: null, seller: null,
     package_name: '', departure_date: '', return_date: '', departure_airport: '', observations: '',
     base_currency: 'USD',
     exchange_rate: '', received_down_payment_brl: '', received_installments_brl: '',
@@ -432,6 +437,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           ...(usdBrl ? { exchange_rate: Number(usdBrl.rate) } : {}) }))
       }
     }).catch(() => toast.error('Erro ao carregar dados auxiliares.'))
+    // Lista de vendedores só importa para quem pode trocar o vendedor.
+    if (canChangeSeller) {
+      contractsApi.sellers().then(r => setSellers(r.data || [])).catch(() => {})
+    }
   }, [])
 
   useEffect(() => {
@@ -441,8 +450,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       setReservationNumber(d.reservation_number ?? '')
       setContractDate(d.contract_date ?? '')
       setLoadedStage(d.stage ?? 'em_edicao')
+      setLoadedSellerData(d.seller_data ?? null)
       setForm({
-        agency: d.agency, itinerary: d.itinerary, contratante: d.contratante,
+        agency: d.agency, itinerary: d.itinerary, contratante: d.contratante, seller: d.seller ?? null,
         package_name: d.package_name ?? '', departure_date: d.departure_date ?? '', return_date: d.return_date ?? '',
         departure_airport: d.departure_airport ?? '', observations: d.observations ?? '',
         base_currency: d.base_currency ?? 'USD',
@@ -508,6 +518,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     })
   }, [contractId])
 
+  const sellerItems = useMemo(() => sellers.map(s => ({ id: s.id, label: s.name, sublabel: [s.email, s.phone].filter(Boolean).join(' · ') })), [sellers])
+  // Vendedor que será exibido no contrato: o escolhido, ou o usuário logado por padrão.
+  const meSellerBrief = useMemo(() => ({
+    id: me?.id, name: me?.full_name || me?.email || 'Você', email: me?.email || '', phone: me?.phone || '',
+  }), [me])
+  const currentSeller = useMemo(() => {
+    if (form.seller) return sellers.find(s => s.id === form.seller) || loadedSellerData || meSellerBrief
+    if (isEdit && loadedSellerData) return loadedSellerData
+    return meSellerBrief
+  }, [form.seller, sellers, loadedSellerData, isEdit, meSellerBrief])
   const agencyItems = useMemo(() => agencies.map(a => ({ id: a.id, label: agencyLabel(a), sublabel: a.cnpj || a.cpf })), [agencies])
   const passengerItems = useMemo(() => passengers.map(p => ({ id: p.id, label: p.full_name, sublabel: p.cpf || p.email })), [passengers])
   const itineraryItems = useMemo(() => itineraries.map(i => ({ id: i.id, label: i.name, sublabel: i.start_date ? `Início: ${fmtDateBR(i.start_date)}` : '' })), [itineraries])
@@ -870,6 +890,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
     return {
       agency: form.agency, itinerary: form.itinerary,
+      // Vendedor só é enviado por quem pode trocá-lo; o backend ignora/força ao
+      // criador caso contrário. Em criação sem escolha, vai null e o backend usa o criador.
+      ...(canChangeSeller ? { seller: form.seller || null } : {}),
       observations: form.observations,
       base_currency: form.base_currency || 'USD',
       payment_type: paymentType,
@@ -974,6 +997,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           row('Agência', ag ? agencyLabel(ag) : '—', 'ag'),
           row('Roteiro / pacote', it ? it.name : (form.package_name || '—'), 'rot'),
           row('Contratante / pagante', contratanteName, 'ct'),
+          row('Vendedor', `${currentSeller.name}${currentSeller.email || currentSeller.phone ? ` (${[currentSeller.email, currentSeller.phone].filter(Boolean).join(' · ')})` : ''}`, 'sel'),
         ])}
 
         {sec('Pacote de viagem', [
@@ -1196,6 +1220,27 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                         style={{ flexShrink: 0, width: 42, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Ic n="plus" s={18} />
                       </button>
+                    </div>
+                  )}
+                </div>
+                {/* Vendedor — aparece no contrato (e-mail e telefone). Padrão: quem cria. */}
+                <div>
+                  <label style={lbl}>Vendedor <span style={{ fontWeight: 400, textTransform: 'none', color: '#94a3b8' }}>(e-mail e telefone que aparecem no contrato)</span></label>
+                  {canChangeSeller ? (
+                    <>
+                      <EntityPicker items={sellerItems} selectedIds={form.seller ? [form.seller] : []}
+                        onChange={(ids) => setForm(f => ({ ...f, seller: ids[0] ?? null }))}
+                        title="Selecionar vendedor" searchPlaceholder="Buscar usuário…"
+                        placeholder={`— Padrão: ${meSellerBrief.name} —`}
+                        emptyLabel="Nenhum usuário encontrado" />
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+                        Sem escolher um vendedor, o contrato sai com o seu contato. Contato atual: {[currentSeller.email, currentSeller.phone].filter(Boolean).join(' · ') || '—'}
+                      </p>
+                    </>
+                  ) : (
+                    <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{currentSeller.name}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{[currentSeller.email, currentSeller.phone].filter(Boolean).join(' · ') || '—'}</div>
                     </div>
                   )}
                 </div>

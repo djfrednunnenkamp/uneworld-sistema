@@ -29,6 +29,9 @@ class UserPermissions(models.Model):
     user       = models.OneToOneField(User, on_delete=models.CASCADE, related_name='permissions')
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Dados de perfil
+    phone      = models.CharField(max_length=30, blank=True, default='')
+
     # Visão Geral (Dashboard)
     dashboard_view_passengers  = models.BooleanField(default=False)
     dashboard_view_lists       = models.BooleanField(default=False)
@@ -67,6 +70,7 @@ class UserPermissions(models.Model):
     contracts_edit   = models.BooleanField(default=False)
     contracts_delete = models.BooleanField(default=False)
     contracts_view_logs = models.BooleanField(default=False)
+    contracts_change_seller = models.BooleanField(default=False)
 
     # Roteiros
     roteiros_view   = models.BooleanField(default=False)

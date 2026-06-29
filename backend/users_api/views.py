@@ -37,6 +37,7 @@ def serialize_user(u, perms=None):
         'first_name':   u.first_name,
         'last_name':    u.last_name,
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
+        'phone':        perms.phone,
         'is_staff':     u.is_staff,
         'is_superuser': u.is_superuser,
         'is_active':    u.is_active,
@@ -155,6 +156,10 @@ def me_view(request):
                 user.email    = new_email
                 user.username = new_email
         user.save()
+        if 'phone' in data:
+            perms = get_user_permissions(user)
+            perms.phone = (data['phone'] or '').strip()
+            perms.save(update_fields=['phone'])
     return Response(serialize_user(user))
 
 
@@ -219,6 +224,11 @@ def user_create(request):
             perm_data.pop('permissions', None)
         _apply_permissions(user, perm_data, actor=request.user)
 
+    if 'phone' in data:
+        perms = get_user_permissions(user)
+        perms.phone = (data.get('phone') or '').strip()
+        perms.save(update_fields=['phone'])
+
     # Sempre envia convite por e-mail para o novo usuário definir a própria senha
     try:
         invite     = InviteToken.objects.create(
@@ -279,6 +289,10 @@ def user_update(request, pk):
         _apply_permissions(user, perm_data, actor=request.user)
     else:
         get_user_permissions(user).save()
+    if 'phone' in data and has_any_perm(request.user, 'manage_users', 'users_edit'):
+        perms = get_user_permissions(user)
+        perms.phone = (data.get('phone') or '').strip()
+        perms.save(update_fields=['phone'])
     return Response(serialize_user(user))
 
 
