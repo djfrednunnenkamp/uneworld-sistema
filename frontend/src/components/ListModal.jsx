@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
-import { listsApi, configApi } from '../api'
+import { listsApi, configApi, validateEmailApi } from '../api'
 import FormSelect from './FormSelect'
 import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
@@ -249,15 +249,35 @@ const row2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }
 function NotificationEmailsField({ emails, onChange }) {
   const [inputVal,   setInputVal]   = useState('')
   const [emailError, setEmailError] = useState('')
+  const [suggested,  setSuggested]  = useState('')
+  const [checking,   setChecking]   = useState(false)
 
-  const add = () => {
+  const add = async () => {
     const v = inputVal.trim().toLowerCase()
-    if (!v || !v.includes('@')) { setEmailError('E-mail inválido.'); return }
+    if (!v) { setEmailError('E-mail inválido.'); return }
     if (emails.includes(v)) { setEmailError('E-mail já adicionado.'); return }
+    setSuggested('')
+    setChecking(true)
+    try {
+      // verifica formato + domínio (MX) antes de adicionar à lista
+      const { data } = await validateEmailApi(v)
+      if (!data.valid) {
+        setEmailError(data.reason === 'format' ? 'E-mail em formato inválido.' : 'Esse domínio não recebe e-mail.')
+        if (data.suggested_email) setSuggested(data.suggested_email)
+        return
+      }
+    } catch {
+      if (!v.includes('@')) { setEmailError('E-mail inválido.'); return }  // rede falhou: só checa o básico
+    } finally {
+      setChecking(false)
+    }
     setEmailError('')
+    setSuggested('')
     setInputVal('')
     onChange([...emails, v])
   }
+
+  const useSuggested = () => { setInputVal(suggested); setSuggested(''); setEmailError('') }
 
   return (
     <div>
@@ -279,17 +299,28 @@ function NotificationEmailsField({ emails, onChange }) {
       <div style={{ display:'flex', gap:8 }}>
         <input
           type="email" value={inputVal}
-          onChange={e => { setInputVal(e.target.value); setEmailError('') }}
+          onChange={e => { setInputVal(e.target.value); setEmailError(''); setSuggested('') }}
           placeholder="Adicionar e-mail…"
           onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
           style={{ flex:1, padding:'7px 10px', border:`1px solid ${emailError ? '#ef4444' : '#e2e8f0'}`, borderRadius:8, fontSize:13, outline:'none', background: emailError ? '#fef2f2' : '#fff' }}
         />
-        <button type="button" onClick={add}
-          style={{ padding:'7px 14px', background:'#2e6db4', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-          +
+        <button type="button" onClick={add} disabled={checking}
+          style={{ padding:'7px 14px', background:'#2e6db4', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: checking ? 'wait' : 'pointer', opacity: checking ? 0.6 : 1 }}>
+          {checking ? '…' : '+'}
         </button>
       </div>
-      {emailError && <p style={{ fontSize:11, color:'#dc2626', margin:'4px 0 0', fontWeight:500 }}>{emailError}</p>}
+      {emailError && (
+        <p style={{ fontSize:11, color:'#dc2626', margin:'4px 0 0', fontWeight:500 }}>
+          {emailError}
+          {suggested && <>
+            {' '}Você quis dizer{' '}
+            <button type="button" onClick={useSuggested}
+              style={{ background:'none', border:'none', padding:0, color:'#dc2626', font:'inherit', textDecoration:'underline', cursor:'pointer', fontWeight:700 }}>
+              {suggested}
+            </button>?
+          </>}
+        </p>
+      )}
     </div>
   )
 }

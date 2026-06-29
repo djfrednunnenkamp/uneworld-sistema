@@ -3,6 +3,7 @@ import { generateListPDF } from '../utils/generateListPDF'
 import { generateListHTML } from '../utils/generateListHTML'
 import { createPortal } from 'react-dom'
 import FormSelect from '../components/FormSelect'
+import EmailInput from '../components/EmailInput'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
 import { DocDetail } from '../components/PassengerDocsPopup'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -1165,9 +1166,15 @@ function QEField({ label, value, onChange, disabled, type = 'text', placeholder 
   return (
     <div>
       <label style={LBL}>{label}</label>
-      <input type={type} value={value || ''} placeholder={placeholder || ''}
-        disabled={disabled} onChange={e => onChange && onChange(e.target.value)}
-        style={disabled ? QE_DISABLED_STYLE : QE_INPUT_STYLE} />
+      {type === 'email' ? (
+        <EmailInput value={value || ''} onChange={(v) => onChange && onChange(v)}
+          disabled={disabled} placeholder={placeholder || ''}
+          style={disabled ? QE_DISABLED_STYLE : QE_INPUT_STYLE} />
+      ) : (
+        <input type={type} value={value || ''} placeholder={placeholder || ''}
+          disabled={disabled} onChange={e => onChange && onChange(e.target.value)}
+          style={disabled ? QE_DISABLED_STYLE : QE_INPUT_STYLE} />
+      )}
     </div>
   )
 }

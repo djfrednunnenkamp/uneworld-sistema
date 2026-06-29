@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
 import { Ic } from './Icon'
+import EmailInput from './EmailInput'
 import CsvImportPopup from './CsvImportPopup'
 import { exportSectionCsv } from '../utils/sectionCsv'
 import { CSV_SAMPLES } from '../utils/csvSamples'
@@ -117,7 +118,7 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
       </div>
       <div>
         <label style={lbl}>E-mail</label>
-        <input style={{ ...inp, width:'100%' }} value={form.email} onChange={set('email')} disabled={!canEdit} type="email" />
+        <EmailInput style={{ ...inp, width:'100%' }} value={form.email} onChange={v => set('email')({ target: { value: v } })} disabled={!canEdit} />
       </div>
       <div>
         <label style={lbl}>Endereço</label>

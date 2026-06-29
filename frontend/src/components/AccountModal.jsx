@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { usePrefs } from '../context/PrefsContext'
 import FormSelect from './FormSelect'
 import PhoneInput from './PhoneInput'
+import EmailInput from './EmailInput'
 import { fmtHour } from '../utils/timeFormat'
 
 const FREQ_OPTS = [
@@ -210,8 +211,7 @@ export default function AccountModal({ onClose, onSaved }) {
           </div>
           <div>
             <label style={lbl}>E-mail</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" style={inp}
-              onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            <EmailInput value={email} onChange={setEmail} placeholder="seu@email.com" style={inp} />
           </div>
           <div>
             <label style={lbl}>Telefone / Celular</label>
