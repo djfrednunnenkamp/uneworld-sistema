@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { auditApi, usersApi, listsApi, passengersApi, agenciesApi } from '../api'
+import { auditApi, usersApi, listsApi, passengersApi, agenciesApi, contractsApi } from '../api'
 import DateRangeDrop from '../components/DateRangeDrop'
 import LocationMap from '../components/LocationMap'
 import { Ic } from '../components/Icon'
@@ -33,6 +33,7 @@ const AREA_OPTS = [
   { value: 'passengers', label: 'Passageiros',              icon: 'users',    color: '#2563eb' },
   { value: 'lists',      label: 'Listas de Passageiros',    icon: 'plane',    color: '#16a34a' },
   { value: 'agencies',   label: 'Agências',                icon: 'building', color: '#7c3aed' },
+  { value: 'contracts',  label: 'Contratos',                icon: 'docs',     color: '#0891b2' },
   { value: 'users',      label: 'Usuários',                 icon: 'shield',   color: '#4f46e5' },
   { value: 'settings',   label: 'Configurações',            icon: 'settings', color: '#b45309' },
 ]
@@ -47,6 +48,14 @@ const SUB_OPTS_BY_AREA = {
     { value: '',               label: 'Todos',                icon: 'plane',    color: '#16a34a' },
     { value: 'PassengerList',  label: 'Lista de passageiros',  icon: 'plane',    color: '#16a34a' },
     { value: 'ListEnrollment', label: 'Inscrição na lista',    icon: 'listplus', color: '#0d9488' },
+  ],
+  contracts: [
+    { value: '',                          label: 'Todos',                  icon: 'docs',     color: '#0891b2' },
+    { value: 'Contract',                  label: 'Contrato',                icon: 'docs',     color: '#0891b2' },
+    { value: 'ContractAccommodationLine', label: 'Acomodação do contrato',  icon: 'bed',      color: '#b45309' },
+    { value: 'ContractGuest',             label: 'Hóspede do contrato',     icon: 'users',    color: '#2563eb' },
+    { value: 'ContractInstallment',       label: 'Parcela do contrato',     icon: 'card',     color: '#16a34a' },
+    { value: 'ContractAdjustment',        label: 'Ajuste do contrato',      icon: 'listplus', color: '#7c3aed' },
   ],
   settings: [
     { value: '',                    label: 'Todos',                     icon: 'settings', color: '#b45309' },
@@ -78,6 +87,7 @@ const SCOPE_MODELS_FE = {
   passengers: ['Passenger', 'PassengerDocument'],
   lists:      ['PassengerList', 'ListEnrollment'],
   agencies:   ['Agency'],
+  contracts:  SUB_OPTS_BY_AREA.contracts.map(o => o.value).filter(Boolean),
   users:      ['User'],
   settings:   SUB_OPTS_BY_AREA.settings.map(o => o.value).filter(Boolean),
 }
@@ -342,6 +352,11 @@ const DRILL_CONFIG = {
     fetch: () => agenciesApi.list().then(r => r.data.results ?? r.data),
     nameOf: i => i.name || i.company_name,
   },
+  contracts: {
+    icon: 'docs', param: 'contract_id', singular: 'contrato', plural: 'Todos os contratos',
+    fetch: () => contractsApi.list().then(r => r.data.results ?? r.data),
+    nameOf: i => i.reservation_number ? `Contrato ${i.reservation_number}` : `Contrato #${i.id}`,
+  },
 }
 
 /* Dropdown de busca pra entrar no log de UM registro específico (lista,
@@ -464,6 +479,7 @@ const RECORD_LINKS = {
   Passenger:     { open: id => `/passageiros/${id}`, log: id => `/log?passenger_id=${id}`, label: 'passageiro', of: 'do' },
   PassengerList: { open: id => `/viagens/${id}`,     log: id => `/log?list_id=${id}`,      label: 'lista',      of: 'da' },
   Agency:        { open: id => `/agencias/${id}`,    log: id => `/log?agency_id=${id}`,    label: 'agência',    of: 'da' },
+  Contract:      { open: id => `/contratos`,         log: id => `/log?contract_id=${id}`,  label: 'contrato',   of: 'do' },
 }
 
 /* ── Popup de detalhe de um evento ── */
@@ -670,6 +686,7 @@ const AREA_CONTEXT = {
   passengers: { label: 'Passageiros',           back: '/passageiros'   },
   lists:      { label: 'Listas de Passageiros', back: '/viagens'       },
   agencies:   { label: 'Agências',              back: '/agencias'      },
+  contracts:  { label: 'Contratos',             back: '/contratos'     },
   users:      { label: 'Usuários',              back: '/usuarios'      },
   settings:   { label: 'Configurações',         back: '/configuracoes' },
 }
@@ -682,6 +699,7 @@ export default function AuditLog() {
   const listId         = searchParams.get('list_id') || ''
   const passengerId    = searchParams.get('passenger_id') || ''
   const agencyId       = searchParams.get('agency_id') || ''
+  const contractId     = searchParams.get('contract_id') || ''
   const auditScope     = searchParams.get('scope') || ''
   const { user } = useAuth()
   const myP = user?.permissions ?? {}
@@ -694,13 +712,14 @@ export default function AuditLog() {
   const hasPassengersLog = hasGlobalLog || !!myP.passengers_view_logs
   const hasListsLog      = hasGlobalLog || !!myP.lists_view_logs
   const hasAgenciesLog   = hasGlobalLog || !!myP.agencies_view_logs
+  const hasContractsLog  = hasGlobalLog || !!myP.contracts_view_logs
   const hasUsersLog      = hasGlobalLog || !!myP.users_view_logs
   const hasSettingsLog   = hasGlobalLog || !!myP.settings_view_logs
   const canViewPageViews = hasGlobalLog || !!myP.log_page_views
-  const hasAnyAreaLog    = hasPassengersLog || hasListsLog || hasAgenciesLog || hasUsersLog || hasSettingsLog
+  const hasAnyAreaLog    = hasPassengersLog || hasListsLog || hasAgenciesLog || hasContractsLog || hasUsersLog || hasSettingsLog
   const AREA_PERM = {
     nav: canViewPageViews, passengers: hasPassengersLog, lists: hasListsLog,
-    agencies: hasAgenciesLog, users: hasUsersLog, settings: hasSettingsLog,
+    agencies: hasAgenciesLog, contracts: hasContractsLog, users: hasUsersLog, settings: hasSettingsLog,
   }
   const allowedAreaOpts = AREA_OPTS.filter(o => o.value === '' || AREA_PERM[o.value])
   // Auto-visão (sem nenhuma permissão de área e sem acesso global): o
@@ -726,7 +745,7 @@ export default function AuditLog() {
   // agency_id (botão "Log" de um registro específico).
   const resolveArea = (f) => f.area || auditScope || MODEL_TO_AREA[f.model]
     || (f.model === 'PageView' ? 'nav' : '')
-    || (listId ? 'lists' : passengerId ? 'passengers' : agencyId ? 'agencies' : '')
+    || (listId ? 'lists' : passengerId ? 'passengers' : agencyId ? 'agencies' : contractId ? 'contracts' : '')
 
   const buildParams = (f, nav) => {
     const params = {}
@@ -746,6 +765,7 @@ export default function AuditLog() {
     if (listId)      params.list_id      = listId
     if (passengerId) params.passenger_id = passengerId
     if (agencyId)    params.agency_id    = agencyId
+    if (contractId)  params.contract_id  = contractId
     return params
   }
 
@@ -760,7 +780,7 @@ export default function AuditLog() {
       pageRef.current = p
     } catch {}
     finally { setLoading(false) }
-  }, [filters, showNav, listId, passengerId, agencyId, auditScope])
+  }, [filters, showNav, listId, passengerId, agencyId, contractId, auditScope])
 
   // O componente não remonta ao navegar de uma página pra outra (mesma rota
   // /log) — então, sem isso, o filtro Tipo (e os demais) de uma área antiga
@@ -785,7 +805,7 @@ export default function AuditLog() {
       // passageiro/agência) — recarrega mantendo os filtros atuais.
       load(1, filtersRef.current, showNavRef.current)
     }
-  }, [areaKey, listId, passengerId, agencyId])
+  }, [areaKey, listId, passengerId, agencyId, contractId])
 
   const setFilter = (key, val) => {
     const next = { ...filters, [key]: val }
@@ -800,9 +820,9 @@ export default function AuditLog() {
     const next = { ...filters, area, model: '' }
     setFilters(next)
     filtersRef.current = next
-    if (listId || passengerId || agencyId) {
+    if (listId || passengerId || agencyId || contractId) {
       const sp = new URLSearchParams(searchParams)
-      sp.delete('list_id'); sp.delete('passenger_id'); sp.delete('agency_id')
+      sp.delete('list_id'); sp.delete('passenger_id'); sp.delete('agency_id'); sp.delete('contract_id')
       navigate(`/log?${sp.toString()}`)
     } else {
       load(1, next, showNavRef.current)
@@ -825,7 +845,7 @@ export default function AuditLog() {
       setLogs(r.data.results ?? r.data)
       setCount(r.data.count ?? (r.data.results ?? r.data).length)
     } catch {}
-  }, [listId, passengerId, agencyId, auditScope])
+  }, [listId, passengerId, agencyId, contractId, auditScope])
 
   const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback(({ scope }) => {
@@ -845,13 +865,14 @@ export default function AuditLog() {
   const areaLabel = listId ? 'Lista de Passageiros'
     : passengerId ? 'Passageiro'
     : agencyId ? 'Agência'
+    : contractId ? 'Contrato'
     : effectiveArea === 'nav' ? 'Navegação (páginas)'
     : ctx?.label || null
 
   // Sub-filtro "entrar num registro específico" — aparece quando a área atual
   // é uma das que tem busca por registro (lista/passageiro/agência).
   const drillScope = DRILL_CONFIG[effectiveArea] ? effectiveArea : undefined
-  const drillValue = drillScope === 'lists' ? listId : drillScope === 'passengers' ? passengerId : drillScope === 'agencies' ? agencyId : ''
+  const drillValue = drillScope === 'lists' ? listId : drillScope === 'passengers' ? passengerId : drillScope === 'agencies' ? agencyId : drillScope === 'contracts' ? contractId : ''
   const setDrillValue = (val) => {
     const cfg = DRILL_CONFIG[drillScope]
     const next = new URLSearchParams(searchParams)
@@ -891,7 +912,15 @@ export default function AuditLog() {
               ← Voltar para a agência
             </button>
           )}
-          {!listId && !passengerId && !agencyId && ctx && (
+          {contractId && (
+            <button onClick={() => navigate('/contratos')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+              ← Voltar para os contratos
+            </button>
+          )}
+          {!listId && !passengerId && !agencyId && !contractId && ctx && (
             <button onClick={() => navigate(ctx.back)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0 }}
               onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
@@ -906,6 +935,7 @@ export default function AuditLog() {
             {listId ? 'Log da Lista de Passageiros'
               : passengerId ? 'Log do Passageiro'
               : agencyId ? 'Log da Agência'
+              : contractId ? 'Log do Contrato'
               : ctx ? `Log de ${ctx.label}` : 'Log do Sistema'}
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>

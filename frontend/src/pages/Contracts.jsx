@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { contractsApi } from '../api'
+import { contractsApi, auditApi } from '../api'
 import DataTable, { StatusBadge } from '../components/DataTable'
 import DelModal from '../components/DelModal'
 import TrashRowActions from '../components/TrashRowActions'
@@ -261,10 +262,12 @@ function SignedFileModal({ url, onClose }) {
 }
 
 export default function Contracts() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const perms    = user?.permissions ?? {}
   const canEdit   = !!user?.is_superuser || perms.contracts_edit
   const canDelete = !!user?.is_superuser || perms.contracts_delete
+  const canViewLog = !!user?.is_superuser || perms.view_audit_log || perms.contracts_view_logs || perms.log_view
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
@@ -322,6 +325,10 @@ export default function Contracts() {
     try {
       const r = await contractsApi.get(row.id)
       await generateContractPDF(r.data)
+      auditApi.logDownload({
+        label: `Baixou o PDF do ${getLabel(row)}`,
+        model_name: 'Contract', model_label: 'Contrato',
+      }).catch(() => {})
     } catch {
       toast.error('Erro ao gerar o PDF do contrato.')
     } finally {
@@ -492,6 +499,7 @@ export default function Contracts() {
         cols={cols}
         searchKeys={['reservation_number', 'contratante_name', 'agency_name', 'package_name']}
         extraFilters={filterBar}
+        onLog={canViewLog ? () => navigate('/log?scope=contracts') : undefined}
         onAdd={canEdit && tab === 'em_edicao' ? () => setModal('new') : undefined}
         onView={(row) => setViewId(row.id)}
         onDocs={tab === 'trash' ? undefined : handleDocs}
@@ -532,6 +540,7 @@ export default function Contracts() {
           canEdit={canEdit}
           onClose={() => setViewId(null)}
           onEdit={() => { const id = viewId; setViewId(null); setModal(id) }}
+          onViewLog={canViewLog ? () => navigate(`/log?contract_id=${viewId}`) : undefined}
         />
       )}
       {modal && (

@@ -42,12 +42,18 @@ SETTINGS_MODELS = [
 # Botão "Log" de cada área do sistema: clicar nele tem que mostrar TUDO que é
 # relevante pra área, não só o modelo "principal" — ex: Lista de Passageiros
 # inclui também ListEnrollment (passageiro entrando/saindo/mudando na lista).
+CONTRACT_MODELS = [
+    'Contract', 'ContractAccommodationLine', 'ContractGuest',
+    'ContractInstallment', 'ContractAdjustment',
+]
+
 SCOPE_MODELS = {
     'settings':   SETTINGS_MODELS,
     'lists':      ['PassengerList', 'ListEnrollment'],
     'passengers': ['Passenger', 'PassengerDocument'],
     'agencies':   ['Agency'],
     'users':      ['User', 'UserPermissions'],
+    'contracts':  CONTRACT_MODELS,
 }
 
 
@@ -74,6 +80,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         list_id      = self.request.query_params.get('list_id')
         passenger_id = self.request.query_params.get('passenger_id')
         agency_id    = self.request.query_params.get('agency_id')
+        contract_id  = self.request.query_params.get('contract_id')
         scope        = self.request.query_params.get('scope')
         show_nav     = self.request.query_params.get('show_nav') in ('1', 'true', 'True')
 
@@ -87,8 +94,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         has_log_agencies   = has_global or has_any_perm(current_user, 'agencies_view_logs')
         has_log_users      = has_global or has_any_perm(current_user, 'users_view_logs')
         has_log_settings   = has_global or has_any_perm(current_user, 'settings_view_logs')
+        has_log_contracts  = has_global or has_any_perm(current_user, 'contracts_view_logs')
         has_any_area = (has_log_passengers or has_log_lists or has_log_agencies
-                        or has_log_users or has_log_settings)
+                        or has_log_users or has_log_settings or has_log_contracts)
         has_page_view_access = has_global or has_any_perm(current_user, 'log_page_views')
 
         # Navegação entre páginas (PageView) e login/logout: por padrão ficam fora
@@ -114,6 +122,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         scope_perms = {
             'settings': has_log_settings, 'lists': has_log_lists,
             'passengers': has_log_passengers, 'agencies': has_log_agencies, 'users': has_log_users,
+            'contracts': has_log_contracts,
         }
         if scope in scope_perms and not scope_perms[scope]:
             return qs.none()
@@ -121,7 +130,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         # Sem nenhuma permissão de log e sem pedir um escopo específico (lista,
         # passageiro, agência…): em vez de não mostrar nada, mostra só as
         # próprias ações da pessoa — todo usuário pode ver seu próprio histórico.
-        if not has_any_area and not (list_id or passenger_id or agency_id or scope):
+        if not has_any_area and not (list_id or passenger_id or agency_id or contract_id or scope):
             return qs.filter(user=current_user)
 
         # Se não tem acesso global, filtra apenas as áreas com permissão
@@ -138,6 +147,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 area_q |= DQ(model_name__in=SCOPE_MODELS['users'])
             if has_log_settings:
                 area_q |= DQ(model_name__in=SETTINGS_MODELS)
+            if has_log_contracts:
+                area_q |= DQ(model_name__in=CONTRACT_MODELS)
             if show_nav and has_page_view_access:
                 area_q |= DQ(model_name='PageView') | DQ(action__in=['login', 'logout'])
             if area_q.children:
@@ -175,6 +186,26 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             )
         if agency_id:
             qs = qs.filter(model_name='Agency', object_id=str(agency_id))
+        if contract_id:
+            from contracts.models import (
+                ContractAccommodationLine, ContractGuest,
+                ContractInstallment, ContractAdjustment,
+            )
+            from django.db.models import Q
+            child_q = Q(model_name='Contract', object_id=str(contract_id))
+            for model_cls, model_name in (
+                (ContractAccommodationLine, 'ContractAccommodationLine'),
+                (ContractGuest,             'ContractGuest'),
+                (ContractInstallment,       'ContractInstallment'),
+                (ContractAdjustment,        'ContractAdjustment'),
+            ):
+                ids = list(
+                    model_cls.objects.filter(contract_id=contract_id)
+                    .values_list('id', flat=True)
+                )
+                if ids:
+                    child_q |= Q(model_name=model_name, object_id__in=[str(i) for i in ids])
+            qs = qs.filter(child_q)
         return qs
 
 

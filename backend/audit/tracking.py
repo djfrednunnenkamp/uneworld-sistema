@@ -35,12 +35,18 @@ TRACKED_MODELS = {
     'Airline':              'Companhia aérea',
     'BusMap':               'Mapa de ônibus',
     'PermissionProfile':    'Perfil de permissão',
+    'Contract':                 'Contrato',
+    'ContractAccommodationLine':'Acomodação do contrato',
+    'ContractGuest':            'Hóspede do contrato',
+    'ContractInstallment':      'Parcela do contrato',
+    'ContractAdjustment':       'Ajuste do contrato',
 }
 
 # Campos a ignorar no diff
 SKIP_FIELDS = {
     'password', 'last_login', 'file', 'original_name',
     'file_size', 'mime_type', 'preview_url', 'download_url',
+    'signed_file',  # arquivo do contrato assinado — a mudança de etapa já registra o evento
     'updated_at', 'created_at',  # campos meta — sempre mudam, geram ruído
 }
 
@@ -84,6 +90,13 @@ FIELD_LABELS = {
     'total_accommodations': 'Total de acomodações',
     'start_date': 'Data de início', 'end_date': 'Data de término',
     'required_documents': 'Documentos requeridos',
+    # Contrato
+    'stage': 'Etapa', 'sent_at': 'Enviado em', 'signed_at': 'Assinado em',
+    'reservation_number': 'Nº da reserva', 'package_name': 'Pacote',
+    'contratante': 'Contratante', 'contract_date': 'Data do contrato',
+    'departure_date': 'Data de embarque', 'return_date': 'Data de retorno',
+    'signature_type': 'Tipo de assinatura', 'total_value': 'Valor total',
+    'passenger_list': 'Lista', 'itinerary': 'Roteiro', 'created_by': 'Criado por',
 }
 
 

@@ -66,6 +66,7 @@ class UserPermissions(models.Model):
     contracts_view   = models.BooleanField(default=False)
     contracts_edit   = models.BooleanField(default=False)
     contracts_delete = models.BooleanField(default=False)
+    contracts_view_logs = models.BooleanField(default=False)
 
     # Roteiros
     roteiros_view   = models.BooleanField(default=False)

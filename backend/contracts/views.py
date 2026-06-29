@@ -13,6 +13,22 @@ from .models import Contract
 from .serializers import ContractListSerializer, ContractSerializer
 
 
+def _log_contract_event(request, contract, action, label):
+    """Registra no log de auditoria uma ação sobre o contrato que NÃO passa por
+    save() (ex: download do arquivo assinado) — as criações/edições/mudanças de
+    etapa já são capturadas automaticamente pelos sinais em audit/tracking.py."""
+    from audit.models import AuditLog
+    from audit.middleware import get_current_ip
+    from audit.tracking import user_display
+    user = request.user
+    AuditLog.objects.create(
+        user=user, user_display=user_display(user), action=action,
+        model_name='Contract', model_label='Contrato',
+        object_id=str(contract.pk), object_repr=str(contract)[:500],
+        changes={}, ip_address=get_current_ip(),
+    )
+
+
 class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset        = Contract.objects.select_related('agency', 'contratante', 'passenger_list', 'itinerary').prefetch_related(
         'accommodation_lines', 'guests__passenger', 'installments', 'adjustments', 'clauses')
@@ -53,6 +69,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             raise Http404
         ext   = os.path.splitext(contract.signed_file.name)[1]
         fname = f'contrato_{contract.reservation_number or contract.id}_assinado{ext}'
+        _log_contract_event(request, contract, 'download',
+                            f'Baixou o contrato assinado #{contract.id}')
         resp = FileResponse(contract.signed_file.open('rb'), as_attachment=False, filename=fname)
         # Permite renderizar no iframe da mesma origem (X_FRAME_OPTIONS é DENY por
         # padrão). O middleware não sobrescreve um header já definido.
