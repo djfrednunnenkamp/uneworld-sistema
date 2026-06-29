@@ -71,10 +71,77 @@ function Sparkline({ data, color = '#b45309' }) {
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
       style={{ width: '100%', height: '100%', display: 'block' }}>
-      <polygon points={area} fill={stroke} opacity="0.08" />
+      <polygon points={area} fill={stroke} opacity="0.1" />
       <polyline points={line} fill="none" stroke={stroke} strokeWidth="1.5"
         strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
+  )
+}
+
+// Variação % entre o 1º e o último ponto do histórico (null se < 2 pontos).
+function pctChange(h) {
+  if (!h || h.length < 2) return null
+  const first = h[0], last = h[h.length - 1]
+  if (!first) return null
+  return ((last - first) / first) * 100
+}
+
+function TrendCaret({ up }) {
+  return (
+    <svg width="8" height="8" viewBox="0 0 10 10" style={{ display: 'block' }}>
+      <path d={up ? 'M5 2.5l3.5 5h-7z' : 'M5 7.5l-3.5-5h7z'} fill="currentColor" />
+    </svg>
+  )
+}
+
+// Faixa horizontal de câmbio (full-width) — uma coluna por moeda favorita,
+// com código + variação %, taxa e mini-gráfico da semana.
+function ExchangeStrip({ rates, timeFormat, clickable, onClick }) {
+  const fmtRate = (r) => {
+    if (r?.rate == null) return '—'
+    const n = Number(r.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+    return r.to_currency === 'BRL' ? `R$ ${n}` : n
+  }
+  const target = rates.length && rates.every((r) => r.to_currency === rates[0].to_currency) ? rates[0].to_currency : null
+  const lastUpd = rates.reduce((acc, r) => (r.updated_at && (!acc || r.updated_at > acc) ? r.updated_at : acc), null)
+  return (
+    <div className="tcard" onClick={clickable ? onClick : undefined}
+      style={{ padding: 0, overflow: 'hidden', marginBottom: 22, cursor: clickable ? 'pointer' : 'default' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 14px', borderBottom: '1px solid #eef2f7', background: '#fbfcfe' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: '#94a3b8' }}>
+          <span style={{ color: '#b45309', display: 'flex' }}><Ic n="rotate" s={13} /></span>
+          CÂMBIO{target ? ` · ${target}` : ''}
+        </div>
+        <div style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          7 dias{lastUpd ? ` · ${fmtDateTime(lastUpd, timeFormat)}` : ''}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        {rates.map((r, i) => {
+          const pct = pctChange(r.history)
+          const up = pct == null ? null : pct >= 0
+          const col = up == null ? '#94a3b8' : (up ? '#16a34a' : '#dc2626')
+          return (
+            <div key={r.id} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', borderLeft: i === 0 ? 'none' : '1px solid #f1f5f9' }}>
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                  <span>{target ? r.from_currency : `${r.from_currency} → ${r.to_currency}`}</span>
+                  {pct != null && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 2, color: col, fontWeight: 700 }}>
+                      <TrendCaret up={up} />{Math.abs(pct).toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', letterSpacing: '-.02em', whiteSpace: 'nowrap', marginTop: 2 }}>{fmtRate(r)}</div>
+              </div>
+              <div style={{ width: 62, height: 30, flexShrink: 0 }}>
+                <Sparkline data={r.history} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -333,14 +400,6 @@ export default function Dashboard() {
   const showEmailLog = emailCfg?.can_view
   const showExchangeRate = can('settings_exchange_rates_view')
 
-  // Mostra a taxa formatada — "R$ X" quando a moeda de destino é o Real,
-  // senão o número puro (ex.: USD → EUR).
-  const fmtRate = (r) => {
-    if (r?.rate == null) return '—'
-    const n = Number(r.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-    return r.to_currency === 'BRL' ? `R$ ${n}` : n
-  }
-
   return (
     <div>
       <div className="ph"><h1 className="ph-title">Visão Geral</h1></div>
@@ -362,39 +421,21 @@ export default function Dashboard() {
           )
         })}
 
-        {showExchangeRate && (
-          <div className="scard"
-            onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
-            style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
-            <div className="scard-ico" style={{ background: '#fef3c7' }}>
-              <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
-            </div>
-            <div className="scard-label">Câmbio</div>
-            {exchange_rates?.length ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-                {exchange_rates.map((r) => (
-                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 2px' }}>
-                    <div style={{ minWidth: 0, flexShrink: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>{r.from_currency} → {r.to_currency}</div>
-                      {r.updated_at && (
-                        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1, whiteSpace: 'nowrap' }}>{fmtDateTime(r.updated_at, timeFormat)}</div>
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 24, height: 28 }}>
-                      <Sparkline data={r.history} />
-                    </div>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', letterSpacing: '-.02em', whiteSpace: 'nowrap' }}>{fmtRate(r)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
-                Marque moedas favoritas (★) em Configurações
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* ── Câmbio (faixa horizontal) ── */}
+      {showExchangeRate && (exchange_rates?.length ? (
+        <ExchangeStrip
+          rates={exchange_rates}
+          timeFormat={timeFormat}
+          clickable={canAccess(user, '/configuracoes')}
+          onClick={() => navigate('/configuracoes')}
+        />
+      ) : (
+        <div className="tcard" style={{ padding: '12px 16px', marginBottom: 22, fontSize: 13, color: '#94a3b8' }}>
+          Marque moedas favoritas (★) em Configurações para acompanhar o câmbio aqui.
+        </div>
+      ))}
 
       {/* ── Bottom row: listas + email log ── */}
       <div style={{ display:'flex', gap:16, alignItems:'stretch', maxHeight:480 }}>
