@@ -130,7 +130,7 @@ function FDrop({ label, value, onChange, options, icon = 'list', avatar = false,
         <span style={{ fontSize: 9, opacity: .6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>▼</span>
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 12px 28px rgba(15,23,42,.12)', minWidth: 240, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 12px 28px rgba(15,23,42,.12)', width: 300, maxWidth: '90vw', overflow: 'hidden' }}>
           {searchable && (
             <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
               <input autoFocus value={q} onChange={e => { setQ(e.target.value); setHl(-1) }} onKeyDown={onKey}
