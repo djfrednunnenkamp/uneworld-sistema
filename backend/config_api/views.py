@@ -958,7 +958,13 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
     queryset = ConfigExchangeRate.objects.all()
     serializer_class = ExchangeRateSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_exchange_rates', extra_write=['pull_internet', 'default_time', 'test_script'])
+    # 'pull_internet' e 'default_time' (horário geral) fazem parte das opções
+    # avançadas → exigem settings_exchange_rates_advanced, não o _edit básico.
+    get_permissions = _settings_perm(
+        'settings_exchange_rates',
+        extra_write=['test_script'],
+        action_perms={'pull_internet': 'advanced', 'default_time': 'advanced'},
+    )
 
     def get_queryset(self):
         qs = super().get_queryset()

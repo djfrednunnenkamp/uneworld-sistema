@@ -411,7 +411,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
               <Ic n="globe" s={13} /> {pulling ? 'Puxando…' : 'Atualizar da internet'}
             </button>
           )}
-          {canEdit && (
+          {canAdvanced && (
             <button onClick={openDefaultTime} style={btnCsv('#b45309')} title="Horário geral da atualização automática">
               <Ic n="clock" s={13} /> Horário geral
             </button>
