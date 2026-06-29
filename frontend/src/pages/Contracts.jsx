@@ -303,6 +303,8 @@ export default function Contracts() {
   const [fDateTo, setFDateTo] = useState('')
   const [fSort, setFSort] = useState('recent')   // ordem da aba Geral: recent (mais recentes) | old (mais antigos)
   const [tab, setTab] = useState('geral')   // geral | em_edicao | enviado | assinado | trash
+  const [sendingIds, setSendingIds] = useState(() => new Set())   // contratos sendo enviados p/ assinatura (desabilita o botão)
+  const sendingRef = useRef(new Set())   // guarda contra clique duplo (sem depender do re-render)
   const [deletedRows, setDeletedRows] = useState([])
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
@@ -383,28 +385,50 @@ export default function Contracts() {
     return r.data
   }
 
+  // Mensagem de progresso enquanto o documento é gerado e enviado à Autentique
+  // (digital) — o envio demora alguns segundos e o usuário precisa ver que o
+  // clique funcionou. `type === 'fisica'` é instantâneo, mas o aviso não atrapalha.
+  const sendingMessage = (type) => type === 'digital'
+    ? 'Gerando e enviando o documento para assinatura...'
+    : 'Enviando contrato para assinatura...'
+
+  // Marca/desmarca um contrato como "em envio" (estado p/ desabilitar o botão +
+  // ref p/ barrar reentrância no mesmo tick antes do re-render).
+  const markSending = (id, on) => {
+    if (on) sendingRef.current.add(id); else sendingRef.current.delete(id)
+    setSendingIds(prev => { const n = new Set(prev); on ? n.add(id) : n.delete(id); return n })
+  }
+
   const handlePublish = async (id) => {
+    if (sendingRef.current.has(id)) return
+    markSending(id, true)
+    const toastId = toast.loading(sendingMessage())
     try {
       const c = await sendForSignatureFlow(id)
       toast.success(c?.signature_type === 'digital'
         ? 'Enviado para assinatura digital (Autentique).'
-        : 'Contrato enviado para assinatura.')
+        : 'Contrato enviado para assinatura.', { id: toastId })
       setModal(null)
       setTab('enviado')
       load()
-    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.') }
+    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.', { id: toastId }) }
+    finally { markSending(id, false) }
   }
 
   // Enviar para assinatura → muda a etapa E leva o usuário para a aba "Para assinatura".
   const handleSend = async (row) => {
+    if (sendingRef.current.has(row.id)) return
+    markSending(row.id, true)
+    const toastId = toast.loading(sendingMessage(row.signature_type))
     try {
       await sendForSignatureFlow(row.id, row.signature_type)
       toast.success(row.signature_type === 'digital'
         ? 'Enviado para assinatura digital (Autentique).'
-        : 'Contrato enviado para assinatura.')
+        : 'Contrato enviado para assinatura.', { id: toastId })
       setTab('enviado')   // segue o contrato para a aba de destino
       load()
-    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.') }
+    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.', { id: toastId }) }
+    finally { markSending(row.id, false) }
   }
 
   // Verifica na Autentique se o contrato digital já foi assinado por todos.
@@ -556,10 +580,10 @@ export default function Contracts() {
     </div>
   )
 
-  const actBtn = (title, icon, color, onClick) => (
-    <button type="button" title={title} onClick={onClick}
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${color}33`, background: `${color}14`, color, cursor: 'pointer', flexShrink: 0 }}>
-      <Ic n={icon} s={13} />
+  const actBtn = (title, icon, color, onClick, disabled = false) => (
+    <button type="button" title={title} onClick={onClick} disabled={disabled}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${color}33`, background: `${color}14`, color, cursor: disabled ? 'wait' : 'pointer', opacity: disabled ? 0.5 : 1, flexShrink: 0 }}>
+      <Ic n={disabled ? 'clock' : icon} s={13} />
     </button>
   )
 
@@ -597,7 +621,7 @@ export default function Contracts() {
               // Na aba Geral cada linha segue a SUA própria etapa; nas demais, a aba.
               const stage = tab === 'geral' ? row.stage : tab
               return (
-                stage === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
+                stage === 'em_edicao' ? actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row), sendingIds.has(row.id))
                 : stage === 'enviado' ? (
                   row.signature_type === 'digital' ? (
                     <>
