@@ -96,6 +96,7 @@ export default function AccountModal({ onClose, onSaved }) {
   const [firstName, setFirstName] = useState(user?.first_name || '')
   const [lastName,  setLastName]  = useState(user?.last_name  || '')
   const [email,     setEmail]     = useState(user?.email      || '')
+  const [phone,     setPhone]     = useState(user?.phone      || '')
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState('')
   const [success,   setSuccess]   = useState(false)
@@ -159,7 +160,7 @@ export default function AccountModal({ onClose, onSaved }) {
     if (!email.trim()) { setError('O e-mail é obrigatório.'); return }
     setLoading(true); setError('')
     try {
-      await authApi.updateMe({ first_name: firstName, last_name: lastName, email: email.trim().toLowerCase() })
+      await authApi.updateMe({ first_name: firstName, last_name: lastName, email: email.trim().toLowerCase(), phone: phone.trim() })
       await agendaApi.updatePrefs({
         time_format:             prefs.time_format,
         digest_enabled:          prefs.digest_enabled,
@@ -209,6 +210,11 @@ export default function AccountModal({ onClose, onSaved }) {
           <div>
             <label style={lbl}>E-mail</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" style={inp}
+              onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+          </div>
+          <div>
+            <label style={lbl}>Telefone / Celular</label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(00) 00000-0000" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
           </div>
 
