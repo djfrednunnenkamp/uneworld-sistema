@@ -71,6 +71,9 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
   const [baseRate,     setBaseRate]     = useState(initial?.base_rate ?? initial?.rate ?? '')
   const [markup,       setMarkup]       = useState(initial?.markup_percent ?? 0)
   const [autoUpdate,   setAutoUpdate]   = useState(initial?.auto_update ?? false)
+  const [customTime,   setCustomTime]   = useState(!!(initial?.update_time))   // horário próprio (senão usa o geral)
+  const [customSource, setCustomSource] = useState(!!(initial?.source_url || initial?.script))  // fonte externa (senão API global)
+  const [sourceMode,   setSourceMode]   = useState(initial?.script ? 'python' : 'link')          // 'link' | 'python'
   const [sourceUrl,    setSourceUrl]    = useState(initial?.source_url ?? '')
   const [script,       setScript]       = useState(initial?.script ?? '')
   const [testing,      setTesting]      = useState(false)
@@ -100,9 +103,9 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
         base_rate: baseRate,
         markup_percent: Number(markup) || 0,
         auto_update: autoUpdate,
-        source_url: autoUpdate ? sourceUrl.trim() : '',
-        update_time: (autoUpdate && updateTime) ? updateTime : null,
-        ...(canScript ? { script: autoUpdate ? script : '' } : {}),
+        source_url: (autoUpdate && customSource && sourceMode === 'link') ? sourceUrl.trim() : '',
+        update_time: (autoUpdate && customTime && updateTime) ? updateTime : null,
+        ...(canScript ? { script: (autoUpdate && customSource && sourceMode === 'python') ? script : '' } : {}),
       })
       onClose()
     } finally { setSaving(false) }
@@ -151,50 +154,82 @@ function RateModal({ initial, onSave, onClose, canScript = false }) {
             <span style={{ fontSize:13, fontWeight:600, color:'#475569' }}>Atualizar automaticamente da internet, todo dia</span>
           </label>
           {autoUpdate && (
-            <>
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginTop:2, padding:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:9 }}>
+
+              {/* Controle 1 — horário */}
               <div>
-                <label style={lbl}>Link da taxa (opcional)</label>
-                <input style={{ ...inp, width:'100%' }} type="url" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)}
-                  placeholder="https://… (JSON com a taxa)" />
-                <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Se preenchido, a taxa desta moeda é puxada deste link (JSON). Vazio = usa a fonte global.</p>
+                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                  <input type="checkbox" checked={customTime} onChange={e => setCustomTime(e.target.checked)} style={{ width:15, height:15, accentColor:'#1a2d4f', cursor:'pointer' }} />
+                  <span style={{ fontSize:12.5, fontWeight:600, color:'#475569' }}>Usar um horário diferente do padrão</span>
+                </label>
+                {customTime ? (
+                  <div style={{ marginTop:7, marginLeft:23 }}>
+                    <div style={{ width:170 }}><TimePicker value={updateTime} onChange={setUpdateTime} fixed /></div>
+                  </div>
+                ) : (
+                  <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0 23px' }}>Usa o <strong>horário geral</strong> definido em "Horário geral".</p>
+                )}
               </div>
-              {canScript && (
-                <div>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:5, flexWrap:'wrap' }}>
-                    <label style={{ ...lbl, marginBottom:0 }}>Script de cálculo — Python (opcional)</label>
-                    <div style={{ display:'flex', gap:6 }}>
-                      <button type="button" onClick={() => setShowDocs(true)} style={btnCsv('#2e6db4')} title="Como escrever o script">📖 Documentação</button>
-                      <button type="button" onClick={() => setShowBig(true)} style={btnCsv('#7c3aed')} title="Abrir editor grande">⤢ Abrir editor</button>
+
+              {/* Controle 2 — fonte da taxa */}
+              <div style={{ borderTop:'1px solid #e2e8f0', paddingTop:12 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+                  <input type="checkbox" checked={customSource} onChange={e => setCustomSource(e.target.checked)} style={{ width:15, height:15, accentColor:'#1a2d4f', cursor:'pointer' }} />
+                  <span style={{ fontSize:12.5, fontWeight:600, color:'#475569' }}>Buscar a taxa de uma fonte externa específica</span>
+                </label>
+                {!customSource ? (
+                  <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0 23px' }}>Usa a <strong>fonte global</strong> (open.er-api) para esta moeda.</p>
+                ) : (
+                  <div style={{ marginTop:8, marginLeft:23 }}>
+                    {/* duas opções: link ou python */}
+                    <div style={{ display:'inline-flex', border:'1px solid #e2e8f0', borderRadius:8, overflow:'hidden', marginBottom:10 }}>
+                      {[['link','Por link (URL)'], ...(canScript ? [['python','Por script (Python)']] : [])].map(([v, label]) => {
+                        const sel = sourceMode === v
+                        return (
+                          <button key={v} type="button" onClick={() => { setSourceMode(v); setTestResult(null) }}
+                            style={{ padding:'7px 14px', border:'none', background: sel ? '#1a2d4f' : '#fff', color: sel ? '#fff' : '#475569', fontSize:12.5, fontWeight: sel ? 600 : 500, cursor:'pointer', fontFamily:'inherit' }}>{label}</button>
+                        )
+                      })}
                     </div>
-                  </div>
-                  <CodeEditor value={script} onChange={v => { setScript(v); setTestResult(null) }} minHeight={130}
-                    placeholder={'# Defina result com a taxa de mercado (X -> BRL).\n# Helpers: fetch_json(url), fetch_text(url), Decimal, print()\na = fetch_json("https://fonte1...")["rate"]\nb = fetch_json("https://fonte2...")["rate"]\nresult = (a + b) / 2'} />
-                  <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6 }}>
-                    <button type="button" onClick={testScript} disabled={testing || !script.trim()}
-                      style={{ ...btnCsv('#059669'), opacity: (testing || !script.trim()) ? .6 : 1 }}>
-                      {testing ? 'Testando…' : '▶ Testar'}
-                    </button>
-                    {testResult?.rate != null && (
-                      <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>✓ Taxa: {Number(testResult.rate).toLocaleString('pt-BR', { minimumFractionDigits:4 })}</span>
+
+                    {sourceMode === 'link' && (
+                      <div>
+                        <label style={lbl}>Link da taxa (JSON)</label>
+                        <input style={{ ...inp, width:'100%' }} type="url" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://… (JSON com a taxa)" />
+                        <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>A taxa desta moeda é puxada deste link (JSON com o número da taxa).</p>
+                      </div>
                     )}
-                    {testResult?.error && (
-                      <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>
+
+                    {sourceMode === 'python' && canScript && (
+                      <div>
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:5, flexWrap:'wrap' }}>
+                          <label style={{ ...lbl, marginBottom:0 }}>Script de cálculo — Python</label>
+                          <div style={{ display:'flex', gap:6 }}>
+                            <button type="button" onClick={() => setShowDocs(true)} style={btnCsv('#2e6db4')} title="Como escrever o script">📖 Documentação</button>
+                            <button type="button" onClick={() => setShowBig(true)} style={btnCsv('#7c3aed')} title="Abrir editor grande">⤢ Abrir editor</button>
+                          </div>
+                        </div>
+                        <CodeEditor value={script} onChange={v => { setScript(v); setTestResult(null) }} minHeight={130}
+                          placeholder={'# Defina result com a taxa de mercado (X -> BRL).\n# Helpers: fetch_json(url), fetch_text(url), Decimal, print()\na = fetch_json("https://fonte1...")["rate"]\nb = fetch_json("https://fonte2...")["rate"]\nresult = (a + b) / 2'} />
+                        <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6 }}>
+                          <button type="button" onClick={testScript} disabled={testing || !script.trim()} style={{ ...btnCsv('#059669'), opacity: (testing || !script.trim()) ? .6 : 1 }}>
+                            {testing ? 'Testando…' : '▶ Testar'}
+                          </button>
+                          {testResult?.rate != null && <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>✓ Taxa: {Number(testResult.rate).toLocaleString('pt-BR', { minimumFractionDigits:4 })}</span>}
+                          {testResult?.error && <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>}
+                        </div>
+                        {testResult?.output && (
+                          <pre style={{ margin:'6px 0 0', padding:'8px 10px', background:'#0f172a', color:'#cbd5e1', borderRadius:6, fontSize:11.5, lineHeight:1.5, maxHeight:120, overflow:'auto', whiteSpace:'pre-wrap', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{testResult.output}</pre>
+                        )}
+                        <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0', lineHeight:1.5 }}>Roda num <strong>sandbox seguro</strong>. Defina a variável <code>result</code> com a taxa.</p>
+                      </div>
                     )}
                   </div>
-                  {testResult?.output && (
-                    <pre style={{ margin:'6px 0 0', padding:'8px 10px', background:'#0f172a', color:'#cbd5e1', borderRadius:6, fontSize:11.5, lineHeight:1.5, maxHeight:120, overflow:'auto', whiteSpace:'pre-wrap', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{testResult.output}</pre>
-                  )}
-                  <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0', lineHeight:1.5 }}>
-                    Roda num <strong>sandbox seguro</strong> (sem acesso a arquivos/sistema, com tempo limite). Tem <strong>precedência</strong> sobre o link. Defina a variável <code>result</code> com a taxa.
-                  </p>
-                </div>
-              )}
-              <div>
-                <label style={lbl}>Horário específico (opcional)</label>
-                <div style={{ width:170 }}><TimePicker value={updateTime} onChange={setUpdateTime} fixed /></div>
-                <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>Se vazio, usa o <strong>horário geral</strong>. O acréscimo (%) é reaplicado após puxar a taxa.</p>
+                )}
               </div>
-            </>
+
+              <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>O acréscimo (%) é reaplicado depois de puxar a taxa.</p>
+            </div>
           )}
         </div>
         <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
