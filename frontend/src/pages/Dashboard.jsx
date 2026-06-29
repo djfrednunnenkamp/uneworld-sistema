@@ -52,6 +52,27 @@ const STATS_CFG = [
   { key: 'total_enrollments',label: 'Inscrições',     nav: '/viagens',    color: '#dbeafe', ico: '#1d4ed8', icon: 'users',    perm: 'dashboard_view_enrollments' },
 ]
 
+/* Mini-gráfico da última semana — desenhado atrás da linha do câmbio, só pra
+ * dar um toque visual. Precisa de pelo menos 2 pontos pra virar uma linha. */
+function Sparkline({ data, color = '#b45309' }) {
+  if (!data || data.length < 2) return null
+  const w = 100, h = 32
+  const min = Math.min(...data), max = Math.max(...data)
+  const span = max - min || 1
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w
+    const y = h - ((v - min) / span) * h
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.22, pointerEvents: 'none' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  )
+}
+
 function EmailPreviewModal({ log, onClose }) {
   const iframeRef = useRef(null)
   const { timeFormat } = usePrefs()
@@ -336,37 +357,31 @@ export default function Dashboard() {
           )
         })}
 
-        {showExchangeRate && (exchange_rates?.length
-          ? exchange_rates.map((r) => (
-            <div key={r.id} className="scard"
-              onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
-              style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
-              <div className="scard-ico" style={{ background: '#fef3c7' }}>
-                <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
-              </div>
-              <div className="scard-label">Câmbio ({r.from_currency} → {r.to_currency})</div>
-              <div className="scard-val">{fmtRate(r)}</div>
-              {r.updated_at && (
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                  Atualizado em {fmtDateTime(r.updated_at, timeFormat)}
-                </div>
-              )}
+        {showExchangeRate && (
+          <div className="scard"
+            onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
+            style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
+            <div className="scard-ico" style={{ background: '#fef3c7' }}>
+              <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
             </div>
-          ))
-          : (
-            <div className="scard"
-              onClick={canAccess(user, '/configuracoes') ? () => navigate('/configuracoes') : undefined}
-              style={{ cursor: canAccess(user, '/configuracoes') ? 'pointer' : 'default' }}>
-              <div className="scard-ico" style={{ background: '#fef3c7' }}>
-                <span style={{ color: '#b45309' }}><Ic n="rotate" s={18}/></span>
+            <div className="scard-label">Câmbio</div>
+            {exchange_rates?.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
+                {exchange_rates.map((r) => (
+                  <div key={r.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '5px 2px', overflow: 'hidden' }}>
+                    <Sparkline data={r.history} />
+                    <span style={{ position: 'relative', fontSize: 12.5, fontWeight: 600, color: '#475569' }}>{r.from_currency} → {r.to_currency}</span>
+                    <span style={{ position: 'relative', fontSize: 16, fontWeight: 700, color: '#0f172a', letterSpacing: '-.02em' }}>{fmtRate(r)}</span>
+                  </div>
+                ))}
               </div>
-              <div className="scard-label">Câmbio</div>
-              <div className="scard-val" style={{ fontSize: 15, color: '#94a3b8' }}>Nenhuma moeda favorita</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                Marque favoritas em Configurações
+            ) : (
+              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+                Marque moedas favoritas (★) em Configurações
               </div>
-            </div>
-          ))}
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Bottom row: listas + email log ── */}

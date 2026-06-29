@@ -70,6 +70,7 @@ def dashboard_stats(request):
                 'to_currency': r.to_currency,
                 'rate': r.rate,
                 'updated_at': r.updated_at,
+                'history': [p.get('r') for p in (r.rate_history or []) if p.get('r') is not None],
             }
             for r in favs
         ]

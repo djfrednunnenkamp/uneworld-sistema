@@ -96,6 +96,9 @@ class ConfigExchangeRate(models.Model):
     # Horário específico desta moeda; vazio = usa o horário geral (singleton abaixo).
     update_time   = models.TimeField('Horário da atualização', null=True, blank=True)
     last_auto_update = models.DateField('Última atualização automática', null=True, blank=True)
+    # Histórico curto da taxa (últimos ~7 dias, 1 ponto por dia) — alimenta o
+    # mini-gráfico de câmbio na Visão Geral. Cada item: {"d": "AAAA-MM-DD", "r": 5.3}.
+    rate_history  = models.JSONField('Histórico da taxa', default=list, blank=True)
     updated_at    = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:
@@ -112,7 +115,26 @@ class ConfigExchangeRate(models.Model):
             self.base_rate = self.rate
         markup = self.markup_percent or Decimal('0')
         self.rate = (self.base_rate * (Decimal('1') + markup / Decimal('100'))).quantize(Decimal('0.0001'))
+        self._record_history_point()
+        # Quando o save é parcial (update_fields), garante que a taxa recalculada
+        # e o histórico também sejam gravados — senão o ponto do dia se perde.
+        uf = kwargs.get('update_fields')
+        if uf is not None:
+            kwargs['update_fields'] = set(uf) | {'rate', 'rate_history'}
         super().save(*args, **kwargs)
+
+    def _record_history_point(self):
+        """Guarda 1 ponto por dia (atualiza o do dia se a taxa mudar de novo) e
+        mantém só os últimos 7 dias — série enxuta pro mini-gráfico da Visão Geral."""
+        from django.utils import timezone
+        today = timezone.localdate().isoformat()
+        hist = list(self.rate_history or [])
+        point = {'d': today, 'r': float(self.rate)}
+        if hist and hist[-1].get('d') == today:
+            hist[-1] = point
+        else:
+            hist.append(point)
+        self.rate_history = hist[-7:]
 
     def __str__(self):
         return f'{self.from_currency} → {self.to_currency}: {self.rate}'
