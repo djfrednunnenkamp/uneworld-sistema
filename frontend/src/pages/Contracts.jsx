@@ -390,6 +390,7 @@ export default function Contracts() {
   const [fTraveler, setFTraveler] = useState('')
   const [fAgency, setFAgency] = useState('')
   const [fValue, setFValue] = useState('')
+  const [fSignature, setFSignature] = useState('')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
   const [fSort, setFSort] = useState('recent')   // ordem da aba Geral: recent (mais recentes) | old (mais antigos)
@@ -606,13 +607,14 @@ export default function Contracts() {
     if (fTraveler && !(r.guest_names || []).includes(fTraveler)) return false
     if (fAgency && r.agency_name !== fAgency) return false
     if (!valueInRange(r.total_brl, fValue)) return false
+    if (fSignature && r.signature_type !== fSignature) return false
     if (fDateFrom && (!r.contract_date || r.contract_date < fDateFrom)) return false
     if (fDateTo && (!r.contract_date || r.contract_date > fDateTo)) return false
     return true
   })
 
-  const activeFilters = [fPayer, fTraveler, fAgency, fValue, !!fDateFrom, !!fDateTo].filter(Boolean).length
-  const clearFilters = () => { setFPayer(''); setFTraveler(''); setFAgency(''); setFValue(''); setFDateFrom(''); setFDateTo('') }
+  const activeFilters = [fPayer, fTraveler, fAgency, fValue, fSignature, !!fDateFrom, !!fDateTo].filter(Boolean).length
+  const clearFilters = () => { setFPayer(''); setFTraveler(''); setFAgency(''); setFValue(''); setFSignature(''); setFDateFrom(''); setFDateTo('') }
 
   // Coluna de data muda conforme a aba: criado / enviado / assinado / excluído.
   const cols = useMemo(() => {
@@ -647,6 +649,8 @@ export default function Contracts() {
       <FDrop label="Viajante" value={fTraveler} onChange={setFTraveler} options={travelerOpts}  icon="users"    avatar searchPlaceholder="Buscar viajante…" />
       <FDrop label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts}    icon="building" avatar searchPlaceholder="Buscar agência…" />
       <FDrop label="Valor"    value={fValue}    onChange={setFValue}    options={VALUE_OPTS}    icon="card" />
+      <FDrop label="Assinatura" value={fSignature} onChange={setFSignature} icon="edit"
+        options={[{ value: '', label: 'Qualquer assinatura' }, { value: 'fisica', label: 'Física' }, { value: 'digital', label: 'Digital' }]} />
       <DateRangeDrop label="Período" from={fDateFrom} to={fDateTo} onFrom={setFDateFrom} onTo={setFDateTo} />
       {activeFilters > 0 && (
         <button onClick={clearFilters} title="Limpar todos os filtros"
