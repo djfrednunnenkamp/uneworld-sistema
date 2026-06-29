@@ -109,6 +109,9 @@ export const contractsApi = {
   restore: (id)     => api.post(`/contracts/${id}/restore/`),
   purge:   (id)     => api.delete(`/contracts/${id}/purge/`),
   sendForSignature: (id) => api.post(`/contracts/${id}/send-for-signature/`),
+  // Assinatura digital: envia junto o PDF gerado (a Autentique precisa do arquivo).
+  sendForSignatureDigital: (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/send-for-signature/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
+  checkSignature:   (id) => api.post(`/contracts/${id}/check-signature/`),
   reopen:           (id) => api.post(`/contracts/${id}/reopen/`),
   uploadSigned:     (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/upload-signed/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
 }

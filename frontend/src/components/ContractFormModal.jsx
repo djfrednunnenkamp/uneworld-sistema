@@ -1705,6 +1705,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           contractId={contractId}
           previewPayload={previewData?.payload}
           overrides={previewData?.overrides}
+          allowDownload={form.signature_type !== 'digital' || loadedStage === 'assinado'}
           onClose={() => setShowPreview(false)}
           footerExtra={(loadedStage === 'em_edicao' && onPublish) ? (
             <button type="button" onClick={() => onPublish(contractId)}

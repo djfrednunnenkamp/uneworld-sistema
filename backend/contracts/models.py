@@ -95,6 +95,11 @@ class Contract(models.Model):
     sent_at   = models.DateTimeField('Enviado para assinatura em', null=True, blank=True)
     signed_at = models.DateTimeField('Assinado em', null=True, blank=True)
 
+    # Assinatura digital (Autentique): id do documento criado lá e um espelho do
+    # estado dos signatários (links, quem já assinou) para exibir o andamento.
+    autentique_document_id = models.CharField('ID do documento na Autentique', max_length=64, blank=True, default='')
+    autentique_data        = models.JSONField('Dados da Autentique', null=True, blank=True)
+
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
                                    related_name='contracts_created')

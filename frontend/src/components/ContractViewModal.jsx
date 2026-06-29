@@ -140,7 +140,9 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
       </div>
 
       {showPdf && (
-        <ContractPdfPreviewModal contractId={contractId} onClose={() => setShowPdf(false)} />
+        <ContractPdfPreviewModal contractId={contractId}
+          allowDownload={!c || c.signature_type !== 'digital' || c.stage === 'assinado'}
+          onClose={() => setShowPdf(false)} />
       )}
     </div>
   )

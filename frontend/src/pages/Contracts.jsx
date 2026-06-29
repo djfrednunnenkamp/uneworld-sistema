@@ -365,24 +365,56 @@ export default function Contracts() {
     setPreviewId(row.id)
   }
 
+  // Envia para assinatura. Digital: gera o PDF do contrato no front e manda junto
+  // (a Autentique precisa do arquivo) — daí a assinatura corre pela Autentique.
+  // Física: só muda a etapa. `knownType` evita um GET extra quando já sabemos.
+  const sendForSignatureFlow = async (id, knownType) => {
+    let type = knownType, data = null
+    if (type !== 'fisica') {
+      const r = await contractsApi.get(id); data = r.data; type = data.signature_type
+    }
+    if (type === 'digital') {
+      const blob = await generateContractPDF(data, { output: 'blob' })
+      const file = new File([blob], `contrato_${data.reservation_number || id}.pdf`, { type: 'application/pdf' })
+      const r = await contractsApi.sendForSignatureDigital(id, file)
+      return r.data
+    }
+    const r = await contractsApi.sendForSignature(id)
+    return r.data
+  }
+
   const handlePublish = async (id) => {
     try {
-      await contractsApi.sendForSignature(id)
-      toast.success('Contrato enviado para assinatura.')
+      const c = await sendForSignatureFlow(id)
+      toast.success(c?.signature_type === 'digital'
+        ? 'Enviado para assinatura digital (Autentique).'
+        : 'Contrato enviado para assinatura.')
       setModal(null)
       setTab('enviado')
       load()
-    } catch { toast.error('Erro ao enviar para assinatura.') }
+    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.') }
   }
 
   // Enviar para assinatura → muda a etapa E leva o usuário para a aba "Para assinatura".
   const handleSend = async (row) => {
     try {
-      await contractsApi.sendForSignature(row.id)
-      toast.success('Contrato enviado para assinatura.')
+      await sendForSignatureFlow(row.id, row.signature_type)
+      toast.success(row.signature_type === 'digital'
+        ? 'Enviado para assinatura digital (Autentique).'
+        : 'Contrato enviado para assinatura.')
       setTab('enviado')   // segue o contrato para a aba de destino
       load()
-    } catch { toast.error('Erro ao enviar para assinatura.') }
+    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.') }
+  }
+
+  // Verifica na Autentique se o contrato digital já foi assinado por todos.
+  const handleCheckSignature = async (row) => {
+    try {
+      const r = await contractsApi.checkSignature(row.id)
+      if (r.data?.stage === 'assinado') { toast.success('Contrato assinado! Movido para "Assinados".'); setTab('assinado') }
+      else toast.info('Ainda aguardando a assinatura de todos os signatários.')
+      load()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao verificar a assinatura.') }
   }
 
   const handleReopen = async () => {
@@ -528,6 +560,10 @@ export default function Contracts() {
 
   const getLabel = (row) => row.reservation_number ? `Contrato ${row.reservation_number}` : `Contrato #${row.id}`
 
+  // Assinatura digital: o PDF só pode ser BAIXADO depois de assinado. Antes
+  // disso (em edição / aguardando assinatura) ele é apenas visto online.
+  const canDownloadPdf = (c) => !c || c.signature_type !== 'digital' || c.stage === 'assinado'
+
   return (
     <>
       {tabBar}
@@ -543,10 +579,12 @@ export default function Contracts() {
         onView={(row) => setViewId(row.id)}
         onDocs={tab === 'trash' ? undefined : handleDocs}
         showDocs={(row) =>
-          row.stage === 'enviado' ? row.signature_type === 'fisica'
+          // Enviado: sempre dá para ver online (física = ver/imprimir; digital = só ver).
+          row.stage === 'enviado' ? true
           : row.stage === 'assinado' ? !!row.signed_file
           : false}
-        docsTitle={tab === 'assinado' ? 'Ver contrato assinado' : 'Ver / baixar contrato'}
+        docsTitle={tab === 'assinado' ? 'Ver contrato assinado'
+          : 'Ver contrato'}
         extraActions={
           tab === 'trash'
             ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={contractsApi.restore} onPurge={contractsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
@@ -556,10 +594,17 @@ export default function Contracts() {
               return (
                 stage === 'em_edicao' ? actBtn('Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row))
                 : stage === 'enviado' ? (
-                  <>
-                    {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
-                    {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
-                  </>
+                  row.signature_type === 'digital' ? (
+                    <>
+                      {actBtn('Verificar assinatura', 'check', '#2563eb', () => handleCheckSignature(row))}
+                      {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
+                    </>
+                  ) : (
+                    <>
+                      {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
+                      {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
+                    </>
+                  )
                 )
                 : null
               )
@@ -575,7 +620,7 @@ export default function Contracts() {
         <SignedFileModal url={signedUrl.url} contractId={signedUrl.id} contractLabel={signedUrl.label} onClose={() => setSignedUrl(null)} />
       )}
       {previewId && (
-        <ContractPdfPreviewModal contractId={previewId} onClose={() => setPreviewId(null)} />
+        <ContractPdfPreviewModal contractId={previewId} allowDownload={canDownloadPdf(rows.find(r => r.id === previewId))} onClose={() => setPreviewId(null)} />
       )}
       {viewId && (
         <ContractViewModal

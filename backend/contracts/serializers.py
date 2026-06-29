@@ -156,8 +156,10 @@ class ContractSerializer(serializers.ModelSerializer):
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'stage', 'signed_file', 'signed_verification',
+                  'autentique_document_id', 'autentique_data',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+        read_only_fields = ['autentique_document_id', 'autentique_data']
 
     def validate(self, attrs):
         contratante = attrs.get('contratante', getattr(self.instance, 'contratante', None))

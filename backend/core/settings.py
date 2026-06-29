@@ -182,6 +182,14 @@ BACKEND_URL          = config('BACKEND_URL',          default='')
 EMAIL_PREVIEW_ENABLED = config('EMAIL_PREVIEW_ENABLED', default='True') == 'True'
 MAXMIND_ACCOUNT_ID  = config('MAXMIND_ACCOUNT_ID', default='')
 MAXMIND_LICENSE_KEY = config('MAXMIND_LICENSE_KEY', default='')
+
+# Autentique — assinatura digital. SANDBOX cria documentos de teste (sem valor
+# jurídico, sem consumir créditos). DELIVERY: email (padrão) | whatsapp | sms.
+# WEBHOOK_SECRET protege o endpoint público que a Autentique chama ao concluir.
+AUTENTIQUE_API_TOKEN      = config('AUTENTIQUE_API_TOKEN', default='')
+AUTENTIQUE_SANDBOX        = config('AUTENTIQUE_SANDBOX', default=True, cast=bool)
+AUTENTIQUE_DELIVERY       = config('AUTENTIQUE_DELIVERY', default='email')
+AUTENTIQUE_WEBHOOK_SECRET = config('AUTENTIQUE_WEBHOOK_SECRET', default='')
 GEOIP_DB_PATH = BASE_DIR / 'geoip_db' / 'GeoLite2-City.mmdb'
 CORS_EXPOSE_HEADERS = ['Content-Disposition']
 

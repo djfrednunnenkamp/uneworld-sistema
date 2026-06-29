@@ -7,7 +7,7 @@ import { Ic } from './Icon'
 /* Pré-visualização do contrato (PDF gerado) num popup elegante — mesma cara do
  * documento final. Tem "Baixar" e, opcionalmente, uma ação extra no rodapé (ex.:
  * "Enviar para assinatura"). Editar o contrato continua possível por trás. */
-export default function ContractPdfPreviewModal({ contractId, previewPayload = null, overrides = null, title = 'Pré-visualização do contrato', onClose, footerExtra }) {
+export default function ContractPdfPreviewModal({ contractId, previewPayload = null, overrides = null, allowDownload = true, title = 'Pré-visualização do contrato', onClose, footerExtra }) {
   const [blobUrl, setBlobUrl] = useState(null)
   const [reservation, setReservation] = useState('')
   const [status, setStatus] = useState('loading')   // loading | ready | error
@@ -58,7 +58,12 @@ export default function ContractPdfPreviewModal({ contractId, previewPayload = n
         <div style={{ padding: '12px 18px', borderTop: '1px solid #eef2f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0 }}>
           <div>{footerExtra}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {blobUrl && <a href={blobUrl} download={`contrato_${reservation || contractId}.pdf`}
+            {!allowDownload && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', alignSelf: 'center' }}>
+                <Ic n="eye" s={13} /> Assinatura digital — download liberado após assinado
+              </span>
+            )}
+            {allowDownload && blobUrl && <a href={blobUrl} download={`contrato_${reservation || contractId}.pdf`}
               onClick={() => auditApi.logDownload({
                 label: `Baixou o PDF do ${reservation ? `Contrato ${reservation}` : `Contrato #${contractId}`}`,
                 model_name: 'Contract', model_label: 'Contrato', object_id: contractId,

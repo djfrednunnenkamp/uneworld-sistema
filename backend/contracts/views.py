@@ -1,16 +1,90 @@
 import os
 
 from rest_framework import viewsets, filters, status as http_status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
+from . import autentique
 from .models import Contract
 from .serializers import ContractListSerializer, ContractSerializer
+
+
+def _contract_signers(contract):
+    """Signatários do contrato para a Autentique: o cliente (contratante) e a
+    agência. Cada um precisa de e-mail (ou telefone, se a entrega for por
+    WhatsApp/SMS). Retorna (signers, faltando) — `faltando` lista, em texto, as
+    partes sem contato utilizável, para avisar o usuário."""
+    signers, missing = [], []
+
+    # Cliente / contratante (passageiro cadastrado ou pagante manual).
+    if contract.contratante_id:
+        c_email = (contract.contratante.email or '').strip()
+        c_phone = (contract.contratante.mobile or '').strip()
+        c_name  = contract.contratante.full_name or 'Cliente'
+    else:
+        c_email = (contract.payer_email or '').strip()
+        c_phone = (contract.payer_phone or '').strip()
+        c_name  = contract.payer_name or 'Cliente'
+    if c_email or c_phone:
+        signers.append(autentique.build_signer(email=c_email, phone=c_phone))
+    else:
+        missing.append(f'cliente ({c_name})')
+
+    # Agência.
+    ag = contract.agency
+    if ag:
+        a_email = (ag.email or '').strip()
+        a_phone = (ag.mobile or ag.phone or '').strip()
+        if a_email or a_phone:
+            signers.append(autentique.build_signer(email=a_email, phone=a_phone))
+        else:
+            missing.append(f'agência ({ag.name or ag.company_name})')
+
+    return signers, missing
+
+
+def _apply_autentique_state(contract, doc, save=True):
+    """Espelha o estado dos signatários da Autentique em autentique_data e, se o
+    documento já estiver totalmente assinado, baixa o PDF assinado e move o
+    contrato para 'Assinado'. Retorna True se passou para assinado agora."""
+    from django.utils import timezone
+    from django.core.files.base import ContentFile
+
+    sigs = doc.get('signatures') or []
+    contract.autentique_data = {
+        'document_id': doc.get('id'),
+        'signers': [
+            {
+                'email': s.get('email'),
+                'link': (s.get('link') or {}).get('short_link'),
+                'signed': bool(s.get('signed')),
+                'viewed': bool(s.get('viewed')),
+                'rejected': bool(s.get('rejected')),
+            }
+            for s in sigs
+        ],
+    }
+    became_signed = False
+    fields = ['autentique_data']
+    if autentique.is_fully_signed(doc) and contract.stage != 'assinado':
+        url = autentique.signed_file_url(doc)
+        if url:
+            pdf = autentique.download(url)
+            fname = f'contrato_{contract.reservation_number or contract.id}_assinado.pdf'
+            contract.signed_file.save(fname, ContentFile(pdf), save=False)
+            contract.stage = 'assinado'
+            contract.signed_at = timezone.now()
+            fields += ['signed_file', 'stage', 'signed_at']
+            became_signed = True
+    if save:
+        contract.save(update_fields=fields)
+    return became_signed
 
 
 def _log_contract_event(request, contract, action, label):
@@ -46,7 +120,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [RequirePermission('contracts_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
-                           'send_for_signature', 'upload_signed', 'reopen'):
+                           'send_for_signature', 'upload_signed', 'reopen', 'check_signature'):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
 
@@ -80,14 +154,61 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                  .order_by('first_name', 'last_name', 'username'))
         return Response([_seller_brief(u) for u in users])
 
-    @action(detail=True, methods=['post'], url_path='send-for-signature')
+    @action(detail=True, methods=['post'], url_path='send-for-signature',
+            parser_classes=[MultiPartParser, FormParser])
     def send_for_signature(self, request, pk=None):
-        """Em edição → Enviado para assinatura (libera o download para imprimir/assinar)."""
+        """Em edição → Enviado para assinatura.
+
+        Física: só muda a etapa (o PDF é impresso e assinado à mão).
+        Digital: cria o documento na Autentique com o PDF gerado (enviado pelo
+        front em `file`) e dispara os pedidos de assinatura para o cliente e a
+        agência. O contrato vira 'Assinado' quando a Autentique avisar (webhook)
+        ou na verificação manual."""
         from django.utils import timezone
         contract = self.get_object()
-        contract.stage = 'enviado'
-        contract.sent_at = timezone.now()
-        contract.save(update_fields=['stage', 'sent_at'])
+
+        if contract.signature_type == 'digital':
+            if not autentique.is_configured():
+                return Response({'error': 'Assinatura digital indisponível: a Autentique não está configurada.'},
+                                status=http_status.HTTP_400_BAD_REQUEST)
+            pdf = request.FILES.get('file')
+            if not pdf:
+                return Response({'error': 'PDF do contrato não recebido para a assinatura digital.'},
+                                status=http_status.HTTP_400_BAD_REQUEST)
+            signers, missing = _contract_signers(contract)
+            if missing:
+                return Response({'error': 'Sem e-mail/telefone para: ' + ', '.join(missing) +
+                                          '. Preencha o contato antes de enviar para assinatura digital.'},
+                                status=http_status.HTTP_400_BAD_REQUEST)
+            name = f'Contrato {contract.reservation_number}'.strip() if contract.reservation_number else f'Contrato #{contract.id}'
+            try:
+                doc = autentique.create_document(name, pdf.read(), signers)
+            except autentique.AutentiqueError as e:
+                return Response({'error': str(e)}, status=http_status.HTTP_502_BAD_GATEWAY)
+            contract.autentique_document_id = doc.get('id') or ''
+            _apply_autentique_state(contract, doc, save=False)
+            contract.stage = 'enviado'
+            contract.sent_at = timezone.now()
+            contract.save(update_fields=['autentique_document_id', 'autentique_data', 'stage', 'sent_at'])
+        else:
+            contract.stage = 'enviado'
+            contract.sent_at = timezone.now()
+            contract.save(update_fields=['stage', 'sent_at'])
+        return Response(ContractSerializer(contract, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='check-signature')
+    def check_signature(self, request, pk=None):
+        """Consulta a Autentique e atualiza o andamento — botão 'Verificar
+        assinatura' e rede de segurança caso o webhook não chegue."""
+        contract = self.get_object()
+        if not contract.autentique_document_id:
+            return Response({'error': 'Este contrato não foi enviado para assinatura digital.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            doc = autentique.get_document(contract.autentique_document_id)
+        except autentique.AutentiqueError as e:
+            return Response({'error': str(e)}, status=http_status.HTTP_502_BAD_GATEWAY)
+        _apply_autentique_state(contract, doc)
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['get'], url_path='signed-file')
@@ -144,3 +265,43 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         _log_contract_event(request, contract, 'upload',
                             'Enviou (upload) o contrato assinado')
         return Response(ContractSerializer(contract, context={'request': request}).data)
+
+
+@api_view(['POST', 'GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def autentique_webhook(request):
+    """Endpoint público chamado pela Autentique quando há eventos de assinatura.
+
+    A Autentique não assina o payload de forma padronizada, então não confiamos
+    no corpo: protegemos por um segredo na URL (?secret=) e, ao ser chamado,
+    re-consultamos a API para cada contrato digital ainda pendente e atualizamos
+    o estado (baixando o PDF quando todos assinarem). Assim o handler independe
+    do formato exato do evento.
+
+    Configure na Autentique a URL:
+      {BACKEND_URL}/api/contracts/autentique-webhook/?secret=<AUTENTIQUE_WEBHOOK_SECRET>
+    """
+    from django.conf import settings
+    from dashboard.signals import _broadcast
+
+    secret = getattr(settings, 'AUTENTIQUE_WEBHOOK_SECRET', '')
+    if secret and request.GET.get('secret') != secret:
+        return Response({'error': 'Segredo inválido.'}, status=http_status.HTTP_403_FORBIDDEN)
+
+    pending = Contract.objects.filter(
+        signature_type='digital', is_deleted=False,
+    ).exclude(autentique_document_id='').exclude(stage='assinado')
+
+    changed = 0
+    for contract in pending:
+        try:
+            doc = autentique.get_document(contract.autentique_document_id)
+            if _apply_autentique_state(contract, doc):
+                changed += 1
+        except autentique.AutentiqueError:
+            continue  # não derruba o webhook por causa de um documento
+
+    if changed:
+        _broadcast('contracts')
+    return Response({'ok': True, 'checked': pending.count(), 'signed': changed})
