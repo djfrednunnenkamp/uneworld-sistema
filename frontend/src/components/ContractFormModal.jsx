@@ -1228,6 +1228,19 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       </div>
     )
     const unassigned = guests.filter(g => g.room == null)
+    // Valores consistentes com o total e o PDF: acomodações com a comissão
+    // embutida no valor/pessoa, acréscimos como "Taxa" e TODOS os descontos
+    // (comissão + outros) somados numa única linha "Desconto" (valor + %).
+    const commF = 1 + agencyCommissionPct / 100
+    const rt = Number(form.exchange_rate) || 0
+    const adjAmt = (a) => a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100
+      : a.mode === 'valor_brl' ? (rt ? Number(a.value_brl || 0) / rt : 0)
+      : Number(a.value_usd || 0)
+    const taxaItems = adjustments.filter(a => a.kind === 'acrescimo').map(a => ({ desc: a.description, amt: adjAmt(a) })).filter(x => x.amt)
+    const acrescimoTotUsd = taxaItems.reduce((s, x) => s + x.amt, 0)
+    const totalDescUsd = adjustments.filter(a => a.kind === 'desconto').reduce((s, a) => s + adjAmt(a), 0) + commissionDiscountUsd
+    const preDescUsd = accomSubtotalUsd + commissionUsd + acrescimoTotUsd
+    const descPctReview = preDescUsd ? totalDescUsd / preDescUsd * 100 : 0
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1274,17 +1287,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
         {sec('Valores', [
           ...accomLines.filter(l => l.accommodation_type).map((l, i) =>
-            row(`${typeName(l.accommodation_type)} × ${l.quantity}`, `${cur} ${fmtN((Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1))}`, `al${i}`)),
-          ...adjustments.filter(a => Number(a.value_usd) || Number(a.value_brl) || Number(a.percent)).map((a, i) => {
-            const rt = Number(form.exchange_rate) || 0
-            const amt = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100
-              : a.mode === 'valor_brl' ? (rt ? Number(a.value_brl || 0) / rt : 0)
-              : Number(a.value_usd || 0)
-            const minus = a.kind === 'desconto' || a.kind === 'comissao'
-            const signed = (minus ? -1 : 1) * amt
-            const kindLbl = a.kind === 'comissao' ? 'Comissão' : a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'
-            return row(a.description || kindLbl, `${signed < 0 ? '−' : '+'} ${cur} ${fmtN(Math.abs(signed))}`, `aj${i}`)
-          }),
+            row(`${typeName(l.accommodation_type)} × ${l.quantity}`, `${cur} ${fmtN((Number(l.value_per_person_usd || 0) * commF + Number(l.taxes_usd || 0)) * Number(l.quantity || 1))}`, `al${i}`)),
+          ...taxaItems.map((x, i) => row(x.desc || 'Acréscimo', `+ ${cur} ${fmtN(x.amt)}`, `ac${i}`)),
+          ...(totalDescUsd > 0 ? [row('Desconto', `− ${cur} ${fmtN(totalDescUsd)} (${descPctReview.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`, 'desc')] : []),
           ...(Number(form.round_step) > 0 ? [row('Arredondamento', `${form.round_currency === 'usd' ? cur : 'R$'} · múltiplo de ${Number(form.round_step).toLocaleString('pt-BR')}`, 'rd')] : []),
           <div key="tot" style={{ borderTop: '1px solid #eef2f7', paddingTop: 8, marginTop: 2 }}>
             {row(<strong>Soma total ({cur})</strong>, <strong>{cur} {fmtN(computedTotalUsd)}</strong>, 'tu')}
