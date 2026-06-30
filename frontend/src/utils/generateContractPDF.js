@@ -140,28 +140,37 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
 
   const sigText = contract.signature_type === 'digital' ? '✓ Assinado Digitalmente' : '✓ Assinado Fisicamente'
 
+  // ── Células de tabela ──────────────────────────────────────────────────────
+  // td/th SEM padding + wrapper interno `.td-inner` com display:flex +
+  // align-items:center + min-height. É o que centraliza o texto de fato no
+  // html2canvas dentro de <table> (vertical-align sozinho não resolvia). O
+  // padding mora no `.td-inner`. `left` aplica alinhamento à esquerda explícito
+  // (coluna do nome, tipo de acomodação, detalhe da parcela) — sem nth-child.
+  const cell = (v, left = false) => `<td${left ? ' class="text-left"' : ''}><div class="td-inner">${v}</div></td>`
+  const head = (v, attrs = '') => `<th${attrs}><div class="td-inner th-inner">${v}</div></th>`
+
   // ── Passageiros ──
   const guests = contract.guests || []
   const guestRows = guests.map((g, i) => {
     const p = g.passenger_data || {}
     return `<tr>
-      <td>${i + 1}. ${dash(p.full_name)}</td>
-      <td>${dash(p.gender)}</td>
-      <td>${p.birth_date ? fmtDateBR(p.birth_date) : '—'}</td>
-      <td>${dash(p.passport || p.cpf)}</td>
-      <td>${dash(g.accommodation_type_name)}</td>
+      ${cell(`${i + 1}. ${dash(p.full_name)}`, true)}
+      ${cell(dash(p.gender))}
+      ${cell(p.birth_date ? fmtDateBR(p.birth_date) : '—')}
+      ${cell(dash(p.passport || p.cpf))}
+      ${cell(dash(g.accommodation_type_name))}
     </tr>`
-  }).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+  }).join('') || `<tr>${cell('—', true)}${cell('—')}${cell('—')}${cell('—')}${cell('—')}</tr>`
 
   // ── Acomodações contratadas ──
   const lines = contract.accommodation_lines || []
   const accomRows = lines.map(l => `<tr>
-      <td>${dash(l.accommodation_type_name)}</td>
-      <td>${money(l.value_per_person_usd)}</td>
-      <td>${money(l.taxes_usd)}</td>
-      <td>${dash(l.quantity)}</td>
-      <td><strong>${money(l.total_usd)}</strong></td>
-    </tr>`).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+      ${cell(dash(l.accommodation_type_name), true)}
+      ${cell(money(l.value_per_person_usd))}
+      ${cell(money(l.taxes_usd))}
+      ${cell(dash(l.quantity))}
+      ${cell(`<strong>${money(l.total_usd)}</strong>`)}
+    </tr>`).join('') || `<tr>${cell('—', true)}${cell('—')}${cell('—')}${cell('—')}${cell('—')}</tr>`
 
   // ── Valores (resumo) ── soma das bases e das taxas (×quantidade) para
   // bater com o Total do contrato.
@@ -177,7 +186,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   if (aVista) {
     const p = parcelas[0] || entrada
     payRows = p
-      ? `<tr><td>01</td><td>${dash(p.detail || 'À vista')}</td><td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td><td>${money(p.value_brl)}</td><td>${dash(p.payment_method)}</td></tr>`
+      ? `<tr>${cell('01')}${cell(dash(p.detail || 'À vista'), true)}${cell(p.due_date ? fmtDateBR(p.due_date) : '—')}${cell(money(p.value_brl))}${cell(dash(p.payment_method))}</tr>`
       : ''
   } else {
     const ordered = [...(entrada ? [entrada] : []), ...parcelas]
@@ -188,15 +197,15 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
       else detail = p.detail || `Parcela ${p.installment_number ?? idx}`
       if (isLast && p.kind === 'parcela' && !/final/i.test(detail)) detail += ' / Final'
       return `<tr>
-        <td>${String(idx + 1).padStart(2, '0')}</td>
-        <td>${dash(detail)}</td>
-        <td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td>
-        <td>${money(p.value_brl)}</td>
-        <td>${dash(p.payment_method)}</td>
+        ${cell(String(idx + 1).padStart(2, '0'))}
+        ${cell(dash(detail), true)}
+        ${cell(p.due_date ? fmtDateBR(p.due_date) : '—')}
+        ${cell(money(p.value_brl))}
+        ${cell(dash(p.payment_method))}
       </tr>`
     }).join('')
   }
-  if (!payRows) payRows = `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+  if (!payRows) payRows = `<tr>${cell('—')}${cell('—', true)}${cell('—')}${cell('—')}${cell('—')}</tr>`
 
   // ── Bloco do cliente contratante (físico × jurídico) ──
   const clientFields = isJuridica ? [
@@ -259,15 +268,17 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .client-grid .field { display:flex; flex-direction:column; justify-content:center; border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
     .ctpdf table { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9px; background:white; }
-    /* Centralização vertical CONFIÁVEL em tabela: célula real (table-cell) +
-       vertical-align:middle + padding simétrico. Sem flex nem height:100% dentro
-       de <table> (o html2canvas renderiza esses errado). O conteúdo vai direto na
-       célula (sem wrapper) — é o caso que o vertical-align centraliza de fato.
-       white-space:normal + overflow-wrap evita que texto longo estoure. */
-    .ctpdf th, .ctpdf td { padding:5px 7px; vertical-align:middle; line-height:1.25; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
-    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; text-align:center; border-right-color:rgba(255,255,255,.25); }
+    /* Centralização vertical real no html2canvas: td/th SEM padding +
+       wrapper interno .td-inner com display:flex/align-items:center/min-height.
+       O padding mora no .td-inner (não no td). Sem height:100% (o html2canvas
+       não resolve % de altura em célula). Alinhamento à esquerda via classe
+       explícita .text-left, nunca por nth-child. */
+    .ctpdf th, .ctpdf td { padding:0; vertical-align:middle; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; border-right-color:rgba(255,255,255,.25); }
     .ctpdf td { text-align:center; }
-    .ctpdf td:nth-child(2), .ctpdf .accommodations td:first-child { text-align:left; }
+    .ctpdf .td-inner { min-height:22px; display:flex; align-items:center; justify-content:center; padding:4px 7px; line-height:1.2; text-align:center; width:100%; }
+    .ctpdf .th-inner { min-height:28px; font-weight:800; line-height:1.15; }
+    .ctpdf td.text-left .td-inner, .ctpdf th.text-left .td-inner { justify-content:flex-start; text-align:left; }
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
     .ctpdf .values-list { display:grid; gap:7px; padding-top:4px; }
@@ -335,7 +346,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         <div class="section-title">${circleIcon('users')}<span class="ttl">4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></span></div>
         <table>
           <thead><tr>
-            <th style="width:42%">Nome completo</th><th>Sexo</th><th>Data de nascimento</th><th>Passaporte/CPF</th><th>Acomodação</th>
+            ${head('Nome completo', ' style="width:42%"')}${head('Sexo')}${head('Data de nascimento')}${head('Passaporte/CPF')}${head('Acomodação')}
           </tr></thead>
           <tbody>${guestRows}</tbody>
         </table>
@@ -345,7 +356,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         <div class="section-title">${circleIcon('building')}<span class="ttl">5. Acomodações Contratadas</span></div>
         <table>
           <thead><tr>
-            <th>Tipo de acomodação</th><th>Valor/pessoa (${esc(cc)})</th><th>Taxas (${esc(cc)})</th><th>Quantidade</th><th>Total (${esc(cc)})</th>
+            ${head('Tipo de acomodação')}${head(`Valor/pessoa (${esc(cc)})`)}${head(`Taxas (${esc(cc)})`)}${head('Quantidade')}${head(`Total (${esc(cc)})`)}
           </tr></thead>
           <tbody>${accomRows}</tbody>
         </table>
@@ -367,7 +378,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
           <div class="section-title">${circleIcon('card')}<span class="ttl">7. Plano de Pagamento</span></div>
           <table>
             <thead><tr>
-              <th>Parcela</th><th>Detalhe</th><th>Vencimento</th><th>Valor (BRL)</th><th>Forma de pagamento</th>
+              ${head('Parcela')}${head('Detalhe')}${head('Vencimento')}${head('Valor (BRL)')}${head('Forma de pagamento')}
             </tr></thead>
             <tbody>${payRows}</tbody>
           </table>
