@@ -264,9 +264,9 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
        de <table> (o html2canvas renderiza esses errado). O conteúdo vai direto na
        célula (sem wrapper) — é o caso que o vertical-align centraliza de fato.
        white-space:normal + overflow-wrap evita que texto longo estoure. */
-    .ctpdf th, .ctpdf td { padding:5px 7px; vertical-align:middle; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
-    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; line-height:1.25; text-align:center; border-right-color:rgba(255,255,255,.25); }
-    .ctpdf td { text-align:center; line-height:1.3; }
+    .ctpdf th, .ctpdf td { padding:5px 7px; vertical-align:middle; line-height:1.25; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; text-align:center; border-right-color:rgba(255,255,255,.25); }
+    .ctpdf td { text-align:center; }
     .ctpdf td:nth-child(2), .ctpdf .accommodations td:first-child { text-align:left; }
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
