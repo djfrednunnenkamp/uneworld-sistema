@@ -1257,7 +1257,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 })}
               </div>
               <p style={{ fontSize: 11, color: '#94a3b8', margin: '8px 0 0' }}>
-                Aparece em destaque no cabeçalho do PDF. (A assinatura digital em si será implementada depois.)
+                Aparece em destaque no cabeçalho do PDF.
               </p>
             </div>
 
