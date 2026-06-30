@@ -1799,26 +1799,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             <div style={card}>
               <p style={sectionTitle}><Ic n="clock" s={14} /> Pagamento</p>
 
-              {/* Forma: à vista ou parcelado */}
-              <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
-                {[['a_vista', 'À vista'], ['parcelado', 'Parcelado']].map(([val, label]) => {
-                  const sel = paymentType === val
-                  return (
-                    <button key={val} type="button" onClick={() => selectPaymentType(val)}
-                      style={{ padding: '8px 16px', border: 'none', background: sel ? '#1a2d4f' : '#fff', color: sel ? '#fff' : '#475569', fontSize: 13, fontWeight: sel ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Resumo: câmbio + totais (muda conforme à vista/parcelado) */}
-              <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Câmbio ({form.base_currency} → BRL)</label>
-                  <MoneyInput style={canEditExchangeRate ? inp : inpRO} value={form.exchange_rate} maxDecimals={4}
-                    disabled={!canEditExchangeRate} readOnly={!canEditExchangeRate}
-                    onChange={v => setForm(f => ({ ...f, exchange_rate: v }))} />
+              {/* Forma de pagamento + resumo (câmbio e totais) na mesma linha */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 14 }}>
+                <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+                  {[['a_vista', 'À vista'], ['parcelado', 'Parcelado']].map(([val, label]) => {
+                    const sel = paymentType === val
+                    return (
+                      <button key={val} type="button" onClick={() => selectPaymentType(val)}
+                        style={{ padding: '8px 16px', border: 'none', background: sel ? '#1a2d4f' : '#fff', color: sel ? '#fff' : '#475569', fontSize: 13, fontWeight: sel ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {label}
+                      </button>
+                    )
+                  })}
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Total ({cur})</label>
@@ -1827,6 +1819,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Total em (BRL)</label>
                   <input style={inpRO} readOnly value={computedTotalBrl != null ? computedTotalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Câmbio ({form.base_currency} → BRL)</label>
+                  <MoneyInput style={canEditExchangeRate ? inp : inpRO} value={form.exchange_rate} maxDecimals={4}
+                    disabled={!canEditExchangeRate} readOnly={!canEditExchangeRate}
+                    onChange={v => setForm(f => ({ ...f, exchange_rate: v }))} />
                 </div>
               </div>
 
