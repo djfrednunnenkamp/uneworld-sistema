@@ -508,7 +508,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
         // Contrato novo nasce parcelado → usa a taxa parcelada (cai p/ à vista se não houver).
-        const usdRate = usdBrl ? Number(usdBrl.rate_installment || usdBrl.rate) : null
+        const usdRate = usdBrl ? (Number(usdBrl.rate_installment) || Number(usdBrl.rate)) : null
         // Contrato novo herda a forma de assinatura padrão da Operadora.
         setForm(f => ({ ...f, signature_type: oc.data?.default_signature_type || 'fisica',
           ...(usdRate != null ? { exchange_rate: usdRate } : {}) }))
@@ -720,7 +720,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     if (cur === 'BRL') return 1
     const r = exchangeRates.find(x => x.from_currency === cur && x.to_currency === 'BRL')
     if (!r) return null
-    return ptype === 'a_vista' ? Number(r.rate) : Number(r.rate_installment || r.rate)
+    // rate_installment vem como string "0.0000" em câmbios antigos (truthy!) —
+    // por isso cai no Number() antes do fallback, senão viraria 0.
+    return ptype === 'a_vista' ? Number(r.rate) : (Number(r.rate_installment) || Number(r.rate))
   }
   // Moedas disponíveis: as que têm conversão para BRL (Configurações → Câmbio) + BRL.
   const currencyOptions = useMemo(() => {
