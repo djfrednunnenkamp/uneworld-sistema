@@ -157,8 +157,25 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
   const isMinus = (a) => a.kind === 'desconto' || a.kind === 'comissao'
   const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
   const net = adjustments.reduce((s, a) => s + (isMinus(a) ? -1 : 1) * amountOf(a), 0)
-  const KIND_OPTS = [{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }, { value: 'comissao', label: 'Comissão (−)' }]
+  const KIND_OPTS = [{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]
   const MODE_OPTS = [{ value: 'valor', label: `Valor (${cur})` }, { value: 'valor_brl', label: 'Valor (R$)' }, { value: 'percentual', label: 'Percentual (%)' }]
+
+  // ── Desconto de comissão (controle dedicado) ── abate do total. Guardado como
+  // um único ajuste kind='comissao'; aqui só escolhe a unidade e o valor.
+  const commAdj   = adjustments.find(a => a.kind === 'comissao')
+  const commUnit  = commAdj ? commAdj.mode : 'percentual'   // 'percentual'|'valor'|'valor_brl'
+  const commValue = !commAdj ? '' : (commUnit === 'percentual' ? commAdj.percent : commUnit === 'valor_brl' ? commAdj.value_brl : commAdj.value_usd)
+  const writeComm = (mode, value) => setAdjustments(list => {
+    const others = list.filter(a => a.kind !== 'comissao')
+    if (!value && value !== 0) return others   // sem valor: remove a comissão
+    return [...others, {
+      description: 'Comissão', kind: 'comissao', mode,
+      value_usd: mode === 'valor' ? value : '', value_brl: mode === 'valor_brl' ? value : '', percent: mode === 'percentual' ? value : '',
+    }]
+  })
+  const setCommUnit  = (mode) => writeComm(mode, commValue)
+  const setCommValue = (v) => writeComm(commUnit, v)
+  const COMM_UNIT_OPTS = [{ value: 'percentual', label: 'Percentual (%)' }, { value: 'valor', label: `Valor (${cur})` }, { value: 'valor_brl', label: 'Valor (R$)' }]
   return (
     <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
       <div className="mbox" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
@@ -167,23 +184,44 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
           <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
         </div>
         <div className="mbody">
-          {commissionPct > 0 && (
-            <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '9px 12px', margin: '0 0 12px', fontSize: 12.5, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '11px 12px', margin: '0 0 12px' }}>
+            <div style={{ fontSize: 12.5, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
               <Ic n="briefcase" s={13} />
-              <span>Comissão da agência: <strong>{commissionPct.toLocaleString('pt-BR')}%</strong> ({cur} {fmt(commissionUsd)}) — já embutida nas acomodações. Use os campos abaixo pra somar ou abater por cima.</span>
+              <span>{commissionPct > 0
+                ? <>Comissão da agência: <strong>{commissionPct.toLocaleString('pt-BR')}%</strong> ({cur} {fmt(commissionUsd)}), já embutida. Abaixo, abata a sua comissão do total:</>
+                : <>Desconto de comissão — abate do total:</>}</span>
             </div>
-          )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ width: 160 }}>
+                <Dropdown value={commUnit} clearable={false} searchable={false} options={COMM_UNIT_OPTS}
+                  onChange={v => setCommUnit(v || 'percentual')} />
+              </div>
+              <div style={{ position: 'relative', flex: 1, minWidth: 96 }}>
+                {commUnit === 'percentual' ? (
+                  <input style={{ ...inp, paddingRight: 34 }} type="number" step="0.01" min="0" value={commValue} placeholder="0"
+                    onChange={e => setCommValue(e.target.value)} />
+                ) : (
+                  <MoneyInput style={{ ...inp, paddingRight: 34 }} value={commValue} placeholder="0,00"
+                    onChange={v => setCommValue(v)} />
+                )}
+                <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8', pointerEvents: 'none' }}>
+                  {commUnit === 'percentual' ? '%' : commUnit === 'valor_brl' ? 'R$' : cur}
+                </span>
+              </div>
+            </div>
+          </div>
           <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
             Acréscimos somam e descontos subtraem da <strong>Soma total ({cur})</strong>. O percentual
             incide sobre o subtotal das acomodações (<strong>{cur} {fmt(baseUsd)}</strong>).
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {adjustments.length === 0 && (
+            {adjustments.filter(a => a.kind !== 'comissao').length === 0 && (
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13, border: '1px dashed #e2e8f0', borderRadius: 10 }}>
                 Nenhum valor adicionado ainda.
               </div>
             )}
             {adjustments.map((a, i) => {
+              if (a.kind === 'comissao') return null   // tem controle dedicado acima
               const signed = (isMinus(a) ? -1 : 1) * amountOf(a)
               return (
                 <div key={i} style={{ border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
