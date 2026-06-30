@@ -187,9 +187,9 @@ function buildTablesData(contract) {
     passengers: {
       columns: [
         { title: 'Nome completo',       width: 42, align: 'left' },
-        { title: 'Sexo',                width: 13, align: 'center' },
-        { title: 'Data de nascimento',  width: 16, align: 'center' },
-        { title: 'Passaporte/CPF',      width: 15, align: 'center' },
+        { title: 'Sexo',                width: 11, align: 'center' },
+        { title: 'Data de nascimento',  width: 14, align: 'center' },
+        { title: 'Passaporte/CPF',      width: 19, align: 'center' },
         { title: 'Acomodação',          width: 14, align: 'center' },
       ],
       rows: passengerRows,
