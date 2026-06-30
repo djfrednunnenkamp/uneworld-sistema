@@ -733,11 +733,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   }
 
   // ── Tipos de Acomodação / Valores — auto-gerado a partir dos QUARTOS ──
-  // Cada quarto montado é uma unidade. A quantidade por tipo = número de quartos
-  // daquele tipo. Os valores (USD/taxas) são preservados e editáveis.
+  // O valor é POR PESSOA, então a quantidade por tipo = número de PESSOAS
+  // ocupando os quartos daquele tipo (ex.: um quarto duplo com 2 pessoas conta
+  // como 2). Os valores (USD/taxas) são preservados e editáveis.
   useEffect(() => {
+    const typeOfRoom = {}
+    rooms.forEach(r => { if (r.type) typeOfRoom[r.id] = r.type })
     const counts = {}
-    rooms.forEach(r => { if (r.type) counts[r.type] = (counts[r.type] || 0) + 1 })
+    guests.forEach(g => {
+      const t = g.room != null ? typeOfRoom[g.room] : null
+      if (t) counts[t] = (counts[t] || 0) + 1
+    })
     setAccomLines(prev => {
       const next = []
       Object.entries(counts).forEach(([typeIdStr, qty]) => {
@@ -756,7 +762,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       prev.forEach(l => { if (!l.accommodation_type) next.push(l) })
       return next
     })
-  }, [rooms])
+  }, [rooms, guests])
 
   // ── Adivinha o tipo do quarto pela quantidade de pessoas, casando a contagem
   // com a capacidade da acomodação. Para 2 pessoas, decide entre Duplo Casal e
