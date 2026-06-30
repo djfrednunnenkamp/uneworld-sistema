@@ -546,6 +546,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     const amount = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
     return s + (a.kind === 'desconto' ? -1 : 1) * amount
   }, 0), [adjustments, accomSubtotalUsd])
+  // Comissão da agência: % do cadastro da agência sobre o subtotal das
+  // acomodações; soma ao total (o backend recalcula igual em _recalc_totals).
+  const agencyCommissionPct = useMemo(() => {
+    const ag = agencies.find(a => a.id === form.agency)
+    return Number(ag?.commission_rate) || 0
+  }, [agencies, form.agency])
+  const commissionUsd = useMemo(() => accomSubtotalUsd * agencyCommissionPct / 100, [accomSubtotalUsd, agencyCommissionPct])
   const roundTo = (v, step, mode) => {
     if (!step || v == null) return v
     const q = v / step
@@ -555,7 +562,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // Total cru (acomodações + ajustes) e, por cima, o arredondamento opcional da
   // moeda escolhida — a outra moeda é derivada pelo câmbio.
   const [computedTotalUsd, computedTotalBrl] = useMemo(() => {
-    const rawUsd = accomSubtotalUsd + adjustmentsTotalUsd
+    const rawUsd = accomSubtotalUsd + adjustmentsTotalUsd + commissionUsd
     const rate = Number(form.exchange_rate) || 0
     const rawBrl = rate ? rawUsd * rate : null
     const step = Number(form.round_step) || 0
@@ -567,7 +574,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     if (rawBrl == null) return [rawUsd, null]
     const b = roundTo(rawBrl, step, form.round_mode)
     return [rate ? b / rate : rawUsd, b]
-  }, [accomSubtotalUsd, adjustmentsTotalUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
+  }, [accomSubtotalUsd, adjustmentsTotalUsd, commissionUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
 
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
@@ -1612,6 +1619,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </p>
                   </div>
                 </div>
+                {commissionUsd > 0 && (
+                  <p style={{ fontSize: 11.5, color: '#64748b', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Ic n="briefcase" s={12} />
+                    Inclui comissão da agência ({agencyCommissionPct.toLocaleString('pt-BR')}% sobre as acomodações):
+                    <strong style={{ color: '#15803d' }}>+ {cur} {commissionUsd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                  </p>
+                )}
               </div>
             </div>
 

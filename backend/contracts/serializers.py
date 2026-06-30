@@ -271,7 +271,12 @@ class ContractSerializer(serializers.ModelSerializer):
         for a in contract.adjustments.all():
             amount = a.amount_usd(accom_total)
             adj_total += amount if a.kind == 'acrescimo' else -amount
-        total_usd = accom_total + adj_total
+        # Comissão da agência: % cadastrado na agência sobre o subtotal das
+        # acomodações, somada ao total.
+        commission = Decimal('0')
+        if contract.agency_id and contract.agency.commission_rate:
+            commission = Decimal(accom_total) * (contract.agency.commission_rate / Decimal('100'))
+        total_usd = accom_total + adj_total + commission
         exchange_rate = contract.exchange_rate or _default_exchange_rate()
         total_brl = total_usd * exchange_rate if exchange_rate else None
 
