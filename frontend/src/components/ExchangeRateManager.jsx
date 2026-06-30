@@ -70,6 +70,7 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
   const [toCurrency,   setToCurrency]   = useState(initial?.to_currency ?? 'BRL')
   const [baseRate,     setBaseRate]     = useState(initial?.base_rate ?? initial?.rate ?? '')
   const [markup,       setMarkup]       = useState(initial?.markup_percent ?? 0)
+  const [markupInst,   setMarkupInst]   = useState(initial?.markup_percent_installment ?? 0)
   const [autoUpdate,   setAutoUpdate]   = useState(initial?.auto_update ?? false)
   const [customTime,   setCustomTime]   = useState(!!(initial?.update_time))   // horário próprio (senão usa o geral)
   const [customSource, setCustomSource] = useState(!!(initial?.source_url || initial?.script))  // fonte externa (senão API global)
@@ -102,6 +103,8 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
   }
   const effective = baseRate !== '' && !isNaN(Number(baseRate))
     ? applyRound(Number(baseRate) * (1 + (Number(markup) || 0) / 100)) : null
+  const effectiveInst = baseRate !== '' && !isNaN(Number(baseRate))
+    ? applyRound(Number(baseRate) * (1 + (Number(markupInst) || 0) / 100)) : null
 
   const save = async () => {
     if (!fromCurrency.trim() || !toCurrency.trim() || baseRate === '') { toast.error('Preencha as moedas e a taxa de mercado.'); return }
@@ -112,6 +115,7 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
         to_currency: toCurrency.trim().toUpperCase(),
         base_rate: baseRate,
         markup_percent: Number(markup) || 0,
+        markup_percent_installment: Number(markupInst) || 0,
         rounding_decimals: roundEnabled ? Number(roundDecimals) : null,
         rounding_mode: roundMode,
         auto_update: autoUpdate,
@@ -143,21 +147,27 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
               <input style={{ ...inp, width:'100%' }} value={toCurrency} onChange={e => setToCurrency(e.target.value)} placeholder="BRL" />
             </div>
           </div>
+          <div>
+            <label style={lbl}>Taxa de mercado</label>
+            <input style={{ ...inp, width:'100%' }} type="number" step="0.0001" value={baseRate}
+              onChange={e => setBaseRate(e.target.value)} placeholder="5.30" />
+          </div>
           <div style={{ display:'flex', gap:12 }}>
             <div style={{ flex:1 }}>
-              <label style={lbl}>Taxa de mercado</label>
-              <input style={{ ...inp, width:'100%' }} type="number" step="0.0001" value={baseRate}
-                onChange={e => setBaseRate(e.target.value)} placeholder="5.30" />
-            </div>
-            <div style={{ flex:1 }}>
-              <label style={lbl}>Acréscimo (%)</label>
+              <label style={lbl}>Acréscimo à vista (%)</label>
               <input style={{ ...inp, width:'100%' }} type="number" step="0.01" value={markup}
                 onChange={e => setMarkup(e.target.value)} placeholder="0" />
             </div>
+            <div style={{ flex:1 }}>
+              <label style={lbl}>Acréscimo parcelado (%)</label>
+              <input style={{ ...inp, width:'100%' }} type="number" step="0.01" value={markupInst}
+                onChange={e => setMarkupInst(e.target.value)} placeholder="0" />
+            </div>
           </div>
           {effective != null && (
-            <div style={{ background:'#f0f6ff', border:'1px solid #d6e4fb', borderRadius:8, padding:'9px 12px', fontSize:12.5, color:'#1a2d4f' }}>
-              Câmbio final: <strong>1 {fromCurrency || 'USD'} = {effective.toLocaleString('pt-BR', { minimumFractionDigits: roundEnabled ? 0 : 4, maximumFractionDigits: 4 })} {toCurrency || 'BRL'}</strong>
+            <div style={{ background:'#f0f6ff', border:'1px solid #d6e4fb', borderRadius:8, padding:'9px 12px', fontSize:12.5, color:'#1a2d4f', display:'flex', flexDirection:'column', gap:4 }}>
+              <span>À vista: <strong>1 {fromCurrency || 'USD'} = {effective.toLocaleString('pt-BR', { minimumFractionDigits: roundEnabled ? 0 : 4, maximumFractionDigits: 4 })} {toCurrency || 'BRL'}</strong></span>
+              <span>Parcelado: <strong>1 {fromCurrency || 'USD'} = {effectiveInst.toLocaleString('pt-BR', { minimumFractionDigits: roundEnabled ? 0 : 4, maximumFractionDigits: 4 })} {toCurrency || 'BRL'}</strong></span>
             </div>
           )}
 
@@ -484,11 +494,17 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
                     <Ic n="globe" s={11} />
                   </span>
                 )}
-                {Number(item.markup_percent) > 0 && (
-                  <span title="Acréscimo sobre a taxa de mercado" style={{ fontSize:10.5, fontWeight:700, color:'#b45309', background:'#fffbeb', padding:'1px 7px', borderRadius:10 }}>+{Number(item.markup_percent)}%</span>
+                {(Number(item.markup_percent) > 0 || Number(item.markup_percent_installment) > 0) && (
+                  <span title="Acréscimo à vista / parcelado sobre a taxa de mercado" style={{ fontSize:10.5, fontWeight:700, color:'#b45309', background:'#fffbeb', padding:'1px 7px', borderRadius:10 }}>+{Number(item.markup_percent)}% / +{Number(item.markup_percent_installment)}%</span>
                 )}
               </span>
-              <span style={{ color:'#64748b' }}>1 {item.from_currency} = {Number(item.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {item.to_currency}</span>
+              <span style={{ color:'#64748b' }}>
+                1 {item.from_currency} = {Number(item.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {item.to_currency}
+                <span style={{ fontSize:11, color:'#94a3b8' }}> à vista</span>
+                {Number(item.rate_installment) > 0 && (
+                  <> · {Number(item.rate_installment).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}<span style={{ fontSize:11, color:'#94a3b8' }}> parcelado</span></>
+                )}
+              </span>
               {(canEdit || canDelete) && (
                 <div className="r-acts" style={{ flexShrink:0 }}>
                   {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => setModal(item)}><Ic n="edit"  s={13}/></button>}

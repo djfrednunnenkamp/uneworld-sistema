@@ -507,9 +507,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       if (!isEdit) {
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
+        // Contrato novo nasce parcelado → usa a taxa parcelada (cai p/ à vista se não houver).
+        const usdRate = usdBrl ? Number(usdBrl.rate_installment || usdBrl.rate) : null
         // Contrato novo herda a forma de assinatura padrão da Operadora.
         setForm(f => ({ ...f, signature_type: oc.data?.default_signature_type || 'fisica',
-          ...(usdBrl ? { exchange_rate: Number(usdBrl.rate) } : {}) }))
+          ...(usdRate != null ? { exchange_rate: usdRate } : {}) }))
       }
     }).catch(() => toast.error('Erro ao carregar dados auxiliares.'))
     // Lista de vendedores só importa para quem pode trocar o vendedor.
@@ -713,10 +715,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   })
 
   // Câmbio moeda → BRL (1 quando a moeda já é BRL; null se não houver conversão).
-  const rateFor = (cur) => {
+  // Cada moeda tem duas taxas: à vista (rate) e parcelado (rate_installment).
+  const rateFor = (cur, ptype = paymentType) => {
     if (cur === 'BRL') return 1
     const r = exchangeRates.find(x => x.from_currency === cur && x.to_currency === 'BRL')
-    return r ? Number(r.rate) : null
+    if (!r) return null
+    return ptype === 'a_vista' ? Number(r.rate) : Number(r.rate_installment || r.rate)
   }
   // Moedas disponíveis: as que têm conversão para BRL (Configurações → Câmbio) + BRL.
   const currencyOptions = useMemo(() => {
@@ -738,6 +742,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const setBaseCurrency = (cur) => {
     const rate = rateFor(cur)
     setForm(f => ({ ...f, base_currency: cur, ...(rate != null ? { exchange_rate: rate } : {}) }))
+  }
+
+  // Alterna à vista ↔ parcelado e troca o câmbio para a taxa correspondente da moeda.
+  const selectPaymentType = (val) => {
+    setPaymentType(val)
+    const rate = rateFor(form.base_currency, val)
+    if (rate != null) setForm(f => ({ ...f, exchange_rate: rate }))
   }
 
   const handleSelectItinerary = async (ids) => {
@@ -1776,7 +1787,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 {[['a_vista', 'À vista'], ['parcelado', 'Parcelado']].map(([val, label]) => {
                   const sel = paymentType === val
                   return (
-                    <button key={val} type="button" onClick={() => setPaymentType(val)}
+                    <button key={val} type="button" onClick={() => selectPaymentType(val)}
                       style={{ padding: '8px 16px', border: 'none', background: sel ? '#1a2d4f' : '#fff', color: sel ? '#fff' : '#475569', fontSize: 13, fontWeight: sel ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {label}
                     </button>

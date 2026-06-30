@@ -83,8 +83,12 @@ class ConfigExchangeRate(models.Model):
     from_currency = models.CharField('De', max_length=10, default='USD')
     to_currency   = models.CharField('Para', max_length=10, default='BRL')
     base_rate     = models.DecimalField('Taxa de mercado', max_digits=12, decimal_places=4, null=True, blank=True)
-    markup_percent = models.DecimalField('Acréscimo (%)', max_digits=6, decimal_places=2, default=0)
-    rate          = models.DecimalField('Taxa', max_digits=12, decimal_places=4)
+    # Dois acréscimos sobre a MESMA taxa de mercado: um pra compra à vista e outro
+    # pra parcelado. Geram duas taxas efetivas (rate = à vista, rate_installment).
+    markup_percent = models.DecimalField('Acréscimo à vista (%)', max_digits=6, decimal_places=2, default=0)
+    markup_percent_installment = models.DecimalField('Acréscimo parcelado (%)', max_digits=6, decimal_places=2, default=0)
+    rate          = models.DecimalField('Taxa à vista', max_digits=12, decimal_places=4)
+    rate_installment = models.DecimalField('Taxa parcelado', max_digits=12, decimal_places=4, default=0)
     # Atualização automática diária a partir da internet.
     auto_update   = models.BooleanField('Atualizar automaticamente', default=False)
     is_favorite   = models.BooleanField('Favorito', default=False, db_index=True)
@@ -125,7 +129,9 @@ class ConfigExchangeRate(models.Model):
         if self.base_rate is None:
             self.base_rate = self.rate
         markup = self.markup_percent or Decimal('0')
+        markup_inst = self.markup_percent_installment or Decimal('0')
         new_rate = self._apply_rounding(self.base_rate * (Decimal('1') + markup / Decimal('100')))
+        self.rate_installment = self._apply_rounding(self.base_rate * (Decimal('1') + markup_inst / Decimal('100')))
         # Só mexe no histórico e na data da taxa quando a taxa EFETIVA realmente
         # muda — senão estrelar favorito ou abrir/salvar o câmbio sem alterar nada
         # falsearia a "última atualização" e achataria o gráfico da Visão Geral.
@@ -141,7 +147,7 @@ class ConfigExchangeRate(models.Model):
         # (e o histórico/data, quando mudou) também sejam gravados.
         uf = kwargs.get('update_fields')
         if uf is not None:
-            kwargs['update_fields'] = set(uf) | {'rate'} | extra_fields
+            kwargs['update_fields'] = set(uf) | {'rate', 'rate_installment'} | extra_fields
         super().save(*args, **kwargs)
 
     def _apply_rounding(self, value):

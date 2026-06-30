@@ -14,9 +14,13 @@ from .models import (Contract, ContractAccommodationLine, ContractGuest,
                      ContractInstallment, ContractAdjustment)
 
 
-def _default_exchange_rate(from_currency='USD', to_currency='BRL'):
+def _default_exchange_rate(from_currency='USD', to_currency='BRL', payment_type='parcelado'):
+    """Taxa padrão das Configurações: à vista usa `rate`, parcelado usa
+    `rate_installment` (cada moeda tem os dois valores)."""
     row = ConfigExchangeRate.objects.filter(from_currency=from_currency, to_currency=to_currency).first()
-    return row.rate if row else None
+    if not row:
+        return None
+    return row.rate if payment_type == 'a_vista' else (row.rate_installment or row.rate)
 
 
 def _passenger_brief(p):
@@ -267,7 +271,8 @@ class ContractSerializer(serializers.ModelSerializer):
             (line.value_per_person_usd + line.taxes_usd) * line.quantity
             for line in contract.accommodation_lines.all()
         )
-        exchange_rate = contract.exchange_rate or _default_exchange_rate()
+        exchange_rate = contract.exchange_rate or _default_exchange_rate(
+            from_currency=contract.base_currency or 'USD', payment_type=contract.payment_type or 'parcelado')
         adjustments = list(contract.adjustments.all())
         # Acréscimo soma; desconto subtrai. Percentual incide sobre o subtotal das
         # acomodações; ajustes em BRL convertem pelo câmbio. A comissão tem
