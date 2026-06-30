@@ -352,6 +352,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     : '—'
 
   const sigText = contract.signature_type === 'digital' ? '✓ Assinado Digitalmente' : '✓ Assinado Fisicamente'
+  // Cor da badge muda conforme o tipo: azul (física) / verde (digital).
+  const sigClass = contract.signature_type === 'digital' ? 'signature-digital' : 'signature-physical'
 
   // ── Valores (resumo) ── soma das bases e das taxas (×quantidade) para
   // bater com o Total do contrato.
@@ -395,7 +397,10 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .meta { color:var(--blue-dark); font-weight:800; text-transform:uppercase; padding-top:6px; }
     .ctpdf .meta .label { font-size:10px; margin-bottom:3px; }
     .ctpdf .meta .value { font-size:14px; margin-bottom:7px; }
-    .ctpdf .signature-card { width:100%; min-height:28px; padding:0 10px; border-radius:7px; background:linear-gradient(135deg,#0B4F9F,#0E9EDD); color:white; font-size:10px; font-weight:700; text-transform:uppercase; box-shadow:0 3px 10px rgba(11,79,159,.25); display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.1; }
+    .ctpdf .signature-card { width:100%; height:30px; border-radius:7px; color:white; font-size:10px; font-weight:700; text-transform:uppercase; display:flex; align-items:center; justify-content:center; text-align:center; overflow:hidden; }
+    .ctpdf .signature-card span { display:flex; align-items:center; justify-content:center; width:100%; height:100%; line-height:1; transform:translateY(0.5px); }
+    .ctpdf .signature-physical { background:linear-gradient(135deg,#0B4F9F,#0E9EDD); box-shadow:0 3px 10px rgba(11,79,159,.25); }
+    .ctpdf .signature-digital { background:linear-gradient(135deg,#0E7A46,#19B36B); box-shadow:0 3px 10px rgba(14,122,70,.25); }
     .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:12px; margin-top:6px; }
     .ctpdf .section { border:1px solid var(--line); border-radius:8px; padding:8px 9px; background:linear-gradient(180deg,#fff,#fbfdff); }
     .ctpdf .section-title { display:flex; align-items:center; gap:7px; color:var(--blue-dark); font-weight:800; font-size:11.5px; line-height:27px; text-transform:uppercase; margin:0 0 5px; }
@@ -447,7 +452,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
           <div class="label">Reserva nº ${dash(contract.reservation_number)}</div>
           <div class="label">Data da contratação</div>
           <div class="value">${contract.contract_date ? fmtDateBR(contract.contract_date) : '—'}</div>
-          <div class="signature-card">${sigText}</div>
+          <div class="signature-card ${sigClass}"><span>${sigText}</span></div>
         </div>
       </header>
 
