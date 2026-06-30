@@ -1098,8 +1098,19 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     if (st.saving) { st.dirty = snap; return }             // já salvando: re-salva depois
     if (snap === lastSavedRef.current) return              // nada mudou desde o último save
     const p = JSON.parse(snap)
-    const hasContent = !!(p.agency || p.itinerary || p.contratante || (p.payer_name || '').trim() ||
-      (p.guests && p.guests.length) || (p.package_name || '').trim() || (p.observations || '').trim())
+    // Qualquer informação preenchida pelo usuário já cria o rascunho. Campos
+    // auto-populados (câmbio, moeda base, totais, vendedor, arredondamento) NÃO
+    // contam — senão o sistema criaria rascunho sozinho ao abrir a tela.
+    const txt = (v) => (v || '').toString().trim()
+    const hasContent = !!(
+      p.agency || p.itinerary || p.contratante ||
+      txt(p.payer_name) || txt(p.payer_document) || txt(p.payer_phone) || txt(p.payer_email) || txt(p.payer_address) ||
+      (p.guests && p.guests.length) || (p.accommodation_lines && p.accommodation_lines.length) ||
+      (p.installments && p.installments.length) || (p.adjustments && p.adjustments.length) ||
+      (p.clauses && p.clauses.length) || (p.custom_clauses && p.custom_clauses.length) ||
+      txt(p.package_name) || p.departure_date || p.return_date || txt(p.departure_airport) || txt(p.observations) ||
+      p.received_down_payment_brl || p.received_installments_brl
+    )
     if (!st.id && !hasContent) return                      // não cria rascunho vazio
     st.saving = true; setSavingState('saving')
     try {
