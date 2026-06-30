@@ -568,7 +568,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     const ag = agencies.find(a => a.id === form.agency)
     return Number(ag?.commission_rate) || 0
   }, [agencies, form.agency])
-  const commissionUsd = useMemo(() => accomSubtotalUsd * agencyCommissionPct / 100, [accomSubtotalUsd, agencyCommissionPct])
+  // Comissão incide só sobre o valor/pessoa (não sobre as taxas) e fica EMBUTIDA
+  // no valor exibido (valor base × (1+%)). O valor base é o que fica armazenado.
+  const valueSubtotalUsd = useMemo(() => accomLines.reduce(
+    (s, l) => s + Number(l.value_per_person_usd || 0) * Number(l.quantity || 1), 0
+  ), [accomLines])
+  const commissionUsd = useMemo(() => valueSubtotalUsd * agencyCommissionPct / 100, [valueSubtotalUsd, agencyCommissionPct])
   const roundTo = (v, step, mode) => {
     if (!step || v == null) return v
     const q = v / step
@@ -1559,6 +1564,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {accomLines.map((line, idx) => {
                   const locked = pricedTypeIds.has(line.accommodation_type)
+                  // Valor/pessoa exibido = valor base + comissão da agência embutida.
+                  const commFactor = 1 + agencyCommissionPct / 100
+                  const shownValue = agencyCommissionPct > 0
+                    ? round2(Number(line.value_per_person_usd || 0) * commFactor)
+                    : line.value_per_person_usd
                   return (
                   <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 2 }}>
@@ -1568,9 +1578,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Valor/pessoa ({cur})</label>}
-                      <MoneyInput style={locked ? inpRO : inp} value={line.value_per_person_usd}
+                      <MoneyInput style={locked ? inpRO : inp} value={shownValue}
                         disabled={locked} readOnly={locked}
-                        onChange={v => updateAccomLine(idx, 'value_per_person_usd', v)} />
+                        onChange={v => updateAccomLine(idx, 'value_per_person_usd', agencyCommissionPct > 0 ? round2(Number(v || 0) / commFactor) : v)} />
                     </div>
                     <div style={{ flex: 1 }}>
                       {idx === 0 && <label style={lbl}>Taxas ({cur})</label>}
@@ -1636,10 +1646,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   </div>
                 </div>
                 {commissionUsd > 0 && (
-                  <p style={{ fontSize: 11.5, color: '#64748b', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Ic n="briefcase" s={12} />
-                    Inclui comissão da agência ({agencyCommissionPct.toLocaleString('pt-BR')}% sobre as acomodações):
-                    <strong style={{ color: '#15803d' }}>+ {cur} {commissionUsd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                    Os valores por pessoa já incluem a comissão da agência ({agencyCommissionPct.toLocaleString('pt-BR')}%).
                   </p>
                 )}
               </div>
