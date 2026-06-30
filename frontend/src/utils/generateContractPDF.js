@@ -344,8 +344,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     return src ? `<img class="mini-img" src="${src}"/>` : `<span class="mini-img"></span>`
   }
   // Título de seção isolado (vira um bloco próprio, desenhado acima da tabela nativa).
-  const titleBlock = (id, name, main, sub = '') =>
-    `<div class="section-title" data-block="${id}">${circleIcon(name)}<span class="ttl">${main}${sub ? ` <span style="font-size:10px;">${sub}</span>` : ''}</span></div>`
+  const titleBlock = (id, name, main, sub = '', fontSize = '11.5px') =>
+    `<div class="section-title" data-block="${id}" style="font-size:${fontSize}">${circleIcon(name)}<span class="ttl">${main}${sub ? ` <span style="font-size:10px;">${sub}</span>` : ''}</span></div>`
 
   const periodo = (contract.departure_date || contract.return_date)
     ? `${fmtDateBR(contract.departure_date)} a ${fmtDateBR(contract.return_date)}`
@@ -395,15 +395,15 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .meta { color:var(--blue-dark); font-weight:800; text-transform:uppercase; padding-top:6px; }
     .ctpdf .meta .label { font-size:10px; margin-bottom:3px; }
     .ctpdf .meta .value { font-size:14px; margin-bottom:7px; }
-    .ctpdf .signature-card { width:100%; padding:7px 10px; border-radius:7px; background:linear-gradient(135deg,#0B4F9F,#0E9EDD); color:white; font-size:10px; font-weight:700; text-transform:uppercase; box-shadow:0 3px 10px rgba(11,79,159,.25); }
+    .ctpdf .signature-card { width:100%; min-height:28px; padding:0 10px; border-radius:7px; background:linear-gradient(135deg,#0B4F9F,#0E9EDD); color:white; font-size:10px; font-weight:700; text-transform:uppercase; box-shadow:0 3px 10px rgba(11,79,159,.25); display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.1; }
     .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:12px; margin-top:6px; }
     .ctpdf .section { border:1px solid var(--line); border-radius:8px; padding:8px 9px; background:linear-gradient(180deg,#fff,#fbfdff); }
-    .ctpdf .section-title { display:flex; align-items:center; gap:7px; color:var(--blue-dark); font-weight:800; font-size:11.5px; text-transform:uppercase; margin:2px 0 5px; }
-    .ctpdf .section-title .ttl { display:block; }
+    .ctpdf .section-title { display:flex; align-items:center; gap:7px; color:var(--blue-dark); font-weight:800; font-size:11.5px; line-height:27px; text-transform:uppercase; margin:0 0 5px; }
+    .ctpdf .section-title .ttl { display:flex; align-items:center; gap:4px; min-height:27px; line-height:1.1; }
     /* Ícone do círculo centralizado com flex (fora de tabela, html2canvas ok) —
        sem números mágicos de top/left. */
-    .ctpdf .icon { display:flex; align-items:center; justify-content:center; min-width:27px; width:27px; height:27px; border-radius:50%; background:var(--blue); }
-    .ctpdf .icon img { position:static; width:15px; height:15px; display:block; }
+    .ctpdf .icon { display:flex; align-items:center; justify-content:center; min-width:27px; width:27px; height:27px; border-radius:50%; background:var(--blue); flex-shrink:0; }
+    .ctpdf .icon img { width:15px; height:15px; display:block; }
     .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:12px; }
     .ctpdf h3 { margin:0 0 7px; color:var(--blue); font-size:10px; text-transform:uppercase; }
@@ -414,15 +414,20 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     /* Mini-ícone centralizado na sua coluna via flex — sem padding-top manual. */
     .ctpdf .mini-icon { display:flex; align-items:center; justify-content:center; }
     .ctpdf .mini-img { width:14px; height:14px; display:block; }
-    .ctpdf .client { margin-top:6px; }
-    .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:10px; border-top:1px solid #D8E3F3; padding-top:7px; }
-    .ctpdf .client-grid .field { display:flex; flex-direction:column; justify-content:center; border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
+    .ctpdf .client { margin-top:3px; }
+    .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:8px; border-top:1px solid #D8E3F3; padding-top:4px; }
+    .ctpdf .client-grid .field { display:block; border-right:1px solid #D8E3F3; min-height:18px; padding-right:7px; margin:0; line-height:1.15; }
+    .ctpdf .client-grid .field strong { display:block; margin-bottom:1px; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
     .ctpdf .values-list { display:grid; gap:7px; padding-top:4px; }
     /* Ícone, rótulo e valor na mesma linha de base vertical via align-items:center —
        o valor da direita não fica mais deslocado pra cima. */
-    .ctpdf .value-row { display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:center; padding-bottom:5px; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .value-row { display:grid; grid-template-columns:22px 1fr auto; gap:7px; align-items:center; min-height:22px; padding:0; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .value-row .mini-icon { height:22px; display:flex; align-items:center; justify-content:center; }
+    .ctpdf .value-row span, .ctpdf .value-row strong { display:flex; align-items:center; min-height:22px; line-height:1.1; }
     .ctpdf .value-row.total { color:var(--blue); font-size:13.5px; font-weight:800; }
+    .ctpdf .valores-card { width:60mm; }
+    .ctpdf .valores-card .section-title { font-size:11.5px; line-height:27px; }
   `
 
   return `<style>${css}</style>
@@ -483,7 +488,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
 
       ${titleBlock('title5', 'building', '5. Acomodações Contratadas')}
 
-      <section class="section" data-block="valores" style="width:60mm;">
+      <section class="section valores-card" data-block="valores">
         <div class="section-title">${circleIcon('dollar')}<span class="ttl">6. Valores e Condições</span></div>
         <div class="values-list">
           <div class="value-row"><span class="mini-icon">${miniIcon('dollar')}</span><span>Valor por pessoa (${esc(cc)})</span><strong>${money(baseSum)}</strong></div>
@@ -494,7 +499,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         </div>
       </section>
 
-      ${titleBlock('title7', 'card', '7. Plano de Pagamento')}
+      ${titleBlock('title7', 'card', '7. Plano de Pagamento', '', '19.5px')}
     </main>
   </div>`
 }
@@ -590,7 +595,7 @@ export async function generateContractPDF(contract, opts = {}) {
 
   // Blocos visuais do topo.
   placeImg(blocks.header)
-  placeImg(blocks.gridTop)
+  placeImg(blocks.gridTop, 1)
   placeImg(blocks.client)
 
   // 4. Passageiros — título (imagem) + tabela nativa.
