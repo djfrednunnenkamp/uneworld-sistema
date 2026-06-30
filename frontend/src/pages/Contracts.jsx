@@ -677,7 +677,6 @@ export default function Contracts() {
 
   const TABS = [
     { key: 'geral',     label: 'Geral',            color: '#1a2d4f', count: rows.length },
-    ...(canEdit ? [{ key: 'rascunho', label: 'Rascunhos', color: '#7c3aed', count: draftRows.length }] : []),
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'assinado',  label: 'Assinados',        color: '#059669', count: stageCount('assinado') },
@@ -718,8 +717,41 @@ export default function Contracts() {
   // disso (em edição / aguardando assinatura) ele é apenas visto online.
   const canDownloadPdf = (c) => !c || c.signature_type !== 'digital' || c.stage === 'assinado'
 
+  // Painel de rascunhos (autosave) fixo no topo — só aparece quando há rascunhos.
+  // Fica sempre visível, sem precisar entrar numa aba, pra retomar de onde parou.
+  const draftsPanel = (canEdit && draftRows.length > 0) ? (
+    <div style={{ marginBottom: 14, border: '1px solid #ede9fe', background: '#faf5ff', borderRadius: 10, padding: '11px 13px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
+        <Ic n="edit" s={14} />
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#6d28d9' }}>Rascunhos</span>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed' }}>{draftRows.length}</span>
+        <span style={{ fontSize: 12, color: '#a78bfa', marginLeft: 2 }}>contratos não finalizados — continue de onde parou</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {draftRows.map(d => (
+          <div key={d.id}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid #ede9fe', borderRadius: 8, padding: '7px 8px 7px 11px', cursor: 'pointer' }}
+            onClick={() => setModal(d.id)}>
+            <div style={{ minWidth: 0, flex: 1, display: 'flex', gap: 14, alignItems: 'center', fontSize: 12.5 }}>
+              <span style={{ fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>{d.reservation_number || `#${d.id}`}</span>
+              <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {[d.contratante_name, d.agency_name, d.package_name].filter(Boolean).join('  ·  ') || 'Sem informações ainda'}
+              </span>
+              {d.updated_at && <span style={{ color: '#94a3b8', whiteSpace: 'nowrap', marginLeft: 'auto', fontSize: 11.5 }}>editado {fmtDateTimeBR(d.updated_at)}</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+              {actBtn('Continuar editando', 'edit', '#7c3aed', () => setModal(d.id))}
+              {canDelete && actBtn('Excluir rascunho', 'trash', '#dc2626', () => setDelRow(d))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null
+
   return (
     <>
+      {draftsPanel}
       {tabBar}
       <DataTable
         title={TABS.find(t => t.key === tab)?.label || 'Contratos'}
