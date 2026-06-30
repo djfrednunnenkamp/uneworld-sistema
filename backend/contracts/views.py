@@ -115,6 +115,18 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                        'agency__name', 'agency__company_name']
     ordering_fields = ['created_at', 'contract_date', 'departure_date']
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Na listagem, rascunhos (autosave incompletos) ficam fora por padrão;
+        # ?status=rascunho traz só os rascunhos. No detalhe/edição vê todos
+        # (senão não dava pra abrir/retomar um rascunho).
+        if self.action == 'list':
+            if self.request.query_params.get('status') == 'rascunho':
+                qs = qs.filter(status='rascunho')
+            else:
+                qs = qs.exclude(status='rascunho')
+        return qs
+
     def get_serializer_class(self):
         return ContractListSerializer if self.action == 'list' else ContractSerializer
 

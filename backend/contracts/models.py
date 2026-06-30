@@ -18,6 +18,7 @@ class Contract(models.Model):
     (config única) no momento de gerar o PDF."""
 
     STATUS_CHOICES = [
+        ('rascunho',  'Rascunho'),
         ('ativo',     'Ativo'),
         ('cancelado', 'Cancelado'),
     ]
@@ -25,7 +26,9 @@ class Contract(models.Model):
     reservation_number = models.CharField('Reserva nº', max_length=50, blank=True)
     contract_date       = models.DateField('Data desta contratação', null=True, blank=True)
 
-    agency       = models.ForeignKey('agencies.Agency', on_delete=models.PROTECT,
+    # null=True permite salvar rascunho (autosave) antes de escolher a agência;
+    # ao finalizar (status 'ativo') o serializer exige a agência.
+    agency       = models.ForeignKey('agencies.Agency', on_delete=models.PROTECT, null=True, blank=True,
                                      related_name='contracts', verbose_name='Agência de viagem')
     passenger_list = models.ForeignKey('trips.PassengerList', on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='contracts', verbose_name='Lista de passageiros')

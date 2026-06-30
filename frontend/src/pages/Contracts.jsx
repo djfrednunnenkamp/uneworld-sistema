@@ -401,6 +401,7 @@ export default function Contracts() {
   const checkingRef = useRef(new Set())
   const [signersModal, setSignersModal] = useState(null)   // { data, label } — popup de quem assinou / falta
   const [deletedRows, setDeletedRows] = useState([])
+  const [draftRows, setDraftRows] = useState([])   // rascunhos (autosave) — fora da lista normal
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
   const [signedUrl, setSignedUrl] = useState(null)   // url do assinado em visualização
@@ -417,11 +418,16 @@ export default function Contracts() {
     if (!canDelete) return
     contractsApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
   }, [canDelete])
+  const loadDrafts = useCallback(() => {
+    if (!canEdit) return
+    contractsApi.list({ status: 'rascunho' }).then(r => setDraftRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canEdit])
   useEffect(() => { load() }, [])
   useEffect(() => { loadDeleted() }, [loadDeleted, tab])
+  useEffect(() => { loadDrafts() }, [loadDrafts, tab])
   const deletedCount = deletedRows.length
   const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
-  const reloadAll = () => { load(); loadDeleted() }
+  const reloadAll = () => { load(); loadDeleted(); loadDrafts() }
 
   const silentReload = useCallback(() => {
     contractsApi.list().then(r => setRows(r.data.results ?? r.data)).catch(() => {})
@@ -584,6 +590,8 @@ export default function Contracts() {
   // recentes primeiro por padrão; o filtro "Ordenar" inverte para mais antigos.
   const stageRows = tab === 'trash'
     ? deletedRows
+    : tab === 'rascunho'
+    ? draftRows
     : tab === 'geral'
     ? [...rows].sort((a, b) => {
         const av = a.created_at || '', bv = b.created_at || ''
@@ -591,7 +599,7 @@ export default function Contracts() {
         return fSort === 'recent' ? -cmp : cmp
       })
     : rows.filter(r => r.stage === tab)
-  const filterSource = tab === 'trash' ? deletedRows : rows
+  const filterSource = tab === 'trash' ? deletedRows : tab === 'rascunho' ? draftRows : rows
   const stageCount = (s) => rows.filter(r => r.stage === s).length
 
   const namesOpts = (values, allLabel) => [
@@ -672,6 +680,7 @@ export default function Contracts() {
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'assinado',  label: 'Assinados',        color: '#059669', count: stageCount('assinado') },
+    ...(canEdit ? [{ key: 'rascunho', label: 'Rascunhos', color: '#7c3aed', count: draftRows.length }] : []),
     ...(canDelete ? [{ key: 'trash', label: 'Excluídos', color: '#dc2626', count: deletedCount }] : []),
   ]
   const tabBar = (
@@ -733,6 +742,8 @@ export default function Contracts() {
         extraActions={
           tab === 'trash'
             ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={contractsApi.restore} onPurge={contractsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
+            : tab === 'rascunho'
+            ? (row) => actBtn('Continuar editando', 'edit', '#7c3aed', () => setModal(row.id))
             : canEdit ? (row) => {
               // Na aba Geral cada linha segue a SUA própria etapa; nas demais, a aba.
               const stage = tab === 'geral' ? row.stage : tab
@@ -782,8 +793,8 @@ export default function Contracts() {
       {modal && (
         <ContractFormModal
           contractId={modal === 'new' ? null : modal}
-          onClose={() => setModal(null)}
-          onSaved={() => { setModal(null); load() }}
+          onClose={() => { setModal(null); loadDrafts() }}
+          onSaved={() => { setModal(null); load(); loadDrafts() }}
           onPublish={handlePublish}
         />
       )}

@@ -405,6 +405,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // só fica pronto depois que os dados do contrato terminam de carregar.
   const initializedRef = useRef(!isEdit)
 
+  // ── Autosave (rascunho) ───────────────────────────────────────────────────
+  // Salva sozinho enquanto o usuário preenche: cria um rascunho na 1ª informação
+  // e vai atualizando (debounce de ~1,2s). "Finalizar" valida e marca como pronto.
+  // autosaveRef.id = id real do contrato (já salvo); começa com o contractId em
+  // edição, ou null em criação (definido após o 1º autosave criar o rascunho).
+  const autosaveRef     = useRef({ id: contractId || null, saving: false, dirty: null })
+  const autosaveTimerRef = useRef(null)
+  const lastSavedRef    = useRef(null)   // snapshot já persistido (evita re-salvar igual)
+  const baselineReadyRef = useRef(false) // fixa o estado inicial sem salvá-lo
+  const [savingState, setSavingState] = useState('idle') // 'idle' | 'saving' | 'saved'
+
   // Fontes de dados pros pickers
   const [agencies,   setAgencies]   = useState([])
   const [passengers, setPassengers] = useState([])
@@ -1046,18 +1057,26 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     return true
   }
 
+  // Finalizar: valida tudo e marca o contrato como pronto (status 'ativo').
+  // Usa o id que o autosave já criou (se houver) — senão cria na hora.
   const doSave = async () => {
     if (!validateRequired()) return
+    clearTimeout(autosaveTimerRef.current)
+    const st = autosaveRef.current
     setSaving(true)
-    const payload = buildPayload()
     try {
-      if (isEdit) {
-        await contractsApi.update(contractId, payload)
-        toast.success('Contrato atualizado.')
+      // Espera um autosave em andamento terminar, pra usar o id certo (evita
+      // criar um segundo contrato).
+      while (st.saving) await new Promise(r => setTimeout(r, 80))
+      const payload = buildPayload()
+      payload.status = 'ativo'
+      if (st.id) {
+        await contractsApi.update(st.id, payload)
       } else {
-        await contractsApi.create(payload)
-        toast.success('Contrato criado.')
+        const r = await contractsApi.create(payload)
+        st.id = r.data.id
       }
+      toast.success(isEdit ? 'Contrato salvo.' : 'Contrato criado.')
       onSaved()
     } catch (e) {
       toast.error(e.response?.data?.error ?? 'Erro ao salvar contrato.')
@@ -1071,6 +1090,55 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     if (totalMismatch) { setConfirmMismatch(true); return }
     doSave()
   }
+
+  // Autosave silencioso (sem validar, sem fechar). `snap` = JSON do payload no
+  // instante em que o debounce disparou — usado direto pra evitar closures velhas.
+  const runAutosave = async (snap) => {
+    const st = autosaveRef.current
+    if (st.saving) { st.dirty = snap; return }             // já salvando: re-salva depois
+    if (snap === lastSavedRef.current) return              // nada mudou desde o último save
+    const p = JSON.parse(snap)
+    const hasContent = !!(p.agency || p.itinerary || p.contratante || (p.payer_name || '').trim() ||
+      (p.guests && p.guests.length) || (p.package_name || '').trim() || (p.observations || '').trim())
+    if (!st.id && !hasContent) return                      // não cria rascunho vazio
+    st.saving = true; setSavingState('saving')
+    try {
+      // Contrato novo (ainda sem id) entra como rascunho; ao atualizar um
+      // existente, não mexe no status (preserva ativo/rascunho).
+      if (!st.id) p.status = 'rascunho'
+      if (st.id) {
+        await contractsApi.update(st.id, p)
+      } else {
+        const r = await contractsApi.create(p)
+        st.id = r.data.id
+        setReservationNumber(r.data.reservation_number ?? '')
+      }
+      lastSavedRef.current = snap
+      setSavingState('saved')
+    } catch {
+      setSavingState('idle')   // falhou: tenta de novo na próxima mudança
+    } finally {
+      st.saving = false
+      if (st.dirty && st.dirty !== lastSavedRef.current) { const d = st.dirty; st.dirty = null; runAutosave(d) }
+      else st.dirty = null
+    }
+  }
+
+  // Dispara o autosave (debounce) sempre que o payload muda, depois que o estado
+  // inicial está montado (não salva o estado recém-carregado).
+  const autosaveSnapshot = JSON.stringify(buildPayload())
+  useEffect(() => {
+    if (loading) return
+    if (!baselineReadyRef.current) {        // 1ª vez pronto: fixa a baseline, não salva
+      baselineReadyRef.current = true
+      lastSavedRef.current = autosaveSnapshot
+      return
+    }
+    clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = setTimeout(() => runAutosave(autosaveSnapshot), 1200)
+    return () => clearTimeout(autosaveTimerRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autosaveSnapshot, loading])
 
   // Passo final: "papel completo" — resumo read-only com seções bem divididas.
   const renderReview = () => {
@@ -1787,10 +1855,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         )}
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 8 }}>
-          <button onClick={onClose} disabled={saving}
-            style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-            Cancelar
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={onClose} disabled={saving}
+              style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cancelar
+            </button>
+            {savingState !== 'idle' && (
+              <span style={{ fontSize: 12, color: savingState === 'saving' ? '#94a3b8' : '#16a34a', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Ic n={savingState === 'saving' ? 'clock' : 'check'} s={12} />
+                {savingState === 'saving' ? 'Salvando…' : 'Salvo automaticamente'}
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {layout === 'steps' && <span style={{ fontSize: 12, color: '#94a3b8' }}>Passo {step + 1} de {STEPS.length}</span>}
             {layout === 'steps' && step > 0 && (
@@ -1806,7 +1882,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               </button>
             ) : (
               <button onClick={handleSaveClick} disabled={saving || loading} style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Ic n="check" s={13} />{saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar contrato'}
+                <Ic n="check" s={13} />{saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Finalizar contrato'}
               </button>
             )}
           </div>
