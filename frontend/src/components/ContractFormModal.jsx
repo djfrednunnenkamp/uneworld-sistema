@@ -1745,6 +1745,21 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             <div style={card}>
               <p style={{ ...sectionTitle, marginBottom: 10 }}><Ic n="card" s={14} /> Dados dos pagamentos / valores</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={lbl}>Forma de pagamento</label>
+                  <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                    {[['a_vista', 'À vista'], ['parcelado', 'Parcelado']].map(([val, label]) => {
+                      const sel = paymentType === val
+                      return (
+                        <button key={val} type="button" onClick={() => selectPaymentType(val)}
+                          style={{ padding: '8px 18px', border: 'none', background: sel ? '#1a2d4f' : '#fff', color: sel ? '#fff' : '#475569', fontSize: 13, fontWeight: sel ? 600 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p style={{ fontSize: 10.5, color: '#94a3b8', margin: '4px 0 0' }}>O câmbio é ajustado automaticamente conforme à vista ou parcelado.</p>
+                </div>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Soma total ({cur})</label>
