@@ -577,39 +577,43 @@ export async function generateContractPDF(contract, opts = {}) {
   let y = marginTop
 
   // ═══ CABEÇALHO ═══════════════════════════════════════════════════════════
+  // Arquitetura de colunas: área da logo à esquerda, título (com divisória) ao
+  // centro e meta/badge à direita. Header mais compacto e melhor alinhado.
   const headerTop = marginTop
-  const headerH = 21
-  // Logo (esquerda) — proporção preservada via getImageProperties.
+  const headerH = 19
+  const logoBoxX = marginX
+  const logoBoxW = 42
+  const titleX   = marginX + 45
+  const dividerX = titleX - 6
+  // Logo (esquerda) — centralizada DENTRO da área dela (não pelo canto),
+  // proporção preservada via getImageProperties.
   if (logoDataUrl) {
     try {
       const props = doc.getImageProperties(logoDataUrl)
       const ratio = props.width / props.height
-      let lw = 38, lh = lw / ratio
-      if (lh > 17) { lh = 17; lw = lh * ratio }
-      // Centraliza verticalmente na faixa do header (compensa a altura variável
-      // do logo); -0,5 mm de ajuste óptico p/ alinhar com o bloco do título.
-      const logoX = marginX + 1.5
-      const logoY = headerTop + (headerH - lh) / 2 - 0.5
+      let lw = 35, lh = lw / ratio
+      if (lh > 16) { lh = 16; lw = lh * ratio }
+      const logoX = logoBoxX + (logoBoxW - lw) / 2
+      const logoY = headerTop + (headerH - lh) / 2 - 0.2
       doc.addImage(logoDataUrl, props.fileType || 'PNG', logoX, logoY, lw, lh)
     } catch { /* logo inválido: ignora */ }
   }
   // Título (centro) com divisória vertical à esquerda.
-  const titleX = marginX + 48
   doc.setDrawColor(...LINE); doc.setLineWidth(0.3)
-  doc.line(titleX - 6, headerTop, titleX - 6, headerTop + headerH)
+  doc.line(dividerX, headerTop, dividerX, headerTop + headerH)
   let ty = headerTop + 1
   for (const l of ['Contrato de', 'Prestação de', 'Serviços Turísticos']) {
-    drawText(doc, l.toUpperCase(), titleX, ty, { size: 13, style: 'bold', color: BLUE_DARK, baseline: 'top' })
-    ty += 4.9
+    drawText(doc, l.toUpperCase(), titleX, ty, { size: 12.2, style: 'bold', color: BLUE_DARK, baseline: 'top' })
+    ty += 4.5
   }
-  drawText(doc, 'INSTRUMENTO PARTICULAR DE CONTRATAÇÃO DE VIAGEM', titleX, ty + 0.6, { size: 6.5, style: 'bold', color: BLUE, baseline: 'top' })
+  drawText(doc, 'INSTRUMENTO PARTICULAR DE CONTRATAÇÃO DE VIAGEM', titleX, ty + 0.6, { size: 6.2, style: 'bold', color: BLUE, baseline: 'top' })
   // Meta (direita) alinhada à borda direita.
   const rightEdge = pw - marginX
-  let my = headerTop + 1
-  drawText(doc, ('Reserva nº ' + dashTxt(contract.reservation_number)).toUpperCase(), rightEdge, my, { size: 8.2, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 4.6
-  drawText(doc, 'DATA DA CONTRATAÇÃO', rightEdge, my, { size: 7, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 3.4
-  drawText(doc, contract.contract_date ? fmtDateBR(contract.contract_date) : '—', rightEdge, my, { size: 11, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 5
-  const badgeW = 50, badgeH = 6
+  let my = headerTop + 0.6
+  drawText(doc, ('Reserva nº ' + dashTxt(contract.reservation_number)).toUpperCase(), rightEdge, my, { size: 8.2, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 4.2
+  drawText(doc, 'DATA DA CONTRATAÇÃO', rightEdge, my, { size: 7, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 3.1
+  drawText(doc, contract.contract_date ? fmtDateBR(contract.contract_date) : '—', rightEdge, my, { size: 11, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 4.5
+  const badgeW = 50, badgeH = 5.8
   drawBadge(doc, { x: rightEdge - badgeW, y: my, w: badgeW, h: badgeH, type: contract.signature_type })
   // Borda inferior do cabeçalho.
   const headerBottom = headerTop + headerH
