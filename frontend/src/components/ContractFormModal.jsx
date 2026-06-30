@@ -1437,7 +1437,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                         onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                         onDragEnter={() => setDragOverKey('pool')}
                         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(k => k === 'pool' ? null : k) }}
-                        onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); if (pid) assignGuest(pid, null) }}
+                        onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); setDraggingId(null); if (pid) assignGuest(pid, null) }}
                         style={{ border: `1.5px dashed ${dragOverKey === 'pool' ? '#2e6db4' : '#cbd5e1'}`, borderRadius: 8, padding: 10, background: dragOverKey === 'pool' ? '#eff6ff' : '#fafbfc', transition: 'border-color .12s, background .12s' }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>
                           Sem quarto ({unassigned.length})
@@ -1462,7 +1462,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                           onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                           onDragEnter={() => setDragOverKey(room.id)}
                           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(k => k === room.id ? null : k) }}
-                          onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); if (pid) assignGuest(pid, room.id) }}
+                          onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); setDraggingId(null); if (pid) assignGuest(pid, room.id) }}
                           style={{ border: `${dragOverKey === room.id ? 1.5 : 1}px solid ${dragOverKey === room.id ? '#2e6db4' : (over ? '#fca5a5' : '#e2e8f0')}`, borderRadius: 8, padding: 10, background: dragOverKey === room.id ? '#eff6ff' : (over ? '#fef2f2' : '#fff'), display: 'flex', flexDirection: 'column', gap: 8, transition: 'border-color .12s, background .12s' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                             <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
@@ -1493,7 +1493,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                       onDragEnter={() => setDragOverKey('new')}
                       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(k => k === 'new' ? null : k) }}
-                      onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); if (pid) createRoomWith(pid) }}
+                      onDrop={e => { const pid = Number(e.dataTransfer.getData('text/plain')); setDragOverKey(null); setDraggingId(null); if (pid) createRoomWith(pid) }}
                       onClick={addRoom}
                       style={{ border: `1.5px dashed ${dragOverKey === 'new' ? '#2e6db4' : '#cbd5e1'}`, borderRadius: 8, padding: 10, background: dragOverKey === 'new' ? '#eff6ff' : '#fafbfc', minHeight: 96, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, cursor: 'pointer', color: '#64748b', transition: 'border-color .12s, background .12s' }}>
                       <Ic n="plus" s={18} />
