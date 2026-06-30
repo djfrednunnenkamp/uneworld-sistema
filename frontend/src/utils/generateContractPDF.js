@@ -732,7 +732,7 @@ export async function generateContractPDF(contract, opts = {}) {
   // ── Linha 2: 4. Passageiros (esq.) │ 6. Valores e Condições (dir.) ──
   const topRow2 = row1Bottom + 2.5
   const startP2 = doc.internal.getNumberOfPages()
-  const item6W = halfW * 0.72                   // item 6 (Valores) mais estreito
+  const item6W = halfW * 0.58                   // item 6 (Valores) mais estreito
   const item6X = marginX + contentW - item6W    // encostado na margem direita
   const item4W = contentW - colGap - item6W     // item 4 ocupa o resto à esquerda
   const bottom6 = drawValores(item6X, topRow2, item6W)
