@@ -685,39 +685,21 @@ export async function generateContractPDF(contract, opts = {}) {
   drawCard(doc, marginX + w1 + gap12, top12, w2, cardBottom)
   y = cardBottom + 2.5
 
-  // ═══ 3. CLIENTE CONTRATANTE (card largura total) ══════════════════════════
-  {
-    const pad = 2.4
-    const top3 = y
-    let yy = drawSectionTitle(doc, { x: marginX + pad, y: top3 + pad, iconPng: icons.w_user, main: '3. Cliente Contratante', sub: '(Responsável pelo pagamento)' }) + 0.8
-    doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yy, marginX + contentW - pad, yy); yy += 1.6
-    const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yy, w: contentW - 2 * pad, fields: clientFields, cols: 4, size: 8 })
-    drawCard(doc, marginX, top3, contentW, bottom3 + pad)
-    y = bottom3 + pad + 2.5
-  }
-
-  // ═══ 4. PASSAGEIROS — título + tabela nativa (abaixo do item 3) ════════════
-  y = checkPageBreak(doc, y, 20, marginTop, pageBottom)
-  y = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_users, main: '4. Passageiros', sub: '(Contratante e demais usuários)' }) + 0.8
-  y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.passengers, ...tableOpts }) + 1   // subidinha do bloco 5/6/7
-
-  // ═══ 5. ACOMODAÇÕES + 6. VALORES (esquerda) │ 7. PLANO DE PAGAMENTO (direita)
-  // Coluna esquerda: tabela de acomodações (5) em cima e o card de valores (6)
-  // logo abaixo. Coluna direita: a tabela do plano de pagamento (7), que costuma
-  // ser a mais alta e preenche o lado.
-  y = checkPageBreak(doc, y, 30, marginTop, pageBottom)
+  // ═══ 3 + 4 + 5 + 6 (esquerda) │ 7. PLANO DE PAGAMENTO (direita) ═══════════
+  // O item 7 sobe pra ficar ao lado da pilha 3/4/5/6: assim a tabela de pagamento
+  // (alta) usa a altura da página desde o topo do bloco e não vaza p/ a 2ª página.
+  y = checkPageBreak(doc, y, 32, marginTop, pageBottom)
   const colGap = 4
-  const leftW  = (contentW - colGap) * 0.5
+  const pad    = 2.4
+  const leftW  = (contentW - colGap) * 0.54
   const rightW = (contentW - colGap) - leftW
   const rightX = marginX + leftW + colGap
-  const topBlock  = y
-  const startPage = doc.internal.getNumberOfPages()
 
-  // Card de valores (item 6) — desenhado dentro da coluna esquerda.
+  // Card de valores (item 6) — desenhado por último na coluna esquerda.
   const drawValores = (x, top, w) => {
-    const pad = 2.4
-    let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r: 2.7 }) + 1
-    const innerX = x + pad, innerW = w - 2 * pad
+    const p = 2.4
+    let yy = drawSectionTitle(doc, { x: x + p, y: top + p, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r: 2.7 }) + 1
+    const innerX = x + p, innerW = w - 2 * p
     const rows = [
       ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum), false],
       ['receipt',  `Taxas (${cc})`,        moneyTxt(taxSum), false],
@@ -736,25 +718,36 @@ export async function generateContractPDF(contract, opts = {}) {
       yy += isTotal ? 5.2 : 4.4
       doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(innerX, yy - 1, innerX + innerW, yy - 1)
     }
-    return yy + pad - 1
+    return yy + p - 1
   }
 
-  // ── Coluna esquerda: 5. Acomodações (tabela) + 6. Valores (card) ──
-  let yL = drawSectionTitle(doc, { x: marginX, y: topBlock, iconPng: icons.w_building, main: '5. Acomodações Contratadas', mainSize: 9 }) + 0.8
-  yL = drawTable(doc, { x: marginX, y: yL, width: leftW, ...tables.accommodations, ...tableOpts }) + 2.5
-  const bottom6 = drawValores(marginX, yL, leftW)
-  drawCard(doc, marginX, yL, leftW, bottom6)
+  // ── Coluna esquerda: 3. Contratante, 4. Passageiros, 5. Acomodações, 6. Valores ──
+  const topA = y
+  const startPageA = doc.internal.getNumberOfPages()
+  // 3. Cliente Contratante (card)
+  let yL = drawSectionTitle(doc, { x: marginX + pad, y: topA + pad, iconPng: icons.w_user, main: '3. Cliente Contratante' }) + 0.8
+  doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yL, marginX + leftW - pad, yL); yL += 1.6
+  const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yL, w: leftW - 2 * pad, fields: clientFields, cols: 2, size: 8 }) + pad
+  drawCard(doc, marginX, topA, leftW, bottom3)
+  // 4. Passageiros (tabela)
+  let yP = drawSectionTitle(doc, { x: marginX, y: bottom3 + 2.5, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
+  const bottom4 = drawTable(doc, { x: marginX, y: yP, width: leftW, ...tables.passengers, ...tableOpts })
+  // 5. Acomodações Contratadas (tabela)
+  let y5 = drawSectionTitle(doc, { x: marginX, y: bottom4 + 2.5, iconPng: icons.w_building, main: '5. Acomodações Contratadas', mainSize: 9 }) + 0.8
+  const bottom5 = drawTable(doc, { x: marginX, y: y5, width: leftW, ...tables.accommodations, ...tableOpts })
+  // 6. Valores e Condições (card)
+  const bottom6 = drawValores(marginX, bottom5 + 2.5, leftW)
+  drawCard(doc, marginX, bottom5 + 2.5, leftW, bottom6)
   const leftBottom  = bottom6
   const leftEndPage = doc.internal.getNumberOfPages()
 
-  // ── Coluna direita: 7. Plano de Pagamento (tabela) — volta ao topo do bloco ──
-  doc.setPage(startPage)
-  let y7 = drawSectionTitle(doc, { x: rightX, y: topBlock, iconPng: icons.w_card, main: '7. Plano de Pagamento', mainSize: 9 }) + 0.8
+  // ── Coluna direita: 7. Plano de Pagamento — volta ao topo do bloco ──
+  doc.setPage(startPageA)
+  let y7 = drawSectionTitle(doc, { x: rightX, y: topA, iconPng: icons.w_card, main: '7. Plano de Pagamento', mainSize: 9 }) + 0.8
   const bottom7 = drawTable(doc, { x: rightX, y: y7, width: rightW, ...tables.payment, ...tableOpts })
   const rightEndPage = doc.internal.getNumberOfPages()
 
-  // Continua após a coluna que termina mais embaixo, na última página alcançada
-  // (evita misturar coordenadas de páginas diferentes quando uma tabela quebra).
+  // Continua após a coluna mais baixa, na última página alcançada.
   if (leftEndPage > rightEndPage)      { doc.setPage(leftEndPage); y = leftBottom + 2.5 }
   else if (rightEndPage > leftEndPage) { y = bottom7 + 2.5 }
   else                                 { y = Math.max(leftBottom, bottom7) + 2.5 }
