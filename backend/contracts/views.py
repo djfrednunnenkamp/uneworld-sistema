@@ -116,10 +116,14 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'contract_date', 'departure_date']
 
     def get_queryset(self):
+        from django.db.models import Q
         qs = super().get_queryset()
-        # Na listagem, rascunhos (autosave incompletos) ficam fora por padrão;
-        # ?status=rascunho traz só os rascunhos. No detalhe/edição vê todos
-        # (senão não dava pra abrir/retomar um rascunho).
+        # Rascunhos são PRIVADOS de quem criou — em qualquer ação (listar, abrir,
+        # editar, descartar) só o dono enxerga o seu rascunho. Contratos
+        # finalizados seguem compartilhados normalmente.
+        qs = qs.filter(~Q(status='rascunho') | Q(created_by=self.request.user))
+        # Na listagem, rascunhos ficam fora por padrão; ?status=rascunho traz só
+        # eles (já restritos ao dono pelo filtro acima).
         if self.action == 'list':
             if self.request.query_params.get('status') == 'rascunho':
                 qs = qs.filter(status='rascunho')
