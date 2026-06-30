@@ -577,7 +577,8 @@ export async function generateContractPDF(contract, opts = {}) {
         : a.mode === 'valor_brl' ? (adjRate ? Number(a.value_brl || 0) / adjRate : 0)
         : Number(a.value_usd || 0)
       d = Math.min(Math.max(d, 0), commissionUsdPdf)
-      return { amt: d, isMinus: true, lbl: 'Comissão', desc: a.description || '' }
+      // No PDF aparece só como "Desconto" — o cliente final não vê a comissão.
+      return { amt: d, isMinus: true, lbl: 'Desconto', desc: '' }
     }
     const amt = a.mode === 'percentual' ? accomFull * Number(a.percent || 0) / 100
       : a.mode === 'valor_brl' ? (adjRate ? Number(a.value_brl || 0) / adjRate : 0)
