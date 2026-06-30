@@ -711,24 +711,22 @@ export async function generateContractPDF(contract, opts = {}) {
     // Se a tabela do item 4 quebrou de página, o cursor já está na página nova
     // logo abaixo dela; senão, o fim é o mais baixo dos dois blocos.
     const broke34 = doc.internal.getNumberOfPages() > pagesBefore34
-    y = (broke34 ? bottom4 : Math.max(bottom3, bottom4)) + 2.5
+    y = (broke34 ? bottom4 : Math.max(bottom3, bottom4)) + 1   // subidinha: bloco 5/6/7 mais pra cima
   }
 
-  // ═══ 5. ACOMODAÇÕES CONTRATADAS ═══════════════════════════════════════════
-  y = checkPageBreak(doc, y, 20, marginTop, pageBottom)
-  y = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_building, main: '5. Acomodações Contratadas' }) + 0.8
-  y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.accommodations, ...tableOpts }) + 2
-
-  // ═══ 6. VALORES (esq. ~32%) + 7. PLANO DE PAGAMENTO (dir. ~66%) ═══════════
-  // Ambos começam no MESMO Y; a altura do 6 não empurra o 7.
+  // ═══ 5. ACOMODAÇÕES + 6. VALORES (esquerda) │ 7. PLANO DE PAGAMENTO (direita)
+  // Coluna esquerda: tabela de acomodações (5) em cima e o card de valores (6)
+  // logo abaixo. Coluna direita: a tabela do plano de pagamento (7), que costuma
+  // ser a mais alta e preenche o lado.
+  y = checkPageBreak(doc, y, 30, marginTop, pageBottom)
   const colGap = 4
-  const sixW   = contentW * 0.32
-  const sevenW = contentW - sixW - colGap
-  const sevenX = marginX + sixW + colGap
-  y = checkPageBreak(doc, y, 42, marginTop, pageBottom)
-  const yStart = y
-  const pagesBeforeBlock = doc.internal.getNumberOfPages()
+  const leftW  = (contentW - colGap) * 0.5
+  const rightW = (contentW - colGap) - leftW
+  const rightX = marginX + leftW + colGap
+  const topBlock  = y
+  const startPage = doc.internal.getNumberOfPages()
 
+  // Card de valores (item 6) — desenhado dentro da coluna esquerda.
   const drawValores = (x, top, w) => {
     const pad = 2.4
     let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r: 2.7 }) + 1
@@ -754,17 +752,25 @@ export async function generateContractPDF(contract, opts = {}) {
     return yy + pad - 1
   }
 
-  const bottom6 = drawValores(marginX, yStart, sixW)
-  drawCard(doc, marginX, yStart, sixW, bottom6)
+  // ── Coluna esquerda: 5. Acomodações (tabela) + 6. Valores (card) ──
+  let yL = drawSectionTitle(doc, { x: marginX, y: topBlock, iconPng: icons.w_building, main: '5. Acomodações Contratadas', mainSize: 9 }) + 0.8
+  yL = drawTable(doc, { x: marginX, y: yL, width: leftW, ...tables.accommodations, ...tableOpts }) + 2.5
+  const bottom6 = drawValores(marginX, yL, leftW)
+  drawCard(doc, marginX, yL, leftW, bottom6)
+  const leftBottom  = bottom6
+  const leftEndPage = doc.internal.getNumberOfPages()
 
-  let y7 = drawSectionTitle(doc, { x: sevenX, y: yStart, iconPng: icons.w_card, main: '7. Plano de Pagamento' }) + 0.8
-  const bottom7 = drawTable(doc, { x: sevenX, y: y7, width: sevenW, ...tables.payment, ...tableOpts })
+  // ── Coluna direita: 7. Plano de Pagamento (tabela) — volta ao topo do bloco ──
+  doc.setPage(startPage)
+  let y7 = drawSectionTitle(doc, { x: rightX, y: topBlock, iconPng: icons.w_card, main: '7. Plano de Pagamento', mainSize: 9 }) + 0.8
+  const bottom7 = drawTable(doc, { x: rightX, y: y7, width: rightW, ...tables.payment, ...tableOpts })
+  const rightEndPage = doc.internal.getNumberOfPages()
 
-  // Se a tabela 7 quebrou de página, o cursor já está na página nova logo abaixo
-  // dela: usar bottom7 direto (Math.max misturaria coordenadas de páginas
-  // diferentes e deixaria um vão enorme). Senão, o fim é o mais baixo dos dois.
-  const tableBrokePage = doc.internal.getNumberOfPages() > pagesBeforeBlock
-  y = (tableBrokePage ? bottom7 : Math.max(bottom6, bottom7)) + 2.5
+  // Continua após a coluna que termina mais embaixo, na última página alcançada
+  // (evita misturar coordenadas de páginas diferentes quando uma tabela quebra).
+  if (leftEndPage > rightEndPage)      { doc.setPage(leftEndPage); y = leftBottom + 2.5 }
+  else if (rightEndPage > leftEndPage) { y = bottom7 + 2.5 }
+  else                                 { y = Math.max(leftBottom, bottom7) + 2.5 }
 
   // ═══ CLÁUSULAS CONTRATUAIS ════════════════════════════════════════════════
   const clauses = contract.clauses_data || []
