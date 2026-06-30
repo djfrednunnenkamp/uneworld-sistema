@@ -257,11 +257,11 @@ function drawMiniIcon(doc, iconPng, x, y, sz = 4) {
 
 // Título de seção: círculo+ícone à esquerda, texto centralizado verticalmente
 // com o círculo. Retorna o Y (mm) logo abaixo do título.
-function drawSectionTitle(doc, { x, y, iconPng, main, sub = '', mainSize = 11, r = 3.4 }) {
+function drawSectionTitle(doc, { x, y, iconPng, main, sub = '', mainSize = 10, r = 2.9 }) {
   const cx = x + r
   const cyc = y + r
   drawIconCircle(doc, cx, cyc, r, iconPng)
-  const tx = x + 2 * r + 2.5
+  const tx = x + 2 * r + 2.2
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(mainSize)
   doc.setTextColor(...BLUE_DARK)
@@ -273,7 +273,7 @@ function drawSectionTitle(doc, { x, y, iconPng, main, sub = '', mainSize = 11, r
     doc.setTextColor(...SUB)
     doc.text(String(sub), tx + mw + 2, cyc, { baseline: 'middle' })
   }
-  return y + 2 * r + 2
+  return y + 2 * r + 1.4
 }
 
 // Moldura arredondada do card (desenhada por cima, depois do conteúdo).
@@ -285,8 +285,8 @@ function drawCard(doc, x, top, w, bottom, radius = 2.5) {
 
 // Campo "Rótulo: valor" com rótulo em negrito inline e o valor fluindo/quebrando
 // na largura `w`. Respeita \n no valor. Retorna o Y (mm) abaixo do campo.
-function drawField(doc, x, y, w, label, value, size = 8.2) {
-  const lh = size * PT2MM * 1.35
+function drawField(doc, x, y, w, label, value, size = 8) {
+  const lh = size * PT2MM * 1.22
   doc.setFontSize(size)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...BLUE_DARK)
@@ -320,8 +320,8 @@ function drawField(doc, x, y, w, label, value, size = 8.2) {
 
 // Grade de campos (rótulo em cima, valor embaixo) em `cols` colunas com divisória
 // vertical fina entre elas. `fields`: [[label, value], ...]. Retorna Y abaixo.
-function drawInfoGrid(doc, { x, y, w, fields, cols = 4, size = 8.2 }) {
-  const lh = size * PT2MM * 1.32
+function drawInfoGrid(doc, { x, y, w, fields, cols = 4, size = 8 }) {
+  const lh = size * PT2MM * 1.2
   const colW = w / cols
   let yy = y
   for (let r = 0; r * cols < fields.length; r++) {
@@ -334,7 +334,7 @@ function drawInfoGrid(doc, { x, y, w, fields, cols = 4, size = 8.2 }) {
       maxLines = Math.max(maxLines, 1 + vl.length)
       return vl
     })
-    const rowH = maxLines * lh + 2.4
+    const rowH = maxLines * lh + 1.5
     rowFields.forEach(([label], ci) => {
       const cx = x + ci * colW
       let cyy = yy + 1
@@ -487,7 +487,7 @@ export async function generateContractPDF(contract, opts = {}) {
   const pw  = doc.internal.pageSize.getWidth()
   const ph  = doc.internal.pageSize.getHeight()
 
-  const marginX = 11, marginTop = 12, marginBottom = 12
+  const marginX = 11, marginTop = 10, marginBottom = 10
   const contentW  = pw - marginX * 2
   const pageBottom = ph - marginBottom
 
@@ -521,58 +521,58 @@ export async function generateContractPDF(contract, opts = {}) {
     ['Endereço:', dashTxt(ct.address)],
   ]
 
-  const tableOpts = { rowHeight: 5.8, headerHeight: 7.2, fontSize: 7.8, headerFontSize: 7, pageTop: marginTop, pageBottom }
+  const tableOpts = { rowHeight: 4.8, headerHeight: 5.8, fontSize: 7.2, headerFontSize: 6.6, pageTop: marginTop, pageBottom }
 
   let y = marginTop
 
   // ═══ CABEÇALHO ═══════════════════════════════════════════════════════════
   const headerTop = marginTop
-  const headerH = 26
+  const headerH = 21
   // Logo (esquerda) — proporção preservada via getImageProperties.
   if (logoDataUrl) {
     try {
       const props = doc.getImageProperties(logoDataUrl)
       const ratio = props.width / props.height
-      let lw = 42, lh = lw / ratio
-      if (lh > 20) { lh = 20; lw = lh * ratio }
+      let lw = 38, lh = lw / ratio
+      if (lh > 17) { lh = 17; lw = lh * ratio }
       doc.addImage(logoDataUrl, props.fileType || 'PNG', marginX, headerTop + 1, lw, lh)
     } catch {}
   }
   // Título (centro) com divisória vertical à esquerda.
-  const titleX = marginX + 50
+  const titleX = marginX + 48
   doc.setDrawColor(...LINE); doc.setLineWidth(0.3)
   doc.line(titleX - 6, headerTop, titleX - 6, headerTop + headerH)
-  let ty = headerTop + 2
+  let ty = headerTop + 1
   for (const l of ['Contrato de', 'Prestação de', 'Serviços Turísticos']) {
-    drawText(doc, l.toUpperCase(), titleX, ty, { size: 15, style: 'bold', color: BLUE_DARK, baseline: 'top' })
-    ty += 6
+    drawText(doc, l.toUpperCase(), titleX, ty, { size: 13, style: 'bold', color: BLUE_DARK, baseline: 'top' })
+    ty += 4.9
   }
-  drawText(doc, 'INSTRUMENTO PARTICULAR DE CONTRATAÇÃO DE VIAGEM', titleX, ty + 1, { size: 7, style: 'bold', color: BLUE, baseline: 'top' })
+  drawText(doc, 'INSTRUMENTO PARTICULAR DE CONTRATAÇÃO DE VIAGEM', titleX, ty + 0.6, { size: 6.5, style: 'bold', color: BLUE, baseline: 'top' })
   // Meta (direita) alinhada à borda direita.
   const rightEdge = pw - marginX
-  let my = headerTop + 2
-  drawText(doc, ('Reserva nº ' + dashTxt(contract.reservation_number)).toUpperCase(), rightEdge, my, { size: 8.5, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 5.5
-  drawText(doc, 'DATA DA CONTRATAÇÃO', rightEdge, my, { size: 7.5, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 4
-  drawText(doc, contract.contract_date ? fmtDateBR(contract.contract_date) : '—', rightEdge, my, { size: 12, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 6.5
-  const badgeW = 52, badgeH = 7
+  let my = headerTop + 1
+  drawText(doc, ('Reserva nº ' + dashTxt(contract.reservation_number)).toUpperCase(), rightEdge, my, { size: 8.2, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 4.6
+  drawText(doc, 'DATA DA CONTRATAÇÃO', rightEdge, my, { size: 7, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 3.4
+  drawText(doc, contract.contract_date ? fmtDateBR(contract.contract_date) : '—', rightEdge, my, { size: 11, style: 'bold', color: BLUE_DARK, align: 'right', baseline: 'top' }); my += 5
+  const badgeW = 50, badgeH = 6
   drawBadge(doc, { x: rightEdge - badgeW, y: my, w: badgeW, h: badgeH, type: contract.signature_type })
   // Borda inferior do cabeçalho.
   const headerBottom = headerTop + headerH
   doc.setDrawColor(...LINE); doc.setLineWidth(0.3)
   doc.line(marginX, headerBottom, marginX + contentW, headerBottom)
-  y = headerBottom + 4
+  y = headerBottom + 3
 
   // ═══ 1. PARTES CONTRATANTES (esq.) + 2. RESUMO DA VIAGEM (dir.) ═══════════
   const drawPartes = (x, top, w) => {
-    const pad = 3
-    let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_users, main: '1. Partes Contratantes' }) + 1.5
+    const pad = 2.4
+    let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_users, main: '1. Partes Contratantes' }) + 1
     const colGap = 4
     const colW = (w - 2 * pad - colGap) / 2
     const colX1 = x + pad, colX2 = x + pad + colW + colGap
     const drawCol = (cx, head, fields) => {
       let cyy = yy
-      drawText(doc, head.toUpperCase(), cx, cyy, { size: 8.5, style: 'bold', color: BLUE, baseline: 'top' }); cyy += 4.4
-      for (const [lab, val] of fields) cyy = drawField(doc, cx, cyy, colW, lab, val, 8.2) + 1
+      drawText(doc, head.toUpperCase(), cx, cyy, { size: 8.2, style: 'bold', color: BLUE, baseline: 'top' }); cyy += 3.8
+      for (const [lab, val] of fields) cyy = drawField(doc, cx, cyy, colW, lab, val, 8) + 0.6
       return cyy
     }
     const b1 = drawCol(colX1, 'Agência Intermediadora', [
@@ -591,8 +591,8 @@ export async function generateContractPDF(contract, opts = {}) {
   }
 
   const drawResumo = (x, top, w) => {
-    const pad = 3
-    let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_plane, main: '2. Resumo da Viagem' }) + 1.5
+    const pad = 2.4
+    let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_plane, main: '2. Resumo da Viagem' }) + 1
     const innerX = x + pad, innerW = w - 2 * pad
     const rows = [
       ['briefcase', 'Pacote:', dashTxt(contract.package_name)],
@@ -601,18 +601,18 @@ export async function generateContractPDF(contract, opts = {}) {
       ['message', 'Observações:', dashTxt(contract.observations)],
     ]
     for (const [icon, lab, val] of rows) {
-      const iconSz = 4
-      drawMiniIcon(doc, icons['b_' + icon], innerX, yy + 0.3, iconSz)
-      const tx = innerX + iconSz + 2, tw = innerW - iconSz - 2
-      drawText(doc, lab, tx, yy, { size: 8.2, style: 'bold', color: BLUE_DARK, baseline: 'top' })
-      let cyy = yy + 4
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...TEXTC)
-      doc.splitTextToSize(val, tw).forEach(l => { doc.text(l, tx, cyy, { baseline: 'top' }); cyy += 3.8 })
-      const rowBottom = cyy + 1
+      const iconSz = 3.6
+      drawMiniIcon(doc, icons['b_' + icon], innerX, yy + 0.2, iconSz)
+      const tx = innerX + iconSz + 1.8, tw = innerW - iconSz - 1.8
+      drawText(doc, lab, tx, yy, { size: 8, style: 'bold', color: BLUE_DARK, baseline: 'top' })
+      let cyy = yy + 3.5
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...TEXTC)
+      doc.splitTextToSize(val, tw).forEach(l => { doc.text(l, tx, cyy, { baseline: 'top' }); cyy += 3.3 })
+      const rowBottom = cyy + 0.6
       doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(innerX, rowBottom, innerX + innerW, rowBottom)
-      yy = rowBottom + 1.6
+      yy = rowBottom + 1.1
     }
-    return yy + pad - 1.6
+    return yy + pad - 1.1
   }
 
   const gap12 = 4
@@ -624,28 +624,28 @@ export async function generateContractPDF(contract, opts = {}) {
   const cardBottom = Math.max(b1, b2)
   drawCard(doc, marginX, top12, w1, cardBottom)
   drawCard(doc, marginX + w1 + gap12, top12, w2, cardBottom)
-  y = cardBottom + 4
+  y = cardBottom + 2.5
 
   // ═══ 3. CLIENTE CONTRATANTE (card largura total) ══════════════════════════
   {
-    const pad = 3
+    const pad = 2.4
     const top3 = y
-    let yy = drawSectionTitle(doc, { x: marginX + pad, y: top3 + pad, iconPng: icons.w_user, main: '3. Cliente Contratante', sub: '(Responsável pelo pagamento)' }) + 1
-    doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yy, marginX + contentW - pad, yy); yy += 2
-    const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yy, w: contentW - 2 * pad, fields: clientFields, cols: 4, size: 8.2 })
+    let yy = drawSectionTitle(doc, { x: marginX + pad, y: top3 + pad, iconPng: icons.w_user, main: '3. Cliente Contratante', sub: '(Responsável pelo pagamento)' }) + 0.8
+    doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yy, marginX + contentW - pad, yy); yy += 1.6
+    const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yy, w: contentW - 2 * pad, fields: clientFields, cols: 4, size: 8 })
     drawCard(doc, marginX, top3, contentW, bottom3 + pad)
-    y = bottom3 + pad + 4
+    y = bottom3 + pad + 2.5
   }
 
   // ═══ 4. PASSAGEIROS — título + tabela nativa ══════════════════════════════
-  y = checkPageBreak(doc, y, 24, marginTop, pageBottom)
-  y = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_users, main: '4. Passageiros', sub: '(Contratante e demais usuários)' }) + 1
-  y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.passengers, ...tableOpts }) + 3
+  y = checkPageBreak(doc, y, 20, marginTop, pageBottom)
+  y = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_users, main: '4. Passageiros', sub: '(Contratante e demais usuários)' }) + 0.8
+  y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.passengers, ...tableOpts }) + 2
 
   // ═══ 5. ACOMODAÇÕES CONTRATADAS ═══════════════════════════════════════════
-  y = checkPageBreak(doc, y, 24, marginTop, pageBottom)
-  y = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_building, main: '5. Acomodações Contratadas' }) + 1
-  y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.accommodations, ...tableOpts }) + 3
+  y = checkPageBreak(doc, y, 20, marginTop, pageBottom)
+  y = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_building, main: '5. Acomodações Contratadas' }) + 0.8
+  y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.accommodations, ...tableOpts }) + 2
 
   // ═══ 6. VALORES (esq. ~32%) + 7. PLANO DE PAGAMENTO (dir. ~66%) ═══════════
   // Ambos começam no MESMO Y; a altura do 6 não empurra o 7; Y final = max.
@@ -653,12 +653,12 @@ export async function generateContractPDF(contract, opts = {}) {
   const sixW   = contentW * 0.32
   const sevenW = contentW - sixW - colGap
   const sevenX = marginX + sixW + colGap
-  y = checkPageBreak(doc, y, 50, marginTop, pageBottom)
+  y = checkPageBreak(doc, y, 42, marginTop, pageBottom)
   const yStart = y
 
   const drawValores = (x, top, w) => {
-    const pad = 3
-    let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 9, r: 3 }) + 1.5
+    const pad = 2.4
+    let yy = drawSectionTitle(doc, { x: x + pad, y: top + pad, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r: 2.7 }) + 1
     const innerX = x + pad, innerW = w - 2 * pad
     const rows = [
       ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum), false],
@@ -668,63 +668,63 @@ export async function generateContractPDF(contract, opts = {}) {
       ['file',     'Total (BRL)',          moneyTxt(contract.total_brl), false],
     ]
     for (const [icon, lab, val, isTotal] of rows) {
-      const iconSz = 3.6
-      drawMiniIcon(doc, icons['b_' + icon], innerX, yy + 0.4, iconSz)
-      const lx = innerX + iconSz + 1.6
-      const size = isTotal ? 9.5 : 8
-      const mid = yy + (isTotal ? 2.2 : 1.9)
+      const iconSz = 3.3
+      drawMiniIcon(doc, icons['b_' + icon], innerX, yy + 0.3, iconSz)
+      const lx = innerX + iconSz + 1.4
+      const size = isTotal ? 9 : 7.8
+      const mid = yy + (isTotal ? 2 : 1.7)
       drawText(doc, lab, lx, mid, { size, style: isTotal ? 'bold' : 'normal', color: isTotal ? BLUE : TEXTC, baseline: 'middle' })
       drawText(doc, val, innerX + innerW, mid, { size, style: 'bold', color: isTotal ? BLUE : BLUE_DARK, align: 'right', baseline: 'middle' })
-      yy += isTotal ? 6.2 : 5.2
-      doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(innerX, yy - 1.2, innerX + innerW, yy - 1.2)
+      yy += isTotal ? 5.2 : 4.4
+      doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(innerX, yy - 1, innerX + innerW, yy - 1)
     }
-    return yy + pad - 1.2
+    return yy + pad - 1
   }
 
   const bottom6 = drawValores(marginX, yStart, sixW)
   drawCard(doc, marginX, yStart, sixW, bottom6)
 
-  let y7 = drawSectionTitle(doc, { x: sevenX, y: yStart, iconPng: icons.w_card, main: '7. Plano de Pagamento' }) + 1
+  let y7 = drawSectionTitle(doc, { x: sevenX, y: yStart, iconPng: icons.w_card, main: '7. Plano de Pagamento' }) + 0.8
   const bottom7 = drawTable(doc, { x: sevenX, y: y7, width: sevenW, ...tables.payment, ...tableOpts })
 
-  y = Math.max(bottom6, bottom7) + 3
+  y = Math.max(bottom6, bottom7) + 2.5
 
   // ═══ CLÁUSULAS CONTRATUAIS ════════════════════════════════════════════════
   const clauses = contract.clauses_data || []
   if (clauses.length) {
-    y += 4
-    if (y + 16 > pageBottom) { doc.addPage(); y = marginTop }
-    drawText(doc, 'CLÁUSULAS CONTRATUAIS', pw / 2, y, { size: 12, style: 'bold', color: NAV, align: 'center' })
-    y += 8
-    const lineHeight = 5.2
+    y += 2.5
+    if (y + 13 > pageBottom) { doc.addPage(); y = marginTop }
+    drawText(doc, 'CLÁUSULAS CONTRATUAIS', pw / 2, y, { size: 11, style: 'bold', color: NAV, align: 'center' })
+    y += 6
+    const lineHeight = 4.3
     clauses.forEach((clause) => {
-      if (y + 12 > pageBottom) { doc.addPage(); y = marginTop }
-      drawText(doc, clause.name, marginX, y, { size: 11, style: 'bold', color: NAV })
-      y += 6.5
+      if (y + 10 > pageBottom) { doc.addPage(); y = marginTop }
+      drawText(doc, clause.name, marginX, y, { size: 9.5, style: 'bold', color: NAV })
+      y += 5.2
       const text  = htmlToText(clause.content)
       const lines = doc.splitTextToSize(text, contentW)
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(30, 41, 59)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(30, 41, 59)
       lines.forEach((line) => {
         if (y + lineHeight > pageBottom) { doc.addPage(); y = marginTop }
         doc.text(line, marginX, y)
         y += lineHeight
       })
-      y += 4
+      y += 3
     })
   }
 
   // ═══ ASSINATURAS — só no contrato FÍSICO ══════════════════════════════════
   if (contract.signature_type !== 'digital') {
-    if (y + 38 > pageBottom) { doc.addPage(); y = marginTop }
-    y += 16
+    if (y + 26 > pageBottom) { doc.addPage(); y = marginTop }
+    y += 11
     const sigGap = 14
     const sigColW = (contentW - sigGap) / 2
     doc.setDrawColor(100, 116, 139); doc.setLineWidth(0.3)
     doc.line(marginX, y, marginX + sigColW, y)
     doc.line(marginX + sigColW + sigGap, y, pw - marginX, y)
-    y += 5
-    drawText(doc, 'Assinatura do Contratante', marginX + sigColW / 2, y, { size: 10, color: SUB, align: 'center' })
-    drawText(doc, 'Assinatura da Operadora / Agência', marginX + sigColW + sigGap + sigColW / 2, y, { size: 10, color: SUB, align: 'center' })
+    y += 4.5
+    drawText(doc, 'Assinatura do Contratante', marginX + sigColW / 2, y, { size: 9.5, color: SUB, align: 'center' })
+    drawText(doc, 'Assinatura da Operadora / Agência', marginX + sigColW + sigGap + sigColW / 2, y, { size: 9.5, color: SUB, align: 'center' })
   }
 
   // ═══ NUMERAÇÃO DE PÁGINA ══════════════════════════════════════════════════
