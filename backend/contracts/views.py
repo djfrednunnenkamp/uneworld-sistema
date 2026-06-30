@@ -161,7 +161,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         do serializer (totais, *_data, cláusulas padrão) para que a prévia fique
         idêntica ao documento final."""
         from django.db import transaction
-        ser = ContractSerializer(data=request.data, context={'request': request})
+        # Prévia pode rodar com o contrato incompleto (sem contratante/agência) —
+        # trata como rascunho só pra afrouxar a validação; não muda a renderização.
+        data_in = {**request.data, 'status': 'rascunho'}
+        ser = ContractSerializer(data=data_in, context={'request': request})
         ser.is_valid(raise_exception=True)
         data = None
         with transaction.atomic():
