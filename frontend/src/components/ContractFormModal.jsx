@@ -1321,7 +1321,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                       <button type="button" onClick={() => setShowPayerModal(true)}
                         title="Cadastrar empresa pagante (CNPJ)"
                         style={{ flexShrink: 0, width: 42, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ic n="plus" s={18} />
+                        <Ic n="building" s={18} />
                       </button>
                     </div>
                   )}
