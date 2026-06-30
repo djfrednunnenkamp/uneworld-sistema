@@ -145,23 +145,23 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   const guestRows = guests.map((g, i) => {
     const p = g.passenger_data || {}
     return `<tr>
-      <td><div class="cell">${i + 1}. ${dash(p.full_name)}</div></td>
-      <td><div class="cell">${dash(p.gender)}</div></td>
-      <td><div class="cell">${p.birth_date ? fmtDateBR(p.birth_date) : '—'}</div></td>
-      <td><div class="cell">${dash(p.passport || p.cpf)}</div></td>
-      <td><div class="cell">${dash(g.accommodation_type_name)}</div></td>
+      <td>${i + 1}. ${dash(p.full_name)}</td>
+      <td>${dash(p.gender)}</td>
+      <td>${p.birth_date ? fmtDateBR(p.birth_date) : '—'}</td>
+      <td>${dash(p.passport || p.cpf)}</td>
+      <td>${dash(g.accommodation_type_name)}</td>
     </tr>`
-  }).join('') || `<tr><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td></tr>`
+  }).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
 
   // ── Acomodações contratadas ──
   const lines = contract.accommodation_lines || []
   const accomRows = lines.map(l => `<tr>
-      <td><div class="cell">${dash(l.accommodation_type_name)}</div></td>
-      <td><div class="cell">${money(l.value_per_person_usd)}</div></td>
-      <td><div class="cell">${money(l.taxes_usd)}</div></td>
-      <td><div class="cell">${dash(l.quantity)}</div></td>
-      <td><div class="cell"><strong>${money(l.total_usd)}</strong></div></td>
-    </tr>`).join('') || `<tr><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td></tr>`
+      <td>${dash(l.accommodation_type_name)}</td>
+      <td>${money(l.value_per_person_usd)}</td>
+      <td>${money(l.taxes_usd)}</td>
+      <td>${dash(l.quantity)}</td>
+      <td><strong>${money(l.total_usd)}</strong></td>
+    </tr>`).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
 
   // ── Valores (resumo) ── soma das bases e das taxas (×quantidade) para
   // bater com o Total do contrato.
@@ -177,7 +177,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   if (aVista) {
     const p = parcelas[0] || entrada
     payRows = p
-      ? `<tr><td><div class="cell">01</div></td><td><div class="cell">${dash(p.detail || 'À vista')}</div></td><td><div class="cell">${p.due_date ? fmtDateBR(p.due_date) : '—'}</div></td><td><div class="cell">${money(p.value_brl)}</div></td><td><div class="cell">${dash(p.payment_method)}</div></td><td><div class="cell">Pendente</div></td></tr>`
+      ? `<tr><td>01</td><td>${dash(p.detail || 'À vista')}</td><td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td><td>${money(p.value_brl)}</td><td>${dash(p.payment_method)}</td></tr>`
       : ''
   } else {
     const ordered = [...(entrada ? [entrada] : []), ...parcelas]
@@ -188,16 +188,15 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
       else detail = p.detail || `Parcela ${p.installment_number ?? idx}`
       if (isLast && p.kind === 'parcela' && !/final/i.test(detail)) detail += ' / Final'
       return `<tr>
-        <td><div class="cell">${String(idx + 1).padStart(2, '0')}</div></td>
-        <td><div class="cell">${dash(detail)}</div></td>
-        <td><div class="cell">${p.due_date ? fmtDateBR(p.due_date) : '—'}</div></td>
-        <td><div class="cell">${money(p.value_brl)}</div></td>
-        <td><div class="cell">${dash(p.payment_method)}</div></td>
-        <td><div class="cell">Pendente</div></td>
+        <td>${String(idx + 1).padStart(2, '0')}</td>
+        <td>${dash(detail)}</td>
+        <td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td>
+        <td>${money(p.value_brl)}</td>
+        <td>${dash(p.payment_method)}</td>
       </tr>`
     }).join('')
   }
-  if (!payRows) payRows = `<tr><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td></tr>`
+  if (!payRows) payRows = `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
 
   // ── Bloco do cliente contratante (físico × jurídico) ──
   const clientFields = isJuridica ? [
@@ -241,38 +240,40 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .section { border:1px solid var(--line); border-radius:8px; padding:8px 9px; background:linear-gradient(180deg,#fff,#fbfdff); }
     .ctpdf .section-title { display:flex; align-items:center; gap:7px; color:var(--blue-dark); font-weight:800; font-size:11.5px; text-transform:uppercase; margin-bottom:7px; }
     .ctpdf .section-title .ttl { display:block; }
-    .ctpdf .icon { position:relative; min-width:27px; width:27px; height:27px; border-radius:50%; background:var(--blue); }
-    .ctpdf .icon img { position:absolute; top:6px; left:6px; width:15px; height:15px; display:block; }
+    /* Ícone do círculo centralizado com flex (fora de tabela, html2canvas ok) —
+       sem números mágicos de top/left. */
+    .ctpdf .icon { display:flex; align-items:center; justify-content:center; min-width:27px; width:27px; height:27px; border-radius:50%; background:var(--blue); }
+    .ctpdf .icon img { position:static; width:15px; height:15px; display:block; }
     .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:12px; }
     .ctpdf h3 { margin:0 0 7px; color:var(--blue); font-size:10px; text-transform:uppercase; }
     .ctpdf .field { margin-bottom:5px; line-height:1.25; }
     .ctpdf .field strong { color:var(--blue-dark); margin-right:4px; }
-    .ctpdf .travel-row { display:grid; grid-template-columns:22px 1fr; gap:7px; padding:4.5px 0; border-bottom:1px solid #D8E3F3; }
+    .ctpdf .travel-row { display:grid; grid-template-columns:22px 1fr; gap:7px; align-items:center; padding:4.5px 0; border-bottom:1px solid #D8E3F3; }
     .ctpdf .travel-row:last-child { border-bottom:0; }
-    .ctpdf .mini-icon { text-align:center; padding-top:1px; }
-    .ctpdf .mini-img { width:14px; height:14px; display:inline-block; vertical-align:middle; }
+    /* Mini-ícone centralizado na sua coluna via flex — sem padding-top manual. */
+    .ctpdf .mini-icon { display:flex; align-items:center; justify-content:center; }
+    .ctpdf .mini-img { width:14px; height:14px; display:block; }
     .ctpdf .client, .ctpdf .passengers, .ctpdf .accommodations { margin-top:6px; }
     .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:10px; border-top:1px solid #D8E3F3; padding-top:7px; }
-    .ctpdf .client-grid .field { border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
+    .ctpdf .client-grid .field { display:flex; flex-direction:column; justify-content:center; border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
-    .ctpdf table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9px; background:white; }
-    /* A célula (td/th) não tem padding: o conteúdo vai num .cell flex que se
-       centraliza verticalmente sozinho, qualquer que seja a altura da linha. */
-    .ctpdf th, .ctpdf td { padding:0; border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
-    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; border-right-color:rgba(255,255,255,.25); }
-    /* Permite quebra de linha controlada (nomes longos, endereços, passaporte/CPF
-       não estouram a tabela) mantendo o conteúdo centralizado verticalmente. */
-    .ctpdf td { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
-    .ctpdf .cell { display:flex; align-items:center; justify-content:center; height:100%; min-height:20px; padding:5px 7px; box-sizing:border-box; text-align:center; line-height:1.2; overflow-wrap:anywhere; }
-    .ctpdf th .cell { font-size:8.5px; line-height:1.15; }
-    .ctpdf td:nth-child(2) .cell, .ctpdf .accommodations td:first-child .cell { justify-content:flex-start; text-align:left; }
+    .ctpdf table { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9px; background:white; }
+    /* Centralização vertical CONFIÁVEL em tabela: célula real (table-cell) +
+       vertical-align:middle + padding simétrico. Sem flex nem height:100% dentro
+       de <table> (o html2canvas renderiza esses errado). O conteúdo vai direto na
+       célula (sem wrapper) — é o caso que o vertical-align centraliza de fato.
+       white-space:normal + overflow-wrap evita que texto longo estoure. */
+    .ctpdf th, .ctpdf td { padding:5px 7px; vertical-align:middle; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; line-height:1.25; text-align:center; border-right-color:rgba(255,255,255,.25); }
+    .ctpdf td { text-align:center; line-height:1.3; }
+    .ctpdf td:nth-child(2), .ctpdf .accommodations td:first-child { text-align:left; }
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
     .ctpdf .values-list { display:grid; gap:7px; padding-top:4px; }
-    .ctpdf .value-row { display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:start; padding-bottom:5px; border-bottom:1px solid #D8E3F3; }
-    .ctpdf .value-row .mini-icon { line-height:16px; padding-top:0; }
-    .ctpdf .value-row span:nth-child(2), .ctpdf .value-row strong { line-height:16px; }
+    /* Ícone, rótulo e valor na mesma linha de base vertical via align-items:center —
+       o valor da direita não fica mais deslocado pra cima. */
+    .ctpdf .value-row { display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:center; padding-bottom:5px; border-bottom:1px solid #D8E3F3; }
     .ctpdf .value-row.total { color:var(--blue); font-size:13.5px; font-weight:800; }
   `
 
@@ -334,7 +335,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         <div class="section-title">${circleIcon('users')}<span class="ttl">4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></span></div>
         <table>
           <thead><tr>
-            <th style="width:42%"><div class="cell">Nome completo</div></th><th><div class="cell">Sexo</div></th><th><div class="cell">Data de nascimento</div></th><th><div class="cell">Passaporte/CPF</div></th><th><div class="cell">Acomodação</div></th>
+            <th style="width:42%">Nome completo</th><th>Sexo</th><th>Data de nascimento</th><th>Passaporte/CPF</th><th>Acomodação</th>
           </tr></thead>
           <tbody>${guestRows}</tbody>
         </table>
@@ -344,7 +345,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         <div class="section-title">${circleIcon('building')}<span class="ttl">5. Acomodações Contratadas</span></div>
         <table>
           <thead><tr>
-            <th><div class="cell">Tipo de acomodação</div></th><th><div class="cell">Valor/pessoa (${esc(cc)})</div></th><th><div class="cell">Taxas (${esc(cc)})</div></th><th><div class="cell">Quantidade</div></th><th><div class="cell">Total (${esc(cc)})</div></th>
+            <th>Tipo de acomodação</th><th>Valor/pessoa (${esc(cc)})</th><th>Taxas (${esc(cc)})</th><th>Quantidade</th><th>Total (${esc(cc)})</th>
           </tr></thead>
           <tbody>${accomRows}</tbody>
         </table>
@@ -366,7 +367,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
           <div class="section-title">${circleIcon('card')}<span class="ttl">7. Plano de Pagamento</span></div>
           <table>
             <thead><tr>
-              <th><div class="cell">Parcela</div></th><th><div class="cell">Detalhe</div></th><th><div class="cell">Vencimento</div></th><th><div class="cell">Valor (BRL)</div></th><th><div class="cell">Forma de pagamento</div></th><th><div class="cell">Status</div></th>
+              <th>Parcela</th><th>Detalhe</th><th>Vencimento</th><th>Valor (BRL)</th><th>Forma de pagamento</th>
             </tr></thead>
             <tbody>${payRows}</tbody>
           </table>
