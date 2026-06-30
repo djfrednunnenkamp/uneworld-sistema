@@ -130,8 +130,17 @@ class ConfigExchangeRate(models.Model):
             self.base_rate = self.rate
         markup = self.markup_percent or Decimal('0')
         markup_inst = self.markup_percent_installment or Decimal('0')
-        new_rate = self._apply_rounding(self.base_rate * (Decimal('1') + markup / Decimal('100')))
-        self.rate_installment = self._apply_rounding(self.base_rate * (Decimal('1') + markup_inst / Decimal('100')))
+        # Um script de câmbio pode entregar as taxas à vista/parcelado prontas
+        # (atributos voláteis _script_a_vista/_script_parcelado). Quando presentes,
+        # têm precedência sobre o acréscimo; senão, aplica o markup sobre a base.
+        script_av = getattr(self, '_script_a_vista', None)
+        script_pc = getattr(self, '_script_parcelado', None)
+        new_rate = self._apply_rounding(
+            script_av if script_av is not None
+            else self.base_rate * (Decimal('1') + markup / Decimal('100')))
+        self.rate_installment = self._apply_rounding(
+            script_pc if script_pc is not None
+            else self.base_rate * (Decimal('1') + markup_inst / Decimal('100')))
         # Só mexe no histórico e na data da taxa quando a taxa EFETIVA realmente
         # muda — senão estrelar favorito ou abrir/salvar o câmbio sem alterar nada
         # falsearia a "última atualização" e achataria o gráfico da Visão Geral.

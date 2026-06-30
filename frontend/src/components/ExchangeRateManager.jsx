@@ -34,11 +34,14 @@ function ScriptDocsModal({ onClose }) {
           <button onClick={onClose} style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer' }}><Ic n="x" s={14}/></button>
         </div>
         <div style={{ padding:'14px 20px', overflowY:'auto' }}>
-          <p style={p}>O script calcula a <strong>taxa de mercado</strong> da moeda (quanto vale <strong>1 unidade dela em BRL</strong>) e a coloca na variável <span style={mono}>result</span>. O <strong>Acréscimo (%)</strong> do formulário ainda é somado por cima — então, se quiser embutir o % no script, deixe o campo de acréscimo em 0.</p>
+          <p style={p}>O script calcula a <strong>taxa de mercado</strong> da moeda (quanto vale <strong>1 unidade dela em BRL</strong>) e a coloca na variável <span style={mono}>result</span>. Os <strong>acréscimos (à vista / parcelado)</strong> do formulário são somados por cima.</p>
 
-          <p style={h}>Obrigatório</p>
-          <p style={p}>Defina <span style={mono}>result</span> com um número (a taxa). Sem isso, dá erro.</p>
+          <p style={h}>Dois jeitos de usar</p>
+          <p style={p}><strong>1) Só a taxa de mercado</strong> — defina <span style={mono}>result</span>. O sistema aplica os acréscimos à vista e parcelado por cima (configurados no formulário).</p>
           <pre style={code}>{'result = 5.42'}</pre>
+          <p style={p}><strong>2) Os dois valores prontos</strong> — defina <span style={mono}>result_a_vista</span> e <span style={mono}>result_parcelado</span>. Aí <strong>os acréscimos são ignorados</strong> (o script já manda o valor final de cada um).</p>
+          <pre style={code}>{'base = fetch_json("https://fonte.com/usd")["rate"]\nresult_a_vista   = float(base) * 1.00   # à vista\nresult_parcelado = float(base) * 1.06   # parcelado (+6%)'}</pre>
+          <p style={p} >Defina <span style={mono}>result</span> <strong>ou</strong> os dois <span style={mono}>result_a_vista</span>/<span style={mono}>result_parcelado</span>. Sem nenhum, dá erro.</p>
 
           <p style={h}>Funções disponíveis</p>
           <p style={p}>• <span style={mono}>fetch_json(url)</span> — faz GET e devolve o JSON (dicionário/lista). Ex.: <span style={mono}>fetch_json(url)["rates"]["BRL"]</span></p>
@@ -86,6 +89,25 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
   const [roundDecimals,setRoundDecimals]= useState(initial?.rounding_decimals ?? 2)
   const [roundMode,    setRoundMode]    = useState(initial?.rounding_mode ?? 'nearest')
   const [saving,        setSaving]       = useState(false)
+
+  // Resumo do teste do script: mostra à vista/parcelado se o script já entregou
+  // os dois valores; senão a taxa única.
+  const renderTestResult = () => {
+    if (!testResult) return null
+    if (testResult.error) return <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>
+    const fmt = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits:4 })
+    if (testResult.rate_a_vista != null || testResult.rate_parcelado != null) {
+      return (
+        <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>
+          ✓ À vista: {testResult.rate_a_vista != null ? fmt(testResult.rate_a_vista) : '—'}
+          {' · '}Parcelado: {testResult.rate_parcelado != null ? fmt(testResult.rate_parcelado) : '—'}
+        </span>
+      )
+    }
+    return testResult.rate != null
+      ? <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>✓ Taxa: {fmt(testResult.rate)}</span>
+      : null
+  }
 
   const testScript = async () => {
     setTesting(true); setTestResult(null)
@@ -284,13 +306,12 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
                           <button type="button" onClick={testScript} disabled={testing || !script.trim()} style={{ ...btnCsv('#059669'), opacity: (testing || !script.trim()) ? .6 : 1 }}>
                             {testing ? 'Testando…' : '▶ Testar'}
                           </button>
-                          {testResult?.rate != null && <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>✓ Taxa: {Number(testResult.rate).toLocaleString('pt-BR', { minimumFractionDigits:4 })}</span>}
-                          {testResult?.error && <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>}
+                          {renderTestResult()}
                         </div>
                         {testResult?.output && (
                           <pre style={{ margin:'6px 0 0', padding:'8px 10px', background:'#0f172a', color:'#cbd5e1', borderRadius:6, fontSize:11.5, lineHeight:1.5, maxHeight:120, overflow:'auto', whiteSpace:'pre-wrap', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{testResult.output}</pre>
                         )}
-                        <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0', lineHeight:1.5 }}>Roda num <strong>sandbox seguro</strong>. Defina a variável <code>result</code> com a taxa.</p>
+                        <p style={{ fontSize:11, color:'#94a3b8', margin:'6px 0 0', lineHeight:1.5 }}>Roda num <strong>sandbox seguro</strong>. Defina <code>result</code> (taxa de mercado) — ou <code>result_a_vista</code> e <code>result_parcelado</code> com os valores prontos.</p>
                       </div>
                     )}
                   </div>
@@ -334,8 +355,7 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
               <button type="button" onClick={testScript} disabled={testing || !script.trim()} style={{ ...btnCsv('#059669'), opacity:(testing || !script.trim()) ? .6 : 1 }}>
                 {testing ? 'Testando…' : '▶ Testar'}
               </button>
-              {testResult?.rate != null && <span style={{ fontSize:12.5, fontWeight:600, color:'#15803d' }}>✓ Taxa: {Number(testResult.rate).toLocaleString('pt-BR', { minimumFractionDigits:4 })}</span>}
-              {testResult?.error && <span style={{ fontSize:12, color:'#dc2626' }}>✕ {testResult.error}</span>}
+              {renderTestResult()}
             </div>
             {testResult?.output && (
               <pre style={{ margin:0, padding:'8px 10px', background:'#0f172a', color:'#cbd5e1', borderRadius:6, fontSize:11.5, lineHeight:1.5, maxHeight:120, overflow:'auto', whiteSpace:'pre-wrap', flexShrink:0, fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{testResult.output}</pre>

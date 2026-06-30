@@ -993,10 +993,19 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
         if not request.user.is_superuser:
             return Response({'error': 'Apenas superusuário pode testar scripts.'}, status=403)
         from .exchange_runner import run_script
-        ok, val, out = run_script(request.data.get('script') or '')
+        ok, data, out = run_script(request.data.get('script') or '')
         if ok:
-            return Response({'rate': str(val), 'output': out})
-        return Response({'error': val, 'output': out})
+            market = data.get('market'); a = data.get('a_vista'); p = data.get('parcelado')
+            primary = market if market is not None else a
+            resp = {'rate': str(primary) if primary is not None else None, 'output': out}
+            if market is not None:
+                resp['rate_market'] = str(market)
+            if a is not None:
+                resp['rate_a_vista'] = str(a)
+            if p is not None:
+                resp['rate_parcelado'] = str(p)
+            return Response(resp)
+        return Response({'error': data, 'output': out})
 
     @action(detail=False, methods=['get', 'post'], url_path='default-time')
     def default_time(self, request):

@@ -102,16 +102,34 @@ def _run_target(source, q):
             byte_code = compile_restricted(source, '<cambio-script>', 'exec')
         env = _build_env()
         exec(byte_code, env, loc)  # noqa: S102 — sandbox RestrictedPython
-        result = loc.get('result', env.get('result'))
-        if result is None:
-            q.put(('err', "O script precisa definir a variável 'result' com a taxa.", _printed(loc)))
+
+        def _pick(*names):
+            for n in names:
+                v = loc.get(n, env.get(n))
+                if v is not None:
+                    return v
+            return None
+
+        # Dois modos:
+        #  1) só a taxa de mercado  -> `result` (o acréscimo à vista/parcelado é
+        #     aplicado por cima nas Configurações).
+        #  2) os dois valores prontos -> `result_a_vista` e `result_parcelado`
+        #     (têm precedência; o acréscimo é ignorado).
+        market    = _pick('result')
+        a_vista   = _pick('result_a_vista', 'result_avista', 'result_vista')
+        parcelado = _pick('result_parcelado', 'result_installment', 'result_parc')
+        if market is None and a_vista is None and parcelado is None:
+            q.put(('err', "O script precisa definir 'result' (taxa de mercado) — "
+                          "ou 'result_a_vista' e 'result_parcelado'.", _printed(loc)))
             return
         try:
-            d = Decimal(str(result))
-        except (InvalidOperation, ValueError, TypeError):
-            q.put(('err', f'O result não é um número válido: {result!r}', _printed(loc)))
+            def _dec(x):
+                return None if x is None else str(Decimal(str(x)))
+            data = {'market': _dec(market), 'a_vista': _dec(a_vista), 'parcelado': _dec(parcelado)}
+        except (InvalidOperation, ValueError, TypeError) as e:
+            q.put(('err', f'Um dos valores retornados não é um número válido: {e}', _printed(loc)))
             return
-        q.put(('ok', str(d), _printed(loc)))
+        q.put(('ok', data, _printed(loc)))
     except SyntaxError as e:
         q.put(('err', f'Bloqueado/erro de sintaxe: {e}', _printed(loc)))
     except Exception as e:  # noqa: BLE001
@@ -119,7 +137,12 @@ def _run_target(source, q):
 
 
 def run_script(source, timeout=DEFAULT_TIMEOUT):
-    """Executa o script no sandbox. Devolve (ok, valor_ou_erro, saida_print)."""
+    """Executa o script no sandbox.
+
+    Devolve (ok, payload, saida_print):
+      - ok=True  -> payload = dict {'market','a_vista','parcelado'} (Decimal ou None)
+      - ok=False -> payload = mensagem de erro (str)
+    """
     if not (source or '').strip():
         return (False, 'Script vazio.', '')
     ctx = multiprocessing.get_context('spawn')
@@ -136,5 +159,6 @@ def run_script(source, timeout=DEFAULT_TIMEOUT):
     except Exception:
         return (False, 'O script não retornou nada (pode ter travado ou sido morto).', '')
     if status == 'ok':
-        return (True, Decimal(payload), out)
+        data = {k: (Decimal(v) if v is not None else None) for k, v in payload.items()}
+        return (True, data, out)
     return (False, payload, out)

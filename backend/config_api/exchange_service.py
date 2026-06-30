@@ -83,16 +83,51 @@ def fetch_brl_rates():
     return out
 
 
-def _market_rate_for(row, global_rates):
-    """Taxa de mercado de uma linha: script (sandbox) tem precedência; senão link
-    próprio; senão a API global."""
+def _rates_for(row, global_rates):
+    """Taxas de uma linha (dict {'market','a_vista','parcelado'} ou None).
+
+    Script (sandbox) tem precedência e pode devolver só a taxa de mercado
+    (`market`) ou já os dois valores prontos (`a_vista`/`parcelado`). Link
+    próprio e API global devolvem só a taxa de mercado."""
+    def _q(v):
+        return v.quantize(Decimal('0.0001')) if v is not None else None
     if (row.script or '').strip():
         from .exchange_runner import run_script
-        ok, val, _out = run_script(row.script)
-        return val.quantize(Decimal('0.0001')) if ok else None
+        ok, data, _out = run_script(row.script)
+        if not ok:
+            return None
+        return {'market': _q(data.get('market')), 'a_vista': _q(data.get('a_vista')),
+                'parcelado': _q(data.get('parcelado'))}
     if row.source_url:
-        return fetch_from_url(row.source_url)
-    return global_rates.get(row.from_currency.upper())
+        v = fetch_from_url(row.source_url)
+        return {'market': _q(v)} if v is not None else None
+    v = global_rates.get(row.from_currency.upper())
+    return {'market': _q(v)} if v is not None else None
+
+
+def _apply_rates(row, data):
+    """Aplica as taxas calculadas na linha (em memória, antes do save).
+
+    - Só `market`: vira a taxa de mercado; o acréscimo à vista/parcelado é
+      aplicado por cima no save() (comportamento padrão).
+    - `a_vista`/`parcelado` explícitos: têm precedência e definem direto as
+      taxas efetivas; o acréscimo equivalente é derivado p/ refletir na UI e
+      sobreviver a um save manual posterior."""
+    market = data.get('market')
+    a_vista = data.get('a_vista')
+    parcelado = data.get('parcelado')
+    base = market if market is not None else a_vista
+    if base is not None:
+        row.base_rate = base
+    # Valores explícitos do script têm precedência sobre o markup neste save.
+    row._script_a_vista = a_vista
+    row._script_parcelado = parcelado
+    # Deriva o acréscimo equivalente (markup) p/ a UI e saves manuais futuros.
+    if row.base_rate:
+        if a_vista is not None:
+            row.markup_percent = ((a_vista / row.base_rate) - 1) * 100
+        if parcelado is not None:
+            row.markup_percent_installment = ((parcelado / row.base_rate) - 1) * 100
 
 
 def pull_all_from_internet():
@@ -106,13 +141,14 @@ def pull_all_from_internet():
     # Atualiza as existentes (respeitando link próprio)
     for code, row in existing.items():
         try:
-            v = _market_rate_for(row, global_rates)
+            data = _rates_for(row, global_rates)
         except Exception:
-            v = None
-        if v is None:
+            data = None
+        if not data:
             continue
-        row.base_rate = v
-        row.save(update_fields=['base_rate', 'rate', 'updated_at'])
+        _apply_rates(row, data)
+        row.save(update_fields=['base_rate', 'rate', 'rate_installment',
+                                'markup_percent', 'markup_percent_installment', 'updated_at'])
         updated += 1
     # Cria as que faltam (a partir da API global)
     for code, brl in global_rates.items():
@@ -149,13 +185,14 @@ def update_due(now=None):
     n = 0
     for row in due:
         try:
-            v = _market_rate_for(row, global_rates)
+            data = _rates_for(row, global_rates)
         except Exception:
-            v = None
-        if v is None:
+            data = None
+        if not data:
             continue
-        row.base_rate = v
+        _apply_rates(row, data)
         row.last_auto_update = today
-        row.save(update_fields=['base_rate', 'rate', 'last_auto_update', 'updated_at'])
+        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'markup_percent',
+                                'markup_percent_installment', 'last_auto_update', 'updated_at'])
         n += 1
     return n
