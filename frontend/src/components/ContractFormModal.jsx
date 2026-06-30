@@ -1888,9 +1888,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   )}
 
                   {/* Número de parcelas — digitável, sem limite */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                    <label style={lbl}>Número de parcelas</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'nowrap' }}>
+                    <label style={{ ...lbl, margin: 0, whiteSpace: 'nowrap' }}>Número de parcelas</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       <button type="button" onClick={() => setInstallmentsCountClamped(installmentsCount - 1)}
                         style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>−</button>
                       <input type="number" min="0" value={installmentsCount}
@@ -1898,11 +1898,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                         style={{ width: 64, textAlign: 'center', padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 14, fontWeight: 700, color: '#1e293b', fontFamily: 'inherit', outline: 'none' }} />
                       <button type="button" onClick={() => setInstallmentsCountClamped(installmentsCount + 1)}
                         style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
-                      <span style={{ fontSize: 11, color: '#94a3b8' }}>(o valor restante é dividido igualmente)</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <label style={{ ...lbl, margin: 0 }}>Forma de pagamento das parcelas</label>
-                      <div style={{ minWidth: 200 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flex: 1, justifyContent: 'flex-end' }}>
+                      <label style={{ ...lbl, margin: 0, whiteSpace: 'nowrap' }}>Forma das parcelas</label>
+                      <div style={{ flex: 1, maxWidth: 240 }}>
                         <Dropdown value={parcelasMethod || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
                           onChange={v => applyParcelasMethod(v)} />
                       </div>
@@ -1927,7 +1926,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   ))}
                   {installments.length > 1 && (
                     <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
-                      Definir a data da 1ª parcela já aplica pras demais (um mês depois cada). A forma de pagamento das parcelas é definida acima — ainda editável individualmente.
+                      O valor restante é dividido igualmente. Definir a data da 1ª parcela já aplica pras demais (um mês depois cada). A forma de pagamento é definida acima — ainda editável por parcela.
                     </p>
                   )}
                 </>
