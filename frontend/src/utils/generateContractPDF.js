@@ -690,7 +690,6 @@ export async function generateContractPDF(contract, opts = {}) {
   const colGap = 4
   const pad    = 2.4
   const halfW  = (contentW - colGap) / 2
-  const colRX  = marginX + halfW + colGap
 
   // Card de valores (item 6).
   const drawValores = (x, top, w) => {
@@ -721,12 +720,15 @@ export async function generateContractPDF(contract, opts = {}) {
   // ── Linha 1: 3. Cliente Contratante (esq.) │ 5. Acomodações Contratadas (dir.) ──
   const topRow1 = y
   const startP1 = doc.internal.getNumberOfPages()
+  const item3W = halfW * 0.82                    // item 3 (Contratante) mais estreito
+  const item5W = contentW - colGap - item3W      // item 5 (Acomodações) ocupa o resto
+  const item5X = marginX + item3W + colGap
   let yL = drawSectionTitle(doc, { x: marginX + pad, y: topRow1 + pad, iconPng: icons.w_user, main: '3. Cliente Contratante' }) + 0.8
-  doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yL, marginX + halfW - pad, yL); yL += 1.6
-  const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yL, w: halfW - 2 * pad, fields: clientFields, cols: 2, size: 8 }) + pad
-  drawCard(doc, marginX, topRow1, halfW, bottom3)
-  let y5 = drawSectionTitle(doc, { x: colRX, y: topRow1, iconPng: icons.w_building, main: '5. Acomodações Contratadas', mainSize: 9 }) + 0.8
-  const bottom5 = drawTable(doc, { x: colRX, y: y5, width: halfW, ...tables.accommodations, ...tableOpts })
+  doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yL, marginX + item3W - pad, yL); yL += 1.6
+  const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yL, w: item3W - 2 * pad, fields: clientFields, cols: 2, size: 8 }) + pad
+  drawCard(doc, marginX, topRow1, item3W, bottom3)
+  let y5 = drawSectionTitle(doc, { x: item5X, y: topRow1, iconPng: icons.w_building, main: '5. Acomodações Contratadas', mainSize: 9 }) + 0.8
+  const bottom5 = drawTable(doc, { x: item5X, y: y5, width: item5W, ...tables.accommodations, ...tableOpts })
   const row1Bottom = doc.internal.getNumberOfPages() > startP1 ? bottom5 : Math.max(bottom3, bottom5)
 
   // ── Linha 2: 4. Passageiros (esq.) │ 6. Valores e Condições (dir.) ──
