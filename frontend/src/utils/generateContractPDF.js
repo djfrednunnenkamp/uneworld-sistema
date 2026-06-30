@@ -61,6 +61,11 @@ const dash = (s) => { const t = String(s ?? '').trim(); return t ? esc(t) : '—
 const addr = (s) => { const t = String(s ?? '').trim(); return t ? esc(t).replace(/\n/g, '<br>') : '—' }
 const money = (v) => { const m = fmtMoney(v); return m === '' ? '0,00' : m }
 
+// ── Versões "texto puro" (SEM escape HTML) para as tabelas desenhadas direto
+//    no jsPDF (doc.text recebe a string crua; escapar quebraria & e aspas). ──
+const dashTxt = (s) => { const t = String(s ?? '').trim(); return t || '—' }
+const moneyTxt = (v) => { const m = fmtMoney(v); return m === '' ? '0,00' : m }
+
 /* ── Ícones em SVG (não emoji) ──────────────────────────────────────────────
  * Emoji é renderizado de forma imprevisível pelo html2canvas (o glifo sai
  * descentralizado e varia conforme o sistema). Usamos SVG de traço como <img>
@@ -114,9 +119,214 @@ async function prepareIcons() {
   return icons
 }
 
-/* Monta o HTML da nova 1ª página do contrato (layout Uneworld). O CSS é todo
- * escopado em `.ctpdf` para não vazar para o resto do app durante a
- * renderização offscreen. */
+/* ── Dados das tabelas desenhadas nativamente no jsPDF ──────────────────────
+ * Devolve { columns, rows } por tabela. `rows` são arrays de STRINGS já
+ * formatadas (uma por coluna). As regras de negócio (ordem entrada→parcelas,
+ * sufixo "/ Final", à vista) são EXATAMENTE as mesmas de antes. */
+function buildTablesData(contract) {
+  const cc = contract.base_currency || 'USD'
+
+  // ── Passageiros ──
+  const guests = contract.guests || []
+  const passengerRows = guests.length
+    ? guests.map((g, i) => {
+        const p = g.passenger_data || {}
+        return [
+          `${i + 1}. ${dashTxt(p.full_name)}`,
+          dashTxt(p.gender),
+          p.birth_date ? fmtDateBR(p.birth_date) : '—',
+          dashTxt(p.passport || p.cpf),
+          dashTxt(g.accommodation_type_name),
+        ]
+      })
+    : [['—', '—', '—', '—', '—']]
+
+  // ── Acomodações contratadas ──
+  const lines = contract.accommodation_lines || []
+  const accomRows = lines.length
+    ? lines.map(l => [
+        dashTxt(l.accommodation_type_name),
+        moneyTxt(l.value_per_person_usd),
+        moneyTxt(l.taxes_usd),
+        dashTxt(l.quantity),
+        moneyTxt(l.total_usd),
+      ])
+    : [['—', '—', '—', '—', '—']]
+
+  // ── Plano de pagamento ──
+  const insts = contract.installments || []
+  const aVista = contract.payment_type === 'a_vista'
+  const entrada  = insts.find(i => i.kind === 'entrada')
+  const parcelas = insts.filter(i => i.kind === 'parcela').sort((a, b) => (a.installment_number || 0) - (b.installment_number || 0))
+  let paymentRows
+  if (aVista) {
+    const p = parcelas[0] || entrada
+    paymentRows = p
+      ? [['01', dashTxt(p.detail || 'À vista'), p.due_date ? fmtDateBR(p.due_date) : '—', moneyTxt(p.value_brl), dashTxt(p.payment_method)]]
+      : []
+  } else {
+    const ordered = [...(entrada ? [entrada] : []), ...parcelas]
+    paymentRows = ordered.map((p, idx) => {
+      const isLast = idx === ordered.length - 1
+      let detail
+      if (p.kind === 'entrada') detail = p.detail || 'Entrada (Sinal)'
+      else detail = p.detail || `Parcela ${p.installment_number ?? idx}`
+      if (isLast && p.kind === 'parcela' && !/final/i.test(detail)) detail += ' / Final'
+      return [
+        String(idx + 1).padStart(2, '0'),
+        dashTxt(detail),
+        p.due_date ? fmtDateBR(p.due_date) : '—',
+        moneyTxt(p.value_brl),
+        dashTxt(p.payment_method),
+      ]
+    })
+  }
+  if (!paymentRows.length) paymentRows = [['—', '—', '—', '—', '—']]
+
+  return {
+    passengers: {
+      columns: [
+        { title: 'Nome completo',       width: 42, align: 'left' },
+        { title: 'Sexo',                width: 13, align: 'center' },
+        { title: 'Data de nascimento',  width: 16, align: 'center' },
+        { title: 'Passaporte/CPF',      width: 15, align: 'center' },
+        { title: 'Acomodação',          width: 14, align: 'center' },
+      ],
+      rows: passengerRows,
+    },
+    accommodations: {
+      columns: [
+        { title: 'Tipo de acomodação',     width: 24, align: 'left' },
+        { title: `Valor/pessoa (${cc})`,   width: 19, align: 'center' },
+        { title: `Taxas (${cc})`,          width: 19, align: 'center' },
+        { title: 'Quantidade',             width: 19, align: 'center' },
+        { title: `Total (${cc})`,          width: 19, align: 'center', bold: true },
+      ],
+      rows: accomRows,
+    },
+    payment: {
+      columns: [
+        { title: 'Parcela',             width: 14, align: 'center' },
+        { title: 'Detalhe',             width: 24, align: 'left' },
+        { title: 'Vencimento',          width: 20, align: 'center' },
+        { title: 'Valor (BRL)',         width: 21, align: 'center' },
+        { title: 'Forma de pagamento',  width: 21, align: 'center' },
+      ],
+      rows: paymentRows,
+    },
+  }
+}
+
+/* ── Desenha uma tabela DIRETO no jsPDF (sem html2canvas) ────────────────────
+ * Foi o que finalmente resolveu a centralização vertical: o html2canvas
+ * posiciona o texto fora do centro da célula em qualquer estrutura HTML
+ * (<table> ou grid). Aqui a posição é calculada matematicamente:
+ *   baselineY = topoDaLinhaDeTexto + fontSizeMM * 0.35   (≈ metade da cap-height)
+ * o que centra cada linha de texto na sua faixa, e o bloco inteiro (1 ou 2
+ * linhas) no meio da célula. Texto longo quebra com doc.splitTextToSize e a
+ * altura da linha cresce para acomodá-lo. Quebra de página redesenha o header.
+ * Retorna o Y (mm) logo abaixo da tabela. */
+function drawPdfTable(doc, opts) {
+  const {
+    x, y, width, columns, rows,
+    rowHeight = 6, headerHeight = 7,
+    fontSize = 8, headerFontSize = 7.5,
+    pageTop = 10, pageBottom = 288,
+  } = opts
+
+  const HEADER_BG = [19, 54, 110]      // navy sólido (no lugar do gradiente azul)
+  const LINE      = [201, 216, 238]    // var(--line) #C9D8EE
+  const TEXT      = [13, 27, 53]       // var(--text) #0D1B35
+  const HEAD_TEXT = [255, 255, 255]
+  const PT2MM     = 0.352777778        // pontos → mm
+  const padX      = 1.8                // respiro horizontal interno da célula (mm)
+  const lineGap   = 1.18               // multiplicador de entrelinha
+
+  // Largura de cada coluna (peso relativo → mm) e seu X de início.
+  const totalW = columns.reduce((s, c) => s + (c.width || 1), 0)
+  const colW = columns.map(c => (c.width || 1) / totalW * width)
+  const colX = []
+  let ax = x
+  for (const w of colW) { colX.push(ax); ax += w }
+
+  let cy = y
+
+  // Quebra o texto de cada célula conforme a largura da coluna e mede nº de linhas.
+  const measure = (cells, fs, bold) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal')
+    doc.setFontSize(fs)
+    const wrapped = cells.map((txt, ci) => doc.splitTextToSize(String(txt ?? ''), colW[ci] - padX * 2))
+    const maxLines = Math.max(1, ...wrapped.map(w => w.length))
+    return { wrapped, maxLines }
+  }
+
+  // Desenha uma linha (header ou corpo) já com a altura calculada.
+  const drawRow = (cells, wrapped, rowH, isHeader) => {
+    const fs    = isHeader ? headerFontSize : fontSize
+    const fsMM  = fs * PT2MM
+    const lineH = fsMM * lineGap
+
+    if (isHeader) { doc.setFillColor(...HEADER_BG); doc.rect(x, cy, width, rowH, 'F') }
+
+    doc.setTextColor(...(isHeader ? HEAD_TEXT : TEXT))
+    cells.forEach((_, ci) => {
+      const lines  = wrapped[ci]
+      const n      = lines.length
+      const blockH = n * lineH
+      const col    = columns[ci]
+      const align  = col.align || 'center'
+      const bold   = isHeader || col.bold
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      doc.setFontSize(fs)
+      lines.forEach((ln, li) => {
+        // Centra o BLOCO de linhas na célula e cada linha na sua faixa.
+        const lineMid = cy + (rowH - blockH) / 2 + (li + 0.5) * lineH
+        const baseY   = lineMid + fsMM * 0.35
+        if (align === 'left') doc.text(ln, colX[ci] + padX, baseY)
+        else                  doc.text(ln, colX[ci] + colW[ci] / 2, baseY, { align: 'center' })
+      })
+    })
+
+    // Linha horizontal inferior da célula.
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.2)
+    doc.line(x, cy + rowH, x + width, cy + rowH)
+    cy += rowH
+  }
+
+  const headerTitles = columns.map(c => c.title)
+  const drawHeaderRow = () => {
+    const { wrapped, maxLines } = measure(headerTitles, headerFontSize, true)
+    const rowH = Math.max(headerHeight, maxLines * (headerFontSize * PT2MM * lineGap) + 2.0)
+    drawRow(headerTitles, wrapped, rowH, true)
+  }
+
+  // Bordas externas + verticais internas de um trecho contínuo (por página).
+  const strokeSeg = (top, bottom) => {
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.2)
+    doc.rect(x, top, width, bottom - top, 'S')
+    for (let i = 1; i < columns.length; i++) doc.line(colX[i], top, colX[i], bottom)
+  }
+
+  let segTop = cy
+  drawHeaderRow()
+  for (const row of rows) {
+    const { wrapped, maxLines } = measure(row, fontSize, false)
+    const rowH = Math.max(rowHeight, maxLines * (fontSize * PT2MM * lineGap) + 2.0)
+    if (cy + rowH > pageBottom) {            // não cabe: fecha trecho e quebra página
+      strokeSeg(segTop, cy)
+      doc.addPage(); cy = pageTop; segTop = cy
+      drawHeaderRow()
+    }
+    drawRow(row, wrapped, rowH, false)
+  }
+  strokeSeg(segTop, cy)
+  return cy
+}
+
+/* Monta o HTML dos BLOCOS VISUAIS da 1ª página (tudo MENOS as 3 tabelas, que
+ * agora são desenhadas direto no jsPDF). Cada filho de nível superior leva um
+ * data-block para ser posicionado individualmente; as tabelas entram entre eles
+ * em generateContractPDF. O CSS é escopado em `.ctpdf`. */
 function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   const cc = contract.base_currency || 'USD'
   const ag = contract.agency_data || {}
@@ -133,6 +343,9 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     const src = icons['b_' + name]
     return src ? `<img class="mini-img" src="${src}"/>` : `<span class="mini-img"></span>`
   }
+  // Título de seção isolado (vira um bloco próprio, desenhado acima da tabela nativa).
+  const titleBlock = (id, name, main, sub = '') =>
+    `<div class="section-title" data-block="${id}">${circleIcon(name)}<span class="ttl">${main}${sub ? ` <span style="font-size:10px;">${sub}</span>` : ''}</span></div>`
 
   const periodo = (contract.departure_date || contract.return_date)
     ? `${fmtDateBR(contract.departure_date)} a ${fmtDateBR(contract.return_date)}`
@@ -140,69 +353,11 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
 
   const sigText = contract.signature_type === 'digital' ? '✓ Assinado Digitalmente' : '✓ Assinado Fisicamente'
 
-  // ── Células de tabela (CSS Grid de <div>, não <table>) ──────────────────────
-  // O html2canvas posiciona o texto fora do centro vertical em <td>/<th>
-  // (baseline/vertical-align bugado), mesmo com flex/line-height. Em DIV + CSS
-  // Grid o texto centraliza de forma confiável: cada célula é um flex item
-  // (align-items:center) que estica à altura da linha do grid e centraliza o
-  // <span>. `left` alinha à esquerda (nome, tipo de acomodação, detalhe da
-  // parcela); `strong` deixa o valor em negrito (coluna Total).
-  const gridCell = (v, left = false, strong = false) =>
-    `<div class="grid-cell${left ? ' text-left' : ''}${strong ? ' strong' : ''}"><span>${v}</span></div>`
-  const gridHead = (v, left = false) =>
-    `<div class="grid-cell grid-head${left ? ' text-left' : ''}"><span>${v}</span></div>`
-
-  // ── Passageiros ──
-  const guests = contract.guests || []
-  const guestRows = guests.map((g, i) => {
-    const p = g.passenger_data || {}
-    return `${gridCell(`${i + 1}. ${dash(p.full_name)}`, true)}
-      ${gridCell(dash(p.gender))}
-      ${gridCell(p.birth_date ? fmtDateBR(p.birth_date) : '—')}
-      ${gridCell(dash(p.passport || p.cpf))}
-      ${gridCell(dash(g.accommodation_type_name))}`
-  }).join('') || `${gridCell('—', true)}${gridCell('—')}${gridCell('—')}${gridCell('—')}${gridCell('—')}`
-
-  // ── Acomodações contratadas ──
-  const lines = contract.accommodation_lines || []
-  const accomRows = lines.map(l => `${gridCell(dash(l.accommodation_type_name), true)}
-      ${gridCell(money(l.value_per_person_usd))}
-      ${gridCell(money(l.taxes_usd))}
-      ${gridCell(dash(l.quantity))}
-      ${gridCell(money(l.total_usd), false, true)}`).join('') || `${gridCell('—', true)}${gridCell('—')}${gridCell('—')}${gridCell('—')}${gridCell('—')}`
-
   // ── Valores (resumo) ── soma das bases e das taxas (×quantidade) para
   // bater com o Total do contrato.
+  const lines = contract.accommodation_lines || []
   const baseSum = lines.reduce((s, l) => s + Number(l.value_per_person_usd || 0) * Number(l.quantity || 1), 0)
   const taxSum  = lines.reduce((s, l) => s + Number(l.taxes_usd || 0) * Number(l.quantity || 1), 0)
-
-  // ── Plano de pagamento ──
-  const insts = contract.installments || []
-  const aVista = contract.payment_type === 'a_vista'
-  const entrada  = insts.find(i => i.kind === 'entrada')
-  const parcelas = insts.filter(i => i.kind === 'parcela').sort((a, b) => (a.installment_number || 0) - (b.installment_number || 0))
-  let payRows
-  if (aVista) {
-    const p = parcelas[0] || entrada
-    payRows = p
-      ? `${gridCell('01')}${gridCell(dash(p.detail || 'À vista'), true)}${gridCell(p.due_date ? fmtDateBR(p.due_date) : '—')}${gridCell(money(p.value_brl))}${gridCell(dash(p.payment_method))}`
-      : ''
-  } else {
-    const ordered = [...(entrada ? [entrada] : []), ...parcelas]
-    payRows = ordered.map((p, idx) => {
-      const isLast = idx === ordered.length - 1
-      let detail
-      if (p.kind === 'entrada') detail = p.detail || 'Entrada (Sinal)'
-      else detail = p.detail || `Parcela ${p.installment_number ?? idx}`
-      if (isLast && p.kind === 'parcela' && !/final/i.test(detail)) detail += ' / Final'
-      return `${gridCell(String(idx + 1).padStart(2, '0'))}
-        ${gridCell(dash(detail), true)}
-        ${gridCell(p.due_date ? fmtDateBR(p.due_date) : '—')}
-        ${gridCell(money(p.value_brl))}
-        ${gridCell(dash(p.payment_method))}`
-    }).join('')
-  }
-  if (!payRows) payRows = `${gridCell('—')}${gridCell('—', true)}${gridCell('—')}${gridCell('—')}${gridCell('—')}`
 
   // ── Bloco do cliente contratante (físico × jurídico) ──
   const clientFields = isJuridica ? [
@@ -242,9 +397,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .meta .value { font-size:14px; margin-bottom:7px; }
     .ctpdf .signature-card { width:100%; padding:7px 10px; border-radius:7px; background:linear-gradient(135deg,#0B4F9F,#0E9EDD); color:white; font-size:10px; font-weight:700; text-transform:uppercase; box-shadow:0 3px 10px rgba(11,79,159,.25); }
     .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:12px; margin-top:6px; }
-    .ctpdf .grid-mid { display:grid; grid-template-columns:230px 1fr; gap:12px; margin-top:6px; }
     .ctpdf .section { border:1px solid var(--line); border-radius:8px; padding:8px 9px; background:linear-gradient(180deg,#fff,#fbfdff); }
-    .ctpdf .section-title { display:flex; align-items:center; gap:7px; color:var(--blue-dark); font-weight:800; font-size:11.5px; text-transform:uppercase; margin-bottom:7px; }
+    .ctpdf .section-title { display:flex; align-items:center; gap:7px; color:var(--blue-dark); font-weight:800; font-size:11.5px; text-transform:uppercase; margin:2px 0 5px; }
     .ctpdf .section-title .ttl { display:block; }
     /* Ícone do círculo centralizado com flex (fora de tabela, html2canvas ok) —
        sem números mágicos de top/left. */
@@ -260,25 +414,10 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     /* Mini-ícone centralizado na sua coluna via flex — sem padding-top manual. */
     .ctpdf .mini-icon { display:flex; align-items:center; justify-content:center; }
     .ctpdf .mini-img { width:14px; height:14px; display:block; }
-    .ctpdf .client, .ctpdf .passengers, .ctpdf .accommodations { margin-top:6px; }
+    .ctpdf .client { margin-top:6px; }
     .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:10px; border-top:1px solid #D8E3F3; padding-top:7px; }
     .ctpdf .client-grid .field { display:flex; flex-direction:column; justify-content:center; border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
-    /* Tabelas em CSS Grid de <div> (não <table>): o html2canvas posiciona o
-       texto fora do centro vertical em <td>/<th> (baseline/vertical-align
-       bugado), mesmo com flex/line-height. Em grid cada célula é um flex item
-       que estica à altura da linha e centraliza o <span> de forma confiável.
-       As linhas de 1px são o fundo var(--line) do container aparecendo no gap —
-       sem bordas duplas e sem nth-child. line-height/min-height mantêm
-       exatamente as mesmas alturas de célula da versão em <table>. */
-    .ctpdf .grid-table { display:grid; width:100%; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden; font-size:9px; }
-    .ctpdf .grid-5 { grid-template-columns:repeat(5,1fr); }
-    .ctpdf .grid-pass { grid-template-columns:42% repeat(4,1fr); }
-    .ctpdf .grid-cell { display:flex; align-items:center; padding:0 6px; min-height:16px; line-height:16px; background:white; }
-    .ctpdf .grid-cell > span { display:block; width:100%; text-align:center; overflow-wrap:anywhere; word-break:break-word; }
-    .ctpdf .grid-cell.text-left > span { text-align:left; }
-    .ctpdf .grid-cell.strong { font-weight:700; }
-    .ctpdf .grid-head { min-height:22px; line-height:11px; background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; font-weight:800; }
     .ctpdf .values-list { display:grid; gap:7px; padding-top:4px; }
     /* Ícone, rótulo e valor na mesma linha de base vertical via align-items:center —
        o valor da direita não fica mais deslocado pra cima. */
@@ -289,7 +428,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   return `<style>${css}</style>
   <div class="ctpdf">
     <main class="page">
-      <header class="header">
+      <header class="header" data-block="header">
         ${logoTag}
         <div class="title">
           <h1>Contrato de<br>Prestação de<br>Serviços Turísticos</h1>
@@ -303,7 +442,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         </div>
       </header>
 
-      <section class="grid-top">
+      <section class="grid-top" data-block="gridTop">
         <div class="section">
           <div class="section-title">${circleIcon('users')}<span class="ttl">1. Partes Contratantes</span></div>
           <div class="two-cols">
@@ -335,70 +474,51 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         </div>
       </section>
 
-      <section class="section client">
+      <section class="section client" data-block="client">
         <div class="section-title">${circleIcon('user')}<span class="ttl">3. Cliente Contratante <span style="font-size:10px;">(Responsável pelo pagamento)</span></span></div>
         <div class="client-grid">${clientGrid}</div>
       </section>
 
-      <section class="section passengers">
-        <div class="section-title">${circleIcon('users')}<span class="ttl">4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></span></div>
-        <div class="grid-table grid-pass">
-          ${gridHead('Nome completo')}${gridHead('Sexo')}${gridHead('Data de nascimento')}${gridHead('Passaporte/CPF')}${gridHead('Acomodação')}
-          ${guestRows}
+      ${titleBlock('title4', 'users', '4. Passageiros', '(Contratante e demais usuários)')}
+
+      ${titleBlock('title5', 'building', '5. Acomodações Contratadas')}
+
+      <section class="section" data-block="valores" style="width:60mm;">
+        <div class="section-title">${circleIcon('dollar')}<span class="ttl">6. Valores e Condições</span></div>
+        <div class="values-list">
+          <div class="value-row"><span class="mini-icon">${miniIcon('dollar')}</span><span>Valor por pessoa (${esc(cc)})</span><strong>${money(baseSum)}</strong></div>
+          <div class="value-row"><span class="mini-icon">${miniIcon('receipt')}</span><span>Taxas (${esc(cc)})</span><strong>${money(taxSum)}</strong></div>
+          <div class="value-row"><span class="mini-icon">${miniIcon('exchange')}</span><span>Câmbio</span><strong>${dash(fmtRate(contract.exchange_rate))}</strong></div>
+          <div class="value-row total"><span class="mini-icon">${miniIcon('wallet')}</span><span>Total (${esc(cc)})</span><strong>${money(contract.total_usd)}</strong></div>
+          <div class="value-row"><span class="mini-icon">${miniIcon('file')}</span><span>Total em (BRL)</span><strong>${money(contract.total_brl)}</strong></div>
         </div>
       </section>
 
-      <section class="section accommodations">
-        <div class="section-title">${circleIcon('building')}<span class="ttl">5. Acomodações Contratadas</span></div>
-        <div class="grid-table grid-5">
-          ${gridHead('Tipo de acomodação')}${gridHead(`Valor/pessoa (${esc(cc)})`)}${gridHead(`Taxas (${esc(cc)})`)}${gridHead('Quantidade')}${gridHead(`Total (${esc(cc)})`)}
-          ${accomRows}
-        </div>
-      </section>
-
-      <section class="grid-mid">
-        <div class="section">
-          <div class="section-title">${circleIcon('dollar')}<span class="ttl">6. Valores e Condições</span></div>
-          <div class="values-list">
-            <div class="value-row"><span class="mini-icon">${miniIcon('dollar')}</span><span>Valor por pessoa (${esc(cc)})</span><strong>${money(baseSum)}</strong></div>
-            <div class="value-row"><span class="mini-icon">${miniIcon('receipt')}</span><span>Taxas (${esc(cc)})</span><strong>${money(taxSum)}</strong></div>
-            <div class="value-row"><span class="mini-icon">${miniIcon('exchange')}</span><span>Câmbio</span><strong>${dash(fmtRate(contract.exchange_rate))}</strong></div>
-            <div class="value-row total"><span class="mini-icon">${miniIcon('wallet')}</span><span>Total (${esc(cc)})</span><strong>${money(contract.total_usd)}</strong></div>
-            <div class="value-row"><span class="mini-icon">${miniIcon('file')}</span><span>Total em (BRL)</span><strong>${money(contract.total_brl)}</strong></div>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-title">${circleIcon('card')}<span class="ttl">7. Plano de Pagamento</span></div>
-          <div class="grid-table grid-5">
-            ${gridHead('Parcela')}${gridHead('Detalhe')}${gridHead('Vencimento')}${gridHead('Valor (BRL)')}${gridHead('Forma de pagamento')}
-            ${payRows}
-          </div>
-        </div>
-      </section>
+      ${titleBlock('title7', 'card', '7. Plano de Pagamento')}
     </main>
   </div>`
 }
 
-/* Renderiza o HTML da 1ª página offscreen e devolve UM canvas por bloco de
- * nível superior (cabeçalho, cada seção…). Capturar bloco a bloco — em vez de
- * uma imagem única fatiada — permite encaixar cada bloco inteiro na página,
- * sem cortes feios na divisão entre páginas. */
+/* Renderiza cada bloco visual de nível superior (com data-block) num canvas
+ * próprio e devolve um mapa data-block → canvas. As tabelas NÃO entram aqui —
+ * são desenhadas direto no jsPDF por drawPdfTable. */
 async function renderFirstPageBlocks(html) {
   const holder = document.createElement('div')
   holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:184mm;background:#fff;z-index:-1;'
   holder.innerHTML = html
   document.body.appendChild(holder)
   try {
-    // Garante que imagens (logo) terminem de carregar antes de capturar.
+    // Garante que imagens (logo, ícones) terminem de carregar antes de capturar.
     await Promise.all(Array.from(holder.querySelectorAll('img')).map(img =>
       img.complete ? Promise.resolve() : new Promise(res => { img.onload = img.onerror = res })))
     const pageEl = holder.querySelector('.page')
-    const canvases = []
+    const map = {}
+    let auto = 0
     for (const block of Array.from(pageEl.children)) {
-      canvases.push(await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false }))
+      const id = block.getAttribute('data-block') || `b${auto++}`
+      map[id] = await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false })
     }
-    return canvases
+    return map
   } finally {
     document.body.removeChild(holder)
   }
@@ -421,30 +541,31 @@ export async function generateContractPDF(contract, opts = {}) {
   const pw  = doc.internal.pageSize.getWidth()
   const ph  = doc.internal.pageSize.getHeight()
 
-  // ── 1ª página: layout Uneworld, capturado bloco a bloco ──
+  // ── 1ª página: blocos visuais via html2canvas + 3 tabelas via jsPDF nativo ──
   const marginX = 11, marginTop = 10, marginBottom = 9, blockGap = 2
   const contentW = pw - marginX * 2
+  const usableH  = ph - marginTop - marginBottom
+  const pageBottom = ph - marginBottom
   const icons  = await prepareIcons()
   const html   = buildFirstPageHTML(contract, company, logoDataUrl, icons)
   const blocks = await renderFirstPageBlocks(html)
-  const usableH = ph - marginTop - marginBottom
+  const tables = buildTablesData(contract)
   let y = marginTop
-  for (const canvas of blocks) {
+
+  // Coloca um bloco-imagem na posição atual; quebra/fatiamento de página igual
+  // ao fluxo anterior. `gap` é o respiro adicionado depois do bloco.
+  const placeImg = (canvas, gap = blockGap) => {
+    if (!canvas) return
     const fullH = canvas.height * contentW / canvas.width
     if (fullH <= usableH) {
-      // Cabe inteiro numa página: se não couber no que resta, joga pra próxima
-      // (sem criar página em branco se já está no topo).
-      if (y + fullH > ph - marginBottom && y > marginTop) { doc.addPage(); y = marginTop }
+      if (y + fullH > pageBottom && y > marginTop) { doc.addPage(); y = marginTop }
       doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', marginX, y, contentW, fullH)
-      y += fullH + blockGap
+      y += fullH + gap
     } else {
-      // Bloco maior que a área útil (ex.: tabela de pagamento com muitas
-      // parcelas): fatia verticalmente, preenchendo o espaço restante de cada
-      // página e continuando na seguinte — sem ultrapassar a página.
       const pxPerMm = canvas.height / fullH
       let srcY = 0
       while (srcY < canvas.height) {
-        let availMm = ph - marginBottom - y
+        let availMm = pageBottom - y
         if (availMm < 14) { doc.addPage(); y = marginTop; availMm = usableH }
         const sliceHpx = Math.min(Math.round(availMm * pxPerMm), canvas.height - srcY)
         const tmp = document.createElement('canvas')
@@ -457,9 +578,63 @@ export async function generateContractPDF(contract, opts = {}) {
         srcY += sliceHpx
         if (srcY < canvas.height) { doc.addPage(); y = marginTop }
       }
-      y += blockGap
+      y += gap
     }
   }
+
+  // Garante espaço mínimo (título + header + 1 linha) antes de iniciar uma tabela.
+  const ensureRoom = (h) => { if (y + h > pageBottom) { doc.addPage(); y = marginTop } }
+
+  // Opções comuns das 3 tabelas (células finas + texto centralizado de verdade).
+  const tableOpts = { rowHeight: 5.8, headerHeight: 7.2, fontSize: 7.8, headerFontSize: 7, pageTop: marginTop, pageBottom }
+
+  // Blocos visuais do topo.
+  placeImg(blocks.header)
+  placeImg(blocks.gridTop)
+  placeImg(blocks.client)
+
+  // 4. Passageiros — título (imagem) + tabela nativa.
+  ensureRoom(22)
+  placeImg(blocks.title4, 1)
+  y = drawPdfTable(doc, { x: marginX, y, width: contentW, ...tables.passengers, ...tableOpts })
+  y += 3
+
+  // 5. Acomodações Contratadas.
+  ensureRoom(22)
+  placeImg(blocks.title5, 1)
+  y = drawPdfTable(doc, { x: marginX, y, width: contentW, ...tables.accommodations, ...tableOpts })
+  y += 3
+
+  // ── 6. Valores e Condições (esq.) + 7. Plano de Pagamento (dir.) lado a lado ──
+  // Ambos começam no MESMO Y; a altura do bloco 6 não empurra o 7. O Y final é o
+  // mais baixo dos dois (max das bordas inferiores).
+  const colGap = 4                              // gap horizontal entre 6 e 7 (mm)
+  const sixW   = contentW * 0.32                // item 6 ≈ 32% da largura útil
+  const sevenW = contentW - sixW - colGap       // item 7 ≈ 66% da largura útil
+  const sevenX = marginX + sixW + colGap
+  ensureRoom(46)                                // espaço mínimo p/ os dois iniciarem juntos
+  const yStart = y
+
+  // Bloco 6 (esquerda) — card visual via html2canvas, largura sixW.
+  let bottom6 = yStart
+  if (blocks.valores) {
+    const c6 = blocks.valores
+    const h6 = c6.height * sixW / c6.width
+    doc.addImage(c6.toDataURL('image/jpeg', 0.92), 'JPEG', marginX, yStart, sixW, h6)
+    bottom6 = yStart + h6
+  }
+
+  // Bloco 7 (direita) — título (imagem) + tabela nativa, largura sevenW, X deslocado.
+  let y7 = yStart
+  if (blocks.title7) {
+    const c7 = blocks.title7
+    const h7 = c7.height * sevenW / c7.width
+    doc.addImage(c7.toDataURL('image/jpeg', 0.92), 'JPEG', sevenX, y7, sevenW, h7)
+    y7 += h7 + 1
+  }
+  const bottom7 = drawPdfTable(doc, { x: sevenX, y: y7, width: sevenW, ...tables.payment, ...tableOpts })
+
+  y = Math.max(bottom6, bottom7) + 3
 
   // ── Cláusulas contratuais — seguem logo após as informações, na mesma
   //    página se houver espaço (sem forçar página nova). ──
