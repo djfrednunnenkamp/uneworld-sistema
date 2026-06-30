@@ -25,6 +25,7 @@ function ScriptDocsModal({ onClose }) {
   const h = { fontSize:13.5, fontWeight:700, color:'#1e293b', margin:'16px 0 4px' }
   const p = { fontSize:13, color:'#475569', lineHeight:1.65, margin:'0 0 4px' }
   const mono = { fontFamily:'ui-monospace, Menlo, monospace', background:'#f1f5f9', color:'#0f172a', padding:'1px 5px', borderRadius:4, fontSize:12 }
+  const box  = { border:'1px solid #e2e8f0', background:'#f8fafc', borderRadius:8, padding:'10px 12px', margin:'4px 0 0' }
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.55)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}>
@@ -34,14 +35,28 @@ function ScriptDocsModal({ onClose }) {
           <button onClick={onClose} style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer' }}><Ic n="x" s={14}/></button>
         </div>
         <div style={{ padding:'14px 20px', overflowY:'auto' }}>
-          <p style={p}>O script calcula a <strong>taxa de mercado</strong> da moeda (quanto vale <strong>1 unidade dela em BRL</strong>) e a coloca na variável <span style={mono}>result</span>. Os <strong>acréscimos (à vista / parcelado)</strong> do formulário são somados por cima.</p>
+          <p style={p}>O script roda no servidor (num sandbox seguro) e calcula o câmbio da moeda em BRL. No fim, ele precisa <strong>deixar o resultado numa (ou em duas) variáveis</strong>. O sistema lê essas variáveis e preenche a taxa <strong>à vista</strong> e a taxa <strong>parcelada</strong> da moeda.</p>
 
-          <p style={h}>Dois jeitos de usar</p>
-          <p style={p}><strong>1) Só a taxa de mercado</strong> — defina <span style={mono}>result</span>. O sistema aplica os acréscimos à vista e parcelado por cima (configurados no formulário).</p>
-          <pre style={code}>{'result = 5.42'}</pre>
-          <p style={p}><strong>2) Os dois valores prontos</strong> — defina <span style={mono}>result_a_vista</span> e <span style={mono}>result_parcelado</span>. Aí <strong>os acréscimos são ignorados</strong> (o script já manda o valor final de cada um).</p>
-          <pre style={code}>{'base = fetch_json("https://fonte.com/usd")["rate"]\nresult_a_vista   = float(base) * 1.00   # à vista\nresult_parcelado = float(base) * 1.06   # parcelado (+6%)'}</pre>
-          <p style={p} >Defina <span style={mono}>result</span> <strong>ou</strong> os dois <span style={mono}>result_a_vista</span>/<span style={mono}>result_parcelado</span>. Sem nenhum, dá erro.</p>
+          <p style={h}>As três variáveis</p>
+          <div style={box}>
+            <p style={{ ...p, margin:'0 0 6px' }}>• <span style={mono}>result</span> — a <strong>taxa de mercado</strong> (1 unidade da moeda em BRL, “pura”, sem acréscimo). Quando você usa só ela, o sistema aplica por cima os <strong>acréscimos à vista e parcelado</strong> que estão configurados no formulário do câmbio.</p>
+            <p style={{ ...p, margin:'0 0 6px' }}>• <span style={mono}>result_a_vista</span> — a taxa <strong>final à vista</strong>, já com tudo embutido. Se você definir esta, o acréscimo à vista do formulário é <strong>ignorado</strong>.</p>
+            <p style={{ ...p, margin:0 }}>• <span style={mono}>result_parcelado</span> — a taxa <strong>final parcelada</strong>, já com tudo embutido. Se você definir esta, o acréscimo parcelado do formulário é <strong>ignorado</strong>.</p>
+          </div>
+          <p style={{ ...p, marginTop:6 }}>Regra: defina <span style={mono}>result</span> <strong>ou</strong> as duas <span style={mono}>result_a_vista</span> / <span style={mono}>result_parcelado</span> (pode usar as três juntas — veja abaixo). Sem nenhuma delas, dá erro.</p>
+
+          <p style={h}>Jeito 1 — só a taxa de mercado</p>
+          <p style={p}>Mais simples: o script entrega a taxa “pura” e você controla os acréscimos à vista/parcelado no formulário.</p>
+          <pre style={code}>{'# Só a cotação do dólar (o acréscimo é definido no formulário)\nresult = fetch_json("https://api.exemplo.com/usd")["bid"]'}</pre>
+
+          <p style={h}>Jeito 2 — os dois valores já prontos</p>
+          <p style={p}>O script já calcula o à vista e o parcelado finais. Os acréscimos do formulário não são usados.</p>
+          <pre style={code}>{'base = float(fetch_json("https://api.exemplo.com/usd")["bid"])\nresult_a_vista   = base            # à vista = cotação pura\nresult_parcelado = base * 1.06     # parcelado = +6%'}</pre>
+
+          <p style={h}>Jeito 3 — as três variáveis juntas</p>
+          <p style={p}>Você pode informar a taxa de mercado (<span style={mono}>result</span>, fica registrada como referência) e ainda assim definir os dois valores finais. Onde você der o valor final, ele <strong>tem precedência</strong>; onde não der, o acréscimo do formulário entra.</p>
+          <pre style={code}>{'# 1) taxa de mercado (referência)\nbase = float(fetch_json("https://api.exemplo.com/usd")["bid"])\nresult = base\n\n# 2) valores finais já calculados aqui no script\nresult_a_vista   = base * 1.02    # à vista  = +2%\nresult_parcelado = base * 1.08    # parcelado = +8%\n\nprint("mercado:", base, "| a vista:", result_a_vista, "| parcelado:", result_parcelado)'}</pre>
+          <p style={{ ...p, fontSize:12, color:'#94a3b8' }}>No teste (botão <strong>Testar</strong>) aparece “À vista: X · Parcelado: Y” quando você define os dois valores.</p>
 
           <p style={h}>Funções disponíveis</p>
           <p style={p}>• <span style={mono}>fetch_json(url)</span> — faz GET e devolve o JSON (dicionário/lista). Ex.: <span style={mono}>fetch_json(url)["rates"]["BRL"]</span></p>
