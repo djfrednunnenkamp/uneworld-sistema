@@ -276,8 +276,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf th, .ctpdf td { padding:0; vertical-align:middle; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
     .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; border-right-color:rgba(255,255,255,.25); }
     .ctpdf td { text-align:center; }
-    .ctpdf .td-inner { min-height:22px; display:flex; align-items:center; justify-content:center; padding:4px 7px; line-height:1.2; text-align:center; width:100%; }
-    .ctpdf .th-inner { min-height:28px; font-weight:800; line-height:1.15; }
+    .ctpdf .td-inner { min-height:16px; display:flex; align-items:center; justify-content:center; padding:2px 6px; line-height:1.1; text-align:center; width:100%; }
+    .ctpdf .th-inner { min-height:22px; font-weight:800; padding:3px 6px; line-height:1.05; }
     .ctpdf td.text-left .td-inner, .ctpdf th.text-left .td-inner { justify-content:flex-start; text-align:left; }
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
