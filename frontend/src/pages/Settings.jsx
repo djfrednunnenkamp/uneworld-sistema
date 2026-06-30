@@ -2066,7 +2066,7 @@ export default function Settings() {
         return (
           <div style={{ position:'fixed', inset:0, zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
             <div onClick={() => setActiveList(null)} style={{ position:'absolute', inset:0, background:'rgba(15,23,42,.4)', animation:'fadeIn .2s ease' }}/>
-            <div style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth: activeDef.key === 'countries' ? 1080 : activeDef.key === 'exchange_rates' ? 940 : (isWide ? 860 : 560), maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .18s ease' }}>
+            <div style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth: activeDef.key === 'countries' ? 1080 : activeDef.key === 'exchange_rates' ? 780 : (isWide ? 860 : 560), maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .18s ease' }}>
               <div style={{ padding:'20px 24px', borderBottom:'1px solid #eef2f7', display:'flex', alignItems:'flex-start', gap:14, flexShrink:0 }}>
                 <div style={{ width:46, height:46, flexShrink:0, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', background:tileBg, color:tileFg }}>
                   <Ic n={meta.icon} s={22}/>
