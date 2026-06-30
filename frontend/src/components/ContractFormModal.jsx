@@ -594,7 +594,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   }, [form.seller, sellers, loadedSellerData, isEdit, meSellerBrief])
   const agencyItems = useMemo(() => agencies.map(a => ({ id: a.id, label: agencyLabel(a), sublabel: a.cnpj || a.cpf })), [agencies])
   const passengerItems = useMemo(() => passengers.map(p => ({ id: p.id, label: p.full_name, sublabel: p.cpf || p.email })), [passengers])
-  const itineraryItems = useMemo(() => itineraries.map(i => ({ id: i.id, label: i.name, sublabel: i.start_date ? `Início: ${fmtDateBR(i.start_date)}` : '' })), [itineraries])
+  const itineraryItems = useMemo(() => itineraries.map(i => {
+    const parts = []
+    if (i.start_date) parts.push(`Início: ${fmtDateBR(i.start_date)}`)
+    if (i.end_date)   parts.push(`Término: ${fmtDateBR(i.end_date)}`)
+    return { id: i.id, label: i.name, sublabel: parts.join('  ·  ') }
+  }), [itineraries])
   const accomTypeOptions = useMemo(() => accomTypes.map(at => ({ value: at.id, label: at.name })), [accomTypes])
   const paymentMethodOptions = useMemo(() => paymentMethods.map(pm => ({ value: pm.name, label: pm.name })), [paymentMethods])
 
