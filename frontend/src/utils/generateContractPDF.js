@@ -691,10 +691,13 @@ export async function generateContractPDF(contract, opts = {}) {
   const pad    = 2.4
   const halfW  = (contentW - colGap) / 2
 
-  // Card de valores (item 6).
-  const drawValores = (x, top, w) => {
-    const p = 2.4
-    let yy = drawSectionTitle(doc, { x: x + p, y: top + p, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r: 2.7 }) + 1
+  // Card de valores (item 6). Com `dry=true` só calcula a altura (não desenha),
+  // pra dar pra centralizar verticalmente em relação a outro bloco.
+  const drawValores = (x, top, w, dry = false) => {
+    const p = 2.4, r = 2.7
+    // Altura do título = igual ao retorno do drawSectionTitle (y + 2r + 1.4) + 1.
+    let yy = (top + p) + 2 * r + 1.4 + 1
+    if (!dry) drawSectionTitle(doc, { x: x + p, y: top + p, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r })
     const innerX = x + p, innerW = w - 2 * p
     const rows = [
       ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum), false],
@@ -705,14 +708,16 @@ export async function generateContractPDF(contract, opts = {}) {
     ]
     for (const [icon, lab, val, isTotal] of rows) {
       const iconSz = 3.3
-      drawMiniIcon(doc, icons['b_' + icon], innerX, yy + 0.3, iconSz)
       const lx = innerX + iconSz + 1.4
       const size = isTotal ? 9 : 7.8
       const mid = yy + (isTotal ? 2 : 1.7)
-      drawText(doc, lab, lx, mid, { size, style: isTotal ? 'bold' : 'normal', color: isTotal ? BLUE : TEXTC, baseline: 'middle' })
-      drawText(doc, val, innerX + innerW, mid, { size, style: 'bold', color: isTotal ? BLUE : BLUE_DARK, align: 'right', baseline: 'middle' })
+      if (!dry) {
+        drawMiniIcon(doc, icons['b_' + icon], innerX, yy + 0.3, iconSz)
+        drawText(doc, lab, lx, mid, { size, style: isTotal ? 'bold' : 'normal', color: isTotal ? BLUE : TEXTC, baseline: 'middle' })
+        drawText(doc, val, innerX + innerW, mid, { size, style: 'bold', color: isTotal ? BLUE : BLUE_DARK, align: 'right', baseline: 'middle' })
+      }
       yy += isTotal ? 5.2 : 4.4
-      doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(innerX, yy - 1, innerX + innerW, yy - 1)
+      if (!dry) { doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(innerX, yy - 1, innerX + innerW, yy - 1) }
     }
     return yy + p - 1
   }
@@ -737,11 +742,19 @@ export async function generateContractPDF(contract, opts = {}) {
   const item6W = halfW * 0.58                   // item 6 (Valores) mais estreito
   const item6X = marginX + contentW - item6W    // encostado na margem direita
   const item4W = contentW - colGap - item6W     // item 4 ocupa o resto à esquerda
-  const bottom6 = drawValores(item6X, topRow2, item6W)
-  drawCard(doc, item6X, topRow2, item6W, bottom6)
+  // Item 4 (Passageiros) primeiro, p/ conhecer a altura e centralizar o 6 nela.
   let yP = drawSectionTitle(doc, { x: marginX, y: topRow2, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
   const bottom4 = drawTable(doc, { x: marginX, y: yP, width: item4W, ...tables.passengers, ...tableOpts })
-  const row2Bottom = doc.internal.getNumberOfPages() > startP2 ? bottom4 : Math.max(bottom6, bottom4)
+  const endP4 = doc.internal.getNumberOfPages()
+  // Item 6 (Valores) centralizado verticalmente na altura do item 4 (quando o 4
+  // não quebrou de página); senão começa junto ao topo da linha.
+  const h6 = drawValores(item6X, topRow2, item6W, true) - topRow2
+  const top6 = endP4 > startP2 ? topRow2 : topRow2 + Math.max(0, ((bottom4 - topRow2) - h6) / 2)
+  doc.setPage(startP2)
+  const bottom6 = drawValores(item6X, top6, item6W)
+  drawCard(doc, item6X, top6, item6W, bottom6)
+  doc.setPage(endP4)
+  const row2Bottom = endP4 > startP2 ? bottom4 : Math.max(bottom6, bottom4)
 
   // ── Item 7: Plano de Pagamento (largura total, embaixo da folha) ──
   y = checkPageBreak(doc, row2Bottom + 2.5, 22, marginTop, pageBottom)
