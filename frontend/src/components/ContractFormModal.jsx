@@ -1812,6 +1812,24 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 })}
               </div>
 
+              {/* Resumo: câmbio + totais (muda conforme à vista/parcelado) */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Câmbio ({form.base_currency} → BRL)</label>
+                  <MoneyInput style={canEditExchangeRate ? inp : inpRO} value={form.exchange_rate} maxDecimals={4}
+                    disabled={!canEditExchangeRate} readOnly={!canEditExchangeRate}
+                    onChange={v => setForm(f => ({ ...f, exchange_rate: v }))} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Total ({cur})</label>
+                  <input style={inpRO} readOnly value={computedTotalUsd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Total em (BRL)</label>
+                  <input style={inpRO} readOnly value={computedTotalBrl != null ? computedTotalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} />
+                </div>
+              </div>
+
               {paymentType === 'a_vista' ? (
                 <div>
                   <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px' }}>O valor total é pago de uma vez — o valor já vem fixo com o total do contrato.</p>
