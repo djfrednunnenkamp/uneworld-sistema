@@ -474,8 +474,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   ]
   const lastStep = STEPS.length - 1
   const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
-  const [rooms, setRooms]           = useState([]) // [{ id, type }]  type = id da acomodação | null
-  const roomSeqRef                  = useRef(1)     // gera ids estáveis de quarto
+  // Contrato novo já começa com 1 quarto criado (na edição, vêm do contrato).
+  const [rooms, setRooms]           = useState(() => isEdit ? [] : [{ id: 1, type: null }]) // [{ id, type }]  type = id da acomodação | null
+  const roomSeqRef                  = useRef(isEdit ? 1 : 2)     // gera ids estáveis de quarto
   const [draggingId, setDraggingId] = useState(null) // passageiro sendo arrastado
   const [dragOverKey, setDragOverKey] = useState(null) // zona destacada no arraste ('pool' | id do quarto | 'new')
   const [paymentType, setPaymentType] = useState('parcelado') // 'a_vista' | 'parcelado'
@@ -1522,7 +1523,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 multiple title="Selecionar hóspedes" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar hóspedes —"
                 emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
 
-              {guests.length > 0 && (
+              {(guests.length > 0 || rooms.length > 0) && (
                 <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <p style={{ fontSize: 12, color: '#64748b', margin: 0, display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.4 }}>
                     <Ic n="bed" s={13} />
