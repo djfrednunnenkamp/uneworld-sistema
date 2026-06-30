@@ -140,37 +140,36 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
 
   const sigText = contract.signature_type === 'digital' ? '✓ Assinado Digitalmente' : '✓ Assinado Fisicamente'
 
-  // ── Células de tabela ──────────────────────────────────────────────────────
-  // td/th SEM padding + wrapper interno `.td-inner` com display:flex +
-  // align-items:center + min-height. É o que centraliza o texto de fato no
-  // html2canvas dentro de <table> (vertical-align sozinho não resolvia). O
-  // padding mora no `.td-inner`. `left` aplica alinhamento à esquerda explícito
-  // (coluna do nome, tipo de acomodação, detalhe da parcela) — sem nth-child.
-  const cell = (v, left = false) => `<td${left ? ' class="text-left"' : ''}><div class="td-inner">${v}</div></td>`
-  const head = (v, attrs = '') => `<th${attrs}><div class="td-inner th-inner">${v}</div></th>`
+  // ── Células de tabela (CSS Grid de <div>, não <table>) ──────────────────────
+  // O html2canvas posiciona o texto fora do centro vertical em <td>/<th>
+  // (baseline/vertical-align bugado), mesmo com flex/line-height. Em DIV + CSS
+  // Grid o texto centraliza de forma confiável: cada célula é um flex item
+  // (align-items:center) que estica à altura da linha do grid e centraliza o
+  // <span>. `left` alinha à esquerda (nome, tipo de acomodação, detalhe da
+  // parcela); `strong` deixa o valor em negrito (coluna Total).
+  const gridCell = (v, left = false, strong = false) =>
+    `<div class="grid-cell${left ? ' text-left' : ''}${strong ? ' strong' : ''}"><span>${v}</span></div>`
+  const gridHead = (v, left = false) =>
+    `<div class="grid-cell grid-head${left ? ' text-left' : ''}"><span>${v}</span></div>`
 
   // ── Passageiros ──
   const guests = contract.guests || []
   const guestRows = guests.map((g, i) => {
     const p = g.passenger_data || {}
-    return `<tr>
-      ${cell(`${i + 1}. ${dash(p.full_name)}`, true)}
-      ${cell(dash(p.gender))}
-      ${cell(p.birth_date ? fmtDateBR(p.birth_date) : '—')}
-      ${cell(dash(p.passport || p.cpf))}
-      ${cell(dash(g.accommodation_type_name))}
-    </tr>`
-  }).join('') || `<tr>${cell('—', true)}${cell('—')}${cell('—')}${cell('—')}${cell('—')}</tr>`
+    return `${gridCell(`${i + 1}. ${dash(p.full_name)}`, true)}
+      ${gridCell(dash(p.gender))}
+      ${gridCell(p.birth_date ? fmtDateBR(p.birth_date) : '—')}
+      ${gridCell(dash(p.passport || p.cpf))}
+      ${gridCell(dash(g.accommodation_type_name))}`
+  }).join('') || `${gridCell('—', true)}${gridCell('—')}${gridCell('—')}${gridCell('—')}${gridCell('—')}`
 
   // ── Acomodações contratadas ──
   const lines = contract.accommodation_lines || []
-  const accomRows = lines.map(l => `<tr>
-      ${cell(dash(l.accommodation_type_name), true)}
-      ${cell(money(l.value_per_person_usd))}
-      ${cell(money(l.taxes_usd))}
-      ${cell(dash(l.quantity))}
-      ${cell(`<strong>${money(l.total_usd)}</strong>`)}
-    </tr>`).join('') || `<tr>${cell('—', true)}${cell('—')}${cell('—')}${cell('—')}${cell('—')}</tr>`
+  const accomRows = lines.map(l => `${gridCell(dash(l.accommodation_type_name), true)}
+      ${gridCell(money(l.value_per_person_usd))}
+      ${gridCell(money(l.taxes_usd))}
+      ${gridCell(dash(l.quantity))}
+      ${gridCell(money(l.total_usd), false, true)}`).join('') || `${gridCell('—', true)}${gridCell('—')}${gridCell('—')}${gridCell('—')}${gridCell('—')}`
 
   // ── Valores (resumo) ── soma das bases e das taxas (×quantidade) para
   // bater com o Total do contrato.
@@ -186,7 +185,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   if (aVista) {
     const p = parcelas[0] || entrada
     payRows = p
-      ? `<tr>${cell('01')}${cell(dash(p.detail || 'À vista'), true)}${cell(p.due_date ? fmtDateBR(p.due_date) : '—')}${cell(money(p.value_brl))}${cell(dash(p.payment_method))}</tr>`
+      ? `${gridCell('01')}${gridCell(dash(p.detail || 'À vista'), true)}${gridCell(p.due_date ? fmtDateBR(p.due_date) : '—')}${gridCell(money(p.value_brl))}${gridCell(dash(p.payment_method))}`
       : ''
   } else {
     const ordered = [...(entrada ? [entrada] : []), ...parcelas]
@@ -196,16 +195,14 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
       if (p.kind === 'entrada') detail = p.detail || 'Entrada (Sinal)'
       else detail = p.detail || `Parcela ${p.installment_number ?? idx}`
       if (isLast && p.kind === 'parcela' && !/final/i.test(detail)) detail += ' / Final'
-      return `<tr>
-        ${cell(String(idx + 1).padStart(2, '0'))}
-        ${cell(dash(detail), true)}
-        ${cell(p.due_date ? fmtDateBR(p.due_date) : '—')}
-        ${cell(money(p.value_brl))}
-        ${cell(dash(p.payment_method))}
-      </tr>`
+      return `${gridCell(String(idx + 1).padStart(2, '0'))}
+        ${gridCell(dash(detail), true)}
+        ${gridCell(p.due_date ? fmtDateBR(p.due_date) : '—')}
+        ${gridCell(money(p.value_brl))}
+        ${gridCell(dash(p.payment_method))}`
     }).join('')
   }
-  if (!payRows) payRows = `<tr>${cell('—')}${cell('—', true)}${cell('—')}${cell('—')}${cell('—')}</tr>`
+  if (!payRows) payRows = `${gridCell('—')}${gridCell('—', true)}${gridCell('—')}${gridCell('—')}${gridCell('—')}`
 
   // ── Bloco do cliente contratante (físico × jurídico) ──
   const clientFields = isJuridica ? [
@@ -267,20 +264,21 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .client-grid { display:grid; grid-template-columns:1.3fr .8fr 1fr 1fr; gap:10px; border-top:1px solid #D8E3F3; padding-top:7px; }
     .ctpdf .client-grid .field { display:flex; flex-direction:column; justify-content:center; border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
-    .ctpdf table { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9px; background:white; }
-    /* Centralização vertical real no html2canvas: td/th SEM padding +
-       wrapper interno .td-inner com display:flex/align-items:center/min-height.
-       O padding mora no .td-inner (não no td). Sem height:100% (o html2canvas
-       não resolve % de altura em célula). Alinhamento à esquerda via classe
-       explícita .text-left, nunca por nth-child. */
-    .ctpdf th, .ctpdf td { padding:0; vertical-align:middle; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
-    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; border-right-color:rgba(255,255,255,.25); }
-    .ctpdf td { text-align:center; }
-    .ctpdf .td-inner { min-height:16px; display:flex; align-items:center; justify-content:center; padding:0 6px; line-height:16px; text-align:center; width:100%; }
-    .ctpdf .th-inner { min-height:22px; font-weight:800; padding:0 6px; line-height:11px; }
-    .ctpdf td.text-left .td-inner, .ctpdf th.text-left .td-inner { justify-content:flex-start; text-align:left; }
-    .ctpdf tr:last-child td { border-bottom:0; }
-    .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
+    /* Tabelas em CSS Grid de <div> (não <table>): o html2canvas posiciona o
+       texto fora do centro vertical em <td>/<th> (baseline/vertical-align
+       bugado), mesmo com flex/line-height. Em grid cada célula é um flex item
+       que estica à altura da linha e centraliza o <span> de forma confiável.
+       As linhas de 1px são o fundo var(--line) do container aparecendo no gap —
+       sem bordas duplas e sem nth-child. line-height/min-height mantêm
+       exatamente as mesmas alturas de célula da versão em <table>. */
+    .ctpdf .grid-table { display:grid; width:100%; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden; font-size:9px; }
+    .ctpdf .grid-5 { grid-template-columns:repeat(5,1fr); }
+    .ctpdf .grid-pass { grid-template-columns:42% repeat(4,1fr); }
+    .ctpdf .grid-cell { display:flex; align-items:center; padding:0 6px; min-height:16px; line-height:16px; background:white; }
+    .ctpdf .grid-cell > span { display:block; width:100%; text-align:center; overflow-wrap:anywhere; word-break:break-word; }
+    .ctpdf .grid-cell.text-left > span { text-align:left; }
+    .ctpdf .grid-cell.strong { font-weight:700; }
+    .ctpdf .grid-head { min-height:22px; line-height:11px; background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; font-size:8.5px; font-weight:800; }
     .ctpdf .values-list { display:grid; gap:7px; padding-top:4px; }
     /* Ícone, rótulo e valor na mesma linha de base vertical via align-items:center —
        o valor da direita não fica mais deslocado pra cima. */
@@ -344,22 +342,18 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
 
       <section class="section passengers">
         <div class="section-title">${circleIcon('users')}<span class="ttl">4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></span></div>
-        <table>
-          <thead><tr>
-            ${head('Nome completo', ' style="width:42%"')}${head('Sexo')}${head('Data de nascimento')}${head('Passaporte/CPF')}${head('Acomodação')}
-          </tr></thead>
-          <tbody>${guestRows}</tbody>
-        </table>
+        <div class="grid-table grid-pass">
+          ${gridHead('Nome completo')}${gridHead('Sexo')}${gridHead('Data de nascimento')}${gridHead('Passaporte/CPF')}${gridHead('Acomodação')}
+          ${guestRows}
+        </div>
       </section>
 
       <section class="section accommodations">
         <div class="section-title">${circleIcon('building')}<span class="ttl">5. Acomodações Contratadas</span></div>
-        <table>
-          <thead><tr>
-            ${head('Tipo de acomodação')}${head(`Valor/pessoa (${esc(cc)})`)}${head(`Taxas (${esc(cc)})`)}${head('Quantidade')}${head(`Total (${esc(cc)})`)}
-          </tr></thead>
-          <tbody>${accomRows}</tbody>
-        </table>
+        <div class="grid-table grid-5">
+          ${gridHead('Tipo de acomodação')}${gridHead(`Valor/pessoa (${esc(cc)})`)}${gridHead(`Taxas (${esc(cc)})`)}${gridHead('Quantidade')}${gridHead(`Total (${esc(cc)})`)}
+          ${accomRows}
+        </div>
       </section>
 
       <section class="grid-mid">
@@ -376,12 +370,10 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
 
         <div class="section">
           <div class="section-title">${circleIcon('card')}<span class="ttl">7. Plano de Pagamento</span></div>
-          <table>
-            <thead><tr>
-              ${head('Parcela')}${head('Detalhe')}${head('Vencimento')}${head('Valor (BRL)')}${head('Forma de pagamento')}
-            </tr></thead>
-            <tbody>${payRows}</tbody>
-          </table>
+          <div class="grid-table grid-5">
+            ${gridHead('Parcela')}${gridHead('Detalhe')}${gridHead('Vencimento')}${gridHead('Valor (BRL)')}${gridHead('Forma de pagamento')}
+            ${payRows}
+          </div>
         </div>
       </section>
     </main>
