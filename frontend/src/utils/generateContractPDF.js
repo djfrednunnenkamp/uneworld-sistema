@@ -4,27 +4,53 @@ import { configApi } from '../api'
 
 const NAV = [26, 45, 79]      // #1a2d4f
 
+// Aceita 'YYYY-MM-DD' e também ISO completo ('2026-06-29T00:00:00Z'). Se não
+// der pra interpretar com segurança, devolve o valor original como string.
 const fmtDateBR = (iso) => {
   if (!iso) return ''
-  const [y, m, d] = String(iso).split('-')
-  return (y && m && d) ? `${d}/${m}/${y}` : String(iso)
+  const s = String(iso)
+  const [y, m, d] = s.split('T')[0].split('-')
+  if (y && m && d && /^\d{4}$/.test(y)) return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`
+  return s
 }
 
-const fmtMoney = (v) => v == null || v === '' ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+// Formata dinheiro com segurança: valor vazio/inválido vira '' (nunca "NaN").
+const fmtMoney = (v) => {
+  if (v == null || v === '') return ''
+  const n = Number(v)
+  if (!Number.isFinite(n)) return ''
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 // Câmbio vem do banco com 4 casas decimais fixas (ex: "5.4000") — exibe sem
 // zeros à direita desnecessários (5,4 em vez de 5,4000; 5,4321 mantém as 4 se forem reais).
-const fmtRate = (v) => v == null || v === '' ? '' : String(Number(v)).replace('.', ',')
+// Valor vazio/inválido vira '' (nunca "NaN").
+const fmtRate = (v) => {
+  if (v == null || v === '') return ''
+  const n = Number(v)
+  if (!Number.isFinite(n)) return ''
+  return String(n).replace('.', ',')
+}
 
-/* Converte o HTML rico das cláusulas em texto simples (com quebras de
- * parágrafo preservadas) — formatação (negrito, listas) ainda não é
- * reproduzida no PDF; fica pra uma próxima etapa. */
+/* Converte o HTML rico das cláusulas em texto simples preservando a estrutura:
+ * - itens de lista (<li>) viram linhas com marcador "• ";
+ * - títulos e parágrafos (<p>, <h1-4>, <div>, <br>) viram linhas separadas;
+ * - evita que tudo fique grudado num parágrafo só. */
 function htmlToText(html) {
   if (!html) return ''
   const div = document.createElement('div')
   div.innerHTML = html
-  div.querySelectorAll('p, li, div, br, h1, h2, h3, h4').forEach(el => el.insertAdjacentText('afterend', '\n'))
-  return div.textContent.replace(/\n{3,}/g, '\n\n').trim()
+  // Itens de lista: marcador simples antes + quebra depois.
+  div.querySelectorAll('li').forEach(li => {
+    li.insertAdjacentText('afterbegin', '• ')
+    li.insertAdjacentText('afterend', '\n')
+  })
+  // Blocos e títulos: quebra de linha após cada um.
+  div.querySelectorAll('p, div, br, h1, h2, h3, h4, h5, h6, tr').forEach(el => el.insertAdjacentText('afterend', '\n'))
+  return div.textContent
+    .replace(/[ \t]+\n/g, '\n')   // remove espaços no fim das linhas
+    .replace(/\n{3,}/g, '\n\n')   // colapsa quebras excessivas
+    .trim()
 }
 
 // ── Helpers de escape pra montar o HTML da 1ª página com dados do usuário ──
@@ -97,8 +123,16 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   const ct = contract.contratante_data || {}
   const isJuridica = ct.payer_type === 'juridica'
   // Ícone branco dentro do círculo azul da seção / ícone azul de apoio.
-  const circleIcon = (name) => `<span class="icon"><img src="${icons['w_' + name] || ''}"/></span>`
-  const miniIcon = (name) => `<img class="mini-img" src="${icons['b_' + name] || ''}"/>`
+  // Se o PNG do ícone falhar (icons[...] vazio), não gera <img src=""> quebrado:
+  // o círculo fica vazio e o mini-ícone é simplesmente omitido.
+  const circleIcon = (name) => {
+    const src = icons['w_' + name]
+    return `<span class="icon">${src ? `<img src="${src}"/>` : ''}</span>`
+  }
+  const miniIcon = (name) => {
+    const src = icons['b_' + name]
+    return src ? `<img class="mini-img" src="${src}"/>` : `<span class="mini-img"></span>`
+  }
 
   const periodo = (contract.departure_date || contract.return_date)
     ? `${fmtDateBR(contract.departure_date)} a ${fmtDateBR(contract.return_date)}`
@@ -111,23 +145,23 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   const guestRows = guests.map((g, i) => {
     const p = g.passenger_data || {}
     return `<tr>
-      <td>${i + 1}. ${dash(p.full_name)}</td>
-      <td>${dash(p.gender)}</td>
-      <td>${p.birth_date ? fmtDateBR(p.birth_date) : '—'}</td>
-      <td>${dash(p.passport || p.cpf)}</td>
-      <td>${dash(g.accommodation_type_name)}</td>
+      <td><div class="cell">${i + 1}. ${dash(p.full_name)}</div></td>
+      <td><div class="cell">${dash(p.gender)}</div></td>
+      <td><div class="cell">${p.birth_date ? fmtDateBR(p.birth_date) : '—'}</div></td>
+      <td><div class="cell">${dash(p.passport || p.cpf)}</div></td>
+      <td><div class="cell">${dash(g.accommodation_type_name)}</div></td>
     </tr>`
-  }).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+  }).join('') || `<tr><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td></tr>`
 
   // ── Acomodações contratadas ──
   const lines = contract.accommodation_lines || []
   const accomRows = lines.map(l => `<tr>
-      <td>${dash(l.accommodation_type_name)}</td>
-      <td>${money(l.value_per_person_usd)}</td>
-      <td>${money(l.taxes_usd)}</td>
-      <td>${dash(l.quantity)}</td>
-      <td><strong>${money(l.total_usd)}</strong></td>
-    </tr>`).join('') || `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+      <td><div class="cell">${dash(l.accommodation_type_name)}</div></td>
+      <td><div class="cell">${money(l.value_per_person_usd)}</div></td>
+      <td><div class="cell">${money(l.taxes_usd)}</div></td>
+      <td><div class="cell">${dash(l.quantity)}</div></td>
+      <td><div class="cell"><strong>${money(l.total_usd)}</strong></div></td>
+    </tr>`).join('') || `<tr><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td></tr>`
 
   // ── Valores (resumo) ── soma das bases e das taxas (×quantidade) para
   // bater com o Total do contrato.
@@ -143,7 +177,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   if (aVista) {
     const p = parcelas[0] || entrada
     payRows = p
-      ? `<tr><td>01</td><td>${dash(p.detail || 'À vista')}</td><td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td><td>${money(p.value_brl)}</td><td>${dash(p.payment_method)}</td><td>Pendente</td></tr>`
+      ? `<tr><td><div class="cell">01</div></td><td><div class="cell">${dash(p.detail || 'À vista')}</div></td><td><div class="cell">${p.due_date ? fmtDateBR(p.due_date) : '—'}</div></td><td><div class="cell">${money(p.value_brl)}</div></td><td><div class="cell">${dash(p.payment_method)}</div></td><td><div class="cell">Pendente</div></td></tr>`
       : ''
   } else {
     const ordered = [...(entrada ? [entrada] : []), ...parcelas]
@@ -154,21 +188,21 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
       else detail = p.detail || `Parcela ${p.installment_number ?? idx}`
       if (isLast && p.kind === 'parcela' && !/final/i.test(detail)) detail += ' / Final'
       return `<tr>
-        <td>${String(idx + 1).padStart(2, '0')}</td>
-        <td>${dash(detail)}</td>
-        <td>${p.due_date ? fmtDateBR(p.due_date) : '—'}</td>
-        <td>${money(p.value_brl)}</td>
-        <td>${dash(p.payment_method)}</td>
-        <td>Pendente</td>
+        <td><div class="cell">${String(idx + 1).padStart(2, '0')}</div></td>
+        <td><div class="cell">${dash(detail)}</div></td>
+        <td><div class="cell">${p.due_date ? fmtDateBR(p.due_date) : '—'}</div></td>
+        <td><div class="cell">${money(p.value_brl)}</div></td>
+        <td><div class="cell">${dash(p.payment_method)}</div></td>
+        <td><div class="cell">Pendente</div></td>
       </tr>`
     }).join('')
   }
-  if (!payRows) payRows = `<tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`
+  if (!payRows) payRows = `<tr><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td><td><div class="cell">—</div></td></tr>`
 
   // ── Bloco do cliente contratante (físico × jurídico) ──
   const clientFields = isJuridica ? [
     ['Razão social', dash(ct.full_name)],
-    ['CNPJ', dash(ct.cpf)],
+    ['CNPJ', dash(ct.cnpj || ct.cpf)],
     ['E-mail', dash(ct.email)],
     ['Celular', dash(ct.mobile)],
     ['Endereço', addr(ct.address)],
@@ -190,9 +224,11 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
   const css = `
     .ctpdf { --blue-dark:#192D58; --blue:#0B4F9F; --blue-light:#0E9EDD; --line:#C9D8EE; --soft:#F6F9FD; --text:#0D1B35; color:var(--text); font-family:Arial,Helvetica,sans-serif; font-size:9.5px; }
     .ctpdf * { box-sizing:border-box; }
-    .ctpdf .page { width:188mm; background:white; padding:0; position:relative; }
+    /* Evita overflow horizontal de campos longos (endereço, observações). */
+    .ctpdf .field, .ctpdf .travel-row > div { overflow-wrap:anywhere; word-break:break-word; }
+    .ctpdf .page { width:188mm; background:white; padding:0; position:relative; overflow:hidden; }
     .ctpdf .header { display:grid; grid-template-columns:160px 1fr 160px; gap:18px; align-items:start; padding-bottom:6px; border-bottom:1px solid var(--line); }
-    .ctpdf .logo { width:140px; display:block; }
+    .ctpdf .logo { width:140px; max-width:100%; max-height:72px; height:auto; object-fit:contain; display:block; }
     .ctpdf .title { border-left:1px solid var(--line); padding-left:18px; }
     .ctpdf .title h1 { margin:0; color:var(--blue-dark); font-size:20px; line-height:1.12; font-weight:800; text-transform:uppercase; }
     .ctpdf .title p { margin:6px 0 0; color:var(--blue); font-size:9.5px; font-weight:700; text-transform:uppercase; }
@@ -221,9 +257,16 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .client-grid .field { border-right:1px solid #D8E3F3; min-height:24px; padding-right:8px; margin:0; }
     .ctpdf .client-grid .field:last-child { border-right:0; }
     .ctpdf table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--line); border-radius:6px; font-size:9px; background:white; }
-    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:white; text-transform:uppercase; padding:5px 7px; font-size:8.5px; line-height:1.15; vertical-align:middle; border-right:1px solid rgba(255,255,255,.25); }
-    .ctpdf td { padding:0 7px; line-height:20px; vertical-align:middle; text-align:center; border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
-    .ctpdf td:nth-child(2), .ctpdf .accommodations td:first-child { text-align:left; }
+    /* A célula (td/th) não tem padding: o conteúdo vai num .cell flex que se
+       centraliza verticalmente sozinho, qualquer que seja a altura da linha. */
+    .ctpdf th, .ctpdf td { padding:0; border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .ctpdf th { background:linear-gradient(90deg,var(--blue-dark),var(--blue)); color:#fff; text-transform:uppercase; border-right-color:rgba(255,255,255,.25); }
+    /* Permite quebra de linha controlada (nomes longos, endereços, passaporte/CPF
+       não estouram a tabela) mantendo o conteúdo centralizado verticalmente. */
+    .ctpdf td { white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .ctpdf .cell { display:flex; align-items:center; justify-content:center; height:100%; min-height:20px; padding:5px 7px; box-sizing:border-box; text-align:center; line-height:1.2; overflow-wrap:anywhere; }
+    .ctpdf th .cell { font-size:8.5px; line-height:1.15; }
+    .ctpdf td:nth-child(2) .cell, .ctpdf .accommodations td:first-child .cell { justify-content:flex-start; text-align:left; }
     .ctpdf tr:last-child td { border-bottom:0; }
     .ctpdf th:last-child, .ctpdf td:last-child { border-right:0; }
     .ctpdf .values-list { display:grid; gap:7px; padding-top:4px; }
@@ -291,7 +334,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         <div class="section-title">${circleIcon('users')}<span class="ttl">4. Passageiros <span style="font-size:10px;">(Contratante e demais usuários)</span></span></div>
         <table>
           <thead><tr>
-            <th style="width:42%">Nome completo</th><th>Sexo</th><th>Data de nascimento</th><th>Passaporte/CPF</th><th>Acomodação</th>
+            <th style="width:42%"><div class="cell">Nome completo</div></th><th><div class="cell">Sexo</div></th><th><div class="cell">Data de nascimento</div></th><th><div class="cell">Passaporte/CPF</div></th><th><div class="cell">Acomodação</div></th>
           </tr></thead>
           <tbody>${guestRows}</tbody>
         </table>
@@ -301,7 +344,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
         <div class="section-title">${circleIcon('building')}<span class="ttl">5. Acomodações Contratadas</span></div>
         <table>
           <thead><tr>
-            <th>Tipo de acomodação</th><th>Valor/pessoa (${esc(cc)})</th><th>Taxas (${esc(cc)})</th><th>Quantidade</th><th>Total (${esc(cc)})</th>
+            <th><div class="cell">Tipo de acomodação</div></th><th><div class="cell">Valor/pessoa (${esc(cc)})</div></th><th><div class="cell">Taxas (${esc(cc)})</div></th><th><div class="cell">Quantidade</div></th><th><div class="cell">Total (${esc(cc)})</div></th>
           </tr></thead>
           <tbody>${accomRows}</tbody>
         </table>
@@ -323,7 +366,7 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
           <div class="section-title">${circleIcon('card')}<span class="ttl">7. Plano de Pagamento</span></div>
           <table>
             <thead><tr>
-              <th>Parcela</th><th>Detalhe</th><th>Vencimento</th><th>Valor (BRL)</th><th>Forma de pagamento</th><th>Status</th>
+              <th><div class="cell">Parcela</div></th><th><div class="cell">Detalhe</div></th><th><div class="cell">Vencimento</div></th><th><div class="cell">Valor (BRL)</div></th><th><div class="cell">Forma de pagamento</div></th><th><div class="cell">Status</div></th>
             </tr></thead>
             <tbody>${payRows}</tbody>
           </table>
@@ -380,14 +423,38 @@ export async function generateContractPDF(contract, opts = {}) {
   const icons  = await prepareIcons()
   const html   = buildFirstPageHTML(contract, company, logoDataUrl, icons)
   const blocks = await renderFirstPageBlocks(html)
+  const usableH = ph - marginTop - marginBottom
   let y = marginTop
   for (const canvas of blocks) {
-    const h = canvas.height * contentW / canvas.width
-    // Encaixa o bloco inteiro: se não couber no que resta da página, joga
-    // pra próxima (mas não cria página em branco se já está no topo).
-    if (y + h > ph - marginBottom && y > marginTop) { doc.addPage(); y = marginTop }
-    doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', marginX, y, contentW, h)
-    y += h + blockGap
+    const fullH = canvas.height * contentW / canvas.width
+    if (fullH <= usableH) {
+      // Cabe inteiro numa página: se não couber no que resta, joga pra próxima
+      // (sem criar página em branco se já está no topo).
+      if (y + fullH > ph - marginBottom && y > marginTop) { doc.addPage(); y = marginTop }
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', marginX, y, contentW, fullH)
+      y += fullH + blockGap
+    } else {
+      // Bloco maior que a área útil (ex.: tabela de pagamento com muitas
+      // parcelas): fatia verticalmente, preenchendo o espaço restante de cada
+      // página e continuando na seguinte — sem ultrapassar a página.
+      const pxPerMm = canvas.height / fullH
+      let srcY = 0
+      while (srcY < canvas.height) {
+        let availMm = ph - marginBottom - y
+        if (availMm < 14) { doc.addPage(); y = marginTop; availMm = usableH }
+        const sliceHpx = Math.min(Math.round(availMm * pxPerMm), canvas.height - srcY)
+        const tmp = document.createElement('canvas')
+        tmp.width = canvas.width
+        tmp.height = sliceHpx
+        tmp.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceHpx, 0, 0, canvas.width, sliceHpx)
+        const sliceHmm = sliceHpx / pxPerMm
+        doc.addImage(tmp.toDataURL('image/jpeg', 0.92), 'JPEG', marginX, y, contentW, sliceHmm)
+        y += sliceHmm
+        srcY += sliceHpx
+        if (srcY < canvas.height) { doc.addPage(); y = marginTop }
+      }
+      y += blockGap
+    }
   }
 
   // ── Cláusulas contratuais — seguem logo após as informações, na mesma
@@ -461,9 +528,16 @@ export async function generateContractPDF(contract, opts = {}) {
   const firstName   = (ct.full_name || '').trim().split(/\s+/)[0] || ''
   const tripName    = contract.package_name || ''
   const companyName = company.company_name || ''
-  const clean = (s) => String(s).replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim()
-  const parts = ['Contrato', tripName, firstName, companyName].map(clean).filter(Boolean)
-  const filename = `${(parts.length > 1 ? parts.join(' - ') : `Contrato ${contract.reservation_number || contract.id}`)}.pdf`
+  // Limpa caracteres inválidos e limita cada parte para não gerar nomes enormes
+  // quando o pacote ou a empresa têm nome muito comprido.
+  const clean = (s, max = 40) => {
+    const t = String(s).replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim()
+    return t.length > max ? t.slice(0, max).trim() : t
+  }
+  const parts = [clean('Contrato'), clean(tripName), clean(firstName, 20), clean(companyName, 30)].filter(Boolean)
+  let base = parts.length > 1 ? parts.join(' - ') : `Contrato ${contract.reservation_number || contract.id}`
+  if (base.length > 120) base = base.slice(0, 120).trim()   // teto final de segurança
+  const filename = `${base}.pdf`
   // Para pré-visualizar (em vez de baixar): retorna o PDF como blob URL.
   if (opts.output === 'blob')    return doc.output('blob')
   if (opts.output === 'bloburl') return URL.createObjectURL(doc.output('blob'))
