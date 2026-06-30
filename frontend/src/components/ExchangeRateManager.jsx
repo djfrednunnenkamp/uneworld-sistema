@@ -465,7 +465,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
             </p>
           ) : filtered.map((item, idx) => (
             <div key={item.id} style={{
-              display:'grid', gridTemplateColumns:'320px 1fr auto', alignItems:'center', gap:14,
+              display:'grid', gridTemplateColumns:'1fr auto 1fr', alignItems:'center', gap:14,
               padding:'9px 14px', fontSize:13, color:'#0f172a',
               borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none', background:'#fff',
             }}
@@ -498,7 +498,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
                   <span title="Acréscimo à vista / parcelado sobre a taxa de mercado" style={{ fontSize:10.5, fontWeight:700, color:'#b45309', background:'#fffbeb', padding:'1px 7px', borderRadius:10 }}>+{Number(item.markup_percent)}% / +{Number(item.markup_percent_installment)}%</span>
                 )}
               </span>
-              <span style={{ color:'#64748b', whiteSpace:'nowrap', justifySelf:'center', textAlign:'center' }}>
+              <span style={{ color:'#64748b', whiteSpace:'nowrap', justifySelf:'center', textAlign:'center', gridColumn:2 }}>
                 1 {item.from_currency} = {Number(item.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {item.to_currency}
                 <span style={{ fontSize:11, color:'#94a3b8' }}> à vista</span>
                 {Number(item.rate_installment) > 0 && (
@@ -506,7 +506,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
                 )}
               </span>
               {(canEdit || canDelete) && (
-                <div className="r-acts" style={{ flexShrink:0 }}>
+                <div className="r-acts" style={{ flexShrink:0, justifySelf:'flex-end' }}>
                   {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => setModal(item)}><Ic n="edit"  s={13}/></button>}
                   {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setDelItem(item)}><Ic n="trash" s={13}/></button>}
                 </div>
