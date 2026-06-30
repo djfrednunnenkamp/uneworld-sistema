@@ -146,7 +146,7 @@ function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
 /* Popup de valores extras (acréscimos) e descontos — entram na Soma total (USD).
  * Cada linha pode ser um valor fixo (US$) ou um percentual sobre o subtotal das
  * acomodações (baseUsd). */
-function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, cur = 'US$', onClose }) {
+function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commissionPct = 0, commissionUsd = 0, cur = 'US$', onClose }) {
   const add    = () => setAdjustments(a => [...a, { description: '', kind: 'acrescimo', mode: 'valor', value_usd: '', percent: '' }])
   const update = (i, k, v) => setAdjustments(a => a.map((x, idx) => idx === i ? { ...x, [k]: v } : x))
   const remove = (i) => setAdjustments(a => a.filter((_, idx) => idx !== i))
@@ -163,6 +163,12 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, cur = 'US$
           <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
         </div>
         <div className="mbody">
+          {commissionPct > 0 && (
+            <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '9px 12px', margin: '0 0 12px', fontSize: 12.5, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: 7 }}>
+              <Ic n="briefcase" s={13} />
+              <span>Comissão da agência: <strong>{commissionPct.toLocaleString('pt-BR')}%</strong> ({cur} {fmt(commissionUsd)}) — já embutida nas acomodações. Use os campos abaixo pra somar ou abater por cima.</span>
+            </div>
+          )}
           <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
             Acréscimos somam e descontos subtraem da <strong>Soma total ({cur})</strong>. O percentual
             incide sobre o subtotal das acomodações (<strong>{cur} {fmt(baseUsd)}</strong>).
@@ -1885,6 +1891,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           adjustments={adjustments}
           setAdjustments={setAdjustments}
           baseUsd={accomSubtotalUsd}
+          commissionPct={agencyCommissionPct}
+          commissionUsd={commissionUsd}
           cur={cur}
           onClose={() => setShowAdjustments(false)}
         />
