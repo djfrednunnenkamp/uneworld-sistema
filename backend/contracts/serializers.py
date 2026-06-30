@@ -164,9 +164,10 @@ class ContractSerializer(serializers.ModelSerializer):
         read_only_fields = ['autentique_document_id', 'autentique_data']
 
     def validate(self, attrs):
-        # Rascunho (autosave) pode ser salvo incompleto — sem agência/contratante.
-        status = attrs.get('status', getattr(self.instance, 'status', 'ativo'))
-        if status == 'rascunho':
+        # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado
+        # (status='ativo' vindo no payload). Autosave/rascunho/prévia — que não
+        # mandam status='ativo' — podem ser salvos incompletos.
+        if attrs.get('status') != 'ativo':
             return attrs
         # Finalizado: exige agência e contratante (ou dados manuais do pagante).
         agency = attrs.get('agency', getattr(self.instance, 'agency', None))
