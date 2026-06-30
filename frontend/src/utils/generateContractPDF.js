@@ -685,21 +685,34 @@ export async function generateContractPDF(contract, opts = {}) {
   drawCard(doc, marginX + w1 + gap12, top12, w2, cardBottom)
   y = cardBottom + 2.5
 
-  // ═══ 3. CLIENTE CONTRATANTE (card largura total) ══════════════════════════
+  // ═══ 3. CLIENTE CONTRATANTE (esq.) + 4. PASSAGEIROS (dir.) ════════════════
+  // Lado a lado: ambos começam no MESMO Y. Em colunas estreitas o item 3 usa
+  // grid de 2 colunas e os subtítulos longos saem (não cabem na metade).
+  y = checkPageBreak(doc, y, 30, marginTop, pageBottom)
   {
     const pad = 2.4
-    const top3 = y
-    let yy = drawSectionTitle(doc, { x: marginX + pad, y: top3 + pad, iconPng: icons.w_user, main: '3. Cliente Contratante', sub: '(Responsável pelo pagamento)' }) + 0.8
-    doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yy, marginX + contentW - pad, yy); yy += 1.6
-    const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yy, w: contentW - 2 * pad, fields: clientFields, cols: 4, size: 8 })
-    drawCard(doc, marginX, top3, contentW, bottom3 + pad)
-    y = bottom3 + pad + 2.5
-  }
+    const gap34 = 4
+    const w3 = (contentW - gap34) * 0.42
+    const w4 = (contentW - gap34) - w3
+    const x4 = marginX + w3 + gap34
+    const top34 = y
+    const pagesBefore34 = doc.internal.getNumberOfPages()
 
-  // ═══ 4. PASSAGEIROS — título + tabela nativa ══════════════════════════════
-  y = checkPageBreak(doc, y, 20, marginTop, pageBottom)
-  y = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_users, main: '4. Passageiros', sub: '(Contratante e demais usuários)' }) + 0.8
-  y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.passengers, ...tableOpts }) + 2
+    // Item 3 — card à esquerda.
+    let yy = drawSectionTitle(doc, { x: marginX + pad, y: top34 + pad, iconPng: icons.w_user, main: '3. Cliente Contratante' }) + 0.8
+    doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yy, marginX + w3 - pad, yy); yy += 1.6
+    const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yy, w: w3 - 2 * pad, fields: clientFields, cols: 2, size: 8 }) + pad
+    drawCard(doc, marginX, top34, w3, bottom3)
+
+    // Item 4 — título + tabela à direita.
+    let y4 = drawSectionTitle(doc, { x: x4, y: top34, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
+    const bottom4 = drawTable(doc, { x: x4, y: y4, width: w4, ...tables.passengers, ...tableOpts })
+
+    // Se a tabela do item 4 quebrou de página, o cursor já está na página nova
+    // logo abaixo dela; senão, o fim é o mais baixo dos dois blocos.
+    const broke34 = doc.internal.getNumberOfPages() > pagesBefore34
+    y = (broke34 ? bottom4 : Math.max(bottom3, bottom4)) + 2.5
+  }
 
   // ═══ 5. ACOMODAÇÕES CONTRATADAS ═══════════════════════════════════════════
   y = checkPageBreak(doc, y, 20, marginTop, pageBottom)
