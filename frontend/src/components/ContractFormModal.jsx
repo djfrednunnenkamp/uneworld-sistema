@@ -441,7 +441,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
   useEffect(() => {
     if (!isEdit) return
-    contractsApi.get(contractId).then(r => {
+    contractsApi.get(contractId).then(async (r) => {
       const d = r.data
       setReservationNumber(d.reservation_number ?? '')
       setContractDate(d.contract_date ?? '')
@@ -468,6 +468,22 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         accommodation_type: l.accommodation_type, value_per_person_usd: l.value_per_person_usd,
         taxes_usd: l.taxes_usd, quantity: l.quantity,
       })))
+      // Restaura o TRAVAMENTO dos valores que vêm do roteiro (sem sobrescrever os
+      // valores salvos). Sem isso, ao reabrir (edição/rascunho) os campos ficavam
+      // editáveis indevidamente.
+      if (d.itinerary) {
+        try {
+          const ir = await itinerariesApi.get(d.itinerary)
+          const pricing = {}
+          ;(ir.data?.accommodation_lines || []).forEach(l => {
+            if (l.accommodation_type != null) {
+              pricing[l.accommodation_type] = { value_per_person_usd: Number(l.value_per_person) || 0, taxes_usd: Number(l.taxes) || 0 }
+            }
+          })
+          itinAccomPricingRef.current = pricing
+          setPricedTypeIds(new Set(Object.keys(pricing).map(Number)))
+        } catch { /* sem travamento se a busca do roteiro falhar */ }
+      }
       setAdjustments((d.adjustments ?? []).map(a => ({
         description: a.description ?? '', kind: a.kind ?? 'acrescimo', mode: a.mode ?? 'valor',
         value_usd: a.value_usd ?? '', percent: a.percent ?? '',
