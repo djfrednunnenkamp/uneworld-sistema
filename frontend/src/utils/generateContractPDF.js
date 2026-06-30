@@ -762,7 +762,23 @@ export async function generateContractPDF(contract, opts = {}) {
   y = checkPageBreak(doc, row2Bottom + 2.5, 22, marginTop, pageBottom)
   let y7 = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_card, main: '7. Plano de Pagamento' }) + 0.8
   const payRows = tables.payment.rows
-  if (payRows.length <= 6) {
+  if (contract.payment_type === 'a_vista') {
+    // À vista: card elegante em vez de tabela.
+    const av = (contract.installments || [])[0] || {}
+    const valBrl = (av.value_brl != null && av.value_brl !== '') ? av.value_brl : contract.total_brl
+    const cardH = 20, top = y7
+    doc.setFillColor(240, 246, 255); doc.setDrawColor(...LINE); doc.setLineWidth(0.3)
+    doc.roundedRect(marginX, top, contentW, cardH, 2.5, 2.5, 'FD')
+    doc.setFillColor(...BLUE); doc.roundedRect(marginX, top + 1.5, 1.6, cardH - 3, 0.8, 0.8, 'F')   // barra de destaque
+    const mid = top + cardH / 2
+    drawIconCircle(doc, marginX + 9, mid, 4.2, icons.w_dollar)
+    const tx = marginX + 16.5
+    drawText(doc, 'PAGAMENTO À VISTA', tx, mid - 2.3, { size: 10, style: 'bold', color: BLUE_DARK, baseline: 'middle' })
+    const sub = [av.due_date ? 'Vencimento ' + fmtDateBR(av.due_date) : '', (av.payment_method || '').trim()].filter(Boolean).join('   ·   ')
+    drawText(doc, sub || '—', tx, mid + 3.2, { size: 8.2, color: SUB, baseline: 'middle' })
+    drawText(doc, 'R$ ' + moneyTxt(valBrl), marginX + contentW - 5, mid, { size: 17, style: 'bold', color: BLUE, align: 'right', baseline: 'middle' })
+    y = top + cardH + 2.5
+  } else if (payRows.length <= 6) {
     y = drawTable(doc, { x: marginX, y: y7, width: contentW, ...tables.payment, ...tableOpts }) + 2.5
   } else {
     const payHalf   = Math.ceil(payRows.length / 2)
