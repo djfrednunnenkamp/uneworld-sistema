@@ -397,8 +397,8 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
     .ctpdf .meta { color:var(--blue-dark); font-weight:800; text-transform:uppercase; padding-top:6px; }
     .ctpdf .meta .label { font-size:10px; margin-bottom:3px; }
     .ctpdf .meta .value { font-size:14px; margin-bottom:7px; }
-    .ctpdf .signature-card { width:100%; height:30px; border-radius:7px; color:white; font-size:10px; font-weight:700; text-transform:uppercase; display:flex; align-items:center; justify-content:center; text-align:center; overflow:hidden; }
-    .ctpdf .signature-card span { display:flex; align-items:center; justify-content:center; width:100%; height:100%; line-height:1; transform:translateY(0.5px); }
+    .ctpdf .signature-card { width:100%; height:30px; border-radius:7px; color:white; font-size:10px; font-weight:700; text-transform:uppercase; display:grid; place-items:center; padding:0; overflow:hidden; }
+    .ctpdf .signature-card span { display:block; margin:0; padding:0; line-height:30px; height:30px; transform:translateY(1.5px); white-space:nowrap; }
     .ctpdf .signature-physical { background:linear-gradient(135deg,#0B4F9F,#0E9EDD); box-shadow:0 3px 10px rgba(11,79,159,.25); }
     .ctpdf .signature-digital { background:linear-gradient(135deg,#0E7A46,#19B36B); box-shadow:0 3px 10px rgba(14,122,70,.25); }
     .ctpdf .grid-top { display:grid; grid-template-columns:1.6fr 0.65fr; gap:12px; margin-top:6px; }
