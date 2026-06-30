@@ -538,7 +538,7 @@ export async function generateContractPDF(contract, opts = {}) {
   const pw  = doc.internal.pageSize.getWidth()
   const ph  = doc.internal.pageSize.getHeight()
 
-  const marginX = 11, marginTop = 10, marginBottom = 10
+  const marginX = 11, marginTop = 6, marginBottom = 10
   const contentW  = pw - marginX * 2
   const pageBottom = ph - marginBottom
 
