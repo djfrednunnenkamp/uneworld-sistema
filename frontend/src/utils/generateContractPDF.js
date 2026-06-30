@@ -732,8 +732,9 @@ export async function generateContractPDF(contract, opts = {}) {
   // ── Linha 2: 4. Passageiros (esq.) │ 6. Valores e Condições (dir.) ──
   const topRow2 = row1Bottom + 2.5
   const startP2 = doc.internal.getNumberOfPages()
-  const bottom6 = drawValores(colRX, topRow2, halfW)
-  drawCard(doc, colRX, topRow2, halfW, bottom6)
+  const item6W = halfW * 0.72            // item 6 (Valores) mais estreito
+  const bottom6 = drawValores(colRX, topRow2, item6W)
+  drawCard(doc, colRX, topRow2, item6W, bottom6)
   let yP = drawSectionTitle(doc, { x: marginX, y: topRow2, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
   const bottom4 = drawTable(doc, { x: marginX, y: yP, width: halfW, ...tables.passengers, ...tableOpts })
   const row2Bottom = doc.internal.getNumberOfPages() > startP2 ? bottom4 : Math.max(bottom6, bottom4)
