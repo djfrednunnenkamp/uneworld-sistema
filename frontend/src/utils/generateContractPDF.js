@@ -685,17 +685,14 @@ export async function generateContractPDF(contract, opts = {}) {
   drawCard(doc, marginX + w1 + gap12, top12, w2, cardBottom)
   y = cardBottom + 2.5
 
-  // ═══ 3 + 4 + 5 + 6 (esquerda) │ 7. PLANO DE PAGAMENTO (direita) ═══════════
-  // O item 7 sobe pra ficar ao lado da pilha 3/4/5/6: assim a tabela de pagamento
-  // (alta) usa a altura da página desde o topo do bloco e não vaza p/ a 2ª página.
-  y = checkPageBreak(doc, y, 32, marginTop, pageBottom)
+  // ═══ Grade 2×2: 3│5 (linha 1) e 6│4 (linha 2) │ 7 em largura total embaixo ══
+  y = checkPageBreak(doc, y, 40, marginTop, pageBottom)
   const colGap = 4
   const pad    = 2.4
-  const leftW  = (contentW - colGap) * 0.54
-  const rightW = (contentW - colGap) - leftW
-  const rightX = marginX + leftW + colGap
+  const halfW  = (contentW - colGap) / 2
+  const colRX  = marginX + halfW + colGap
 
-  // Card de valores (item 6) — desenhado por último na coluna esquerda.
+  // Card de valores (item 6).
   const drawValores = (x, top, w) => {
     const p = 2.4
     let yy = drawSectionTitle(doc, { x: x + p, y: top + p, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r: 2.7 }) + 1
@@ -721,36 +718,30 @@ export async function generateContractPDF(contract, opts = {}) {
     return yy + p - 1
   }
 
-  // ── Coluna esquerda: 3. Contratante, 4. Passageiros, 5. Acomodações, 6. Valores ──
-  const topA = y
-  const startPageA = doc.internal.getNumberOfPages()
-  // 3. Cliente Contratante (card)
-  let yL = drawSectionTitle(doc, { x: marginX + pad, y: topA + pad, iconPng: icons.w_user, main: '3. Cliente Contratante' }) + 0.8
-  doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yL, marginX + leftW - pad, yL); yL += 1.6
-  const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yL, w: leftW - 2 * pad, fields: clientFields, cols: 2, size: 8 }) + pad
-  drawCard(doc, marginX, topA, leftW, bottom3)
-  // 4. Passageiros (tabela)
-  let yP = drawSectionTitle(doc, { x: marginX, y: bottom3 + 2.5, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
-  const bottom4 = drawTable(doc, { x: marginX, y: yP, width: leftW, ...tables.passengers, ...tableOpts })
-  // 5. Acomodações Contratadas (tabela)
-  let y5 = drawSectionTitle(doc, { x: marginX, y: bottom4 + 2.5, iconPng: icons.w_building, main: '5. Acomodações Contratadas', mainSize: 9 }) + 0.8
-  const bottom5 = drawTable(doc, { x: marginX, y: y5, width: leftW, ...tables.accommodations, ...tableOpts })
-  // 6. Valores e Condições (card)
-  const bottom6 = drawValores(marginX, bottom5 + 2.5, leftW)
-  drawCard(doc, marginX, bottom5 + 2.5, leftW, bottom6)
-  const leftBottom  = bottom6
-  const leftEndPage = doc.internal.getNumberOfPages()
+  // ── Linha 1: 3. Cliente Contratante (esq.) │ 5. Acomodações Contratadas (dir.) ──
+  const topRow1 = y
+  const startP1 = doc.internal.getNumberOfPages()
+  let yL = drawSectionTitle(doc, { x: marginX + pad, y: topRow1 + pad, iconPng: icons.w_user, main: '3. Cliente Contratante' }) + 0.8
+  doc.setDrawColor(...GRID); doc.setLineWidth(0.2); doc.line(marginX + pad, yL, marginX + halfW - pad, yL); yL += 1.6
+  const bottom3 = drawInfoGrid(doc, { x: marginX + pad, y: yL, w: halfW - 2 * pad, fields: clientFields, cols: 2, size: 8 }) + pad
+  drawCard(doc, marginX, topRow1, halfW, bottom3)
+  let y5 = drawSectionTitle(doc, { x: colRX, y: topRow1, iconPng: icons.w_building, main: '5. Acomodações Contratadas', mainSize: 9 }) + 0.8
+  const bottom5 = drawTable(doc, { x: colRX, y: y5, width: halfW, ...tables.accommodations, ...tableOpts })
+  const row1Bottom = doc.internal.getNumberOfPages() > startP1 ? bottom5 : Math.max(bottom3, bottom5)
 
-  // ── Coluna direita: 7. Plano de Pagamento — volta ao topo do bloco ──
-  doc.setPage(startPageA)
-  let y7 = drawSectionTitle(doc, { x: rightX, y: topA, iconPng: icons.w_card, main: '7. Plano de Pagamento', mainSize: 9 }) + 0.8
-  const bottom7 = drawTable(doc, { x: rightX, y: y7, width: rightW, ...tables.payment, ...tableOpts })
-  const rightEndPage = doc.internal.getNumberOfPages()
+  // ── Linha 2: 6. Valores e Condições (esq.) │ 4. Passageiros (dir.) ──
+  const topRow2 = row1Bottom + 2.5
+  const startP2 = doc.internal.getNumberOfPages()
+  const bottom6 = drawValores(marginX, topRow2, halfW)
+  drawCard(doc, marginX, topRow2, halfW, bottom6)
+  let yP = drawSectionTitle(doc, { x: colRX, y: topRow2, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
+  const bottom4 = drawTable(doc, { x: colRX, y: yP, width: halfW, ...tables.passengers, ...tableOpts })
+  const row2Bottom = doc.internal.getNumberOfPages() > startP2 ? bottom4 : Math.max(bottom6, bottom4)
 
-  // Continua após a coluna mais baixa, na última página alcançada.
-  if (leftEndPage > rightEndPage)      { doc.setPage(leftEndPage); y = leftBottom + 2.5 }
-  else if (rightEndPage > leftEndPage) { y = bottom7 + 2.5 }
-  else                                 { y = Math.max(leftBottom, bottom7) + 2.5 }
+  // ── Item 7: Plano de Pagamento (largura total, embaixo da folha) ──
+  y = checkPageBreak(doc, row2Bottom + 2.5, 22, marginTop, pageBottom)
+  let y7 = drawSectionTitle(doc, { x: marginX, y, iconPng: icons.w_card, main: '7. Plano de Pagamento' }) + 0.8
+  y = drawTable(doc, { x: marginX, y: y7, width: contentW, ...tables.payment, ...tableOpts }) + 2.5
 
   // ═══ CLÁUSULAS CONTRATUAIS ════════════════════════════════════════════════
   const clauses = contract.clauses_data || []
