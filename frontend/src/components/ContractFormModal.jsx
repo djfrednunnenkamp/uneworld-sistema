@@ -485,6 +485,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '', payment_method: '' })
   const [installmentsCount, setInstallmentsCount] = useState(0)
   const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
+  const [parcelasMethod, setParcelasMethod] = useState('') // forma de pagamento geral das parcelas
   const [selectedClauses, setSelectedClauses] = useState([])
   const [customClauses, setCustomClauses] = useState([]) // [{ name, content }] — só deste contrato
   const [clauseEditor, setClauseEditor] = useState(null) // { index, initial } | null
@@ -603,6 +604,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         setInstallments(parcelaRows.map(r => ({
           detail: r.detail ?? '', due_date: r.due_date ?? '', value_brl: r.value_brl ?? '', payment_method: r.payment_method ?? '',
         })))
+        // Forma geral = a das parcelas se todas iguais; senão fica vazia.
+        const methods = [...new Set(parcelaRows.map(r => r.payment_method ?? ''))]
+        setParcelasMethod(methods.length === 1 ? methods[0] : '')
       }
       setSelectedClauses((d.clauses ?? []))
       setCustomClauses(Array.isArray(d.custom_clauses) ? d.custom_clauses : [])
@@ -968,7 +972,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       for (let i = 0; i < count; i++) {
         const isLast = i === count - 1
         const value = isLast ? round2(remaining - base * (count - 1)) : base
-        next.push(prev[i] ? { ...prev[i], value_brl: value } : { detail: '', due_date: '', value_brl: value, payment_method: '' })
+        next.push(prev[i] ? { ...prev[i], value_brl: value } : { detail: '', due_date: '', value_brl: value, payment_method: parcelasMethod })
       }
       return next
     })
@@ -1006,13 +1010,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       if (key === 'due_date' && idx === 0 && value) {
         next = next.map((it, i) => i === 0 ? it : { ...it, due_date: addMonthsIso(value, i) })
       }
-      // Definir a forma de pagamento da 1ª parcela já aplica pras demais —
-      // ainda editável individualmente depois.
-      if (key === 'payment_method' && idx === 0) {
-        next = next.map((it, i) => i === 0 ? it : { ...it, payment_method: value })
-      }
       return next
     })
+  }
+
+  // Forma de pagamento geral das parcelas — aplica a todas de uma vez
+  // (cada parcela continua editável individualmente depois).
+  const applyParcelasMethod = (value) => {
+    setParcelasMethod(value)
+    setInstallments(prev => prev.map(it => ({ ...it, payment_method: value })))
   }
 
   // Recebido na entrada / a prazo são preenchidos automaticamente a partir
@@ -1894,6 +1900,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                         style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
                       <span style={{ fontSize: 11, color: '#94a3b8' }}>(o valor restante é dividido igualmente)</span>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <label style={{ ...lbl, margin: 0 }}>Forma de pagamento das parcelas</label>
+                      <div style={{ minWidth: 200 }}>
+                        <Dropdown value={parcelasMethod || null} options={paymentMethodOptions} placeholder="— Forma de pagamento —"
+                          onChange={v => applyParcelasMethod(v)} />
+                      </div>
+                    </div>
                   </div>
 
                   {installments.map((it, idx) => (
@@ -1914,7 +1927,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   ))}
                   {installments.length > 1 && (
                     <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
-                      Definir a data e a forma de pagamento da 1ª parcela já aplica pras demais — ainda editável individualmente.
+                      Definir a data da 1ª parcela já aplica pras demais (um mês depois cada). A forma de pagamento das parcelas é definida acima — ainda editável individualmente.
                     </p>
                   )}
                 </>
