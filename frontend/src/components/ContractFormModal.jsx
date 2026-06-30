@@ -849,12 +849,21 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // ── Hóspedes ──
   // O contratante escolhido entre os passageiros cadastrados já entra
   // automaticamente como hóspede (ele também viaja) — ainda pode ser
-  // removido da lista manualmente depois, se necessário.
+  // removido da lista manualmente depois, se necessário. Ao TROCAR o
+  // contratante, o anterior (que tinha entrado automático) sai da lista,
+  // senão os dois ficariam acumulados nos passageiros.
+  const prevContratanteRef = useRef(null)
   useEffect(() => {
-    if (!form.contratante) return
-    setGuests(prev => prev.some(g => g.passenger === form.contratante)
-      ? prev
-      : [{ passenger: form.contratante, room: null }, ...prev])
+    const prev = prevContratanteRef.current
+    if (prev === form.contratante) return
+    prevContratanteRef.current = form.contratante
+    setGuests(gs => {
+      let next = prev ? gs.filter(g => g.passenger !== prev) : gs
+      if (form.contratante && !next.some(g => g.passenger === form.contratante)) {
+        next = [{ passenger: form.contratante, room: null }, ...next]
+      }
+      return next
+    })
   }, [form.contratante])
 
   const guestIds = guests.map(g => g.passenger)
