@@ -267,10 +267,14 @@ class ContractSerializer(serializers.ModelSerializer):
             for line in contract.accommodation_lines.all()
         )
         exchange_rate = contract.exchange_rate or _default_exchange_rate()
-        # Acréscimo soma; desconto e comissão subtraem. Percentual incide sobre o
-        # subtotal das acomodações; ajustes em BRL convertem pelo câmbio.
+        adjustments = list(contract.adjustments.all())
+        # Acréscimo soma; desconto subtrai. Percentual incide sobre o subtotal das
+        # acomodações; ajustes em BRL convertem pelo câmbio. A comissão tem
+        # tratamento próprio abaixo (não entra aqui).
         adj_total = Decimal('0')
-        for a in contract.adjustments.all():
+        for a in adjustments:
+            if a.kind == 'comissao':
+                continue
             amount = a.amount_usd(accom_total, exchange_rate)
             adj_total += amount if a.kind == 'acrescimo' else -amount
         # Comissão da agência: % cadastrado na agência, incide só sobre o
@@ -282,7 +286,19 @@ class ContractSerializer(serializers.ModelSerializer):
                 for line in contract.accommodation_lines.all()
             )
             commission = Decimal(value_subtotal) * (contract.agency.commission_rate / Decimal('100'))
-        total_usd = accom_total + adj_total + commission
+        # Desconto de comissão: abate da comissão, NUNCA maior que ela. O % é
+        # sobre a comissão (100% = comissão inteira); R$/US$ limitados à comissão.
+        comm_disc = Decimal('0')
+        ca = next((a for a in adjustments if a.kind == 'comissao'), None)
+        if ca and commission:
+            if ca.mode == 'percentual':
+                d = commission * ca.percent / 100
+            elif ca.mode == 'valor_brl':
+                d = (ca.value_brl / exchange_rate) if exchange_rate else Decimal('0')
+            else:
+                d = ca.value_usd
+            comm_disc = max(Decimal('0'), min(Decimal(d), commission))
+        total_usd = accom_total + adj_total + commission - comm_disc
         total_brl = total_usd * exchange_rate if exchange_rate else None
 
         # Arredondamento opcional: arredonda a moeda escolhida pro múltiplo de

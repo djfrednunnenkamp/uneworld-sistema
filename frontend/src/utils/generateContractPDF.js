@@ -565,15 +565,25 @@ export async function generateContractPDF(contract, opts = {}) {
   const taxSum  = accLines.reduce((s, l) => s + Number(l.taxes_usd || 0) * Number(l.quantity || 1), 0)
   // Comissão da agência (embutida no valor/pessoa) e ajustes (acréscimo = "Taxa",
   // desconto = "Desconto") — mostrados como linhas no quadro de Valores.
-  const commFactor = 1 + (Number(contract.agency_data?.commission_rate) || 0) / 100
+  const commPctPdf = Number(contract.agency_data?.commission_rate) || 0
+  const commFactor = 1 + commPctPdf / 100
+  const commissionUsdPdf = baseSum * commPctPdf / 100   // valor da comissão da agência
   const accomFull = baseSum + taxSum   // base p/ ajustes percentuais (igual ao backend)
   const adjRate = Number(contract.exchange_rate) || 0
   const adjRows = (contract.adjustments || []).map(a => {
+    if (a.kind === 'comissao') {
+      // Desconto de comissão: % é sobre a comissão; com teto = valor da comissão.
+      let d = a.mode === 'percentual' ? commissionUsdPdf * Number(a.percent || 0) / 100
+        : a.mode === 'valor_brl' ? (adjRate ? Number(a.value_brl || 0) / adjRate : 0)
+        : Number(a.value_usd || 0)
+      d = Math.min(Math.max(d, 0), commissionUsdPdf)
+      return { amt: d, isMinus: true, lbl: 'Comissão', desc: a.description || '' }
+    }
     const amt = a.mode === 'percentual' ? accomFull * Number(a.percent || 0) / 100
       : a.mode === 'valor_brl' ? (adjRate ? Number(a.value_brl || 0) / adjRate : 0)
       : Number(a.value_usd || 0)
-    const isMinus = a.kind === 'desconto' || a.kind === 'comissao'
-    const lbl = a.kind === 'comissao' ? 'Comissão' : a.kind === 'desconto' ? 'Desconto' : 'Taxa'
+    const isMinus = a.kind === 'desconto'
+    const lbl = a.kind === 'desconto' ? 'Desconto' : 'Taxa'
     return { amt, isMinus, lbl, desc: a.description || '' }
   }).filter(a => a.amt)
   const clientFields = isJuridica ? [

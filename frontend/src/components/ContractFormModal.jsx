@@ -154,28 +154,46 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
   const amountOf = (a) => a.mode === 'percentual' ? baseUsd * Number(a.percent || 0) / 100
     : a.mode === 'valor_brl' ? (rate ? Number(a.value_brl || 0) / rate : 0)
     : Number(a.value_usd || 0)
-  const isMinus = (a) => a.kind === 'desconto' || a.kind === 'comissao'
   const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-  const net = adjustments.reduce((s, a) => s + (isMinus(a) ? -1 : 1) * amountOf(a), 0)
   const KIND_OPTS = [{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]
   const MODE_OPTS = [{ value: 'valor', label: `Valor (${cur})` }, { value: 'valor_brl', label: 'Valor (R$)' }, { value: 'percentual', label: 'Percentual (%)' }]
 
-  // ── Desconto de comissão (controle dedicado) ── abate do total. Guardado como
-  // um único ajuste kind='comissao'; aqui só escolhe a unidade e o valor.
+  // ── Desconto de comissão (controle dedicado) ── abate do total e NUNCA passa
+  // do valor da comissão. % é sobre a comissão (100% = comissão inteira); R$/US$
+  // limitados à comissão. Guardado como um único ajuste kind='comissao'.
   const commAdj   = adjustments.find(a => a.kind === 'comissao')
   const commUnit  = commAdj ? commAdj.mode : 'percentual'   // 'percentual'|'valor'|'valor_brl'
   const commValue = !commAdj ? '' : (commUnit === 'percentual' ? commAdj.percent : commUnit === 'valor_brl' ? commAdj.value_brl : commAdj.value_usd)
+  const commMaxBrl = commissionUsd * (rate || 0)
+  // Trava o valor digitado ao teto (100% / valor da comissão em US$ ou R$).
+  const clampComm = (unit, v) => {
+    if (v === '' || v == null) return v
+    const n = Number(v)
+    if (!Number.isFinite(n) || n <= 0) return v
+    if (unit === 'percentual')  return n > 100 ? '100' : v
+    if (unit === 'valor')       return n > commissionUsd ? String(round2(commissionUsd)) : v
+    if (unit === 'valor_brl')   return (commMaxBrl && n > commMaxBrl) ? String(round2(commMaxBrl)) : v
+    return v
+  }
   const writeComm = (mode, value) => setAdjustments(list => {
     const others = list.filter(a => a.kind !== 'comissao')
-    if (!value && value !== 0) return others   // sem valor: remove a comissão
+    const v = clampComm(mode, value)
+    if (!v && v !== 0) return others   // sem valor: remove a comissão
     return [...others, {
       description: 'Comissão', kind: 'comissao', mode,
-      value_usd: mode === 'valor' ? value : '', value_brl: mode === 'valor_brl' ? value : '', percent: mode === 'percentual' ? value : '',
+      value_usd: mode === 'valor' ? v : '', value_brl: mode === 'valor_brl' ? v : '', percent: mode === 'percentual' ? v : '',
     }]
   })
-  const setCommUnit  = (mode) => writeComm(mode, commValue)
+  const setCommUnit  = (mode) => writeComm(mode, '')   // troca de unidade zera (tetos mudam)
   const setCommValue = (v) => writeComm(commUnit, v)
   const COMM_UNIT_OPTS = [{ value: 'percentual', label: 'Percentual (%)' }, { value: 'valor', label: `Valor (${cur})` }, { value: 'valor_brl', label: 'Valor (R$)' }]
+  // Desconto de comissão em USD (com teto) — pro "Efeito no total".
+  const commDiscUsd = !commAdj ? 0 : Math.min(Math.max(
+    commUnit === 'percentual' ? commissionUsd * Number(commValue || 0) / 100
+      : commUnit === 'valor_brl' ? (rate ? Number(commValue || 0) / rate : 0)
+      : Number(commValue || 0), 0), commissionUsd)
+  // Efeito no total = extras/descontos genéricos − desconto de comissão.
+  const net = adjustments.filter(a => a.kind !== 'comissao').reduce((s, a) => s + (a.kind === 'desconto' ? -1 : 1) * amountOf(a), 0) - commDiscUsd
   return (
     <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
       <div className="mbox" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
@@ -184,12 +202,11 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
           <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
         </div>
         <div className="mbody">
+          {commissionPct > 0 && (
           <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '11px 12px', margin: '0 0 12px' }}>
             <div style={{ fontSize: 12.5, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
               <Ic n="briefcase" s={13} />
-              <span>{commissionPct > 0
-                ? <>Comissão da agência: <strong>{commissionPct.toLocaleString('pt-BR')}%</strong> ({cur} {fmt(commissionUsd)}), já embutida. Abaixo, abata a sua comissão do total:</>
-                : <>Desconto de comissão — abate do total:</>}</span>
+              <span>Comissão da agência: <strong>{commissionPct.toLocaleString('pt-BR')}%</strong> ({cur} {fmt(commissionUsd)}), já embutida. Abaixo, abata a sua comissão (no máximo o valor dela):</span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ width: 160 }}>
@@ -198,7 +215,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
               </div>
               <div style={{ position: 'relative', flex: 1, minWidth: 96 }}>
                 {commUnit === 'percentual' ? (
-                  <input style={{ ...inp, paddingRight: 34 }} type="number" step="0.01" min="0" value={commValue} placeholder="0"
+                  <input style={{ ...inp, paddingRight: 34 }} type="number" step="0.01" min="0" max="100" value={commValue} placeholder="0"
                     onChange={e => setCommValue(e.target.value)} />
                 ) : (
                   <MoneyInput style={{ ...inp, paddingRight: 34 }} value={commValue} placeholder="0,00"
@@ -209,7 +226,11 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
                 </span>
               </div>
             </div>
+            <p style={{ fontSize: 11, color: '#a78bfa', margin: '7px 0 0' }}>
+              Máximo: 100% · {cur} {fmt(commissionUsd)}{commMaxBrl ? ` · R$ ${fmt(commMaxBrl)}` : ''}
+            </p>
           </div>
+          )}
           <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
             Acréscimos somam e descontos subtraem da <strong>Soma total ({cur})</strong>. O percentual
             incide sobre o subtotal das acomodações (<strong>{cur} {fmt(baseUsd)}</strong>).
@@ -226,7 +247,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
             )}
             {adjustments.map((a, i) => {
               if (a.kind === 'comissao') return null   // tem controle dedicado acima
-              const signed = (isMinus(a) ? -1 : 1) * amountOf(a)
+              const signed = (a.kind === 'desconto' ? -1 : 1) * amountOf(a)
               return (
                 <div key={i} style={{ border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -610,14 +631,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     (sum, l) => sum + (Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1), 0
   ), [accomLines])
   // Percentual incide sobre o subtotal das acomodações; valor é absoluto em USD.
+  // Ajustes genéricos (extras/descontos) — a comissão tem cálculo próprio abaixo.
   const adjustmentsTotalUsd = useMemo(() => {
     const rate = Number(form.exchange_rate) || 0
-    return adjustments.reduce((s, a) => {
+    return adjustments.filter(a => a.kind !== 'comissao').reduce((s, a) => {
       const amount = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100
         : a.mode === 'valor_brl' ? (rate ? Number(a.value_brl || 0) / rate : 0)
         : Number(a.value_usd || 0)
-      const minus = a.kind === 'desconto' || a.kind === 'comissao'
-      return s + (minus ? -1 : 1) * amount
+      return s + (a.kind === 'desconto' ? -1 : 1) * amount
     }, 0)
   }, [adjustments, accomSubtotalUsd, form.exchange_rate])
   // Comissão da agência: % do cadastro da agência sobre o subtotal das
@@ -632,6 +653,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     (s, l) => s + Number(l.value_per_person_usd || 0) * Number(l.quantity || 1), 0
   ), [accomLines])
   const commissionUsd = useMemo(() => valueSubtotalUsd * agencyCommissionPct / 100, [valueSubtotalUsd, agencyCommissionPct])
+  // Desconto de comissão: abate da comissão e NUNCA passa do valor dela. O % é
+  // sobre a comissão (100% = comissão inteira); R$/US$ ficam limitados à comissão.
+  const commissionDiscountUsd = useMemo(() => {
+    const rate = Number(form.exchange_rate) || 0
+    const a = adjustments.find(x => x.kind === 'comissao')
+    if (!a) return 0
+    const d = a.mode === 'percentual' ? commissionUsd * Number(a.percent || 0) / 100
+      : a.mode === 'valor_brl' ? (rate ? Number(a.value_brl || 0) / rate : 0)
+      : Number(a.value_usd || 0)
+    return Math.min(Math.max(d, 0), commissionUsd)
+  }, [adjustments, commissionUsd, form.exchange_rate])
   const roundTo = (v, step, mode) => {
     if (!step || v == null) return v
     const q = v / step
@@ -641,7 +673,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // Total cru (acomodações + ajustes) e, por cima, o arredondamento opcional da
   // moeda escolhida — a outra moeda é derivada pelo câmbio.
   const [computedTotalUsd, computedTotalBrl] = useMemo(() => {
-    const rawUsd = accomSubtotalUsd + adjustmentsTotalUsd + commissionUsd
+    const rawUsd = accomSubtotalUsd + adjustmentsTotalUsd + commissionUsd - commissionDiscountUsd
     const rate = Number(form.exchange_rate) || 0
     const rawBrl = rate ? rawUsd * rate : null
     const step = Number(form.round_step) || 0
@@ -653,7 +685,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     if (rawBrl == null) return [rawUsd, null]
     const b = roundTo(rawBrl, step, form.round_mode)
     return [rate ? b / rate : rawUsd, b]
-  }, [accomSubtotalUsd, adjustmentsTotalUsd, commissionUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
+  }, [accomSubtotalUsd, adjustmentsTotalUsd, commissionUsd, commissionDiscountUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
 
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
