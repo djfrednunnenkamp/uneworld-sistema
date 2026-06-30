@@ -72,6 +72,9 @@ class Itinerary(models.Model):
     transport_info        = models.TextField('Parte aérea / rodoviária', blank=True)
     documentation_info    = models.TextField('Documentação necessária para a viagem', blank=True)
     extras                = models.TextField('Extras', blank=True)
+    # Cláusulas do contrato definidas pelo roteiro — o contrato puxa daqui.
+    clauses        = models.ManyToManyField('config_api.ContractClause', blank=True, related_name='itineraries', verbose_name='Cláusulas do contrato')
+    custom_clauses = models.JSONField('Cláusulas personalizadas', default=list, blank=True)
 
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)

@@ -424,6 +424,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const canChangeSeller = !!me?.is_superuser || !!me?.permissions?.contracts_change_seller
   const canEditExchangeRate = !!me?.is_superuser || !!me?.permissions?.contracts_edit_exchange_rate
   const canCustomClauses = !!me?.is_superuser || !!me?.permissions?.contracts_custom_clauses
+  const canEditClauses = !!me?.is_superuser || !!me?.permissions?.contracts_clauses_edit
 
   const [exchangeRates, setExchangeRates] = useState([])   // [{from_currency, to_currency, rate}]
   const [form, setForm] = useState({
@@ -458,15 +459,20 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [loadedStage, setLoadedStage] = useState('em_edicao')
   const changeLayout = (v) => { setLayout(v); setContractLayout(isEdit, v) }
   const [step, setStep] = useState(0)
+  // O passo de Cláusulas só aparece quando NÃO há roteiro (com roteiro, as
+  // cláusulas vêm dele) E o usuário tem permissão de editar cláusulas.
+  const showClausesStep = !form.itinerary && canEditClauses
   const STEPS = [
     { key: 'geral',       title: 'Geral' },
     { key: 'passageiros', title: 'Passageiros' },
     { key: 'valores',     title: 'Valores' },
     { key: 'pagamento',   title: 'Pagamento' },
-    { key: 'clausulas',   title: 'Cláusulas' },
+    ...(showClausesStep ? [{ key: 'clausulas', title: 'Cláusulas' }] : []),
     { key: 'revisao',     title: 'Revisão' },
   ]
   const lastStep = STEPS.length - 1
+  const curKey = STEPS[Math.min(step, lastStep)]?.key
+  useEffect(() => { if (step > lastStep) setStep(lastStep) }, [lastStep, step])
   const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
   // Contrato novo já começa com 1 quarto criado (na edição, vêm do contrato).
   const [rooms, setRooms]           = useState(() => isEdit ? [] : [{ id: 1, type: null }]) // [{ id, type }]  type = id da acomodação | null
@@ -769,6 +775,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           const p = pricing[line.accommodation_type]
           return p ? { ...line, value_per_person_usd: p.value_per_person_usd, taxes_usd: p.taxes_usd } : line
         }))
+        // Cláusulas vêm do roteiro: o contrato passa a usar as cláusulas dele.
+        setSelectedClauses(Array.isArray(r.data?.clauses) ? r.data.clauses : [])
+        setCustomClauses(Array.isArray(r.data?.custom_clauses) ? r.data.custom_clauses : [])
       } catch { /* mantém os valores atuais se a busca falhar */ }
     } else {
       // Remover o roteiro: limpa tudo que ele havia preenchido (e o aeroporto).
@@ -1398,7 +1407,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             )}
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
 
-            {(layout === 'full' || step === 0) && (<>
+            {(layout === 'full' || curKey === 'geral') && (<>
             {/* Forma de assinatura */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="docs" s={14} /> Forma de assinatura</p>
@@ -1563,7 +1572,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
             </>)}
 
-            {(layout === 'full' || step === 1) && (<>
+            {(layout === 'full' || curKey === 'passageiros') && (<>
             {/* Hóspedes + Quartos */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="users" s={14} /> Nome dos passageiros / quartos</p>
@@ -1657,7 +1666,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
             </>)}
 
-            {(layout === 'full' || step === 2) && (<>
+            {(layout === 'full' || curKey === 'valores') && (<>
             {/* Tipos de Acomodação / Valores */}
             <div style={card}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -1757,7 +1766,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
             </>)}
 
-            {(layout === 'full' || step === 3) && (<>
+            {(layout === 'full' || curKey === 'pagamento') && (<>
             {/* Pagamento */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="clock" s={14} /> Pagamento</p>
@@ -1865,7 +1874,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
             </>)}
 
-            {(layout === 'full' || step === 4) && (<>
+            {showClausesStep && (layout === 'full' || curKey === 'clausulas') && (<>
             {/* Cláusulas */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="docs" s={14} /> Cláusulas do contrato</p>
@@ -1925,7 +1934,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             )}
             </>)}
 
-            {layout === 'steps' && step === lastStep && renderReview()}
+            {layout === 'steps' && curKey === 'revisao' && renderReview()}
             </div>
           </div>
         )}

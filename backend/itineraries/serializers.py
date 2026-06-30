@@ -39,10 +39,19 @@ class ItinerarySerializer(serializers.ModelSerializer):
     holiday_name   = serializers.CharField(source='holiday.name', read_only=True, default=None)
     service_lines       = ItineraryServiceLineSerializer(many=True, required=False)
     accommodation_lines = ItineraryAccommodationLineSerializer(many=True, required=False)
+    clauses_data        = serializers.SerializerMethodField()
+
+    def get_clauses_data(self, obj):
+        data = [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
+        for cc in (obj.custom_clauses or []):
+            if isinstance(cc, dict) and (cc.get('name') or cc.get('content')):
+                data.append({'id': None, 'name': cc.get('name') or '', 'content': cc.get('content') or '', 'custom': True})
+        return data
 
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type',
+                  'clauses', 'custom_clauses', 'clauses_data',
                   'category', 'category_name', 'continent', 'continent_name',
                   'countries', 'countries_data', 'destinations', 'destinations_data',
                   'cover_title', 'internal_title', 'subtitle', 'short_description',
