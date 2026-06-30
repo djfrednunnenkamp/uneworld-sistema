@@ -142,15 +142,22 @@ function buildTablesData(contract) {
   const passengerSpans = guests.length ? guests.map(g => g.room_group ?? null) : [null]
 
   // ── Acomodações contratadas ──
+  // O valor/pessoa exibido já inclui a comissão da agência (embutida); o total
+  // da linha acompanha. As taxas NÃO recebem comissão.
+  const commF = 1 + (Number(contract.agency_data?.commission_rate) || 0) / 100
   const lines = contract.accommodation_lines || []
   const accomRows = lines.length
-    ? lines.map(l => [
-        dashTxt(l.accommodation_type_name),
-        moneyTxt(l.value_per_person_usd),
-        moneyTxt(l.taxes_usd),
-        dashTxt(l.quantity),
-        moneyTxt(l.total_usd),
-      ])
+    ? lines.map(l => {
+        const vpp = Number(l.value_per_person_usd || 0) * commF
+        const total = (vpp + Number(l.taxes_usd || 0)) * Number(l.quantity || 0)
+        return [
+          dashTxt(l.accommodation_type_name),
+          moneyTxt(vpp),
+          moneyTxt(l.taxes_usd),
+          dashTxt(l.quantity),
+          moneyTxt(total),
+        ]
+      })
     : [['—', '—', '—', '—', '—']]
 
   // ── Plano de pagamento ──
@@ -556,6 +563,14 @@ export async function generateContractPDF(contract, opts = {}) {
   const accLines = contract.accommodation_lines || []
   const baseSum = accLines.reduce((s, l) => s + Number(l.value_per_person_usd || 0) * Number(l.quantity || 1), 0)
   const taxSum  = accLines.reduce((s, l) => s + Number(l.taxes_usd || 0) * Number(l.quantity || 1), 0)
+  // Comissão da agência (embutida no valor/pessoa) e ajustes (acréscimo = "Taxa",
+  // desconto = "Desconto") — mostrados como linhas no quadro de Valores.
+  const commFactor = 1 + (Number(contract.agency_data?.commission_rate) || 0) / 100
+  const accomFull = baseSum + taxSum   // base p/ ajustes percentuais (igual ao backend)
+  const adjRows = (contract.adjustments || []).map(a => {
+    const amt = a.mode === 'percentual' ? accomFull * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
+    return { amt, isDesc: a.kind === 'desconto', desc: a.description || '' }
+  }).filter(a => a.amt)
   const clientFields = isJuridica ? [
     ['Razão social:', dashTxt(ct.full_name)],
     ['CNPJ:', dashTxt(ct.cnpj || ct.cpf)],
@@ -700,8 +715,9 @@ export async function generateContractPDF(contract, opts = {}) {
     if (!dry) drawSectionTitle(doc, { x: x + p, y: top + p, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r })
     const innerX = x + p, innerW = w - 2 * p
     const rows = [
-      ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum), false],
+      ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum * commFactor), false],
       ['receipt',  `Taxas (${cc})`,        moneyTxt(taxSum), false],
+      ...adjRows.map(a => ['receipt', (a.isDesc ? 'Desconto' : 'Taxa') + (a.desc ? `: ${a.desc}` : ''), `${a.isDesc ? '-' : '+'} ${moneyTxt(a.amt)}`, false]),
       ['exchange', 'Câmbio',               dashTxt(fmtRate(contract.exchange_rate)), false],
       ['wallet',   `Total (${cc})`,        moneyTxt(contract.total_usd), true],
       ['file',     'Total (BRL)',          moneyTxt(contract.total_brl), false],

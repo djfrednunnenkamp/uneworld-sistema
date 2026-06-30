@@ -33,6 +33,7 @@ def _agency_brief(a):
         'id': a.id, 'name': name or str(a), 'cnpj': a.cnpj, 'phone': a.phone,
         'mobile': a.mobile, 'email': a.email, 'responsible': a.responsible,
         'address': ', '.join(filter(None, [a.street, a.number, a.neighborhood, a.city, a.state])),
+        'commission_rate': a.commission_rate,
     }
 
 
