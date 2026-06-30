@@ -677,10 +677,10 @@ export default function Contracts() {
 
   const TABS = [
     { key: 'geral',     label: 'Geral',            color: '#1a2d4f', count: rows.length },
+    ...(canEdit ? [{ key: 'rascunho', label: 'Rascunhos', color: '#7c3aed', count: draftRows.length }] : []),
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'assinado',  label: 'Assinados',        color: '#059669', count: stageCount('assinado') },
-    ...(canEdit ? [{ key: 'rascunho', label: 'Rascunhos', color: '#7c3aed', count: draftRows.length }] : []),
     ...(canDelete ? [{ key: 'trash', label: 'Excluídos', color: '#dc2626', count: deletedCount }] : []),
   ]
   const tabBar = (
