@@ -169,11 +169,11 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:420, boxShadow:'0 24px 64px rgba(0,0,0,.24)' }}>
-        <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0' }}>
+        style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:600, maxHeight:'90vh', display:'flex', flexDirection:'column', overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,.24)' }}>
+        <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
           <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>{isEdit ? 'Editar câmbio' : 'Novo câmbio'}</p>
         </div>
-        <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12, overflowY:'auto', flex:1, minHeight:0 }}>
           <div style={{ display:'flex', gap:12 }}>
             <div style={{ flex:1 }}>
               <label style={lbl}>De</label>
@@ -337,7 +337,7 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
             </div>
           )}
         </div>
-        <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between' }}>
+        <div style={{ padding:'12px 20px', borderTop:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', flexShrink:0 }}>
           <button onClick={onClose} disabled={saving}
             style={{ padding:'8px 16px', borderRadius:7, border:'1px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
             Cancelar
