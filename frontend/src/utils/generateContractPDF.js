@@ -586,7 +586,11 @@ export async function generateContractPDF(contract, opts = {}) {
       const ratio = props.width / props.height
       let lw = 38, lh = lw / ratio
       if (lh > 17) { lh = 17; lw = lh * ratio }
-      doc.addImage(logoDataUrl, props.fileType || 'PNG', marginX, headerTop + 1, lw, lh)
+      // Centraliza verticalmente na faixa do header (compensa a altura variável
+      // do logo); -0,5 mm de ajuste óptico p/ alinhar com o bloco do título.
+      const logoX = marginX + 1.5
+      const logoY = headerTop + (headerH - lh) / 2 - 0.5
+      doc.addImage(logoDataUrl, props.fileType || 'PNG', logoX, logoY, lw, lh)
     } catch { /* logo inválido: ignora */ }
   }
   // Título (centro) com divisória vertical à esquerda.
