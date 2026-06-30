@@ -130,10 +130,21 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         return ContractListSerializer if self.action == 'list' else ContractSerializer
 
+    @action(detail=True, methods=['delete'], url_path='discard')
+    def discard(self, request, pk=None):
+        """Descarta um RASCUNHO (cancelar contrato novo). Apaga de vez — nunca
+        foi um contrato real, então não vai pra lixeira. Só rascunhos."""
+        obj = self.get_object()
+        if obj.status != 'rascunho':
+            return Response({'error': 'Apenas rascunhos podem ser descartados.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        obj.delete()
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
+
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('contracts_delete')()]
-        if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
+        if self.action in ('create', 'update', 'partial_update', 'restore', 'purge', 'discard',
                            'send_for_signature', 'upload_signed', 'reopen', 'check_signature'):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]

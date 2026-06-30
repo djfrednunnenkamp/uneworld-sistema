@@ -410,7 +410,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // e vai atualizando (debounce de ~1,2s). "Finalizar" valida e marca como pronto.
   // autosaveRef.id = id real do contrato (já salvo); começa com o contractId em
   // edição, ou null em criação (definido após o 1º autosave criar o rascunho).
-  const autosaveRef     = useRef({ id: contractId || null, saving: false, dirty: null })
+  const autosaveRef     = useRef({ id: contractId || null, saving: false, dirty: null, discarded: false })
   const autosaveTimerRef = useRef(null)
   const lastSavedRef    = useRef(null)   // snapshot já persistido (evita re-salvar igual)
   const baselineReadyRef = useRef(false) // fixa o estado inicial sem salvá-lo
@@ -1091,10 +1091,24 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     doSave()
   }
 
+  // Cancelar: descarta o rascunho criado nesta sessão (contrato novo) — não deixa
+  // rascunho salvo. Fechar clicando fora (onClose) mantém o rascunho pra retomar.
+  const handleCancel = async () => {
+    clearTimeout(autosaveTimerRef.current)
+    const st = autosaveRef.current
+    st.discarded = true                       // impede autosaves posteriores
+    if (!isEdit && st.id) {                    // só descarta rascunho criado agora (contrato novo)
+      while (st.saving) await new Promise(r => setTimeout(r, 60))   // espera autosave em curso
+      try { await contractsApi.discard(st.id) } catch { /* ignora */ }
+    }
+    onClose()
+  }
+
   // Autosave silencioso (sem validar, sem fechar). `snap` = JSON do payload no
   // instante em que o debounce disparou — usado direto pra evitar closures velhas.
   const runAutosave = async (snap) => {
     const st = autosaveRef.current
+    if (st.discarded) return                               // cancelado: não salva mais
     if (st.saving) { st.dirty = snap; return }             // já salvando: re-salva depois
     if (snap === lastSavedRef.current) return              // nada mudou desde o último save
     const p = JSON.parse(snap)
@@ -1139,7 +1153,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // inicial está montado (não salva o estado recém-carregado).
   const autosaveSnapshot = JSON.stringify(buildPayload())
   useEffect(() => {
-    if (loading) return
+    if (loading || autosaveRef.current.discarded) return
     if (!baselineReadyRef.current) {        // 1ª vez pronto: fixa a baseline, não salva
       baselineReadyRef.current = true
       lastSavedRef.current = autosaveSnapshot
@@ -1867,7 +1881,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={onClose} disabled={saving}
+            <button onClick={handleCancel} disabled={saving}
               style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
               Cancelar
             </button>
