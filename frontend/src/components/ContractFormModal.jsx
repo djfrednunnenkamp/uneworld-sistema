@@ -1524,9 +1524,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
               {guests.length > 0 && (
                 <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0 }}>
-                    Monte os quartos: arraste cada passageiro para um quarto (ou use o seletor "mover"). A acomodação escolhida vale para todos que estão no quarto.
-                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: '#eff6ff', border: '1px solid #bfdbfe', borderLeft: '3px solid #2e6db4', borderRadius: 8, padding: '10px 13px' }}>
+                    <Ic n="bed" s={16} />
+                    <p style={{ fontSize: 12.5, color: '#1e40af', margin: 0, lineHeight: 1.45 }}>
+                      <strong style={{ fontWeight: 700 }}>Arraste cada passageiro para um quarto</strong> (ou use o seletor "mover"). A acomodação escolhida vale para todos que estão no quarto.
+                    </p>
+                  </div>
 
                   {/* Pool: sem quarto */}
                   {(() => {
