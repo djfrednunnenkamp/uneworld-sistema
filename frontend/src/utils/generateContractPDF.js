@@ -5,7 +5,6 @@ import { configApi } from '../api'
 const NAV        = [26, 45, 79]      // #1a2d4f (títulos de cláusulas)
 const BLUE_DARK  = [25, 45, 88]      // #192D58
 const BLUE       = [11, 79, 159]     // #0B4F9F
-const BLUE_LIGHT = [14, 158, 221]    // #0E9EDD
 const LINE       = [201, 216, 238]   // #C9D8EE (bordas dos cards)
 const TEXTC      = [13, 27, 53]      // #0D1B35 (texto base)
 const GRID       = [216, 227, 243]   // #D8E3F3 (linhas finas internas)
@@ -138,6 +137,9 @@ function buildTablesData(contract) {
         ]
       })
     : [['—', '—', '—', '—', '—']]
+  // Chave de mescla da coluna "Acomodação": passageiros do MESMO quarto
+  // (mesmo room_group) viram uma célula só, igual à lista de passageiros.
+  const passengerSpans = guests.length ? guests.map(g => g.room_group ?? null) : [null]
 
   // ── Acomodações contratadas ──
   const lines = contract.accommodation_lines || []
@@ -191,6 +193,8 @@ function buildTablesData(contract) {
         { title: 'Acomodação',          width: 14, align: 'center' },
       ],
       rows: passengerRows,
+      spanCol: 4,                 // mescla vertical da coluna "Acomodação"
+      spanGroups: passengerSpans,
     },
     accommodations: {
       columns: [
@@ -378,13 +382,20 @@ function drawBadge(doc, { x, y, w, h, type }) {
  *   baselineY = topoDaLinhaDeTexto + fontSizeMM * 0.35   (≈ metade da cap-height)
  * centrando cada linha de texto na sua faixa e o bloco no meio da célula. Texto
  * longo quebra com doc.splitTextToSize e a altura da linha cresce. Quebra de
- * página redesenha o header. Retorna o Y (mm) logo abaixo da tabela. */
+ * página redesenha o header. Retorna o Y (mm) logo abaixo da tabela.
+ *
+ * Mescla vertical (rowSpan): passe `spanCol` (índice da coluna) e `spanGroups`
+ * (uma chave por linha). Linhas consecutivas com a MESMA chave não-vazia viram
+ * uma única célula naquela coluna — o texto aparece uma vez, centralizado
+ * verticalmente na faixa combinada, e a divisória interna some (igual à mescla
+ * de "Tipo Apto." na lista de passageiros). */
 function drawTable(doc, opts) {
   const {
     x, y, width, columns, rows,
     rowHeight = 6, headerHeight = 7,
     fontSize = 8, headerFontSize = 7.5,
     pageTop = 10, pageBottom = 288,
+    spanCol = null, spanGroups = null,
   } = opts
 
   const HEADER_BG = [19, 54, 110]      // navy sólido
@@ -408,41 +419,53 @@ function drawTable(doc, opts) {
     return { wrapped, maxLines }
   }
 
-  const drawRow = (cells, wrapped, rowH, isHeader) => {
-    const fs    = isHeader ? headerFontSize : fontSize
-    const fsMM  = fs * PT2MM
-    const lineH = fsMM * lineGap
-
-    if (isHeader) { doc.setFillColor(...HEADER_BG); doc.rect(x, cy, width, rowH, 'F') }
-
-    doc.setTextColor(...(isHeader ? WHITE : TEXTC))
-    cells.forEach((_, ci) => {
-      const lines  = wrapped[ci]
-      const n      = lines.length
-      const blockH = n * lineH
-      const col    = columns[ci]
-      const align  = col.align || 'center'
-      const bold   = isHeader || col.bold
-      doc.setFont('helvetica', bold ? 'bold' : 'normal')
-      doc.setFontSize(fs)
-      lines.forEach((ln, li) => {
-        const lineMid = cy + (rowH - blockH) / 2 + (li + 0.5) * lineH
-        const baseY   = lineMid + fsMM * 0.35
-        if (align === 'left') doc.text(ln, colX[ci] + padX, baseY)
-        else                  doc.text(ln, colX[ci] + colW[ci] / 2, baseY, { align: 'center' })
-      })
+  // Desenha o texto de uma célula centralizado V/H numa faixa de altura `cellH`.
+  const drawCellText = (lines, ci, topY, cellH, fs, bold) => {
+    const fsMM = fs * PT2MM, lineH = fsMM * lineGap, blockH = lines.length * lineH
+    const align = columns[ci].align || 'center'
+    doc.setFont('helvetica', bold ? 'bold' : 'normal')
+    doc.setFontSize(fs)
+    lines.forEach((ln, li) => {
+      const lineMid = topY + (cellH - blockH) / 2 + (li + 0.5) * lineH
+      const baseY   = lineMid + fsMM * 0.35
+      if (align === 'left') doc.text(ln, colX[ci] + padX, baseY)
+      else                  doc.text(ln, colX[ci] + colW[ci] / 2, baseY, { align: 'center' })
     })
+  }
 
-    doc.setDrawColor(...LINE); doc.setLineWidth(0.2)
-    doc.line(x, cy + rowH, x + width, cy + rowH)
-    cy += rowH
+  // Pré-mede o corpo (linhas quebradas + altura de cada linha).
+  const bodyMeasured = rows.map(r => measure(r, fontSize, false))
+  const rowHs = bodyMeasured.map(m => Math.max(rowHeight, m.maxLines * (fontSize * PT2MM * lineGap) + 2.0))
+  const pageH = pageBottom - pageTop
+
+  // Grupos de mescla na coluna `spanCol` (consecutivos com a mesma chave). Só
+  // mescla se o grupo couber numa página — senão mantém células separadas.
+  const spans = new Array(rows.length).fill(1)   // n de linhas no topo; 0 = coberta
+  if (spanCol != null && spanGroups) {
+    let i = 0
+    while (i < rows.length) {
+      const key = spanGroups[i]
+      if (key == null || key === '') { i++; continue }
+      let j = i + 1
+      while (j < rows.length && spanGroups[j] === key) j++
+      if (j - i > 1) {
+        let gh = 0; for (let k = i; k < j; k++) gh += rowHs[k]
+        if (gh <= pageH) { spans[i] = j - i; for (let k = i + 1; k < j; k++) spans[k] = 0 }
+      }
+      i = j
+    }
   }
 
   const headerTitles = columns.map(c => c.title)
+  let headerH = headerHeight
   const drawHeaderRow = () => {
-    const { wrapped, maxLines } = measure(headerTitles, headerFontSize, true)
-    const rowH = Math.max(headerHeight, maxLines * (headerFontSize * PT2MM * lineGap) + 2.0)
-    drawRow(headerTitles, wrapped, rowH, true)
+    const m = measure(headerTitles, headerFontSize, true)
+    headerH = Math.max(headerHeight, m.maxLines * (headerFontSize * PT2MM * lineGap) + 2.0)
+    doc.setFillColor(...HEADER_BG); doc.rect(x, cy, width, headerH, 'F')
+    doc.setTextColor(...WHITE)
+    headerTitles.forEach((_, ci) => drawCellText(m.wrapped[ci], ci, cy, headerH, headerFontSize, true))
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(x, cy + headerH, x + width, cy + headerH)
+    cy += headerH
   }
 
   const strokeSeg = (top, bottom) => {
@@ -453,15 +476,43 @@ function drawTable(doc, opts) {
 
   let segTop = cy
   drawHeaderRow()
-  for (const row of rows) {
-    const { wrapped, maxLines } = measure(row, fontSize, false)
-    const rowH = Math.max(rowHeight, maxLines * (fontSize * PT2MM * lineGap) + 2.0)
-    if (cy + rowH > pageBottom) {
+  for (let idx = 0; idx < rows.length; idx++) {
+    // Reserva o grupo mesclado inteiro p/ não quebrar no meio (quando cabe).
+    let need = rowHs[idx]
+    if (spans[idx] > 1) { let gh = 0; for (let k = idx; k < idx + spans[idx]; k++) gh += rowHs[k]; need = gh }
+    if (cy + need > pageBottom) {
       strokeSeg(segTop, cy)
       doc.addPage(); cy = pageTop; segTop = cy
       drawHeaderRow()
     }
-    drawRow(row, wrapped, rowH, false)
+
+    const rowH = rowHs[idx]
+    const { wrapped } = bodyMeasured[idx]
+    columns.forEach((col, ci) => {
+      doc.setTextColor(...TEXTC)
+      if (ci === spanCol) {
+        if (spans[idx] === 0) return                 // coberta pela mescla acima
+        if (spans[idx] > 1) {
+          let gh = 0; for (let k = idx; k < idx + spans[idx]; k++) gh += rowHs[k]
+          drawCellText(wrapped[ci], ci, cy, gh, fontSize, col.bold)
+          return
+        }
+      }
+      drawCellText(wrapped[ci], ci, cy, rowH, fontSize, col.bold)
+    })
+
+    // Linha inferior da linha — pula o trecho da coluna mesclada quando a próxima
+    // linha continua o mesmo grupo (deixa a célula combinada sem divisória).
+    const by = cy + rowH
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.2)
+    if (spanCol != null && idx + 1 < rows.length && spans[idx + 1] === 0) {
+      const cxs = colX[spanCol], cxe = colX[spanCol] + colW[spanCol]
+      if (cxs > x)         doc.line(x, by, cxs, by)
+      if (cxe < x + width) doc.line(cxe, by, x + width, by)
+    } else {
+      doc.line(x, by, x + width, by)
+    }
+    cy = by
   }
   strokeSeg(segTop, cy)
   return cy
@@ -478,10 +529,10 @@ export async function generateContractPDF(contract, opts = {}) {
     logoDataUrl = await new Promise(res => {
       const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob)
     })
-  } catch {}
+  } catch { /* sem logo: segue sem o brasão */ }
 
   let company = {}
-  try { company = (await configApi.operatingCompany()).data } catch {}
+  try { company = (await configApi.operatingCompany()).data } catch { /* sem dados da operadora */ }
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw  = doc.internal.pageSize.getWidth()
@@ -536,7 +587,7 @@ export async function generateContractPDF(contract, opts = {}) {
       let lw = 38, lh = lw / ratio
       if (lh > 17) { lh = 17; lw = lh * ratio }
       doc.addImage(logoDataUrl, props.fileType || 'PNG', marginX, headerTop + 1, lw, lh)
-    } catch {}
+    } catch { /* logo inválido: ignora */ }
   }
   // Título (centro) com divisória vertical à esquerda.
   const titleX = marginX + 48
@@ -648,13 +699,14 @@ export async function generateContractPDF(contract, opts = {}) {
   y = drawTable(doc, { x: marginX, y, width: contentW, ...tables.accommodations, ...tableOpts }) + 2
 
   // ═══ 6. VALORES (esq. ~32%) + 7. PLANO DE PAGAMENTO (dir. ~66%) ═══════════
-  // Ambos começam no MESMO Y; a altura do 6 não empurra o 7; Y final = max.
+  // Ambos começam no MESMO Y; a altura do 6 não empurra o 7.
   const colGap = 4
   const sixW   = contentW * 0.32
   const sevenW = contentW - sixW - colGap
   const sevenX = marginX + sixW + colGap
   y = checkPageBreak(doc, y, 42, marginTop, pageBottom)
   const yStart = y
+  const pagesBeforeBlock = doc.internal.getNumberOfPages()
 
   const drawValores = (x, top, w) => {
     const pad = 2.4
@@ -687,12 +739,18 @@ export async function generateContractPDF(contract, opts = {}) {
   let y7 = drawSectionTitle(doc, { x: sevenX, y: yStart, iconPng: icons.w_card, main: '7. Plano de Pagamento' }) + 0.8
   const bottom7 = drawTable(doc, { x: sevenX, y: y7, width: sevenW, ...tables.payment, ...tableOpts })
 
-  y = Math.max(bottom6, bottom7) + 2.5
+  // Se a tabela 7 quebrou de página, o cursor já está na página nova logo abaixo
+  // dela: usar bottom7 direto (Math.max misturaria coordenadas de páginas
+  // diferentes e deixaria um vão enorme). Senão, o fim é o mais baixo dos dois.
+  const tableBrokePage = doc.internal.getNumberOfPages() > pagesBeforeBlock
+  y = (tableBrokePage ? bottom7 : Math.max(bottom6, bottom7)) + 2.5
 
   // ═══ CLÁUSULAS CONTRATUAIS ════════════════════════════════════════════════
   const clauses = contract.clauses_data || []
   if (clauses.length) {
-    y += 2.5
+    // +3 do baseline do título (o texto cresce p/ cima) → ~2,5 mm de respiro
+    // visível entre o fim da tabela e "CLÁUSULAS CONTRATUAIS".
+    y += 3
     if (y + 13 > pageBottom) { doc.addPage(); y = marginTop }
     drawText(doc, 'CLÁUSULAS CONTRATUAIS', pw / 2, y, { size: 11, style: 'bold', color: NAV, align: 'center' })
     y += 6
