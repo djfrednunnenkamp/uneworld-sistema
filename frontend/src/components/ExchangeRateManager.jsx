@@ -28,7 +28,7 @@ function ScriptDocsModal({ onClose }) {
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.55)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:640, maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.3)', overflow:'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:780, maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.3)', overflow:'hidden' }}>
         <div style={{ padding:'14px 18px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
           <span style={{ fontSize:14, fontWeight:700, color:'#1e293b' }}>📖 Como escrever o script de câmbio</span>
           <button onClick={onClose} style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', color:'#94a3b8', cursor:'pointer' }}><Ic n="x" s={14}/></button>
@@ -465,13 +465,13 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
             </p>
           ) : filtered.map((item, idx) => (
             <div key={item.id} style={{
-              display:'flex', alignItems:'center', justifyContent:'space-between', gap:10,
+              display:'grid', gridTemplateColumns:'minmax(0,1fr) 340px auto', alignItems:'center', gap:12,
               padding:'9px 14px', fontSize:13, color:'#0f172a',
               borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none', background:'#fff',
             }}
               onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
               onMouseLeave={e => e.currentTarget.style.background='#fff'}>
-              <span style={{ fontWeight:500, display:'flex', alignItems:'center', gap:7 }}>
+              <span style={{ fontWeight:500, display:'flex', alignItems:'center', flexWrap:'wrap', gap:7, rowGap:5, minWidth:0 }}>
                 {canEdit && (
                   <button type="button" onClick={() => onUpdate(item.id, { is_favorite: !item.is_favorite })}
                     title={item.is_favorite ? 'Remover dos favoritos' : 'Marcar como favorito'}
@@ -498,7 +498,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
                   <span title="Acréscimo à vista / parcelado sobre a taxa de mercado" style={{ fontSize:10.5, fontWeight:700, color:'#b45309', background:'#fffbeb', padding:'1px 7px', borderRadius:10 }}>+{Number(item.markup_percent)}% / +{Number(item.markup_percent_installment)}%</span>
                 )}
               </span>
-              <span style={{ color:'#64748b' }}>
+              <span style={{ color:'#64748b', whiteSpace:'nowrap' }}>
                 1 {item.from_currency} = {Number(item.rate).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {item.to_currency}
                 <span style={{ fontSize:11, color:'#94a3b8' }}> à vista</span>
                 {Number(item.rate_installment) > 0 && (
