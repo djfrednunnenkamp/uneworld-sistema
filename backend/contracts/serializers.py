@@ -87,7 +87,7 @@ class ContractInstallmentSerializer(serializers.ModelSerializer):
 class ContractAdjustmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ContractAdjustment
-        fields = ['id', 'description', 'kind', 'mode', 'value_usd', 'percent', 'order']
+        fields = ['id', 'description', 'kind', 'mode', 'value_usd', 'value_brl', 'percent', 'order']
 
 
 class ContractListSerializer(serializers.ModelSerializer):
@@ -266,11 +266,12 @@ class ContractSerializer(serializers.ModelSerializer):
             (line.value_per_person_usd + line.taxes_usd) * line.quantity
             for line in contract.accommodation_lines.all()
         )
-        # Acréscimos somam, descontos subtraem. Percentual incide sobre o subtotal
-        # das acomodações (accom_total).
+        exchange_rate = contract.exchange_rate or _default_exchange_rate()
+        # Acréscimo soma; desconto e comissão subtraem. Percentual incide sobre o
+        # subtotal das acomodações; ajustes em BRL convertem pelo câmbio.
         adj_total = Decimal('0')
         for a in contract.adjustments.all():
-            amount = a.amount_usd(accom_total)
+            amount = a.amount_usd(accom_total, exchange_rate)
             adj_total += amount if a.kind == 'acrescimo' else -amount
         # Comissão da agência: % cadastrado na agência, incide só sobre o
         # valor/pessoa (não sobre as taxas) e fica embutida no total.
@@ -282,7 +283,6 @@ class ContractSerializer(serializers.ModelSerializer):
             )
             commission = Decimal(value_subtotal) * (contract.agency.commission_rate / Decimal('100'))
         total_usd = accom_total + adj_total + commission
-        exchange_rate = contract.exchange_rate or _default_exchange_rate()
         total_brl = total_usd * exchange_rate if exchange_rate else None
 
         # Arredondamento opcional: arredonda a moeda escolhida pro múltiplo de

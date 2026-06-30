@@ -567,9 +567,14 @@ export async function generateContractPDF(contract, opts = {}) {
   // desconto = "Desconto") — mostrados como linhas no quadro de Valores.
   const commFactor = 1 + (Number(contract.agency_data?.commission_rate) || 0) / 100
   const accomFull = baseSum + taxSum   // base p/ ajustes percentuais (igual ao backend)
+  const adjRate = Number(contract.exchange_rate) || 0
   const adjRows = (contract.adjustments || []).map(a => {
-    const amt = a.mode === 'percentual' ? accomFull * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
-    return { amt, isDesc: a.kind === 'desconto', desc: a.description || '' }
+    const amt = a.mode === 'percentual' ? accomFull * Number(a.percent || 0) / 100
+      : a.mode === 'valor_brl' ? (adjRate ? Number(a.value_brl || 0) / adjRate : 0)
+      : Number(a.value_usd || 0)
+    const isMinus = a.kind === 'desconto' || a.kind === 'comissao'
+    const lbl = a.kind === 'comissao' ? 'Comissão' : a.kind === 'desconto' ? 'Desconto' : 'Taxa'
+    return { amt, isMinus, lbl, desc: a.description || '' }
   }).filter(a => a.amt)
   const clientFields = isJuridica ? [
     ['Razão social:', dashTxt(ct.full_name)],
@@ -717,7 +722,7 @@ export async function generateContractPDF(contract, opts = {}) {
     const rows = [
       ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum * commFactor), false],
       ['receipt',  `Taxas (${cc})`,        moneyTxt(taxSum), false],
-      ...adjRows.map(a => ['receipt', (a.isDesc ? 'Desconto' : 'Taxa') + (a.desc ? `: ${a.desc}` : ''), `${a.isDesc ? '-' : '+'} ${moneyTxt(a.amt)}`, false]),
+      ...adjRows.map(a => ['receipt', a.lbl + (a.desc ? `: ${a.desc}` : ''), `${a.isMinus ? '-' : '+'} ${moneyTxt(a.amt)}`, false]),
       ['exchange', 'Câmbio',               dashTxt(fmtRate(contract.exchange_rate)), false],
       ['wallet',   `Total (${cc})`,        moneyTxt(contract.total_usd), true],
       ['file',     'Total (BRL)',          moneyTxt(contract.total_brl), false],

@@ -146,15 +146,19 @@ function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
 /* Popup de valores extras (acréscimos) e descontos — entram na Soma total (USD).
  * Cada linha pode ser um valor fixo (US$) ou um percentual sobre o subtotal das
  * acomodações (baseUsd). */
-function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commissionPct = 0, commissionUsd = 0, cur = 'US$', onClose }) {
-  const add    = () => setAdjustments(a => [...a, { description: '', kind: 'acrescimo', mode: 'valor', value_usd: '', percent: '' }])
+function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commissionPct = 0, commissionUsd = 0, rate = 0, cur = 'US$', onClose }) {
+  const add    = () => setAdjustments(a => [...a, { description: '', kind: 'acrescimo', mode: 'valor', value_usd: '', value_brl: '', percent: '' }])
   const update = (i, k, v) => setAdjustments(a => a.map((x, idx) => idx === i ? { ...x, [k]: v } : x))
   const remove = (i) => setAdjustments(a => a.filter((_, idx) => idx !== i))
-  const amountOf = (a) => a.mode === 'percentual' ? baseUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
+  // Valor absoluto em USD (BRL converte pelo câmbio). Desconto e comissão abatem.
+  const amountOf = (a) => a.mode === 'percentual' ? baseUsd * Number(a.percent || 0) / 100
+    : a.mode === 'valor_brl' ? (rate ? Number(a.value_brl || 0) / rate : 0)
+    : Number(a.value_usd || 0)
+  const isMinus = (a) => a.kind === 'desconto' || a.kind === 'comissao'
   const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-  const net = adjustments.reduce((s, a) => s + (a.kind === 'desconto' ? -1 : 1) * amountOf(a), 0)
-  const KIND_OPTS = [{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }]
-  const MODE_OPTS = [{ value: 'valor', label: `Valor (${cur})` }, { value: 'percentual', label: 'Percentual (%)' }]
+  const net = adjustments.reduce((s, a) => s + (isMinus(a) ? -1 : 1) * amountOf(a), 0)
+  const KIND_OPTS = [{ value: 'acrescimo', label: 'Acréscimo (+)' }, { value: 'desconto', label: 'Desconto (−)' }, { value: 'comissao', label: 'Comissão (−)' }]
+  const MODE_OPTS = [{ value: 'valor', label: `Valor (${cur})` }, { value: 'valor_brl', label: 'Valor (R$)' }, { value: 'percentual', label: 'Percentual (%)' }]
   return (
     <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
       <div className="mbox" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
@@ -180,7 +184,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
               </div>
             )}
             {adjustments.map((a, i) => {
-              const signed = (a.kind === 'desconto' ? -1 : 1) * amountOf(a)
+              const signed = (isMinus(a) ? -1 : 1) * amountOf(a)
               return (
                 <div key={i} style={{ border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -207,18 +211,22 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
                         <input style={{ ...inp, paddingRight: 34 }} type="number" step="0.01" min="0"
                           value={a.percent} placeholder="0"
                           onChange={e => update(i, 'percent', e.target.value)} />
+                      ) : a.mode === 'valor_brl' ? (
+                        <MoneyInput style={{ ...inp, paddingRight: 34 }} value={a.value_brl} placeholder="0,00"
+                          onChange={v => update(i, 'value_brl', v)} />
                       ) : (
                         <MoneyInput style={{ ...inp, paddingRight: 34 }} value={a.value_usd} placeholder="0,00"
                           onChange={v => update(i, 'value_usd', v)} />
                       )}
                       <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8', pointerEvents: 'none' }}>
-                        {a.mode === 'percentual' ? '%' : cur}
+                        {a.mode === 'percentual' ? '%' : a.mode === 'valor_brl' ? 'R$' : cur}
                       </span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
                     <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {a.mode === 'percentual' ? `${Number(a.percent || 0)}% de ${cur} ${fmt(baseUsd)}` : 'Valor fixo'}
+                      {a.mode === 'percentual' ? `${Number(a.percent || 0)}% de ${cur} ${fmt(baseUsd)}`
+                        : a.mode === 'valor_brl' ? (rate ? `R$ → ${cur} pelo câmbio ${rate}` : 'Informe o câmbio') : 'Valor fixo'}
                     </span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: signed < 0 ? '#dc2626' : '#15803d' }}>
                       {signed >= 0 ? '+' : '−'} {cur} {fmt(Math.abs(signed))}
@@ -492,7 +500,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       }
       setAdjustments((d.adjustments ?? []).map(a => ({
         description: a.description ?? '', kind: a.kind ?? 'acrescimo', mode: a.mode ?? 'valor',
-        value_usd: a.value_usd ?? '', percent: a.percent ?? '',
+        value_usd: a.value_usd ?? '', value_brl: a.value_brl ?? '', percent: a.percent ?? '',
       })))
       // Reconstrói os quartos a partir do room_group salvo. Contrato antigo (sem
       // room_group) com tipo definido vira um quarto por hóspede, preservando o tipo.
@@ -564,10 +572,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     (sum, l) => sum + (Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1), 0
   ), [accomLines])
   // Percentual incide sobre o subtotal das acomodações; valor é absoluto em USD.
-  const adjustmentsTotalUsd = useMemo(() => adjustments.reduce((s, a) => {
-    const amount = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
-    return s + (a.kind === 'desconto' ? -1 : 1) * amount
-  }, 0), [adjustments, accomSubtotalUsd])
+  const adjustmentsTotalUsd = useMemo(() => {
+    const rate = Number(form.exchange_rate) || 0
+    return adjustments.reduce((s, a) => {
+      const amount = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100
+        : a.mode === 'valor_brl' ? (rate ? Number(a.value_brl || 0) / rate : 0)
+        : Number(a.value_usd || 0)
+      const minus = a.kind === 'desconto' || a.kind === 'comissao'
+      return s + (minus ? -1 : 1) * amount
+    }, 0)
+  }, [adjustments, accomSubtotalUsd, form.exchange_rate])
   // Comissão da agência: % do cadastro da agência sobre o subtotal das
   // acomodações; soma ao total (o backend recalcula igual em _recalc_totals).
   const agencyCommissionPct = useMemo(() => {
@@ -989,10 +1003,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         room_group: g.room ?? null,
       })),
       adjustments: adjustments
-        .filter(a => Number(a.value_usd) !== 0 || Number(a.percent) !== 0 || (a.description || '').trim())
+        .filter(a => Number(a.value_usd) !== 0 || Number(a.value_brl) !== 0 || Number(a.percent) !== 0 || (a.description || '').trim())
         .map(a => ({
           description: a.description || '', kind: a.kind || 'acrescimo', mode: a.mode || 'valor',
-          value_usd: a.mode === 'percentual' ? 0 : (toDec(a.value_usd) ?? 0),
+          value_usd: a.mode === 'valor' ? (toDec(a.value_usd) ?? 0) : 0,
+          value_brl: a.mode === 'valor_brl' ? (toDec(a.value_brl) ?? 0) : 0,
           percent: a.mode === 'percentual' ? (toDec(a.percent) ?? 0) : 0,
         })),
       installments: installmentsPayload,
@@ -1188,10 +1203,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         {sec('Valores', [
           ...accomLines.filter(l => l.accommodation_type).map((l, i) =>
             row(`${typeName(l.accommodation_type)} × ${l.quantity}`, `${cur} ${fmtN((Number(l.value_per_person_usd || 0) + Number(l.taxes_usd || 0)) * Number(l.quantity || 1))}`, `al${i}`)),
-          ...adjustments.filter(a => Number(a.value_usd) || Number(a.percent)).map((a, i) => {
-            const amt = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100 : Number(a.value_usd || 0)
-            const signed = (a.kind === 'desconto' ? -1 : 1) * amt
-            return row(a.description || (a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'), `${signed < 0 ? '−' : '+'} ${cur} ${fmtN(Math.abs(signed))}`, `aj${i}`)
+          ...adjustments.filter(a => Number(a.value_usd) || Number(a.value_brl) || Number(a.percent)).map((a, i) => {
+            const rt = Number(form.exchange_rate) || 0
+            const amt = a.mode === 'percentual' ? accomSubtotalUsd * Number(a.percent || 0) / 100
+              : a.mode === 'valor_brl' ? (rt ? Number(a.value_brl || 0) / rt : 0)
+              : Number(a.value_usd || 0)
+            const minus = a.kind === 'desconto' || a.kind === 'comissao'
+            const signed = (minus ? -1 : 1) * amt
+            const kindLbl = a.kind === 'comissao' ? 'Comissão' : a.kind === 'desconto' ? 'Desconto' : 'Acréscimo'
+            return row(a.description || kindLbl, `${signed < 0 ? '−' : '+'} ${cur} ${fmtN(Math.abs(signed))}`, `aj${i}`)
           }),
           ...(Number(form.round_step) > 0 ? [row('Arredondamento', `${form.round_currency === 'usd' ? cur : 'R$'} · múltiplo de ${Number(form.round_step).toLocaleString('pt-BR')}`, 'rd')] : []),
           <div key="tot" style={{ borderTop: '1px solid #eef2f7', paddingTop: 8, marginTop: 2 }}>
@@ -1893,6 +1913,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           baseUsd={accomSubtotalUsd}
           commissionPct={agencyCommissionPct}
           commissionUsd={commissionUsd}
+          rate={Number(form.exchange_rate) || 0}
           cur={cur}
           onClose={() => setShowAdjustments(false)}
         />
