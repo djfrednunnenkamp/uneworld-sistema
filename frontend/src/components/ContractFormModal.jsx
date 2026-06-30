@@ -371,8 +371,16 @@ const fmtDateBR = (iso) => {
 
 const addMonthsIso = (iso, n) => {
   const d = new Date(iso + 'T00:00:00')
-  d.setMonth(d.getMonth() + n)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const y = d.getFullYear(), m = d.getMonth(), day = d.getDate()
+  // Último dia do mês de origem e do mês alvo (new Date(ano, mês+1, 0) = último dia).
+  const lastOfSource = new Date(y, m + 1, 0).getDate()
+  const target = new Date(y, m + n, 1)
+  const lastOfTarget = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  // Se a data é o último dia do mês, mantém "último dia" em todos os meses
+  // (independe de 28/29/30/31). Senão, mantém o dia, no máx. o último do mês alvo
+  // (evita overflow tipo 31/jan + 1 mês virar 03/mar).
+  const finalDay = day >= lastOfSource ? lastOfTarget : Math.min(day, lastOfTarget)
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`
 }
 
 const round2 = (n) => Math.round(n * 100) / 100
