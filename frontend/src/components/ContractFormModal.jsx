@@ -215,6 +215,10 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
             incide sobre o subtotal das acomodações (<strong>{cur} {fmt(baseUsd)}</strong>).
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button type="button" onClick={add}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', borderRadius: 8, border: '1.5px dashed #cbd5e1', background: '#fafbfc', color: '#1a2d4f', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Ic n="plus" s={14} /> Adicionar valor
+            </button>
             {adjustments.filter(a => a.kind !== 'comissao').length === 0 && (
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13, border: '1px dashed #e2e8f0', borderRadius: 10 }}>
                 Nenhum valor adicionado ainda.
@@ -273,10 +277,6 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
                 </div>
               )
             })}
-            <button type="button" onClick={add}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', borderRadius: 8, border: '1.5px dashed #cbd5e1', background: '#fafbfc', color: '#1a2d4f', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Ic n="plus" s={14} /> Adicionar valor
-            </button>
           </div>
         </div>
         <div className="mfoot" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
