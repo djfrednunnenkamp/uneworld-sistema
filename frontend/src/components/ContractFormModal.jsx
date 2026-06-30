@@ -1621,7 +1621,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             {(layout === 'full' || step === 2) && (<>
             {/* Tipos de Acomodação / Valores */}
             <div style={card}>
-              <p style={sectionTitle}><Ic n="bed" s={14} /> Tipos de acomodação / valores por pessoa</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <p style={{ ...sectionTitle, margin: 0 }}><Ic n="bed" s={14} /> Tipos de acomodação / valores por pessoa</p>
+                <button type="button" onClick={() => setShowAdjustments(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Ic n="plus" s={13} /> Valores extras / descontos
+                  {adjustments.length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: adjustmentsTotalUsd < 0 ? '#dc2626' : '#15803d' }}>
+                      ({adjustmentsTotalUsd >= 0 ? '+' : '−'}{Math.abs(adjustmentsTotalUsd).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} USD)
+                    </span>
+                  )}
+                </button>
+              </div>
               <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '0 0 10px' }}>
                 As linhas e quantidades abaixo são geradas automaticamente a partir dos quartos montados acima (cada quarto = 1 unidade) — pode ajustar os valores manualmente se precisar. Tipos cujo valor já vem do roteiro ficam travados.
               </p>
@@ -1673,20 +1684,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
             {/* Dados de pagamento */}
             <div style={card}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                <p style={{ ...sectionTitle, margin: 0 }}><Ic n="card" s={14} /> Dados dos pagamentos / valores</p>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setShowAdjustments(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <Ic n="plus" s={13} /> Valores extras / descontos
-                    {adjustments.length > 0 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: adjustmentsTotalUsd < 0 ? '#dc2626' : '#15803d' }}>
-                        ({adjustmentsTotalUsd >= 0 ? '+' : '−'}{Math.abs(adjustmentsTotalUsd).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} USD)
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
+              <p style={{ ...sectionTitle, marginBottom: 10 }}><Ic n="card" s={14} /> Dados dos pagamentos / valores</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
