@@ -241,84 +241,6 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, cur = 'US$
   )
 }
 
-/* Popup de arredondamento do total — arredonda a moeda escolhida (USD ou BRL)
- * para um múltiplo; a outra acompanha pelo câmbio. */
-function RoundingModal({ form, setForm, rawUsd, rawBrl, roundedUsd, roundedBrl, cur = 'US$', onClose }) {
-  const set  = (k, v) => setForm(f => ({ ...f, [k]: v }))
-  const step = Number(form.round_step) || 0
-  const fmt  = (n) => n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-  const STEP_OPTS = [
-    { value: 0, label: 'Não arredondar' },
-    { value: 10, label: 'Múltiplo de 10' },
-    { value: 50, label: 'Múltiplo de 50' },
-    { value: 100, label: 'Múltiplo de 100' },
-    { value: 500, label: 'Múltiplo de 500' },
-    { value: 1000, label: 'Múltiplo de 1.000' },
-  ]
-  const seg = (active, label, onClick) => (
-    <button type="button" onClick={onClick}
-      style={{ flex: 1, padding: '8px 10px', borderRadius: 7, border: `1.5px solid ${active ? '#2e6db4' : '#e2e8f0'}`,
-        background: active ? '#eff6ff' : '#fff', color: active ? '#1a2d4f' : '#64748b', fontSize: 12.5,
-        fontWeight: active ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}>
-      {label}
-    </button>
-  )
-  return (
-    <div className="overlay" onClick={onClose} style={{ zIndex: 600 }}>
-      <div className="mbox" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-        <div className="mhead">
-          <span className="mtitle">Arredondamento do total</span>
-          <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
-        </div>
-        <div className="mbody">
-          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
-            Deixa o total num número "redondo" (ex: 1.985 → 2.000). A moeda escolhida é arredondada e a outra acompanha pelo câmbio.
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label style={lbl}>Arredondar para</label>
-              <Dropdown value={step} clearable={false} searchable={false} options={STEP_OPTS}
-                onChange={v => set('round_step', Number(v) || 0)} />
-            </div>
-            {step > 0 && (
-              <>
-                <div>
-                  <label style={lbl}>Moeda</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {seg(form.round_currency === 'brl', 'Real (R$)', () => set('round_currency', 'brl'))}
-                    {seg(form.round_currency === 'usd', `Moeda base (${cur})`, () => set('round_currency', 'usd'))}
-                  </div>
-                </div>
-                <div>
-                  <label style={lbl}>Direção</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {seg(form.round_mode === 'nearest', 'Mais próximo', () => set('round_mode', 'nearest'))}
-                    {seg(form.round_mode === 'up', 'Pra cima', () => set('round_mode', 'up'))}
-                    {seg(form.round_mode === 'down', 'Pra baixo', () => set('round_mode', 'down'))}
-                  </div>
-                </div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, fontSize: 13 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
-                    <span>Atual</span>
-                    <span>{cur} {fmt(rawUsd)} · R$ {fmt(rawBrl)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontWeight: 700, color: '#15803d' }}>
-                    <span>Arredondado</span>
-                    <span>{cur} {fmt(roundedUsd)} · R$ {fmt(roundedBrl)}</span>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="mfoot" style={{ justifyContent: 'flex-end' }}>
-          <button className="btn btn-primary" onClick={onClose}>Concluir</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const lbl = { fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 5 }
 const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
 const inpRO = { ...inp, background: '#f8fafc', color: '#64748b' }
@@ -454,7 +376,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [pricedTypeIds, setPricedTypeIds] = useState(() => new Set())
   const [adjustments, setAdjustments] = useState([]) // [{ description, kind, value_usd }]
   const [showAdjustments, setShowAdjustments] = useState(false)
-  const [showRounding, setShowRounding] = useState(false)
   const { contractCreateLayout, contractEditLayout, setContractLayout } = usePrefs()
   // Layout: 'steps' (passo a passo) ou 'full' (completo). Vem do perfil do usuário
   // (separado para criar/editar). Trocar aqui salva o novo padrão no perfil.
@@ -648,9 +569,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     return [rate ? b / rate : rawUsd, b]
   }, [accomSubtotalUsd, adjustmentsTotalUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
 
-  // Totais ANTES do arredondamento (para a prévia "de X para Y" no popup).
-  const rawTotalUsd = accomSubtotalUsd + adjustmentsTotalUsd
-  const rawTotalBrl = Number(form.exchange_rate) ? rawTotalUsd * Number(form.exchange_rate) : null
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
   const sumFilled = paymentType === 'a_vista'
@@ -1670,15 +1588,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                       </span>
                     )}
                   </button>
-                  <button type="button" onClick={() => setShowRounding(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <span style={{ fontSize: 14, lineHeight: 1 }}>≈</span> Arredondar total
-                    {Number(form.round_step) > 0 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#1a2d4f' }}>
-                        ({form.round_currency === 'usd' ? cur : 'R$'} · {Number(form.round_step).toLocaleString('pt-BR')})
-                      </span>
-                    )}
-                  </button>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1939,18 +1848,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           baseUsd={accomSubtotalUsd}
           cur={cur}
           onClose={() => setShowAdjustments(false)}
-        />
-      )}
-      {showRounding && (
-        <RoundingModal
-          form={form}
-          setForm={setForm}
-          rawUsd={rawTotalUsd}
-          rawBrl={rawTotalBrl}
-          roundedUsd={computedTotalUsd}
-          roundedBrl={computedTotalBrl}
-          cur={cur}
-          onClose={() => setShowRounding(false)}
         />
       )}
       {showPreview && (
