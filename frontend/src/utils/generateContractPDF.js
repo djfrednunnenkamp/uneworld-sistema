@@ -729,13 +729,13 @@ export async function generateContractPDF(contract, opts = {}) {
   const bottom5 = drawTable(doc, { x: colRX, y: y5, width: halfW, ...tables.accommodations, ...tableOpts })
   const row1Bottom = doc.internal.getNumberOfPages() > startP1 ? bottom5 : Math.max(bottom3, bottom5)
 
-  // ── Linha 2: 6. Valores e Condições (esq.) │ 4. Passageiros (dir.) ──
+  // ── Linha 2: 4. Passageiros (esq.) │ 6. Valores e Condições (dir.) ──
   const topRow2 = row1Bottom + 2.5
   const startP2 = doc.internal.getNumberOfPages()
-  const bottom6 = drawValores(marginX, topRow2, halfW)
-  drawCard(doc, marginX, topRow2, halfW, bottom6)
-  let yP = drawSectionTitle(doc, { x: colRX, y: topRow2, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
-  const bottom4 = drawTable(doc, { x: colRX, y: yP, width: halfW, ...tables.passengers, ...tableOpts })
+  const bottom6 = drawValores(colRX, topRow2, halfW)
+  drawCard(doc, colRX, topRow2, halfW, bottom6)
+  let yP = drawSectionTitle(doc, { x: marginX, y: topRow2, iconPng: icons.w_users, main: '4. Passageiros' }) + 0.8
+  const bottom4 = drawTable(doc, { x: marginX, y: yP, width: halfW, ...tables.passengers, ...tableOpts })
   const row2Bottom = doc.internal.getNumberOfPages() > startP2 ? bottom4 : Math.max(bottom6, bottom4)
 
   // ── Item 7: Plano de Pagamento (largura total, embaixo da folha) ──
