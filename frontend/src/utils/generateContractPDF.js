@@ -404,6 +404,10 @@ function buildFirstPageHTML(contract, company, logoDataUrl, icons = {}) {
        sem números mágicos de top/left. */
     .ctpdf .icon { display:flex; align-items:center; justify-content:center; min-width:27px; width:27px; height:27px; border-radius:50%; background:var(--blue); flex-shrink:0; }
     .ctpdf .icon img { width:15px; height:15px; display:block; }
+    /* Item 7 é renderizado em coluna mais estreita (sevenW ~0.66x), então o
+       ícone também cresce p/ manter a proporção com o título ampliado. */
+    .ctpdf .section-title[data-block="title7"] .icon { min-width:41px; width:41px; height:41px; }
+    .ctpdf .section-title[data-block="title7"] .icon img { width:23px; height:23px; }
     .ctpdf .two-cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     .ctpdf .col + .col { border-left:1px solid var(--line); padding-left:12px; }
     .ctpdf h3 { margin:0 0 7px; color:var(--blue); font-size:10px; text-transform:uppercase; }
