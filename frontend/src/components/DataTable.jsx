@@ -49,6 +49,7 @@ export default function DataTable({
   searchKeys = [], filterKey = 'status', filterOpts,
   extraFilters, topBar, onLog, bulkBar,
   onAdd, onEdit, onView, onDelete, onDocs, showDocs, docsTitle = 'Documentos', docsIcon = 'docs', extraActions, loading,
+  headerExtra,
 }) {
   const [q,   setQ]   = useState('')
   const [flt, setFlt] = useState('Todos')
@@ -80,6 +81,7 @@ export default function DataTable({
       <div className="ph">
         <h1 className="ph-title">{title}</h1>
         <div className="ph-actions">
+          {headerExtra}
           {onAdd && <button className="btn btn-primary" onClick={onAdd}><Ic n="plus" s={13}/>{addLabel}</button>}
         </div>
       </div>
