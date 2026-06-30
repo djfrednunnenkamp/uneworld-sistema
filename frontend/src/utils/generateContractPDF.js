@@ -587,6 +587,13 @@ export async function generateContractPDF(contract, opts = {}) {
     const lbl = a.kind === 'desconto' ? 'Desconto' : 'Taxa'
     return { amt, isMinus, lbl, desc: a.description || '' }
   }).filter(a => a.amt)
+  // Acréscimos seguem como linhas "Taxa" individuais; TODOS os descontos
+  // (comissão + outros) entram numa ÚNICA linha "Desconto", com valor e %.
+  const taxaRows = adjRows.filter(a => !a.isMinus)
+  const acrescimoTotalUsd = taxaRows.reduce((s, a) => s + a.amt, 0)
+  const totalDescontoUsd = adjRows.filter(a => a.isMinus).reduce((s, a) => s + a.amt, 0)
+  const preDescUsd = baseSum * commFactor + taxSum + acrescimoTotalUsd
+  const descontoPct = preDescUsd ? (totalDescontoUsd / preDescUsd * 100) : 0
   const clientFields = isJuridica ? [
     ['Razão social:', dashTxt(ct.full_name)],
     ['CNPJ:', dashTxt(ct.cnpj || ct.cpf)],
@@ -733,7 +740,8 @@ export async function generateContractPDF(contract, opts = {}) {
     const rows = [
       ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum * commFactor), false],
       ['receipt',  `Taxas (${cc})`,        moneyTxt(taxSum), false],
-      ...adjRows.map(a => ['receipt', a.lbl + (a.desc ? `: ${a.desc}` : ''), `${a.isMinus ? '-' : '+'} ${moneyTxt(a.amt)}`, false]),
+      ...taxaRows.map(a => ['receipt', a.lbl + (a.desc ? `: ${a.desc}` : ''), `+ ${moneyTxt(a.amt)}`, false]),
+      ...(totalDescontoUsd > 0 ? [['receipt', 'Desconto', `- ${moneyTxt(totalDescontoUsd)} (${descontoPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`, false]] : []),
       ['exchange', 'Câmbio',               dashTxt(fmtRate(contract.exchange_rate)), false],
       ['wallet',   `Total (${cc})`,        moneyTxt(contract.total_usd), true],
       ['file',     'Total (BRL)',          moneyTxt(contract.total_brl), false],
