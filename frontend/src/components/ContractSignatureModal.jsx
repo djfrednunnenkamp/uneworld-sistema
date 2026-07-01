@@ -124,10 +124,11 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
               ) : (
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: '#475569' }}>Contrato (para assinar)</span>
               )}
-              {(fileUrl || docUrl) && (
-                <a href={fileUrl || docUrl} download={fileUrl ? (file?.name || 'contrato_assinado') : `contrato_${contract.reservation_number || contract.id}.pdf`}
-                  style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: `1px solid ${fileUrl ? '#86efac' : '#cbd5e1'}`, background: '#fff', color: fileUrl ? '#15803d' : '#1a2d4f', fontSize: 12.5, fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
-                  <Ic n="dl" s={14} /> Baixar {fileUrl ? 'enviado' : 'PDF'}
+              {/* Baixar só faz sentido antes de anexar o assinado (baixar o contrato p/ assinar). */}
+              {!fileUrl && docUrl && (
+                <a href={docUrl} download={`contrato_${contract.reservation_number || contract.id}.pdf`}
+                  style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#1a2d4f', fontSize: 12.5, fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
+                  <Ic n="dl" s={14} /> Baixar PDF
                 </a>
               )}
             </div>
