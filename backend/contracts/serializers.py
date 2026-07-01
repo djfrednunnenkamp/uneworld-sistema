@@ -107,7 +107,8 @@ class ContractListSerializer(serializers.ModelSerializer):
                   'contratante', 'contratante_name', 'guest_names', 'package_name', 'departure_date',
                   'total_brl', 'total_usd', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
                   'autentique_document_id',
-                  'created_at', 'updated_at', 'sent_at', 'signed_at', 'is_deleted', 'deleted_at']
+                  'created_at', 'updated_at', 'sent_at', 'signed_at', 'reviewed_at', 'review_note',
+                  'is_deleted', 'deleted_at']
 
     def get_agency_name(self, obj):
         return _agency_brief(obj.agency)['name'] if obj.agency_id else ''
@@ -162,10 +163,11 @@ class ContractSerializer(serializers.ModelSerializer):
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'stage', 'signed_file', 'signed_verification',
+                  'reviewed_at', 'review_note',
                   'autentique_document_id', 'autentique_data',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data', 'custom_clauses',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
-        read_only_fields = ['autentique_document_id', 'autentique_data']
+        read_only_fields = ['autentique_document_id', 'autentique_data', 'reviewed_at', 'review_note']
 
     def validate(self, attrs):
         # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado

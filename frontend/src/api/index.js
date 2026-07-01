@@ -118,6 +118,10 @@ export const contractsApi = {
   checkSignature:   (id) => api.post(`/contracts/${id}/check-signature/`),
   reopen:           (id) => api.post(`/contracts/${id}/reopen/`),
   uploadSigned:     (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/upload-signed/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
+  // Revisão (operadora): dados item a item + alertas, aprovar / reprovar.
+  reviewData:       (id) => api.get(`/contracts/${id}/review-data/`),
+  approve:          (id) => api.post(`/contracts/${id}/approve/`),
+  reject:           (id, note) => api.post(`/contracts/${id}/reject/`, { note }),
 }
 
 export const itinerariesApi = {

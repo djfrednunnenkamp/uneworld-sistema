@@ -9,6 +9,7 @@ import ContractFormModal from '../components/ContractFormModal'
 import ContractViewModal from '../components/ContractViewModal'
 import SignedFileViewer from '../components/SignedFileViewer'
 import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
+import ContractReviewModal from '../components/ContractReviewModal'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
@@ -32,7 +33,9 @@ const fmtDateTimeBR = (iso) => { if (!iso) return ''; const d = new Date(iso); r
 const STAGE_META = {
   em_edicao: { label: 'Em edição',      color: '#2563eb' },
   enviado:   { label: 'Para assinatura', color: '#d97706' },
-  assinado:  { label: 'Assinado',        color: '#059669' },
+  assinado:  { label: 'Assinado',        color: '#0891b2' },
+  revisao:   { label: 'Em revisão',      color: '#7c3aed' },
+  aprovado:  { label: 'Aprovado',        color: '#059669' },
 }
 function StageBadge({ stage }) {
   const m = STAGE_META[stage] || { label: stage || '—', color: '#94a3b8' }
@@ -379,6 +382,7 @@ export default function Contracts() {
   const perms    = user?.permissions ?? {}
   const canEdit   = !!user?.is_superuser || perms.contracts_edit
   const canDelete = !!user?.is_superuser || perms.contracts_delete
+  const canReview = !!user?.is_superuser || perms.contracts_review
   const canViewLog = !!user?.is_superuser || perms.contracts_view_logs
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
@@ -405,6 +409,7 @@ export default function Contracts() {
   const [showDrafts, setShowDrafts] = useState(false)   // popup de rascunhos (botão ao lado de Adicionar)
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
+  const [reviewId, setReviewId] = useState(null)     // id do contrato em revisão (abre popup)
   const [signedUrl, setSignedUrl] = useState(null)   // url do assinado em visualização
   const [previewId, setPreviewId] = useState(null)   // contrato p/ pré-visualizar o PDF gerado
 
@@ -465,7 +470,7 @@ export default function Contracts() {
   // Baixar/ver: "assinado" → arquivo assinado anexado; senão → pré-visualiza o PDF
   // gerado num popup (com opção de baixar lá dentro).
   const handleDocs = (row) => {
-    if (row.stage === 'assinado' && row.signed_file) { setSignedUrl({ url: row.signed_file, id: row.id, label: getLabel(row) }); return }
+    if (['assinado', 'revisao', 'aprovado'].includes(row.stage) && row.signed_file) { setSignedUrl({ url: row.signed_file, id: row.id, label: getLabel(row) }); return }
     setPreviewId(row.id)
   }
 
@@ -547,9 +552,9 @@ export default function Contracts() {
     const toastId = toast.loading('Verificando assinatura...')
     try {
       const r = await contractsApi.checkSignature(row.id)
-      if (r.data?.stage === 'assinado') {
-        toast.success('Contrato assinado! Movido para "Assinados".', { id: toastId })
-        setTab('assinado')
+      if (r.data?.stage === 'revisao') {
+        toast.success('Contrato assinado! Movido para "Em revisão".', { id: toastId })
+        setTab('revisao')
       } else {
         toast.info('Ainda faltam assinaturas.', { id: toastId })
         setSignersModal({ data: r.data, label: getLabel(row) })
@@ -579,9 +584,9 @@ export default function Contracts() {
   const handleUploadFile = async (file) => {
     try {
       await contractsApi.uploadSigned(uploadRow.id, file)
-      toast.success('Contrato assinado anexado.')
+      toast.success('Contrato assinado anexado. Movido para "Em revisão".')
       setUploadRow(null)
-      setTab('assinado')   // segue o contrato para "Assinados"
+      setTab('revisao')   // assinado → segue para a revisão da operadora
       load()
     } catch { toast.error('Erro ao anexar o contrato assinado.') }
   }
@@ -629,8 +634,10 @@ export default function Contracts() {
   const cols = useMemo(() => {
     const dateCol = tab === 'enviado'
       ? { key: 'sent_at',   label: 'Enviado em',  align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
-      : tab === 'assinado'
+      : tab === 'revisao'
       ? { key: 'signed_at', label: 'Assinado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      : tab === 'aprovado'
+      ? { key: 'reviewed_at', label: 'Aprovado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : tab === 'trash'
       ? { key: 'deleted_at', label: 'Excluído em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH }
@@ -680,7 +687,8 @@ export default function Contracts() {
     { key: 'geral',     label: 'Geral',            color: '#1a2d4f', count: rows.length },
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
-    { key: 'assinado',  label: 'Assinados',        color: '#059669', count: stageCount('assinado') },
+    { key: 'revisao',   label: 'Em revisão',       color: '#7c3aed', count: stageCount('revisao') },
+    { key: 'aprovado',  label: 'Aprovados',        color: '#059669', count: stageCount('aprovado') },
     ...(canDelete ? [{ key: 'trash', label: 'Excluídos', color: '#dc2626', count: deletedCount }] : []),
   ]
   const tabBar = (
@@ -716,7 +724,7 @@ export default function Contracts() {
 
   // Assinatura digital: o PDF só pode ser BAIXADO depois de assinado. Antes
   // disso (em edição / aguardando assinatura) ele é apenas visto online.
-  const canDownloadPdf = (c) => !c || c.signature_type !== 'digital' || c.stage === 'assinado'
+  const canDownloadPdf = (c) => !c || c.signature_type !== 'digital' || ['assinado', 'revisao', 'aprovado'].includes(c.stage)
 
   // Botão "Rascunhos" ao lado de Adicionar — abre um popup com os rascunhos
   // (autosave) pra retomar de onde parou. Só aparece quando há rascunhos.
@@ -746,18 +754,22 @@ export default function Contracts() {
         showDocs={(row) =>
           // Enviado: sempre dá para ver online (física = ver/imprimir; digital = só ver).
           row.stage === 'enviado' ? true
-          : row.stage === 'assinado' ? !!row.signed_file
+          : ['assinado', 'revisao', 'aprovado'].includes(row.stage) ? !!row.signed_file
           : false}
-        docsTitle={tab === 'assinado' ? 'Ver contrato assinado'
+        docsTitle={['assinado', 'revisao', 'aprovado'].includes(tab) ? 'Ver contrato assinado'
           : 'Ver contrato'}
         extraActions={
           tab === 'trash'
             ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={contractsApi.restore} onPurge={contractsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
             : tab === 'rascunho'
             ? (row) => actBtn('Continuar editando', 'edit', '#7c3aed', () => setModal(row.id))
-            : canEdit ? (row) => {
+            : (canEdit || canReview) ? (row) => {
               // Na aba Geral cada linha segue a SUA própria etapa; nas demais, a aba.
               const stage = tab === 'geral' ? row.stage : tab
+              if (stage === 'revisao') {
+                return canReview ? actBtn('Revisar contrato', 'check', '#7c3aed', () => setReviewId(row.id)) : null
+              }
+              if (!canEdit) return null
               return (
                 stage === 'em_edicao' ? actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row), sendingIds.has(row.id))
                 : stage === 'enviado' ? (
@@ -791,6 +803,9 @@ export default function Contracts() {
       )}
       {previewId && (
         <ContractPdfPreviewModal contractId={previewId} allowDownload={canDownloadPdf(rows.find(r => r.id === previewId))} onClose={() => setPreviewId(null)} />
+      )}
+      {reviewId && (
+        <ContractReviewModal contractId={reviewId} onClose={() => setReviewId(null)} onDone={reloadAll} />
       )}
       {viewId && (
         <ContractViewModal
