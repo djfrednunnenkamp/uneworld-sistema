@@ -387,6 +387,8 @@ export default function Contracts() {
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
+  const [bulkDel, setBulkDel] = useState(null)   // { rows, after } — confirmação de exclusão em massa
+  const [draftSel, setDraftSel] = useState(new Set())   // ids de rascunhos selecionados no popup
   const [reopenRow, setReopenRow] = useState(null)   // contrato a voltar p/ edição (confirma antes)
   const [modal,   setModal]   = useState(null)   // null | 'new' | contractId
   const [viewId,  setViewId]  = useState(null)   // id do contrato em visualização
@@ -448,6 +450,18 @@ export default function Contracts() {
     await contractsApi.remove(delRow.id).catch(() => toast.error('Erro ao excluir.'))
     toast.success('Contrato excluído.')
     setDelRow(null)
+    reloadAll()
+  }
+
+  const handleBulkDelete = async () => {
+    const { rows, after } = bulkDel
+    const results = await Promise.allSettled(rows.map(r => contractsApi.remove(r.id)))
+    const failed = results.filter(x => x.status === 'rejected').length
+    const ok = rows.length - failed
+    if (ok) toast.success(`${ok} contrato(s) excluído(s).`)
+    if (failed) toast.error(`${failed} não puderam ser excluídos.`)
+    setBulkDel(null)
+    after?.()
     reloadAll()
   }
 
@@ -748,6 +762,19 @@ export default function Contracts() {
         extraFilters={filterBar}
         onLog={canViewLog ? () => navigate('/log?scope=contracts') : undefined}
         headerExtra={draftsBtn}
+        bulkBar={(tab !== 'trash' && canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', flex: 1 }}>{selRows.length} selecionados</span>
+            <button type="button" onClick={() => setBulkDel({ rows: selRows, after: clearSelection })}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Ic n="trash" s={12} /> Excluir selecionados
+            </button>
+            <button type="button" onClick={clearSelection}
+              style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cancelar
+            </button>
+          </div>
+        ) : undefined}
         onAdd={canEdit && (tab === 'em_edicao' || tab === 'geral') ? () => setModal('new') : undefined}
         onView={(row) => setViewId(row.id)}
         onDocs={tab === 'trash' ? undefined : handleDocs}
@@ -816,8 +843,14 @@ export default function Contracts() {
           onViewLog={canViewLog ? () => navigate(`/log?contract_id=${viewId}`) : undefined}
         />
       )}
-      {showDrafts && (
-        <div className="overlay" onClick={() => setShowDrafts(false)} style={{ zIndex: 550 }}>
+      {showDrafts && (() => {
+        const closeDrafts = () => { setShowDrafts(false); setDraftSel(new Set()) }
+        const allSel = draftRows.length > 0 && draftRows.every(d => draftSel.has(d.id))
+        const togAll = () => setDraftSel(allSel ? new Set() : new Set(draftRows.map(d => d.id)))
+        const tog1 = (id) => setDraftSel(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+        const selCount = draftSel.size
+        return (
+        <div className="overlay" onClick={closeDrafts} style={{ zIndex: 550 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 580, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)' }}>
             <div style={{ padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -825,18 +858,40 @@ export default function Contracts() {
                 <Ic n="edit" s={15} /> Rascunhos
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed' }}>{draftRows.length}</span>
               </span>
-              <button type="button" onClick={() => setShowDrafts(false)}
+              <button type="button" onClick={closeDrafts}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex' }}>
                 <Ic n="x" s={16} />
               </button>
             </div>
+            {/* Barra de seleção: selecionar todos + excluir selecionados */}
+            {canDelete && draftRows.length > 0 && (
+              <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#475569', cursor: 'pointer', fontWeight: 500 }}>
+                  <input type="checkbox" checked={allSel} onChange={togAll}
+                    style={{ width: 15, height: 15, accentColor: '#7c3aed', cursor: 'pointer' }} />
+                  Selecionar todos
+                </label>
+                <span style={{ flex: 1 }} />
+                {selCount > 0 && (
+                  <button type="button"
+                    onClick={() => { const rows = draftRows.filter(d => draftSel.has(d.id)); setShowDrafts(false); setBulkDel({ rows, after: () => setDraftSel(new Set()) }) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Ic n="trash" s={12} /> Excluir selecionados ({selCount})
+                  </button>
+                )}
+              </div>
+            )}
             <div style={{ padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {draftRows.length === 0 ? (
                 <span style={{ fontSize: 13, color: '#94a3b8', padding: '8px 0' }}>Nenhum rascunho no momento.</span>
               ) : draftRows.map(d => (
                 <div key={d.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid #ede9fe', borderRadius: 8, padding: '8px 8px 8px 12px', cursor: 'pointer' }}
-                  onClick={() => { setShowDrafts(false); setModal(d.id) }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: draftSel.has(d.id) ? '#faf5ff' : '#fff', border: `1px solid ${draftSel.has(d.id) ? '#ddd6fe' : '#ede9fe'}`, borderRadius: 8, padding: '8px 8px 8px 12px', cursor: 'pointer' }}
+                  onClick={() => { setShowDrafts(false); setDraftSel(new Set()); setModal(d.id) }}>
+                  {canDelete && (
+                    <input type="checkbox" checked={draftSel.has(d.id)} onClick={e => e.stopPropagation()} onChange={() => tog1(d.id)}
+                      style={{ width: 15, height: 15, accentColor: '#7c3aed', cursor: 'pointer', flexShrink: 0 }} />
+                  )}
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {[d.contratante_name, d.agency_name, d.package_name].filter(Boolean).join('  ·  ') || 'Sem informações ainda'}
@@ -846,15 +901,15 @@ export default function Contracts() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                    {actBtn('Continuar editando', 'edit', '#7c3aed', () => { setShowDrafts(false); setModal(d.id) })}
-                    {canDelete && actBtn('Excluir rascunho', 'trash', '#dc2626', () => { setShowDrafts(false); setDelRow(d) })}
+                    {actBtn('Continuar editando', 'edit', '#7c3aed', () => { setShowDrafts(false); setDraftSel(new Set()); setModal(d.id) })}
+                    {canDelete && actBtn('Excluir rascunho', 'trash', '#dc2626', () => { setShowDrafts(false); setDraftSel(new Set()); setDelRow(d) })}
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
-      )}
+      ) })()}
       {modal && (
         <ContractFormModal
           contractId={modal === 'new' ? null : modal}
@@ -867,6 +922,12 @@ export default function Contracts() {
         <DelModal
           name={delRow.reservation_number ? `Contrato ${delRow.reservation_number}` : `Contrato #${delRow.id}`}
           onOk={handleDelete} onCancel={() => setDelRow(null)} recoverable
+        />
+      )}
+      {bulkDel && (
+        <DelModal
+          name={`${bulkDel.rows.length} contratos selecionados`}
+          onOk={handleBulkDelete} onCancel={() => setBulkDel(null)} recoverable
         />
       )}
       {reopenRow && (
