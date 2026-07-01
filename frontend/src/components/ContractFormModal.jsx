@@ -1415,6 +1415,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 )
               })}
             </div>
+            <button type="button" onClick={onClose} title="Fechar"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, flexShrink: 0 }}>
+              <Ic n="x" s={18} />
+            </button>
           </div>
         </div>
 
