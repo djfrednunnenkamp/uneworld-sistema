@@ -1365,8 +1365,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 920, maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)' }}>
-        <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        style={{ position: 'relative', background: '#fff', borderRadius: 12, width: '100%', maxWidth: 920, maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)' }}>
+        <button type="button" onClick={onClose} title="Fechar"
+          style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, width: 30, height: 30, background: '#fff', border: '1px solid #e6eaf1', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7 }}>
+          <Ic n="x" s={16} />
+        </button>
+        <div style={{ padding: '16px 52px 14px 20px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
               {isEdit ? 'Editar contrato' : 'Novo contrato'}
@@ -1415,10 +1419,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 )
               })}
             </div>
-            <button type="button" onClick={onClose} title="Fechar"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, flexShrink: 0 }}>
-              <Ic n="x" s={18} />
-            </button>
           </div>
         </div>
 
