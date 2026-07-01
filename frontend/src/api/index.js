@@ -109,6 +109,7 @@ export const contractsApi = {
   get:     (id)     => api.get(`/contracts/${id}/`),
   create:  (data)   => api.post('/contracts/', data),
   update:  (id, d)  => api.put(`/contracts/${id}/`, d),
+  patch:   (id, d)  => api.patch(`/contracts/${id}/`, d),
   remove:  (id)     => api.delete(`/contracts/${id}/`),
   discard: (id)     => api.delete(`/contracts/${id}/discard/`),   // descarta rascunho (cancelar)
   deleted: ()       => api.get('/contracts/', { params: { deleted: 1 } }),

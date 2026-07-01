@@ -11,6 +11,7 @@ import SignedFileViewer from '../components/SignedFileViewer'
 import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
 import ContractReviewModal from '../components/ContractReviewModal'
 import ContractInvoiceModal from '../components/ContractInvoiceModal'
+import SendSignatureModal from '../components/SendSignatureModal'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
@@ -429,6 +430,7 @@ export default function Contracts() {
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
   const [reviewId, setReviewId] = useState(null)     // id do contrato em revisão (abre popup)
   const [invoiceId, setInvoiceId] = useState(null)   // id do contrato p/ faturar (abre popup)
+  const [sendRow, setSendRow] = useState(null)       // contrato p/ confirmar envio à assinatura
   const [signedUrl, setSignedUrl] = useState(null)   // url do assinado em visualização
   const [previewId, setPreviewId] = useState(null)   // contrato p/ pré-visualizar o PDF gerado
 
@@ -554,16 +556,20 @@ export default function Contracts() {
     finally { markSending(id, false) }
   }
 
-  // Enviar para assinatura → muda a etapa E leva o usuário para a aba "Para assinatura".
-  const handleSend = async (row) => {
-    if (sendingRef.current.has(row.id)) return
+  // Enviar para assinatura → confirma no popup (com escolha física/digital) e envia.
+  const confirmSend = async (type) => {
+    const row = sendRow
+    if (!row || sendingRef.current.has(row.id)) return
     markSending(row.id, true)
-    const toastId = toast.loading(sendingMessage(row.signature_type))
+    const toastId = toast.loading(sendingMessage(type))
     try {
-      await sendForSignatureFlow(row.id, row.signature_type)
-      toast.success(row.signature_type === 'digital'
+      // Ajusta a forma de assinatura escolhida no popup, se mudou.
+      if (type !== row.signature_type) await contractsApi.patch(row.id, { signature_type: type })
+      await sendForSignatureFlow(row.id, type)
+      toast.success(type === 'digital'
         ? 'Enviado para assinatura digital (Autentique).'
         : 'Contrato enviado para assinatura.', { id: toastId })
+      setSendRow(null)
       setTab('enviado')   // segue o contrato para a aba de destino
       load()
     } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.', { id: toastId }) }
@@ -835,7 +841,7 @@ export default function Contracts() {
               let stageAction = null
               if (canReview && stage === 'revisao') stageAction = actBtn('Revisar contrato', 'check', '#7c3aed', () => setReviewId(row.id))
               else if (canInvoice && stage === 'a_faturar') stageAction = actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id))
-              else if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'feather', '#2563eb', () => handleSend(row), sendingIds.has(row.id))
+              else if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'feather', '#2563eb', () => setSendRow(row), sendingIds.has(row.id))
               else if (canEdit && stage === 'enviado') stageAction = (
                 row.signature_type === 'digital' ? (
                   <>
@@ -872,6 +878,14 @@ export default function Contracts() {
       )}
       {invoiceId && (
         <ContractInvoiceModal contractId={invoiceId} onClose={() => setInvoiceId(null)} onDone={reloadAll} />
+      )}
+      {sendRow && (
+        <SendSignatureModal
+          contract={sendRow}
+          sending={sendingIds.has(sendRow.id)}
+          onConfirm={confirmSend}
+          onClose={() => { if (!sendingIds.has(sendRow.id)) setSendRow(null) }}
+        />
       )}
       {viewId && (
         <ContractViewModal
