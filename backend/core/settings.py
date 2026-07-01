@@ -153,6 +153,24 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Cache — usado pelo rate limiting (A-04). Com Redis (produção/multi-worker) o
+# limite é compartilhado entre processos/réplicas; sem Redis (dev) cai no cache
+# em memória do processo, que já basta localmente.
+if REDIS_HOST:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': f"redis://{REDIS_HOST}:{config('REDIS_PORT', default=6379, cast=int)}/1",
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'uneworld-throttle',
+        }
+    }
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
@@ -162,6 +180,19 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    # ScopedRateThrottle nativo fica como default global mas é INOFENSIVO: só
+    # limita views que definem throttle_scope (nenhuma view interna define), então
+    # os endpoints normais não são afetados. Os endpoints públicos sensíveis usam
+    # throttles próprios por IP (core.throttling) via @throttle_classes.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '5/min',
+        'password_reset': '5/hour',
+        'invite': '10/hour',
+        'webhook': '60/min',
+    },
 }
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
@@ -204,3 +235,20 @@ CSRF_TRUSTED_ORIGINS = config(
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+
+# ── Hardening HTTP (auditoria IDS — A-06) ──────────────────────────────────────
+# Proteções que valem para QUALQUER ambiente (não dependem de HTTPS):
+SECURE_CONTENT_TYPE_NOSNIFF = True          # impede sniffing de MIME type
+SESSION_COOKIE_HTTPONLY = True              # cookie de sessão inacessível via JS
+SESSION_COOKIE_SAMESITE = 'Lax'             # mitiga CSRF cross-site
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# HSTS e redirect forçado para HTTPS só em PRODUÇÃO (DEBUG=False). Em dev local
+# (HTTP puro) ligar isso quebraria o acesso — o browser passaria a exigir HTTPS.
+# O redirect respeita o SECURE_PROXY_SSL_HEADER acima (Cloudflare/nginx), então
+# não entra em loop quando o TLS termina no proxy.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000          # 1 ano
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True

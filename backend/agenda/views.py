@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -189,19 +189,26 @@ def email_resend_action(request, pk):
 
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import throttle_classes
 from rest_framework.permissions import AllowAny
+
+from core.throttling import WebhookRateThrottle
 
 
 def _verify_resend_signature(request) -> bool:
-    """Verifica a assinatura Svix usada pela Resend. Sem secret configurado,
-    aceita sem verificar (só deve acontecer em desenvolvimento local)."""
+    """Verifica a assinatura Svix usada pela Resend.
+
+    FAIL-CLOSED em produção (A-07): sem secret configurado (ou sem a lib svix), a
+    requisição é REJEITADA quando DEBUG=False — nunca aceitar webhook sem verificar
+    a assinatura em produção. Em DEBUG=True aceita sem verificar, só para facilitar
+    o desenvolvimento local (nenhum segredo configurado)."""
     secret = settings.RESEND_WEBHOOK_SECRET
     if not secret:
-        return True
+        return bool(settings.DEBUG)  # prod sem segredo → rejeita; dev → permite
     try:
         from svix.webhooks import Webhook, WebhookVerificationError
     except ImportError:
-        return True
+        return bool(settings.DEBUG)  # sem a lib não dá pra verificar → só permite em dev
     headers = {
         'svix-id':        request.headers.get('svix-id', ''),
         'svix-timestamp': request.headers.get('svix-timestamp', ''),
@@ -216,7 +223,9 @@ def _verify_resend_signature(request) -> bool:
 
 @csrf_exempt
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([WebhookRateThrottle])
 def resend_webhook_view(request):
     """Recebe eventos de entrega/abertura da Resend e atualiza o EmailLog correspondente."""
     if not _verify_resend_signature(request):

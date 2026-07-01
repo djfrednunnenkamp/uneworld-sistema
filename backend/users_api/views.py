@@ -2,10 +2,11 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, InviteRateThrottle
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
 from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions
@@ -87,6 +88,7 @@ def _apply_permissions(user, data, actor=None):
 
 
 @api_view(['POST'])
+@throttle_classes([LoginRateThrottle])
 @permission_classes([AllowAny])
 def login_view(request):
     email    = request.data.get('email', '').strip()
@@ -297,6 +299,7 @@ def user_update(request, pk):
 
 
 @api_view(['POST'])
+@throttle_classes([PasswordResetRateThrottle])
 @permission_classes([AllowAny])
 def forgot_password(request):
     email = request.data.get('email', '').strip()
@@ -316,6 +319,7 @@ def forgot_password(request):
 
 
 @api_view(['POST'])
+@throttle_classes([PasswordResetRateThrottle])
 @permission_classes([AllowAny])
 def reset_password(request):
     token_str = request.data.get('token', '').strip()
@@ -358,6 +362,7 @@ def send_user_invite(request, pk):
 
 
 @api_view(['GET'])
+@throttle_classes([InviteRateThrottle])
 @permission_classes([AllowAny])
 def validate_invite(request):
     token_str = request.query_params.get('token', '')
@@ -371,6 +376,7 @@ def validate_invite(request):
 
 
 @api_view(['POST'])
+@throttle_classes([InviteRateThrottle])
 @permission_classes([AllowAny])
 def accept_invite(request):
     from config_api.models import TermsAndConditions

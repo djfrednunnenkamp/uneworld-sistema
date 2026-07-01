@@ -2,12 +2,13 @@ import os
 import logging
 
 from rest_framework import viewsets, filters, status as http_status
-from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from core.pagination import StandardResultsPagination
+from core.throttling import WebhookRateThrottle
 from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
@@ -450,24 +451,39 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 @api_view(['POST', 'GET'])
 @authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([WebhookRateThrottle])
 def autentique_webhook(request):
     """Endpoint público chamado pela Autentique quando há eventos de assinatura.
 
     A Autentique não assina o payload de forma padronizada, então não confiamos
-    no corpo: protegemos por um segredo na URL (?secret=) e, ao ser chamado,
+    no corpo: protegemos por um SEGREDO compartilhado e, ao ser chamado,
     re-consultamos a API para cada contrato digital ainda pendente e atualizamos
     o estado (baixando o PDF quando todos assinarem). Assim o handler independe
-    do formato exato do evento.
+    do formato exato do evento (fonte da verdade = API da Autentique, nunca o corpo).
 
-    Configure na Autentique a URL:
+    O segredo é lido preferencialmente do header HTTP `X-Webhook-Secret`; por
+    compatibilidade com a configuração atual (a URL cadastrada na Autentique usa
+    query string), o `?secret=` ainda é aceito como fallback. Configure na
+    Autentique preferencialmente o header, ou mantenha a URL:
       {BACKEND_URL}/api/contracts/autentique-webhook/?secret=<AUTENTIQUE_WEBHOOK_SECRET>
+
+    FAIL-CLOSED (A-07): em produção (DEBUG=False) sem o segredo configurado, o
+    endpoint rejeita tudo — nunca aceitar webhook sem segredo em produção.
     """
+    import hmac
     from django.conf import settings
     from dashboard.signals import _broadcast
 
-    secret = getattr(settings, 'AUTENTIQUE_WEBHOOK_SECRET', '')
-    if secret and request.GET.get('secret') != secret:
-        return Response({'error': 'Segredo inválido.'}, status=http_status.HTTP_403_FORBIDDEN)
+    secret = getattr(settings, 'AUTENTIQUE_WEBHOOK_SECRET', '') or ''
+    if not secret:
+        # Sem segredo: só permitido em dev. Em produção é fail-closed.
+        if not settings.DEBUG:
+            logger.warning('autentique_webhook chamado sem AUTENTIQUE_WEBHOOK_SECRET configurado — rejeitado (produção).')
+            return Response({'error': 'Webhook não configurado.'}, status=http_status.HTTP_403_FORBIDDEN)
+    else:
+        provided = request.headers.get('X-Webhook-Secret') or request.GET.get('secret') or ''
+        if not hmac.compare_digest(provided, secret):
+            return Response({'error': 'Segredo inválido.'}, status=http_status.HTTP_403_FORBIDDEN)
 
     pending = Contract.objects.filter(
         signature_type='digital', is_deleted=False,
