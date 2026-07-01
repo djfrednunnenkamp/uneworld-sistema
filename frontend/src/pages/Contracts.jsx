@@ -454,11 +454,12 @@ export default function Contracts() {
   }
 
   const handleBulkDelete = async () => {
-    const { rows, after } = bulkDel
-    const results = await Promise.allSettled(rows.map(r => contractsApi.remove(r.id)))
+    const { rows, after, purge } = bulkDel
+    const call = purge ? contractsApi.purge : contractsApi.remove
+    const results = await Promise.allSettled(rows.map(r => call(r.id)))
     const failed = results.filter(x => x.status === 'rejected').length
     const ok = rows.length - failed
-    if (ok) toast.success(`${ok} contrato(s) excluído(s).`)
+    if (ok) toast.success(purge ? `${ok} contrato(s) excluído(s) permanentemente.` : `${ok} contrato(s) excluído(s).`)
     if (failed) toast.error(`${failed} não puderam ser excluídos.`)
     setBulkDel(null)
     after?.()
@@ -762,12 +763,12 @@ export default function Contracts() {
         extraFilters={filterBar}
         onLog={canViewLog ? () => navigate('/log?scope=contracts') : undefined}
         headerExtra={draftsBtn}
-        bulkBar={(tab !== 'trash' && canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
+        bulkBar={(tab === 'trash' ? canPurge : canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', flex: 1 }}>{selRows.length} selecionados</span>
-            <button type="button" onClick={() => setBulkDel({ rows: selRows, after: clearSelection })}
+            <button type="button" onClick={() => setBulkDel({ rows: selRows, after: clearSelection, purge: tab === 'trash' })}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Ic n="trash" s={12} /> Excluir selecionados
+              <Ic n="trash" s={12} /> {tab === 'trash' ? 'Excluir permanentemente' : 'Excluir selecionados'}
             </button>
             <button type="button" onClick={clearSelection}
               style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -926,8 +927,8 @@ export default function Contracts() {
       )}
       {bulkDel && (
         <DelModal
-          name={`${bulkDel.rows.length} contratos selecionados`}
-          onOk={handleBulkDelete} onCancel={() => setBulkDel(null)} recoverable
+          name={`${bulkDel.rows.length} contratos selecionados${bulkDel.purge ? ' (permanentemente)' : ''}`}
+          onOk={handleBulkDelete} onCancel={() => setBulkDel(null)} recoverable={!bulkDel.purge}
         />
       )}
       {reopenRow && (
