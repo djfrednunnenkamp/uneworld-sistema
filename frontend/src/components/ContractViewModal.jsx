@@ -14,7 +14,7 @@ const money = (v, cur) => (v == null || v === '') ? '' : `${cur} ${Number(v).toL
 /* Popup de visualização do contrato — resumo read-only. Toda linha é clicável e
  * copia o valor pra área de transferência (igual Passageiros/Agências). No rodapé:
  * Editar (abre o formulário) e OK (fecha). */
-export default function ContractViewModal({ contractId, canEdit = false, onClose, onEdit, onViewLog, zIndex = 300 }) {
+export default function ContractViewModal({ contractId, canEdit = false, onClose, onEdit, onViewLog, onReopen, zIndex = 300 }) {
   const [c, setC] = useState(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
@@ -133,6 +133,12 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
               <button onClick={onEdit}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 <Ic n="edit" s={13} /> Editar
+              </button>
+            )}
+            {onReopen && c?.stage === 'enviado' && (
+              <button onClick={onReopen}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: '1px solid #fde3c4', background: '#fffaf3', color: '#b45309', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="rotate" s={13} /> Voltar para edição
               </button>
             )}
             {onViewLog && (

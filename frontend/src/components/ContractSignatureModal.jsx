@@ -1,22 +1,52 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { contractsApi } from '../api'
+import { generateContractPDF } from '../utils/generateContractPDF'
+import SignedFileViewer from './SignedFileViewer'
 import { Ic } from './Icon'
 
-/** Popup de ASSINATURA (etapa "Para assinatura"). Centraliza: ver/baixar o
- * documento, anexar o contrato assinado (física) ou verificar a assinatura
- * (digital), e voltar para edição.
- * Props: contract, onClose, onDone(tab?), onViewDoc(), onReopen()
+/** Popup de ASSINATURA (etapa "Para assinatura"), em duas colunas:
+ *  - Esquerda: o contrato (PDF gerado) com botão de baixar; ao anexar o assinado,
+ *    passa a mostrar o arquivo enviado.
+ *  - Direita: física → escolher arquivo + confirmar + enviar; digital → verificar.
+ * Props: contract, onClose, onDone(tab?)
  */
-export default function ContractSignatureModal({ contract, onClose, onDone, onViewDoc, onReopen }) {
+export default function ContractSignatureModal({ contract, onClose, onDone }) {
   const isDigital = contract?.signature_type === 'digital'
   const [file, setFile] = useState(null)
+  const [fileUrl, setFileUrl] = useState(null)      // preview do arquivo enviado (esquerda)
+  const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [docUrl, setDocUrl] = useState(null)        // PDF do contrato (blob)
+  const [docStatus, setDocStatus] = useState('loading')  // loading | ready | error
   const inputRef = useRef(null)
   const label = contract?.reservation_number ? `Reserva ${contract.reservation_number}` : `Contrato #${contract?.id}`
 
+  // Gera o PDF do contrato para a coluna da esquerda.
+  useEffect(() => {
+    let url, cancelled = false
+    contractsApi.get(contract.id)
+      .then(async r => {
+        if (cancelled) return
+        url = await generateContractPDF(r.data, { output: 'bloburl' })
+        if (cancelled) { URL.revokeObjectURL(url); return }
+        setDocUrl(url); setDocStatus('ready')
+      })
+      .catch(() => { if (!cancelled) setDocStatus('error') })
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url) }
+  }, [contract.id])
+
+  const pickFile = (f) => {
+    if (fileUrl) URL.revokeObjectURL(fileUrl)
+    setFile(f || null)
+    setFileUrl(f ? URL.createObjectURL(f) : null)
+    setConfirmed(false)
+  }
+  useEffect(() => () => { if (fileUrl) URL.revokeObjectURL(fileUrl) }, [fileUrl])
+
   const upload = async () => {
     if (!file) { toast.error('Selecione o arquivo assinado.'); return }
+    if (!confirmed) { toast.error('Confirme que o contrato está assinado e correto.'); return }
     setBusy(true)
     try {
       await contractsApi.uploadSigned(contract.id, file)
@@ -44,17 +74,17 @@ export default function ContractSignatureModal({ contract, onClose, onDone, onVi
     finally { setBusy(false) }
   }
 
-  const box = { border: '1px solid #e9edf3', borderRadius: 10, padding: '14px 16px', background: '#fff' }
+  const leftUrl = fileUrl || docUrl
   const secTitle = { fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 8 }
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 560, padding: 20 }}>
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 560, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 980, height: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="feather" s={20} /></div>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="feather" s={19} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Assinatura</div>
             <div style={{ fontSize: 12.5, color: '#64748b' }}>{label} · {isDigital ? 'Digital' : 'Física'}</div>
@@ -63,59 +93,70 @@ export default function ContractSignatureModal({ contract, onClose, onDone, onVi
             style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e6eaf1', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="x" s={16} /></button>
         </div>
 
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
-          {/* Documento */}
-          <div style={box}>
-            <div style={secTitle}>Documento</div>
-            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px', lineHeight: 1.5 }}>Veja e baixe o PDF do contrato para assinar.</p>
-            <button type="button" onClick={onViewDoc}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Ic n="eye" s={14} /> Ver / baixar documento
-            </button>
+        {/* Corpo em duas colunas */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          {/* Esquerda: documento / arquivo enviado */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #eef2f7' }}>
+            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#475569' }}>{fileUrl ? 'Contrato assinado (enviado)' : 'Contrato'}</span>
+              {docUrl && (
+                <a href={docUrl} download={`contrato_${contract.reservation_number || contract.id}.pdf`}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12.5, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>
+                  <Ic n="dl" s={13} /> Baixar
+                </a>
+              )}
+            </div>
+            <div style={{ flex: 1, minHeight: 0, background: '#3f4651' }}>
+              {docStatus === 'loading' && !fileUrl && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: 13 }}>Gerando o documento…</div>}
+              {docStatus === 'error' && !fileUrl && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fca5a5', fontSize: 13 }}>Não foi possível gerar o documento.</div>}
+              {leftUrl && <SignedFileViewer url={leftUrl} />}
+            </div>
           </div>
 
-          {/* Física: anexar assinado · Digital: verificar */}
-          {isDigital ? (
-            <div style={box}>
-              <div style={secTitle}>Assinatura digital (Autentique)</div>
-              <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px', lineHeight: 1.5 }}>
-                O cliente e a agência assinam pelo link enviado (e-mail/WhatsApp). Verifique se todos já assinaram.
-              </p>
-              <button type="button" onClick={check} disabled={busy}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? .6 : 1 }}>
-                <Ic n="check" s={14} /> {busy ? 'Verificando…' : 'Verificar assinatura'}
-              </button>
-            </div>
-          ) : (
-            <div style={box}>
-              <div style={secTitle}>Contrato assinado</div>
-              <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px', lineHeight: 1.5 }}>Depois de assinado à mão, anexe o PDF (ou foto) aqui.</p>
-              <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
-                onChange={e => setFile(e.target.files?.[0] || null)} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <Ic n="ul" s={14} /> Escolher arquivo
+          {/* Direita: ações */}
+          <div style={{ width: 320, flexShrink: 0, padding: 18, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {isDigital ? (
+              <div>
+                <div style={secTitle}>Assinatura digital (Autentique)</div>
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 12px', lineHeight: 1.5 }}>
+                  O cliente e a agência assinam pelo link enviado (e-mail/WhatsApp). Verifique se todos já assinaram.
+                </p>
+                <button type="button" onClick={check} disabled={busy}
+                  style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? .6 : 1 }}>
+                  <Ic n="check" s={15} /> {busy ? 'Verificando…' : 'Verificar assinatura'}
                 </button>
-                {file && <span style={{ fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>{file.name}</span>}
               </div>
-              <button type="button" onClick={upload} disabled={busy || !file}
-                style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: 'none', background: (busy || !file) ? '#94a3b8' : '#059669', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: (busy || !file) ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-                <Ic n="check" s={15} /> {busy ? 'Enviando…' : 'Enviar contrato assinado'}
-              </button>
-            </div>
-          )}
+            ) : (
+              <div>
+                <div style={secTitle}>Anexar contrato assinado</div>
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 12px', lineHeight: 1.5 }}>Depois de assinado à mão, anexe o PDF (ou foto). Ele aparece à esquerda para você conferir.</p>
+                <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
+                  onChange={e => pickFile(e.target.files?.[0] || null)} />
+                <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+                  style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Ic n="ul" s={14} /> {file ? 'Trocar arquivo' : 'Escolher arquivo'}
+                </button>
+                {file && <p style={{ fontSize: 12, color: '#334155', margin: '8px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</p>}
 
-          {/* Voltar para edição */}
-          <button type="button" onClick={onReopen} disabled={busy}
-            style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#b45309', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>
-            <Ic n="rotate" s={13} /> Voltar para edição
-          </button>
+                {file && (
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 16, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}
+                      style={{ width: 16, height: 16, marginTop: 1, accentColor: '#059669', cursor: 'pointer', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.45 }}>Confiro que o arquivo à esquerda é o contrato <strong>assinado</strong> e está correto.</span>
+                  </label>
+                )}
+
+                <button type="button" onClick={upload} disabled={busy || !file || !confirmed}
+                  style={{ width: '100%', marginTop: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 18px', borderRadius: 8, border: 'none', background: (busy || !file || !confirmed) ? '#94a3b8' : '#059669', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: (busy || !file || !confirmed) ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                  <Ic n="check" s={15} /> {busy ? 'Enviando…' : 'Enviar contrato assinado'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div style={{ borderTop: '1px solid #eef2f7', padding: '12px 20px', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+        <div style={{ borderTop: '1px solid #eef2f7', padding: '12px 18px', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
           <button type="button" onClick={() => !busy && onClose()}
             style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Fechar</button>
         </div>

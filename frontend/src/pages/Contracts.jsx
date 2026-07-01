@@ -885,8 +885,6 @@ export default function Contracts() {
       {signRow && (
         <ContractSignatureModal
           contract={signRow}
-          onViewDoc={() => setPreviewId(signRow.id)}
-          onReopen={() => { const r = signRow; setSignRow(null); setReopenRow(r) }}
           onDone={(nextTab) => { setSignRow(null); if (nextTab) setTab(nextTab); reloadAll() }}
           onClose={() => setSignRow(null)}
         />
@@ -897,6 +895,7 @@ export default function Contracts() {
           canEdit={canEdit && !['enviado', 'revisao', 'a_faturar', 'faturado'].includes((rows.find(r => r.id === viewId) || {}).stage)}
           onClose={() => setViewId(null)}
           onEdit={() => { const id = viewId; setViewId(null); setModal(id) }}
+          onReopen={canEdit ? () => { const row = rows.find(r => r.id === viewId); setViewId(null); if (row) setReopenRow(row) } : undefined}
           onViewLog={canViewLog ? () => navigate(`/log?contract_id=${viewId}`) : undefined}
         />
       )}
