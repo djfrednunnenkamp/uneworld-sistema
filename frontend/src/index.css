@@ -229,3 +229,13 @@ fieldset:disabled { opacity: .75; }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+
+/* Piscadinha sutil quando a acomodação de um quarto é ajustada automaticamente */
+@keyframes accomFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+  25%  { box-shadow: 0 0 0 3px rgba(37,99,235,.45); }
+  60%  { box-shadow: 0 0 0 3px rgba(37,99,235,.25); }
+  100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+}
+.accom-flash { border-radius: 8px; animation: accomFlash 1.4s ease-out; }
+.accom-flash .fi, .accom-flash [class*="fi"] { border-color: #2563eb !important; transition: border-color .3s; }

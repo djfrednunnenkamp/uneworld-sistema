@@ -488,6 +488,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // Contrato novo já começa com 1 quarto criado (na edição, vêm do contrato).
   const [rooms, setRooms]           = useState(() => isEdit ? [] : [{ id: 1, type: null }]) // [{ id, type }]  type = id da acomodação | null
   const roomSeqRef                  = useRef(isEdit ? 1 : 2)     // gera ids estáveis de quarto
+  const [flashRooms, setFlashRooms] = useState(() => new Set())  // quartos que tiveram o tipo trocado automaticamente (piscadinha)
+  const prevRoomTypesRef            = useRef({})
   const [draggingId, setDraggingId] = useState(null) // passageiro sendo arrastado
   const [dragOverKey, setDragOverKey] = useState(null) // zona destacada no arraste ('pool' | id do quarto | 'new')
   const [paymentType, setPaymentType] = useState('parcelado') // 'a_vista' | 'parcelado'
@@ -885,6 +887,22 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       return changed ? next : prev
     })
   }, [guests, accomTypes, passengers])
+
+  // Piscadinha sutil: quando o tipo de um quarto é trocado AUTOMATICAMENTE (não
+  // manual), destaca o seletor daquele quarto por ~1,4s para chamar a atenção.
+  useEffect(() => {
+    const prev = prevRoomTypesRef.current
+    const flashed = []
+    rooms.forEach(r => {
+      if (prev[r.id] !== undefined && prev[r.id] !== r.type && !r.typeManual) flashed.push(r.id)
+      prev[r.id] = r.type
+    })
+    Object.keys(prev).forEach(id => { if (!rooms.some(r => String(r.id) === String(id))) delete prev[id] })
+    if (!flashed.length) return
+    setFlashRooms(new Set(flashed))
+    const t = setTimeout(() => setFlashRooms(new Set()), 1500)
+    return () => clearTimeout(t)
+  }, [rooms])
 
   const addAccomLine = () => setAccomLines(a => [...a, { accommodation_type: null, value_per_person_usd: 0, taxes_usd: 0, quantity: 1 }])
   const updateAccomLine = (idx, key, value) => setAccomLines(a => a.map((l, i) => i === idx ? { ...l, [key]: value } : l))
@@ -1686,8 +1704,11 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                               <Ic n="trash" s={12} />
                             </button>
                           </div>
-                          <Dropdown value={room.type ?? null} options={accomTypeOptions} placeholder="— Acomodação —"
-                            onChange={v => setRoomType(room.id, v)} />
+                          <div className={flashRooms.has(room.id) ? 'accom-flash' : undefined}
+                            title={flashRooms.has(room.id) ? 'Acomodação ajustada automaticamente pela ocupação' : undefined}>
+                            <Dropdown value={room.type ?? null} options={accomTypeOptions} placeholder="— Acomodação —"
+                              onChange={v => setRoomType(room.id, v)} />
+                          </div>
                           {occ.length === 0 ? (
                             <p style={{ fontSize: 12, color: '#cbd5e1', margin: '2px 0', textAlign: 'center' }}>Arraste passageiros pra cá</p>
                           ) : (
