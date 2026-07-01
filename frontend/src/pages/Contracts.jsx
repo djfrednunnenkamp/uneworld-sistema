@@ -47,6 +47,17 @@ function StageBadge({ stage }) {
   )
 }
 
+// Contrato reprovado na revisão: voltou p/ edição com um motivo registrado.
+const isReproved = (r) => r?.stage === 'em_edicao' && !!(r?.review_note || '').trim()
+function ReprovedBadge({ note }) {
+  return (
+    <span title={note ? `Motivo: ${note}` : undefined}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+      <Ic n="warn" s={12} /> Reprovado
+    </span>
+  )
+}
+
 // Forma de assinatura do contrato — física (impresso e assinado à mão) ou
 // digital (via Autentique).
 const SIGNATURE_META = {
@@ -657,7 +668,12 @@ export default function Contracts() {
       ? { key: 'deleted_at', label: 'Excluído em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH }
     return [
-      { key: 'reservation_number', label: 'Reserva',     align: 'center', render: (v) => v || DASH },
+      { key: 'reservation_number', label: 'Reserva', align: 'center', render: (v, row) => (
+        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <span>{v || DASH}</span>
+          {isReproved(row) && <ReprovedBadge note={row.review_note} />}
+        </div>
+      ) },
       { key: 'contratante_name',   label: 'Pagante',     align: 'center' },
       { key: 'agency_name',        label: 'Agência',     align: 'center' },
       { key: 'package_name',       label: 'Viagem',      align: 'center', render: (v) => v || DASH },
@@ -665,7 +681,7 @@ export default function Contracts() {
       { key: 'total_brl',          label: 'Total (BRL)', align: 'center', render: (v) => v ? fmtBRL(v) : DASH },
       { key: 'signature_type',     label: 'Assinatura',  align: 'center', render: (v) => <SignatureBadge type={v} /> },
       // Coluna de status só na aba Geral (nas demais a aba já define a etapa).
-      ...(tab === 'geral' ? [{ key: 'stage', label: 'Status', align: 'center', render: (v) => <StageBadge stage={v} /> }] : []),
+      ...(tab === 'geral' ? [{ key: 'stage', label: 'Status', align: 'center', render: (v, row) => isReproved(row) ? <ReprovedBadge note={row.review_note} /> : <StageBadge stage={v} /> }] : []),
       dateCol,
     ]
   }, [tab])

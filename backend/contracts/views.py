@@ -225,11 +225,13 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             _apply_autentique_state(contract, doc, save=False)
             contract.stage = 'enviado'
             contract.sent_at = timezone.now()
-            contract.save(update_fields=['autentique_document_id', 'autentique_data', 'stage', 'sent_at'])
+            contract.review_note = ''   # nova rodada de assinatura: limpa o motivo da reprovação
+            contract.save(update_fields=['autentique_document_id', 'autentique_data', 'stage', 'sent_at', 'review_note'])
         else:
             contract.stage = 'enviado'
             contract.sent_at = timezone.now()
-            contract.save(update_fields=['stage', 'sent_at'])
+            contract.review_note = ''
+            contract.save(update_fields=['stage', 'sent_at', 'review_note'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='check-signature')
@@ -292,6 +294,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             update_fields += ['autentique_document_id', 'autentique_data']
 
         contract.stage = 'em_edicao'
+        contract.review_note = ''   # reabertura manual não é reprovação
+        update_fields.append('review_note')
         contract.save(update_fields=update_fields)
         return Response(ContractSerializer(contract, context={'request': request}).data)
 

@@ -465,6 +465,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [loadedStage, setLoadedStage] = useState('em_edicao')
+  const [reviewNote, setReviewNote] = useState('')   // motivo da reprovação (quando voltou da revisão)
   const changeLayout = (v) => { setLayout(v); setContractLayout(isEdit, v) }
   const [step, setStep] = useState(0)
   // O passo de Cláusulas só aparece quando NÃO há roteiro (com roteiro, as
@@ -536,6 +537,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       setReservationNumber(d.reservation_number ?? '')
       setContractDate(d.contract_date ?? '')
       setLoadedStage(d.stage ?? 'em_edicao')
+      setReviewNote((d.stage === 'em_edicao' && d.review_note) ? d.review_note : '')
       setLoadedSellerData(d.seller_data ?? null)
       setForm({
         agency: d.agency, itinerary: d.itinerary, contratante: d.contratante, seller: d.seller ?? null,
@@ -1412,6 +1414,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           <p style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {/* Motivo da reprovação — bem no topo, quando o contrato voltou da revisão */}
+            {reviewNote && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '14px 20px 0', padding: '12px 14px', borderRadius: 10, background: '#fef2f2', border: '1.5px solid #fecaca' }}>
+                <span style={{ color: '#dc2626', flexShrink: 0, marginTop: 1 }}><Ic n="warn" s={18} /></span>
+                <div style={{ fontSize: 13, lineHeight: 1.55, color: '#991b1b' }}>
+                  <strong style={{ display: 'block', marginBottom: 2, color: '#b91c1c' }}>Contrato reprovado na revisão</strong>
+                  Motivo: {reviewNote}
+                </div>
+              </div>
+            )}
             {/* Barra de passos — só no modo passo a passo */}
             {layout === 'steps' && (
             <div style={{ display: 'flex', gap: 6, padding: '14px 20px 0', flexWrap: 'wrap' }}>
