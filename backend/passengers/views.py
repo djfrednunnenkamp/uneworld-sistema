@@ -16,6 +16,30 @@ from .serializers import PassengerSerializer, PassengerListSerializer, Passenger
 
 VIEW_PERMS = ('passengers_view_basic', 'passengers_view_full')
 
+# Content-Type derivado dos BYTES reais do arquivo (magic bytes), nunca do
+# mime_type enviado pelo cliente no upload (A-10). Os uploads já são validados por
+# passengers.validators (só JPEG/PNG/PDF passam), então esta allowlist cobre todos
+# os arquivos legítimos; qualquer outra coisa cai em octet-stream + attachment.
+_SAFE_CONTENT_TYPES = {
+    b'\xff\xd8\xff':        'image/jpeg',   # JPEG
+    b'\x89PNG\r\n\x1a\n':  'image/png',    # PNG
+    b'%PDF':                'application/pdf',
+}
+
+
+def _sniff_safe_content_type(file_path):
+    """Lê os primeiros bytes e devolve um Content-Type seguro da allowlist, ou
+    None se o conteúdo não for um dos tipos previsíveis (nunca renderizar inline)."""
+    try:
+        with open(file_path, 'rb') as fh:
+            header = fh.read(16)
+    except OSError:
+        return None
+    for sig, ctype in _SAFE_CONTENT_TYPES.items():
+        if header.startswith(sig):
+            return ctype
+    return None
+
 
 class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelViewSet):
     queryset = Passenger.objects.prefetch_related('agencies').all()
@@ -184,9 +208,18 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
             raise Http404
         if not os.path.isfile(file_path):
             raise Http404
-        response = FileResponse(open(file_path, 'rb'))
-        if doc.mime_type:
-            response['Content-Type'] = doc.mime_type
+        # Content-Type derivado dos bytes reais (A-10), nunca do mime_type do
+        # cliente. Tipo desconhecido → força download (não renderiza inline).
+        ctype = _sniff_safe_content_type(file_path)
+        if ctype is None:
+            response = FileResponse(open(file_path, 'rb'), as_attachment=True,
+                                    filename=os.path.basename(file_path))
+            response['Content-Type'] = 'application/octet-stream'
+        else:
+            response = FileResponse(open(file_path, 'rb'))
+            response['Content-Type'] = ctype
+            response['Content-Disposition'] = 'inline'
+        response['X-Content-Type-Options'] = 'nosniff'
         return response
 
     @action(detail=True, methods=['get'])
@@ -247,8 +280,10 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
             as_attachment=True,
             filename=filename,
         )
-        if doc.mime_type:
-            response['Content-Type'] = doc.mime_type
+        # Content-Type seguro derivado dos bytes (A-10), nunca do cliente. Como é
+        # sempre anexo (as_attachment), octet-stream para o desconhecido é seguro.
+        response['Content-Type'] = _sniff_safe_content_type(file_path) or 'application/octet-stream'
+        response['X-Content-Type-Options'] = 'nosniff'
 
         from audit.models import AuditLog
         from audit.middleware import get_current_user, get_current_ip

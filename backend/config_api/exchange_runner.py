@@ -40,16 +40,26 @@ def _check_url(url):
             raise ValueError('Acesso a endereço interno bloqueado.')
 
 
-def fetch_json(url, timeout=HTTP_TIMEOUT):
+def safe_get(url, timeout=HTTP_TIMEOUT, **kwargs):
+    """GET com proteção anti-SSRF (A-05). Valida o scheme (http/https), resolve o
+    host e bloqueia loopback/privado/link-local/metadata, e NUNCA segue redirects
+    (um 30x poderia escapar da verificação para um destino interno). É o único
+    ponto de saída HTTP para URLs controladas pelo usuário na área de câmbio —
+    tanto o link próprio da moeda (fetch_from_url no exchange_service) quanto os
+    scripts do sandbox (fetch_json/fetch_text) passam por aqui."""
     _check_url(url)
-    r = requests.get(url, timeout=min(timeout, HTTP_TIMEOUT))
+    kwargs.setdefault('allow_redirects', False)   # anti-SSRF: não seguir redirect
+    return requests.get(url, timeout=min(timeout, HTTP_TIMEOUT), **kwargs)
+
+
+def fetch_json(url, timeout=HTTP_TIMEOUT):
+    r = safe_get(url, timeout=timeout)
     r.raise_for_status()
     return r.json()
 
 
 def fetch_text(url, timeout=HTTP_TIMEOUT):
-    _check_url(url)
-    r = requests.get(url, timeout=min(timeout, HTTP_TIMEOUT))
+    r = safe_get(url, timeout=timeout)
     r.raise_for_status()
     return r.text
 

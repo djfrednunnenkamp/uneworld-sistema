@@ -27,4 +27,13 @@ urlpatterns = [
     path('api/agenda/',   include('agenda.urls')),
     path('api/contracts/', include('contracts.urls')),
     path('api/itineraries/', include('itineraries.urls')),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+
+# Servir /media/ pelo Django é APENAS para desenvolvimento local (DEBUG=True). Em
+# produção (DEBUG=False) NÃO expomos /media/ — documentos sensíveis (CPF, RG,
+# passaporte, contratos assinados) só saem por views autenticadas e com permissão
+# (ex.: /api/passengers/documents/<id>/download/, /api/contracts/<id>/signed-file/).
+# O nginx também bloqueia /media/ público (ver frontend/nginx.conf) como 2ª camada.
+# static() já retornaria [] com DEBUG=False; o if deixa a intenção explícita (A-11).
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

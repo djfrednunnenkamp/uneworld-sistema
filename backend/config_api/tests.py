@@ -4,12 +4,17 @@ Script customizado = execução de código no servidor. Escrever já era exclusi
 superusuário; agora DISPARAR manualmente (run_now/update_one) um câmbio com script
 também é. O sandbox roda `result = <número>` sem rede, então dá pra testar offline."""
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth.models import User
+from django.test import SimpleTestCase
 from rest_framework.test import APITestCase
 
 from users_api.models import UserPermissions
 from .models import ConfigExchangeRate
+from . import exchange_runner
+from .exchange_runner import safe_get
+from .exchange_service import fetch_from_url
 
 
 def make_user(username, superuser=False, **perms):
@@ -76,3 +81,35 @@ class ExchangeScriptExecutionTest(APITestCase):
         r = self.client.post('/api/config/exchange-rates/test-script/',
                              {'script': 'result = 5.55'}, format='json')
         self.assertEqual(r.status_code, 403)
+
+
+class ExchangeSSRFTest(SimpleTestCase):
+    """A-05 — a fonte de câmbio (link próprio + scripts) passa por safe_get, que
+    bloqueia destinos internos e não segue redirects."""
+
+    def test_blocks_loopback(self):
+        with self.assertRaises(ValueError):
+            safe_get('http://127.0.0.1/x')
+        with self.assertRaises(ValueError):
+            safe_get('http://localhost/x')
+
+    def test_blocks_cloud_metadata(self):
+        # 169.254.169.254 (metadata AWS/GCP) é link-local → bloqueado.
+        with self.assertRaises(ValueError):
+            safe_get('http://169.254.169.254/latest/meta-data/')
+
+    def test_blocks_non_http_scheme(self):
+        with self.assertRaises(ValueError):
+            safe_get('file:///etc/passwd')
+
+    def test_fetch_from_url_also_guarded(self):
+        # fetch_from_url (link próprio da moeda) usa a mesma proteção.
+        with self.assertRaises(ValueError):
+            fetch_from_url('http://127.0.0.1:8000/rate.json')
+
+    def test_redirects_are_disabled(self):
+        # Para um host público (passa no _check_url), o GET NÃO segue redirects.
+        with mock.patch.object(exchange_runner.requests, 'get') as m, \
+                mock.patch.object(exchange_runner, '_check_url', return_value=None):
+            safe_get('http://example.com/rate.json')
+            self.assertEqual(m.call_args.kwargs.get('allow_redirects'), False)

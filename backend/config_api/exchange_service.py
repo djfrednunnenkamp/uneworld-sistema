@@ -54,8 +54,13 @@ def _extract_rate(obj):
 
 def fetch_from_url(url):
     """Busca a taxa a partir do link próprio de uma moeda (JSON). Devolve Decimal
-    ou None se não conseguir ler um número."""
-    resp = requests.get(url, timeout=TIMEOUT)
+    ou None se não conseguir ler um número.
+
+    Usa safe_get (mesma proteção anti-SSRF dos scripts do sandbox): o link é
+    fornecido pelo usuário, então não pode virar um caminho para o Django buscar
+    endereços internos/metadata (A-05)."""
+    from .exchange_runner import safe_get
+    resp = safe_get(url, timeout=TIMEOUT)
     resp.raise_for_status()
     try:
         data = resp.json()

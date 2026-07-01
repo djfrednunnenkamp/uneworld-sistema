@@ -11,6 +11,7 @@ plano da Autentique.
 """
 import json
 import logging
+from urllib.parse import urljoin, urlparse
 
 import requests
 from django.conf import settings
@@ -19,6 +20,16 @@ logger = logging.getLogger(__name__)
 
 API_URL = 'https://api.autentique.com.br/v2/graphql'
 TIMEOUT = 40
+
+# Host OFICIAL da Autentique. Só enviamos o Bearer token para este host (exato ou
+# subdomínio .autentique.com.br) — nunca por substring "in url", que aceitaria
+# autentique.com.br.evil.com e vazaria o token (A-14).
+_AUTENTIQUE_HOST = 'autentique.com.br'
+
+
+def _is_autentique_host(url):
+    host = (urlparse(url).hostname or '').lower()
+    return host == _AUTENTIQUE_HOST or host.endswith('.' + _AUTENTIQUE_HOST)
 
 
 class AutentiqueError(Exception):
@@ -246,14 +257,50 @@ def signed_file_url(doc):
     return ((doc.get('files') or {}).get('signed')) or None
 
 
-def download(url):
-    """Baixa o PDF assinado. As URLs no domínio da Autentique exigem o token;
-    URLs de armazenamento (S3 etc.) já vêm pré-assinadas e são baixadas direto."""
-    headers = {}
-    if 'autentique.com.br' in url:
-        headers['Authorization'] = f'Bearer {_token()}'
+def _download_no_auth(url):
+    """Baixa uma URL SEM enviar o token (armazenamento pré-assinado, S3 etc.).
+    Sem credencial, seguir redirects é seguro."""
+    if urlparse(url).scheme not in ('http', 'https'):
+        raise AutentiqueError('URL de download inválida.')
     try:
-        resp = requests.get(url, headers=headers, timeout=TIMEOUT, allow_redirects=True)
+        resp = requests.get(url, timeout=TIMEOUT, allow_redirects=True)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise AutentiqueError(f'Falha ao baixar o PDF assinado: {e}')
+    return resp.content
+
+
+def download(url):
+    """Baixa o PDF assinado.
+
+    Segurança (A-14): o Bearer token só é enviado quando o host é EXATAMENTE o da
+    Autentique (validado por urlparse().hostname, não por substring). Ao enviar o
+    token, NÃO seguimos redirects — um 30x para outro host vazaria o token; nesse
+    caso seguimos o Location manualmente, já SEM o token (as URLs de storage vêm
+    pré-assinadas e não precisam dele)."""
+    if urlparse(url).scheme not in ('http', 'https'):
+        raise AutentiqueError('URL de download inválida.')
+
+    if not _is_autentique_host(url):
+        # Host não-oficial (ex.: S3 pré-assinado) — baixa direto, sem token.
+        return _download_no_auth(url)
+
+    try:
+        resp = requests.get(
+            url, headers={'Authorization': f'Bearer {_token()}'},
+            timeout=TIMEOUT, allow_redirects=False,   # nunca seguir redirect com o token
+        )
+    except requests.RequestException as e:
+        raise AutentiqueError(f'Falha ao baixar o PDF assinado da Autentique: {e}')
+
+    if resp.is_redirect or resp.is_permanent_redirect:
+        location = resp.headers.get('Location')
+        if not location:
+            raise AutentiqueError('Redirect sem destino ao baixar o PDF assinado.')
+        # Segue o redirect SEM o token (não vaza credencial para o destino).
+        return _download_no_auth(urljoin(url, location))
+
+    try:
         resp.raise_for_status()
     except requests.RequestException as e:
         raise AutentiqueError(f'Falha ao baixar o PDF assinado da Autentique: {e}')
