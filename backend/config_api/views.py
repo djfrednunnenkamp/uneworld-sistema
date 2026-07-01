@@ -862,6 +862,10 @@ class ItineraryTemplateSerializer(serializers.ModelSerializer):
         model = ConfigItineraryTemplate
         fields = ['id', 'kind', 'kind_display', 'name', 'content']
 
+    def validate_content(self, value):
+        from core.sanitize import sanitize_html
+        return sanitize_html(value)
+
 
 class ItineraryTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = ItineraryTemplateSerializer
@@ -1285,6 +1289,11 @@ class ContractClauseSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ContractClause
         fields = ['id', 'name', 'content', 'is_default', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+    def validate_content(self, value):
+        from core.sanitize import sanitize_html
+        return sanitize_html(value)
 
 
 class ContractClauseViewSet(viewsets.ModelViewSet):
@@ -1518,6 +1527,11 @@ class TermsAndConditionsSerializer(serializers.ModelSerializer):
     class Meta:
         model  = TermsAndConditions
         fields = ['content', 'updated_at']
+        read_only_fields = ['updated_at']
+
+    def validate_content(self, value):
+        from core.sanitize import sanitize_html
+        return sanitize_html(value)
 
 
 @api_view(['GET', 'PATCH'])

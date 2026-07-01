@@ -41,6 +41,11 @@ class ItinerarySerializer(serializers.ModelSerializer):
     accommodation_lines = ItineraryAccommodationLineSerializer(many=True, required=False)
     clauses_data        = serializers.SerializerMethodField()
 
+    def validate_custom_clauses(self, value):
+        # Sanitiza o HTML das cláusulas personalizadas antes de salvar (A-12).
+        from core.sanitize import sanitize_custom_clauses
+        return sanitize_custom_clauses(value)
+
     def get_clauses_data(self, obj):
         data = [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
         for cc in (obj.custom_clauses or []):

@@ -5,7 +5,7 @@ from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, Cre
 class DestinationSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Destination
-        fields = '__all__'
+        fields = ['id', 'name', 'country', 'description', 'image']
 
 
 class TripListSerializer(serializers.ModelSerializer):
@@ -28,7 +28,11 @@ class TripSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Trip
-        fields = '__all__'
+        fields = ['id', 'title', 'destination', 'destination_id', 'description',
+                  'departure_date', 'return_date', 'max_passengers', 'price_per_person',
+                  'status', 'itinerary', 'includes', 'excludes', 'enrolled_count',
+                  'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class EnrollmentSerializer(serializers.ModelSerializer):
@@ -37,7 +41,9 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Enrollment
-        fields = '__all__'
+        fields = ['id', 'trip', 'passenger', 'status', 'enrolled_at', 'notes',
+                  'passenger_name', 'trip_title']
+        read_only_fields = ['enrolled_at']
 
 
 # ── Lista de Passageiros ─────────────────────────────────────────────────────

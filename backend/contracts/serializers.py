@@ -171,6 +171,11 @@ class ContractSerializer(serializers.ModelSerializer):
         read_only_fields = ['autentique_document_id', 'autentique_data', 'reviewed_at', 'review_note',
                             'invoice_number', 'invoice_date', 'invoiced_at']
 
+    def validate_custom_clauses(self, value):
+        # Sanitiza o HTML das cláusulas personalizadas antes de salvar (A-12).
+        from core.sanitize import sanitize_custom_clauses
+        return sanitize_custom_clauses(value)
+
     def validate(self, attrs):
         # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado
         # (status='ativo' vindo no payload). Autosave/rascunho/prévia — que não

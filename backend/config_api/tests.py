@@ -113,3 +113,48 @@ class ExchangeSSRFTest(SimpleTestCase):
                 mock.patch.object(exchange_runner, '_check_url', return_value=None):
             safe_get('http://example.com/rate.json')
             self.assertEqual(m.call_args.kwargs.get('allow_redirects'), False)
+
+
+class HtmlSanitizeTest(SimpleTestCase):
+    """A-12 — sanitize_html remove script/handlers/iframe/javascript: e mantém
+    formatação básica."""
+    def test_strips_script_and_event_handlers(self):
+        from core.sanitize import sanitize_html
+        clean = sanitize_html('<p onclick="x()">oi<script>alert(1)</script>'
+                              '<img src=x onerror=alert(2)></p>')
+        self.assertNotIn('<script', clean.lower())
+        self.assertNotIn('onerror', clean.lower())
+        self.assertNotIn('onclick', clean.lower())
+        self.assertIn('oi', clean)
+
+    def test_blocks_javascript_url(self):
+        from core.sanitize import sanitize_html
+        self.assertNotIn('javascript:', sanitize_html('<a href="javascript:alert(1)">x</a>').lower())
+
+    def test_blocks_iframe_object_embed(self):
+        from core.sanitize import sanitize_html
+        clean = sanitize_html('<iframe src="//evil"></iframe><object></object><embed>hi')
+        self.assertNotIn('<iframe', clean.lower())
+        self.assertNotIn('<object', clean.lower())
+        self.assertNotIn('<embed', clean.lower())
+        self.assertIn('hi', clean)
+
+    def test_keeps_basic_formatting(self):
+        from core.sanitize import sanitize_html
+        clean = sanitize_html('<p><strong>Bold</strong></p><ul><li>a</li></ul>')
+        self.assertIn('<strong>', clean)
+        self.assertIn('<li>', clean)
+
+
+class ContractClauseSanitizeApiTest(APITestCase):
+    """A-12 — o HTML malicioso é sanitizado ao SALVAR pela API (não só na leitura)."""
+    def test_malicious_clause_content_is_sanitized_on_save(self):
+        self.client.force_authenticate(make_user('adm', superuser=True))
+        r = self.client.post('/api/config/contract-clauses/',
+                             {'name': 'C1', 'content': '<p>ok</p><script>alert(1)</script>'},
+                             format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        from config_api.models import ContractClause
+        saved = ContractClause.objects.get(id=r.data['id'])
+        self.assertNotIn('<script', saved.content.lower())
+        self.assertIn('ok', saved.content)

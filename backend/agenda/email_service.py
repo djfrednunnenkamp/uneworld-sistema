@@ -1,10 +1,14 @@
 """Envio de e-mails transacionais do calendário via Resend."""
 import html as html_lib
+import logging
 import resend
 from datetime import timedelta
 from django.conf import settings
 
 from ._logo import LOGO_CID, LOGO_B64_CONTENT, get_logo_src
+from core.logutils import mask_email
+
+logger = logging.getLogger(__name__)
 
 
 def _esc(value) -> str:
@@ -110,8 +114,9 @@ def _send(to, subject, html, email_type='other'):
     resend.api_key = settings.RESEND_API_KEY
     simulated = not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave')
 
+    masked = ', '.join(mask_email(t) for t in to_list)
     if simulated:
-        print(f"[EMAIL SIMULADO] {subject} → {to_str}")
+        logger.debug("E-mail simulado: %s → %s", subject, masked)
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
                                 html_body=html_preview, success=True)
         return True
@@ -136,7 +141,7 @@ def _send(to, subject, html, email_type='other'):
                                 resend_id=response.get('id'), status='sent')
         return True
     except Exception as e:
-        print(f"[RESEND ERROR] {e}")
+        logger.error("Falha ao enviar e-mail via Resend (%s): %s", masked, e)
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
                                 html_body=html_preview, success=False, status='failed')
         return False

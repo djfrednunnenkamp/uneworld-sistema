@@ -53,7 +53,8 @@ services:
     depends_on:
       - backend
     ports:
-      - "${HTTP_PORT:-80}:80"
+      # Host 80 → container 8080 (nginx roda não-root, escuta 8080). A-15
+      - "${HTTP_PORT:-80}:8080"
 
 volumes:
   db_data:

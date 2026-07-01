@@ -64,7 +64,22 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
 
     class Meta:
         model  = Passenger
-        fields = '__all__'
+        # Lista explícita (A-13) — sem '__all__'. Auditoria/soft-delete só-leitura.
+        fields = [
+            'id', 'first_name', 'last_name', 'full_name', 'email',
+            'email_emergency1', 'email_emergency2', 'native_language',
+            'other_languages', 'birth_date', 'birth_place', 'nationality',
+            'other_nationalities', 'gender', 'profession', 'is_foreign',
+            'is_verified', 'is_guide', 'cpf', 'rg', 'rg_issue_date', 'rg_issuer',
+            'passport', 'passport_country', 'passport_issue', 'passport_expiry',
+            'passport2', 'passport2_country', 'rne', 'rne_expiry', 'rne_issue',
+            'phone1', 'phone2', 'mobile', 'flight_class', 'seat_preference',
+            'seat_position', 'diet_type', 'diet_notes', 'receives_mail', 'cep',
+            'street', 'number', 'complement', 'neighborhood', 'city', 'state',
+            'country', 'status', 'notes', 'photo', 'agencies', 'agency_names',
+            'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
     def validate_email(self, value):
         return value or None

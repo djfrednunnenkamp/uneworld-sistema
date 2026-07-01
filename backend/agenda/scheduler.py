@@ -1,7 +1,10 @@
 """Loop em background que envia os e-mails de resumo/lembrete agendados pelos usuários."""
+import logging
 import threading
 import time
 from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 
 CHECK_INTERVAL = 3600  # 1 hora
 EXCHANGE_INTERVAL = 60  # 1 minuto — câmbio precisa de precisão de minutos
@@ -24,7 +27,7 @@ def _loop():
         try:
             run_once()
         except Exception as e:
-            print(f'[AGENDA SCHEDULER] erro: {e}')
+            logger.exception('[AGENDA SCHEDULER] erro no ciclo: %s', e)
         finally:
             # Threads de background não passam pelo ciclo de request do Django,
             # então a conexão fica aberta entre as iterações. Com SQLite isso
@@ -50,7 +53,7 @@ def _exchange_loop():
             from config_api.exchange_service import update_due
             update_due()
         except Exception as e:
-            print(f'[CÂMBIO SCHEDULER] erro: {e}')
+            logger.exception('[CÂMBIO SCHEDULER] erro no ciclo: %s', e)
         finally:
             connections.close_all()
         time.sleep(EXCHANGE_INTERVAL)

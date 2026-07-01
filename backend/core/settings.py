@@ -198,6 +198,24 @@ REST_FRAMEWORK = {
 DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 
+# Logging por módulo (A-15) — substitui os print() espalhados. Handler de console
+# no nível INFO: erros/avisos aparecem; o "e-mail simulado" fica em DEBUG (não
+# vaza destinatário em produção). Ajuste o nível por LOG_LEVEL no .env se precisar.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {'format': '[%(asctime)s] %(levelname)s %(name)s: %(message)s'},
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'standard'},
+    },
+    'root': {'handlers': ['console'], 'level': config('LOG_LEVEL', default='INFO')},
+    'loggers': {
+        'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+    },
+}
+
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
     default='http://localhost:5173,http://127.0.0.1:5173'
