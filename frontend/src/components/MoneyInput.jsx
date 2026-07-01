@@ -1,34 +1,22 @@
-import { useState } from 'react'
+import { useRef } from 'react'
 
-/* Campo de valor que mostra o número formatado no padrão BR (1.234,56) quando
- * não está em foco e, ao clicar fora (blur), aplica os pontos de milhar e a
- * vírgula decimal certos. Enquanto digita, deixa o usuário escrever à vontade
- * (vírgula ou ponto) e emite o valor canônico (ex.: "1234.56") para o estado —
- * assim toda a matemática que usa Number() continua funcionando igual. */
+/* Campo de valor com MÁSCARA AO VIVO (padrão BR): o usuário digita e o número
+ * já vai sendo formatado com ponto de milhar e vírgula decimal, preenchendo da
+ * direita pra esquerda (estilo moeda). Emite o valor canônico (ex.: "1234.56")
+ * para o estado — toda a matemática com Number() continua igual. */
 
 // "1.234,56" | "1234,56" | "1234.56" -> "1234.56" (ponto decimal, sem milhar)
 export function parseMoney(raw) {
   if (raw == null) return ''
   let s = String(raw).trim()
   if (!s) return ''
-  if (s.includes(',')) {
-    // vírgula é o separador decimal (BR) → remove os pontos de milhar
-    s = s.replace(/\./g, '').replace(',', '.')
-  }
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.')
   s = s.replace(/[^\d.]/g, '')
-  // mantém só o primeiro ponto decimal
   const parts = s.split('.')
   if (parts.length > 2) s = parts[0] + '.' + parts.slice(1).join('')
   if (s === '' || s === '.') return ''
   const n = Number(s)
   return Number.isFinite(n) ? String(n) : ''
-}
-
-// arredonda à precisão do campo, devolvendo o canônico ("100.555" -> "100.56")
-function roundCanonical(canonical, decimals) {
-  if (canonical === '' || canonical == null) return ''
-  const n = Number(canonical)
-  return Number.isFinite(n) ? String(Number(n.toFixed(decimals))) : ''
 }
 
 // "1234.56" -> "1.234,56"
@@ -40,33 +28,41 @@ export function formatMoney(value, { min = 2, max = 2 } = {}) {
 }
 
 export default function MoneyInput({ value, onChange, style, placeholder, minDecimals = 2, maxDecimals = 2, ...rest }) {
-  const [focused, setFocused] = useState(false)
-  const [text, setText] = useState('')
+  const ref = useRef(null)
+  const decimals = maxDecimals
+  const factor = 10 ** decimals
 
-  const display = focused ? text : formatMoney(value, { min: minDecimals, max: maxDecimals })
+  const display = formatMoney(value, { min: decimals, max: decimals })
+
+  const putCursorEnd = () => requestAnimationFrame(() => {
+    const el = ref.current
+    if (!el) return
+    const end = el.value.length
+    try { el.setSelectionRange(end, end) } catch { /* alguns tipos não suportam */ }
+  })
+
+  const handleChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '')
+    const num = Number(digits)
+    if (!digits || num === 0) {
+      onChange('')                       // vazio ou tudo zero → limpa
+    } else {
+      const n = num / factor
+      onChange(String(Number(n.toFixed(decimals))))
+    }
+    putCursorEnd()
+  }
 
   return (
     <input
       {...rest}
+      ref={ref}
       type="text"
-      inputMode="decimal"
+      inputMode="numeric"
       style={style}
       placeholder={placeholder}
       value={display}
-      onFocus={(e) => {
-        // edição livre: mostra com vírgula decimal e sem separador de milhar
-        setText(value === '' || value == null ? '' : String(value).replace('.', ','))
-        setFocused(true)
-      }}
-      onChange={(e) => {
-        const raw = e.target.value.replace(/[^\d.,]/g, '')
-        setText(raw)
-        onChange(roundCanonical(parseMoney(raw), maxDecimals))
-      }}
-      onBlur={() => {
-        setFocused(false)
-        onChange(roundCanonical(parseMoney(text), maxDecimals))
-      }}
+      onChange={handleChange}
     />
   )
 }

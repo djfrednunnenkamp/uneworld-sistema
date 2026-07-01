@@ -6,6 +6,7 @@ import Dropdown from '../components/Dropdown'
 import TagPicker from '../components/TagPicker'
 import RichTextEditor from '../components/RichTextEditor'
 import DatePicker from '../components/DatePicker'
+import MoneyInput from '../components/MoneyInput'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import usePersistedTab from '../hooks/usePersistedTab'
@@ -603,12 +604,12 @@ export default function ItineraryDetail() {
                     onChange={v => updateAccomLine(idx, { accommodation_type: v })} placeholder="Selecione a acomodação" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <input style={inp} type="number" step="0.01" value={line.value_per_person} disabled={!canEdit}
-                    onChange={e => updateAccomLine(idx, { value_per_person: e.target.value })} />
+                  <MoneyInput style={inp} value={line.value_per_person} disabled={!canEdit} placeholder="0,00"
+                    onChange={v => updateAccomLine(idx, { value_per_person: v })} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <input style={inp} type="number" step="0.01" value={line.taxes} disabled={!canEdit}
-                    onChange={e => updateAccomLine(idx, { taxes: e.target.value })} />
+                  <MoneyInput style={inp} value={line.taxes} disabled={!canEdit} placeholder="0,00"
+                    onChange={v => updateAccomLine(idx, { taxes: v })} />
                 </div>
                 <button type="button" onClick={() => removeAccomLine(idx)} disabled={!canEdit}
                   style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 6, border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', cursor: canEdit ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

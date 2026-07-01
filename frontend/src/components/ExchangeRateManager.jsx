@@ -7,6 +7,7 @@ import TimePicker from './TimePicker'
 import CodeEditor from './CodeEditor'
 import ConfirmModal from './ConfirmModal'
 import CsvImportPopup from './CsvImportPopup'
+import MoneyInput from './MoneyInput'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import { exportSectionCsv } from '../utils/sectionCsv'
 
@@ -186,8 +187,8 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
           </div>
           <div>
             <label style={lbl}>Taxa de mercado</label>
-            <input style={{ ...inp, width:'100%' }} type="number" step="0.0001" value={baseRate}
-              onChange={e => setBaseRate(e.target.value)} placeholder="5.30" />
+            <MoneyInput style={{ ...inp, width:'100%' }} value={baseRate} maxDecimals={4}
+              onChange={v => setBaseRate(v)} placeholder="5,3000" />
           </div>
           <div style={{ display:'flex', gap:12 }}>
             <div style={{ flex:1 }}>
