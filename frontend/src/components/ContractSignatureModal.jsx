@@ -97,20 +97,22 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           {/* Esquerda: documento / arquivo enviado */}
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #eef2f7' }}>
-            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0 }}>
+            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0, borderBottom: '1px solid #eef2f7' }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: '#475569' }}>{fileUrl ? 'Contrato assinado (enviado)' : 'Contrato'}</span>
               {docUrl && (
                 <a href={docUrl} download={`contrato_${contract.reservation_number || contract.id}.pdf`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12.5, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>
-                  <Ic n="dl" s={13} /> Baixar
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#1a2d4f', fontSize: 12.5, fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
+                  <Ic n="dl" s={14} /> Baixar PDF
                 </a>
               )}
             </div>
-            <div style={{ flex: 1, minHeight: 0, background: '#3f4651' }}>
-              {docStatus === 'loading' && !fileUrl && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: 13 }}>Gerando o documento…</div>}
-              {docStatus === 'error' && !fileUrl && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fca5a5', fontSize: 13 }}>Não foi possível gerar o documento.</div>}
-              {leftUrl && <SignedFileViewer url={leftUrl} />}
-            </div>
+            {leftUrl ? (
+              <SignedFileViewer url={leftUrl} />
+            ) : (
+              <div style={{ flex: 1, minHeight: 0, background: '#3f4651', display: 'flex', alignItems: 'center', justifyContent: 'center', color: docStatus === 'error' ? '#fca5a5' : '#cbd5e1', fontSize: 13 }}>
+                {docStatus === 'error' ? 'Não foi possível gerar o documento.' : 'Gerando o documento…'}
+              </div>
+            )}
           </div>
 
           {/* Direita: ações */}
