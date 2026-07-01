@@ -164,8 +164,12 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
   // do valor da comissão. % é sobre a comissão (100% = comissão inteira); R$/US$
   // limitados à comissão. Guardado como um único ajuste kind='comissao'.
   const commAdj   = adjustments.find(a => a.kind === 'comissao')
-  const commUnit  = commAdj ? commAdj.mode : 'percentual'   // 'percentual'|'valor'|'valor_brl'
-  const commValue = !commAdj ? '' : (commUnit === 'percentual' ? commAdj.percent : commUnit === 'valor_brl' ? commAdj.value_brl : commAdj.value_usd)
+  // A unidade fica em estado próprio — assim a troca (%, US$, R$) persiste mesmo
+  // sem valor digitado (antes ela era derivada do ajuste, que some quando vazio).
+  const [commUnit, setCommUnitState] = useState(() => commAdj?.mode || 'percentual')  // 'percentual'|'valor'|'valor_brl'
+  const commValue = (commAdj && commAdj.mode === commUnit)
+    ? (commUnit === 'percentual' ? commAdj.percent : commUnit === 'valor_brl' ? commAdj.value_brl : commAdj.value_usd)
+    : ''
   const commMaxBrl = commissionUsd * (rate || 0)
   // Trava o valor digitado ao teto (100% / valor da comissão em US$ ou R$).
   const clampComm = (unit, v) => {
@@ -186,7 +190,8 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
       value_usd: mode === 'valor' ? v : '', value_brl: mode === 'valor_brl' ? v : '', percent: mode === 'percentual' ? v : '',
     }]
   })
-  const setCommUnit  = (mode) => writeComm(mode, '')   // troca de unidade zera (tetos mudam)
+  // Troca de unidade: guarda a nova unidade e zera o valor (os tetos mudam).
+  const setCommUnit  = (mode) => { setCommUnitState(mode); setAdjustments(list => list.filter(a => a.kind !== 'comissao')) }
   const setCommValue = (v) => writeComm(commUnit, v)
   const COMM_UNIT_OPTS = [{ value: 'percentual', label: 'Percentual (%)' }, { value: 'valor', label: `Valor (${cur})` }, { value: 'valor_brl', label: 'Valor (R$)' }]
   // Desconto de comissão em USD (com teto) — pro "Efeito no total".
