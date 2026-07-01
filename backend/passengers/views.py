@@ -40,10 +40,25 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
             return PassengerListSerializer
         return PassengerSerializer
 
+    def get_queryset(self):
+        qs = super().get_queryset()   # aplica o filtro de soft-delete (is_deleted)
+        # Rascunhos são PRIVADOS de quem criou (listar/abrir/editar/descartar).
+        qs = qs.filter(~Q(status='rascunho') | Q(created_by=self.request.user))
+        # Na listagem, rascunhos ficam fora por padrão; ?status=rascunho traz só eles.
+        if self.action == 'list':
+            if self.request.query_params.get('status') == 'rascunho':
+                qs = qs.filter(status='rascunho')
+            else:
+                qs = qs.exclude(status='rascunho')
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('passengers_delete')()]
-        if self.action in ('create', 'update', 'partial_update'):
+        if self.action in ('create', 'update', 'partial_update', 'discard'):
             return [RequirePermission('passengers_edit')()]
         if self.action == 'merge':
             return [RequirePermission('passengers_edit')(), RequirePermission('passengers_delete')()]
@@ -62,7 +77,7 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         digits = re.sub(r'\D', '', cpf)
         passenger = Passenger.objects.filter(
             Q(cpf=cpf) | Q(cpf=digits), is_deleted=False
-        ).exclude(cpf='').first()
+        ).exclude(cpf='').exclude(status='rascunho').first()
         if passenger:
             name = (passenger.full_name or
                     f"{passenger.first_name} {passenger.last_name}".strip() or
@@ -74,6 +89,15 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
     def active(self, request):
         qs = self.get_queryset().filter(status='active')
         return Response(PassengerListSerializer(qs, many=True, context={'request': request}).data)
+
+    @action(detail=True, methods=['delete'], url_path='discard')
+    def discard(self, request, pk=None):
+        """Descarta um RASCUNHO de passageiro — apaga de vez (nunca foi real)."""
+        obj = self.get_object()
+        if obj.status != 'rascunho':
+            return Response({'error': 'Apenas rascunhos podem ser descartados.'}, status=400)
+        obj.delete()
+        return Response(status=204)
 
     @action(detail=True, methods=['get'], url_path='agencies')
     def agencies(self, request, pk=None):

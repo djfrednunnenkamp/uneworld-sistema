@@ -20,6 +20,7 @@ export const passengersApi = {
   restore:  (id)     => api.post(`/passengers/${id}/restore/`),
   purge:    (id)     => api.delete(`/passengers/${id}/purge/`),
   merge:    (data)   => api.post('/passengers/merge/', data),
+  discard:  (id)     => api.delete(`/passengers/${id}/discard/`),   // descarta rascunho
 }
 
 export const tripsApi = {
@@ -92,6 +93,7 @@ export const agenciesApi = {
   restore:       (id)     => api.post(`/agencies/${id}/restore/`),
   purge:         (id)     => api.delete(`/agencies/${id}/purge/`),
   merge:         (data)   => api.post('/agencies/merge/', data),
+  discard:       (id)     => api.delete(`/agencies/${id}/discard/`),   // descarta rascunho
   // Membros
   listMembers:   (id)              => api.get(`/agencies/${id}/members/`),
   addMember:     (id, email, role) => api.post(`/agencies/${id}/members/`, { email, role }),

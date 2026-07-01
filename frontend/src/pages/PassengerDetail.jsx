@@ -6,6 +6,7 @@ import axios from 'axios'
 import { passengersApi, documentsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
 import EmailInput from '../components/EmailInput'
@@ -811,11 +812,12 @@ export default function PassengerDetail() {
     }).catch(() => {})
   }, [])
 
+  const [draftMode, setDraftMode] = useState(isNew)   // autosave de rascunho ligado?
   /* load passenger data */
   useEffect(() => {
     if (!isNew) {
       passengersApi.get(id)
-        .then((r) => { setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] }); setIsDirty(false) })
+        .then((r) => { setForm({ ...EMPTY, ...r.data, agencies: r.data.agencies ?? [] }); setIsDirty(false); if (r.data.status === 'rascunho') setDraftMode(true) })
         .catch(() => { toast.error('Passageiro não encontrado.'); navigate('/passageiros') })
         .finally(() => setLoading(false))
     }
@@ -823,6 +825,26 @@ export default function PassengerDetail() {
 
   const isDirtyRef = useRef(isDirty)
   useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
+
+  /* Autosave de rascunho — só para cadastro novo ou rascunho aberto p/ continuar. */
+  const draftPayload = () => {
+    const { gender_custom, full_name, ...rest } = form
+    const p = { ...rest }
+    DATE_FIELDS.forEach(k => { if (p[k] === '' || p[k] === undefined) p[k] = null })
+    return p
+  }
+  const draftHasContent = (p) => {
+    const t = v => (v || '').toString().trim()
+    return !!(t(p.first_name) || t(p.last_name) || t(p.email) || t(p.cpf) || t(p.phone1) || t(p.birth_date) || t(p.city) || t(p.street))
+  }
+  const { savingState, draftRef, cancelTimer } = useDraftAutosave({
+    enabled: draftMode && !loading,
+    buildPayload: draftPayload,
+    hasContent: draftHasContent,
+    createDraft: (p) => passengersApi.create({ ...p, status: 'rascunho' }),
+    updateDraft: (id2, p) => passengersApi.update(id2, { ...p, status: 'rascunho' }),
+    initialId: isNew ? null : id,
+  })
 
   const silentReload = useCallback(() => {
     if (!isNew && !isDirtyRef.current) {
@@ -942,9 +964,23 @@ export default function PassengerDetail() {
     setSaving(true)
     try {
       const { gender_custom, full_name, ...rest } = form  // full_name calculado pelo backend
-      const payload = { ...rest }
+      // Finalizar: rascunho vira 'active'; passageiro já vivo mantém o status.
+      const finalStatus = (form.status === 'rascunho' || !form.status) ? 'active' : form.status
+      const payload = { ...rest, status: finalStatus }
       // Datas vazias → null
       DATE_FIELDS.forEach(k => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null })
+      // Se o autosave já criou um rascunho, finaliza esse mesmo registro.
+      cancelTimer()
+      const st = draftRef.current
+      while (st.saving) await new Promise(r => setTimeout(r, 80))
+      if (st.id) {
+        st.discarded = true
+        await passengersApi.update(st.id, payload)
+        toast.success('Passageiro salvo.')
+        setIsDirty(false); setSaving(false)
+        navigate(`/passageiros/${st.id}`)
+        return
+      }
       if (isNew) {
         const r = await passengersApi.create(payload)
         toast.success('Passageiro criado.')
@@ -1026,6 +1062,17 @@ export default function PassengerDetail() {
           {!isNew && <p className="det-subtitle">editar</p>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {draftMode ? (
+            <>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', background: '#ede9fe', border: '1px solid #ddd6fe', padding: '3px 10px', borderRadius: 20 }}>Rascunho</span>
+              {savingState !== 'idle' && (
+                <span style={{ fontSize: 12, color: savingState === 'saving' ? '#94a3b8' : '#16a34a', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Ic n={savingState === 'saving' ? 'clock' : 'check'} s={12} /> {savingState === 'saving' ? 'Salvando…' : 'Salvo automaticamente'}
+                </span>
+              )}
+              <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
+            </>
+          ) : (<>
           {/* Status do cadastro no header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
             <label style={{ fontSize: 12, color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>Status:</label>
@@ -1043,6 +1090,7 @@ export default function PassengerDetail() {
             </div>
           </div>
           <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
+          </>)}
           {!isNew && canViewLog && (
             <button className="btn btn-outline" onClick={() => navigate(`/log?passenger_id=${id}`)}>
               📋 Log

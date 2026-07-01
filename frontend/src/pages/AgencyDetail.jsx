@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { agenciesApi, usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import EmailInput from '../components/EmailInput'
@@ -382,10 +383,11 @@ export default function AgencyDetail() {
 
   const [tab, setTab] = usePersistedTab('tab_agency_detail', 'info')
 
+  const [draftMode, setDraftMode] = useState(isNew)   // autosave de rascunho ligado?
   useEffect(() => {
     if (!isNew) {
       agenciesApi.get(id)
-        .then(r => setForm({ ...EMPTY, ...r.data }))
+        .then(r => { setForm({ ...EMPTY, ...r.data }); if (r.data.status === 'rascunho') setDraftMode(true) })
         .catch(() => { toast.error('Agência não encontrada.'); navigate('/agencias') })
         .finally(() => setLoading(false))
     }
@@ -430,6 +432,21 @@ export default function AgencyDetail() {
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
+
+  /* Autosave de rascunho — só para cadastro novo ou rascunho aberto p/ continuar. */
+  const draftPayload = () => ({ ...form, commission_rate: form.commission_rate !== '' ? form.commission_rate : null })
+  const draftHasContent = (p) => {
+    const t = v => (v || '').toString().trim()
+    return !!(t(p.cnpj) || t(p.cpf) || t(p.name) || t(p.company_name) || t(p.last_name) || t(p.email) || t(p.phone) || t(p.mobile) || t(p.responsible) || t(p.notes))
+  }
+  const { savingState, draftRef, cancelTimer } = useDraftAutosave({
+    enabled: draftMode && !loading,
+    buildPayload: draftPayload,
+    hasContent: draftHasContent,
+    createDraft: (p) => agenciesApi.create({ ...p, status: 'rascunho' }),
+    updateDraft: (id2, p) => agenciesApi.update(id2, { ...p, status: 'rascunho' }),
+    initialId: isNew ? null : id,
+  })
 
   /* Auto-limpa erros quando o campo é preenchido */
   useEffect(() => {
@@ -555,10 +572,24 @@ export default function AgencyDetail() {
     setFieldErrors({})
     setSaving(true)
     try {
-      // commission_rate vazio → null (evita erro no DecimalField do backend)
+      // Finalizar: rascunho vira 'active'; agência já viva mantém o status escolhido.
+      const finalStatus = (form.status === 'rascunho' || !form.status) ? 'active' : form.status
       const payload = {
         ...form,
         commission_rate: form.commission_rate !== '' ? form.commission_rate : null,
+        status: finalStatus,
+      }
+      // Se o autosave já criou um rascunho, finaliza esse mesmo registro.
+      cancelTimer()
+      const st = draftRef.current
+      while (st.saving) await new Promise(r => setTimeout(r, 80))
+      if (st.id) {
+        st.discarded = true   // não autosave depois de finalizar
+        await agenciesApi.update(st.id, payload)
+        toast.success('Agência salva.')
+        setIsDirty(false); setSaving(false)
+        navigate(`/agencias/${st.id}`, { replace: true })
+        return
       }
       if (isNew) {
         const r = await agenciesApi.create(payload)
@@ -612,16 +643,27 @@ export default function AgencyDetail() {
           {!isNew && <button className="link-btn" onClick={() => navigate('/agencias')} style={{ fontSize: 12, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>editar</button>}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Status:</span>
-            <div style={{ width: 140 }}>
-              <FormSelect
-                value={form.status}
-                onChange={v => { setForm(f => ({ ...f, status: v })); setIsDirty(true) }}
-                options={STATUS_OPTS}
-              />
+          {draftMode ? (
+            <>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', background: '#ede9fe', border: '1px solid #ddd6fe', padding: '3px 10px', borderRadius: 20 }}>Rascunho</span>
+              {savingState !== 'idle' && (
+                <span style={{ fontSize: 12, color: savingState === 'saving' ? '#94a3b8' : '#16a34a', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Ic n={savingState === 'saving' ? 'clock' : 'check'} s={12} /> {savingState === 'saving' ? 'Salvando…' : 'Salvo automaticamente'}
+                </span>
+              )}
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, color: '#64748b' }}>Status:</span>
+              <div style={{ width: 140 }}>
+                <FormSelect
+                  value={form.status}
+                  onChange={v => { setForm(f => ({ ...f, status: v })); setIsDirty(true) }}
+                  options={STATUS_OPTS}
+                />
+              </div>
             </div>
-          </div>
+          )}
           {!isNew && canViewLog && (
             <button className="btn btn-outline" onClick={() => navigate(`/log?agency_id=${id}`)}>
               📋 Log

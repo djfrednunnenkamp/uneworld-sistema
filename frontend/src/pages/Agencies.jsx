@@ -7,6 +7,7 @@ import DelModal from '../components/DelModal'
 import TrashRowActions from '../components/TrashRowActions'
 import MergeModal from '../components/MergeModal'
 import NewAgencyModal from '../components/NewAgencyModal'
+import DraftsPopup from '../components/DraftsPopup'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -267,6 +268,8 @@ export default function Agencies() {
   const [showTrash, setShowTrash] = useState(false)
   const [deletedRows, setDeletedRows] = useState([])
   const [mergeRows, setMergeRows] = useState(null)
+  const [draftRows, setDraftRows] = useState([])
+  const [showDrafts, setShowDrafts] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -279,11 +282,16 @@ export default function Agencies() {
     if (!canDelete) return
     agenciesApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
   }, [canDelete])
+  const loadDrafts = useCallback(() => {
+    if (!canEdit) return
+    agenciesApi.list({ status: 'rascunho' }).then(r => setDraftRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canEdit])
   useEffect(() => { load() }, [])
   useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+  useEffect(() => { loadDrafts() }, [loadDrafts])
   const deletedCount = deletedRows.length
   const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
-  const reloadAll = () => { load(); loadDeleted() }
+  const reloadAll = () => { load(); loadDeleted(); loadDrafts() }
 
   const silentReload = useCallback(() => {
     agenciesApi.list()
@@ -353,6 +361,13 @@ export default function Agencies() {
           cols={COLS}
           searchKeys={['name', 'company_name', 'email', 'cnpj', 'city', 'phone']}
           extraFilters={filterBar}
+          headerExtra={(canEdit && draftRows.length > 0) ? (
+            <button type="button" onClick={() => setShowDrafts(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 8, border: '1px solid #ddd6fe', background: '#faf5ff', color: '#7c3aed', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Ic n="edit" s={14} /> Rascunhos
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed' }}>{draftRows.length}</span>
+            </button>
+          ) : undefined}
           onAdd={canEdit && !showTrash ? () => setShowNew(true) : undefined}
           onLog={canViewLog ? () => navigate('/log?scope=agencies') : undefined}
           onView={(row) => setViewRow(row)}
@@ -398,6 +413,17 @@ export default function Agencies() {
         />
       )}
       {showNew && <NewAgencyModal onClose={() => setShowNew(false)} />}
+      {showDrafts && (
+        <DraftsPopup
+          title="Rascunhos de agências"
+          drafts={draftRows}
+          getLabel={(d) => [d.company_name, d.name && `${d.name} ${d.last_name || ''}`.trim(), d.cnpj || d.cpf].filter(Boolean).join('  ·  ')}
+          getSubtitle={(d) => `${d.person_type === 'fisica' ? 'Física' : 'Jurídica'}${d.email ? `  ·  ${d.email}` : ''}`}
+          onResume={(d) => { setShowDrafts(false); navigate(`/agencias/${d.id}`) }}
+          onDiscard={async (d) => { await agenciesApi.discard(d.id).catch(() => toast.error('Erro ao excluir rascunho.')); loadDrafts() }}
+          onClose={() => setShowDrafts(false)}
+        />
+      )}
       {delRow && (
         <DelModal name={delRow.company_name || delRow.name} onOk={handleDelete} onCancel={() => setDelRow(null)} recoverable />
       )}

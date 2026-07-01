@@ -58,10 +58,16 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         many=True, queryset=Agency.objects.all(), required=False
     )
     agency_names = serializers.SerializerMethodField()
+    # E-mail opcional (rascunho pode não ter). Guardamos '' como None para não
+    # colidir no unique (vários NULL são permitidos; vários '' não seriam).
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model  = Passenger
         fields = '__all__'
+
+    def validate_email(self, value):
+        return value or None
 
     def get_agency_names(self, obj):
         def _name(a):

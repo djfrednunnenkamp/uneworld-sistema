@@ -7,6 +7,7 @@ class Agency(models.Model):
         ('active',   'Ativa'),
         ('pending',  'Pendente'),
         ('inactive', 'Inativa'),
+        ('rascunho', 'Rascunho'),
     ]
     AGENCY_TYPE_CHOICES = [
         ('agencia',       'Agência'),
@@ -73,6 +74,8 @@ class Agency(models.Model):
     # Observações
     notes = models.TextField('Observações', blank=True)
 
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='agencies_created', verbose_name='Criado por')
     created_at = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at = models.DateTimeField('Atualizado em', auto_now=True)
 

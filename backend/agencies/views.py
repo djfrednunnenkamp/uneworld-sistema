@@ -36,10 +36,26 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
     def get_serializer_class(self):
         return AgencyListSerializer if self.action == 'list' else AgencySerializer
 
+    def get_queryset(self):
+        from django.db.models import Q
+        qs = super().get_queryset()   # aplica o filtro de soft-delete (is_deleted)
+        # Rascunhos são PRIVADOS de quem criou (listar/abrir/editar/descartar).
+        qs = qs.filter(~Q(status='rascunho') | Q(created_by=self.request.user))
+        # Na listagem, rascunhos ficam fora por padrão; ?status=rascunho traz só eles.
+        if self.action == 'list':
+            if self.request.query_params.get('status') == 'rascunho':
+                qs = qs.filter(status='rascunho')
+            else:
+                qs = qs.exclude(status='rascunho')
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('agencies_delete')()]
-        if self.action in ('create', 'update', 'partial_update'):
+        if self.action in ('create', 'update', 'partial_update', 'discard'):
             return [RequirePermission('agencies_edit')()]
         if self.action == 'merge':
             return [RequirePermission('agencies_edit')(), RequirePermission('agencies_delete')()]
@@ -61,11 +77,21 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             return Response({'error': 'CNPJ não informado.'}, status=400)
         digits = re.sub(r'\D', '', cnpj)
         from django.db.models import Q
-        agency = Agency.objects.filter(Q(cnpj=cnpj) | Q(cnpj=digits), is_deleted=False).exclude(cnpj='').first()
+        agency = (Agency.objects.filter(Q(cnpj=cnpj) | Q(cnpj=digits), is_deleted=False)
+                  .exclude(cnpj='').exclude(status='rascunho').first())
         if agency:
             name = agency.company_name or agency.name or f'Agência #{agency.pk}'
             return Response({'exists': True, 'id': agency.id, 'name': name})
         return Response({'exists': False})
+
+    @action(detail=True, methods=['delete'], url_path='discard')
+    def discard(self, request, pk=None):
+        """Descarta um RASCUNHO de agência — apaga de vez (nunca foi real)."""
+        obj = self.get_object()
+        if obj.status != 'rascunho':
+            return Response({'error': 'Apenas rascunhos podem ser descartados.'}, status=400)
+        obj.delete()
+        return Response(status=204)
 
     # ── Membros ──────────────────────────────────────────────────────────────
 

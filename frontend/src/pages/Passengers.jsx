@@ -10,6 +10,7 @@ import DelModal from '../components/DelModal'
 import TrashRowActions from '../components/TrashRowActions'
 import MergeModal from '../components/MergeModal'
 import NewPassengerModal from '../components/NewPassengerModal'
+import DraftsPopup from '../components/DraftsPopup'
 import PassengerDocsPopup from '../components/PassengerDocsPopup'
 import PassengerPreviewModal from '../components/PassengerPreviewModal'
 import { dashboardWsUrl } from '../utils/ws'
@@ -197,6 +198,8 @@ export default function Passengers() {
   const [mergeRows, setMergeRows] = useState(null)
   const [showTrash, setShowTrash] = useState(false)
   const [deletedRows, setDeletedRows] = useState([])
+  const [draftRows, setDraftRows] = useState([])
+  const [showDrafts, setShowDrafts] = useState(false)
   const navigate                  = useNavigate()
   const { user } = useAuth()
   const perms      = user?.permissions ?? {}
@@ -237,13 +240,19 @@ export default function Passengers() {
     passengersApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
   }, [canDelete])
 
+  const loadDrafts = useCallback(() => {
+    if (!canEdit) return
+    passengersApi.list({ status: 'rascunho' }).then(r => setDraftRows(r.data.results ?? r.data)).catch(() => {})
+  }, [canEdit])
+
   useEffect(() => { load() }, [])
 
   useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+  useEffect(() => { loadDrafts() }, [loadDrafts])
 
   const deletedCount = deletedRows.length
   const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
-  const reloadAll = () => { load(); loadDeleted() }
+  const reloadAll = () => { load(); loadDeleted(); loadDrafts() }
   const getLabel = (row) => row.full_name || `#${row.id}`
 
   const wsUrl = user ? dashboardWsUrl() : null
@@ -385,6 +394,13 @@ export default function Passengers() {
         cols={cols}
         searchKeys={['full_name','email','cpf','phone1']}
         extraFilters={filterBar}
+        headerExtra={(canEdit && draftRows.length > 0) ? (
+          <button type="button" onClick={() => setShowDrafts(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 8, border: '1px solid #ddd6fe', background: '#faf5ff', color: '#7c3aed', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Ic n="edit" s={14} /> Rascunhos
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed' }}>{draftRows.length}</span>
+          </button>
+        ) : undefined}
         onAdd={(!showTrash && canEdit && canFull) ? () => setShowNew(true) : undefined}
         onLog={canViewLog ? () => navigate('/log?scope=passengers') : undefined}
         onDocs={(!showTrash && canDocs) ? (row) => setDocsRow(row) : undefined}
@@ -436,6 +452,17 @@ export default function Passengers() {
         <DelModal name={delRow.full_name} onOk={handleDelete} onCancel={() => setDelRow(null)} recoverable />
       )}
       {showNew && <NewPassengerModal onClose={() => setShowNew(false)} />}
+      {showDrafts && (
+        <DraftsPopup
+          title="Rascunhos de passageiros"
+          drafts={draftRows}
+          getLabel={(d) => `${d.full_name || `${d.first_name || ''} ${d.last_name || ''}`.trim()}`.trim()}
+          getSubtitle={(d) => [d.city, d.nationality, d.is_foreign ? 'Estrangeiro' : null].filter(Boolean).join('  ·  ')}
+          onResume={(d) => { setShowDrafts(false); navigate(`/passageiros/${d.id}`) }}
+          onDiscard={async (d) => { await passengersApi.discard(d.id).catch(() => toast.error('Erro ao excluir rascunho.')); loadDrafts() }}
+          onClose={() => setShowDrafts(false)}
+        />
+      )}
       {docsRow && <PassengerDocsPopup passenger={docsRow} onClose={() => setDocsRow(null)} />}
     </>
   )
