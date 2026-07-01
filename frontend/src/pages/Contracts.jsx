@@ -835,7 +835,7 @@ export default function Contracts() {
               let stageAction = null
               if (canReview && stage === 'revisao') stageAction = actBtn('Revisar contrato', 'check', '#7c3aed', () => setReviewId(row.id))
               else if (canInvoice && stage === 'a_faturar') stageAction = actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id))
-              else if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row), sendingIds.has(row.id))
+              else if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'feather', '#2563eb', () => handleSend(row), sendingIds.has(row.id))
               else if (canEdit && stage === 'enviado') stageAction = (
                 row.signature_type === 'digital' ? (
                   <>

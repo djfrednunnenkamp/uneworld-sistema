@@ -2112,7 +2112,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           footerExtra={(loadedStage === 'em_edicao' && onPublish) ? (
             <button type="button" onClick={() => onPublish(contractId)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: 'none', background: '#059669', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Ic n="mail" s={14} /> Enviar para assinatura
+              <Ic n="feather" s={14} /> Enviar para assinatura
             </button>
           ) : null}
         />
