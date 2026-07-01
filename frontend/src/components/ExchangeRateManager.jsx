@@ -465,7 +465,8 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
             </button>
           )}
           {onRunNow && (
-            <button onClick={() => setConfirmRun(true)} disabled={running} style={btnCsv('#0284c7')} title="Forçar a atualização automática agora (sem esperar o horário)">
+            <button onClick={() => setConfirmRun(true)} disabled={running} title="Forçar a atualização automática agora (sem esperar o horário)"
+              style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'none', background:'#0284c7', color:'#fff', fontSize:12.5, fontWeight:600, cursor: running ? 'default' : 'pointer', fontFamily:'inherit', opacity: running ? .6 : 1, boxShadow:'0 1px 2px rgba(2,132,199,.3)' }}>
               <Ic n="clock" s={13} /> {running ? 'Atualizando…' : 'Atualizar câmbio agora'}
             </button>
           )}
