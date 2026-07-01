@@ -1,4 +1,5 @@
 import os
+import logging
 
 from rest_framework import viewsets, filters, status as http_status
 from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
@@ -13,6 +14,8 @@ from users_api.permissions import RequirePermission
 from . import autentique
 from .models import Contract
 from .serializers import ContractListSerializer, ContractSerializer
+
+logger = logging.getLogger(__name__)
 
 
 def _contract_signers(contract):
@@ -47,6 +50,13 @@ def _contract_signers(contract):
             signers.append(a_signer)
         else:
             missing.append(f'agência ({ag.name or ag.company_name})')
+
+    # CEO (assinatura automática): entra como signatário oficial por e-mail — é a
+    # conta dona do token que assina via API logo após a criação do documento.
+    from config_api.models import OperatingCompany
+    oc = OperatingCompany.get()
+    if oc.ceo_auto_sign_enabled:
+        signers.append({'action': 'SIGN', 'email': oc.ceo_email.strip()})
 
     return signers, missing
 
@@ -225,6 +235,17 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 doc = autentique.create_document(name, pdf.read(), signers)
             except autentique.AutentiqueError as e:
                 return Response({'error': str(e)}, status=http_status.HTTP_502_BAD_GATEWAY)
+            # Assinatura automática do CEO (se configurada): assina como a conta
+            # do token dele, logo após a criação. Best-effort — se falhar, o
+            # documento segue e o CEO ainda pode assinar pelo link.
+            from config_api.models import OperatingCompany
+            oc = OperatingCompany.get()
+            if oc.ceo_auto_sign_enabled and doc.get('id'):
+                try:
+                    autentique.sign_document(doc['id'], token=oc.ceo_autentique_token.strip())
+                    doc = autentique.get_document(doc['id'])   # reflete a assinatura do CEO
+                except autentique.AutentiqueError:
+                    logger.warning('Falha na assinatura automática do CEO no doc %s', doc.get('id'))
             contract.autentique_document_id = doc.get('id') or ''
             _apply_autentique_state(contract, doc, save=False)
             contract.stage = 'enviado'

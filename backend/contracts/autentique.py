@@ -71,10 +71,11 @@ def _format_graphql_errors(errors):
     return '; '.join(p for p in parts if p) or 'erro desconhecido'
 
 
-def _graphql(query, variables, upload=None):
+def _graphql(query, variables, upload=None, token=None):
     """Executa uma operação GraphQL. Quando há arquivo, usa o protocolo
-    graphql-multipart-request (operations + map + arquivo)."""
-    headers = {'Authorization': f'Bearer {_token()}'}
+    graphql-multipart-request (operations + map + arquivo). `token` permite
+    autenticar como OUTRA conta (ex.: assinar automaticamente pelo CEO)."""
+    headers = {'Authorization': f'Bearer {token or _token()}'}
     try:
         if upload is not None:
             filename, content, mime = upload
@@ -199,6 +200,18 @@ def get_document(document_id):
     if not doc:
         raise AutentiqueError('Documento não encontrado na Autentique.')
     return doc
+
+
+_SIGN_DOCUMENT = 'mutation SignDocument($id: UUID!) { signDocument(id: $id) }'
+
+
+def sign_document(document_id, token):
+    """Assina o documento AUTOMATICAMENTE pela conta dona do `token` (ex.: o CEO).
+    A Autentique assina como o detentor do token, que precisa estar listado como
+    signatário do documento (senão retorna `signature_not_found`)."""
+    if not document_id or not token:
+        raise AutentiqueError('Documento ou token do CEO ausente para a assinatura automática.')
+    _graphql(_SIGN_DOCUMENT, {'id': document_id}, token=token)
 
 
 _DELETE_DOCUMENT = 'mutation DeleteDocument($id: UUID!) { deleteDocument(id: $id) }'

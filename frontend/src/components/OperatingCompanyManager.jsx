@@ -28,6 +28,7 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
   const [form, setForm] = useState({
     company_name: '', cnpj: '', seller: '', phone: '', mobile: '', email: '', address: '',
     default_signature_type: 'fisica',
+    ceo_name: '', ceo_email: '', ceo_autentique_token: '', ceo_auto_sign: false,
   })
 
   useEffect(() => {
@@ -38,6 +39,8 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
           company_name: d.company_name ?? '', cnpj: d.cnpj ?? '', seller: d.seller ?? '',
           phone: d.phone ?? '', mobile: d.mobile ?? '', email: d.email ?? '', address: d.address ?? '',
           default_signature_type: d.default_signature_type ?? 'fisica',
+          ceo_name: d.ceo_name ?? '', ceo_email: d.ceo_email ?? '',
+          ceo_autentique_token: d.ceo_autentique_token ?? '', ceo_auto_sign: !!d.ceo_auto_sign,
         })
       })
       .catch(() => toast.error('Erro ao carregar dados da operadora.'))
@@ -140,6 +143,40 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
           })}
         </div>
         <p style={{ fontSize:11, color:'#94a3b8', margin:'5px 0 0' }}>Padrão para contratos novos — cada contrato pode mudar no topo do formulário.</p>
+      </div>
+
+      {/* Assinatura automática do CEO (Autentique) */}
+      <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'14px', background:'#f8fafc' }}>
+        <label style={{ display:'flex', alignItems:'flex-start', gap:9, cursor: canEdit ? 'pointer' : 'not-allowed' }}>
+          <input type="checkbox" checked={form.ceo_auto_sign} disabled={!canEdit}
+            onChange={e => setForm(f => ({ ...f, ceo_auto_sign: e.target.checked }))}
+            style={{ width:16, height:16, marginTop:1, accentColor:'#1a2d4f', cursor: canEdit ? 'pointer' : 'not-allowed', flexShrink:0 }} />
+          <span>
+            <span style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>Assinar automaticamente pelo CEO (contratos digitais)</span>
+            <span style={{ display:'block', fontSize:11.5, color:'#94a3b8', marginTop:2 }}>
+              O CEO entra como signatário oficial e o sistema assina por ele na Autentique ao enviar. Requer o e-mail da conta Autentique dele e o token de assinatura.
+            </span>
+          </span>
+        </label>
+        {form.ceo_auto_sign && (
+          <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display:'flex', gap:12 }}>
+              <div style={{ flex:1 }}>
+                <label style={lbl}>Nome do CEO</label>
+                <input style={{ ...inp, width:'100%' }} value={form.ceo_name} onChange={set('ceo_name')} disabled={!canEdit} placeholder="Neil ..." />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={lbl}>E-mail (conta Autentique)</label>
+                <EmailInput style={{ ...inp, width:'100%' }} value={form.ceo_email} onChange={v => set('ceo_email')({ target: { value: v } })} disabled={!canEdit} />
+              </div>
+            </div>
+            <div>
+              <label style={lbl}>Token de assinatura da Autentique (do CEO)</label>
+              <input style={{ ...inp, width:'100%', fontFamily:'ui-monospace, Menlo, monospace' }} value={form.ceo_autentique_token} onChange={set('ceo_autentique_token')} disabled={!canEdit} placeholder="token da API da conta do CEO" />
+              <p style={{ fontSize:11, color:'#94a3b8', margin:'4px 0 0' }}>É o token da API da Autentique da conta do CEO — é ele que assina o documento automaticamente.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {canEdit && (

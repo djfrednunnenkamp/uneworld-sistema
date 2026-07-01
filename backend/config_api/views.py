@@ -1481,7 +1481,9 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model  = OperatingCompany
         fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address',
-                  'default_signature_type', 'updated_at']
+                  'default_signature_type',
+                  'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign',
+                  'updated_at']
 
 
 @api_view(['GET', 'PATCH'])

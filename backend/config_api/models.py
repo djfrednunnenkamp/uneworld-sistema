@@ -453,7 +453,18 @@ class OperatingCompany(models.Model):
     SIGNATURE_CHOICES = [('fisica', 'Física (imprimir e assinar)'), ('digital', 'Digital')]
     default_signature_type = models.CharField('Assinatura padrão dos contratos', max_length=10,
                                               choices=SIGNATURE_CHOICES, default='fisica')
+    # Assinatura digital automática do CEO: ele entra como signatário oficial e o
+    # sistema assina por ele via API da Autentique (signDocument com o token dele).
+    ceo_name              = models.CharField('CEO — nome', max_length=200, blank=True)
+    ceo_email             = models.EmailField('CEO — e-mail (conta Autentique)', blank=True)
+    ceo_autentique_token  = models.CharField('CEO — token de assinatura (Autentique)', max_length=255, blank=True)
+    ceo_auto_sign         = models.BooleanField('Assinar automaticamente pelo CEO nos contratos digitais', default=False)
     updated_at     = models.DateTimeField('Atualizado em', auto_now=True)
+
+    @property
+    def ceo_auto_sign_enabled(self):
+        """Só habilita quando ligado E com e-mail + token do CEO preenchidos."""
+        return bool(self.ceo_auto_sign and (self.ceo_email or '').strip() and (self.ceo_autentique_token or '').strip())
 
     class Meta:
         verbose_name = 'Dados da operadora'
