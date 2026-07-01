@@ -108,26 +108,23 @@ def _rates_for(row, global_rates):
 def _apply_rates(row, data):
     """Aplica as taxas calculadas na linha (em memória, antes do save).
 
-    - Só `market`: vira a taxa de mercado; o acréscimo à vista/parcelado é
-      aplicado por cima no save() (comportamento padrão).
-    - `a_vista`/`parcelado` explícitos: têm precedência e definem direto as
-      taxas efetivas; o acréscimo equivalente é derivado p/ refletir na UI e
-      sobreviver a um save manual posterior."""
+    - Só `market`: vira a taxa de mercado; o acréscimo à vista/parcelado que o
+      usuário definiu é aplicado por cima no save() (comportamento padrão).
+    - `a_vista`/`parcelado` explícitos: definem DIRETO as taxas efetivas.
+
+    O acréscimo (markup) é SEMPRE definido pelo usuário — nunca é alterado
+    automaticamente aqui."""
     market = data.get('market')
     a_vista = data.get('a_vista')
     parcelado = data.get('parcelado')
     base = market if market is not None else a_vista
     if base is not None:
         row.base_rate = base
-    # Valores explícitos do script têm precedência sobre o markup neste save.
+    # Valores explícitos do script têm precedência sobre o markup neste save
+    # (aplicados direto no save() via estes atributos voláteis), sem mexer no
+    # acréscimo configurado pelo usuário.
     row._script_a_vista = a_vista
     row._script_parcelado = parcelado
-    # Deriva o acréscimo equivalente (markup) p/ a UI e saves manuais futuros.
-    if row.base_rate:
-        if a_vista is not None:
-            row.markup_percent = ((a_vista / row.base_rate) - 1) * 100
-        if parcelado is not None:
-            row.markup_percent_installment = ((parcelado / row.base_rate) - 1) * 100
 
 
 def pull_all_from_internet():
@@ -147,8 +144,7 @@ def pull_all_from_internet():
         if not data:
             continue
         _apply_rates(row, data)
-        row.save(update_fields=['base_rate', 'rate', 'rate_installment',
-                                'markup_percent', 'markup_percent_installment', 'updated_at'])
+        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'updated_at'])
         updated += 1
     # Cria as que faltam (a partir da API global)
     for code, brl in global_rates.items():
@@ -198,7 +194,6 @@ def update_due(now=None, force=False):
             continue
         _apply_rates(row, data)
         row.last_auto_update = today
-        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'markup_percent',
-                                'markup_percent_installment', 'last_auto_update', 'updated_at'])
+        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'last_auto_update', 'updated_at'])
         n += 1
     return n
