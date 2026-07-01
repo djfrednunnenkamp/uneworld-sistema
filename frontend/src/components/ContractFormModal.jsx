@@ -12,6 +12,7 @@ import MoneyInput from './MoneyInput'
 import EmailInput from './EmailInput'
 import ContractPdfPreviewModal from './ContractPdfPreviewModal'
 import ContractViewModal from './ContractViewModal'
+import LeaveGuardModal from './LeaveGuardModal'
 import RichTextEditor from './RichTextEditor'
 import { Ic } from './Icon'
 import { usePrefs } from '../context/PrefsContext'
@@ -466,6 +467,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [layout, setLayout] = useState(isEdit ? contractEditLayout : contractCreateLayout)
   const [showPreview, setShowPreview] = useState(false)
   const [showOverview, setShowOverview] = useState(false)   // popup de visão geral (read-only)
+  const [leavePrompt, setLeavePrompt] = useState(false)     // aviso "sair sem salvar" ao clicar fora
   const [previewData, setPreviewData] = useState(null)
   const [loadedStage, setLoadedStage] = useState('em_edicao')
   const [reviewNote, setReviewNote] = useState('')   // motivo da reprovação (quando voltou da revisão)
@@ -1203,6 +1205,34 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     onClose()
   }
 
+  // Todos os obrigatórios preenchidos? (mesma regra do validateRequired, sem toast)
+  const isComplete = () => !!form.agency && (!!form.contratante || !!payer.payer_name.trim())
+
+  // Há trabalho em andamento (rascunho criado ou algo preenchido)?
+  const contractHasContent = () => {
+    if (autosaveRef.current.id) return true
+    const p = buildPayload()
+    const txt = v => (v || '').toString().trim()
+    return !!(p.agency || p.itinerary || p.contratante || txt(p.payer_name) || txt(p.payer_document) ||
+      txt(p.payer_phone) || txt(p.payer_email) || txt(p.payer_address) || (p.guests && p.guests.length) ||
+      (p.accommodation_lines && p.accommodation_lines.length) || (p.installments && p.installments.length) ||
+      (p.adjustments && p.adjustments.length) || (p.custom_clauses && p.custom_clauses.length) ||
+      txt(p.package_name) || p.departure_date || p.return_date || txt(p.departure_airport) || txt(p.observations))
+  }
+
+  // Clique fora: contrato novo com conteúdo → pergunta; senão fecha direto.
+  const requestClose = () => {
+    if (!isEdit && contractHasContent()) setLeavePrompt(true)
+    else onClose()
+  }
+
+  // "Salvar no rascunho": garante o autosave da versão atual e fecha (mantém o rascunho).
+  const saveDraftAndClose = async () => {
+    setSaving(true)
+    try { clearTimeout(autosaveTimerRef.current); await runAutosave(JSON.stringify(buildPayload())) }
+    finally { setSaving(false); setLeavePrompt(false); onClose() }
+  }
+
   // Autosave silencioso (sem validar, sem fechar). `snap` = JSON do payload no
   // instante em que o debounce disparou — usado direto pra evitar closures velhas.
   const runAutosave = async (snap) => {
@@ -1381,7 +1411,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   }
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    <div onClick={e => { if (e.target === e.currentTarget) requestClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
         style={{ position: 'relative', background: '#fff', borderRadius: 12, width: '100%', maxWidth: 920, maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)' }}>
@@ -2141,6 +2171,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       )}
       {showOverview && isEdit && (
         <ContractViewModal contractId={contractId} canEdit={false} zIndex={620} onClose={() => setShowOverview(false)} />
+      )}
+      {leavePrompt && (
+        <LeaveGuardModal
+          entity="contrato"
+          saving={saving}
+          onStay={() => setLeavePrompt(false)}
+          onDiscard={() => { setLeavePrompt(false); handleCancel() }}
+          onSaveDraft={saveDraftAndClose}
+          onSave={isComplete() ? () => { setLeavePrompt(false); handleSaveClick() } : undefined}
+        />
       )}
       {clauseEditor && (
         <CustomClauseModal
