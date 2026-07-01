@@ -2043,6 +2043,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {layout === 'steps' && <span style={{ fontSize: 12, color: '#94a3b8' }}>Passo {step + 1} de {STEPS.length}</span>}
+            {/* Salvar — à esquerda de Voltar; nos passos intermediários salva/finaliza direto. */}
+            {(layout === 'steps' && step < lastStep) && (
+              <button type="button" onClick={handleSaveClick} disabled={saving || loading}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: '1px solid #16a34a', background: '#fff', color: '#16a34a', fontSize: 13, fontWeight: 600, cursor: (saving || loading) ? 'default' : 'pointer', fontFamily: 'inherit', opacity: (saving || loading) ? .6 : 1 }}>
+                <Ic n="check" s={13} /> {saving ? 'Salvando…' : (isEdit ? 'Salvar' : 'Finalizar')}
+              </button>
+            )}
             {layout === 'steps' && step > 0 && (
               <button type="button" onClick={() => setStep(s => s - 1)} disabled={saving}
                 style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -2050,16 +2057,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               </button>
             )}
             {(layout === 'steps' && step < lastStep) ? (
-              <>
-                <button type="button" onClick={handleSaveClick} disabled={saving || loading}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7, border: '1px solid #16a34a', background: '#fff', color: '#16a34a', fontSize: 13, fontWeight: 600, cursor: (saving || loading) ? 'default' : 'pointer', fontFamily: 'inherit', opacity: (saving || loading) ? .6 : 1 }}>
-                  <Ic n="check" s={13} /> {saving ? 'Salvando…' : (isEdit ? 'Salvar' : 'Finalizar')}
-                </button>
-                <button type="button" onClick={() => setStep(s => Math.min(s + 1, lastStep))}
-                  style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Próximo <Ic n="chevron" s={13} />
-                </button>
-              </>
+              <button type="button" onClick={() => setStep(s => Math.min(s + 1, lastStep))}
+                style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Próximo <Ic n="chevron" s={13} />
+              </button>
             ) : (
               <button onClick={handleSaveClick} disabled={saving || loading} style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Ic n="check" s={13} />{saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Finalizar contrato'}
