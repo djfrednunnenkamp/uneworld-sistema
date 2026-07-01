@@ -284,6 +284,7 @@ export const configApi = {
   delExchangeRate:   (id)   => api.delete(`/config/exchange-rates/${id}/`),
   pullExchangeInternet: () => api.post('/config/exchange-rates/pull-internet/'),
   runExchangeNow:       () => api.post('/config/exchange-rates/run-now/'),
+  updateExchangeRateNow: (id) => api.post(`/config/exchange-rates/${id}/update-now/`),
   exchangeDefaultTime:    () => api.get('/config/exchange-rates/default-time/'),
   setExchangeDefaultTime: (t) => api.post('/config/exchange-rates/default-time/', { default_update_time: t }),
   testExchangeScript:     (script) => api.post('/config/exchange-rates/test-script/', { script }),

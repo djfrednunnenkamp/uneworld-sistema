@@ -965,7 +965,7 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm(
         'settings_exchange_rates',
         extra_write=['test_script'],
-        action_perms={'pull_internet': 'advanced', 'default_time': 'advanced', 'run_now': 'update_now'},
+        action_perms={'pull_internet': 'advanced', 'default_time': 'advanced', 'run_now': 'update_now', 'update_one': 'update_now'},
     )
 
     def get_queryset(self):
@@ -997,6 +997,26 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
             return Response({'error': f'Não foi possível atualizar agora: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)
         return Response({'updated': n})
+
+    @action(detail=True, methods=['post'], url_path='update-now')
+    def update_one(self, request, pk=None):
+        """Atualiza UMA moeda agora, pela fonte configurada nela (script, link
+        próprio ou API global). Não mexe no acréscimo definido pelo usuário."""
+        row = self.get_object()
+        from .exchange_service import _rates_for, _apply_rates, fetch_brl_rates
+        try:
+            need_global = not (row.script or '').strip() and not row.source_url
+            global_rates = fetch_brl_rates() if need_global else {}
+            data = _rates_for(row, global_rates)
+            if not data:
+                return Response({'error': 'Não foi possível obter a taxa desta moeda agora.'},
+                                status=status.HTTP_502_BAD_GATEWAY)
+            _apply_rates(row, data)
+            row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'updated_at'])
+        except Exception as e:
+            return Response({'error': f'Não foi possível atualizar: {e}'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        return Response(self.get_serializer(row).data)
 
     @action(detail=False, methods=['post'], url_path='test-script')
     def test_script(self, request):

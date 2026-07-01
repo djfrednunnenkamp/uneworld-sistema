@@ -387,7 +387,7 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
 }
 
 /* ── Lista de câmbios — usada para preencher automaticamente os contratos ── */
-export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, canScript = false, canAdvanced = true, canRounding = true, onAdd, onUpdate, onDelete, onPullInternet, onRunNow }) {
+export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, canScript = false, canAdvanced = true, canRounding = true, onAdd, onUpdate, onDelete, onPullInternet, onRunNow, onUpdateOne }) {
   const navigate = useNavigate()
   const [search,  setSearch]  = useState('')
   const [modal,   setModal]   = useState(null) // null | 'new' | item
@@ -398,6 +398,7 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
   const [pulling, setPulling] = useState(false)
   const [confirmRun, setConfirmRun] = useState(false)
   const [running, setRunning] = useState(false)
+  const [updatingId, setUpdatingId] = useState(null)
   const [showDefaultTime, setShowDefaultTime] = useState(false)
   const [defaultTime, setDefaultTime] = useState('')
   const [savingDT, setSavingDT] = useState(false)
@@ -412,6 +413,12 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
     setRunning(true)
     try { await onRunNow?.(); setConfirmRun(false) }
     finally { setRunning(false) }
+  }
+
+  const handleUpdateOne = async (id) => {
+    setUpdatingId(id)
+    try { await onUpdateOne?.(id) }
+    finally { setUpdatingId(null) }
   }
 
   const openDefaultTime = async () => {
@@ -554,8 +561,15 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
                   <> · {Number(item.rate_installment).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}<span style={{ fontSize:11, color:'#94a3b8' }}> parcelado</span></>
                 )}
               </span>
-              {(canEdit || canDelete) && (
+              {(canEdit || canDelete || onUpdateOne) && (
                 <div className="r-acts" style={{ flexShrink:0, justifySelf:'flex-end' }}>
+                  {onUpdateOne && (
+                    <button className="r-btn" title="Atualizar esta moeda da internet agora"
+                      disabled={updatingId === item.id} onClick={() => handleUpdateOne(item.id)}
+                      style={{ color:'#0284c7', opacity: updatingId === item.id ? .5 : 1 }}>
+                      <Ic n="rotate" s={13}/>
+                    </button>
+                  )}
                   {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => setModal(item)}><Ic n="edit"  s={13}/></button>}
                   {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => setDelItem(item)}><Ic n="trash" s={13}/></button>}
                 </div>
