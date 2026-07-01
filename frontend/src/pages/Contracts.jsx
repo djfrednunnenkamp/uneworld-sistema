@@ -12,6 +12,7 @@ import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
 import ContractReviewModal from '../components/ContractReviewModal'
 import ContractInvoiceModal from '../components/ContractInvoiceModal'
 import SendSignatureModal from '../components/SendSignatureModal'
+import ContractSignatureModal from '../components/ContractSignatureModal'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
@@ -431,6 +432,7 @@ export default function Contracts() {
   const [reviewId, setReviewId] = useState(null)     // id do contrato em revisão (abre popup)
   const [invoiceId, setInvoiceId] = useState(null)   // id do contrato p/ faturar (abre popup)
   const [sendRow, setSendRow] = useState(null)       // contrato p/ confirmar envio à assinatura
+  const [signRow, setSignRow] = useState(null)       // contrato p/ o popup de assinatura (enviado)
   const [signedUrl, setSignedUrl] = useState(null)   // url do assinado em visualização
   const [previewId, setPreviewId] = useState(null)   // contrato p/ pré-visualizar o PDF gerado
 
@@ -816,9 +818,8 @@ export default function Contracts() {
         onAdd={canEdit && (tab === 'em_edicao' || tab === 'geral') ? () => setModal('new') : undefined}
         onDocs={tab === 'trash' ? undefined : handleDocs}
         showDocs={(row) =>
-          // Enviado: sempre dá para ver online (física = ver/imprimir; digital = só ver).
-          row.stage === 'enviado' ? true
-          : ['assinado', 'revisao', 'aprovado', 'a_faturar', 'faturado'].includes(row.stage) ? !!row.signed_file
+          // Enviado: o documento é visto/baixado dentro do popup de Assinatura.
+          ['assinado', 'revisao', 'aprovado', 'a_faturar', 'faturado'].includes(row.stage) ? !!row.signed_file
           : false}
         docsTitle={['assinado', 'revisao', 'aprovado', 'a_faturar', 'faturado'].includes(tab) ? 'Ver contrato assinado'
           : 'Ver contrato'}
@@ -830,10 +831,17 @@ export default function Contracts() {
             : (row) => {
               // Na aba Geral cada linha segue a SUA própria etapa; nas demais, a aba.
               const stage = tab === 'geral' ? row.stage : tab
+              // "Para assinatura": só 3 ações — Assinatura (popup), Visão geral, Excluir.
+              if (stage === 'enviado' && canEdit) {
+                return (
+                  <>
+                    {actBtn('Assinatura', 'feather', '#2563eb', () => setSignRow(row))}
+                    {actBtn('Visão geral', 'eye', '#475569', () => setViewId(row.id))}
+                  </>
+                )
+              }
               const editable = canEdit && stage === 'em_edicao'
-              // Ícone primário: editável → lápis (entra na edição); senão → olho
-              // (visão geral, read-only). A visão geral também abre por um botão
-              // dentro do formulário.
+              // Ícone primário: editável → lápis (entra na edição); senão → olho.
               const primary = editable
                 ? actBtn('Editar contrato', 'edit', '#1a2d4f', () => setModal(row.id))
                 : actBtn('Visão geral', 'eye', '#475569', () => setViewId(row.id))
@@ -842,19 +850,6 @@ export default function Contracts() {
               if (canReview && stage === 'revisao') stageAction = actBtn('Revisar contrato', 'check', '#7c3aed', () => setReviewId(row.id))
               else if (canInvoice && stage === 'a_faturar') stageAction = actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id))
               else if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'feather', '#2563eb', () => setSendRow(row), sendingIds.has(row.id))
-              else if (canEdit && stage === 'enviado') stageAction = (
-                row.signature_type === 'digital' ? (
-                  <>
-                    {actBtn(checkingIds.has(row.id) ? 'Verificando...' : 'Verificar assinatura', 'check', '#2563eb', () => handleCheckSignature(row), checkingIds.has(row.id))}
-                    {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
-                  </>
-                ) : (
-                  <>
-                    {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
-                    {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
-                  </>
-                )
-              )
               return <>{primary}{stageAction}</>
             }}
         onDelete={tab !== 'trash' && canDelete ? (row) => setDelRow(row) : undefined}
@@ -887,10 +882,19 @@ export default function Contracts() {
           onClose={() => { if (!sendingIds.has(sendRow.id)) setSendRow(null) }}
         />
       )}
+      {signRow && (
+        <ContractSignatureModal
+          contract={signRow}
+          onViewDoc={() => setPreviewId(signRow.id)}
+          onReopen={() => { const r = signRow; setSignRow(null); setReopenRow(r) }}
+          onDone={(nextTab) => { setSignRow(null); if (nextTab) setTab(nextTab); reloadAll() }}
+          onClose={() => setSignRow(null)}
+        />
+      )}
       {viewId && (
         <ContractViewModal
           contractId={viewId}
-          canEdit={canEdit && !['a_faturar', 'faturado'].includes((rows.find(r => r.id === viewId) || {}).stage)}
+          canEdit={canEdit && !['enviado', 'revisao', 'a_faturar', 'faturado'].includes((rows.find(r => r.id === viewId) || {}).stage)}
           onClose={() => setViewId(null)}
           onEdit={() => { const id = viewId; setViewId(null); setModal(id) }}
           onViewLog={canViewLog ? () => navigate(`/log?contract_id=${viewId}`) : undefined}
