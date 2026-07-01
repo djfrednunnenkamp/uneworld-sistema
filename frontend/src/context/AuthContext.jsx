@@ -32,9 +32,9 @@ export function AuthProvider({ children }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           auditApi.refineLoginLocation(pos.coords.latitude, pos.coords.longitude)
-            .catch(err => console.warn('[geo] falha ao enviar localização pro backend:', err))
+            .catch(err => { if (import.meta.env.DEV) console.warn('[geo] falha ao enviar localização:', err) })
         },
-        (err) => console.warn('[geo] navigator.geolocation falhou:', err.code, err.message),
+        (err) => { if (import.meta.env.DEV) console.warn('[geo] navigator.geolocation falhou:', err.code, err.message) },
         { timeout: 8000, maximumAge: 60000 }
       )
     }

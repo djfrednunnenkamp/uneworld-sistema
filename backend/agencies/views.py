@@ -132,6 +132,13 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
 
         if not user:
             return Response({'error': 'Usuário não encontrado.'}, status=404)
+        # A-08: o cadastro de membros exige só `agencies_edit` e aceita user_id/
+        # email arbitrários. Membro de agência é informativo (não concede acesso),
+        # mas mesmo assim NÃO deixamos anexar contas privilegiadas (staff/super)
+        # por ID arbitrário — só um superusuário pode fazer isso. Evita usar a rota
+        # para referenciar/vincular contas admin sem uma permissão forte.
+        if (user.is_staff or user.is_superuser) and not request.user.is_superuser:
+            return Response({'error': 'Você não tem permissão para adicionar este usuário.'}, status=403)
         if agency.members.filter(user=user).exists():
             return Response({'error': 'Usuário já pertence a esta agência.'}, status=400)
         m = AgencyMember.objects.create(agency=agency, user=user, role=role)

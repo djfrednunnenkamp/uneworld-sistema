@@ -1,11 +1,54 @@
 """A-13 — serializers com lista explícita de campos e auditoria/soft-delete só
-leitura. Alterar is_deleted/created_at direto pelo payload deve ser ignorado."""
+leitura. Alterar is_deleted/created_at direto pelo payload deve ser ignorado.
+A-08 — cadastro de membro de agência não anexa conta privilegiada por user_id."""
+from django.contrib.auth.models import User
 from django.test import TestCase
+from rest_framework.test import APITestCase
 
 from agencies.models import Agency
 from agencies.serializers import AgencySerializer
 from trips.models import Destination, Trip
 from trips.serializers import TripSerializer
+from users_api.models import UserPermissions
+
+
+def _make_user(username, superuser=False, staff=False, **perms):
+    u = User.objects.create_user(username=username, email=f'{username}@x.com', password='pw12345678')
+    if superuser:
+        u.is_superuser = True; u.is_staff = True; u.save()
+    elif staff:
+        u.is_staff = True; u.save()
+    p, _ = UserPermissions.objects.get_or_create(user=u)
+    for k, v in perms.items():
+        setattr(p, k, v)
+    p.save()
+    return u
+
+
+class AgencyMemberAddTest(APITestCase):
+    """A-08 — quem tem só agencies_edit não pode anexar conta staff/superuser."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.editor = _make_user('editor', agencies_edit=True)
+        self.regular = _make_user('regular')
+        self.privileged = _make_user('adminacct', staff=True)
+
+    def _post(self, target):
+        return self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                                {'user_id': target.id, 'role': 'operator'}, format='json')
+
+    def test_editor_cannot_attach_staff_account(self):
+        self.client.force_authenticate(self.editor)
+        self.assertEqual(self._post(self.privileged).status_code, 403)
+        self.assertFalse(self.agency.members.filter(user=self.privileged).exists())
+
+    def test_editor_can_attach_regular_user(self):
+        self.client.force_authenticate(self.editor)
+        self.assertEqual(self._post(self.regular).status_code, 201)
+
+    def test_superuser_can_attach_staff_account(self):
+        self.client.force_authenticate(_make_user('root', superuser=True))
+        self.assertEqual(self._post(self.privileged).status_code, 201)
 
 
 class SerializerReadOnlyFieldsTest(TestCase):

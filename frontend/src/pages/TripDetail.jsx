@@ -1032,7 +1032,7 @@ function PrintModal({ list, enrollments, accomTypes, busMap, onClose }) {
       const sections = availableRows.filter(r => opts[r.key]).map(r => r.label)
       listsApi.logDownload(list.id, formato, sections).catch(() => {})
     } catch (err) {
-      console.error(err)
+      if (import.meta.env.DEV) console.error(err)   // F-08: sem vazar erro em produção
       toast.error(`Erro ao gerar ${formato.toUpperCase()}.`)
     } finally {
       setGenerating(false)
@@ -4142,7 +4142,7 @@ function CsvImportModal({ listId, onImported, onClose }) {
         toast.success(`${data.added} passageiro(s) adicionado(s) à lista.`)
       }
     } catch (err) {
-      console.error(err)
+      if (import.meta.env.DEV) console.error(err)   // F-08: sem vazar erro em produção
       toast.error(err?.response?.data?.error || 'Erro ao importar CSV.')
     } finally {
       setLoading(false)
