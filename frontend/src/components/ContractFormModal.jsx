@@ -205,6 +205,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
         <div className="mbody">
           {commissionPct > 0 && (
           <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '11px 12px', margin: '0 0 12px' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#5b21b6', marginBottom: 8 }}>Desconto da comissão</div>
             <div style={{ fontSize: 12.5, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
               <Ic n="briefcase" s={13} />
               <span>Comissão da agência: <strong>{commissionPct.toLocaleString('pt-BR')}%</strong> ({cur} {fmt(commissionUsd)}), já embutida. Abaixo, abata a sua comissão (no máximo o valor dela):</span>
