@@ -266,7 +266,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
                 <div key={i} style={{ border: '1px solid #e6eaf1', borderRadius: 10, padding: 12, background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <input style={{ ...inp, flex: 1 }} value={a.description} onChange={e => update(i, 'description', e.target.value)}
-                      placeholder="Descrição (ex: Taxa de embarque, Desconto fidelidade…)" />
+                      placeholder="Descrição (ex: Seguro extra, Passeio opcional…)" />
                     <button type="button" onClick={() => remove(i)} title="Remover"
                       onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
                       onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}
