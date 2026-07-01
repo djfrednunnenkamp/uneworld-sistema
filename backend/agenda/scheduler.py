@@ -35,7 +35,15 @@ def _loop():
 
 def _exchange_loop():
     """Verifica de minuto em minuto os câmbios com atualização automática, para
-    honrar o horário (HH:MM) configurado em cada um."""
+    honrar o horário (HH:MM) configurado em cada um.
+
+    Este é o ÚNICO caminho não-superusuário em que scripts customizados de câmbio
+    executam (include_scripts=True, padrão). É intencional e seguro: o campo
+    `script` só pode ser escrito por superusuário (ExchangeRateSerializer) e roda
+    no sandbox (RestrictedPython + subprocesso isolado + anti-SSRF). Ou seja, o
+    agendador só executa código previamente aprovado por um superusuário — nunca
+    conteúdo injetado por um usuário comum. O disparo MANUAL de scripts continua
+    restrito a superusuário (run_now/update_one em config_api/views.py)."""
     from django.db import connections
     while True:
         try:

@@ -989,10 +989,14 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='run-now')
     def run_now(self, request):
         """Força a atualização automática AGORA — atualiza todas as moedas com
-        auto-atualização ligada (script/link/API), sem esperar o horário."""
+        auto-atualização ligada (script/link/API), sem esperar o horário.
+
+        Script customizado = execução de código no servidor (privilégio sensível):
+        só superusuário dispara scripts. Um não-superusuário atualiza apenas as
+        moedas de fonte simples (link/API); as com script são puladas."""
         from .exchange_service import update_due
         try:
-            n = update_due(force=True)
+            n = update_due(force=True, include_scripts=request.user.is_superuser)
         except Exception as e:
             return Response({'error': f'Não foi possível atualizar agora: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)
@@ -1003,7 +1007,11 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
         """Atualiza UMA moeda agora, pela fonte configurada nela (script, link
         próprio ou API global). Não mexe no acréscimo definido pelo usuário."""
         row = self.get_object()
-        from .exchange_service import _rates_for, _apply_rates, fetch_brl_rates
+        from .exchange_service import _rates_for, _apply_rates, fetch_brl_rates, _has_script
+        # Script customizado roda código no servidor — só superusuário dispara.
+        if _has_script(row) and not request.user.is_superuser:
+            return Response({'error': 'Apenas superusuário pode atualizar uma moeda com script customizado.'},
+                            status=status.HTTP_403_FORBIDDEN)
         try:
             need_global = not (row.script or '').strip() and not row.source_url
             global_rates = fetch_brl_rates() if need_global else {}

@@ -485,6 +485,17 @@ def user_purge(request, pk):
     return Response(status=204)
 
 
+def _can_target_user(actor, target):
+    """Fronteira de privilégio para ações sensíveis sobre OUTRA conta (redefinir
+    senha / enviar reset). Um não-superusuário NUNCA pode mexer numa conta
+    superusuário — senão bastaria ter users_set_password/manage_users para
+    resetar a senha de um admin e assumir a conta (escalada de privilégio).
+    Apenas superusuário age sobre superusuário."""
+    if actor.is_superuser:
+        return True
+    return not target.is_superuser
+
+
 def _log_user_action(actor, target_user, action):
     from audit.models import AuditLog
     from audit.middleware import get_current_ip
@@ -507,6 +518,8 @@ def admin_send_reset(request, pk):
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    if not _can_target_user(request.user, user):
+        return Response({'error': 'Você não tem permissão para esta ação.'}, status=403)
     token = PasswordResetToken.objects.create(user=user)
     url   = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
     send_reset_password(user.email, user.first_name, url)
@@ -522,6 +535,8 @@ def admin_set_password(request, pk):
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    if not _can_target_user(request.user, user):
+        return Response({'error': 'Você não tem permissão para esta ação.'}, status=403)
     admin_password = request.data.get('admin_password', '')
     if not request.user.check_password(admin_password):
         return Response({'error': 'Sua senha está incorreta.'}, status=400)

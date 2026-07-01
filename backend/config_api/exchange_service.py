@@ -83,6 +83,16 @@ def fetch_brl_rates():
     return out
 
 
+def _has_script(row):
+    """True se a linha tem um script Python customizado associado.
+
+    Script customizado == EXECUÇÃO DE CÓDIGO no servidor (mesmo sandboxed) e por
+    isso é um privilégio sensível: só superusuário escreve (serializer) e só
+    superusuário dispara manualmente (run_now/update_one). O agendador executa
+    esses scripts automaticamente, mas apenas conteúdo escrito por superusuário."""
+    return bool((row.script or '').strip())
+
+
 def _rates_for(row, global_rates):
     """Taxas de uma linha (dict {'market','a_vista','parcelado'} ou None).
 
@@ -154,12 +164,16 @@ def pull_all_from_internet():
     return created, updated
 
 
-def update_due(now=None, force=False):
+def update_due(now=None, force=False, include_scripts=True):
     """Atualiza os câmbios com auto_update cujo horário (próprio ou o geral) já
     chegou hoje e que ainda não foram atualizados hoje. Roda no agendador.
 
     Com force=True atualiza AGORA todas as moedas com auto_update ligado,
-    ignorando horário e a marca de "já atualizado hoje" (botão manual)."""
+    ignorando horário e a marca de "já atualizado hoje" (botão manual).
+
+    include_scripts=False pula as moedas com script customizado (execução de
+    código no servidor) — usado quando quem dispara não é superusuário. O
+    agendador e o disparo manual por superusuário usam include_scripts=True."""
     from django.utils import timezone
     from .models import ConfigExchangeRate, ConfigExchangeSettings
     now = now or timezone.localtime()
@@ -172,6 +186,10 @@ def update_due(now=None, force=False):
 
     due = []
     for row in candidates:
+        # Script customizado só executa para quem tem privilégio (superusuário /
+        # agendador). Para os demais a moeda é silenciosamente ignorada aqui.
+        if not include_scripts and _has_script(row):
+            continue
         if force:
             due.append(row)
             continue

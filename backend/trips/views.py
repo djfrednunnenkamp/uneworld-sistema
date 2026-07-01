@@ -15,11 +15,36 @@ from .serializers import (
 )
 
 
+def _rbac(view=(), write=(), delete=()):
+    """Factory de get_permissions RBAC — mesmo padrão de PassengerListViewSet e do
+    _settings_perm de config_api: cada ação exige QUALQUER uma das permissões do
+    conjunto correspondente (superusuário sempre passa). Sem isto os ViewSets
+    caíam no default global IsAuthenticated, liberando CRUD (inclusive DELETE) a
+    qualquer usuário logado.
+
+    Fornecedores/adicionais/roteiros/tripulação são catálogos globais que também
+    são criados/removidos pelo popup de edição de lista (ListModal) — por isso os
+    conjuntos de escrita/exclusão incluem lists_edit/roteiros_edit além da
+    permissão específica de Configurações, para não quebrar esse fluxo."""
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [RequirePermission(*delete)()]
+        if self.action in ('create', 'update', 'partial_update'):
+            return [RequirePermission(*write)()]
+        return [RequirePermission(*view)()]
+    return get_permissions
+
+
 class DestinationViewSet(viewsets.ModelViewSet):
     queryset         = Destination.objects.all()
     serializer_class = DestinationSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name', 'country']
+    get_permissions  = _rbac(
+        view=['settings_destinations_view', 'lists_view', 'manage_settings'],
+        write=['settings_destinations_edit', 'manage_settings'],
+        delete=['settings_destinations_delete', 'manage_settings'],
+    )
 
 
 class TripViewSet(viewsets.ModelViewSet):
@@ -28,6 +53,11 @@ class TripViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields   = ['title', 'destination__name', 'destination__country']
     ordering_fields = ['departure_date', 'created_at', 'price_per_person']
+    get_permissions = _rbac(
+        view=['lists_view', 'manage_settings'],
+        write=['lists_edit', 'manage_settings'],
+        delete=['lists_delete', 'manage_settings'],
+    )
 
     def get_serializer_class(self):
         return TripListSerializer if self.action == 'list' else TripSerializer
@@ -38,6 +68,11 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     serializer_class = EnrollmentSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['passenger__full_name', 'trip__title']
+    get_permissions  = _rbac(
+        view=['lists_view', 'manage_settings'],
+        write=['lists_edit', 'manage_settings'],
+        delete=['lists_delete', 'manage_settings'],
+    )
 
 
 # ── Lista de Passageiros ─────────────────────────────────────────────────────
@@ -54,6 +89,11 @@ class SupplierViewSet(viewsets.ModelViewSet):
     serializer_class = SupplierSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name']
+    get_permissions  = _rbac(
+        view=['lists_view', 'roteiros_view', 'manage_settings'],
+        write=['lists_edit', 'roteiros_edit', 'manage_settings'],
+        delete=['lists_edit', 'roteiros_edit', 'manage_settings'],
+    )
 
 
 class ListAdditionalViewSet(viewsets.ModelViewSet):
@@ -61,6 +101,11 @@ class ListAdditionalViewSet(viewsets.ModelViewSet):
     serializer_class = ListAdditionalSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name']
+    get_permissions  = _rbac(
+        view=['settings_list_additionals_view', 'lists_view', 'manage_settings'],
+        write=['settings_list_additionals_edit', 'lists_edit', 'manage_settings'],
+        delete=['settings_list_additionals_delete', 'lists_edit', 'manage_settings'],
+    )
 
 
 class CrewRoleViewSet(viewsets.ModelViewSet):
@@ -68,6 +113,11 @@ class CrewRoleViewSet(viewsets.ModelViewSet):
     serializer_class = CrewRoleSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name']
+    get_permissions  = _rbac(
+        view=['settings_crew_roles_view', 'lists_view', 'manage_settings'],
+        write=['settings_crew_roles_edit', 'lists_edit', 'manage_settings'],
+        delete=['settings_crew_roles_delete', 'lists_edit', 'manage_settings'],
+    )
 
 
 class RoteiroViewSet(viewsets.ModelViewSet):
@@ -75,6 +125,11 @@ class RoteiroViewSet(viewsets.ModelViewSet):
     serializer_class = RoteiroSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name']
+    get_permissions  = _rbac(
+        view=['roteiros_view', 'lists_view', 'manage_settings'],
+        write=['roteiros_edit', 'lists_edit', 'manage_settings'],
+        delete=['roteiros_delete', 'lists_edit', 'manage_settings'],
+    )
 
 
 class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
