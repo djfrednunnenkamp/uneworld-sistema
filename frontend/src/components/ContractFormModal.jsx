@@ -177,7 +177,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
     const n = Number(v)
     if (!Number.isFinite(n) || n <= 0) return v
     if (unit === 'percentual')  return n > 100 ? '100' : v
-    if (unit === 'valor')       return n > commissionUsd ? String(round2(commissionUsd)) : v
+    if (unit === 'valor')       return (commissionUsd && n > commissionUsd) ? String(round2(commissionUsd)) : v
     if (unit === 'valor_brl')   return (commMaxBrl && n > commMaxBrl) ? String(round2(commMaxBrl)) : v
     return v
   }
