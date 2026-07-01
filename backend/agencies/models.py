@@ -85,6 +85,16 @@ class Agency(models.Model):
         verbose_name_plural = 'Agências'
         ordering            = ['name']
 
+    def save(self, *args, **kwargs):
+        # Guarda só o documento do tipo de pessoa atual: ao trocar jurídica ↔ física,
+        # o documento antigo (CNPJ/CPF) some — senão ele fica "órfão" ocupando o
+        # valor e bloqueia cadastrar outra agência com o mesmo número.
+        if self.person_type == 'fisica':
+            self.cnpj = ''
+        elif self.person_type == 'juridica':
+            self.cpf = ''
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.company_name or self.name or f'Agência #{self.pk}'
 
