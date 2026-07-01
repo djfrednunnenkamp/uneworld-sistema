@@ -365,7 +365,10 @@ export const usersApi = {
   setPassword:    (id, password, adminPassword) => api.post(`/users/${id}/set-password/`, { password, admin_password: adminPassword }),
   forgotPassword: (email)  => api.post('/users/forgot-password/', { email }),
   resetPassword:  (token, password) => api.post('/users/reset-password/', { token, password }),
-  validateInvite: (token)  => api.get(`/users/invite/validate/?token=${token}`),
+  // Valida o token de reset no carregamento da página (F-07). POST → token no body.
+  validateResetToken: (token) => api.post('/users/reset-password/validate/', { token }),
+  // F-01: token no BODY (POST), nunca em query string.
+  validateInvite: (token)  => api.post('/users/invite/validate/', { token }),
   acceptInvite:   (token, password, termsAccepted) => api.post('/users/invite/accept/', { token, password, terms_accepted: termsAccepted }),
   acceptTerms:    ()       => api.post('/users/me/accept-terms/'),
 }

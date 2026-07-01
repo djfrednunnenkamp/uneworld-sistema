@@ -1,5 +1,7 @@
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.conf import settings
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -10,6 +12,18 @@ from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, Invite
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
 from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions
+
+
+def _password_error(new_pw, user=None):
+    """Aplica os validadores oficiais do Django (AUTH_PASSWORD_VALIDATORS: tamanho
+    mínimo, senha comum, só-numérica, similaridade com dados do usuário) — F-03.
+    Devolve uma mensagem amigável (traduzida via USE_I18N/pt-br) para o frontend,
+    ou None se a senha for aceita. Deve ser chamada ANTES de set_password()."""
+    try:
+        validate_password(new_pw, user)
+        return None
+    except DjangoValidationError as e:
+        return ' '.join(e.messages)
 
 
 def _has_visible_text(html):
@@ -172,10 +186,11 @@ def change_password(request):
     new_pw  = request.data.get('new_password', '')
     if not current or not new_pw:
         return Response({'error': 'Preencha todos os campos.'}, status=400)
-    if len(new_pw) < 8:
-        return Response({'error': 'A nova senha deve ter pelo menos 8 caracteres.'}, status=400)
     if not request.user.check_password(current):
         return Response({'error': 'Senha atual incorreta.'}, status=400)
+    pw_err = _password_error(new_pw, request.user)
+    if pw_err:
+        return Response({'error': pw_err}, status=400)
     request.user.set_password(new_pw)
     request.user.save()
     update_session_auth_hash(request, request.user)
@@ -326,14 +341,15 @@ def reset_password(request):
     password  = request.data.get('password', '')
     if not token_str or not password:
         return Response({'error': 'Token e nova senha são obrigatórios.'}, status=400)
-    if len(password) < 8:
-        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
     try:
         token = PasswordResetToken.objects.get(token=token_str)
     except PasswordResetToken.DoesNotExist:
         return Response({'error': 'Link inválido ou expirado.'}, status=400)
     if not token.is_valid:
         return Response({'error': 'Link inválido ou expirado.'}, status=400)
+    pw_err = _password_error(password, token.user)
+    if pw_err:
+        return Response({'error': pw_err}, status=400)
     token.user.set_password(password)
     token.user.save()
     token.used = True
@@ -361,11 +377,15 @@ def send_user_invite(request, pk):
     return Response({'message': f'Convite enviado para {user.email}.'})
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @throttle_classes([InviteRateThrottle])
 @permission_classes([AllowAny])
 def validate_invite(request):
-    token_str = request.query_params.get('token', '')
+    # F-01: token vai no corpo (POST) para não vazar em URL/logs/histórico. O GET
+    # com ?token= é mantido só como compatibilidade temporária (DEPRECATED) e não
+    # é mais usado pelo frontend.
+    token_str = (request.data.get('token') if request.method == 'POST'
+                 else request.query_params.get('token', '')) or ''
     try:
         invite = InviteToken.objects.get(token=token_str)
     except InviteToken.DoesNotExist:
@@ -373,6 +393,25 @@ def validate_invite(request):
     if not invite.is_valid:
         return Response({'error': 'Convite inválido ou expirado.'}, status=400)
     return Response({'email': invite.email, 'first_name': invite.first_name, 'last_name': invite.last_name})
+
+
+@api_view(['POST'])
+@throttle_classes([PasswordResetRateThrottle])
+@permission_classes([AllowAny])
+def validate_reset_token(request):
+    """F-07: valida o token de redefinição no CARREGAMENTO da página, para mostrar
+    "link inválido/expirado" antes de o usuário digitar a senha. O submit
+    (reset_password) continua validando também — esta checagem é só de UX."""
+    token_str = (request.data.get('token') or '').strip()
+    if not token_str:
+        return Response({'error': 'Token ausente.'}, status=400)
+    try:
+        token = PasswordResetToken.objects.get(token=token_str)
+    except PasswordResetToken.DoesNotExist:
+        return Response({'error': 'Link inválido ou expirado.'}, status=400)
+    if not token.is_valid:
+        return Response({'error': 'Link inválido ou expirado.'}, status=400)
+    return Response({'valid': True, 'email': token.user.email})
 
 
 @api_view(['POST'])
@@ -385,8 +424,6 @@ def accept_invite(request):
     password  = request.data.get('password', '')
     if not token_str or not password:
         return Response({'error': 'Token e senha são obrigatórios.'}, status=400)
-    if len(password) < 8:
-        return Response({'error': 'A senha deve ter pelo menos 8 caracteres.'}, status=400)
     terms = TermsAndConditions.get()
     if _has_visible_text(terms.content) and not request.data.get('terms_accepted'):
         return Response({'error': 'É preciso concordar com os Termos e Condições.'}, status=400)
@@ -409,6 +446,10 @@ def accept_invite(request):
     user.first_name = invite.first_name
     user.last_name  = invite.last_name
     user.is_active  = True
+    # Valida a política de senha já com os dados do usuário (similaridade) — F-03.
+    pw_err = _password_error(password, user)
+    if pw_err:
+        return Response({'error': pw_err}, status=400)
     user.set_password(password)
     user.save()
 
@@ -547,8 +588,9 @@ def admin_set_password(request, pk):
     if not request.user.check_password(admin_password):
         return Response({'error': 'Sua senha está incorreta.'}, status=400)
     password = request.data.get('password', '')
-    if len(password) < 8:
-        return Response({'error': 'A nova senha deve ter pelo menos 8 caracteres.'}, status=400)
+    pw_err = _password_error(password, user)
+    if pw_err:
+        return Response({'error': pw_err}, status=400)
     user.set_password(password)
     user.save()
     return Response({'message': 'Senha definida com sucesso.'})

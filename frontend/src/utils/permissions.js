@@ -1,3 +1,7 @@
+/* F-02 — Mapa rota → permissões para decidir o que MOSTRAR no menu/rotas.
+ * Isto é UX, NÃO segurança: user.permissions vem do backend e é manipulável no
+ * cliente. A proteção real de dados é no backend (cada endpoint checa a permissão
+ * correspondente). Não usar canAccess() como controle de acesso a dados. */
 const ROUTE_PERMS = [
   { prefix: '/passageiros',  perms: ['passengers_view_basic', 'passengers_view_full'] },
   { prefix: '/agencias',     perms: ['agencies_view'] },

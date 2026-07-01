@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
 import TermsModal from '../components/TermsModal'
 import { hasVisibleText } from '../utils/richText'
+import { notifySessionChanged } from '../utils/authChannel'
 
 export default function AcceptInvite() {
   const [params]  = useSearchParams()
@@ -54,16 +55,15 @@ export default function AcceptInvite() {
     } finally { setSaving(false) }
   }
 
-  /* Faz login, recarrega a janela pai (nova sessão) e fecha esta aba */
+  /* Faz login, avisa a aba principal (mesma origem) para recarregar a sessão e
+   * fecha esta aba. Sem window.opener (F-06 — evita reverse tabnabbing). */
   const handleSwitch = async () => {
     setSwitching(true)
     try {
       await login(invite.email, password)
-      try {
-        // window.opener.top acessa a janela principal mesmo se o link veio de um iframe
-        if (window.opener) window.opener.top.location.reload()
-      } catch {}
+      notifySessionChanged()   // a aba principal escuta e recarrega a sessão
       window.close()
+      navigate('/', { replace: true })  // caso a aba não feche (bloqueio do browser)
     } catch {
       navigate('/', { replace: true })
     } finally { setSwitching(false) }

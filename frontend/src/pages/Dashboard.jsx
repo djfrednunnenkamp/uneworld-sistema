@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { dashboardApi, agendaApi } from '../api'
@@ -148,52 +148,30 @@ function ExchangeStrip({ rates, timeFormat, clickable, onClick }) {
 }
 
 function EmailPreviewModal({ log, onClose }) {
-  const iframeRef = useRef(null)
   const { timeFormat } = usePrefs()
   const fmtDt = (iso) => fmtDateTime(iso, timeFormat)
 
-  // Processa o HTML do e-mail:
-  // - Links de fluxo de autenticação (reset/invite) → _blank (nova aba, isolada)
-  // - Outros links internos da app → _top (navega na mesma aba do app)
-  // - Links externos → _blank (via base tag)
-  const AUTH_PATHS = /\/(redefinir-senha|aceitar-convite)/
+  // Processa o HTML do e-mail para o preview: TODO link abre em nova aba isolada
+  // com rel="noopener noreferrer" (F-06 — a aba aberta não consegue controlar a
+  // principal via window.opener). O parse é feito com DOMParser (documento inerte:
+  // não executa handlers nem carrega recursos).
   const srcDoc = (() => {
     if (!log.html_body) return ''
     try {
       const doc = new DOMParser().parseFromString(log.html_body, 'text/html')
       const base = doc.createElement('base')
       base.target = '_blank'
-      base.rel = 'noreferrer'
+      base.rel = 'noopener noreferrer'
       doc.head.insertBefore(base, doc.head.firstChild)
-      const appOrigin = window.location.origin
       doc.querySelectorAll('a[href]').forEach(a => {
-        const href = a.getAttribute('href') || ''
-        const isInternal = href.startsWith(appOrigin) || href.startsWith('/')
-        const isAuthFlow = AUTH_PATHS.test(href)
-        if (isInternal && !isAuthFlow) {
-          // Link para página interna normal: abre na aba atual do app
-          a.target = '_top'
-          a.removeAttribute('rel')
-        } else if (isAuthFlow) {
-          // Nova aba com opener acessível para window.opener funcionar
-          a.target = '_blank'
-          a.setAttribute('rel', 'opener')
-        }
+        a.target = '_blank'
+        a.setAttribute('rel', 'noopener noreferrer')
       })
       return doc.documentElement.outerHTML
     } catch {
       return log.html_body
     }
   })()
-
-  const handleLoad = () => {
-    const iframe = iframeRef.current
-    if (!iframe) return
-    try {
-      const h = iframe.contentDocument.body.scrollHeight
-      iframe.style.height = h + 'px'
-    } catch {}
-  }
 
   return (
     <div onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
@@ -207,13 +185,17 @@ function EmailPreviewModal({ log, onClose }) {
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:20, padding:4 }}>×</button>
         </div>
         <div style={{ overflowY:'auto', borderRadius:'0 0 12px 12px' }}>
+          {/* F-05: sandbox mínimo. SEM allow-scripts e SEM allow-same-origin (o
+              conteúdo roda numa origem opaca, isolado de cookies/DOM do app). SEM
+              allow-top-navigation, então um link do e-mail não redireciona a aba
+              principal. allow-popups(+escape) só permite abrir links em nova aba —
+              que já saem com rel="noopener noreferrer". Altura fixa com scroll
+              (não dá pra medir o conteúdo sem same-origin, e nem precisa). */}
           <iframe
-            ref={iframeRef}
             srcDoc={srcDoc}
             title="preview"
-            onLoad={handleLoad}
-            style={{ width:'100%', border:'none', display:'block' }}
-            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+            style={{ width:'100%', height:'70vh', border:'none', display:'block' }}
+            sandbox="allow-popups allow-popups-to-escape-sandbox"
           />
         </div>
       </div>
@@ -351,7 +333,8 @@ export default function Dashboard() {
   useEffect(() => {
     dashboardApi.getStats()
       .then((r) => setData(r.data))
-      .catch(console.error)
+      // F-08: não vazar stack/erro interno no DevTools em produção.
+      .catch((err) => { if (import.meta.env.DEV) console.error(err) })
       .finally(() => setLoading(false))
     agendaApi.emailLogSettings()
       .then(r => setEmailCfg(r.data))

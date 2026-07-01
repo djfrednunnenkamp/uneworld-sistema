@@ -24,7 +24,14 @@ import AuditLog        from './pages/AuditLog'
 import FlatImport      from './pages/FlatImport'
 import CalendarPage    from './pages/Calendar'
 
-/* Bloqueia rotas por permissão — redireciona para / se sem acesso */
+/* Bloqueia rotas por permissão — redireciona para / se sem acesso.
+ *
+ * ATENÇÃO (F-02): isto é apenas UX — esconder telas para as quais o usuário não
+ * tem acesso. NÃO é segurança. user.permissions vem do backend e pode ser
+ * adulterado no cliente; qualquer um pode chamar a API direto. O enforcement
+ * REAL é no backend: cada endpoint exige a permissão via RequirePermission
+ * (users_api/permissions.py). Nunca confiar em canAccess()/user.permissions para
+ * proteger dados — só para decidir o que mostrar. */
 function RequirePermission({ children }) {
   const { user } = useAuth()
   const { pathname } = useLocation()

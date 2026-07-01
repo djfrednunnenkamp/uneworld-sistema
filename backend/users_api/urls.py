@@ -9,6 +9,7 @@ urlpatterns = [
     path('me/accept-terms/',      views.accept_terms,    name='accept-terms'),
     path('forgot-password/',      views.forgot_password, name='forgot-password'),
     path('reset-password/',       views.reset_password,  name='reset-password'),
+    path('reset-password/validate/', views.validate_reset_token, name='validate-reset-token'),
     path('invite/validate/',      views.validate_invite, name='validate-invite'),
     path('invite/accept/',        views.accept_invite,   name='accept-invite'),
     path('',                      views.user_list,       name='user-list'),

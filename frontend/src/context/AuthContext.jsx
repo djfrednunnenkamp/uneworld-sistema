@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { authApi, auditApi } from '../api'
+import { onSessionChanged } from '../utils/authChannel'
 
 const AuthContext = createContext(null)
 
@@ -13,6 +14,13 @@ export function AuthProvider({ children }) {
       .catch(() => setUser(false))
       .finally(() => setLoading(false))
   }, [])
+
+  // F-06: quando outra aba (reset/convite) troca a sessão, recarrega o /me aqui
+  // em vez de a outra aba mexer nesta via window.opener. Só entre abas da mesma
+  // origem (BroadcastChannel/storage), então página externa não dispara isto.
+  useEffect(() => onSessionChanged(() => {
+    authApi.me().then(r => setUser(r.data)).catch(() => setUser(false))
+  }), [])
 
   const login = async (email, password) => {
     const r = await authApi.login(email, password)

@@ -140,3 +140,83 @@ class SecurityHardeningTest(APITestCase):
         self.assertEqual(data['hsts'], 31536000)
         self.assertIs(data['subs'], True)
         self.assertIs(data['preload'], True)
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class PasswordPolicyTest(APITestCase):
+    """F-03 — validate_password oficial em todos os fluxos de definição de senha."""
+    def setUp(self):
+        cache.clear()
+        self.user = make_user('joao', password='Forte#Senha42')
+
+    def test_change_password_rejects_numeric_common(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.post('/api/users/me/change-password/',
+                             {'current_password': 'Forte#Senha42', 'new_password': '12345678'},
+                             format='json')
+        self.assertEqual(r.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.check_password('12345678'))
+
+    def test_change_password_rejects_common_word(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.post('/api/users/me/change-password/',
+                             {'current_password': 'Forte#Senha42', 'new_password': 'password'},
+                             format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_change_password_accepts_strong(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.post('/api/users/me/change-password/',
+                             {'current_password': 'Forte#Senha42', 'new_password': 'Zx9!kLmn42Q'},
+                             format='json')
+        self.assertEqual(r.status_code, 200)
+
+    def test_reset_password_rejects_weak(self):
+        from .models import PasswordResetToken
+        tok = PasswordResetToken.objects.create(user=self.user)
+        r = self.client.post('/api/users/reset-password/',
+                             {'token': str(tok.token), 'password': '12345678'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_admin_set_password_rejects_weak(self):
+        from .models import PasswordResetToken  # noqa: F401
+        root = make_user('root', superuser=True, password='Forte#Senha42')
+        self.client.force_authenticate(root)
+        r = self.client.post(f'/api/users/{self.user.id}/set-password/',
+                             {'admin_password': 'Forte#Senha42', 'password': '12345678'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_accept_invite_rejects_weak(self):
+        from .models import InviteToken
+        inv = InviteToken.objects.create(email='novo@x.com', first_name='Novo')
+        r = self.client.post('/api/users/invite/accept/',
+                             {'token': str(inv.token), 'password': '12345678'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class ValidateTokenEndpointsTest(APITestCase):
+    """F-01 (invite via POST) e F-07 (validar reset token no load)."""
+    def setUp(self):
+        cache.clear()
+        self.user = make_user('maria', password='Forte#Senha42')
+
+    def test_validate_invite_accepts_post_body(self):
+        from .models import InviteToken
+        inv = InviteToken.objects.create(email='m@x.com', first_name='M')
+        r = self.client.post('/api/users/invite/validate/', {'token': str(inv.token)}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['email'], 'm@x.com')
+
+    def test_validate_reset_token_valid(self):
+        from .models import PasswordResetToken
+        tok = PasswordResetToken.objects.create(user=self.user)
+        r = self.client.post('/api/users/reset-password/validate/', {'token': str(tok.token)}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.data['valid'])
+
+    def test_validate_reset_token_invalid(self):
+        r = self.client.post('/api/users/reset-password/validate/',
+                             {'token': '00000000-0000-0000-0000-000000000000'}, format='json')
+        self.assertEqual(r.status_code, 400)

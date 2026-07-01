@@ -46,16 +46,19 @@ const fmtRate = (v) => {
  * - evita que tudo fique grudado num parágrafo só. */
 function htmlToText(html) {
   if (!html) return ''
-  const div = document.createElement('div')
-  div.innerHTML = html
+  // F-04: NÃO usar div.innerHTML — isso ativa handlers (ex.: <img onerror>) e
+  // carrega recursos externos mesmo sem <script>. DOMParser cria um documento
+  // INERTE: nada é executado, nenhum recurso é buscado; só lemos o texto.
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const body = doc.body
   // Itens de lista: marcador simples antes + quebra depois.
-  div.querySelectorAll('li').forEach(li => {
+  body.querySelectorAll('li').forEach(li => {
     li.insertAdjacentText('afterbegin', '• ')
     li.insertAdjacentText('afterend', '\n')
   })
   // Blocos e títulos: quebra de linha após cada um.
-  div.querySelectorAll('p, div, br, h1, h2, h3, h4, h5, h6, tr').forEach(el => el.insertAdjacentText('afterend', '\n'))
-  return div.textContent
+  body.querySelectorAll('p, div, br, h1, h2, h3, h4, h5, h6, tr').forEach(el => el.insertAdjacentText('afterend', '\n'))
+  return body.textContent
     .replace(/[ \t]+\n/g, '\n')   // remove espaços no fim das linhas
     .replace(/\n{3,}/g, '\n\n')   // colapsa quebras excessivas
     .trim()

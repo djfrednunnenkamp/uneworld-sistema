@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
+import { notifySessionChanged } from '../utils/authChannel'
 
 export default function ResetPassword() {
   const [params]   = useSearchParams()
@@ -17,8 +18,20 @@ export default function ResetPassword() {
   const [switching, setSwitching] = useState(false)
   const [error,    setError]     = useState('')
   const [email,    setEmail]     = useState('')   // retornado pelo backend após reset
+  const [checking,   setChecking]   = useState(true)  // validando o token no load (F-07)
+  const [tokenValid, setTokenValid] = useState(false)
 
-  useEffect(() => { if (!token) navigate('/login') }, [token])
+  // F-07: valida o token JÁ no carregamento, para avisar "link inválido/expirado"
+  // antes do usuário digitar a senha. O submit continua validando no backend.
+  useEffect(() => {
+    if (!token) { navigate('/login'); return }
+    let alive = true
+    usersApi.validateResetToken(token)
+      .then(() => { if (alive) setTokenValid(true) })
+      .catch(err => { if (alive) setError(err.response?.data?.error ?? 'Link inválido ou expirado.') })
+      .finally(() => { if (alive) setChecking(false) })
+    return () => { alive = false }
+  }, [token])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -43,16 +56,15 @@ export default function ResetPassword() {
     } finally { setLoading(false) }
   }
 
-  /* Faz login nesta aba, recarrega a janela pai (nova sessão) e fecha esta aba */
+  /* Faz login nesta aba, avisa a aba principal (mesma origem) para recarregar a
+   * sessão e fecha esta aba. Sem window.opener (F-06 — evita reverse tabnabbing). */
   const handleSwitch = async () => {
     setSwitching(true)
     try {
       await login(email, password)
-      try {
-        // window.opener.top acessa a janela principal mesmo se o link veio de um iframe
-        if (window.opener) window.opener.top.location.reload()
-      } catch {}
+      notifySessionChanged()   // a aba principal escuta e recarrega a sessão
       window.close()
+      navigate('/', { replace: true })  // caso a aba não feche (bloqueio do browser)
     } catch {
       navigate('/', { replace: true })
     } finally { setSwitching(false) }
@@ -77,7 +89,18 @@ export default function ResetPassword() {
           <p style={{ color:'rgba(255,255,255,.45)', fontSize:12, fontWeight:600, letterSpacing:'.15em', textTransform:'uppercase', margin:'8px 0 0' }}>Sistema de Gestão</p>
         </div>
         <div style={cardStyle}>
-          {done ? (
+          {!done && checking ? (
+            <p style={{ textAlign:'center', color:'#94a3b8', margin:0 }}>Validando link…</p>
+          ) : !done && !tokenValid ? (
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontSize:48, marginBottom:16 }}>❌</div>
+              <h2 style={{ fontSize:20, fontWeight:700, color:'#0f172a', margin:'0 0 8px' }}>Link inválido</h2>
+              <p style={{ color:'#dc2626', fontSize:14, margin:'0 0 24px' }}>{error || 'Link inválido ou expirado.'}</p>
+              <Link to="/esqueci-senha" style={{ display:'inline-block', padding:'10px 24px', borderRadius:8, background:'#1a2d4f', color:'#fff', textDecoration:'none', fontSize:14, fontWeight:600 }}>
+                Pedir um novo link
+              </Link>
+            </div>
+          ) : done ? (
             <div style={{ textAlign:'center' }}>
               <div style={{ fontSize:48, marginBottom:16 }}>✅</div>
               <h2 style={{ fontSize:20, fontWeight:700, color:'#0f172a', margin:'0 0 8px' }}>Senha redefinida!</h2>
