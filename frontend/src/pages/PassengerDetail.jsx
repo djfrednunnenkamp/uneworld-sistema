@@ -59,6 +59,10 @@ const EMPTY = {
   status:'active', notes:'',
 }
 
+// Campos de data que viram null quando vazios (nível de módulo p/ o autosave
+// poder usar antes da declaração dentro do componente).
+const DATE_FIELDS_LIST = ['birth_date','rg_issue_date','passport_issue','passport_expiry','rne_expiry','rne_issue','parent1_birth_date','parent2_birth_date']
+
 const STATES = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS',
   'MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
@@ -830,7 +834,7 @@ export default function PassengerDetail() {
   const draftPayload = () => {
     const { gender_custom, full_name, ...rest } = form
     const p = { ...rest }
-    DATE_FIELDS.forEach(k => { if (p[k] === '' || p[k] === undefined) p[k] = null })
+    DATE_FIELDS_LIST.forEach(k => { if (p[k] === '' || p[k] === undefined) p[k] = null })
     return p
   }
   const draftHasContent = (p) => {
@@ -930,7 +934,6 @@ export default function PassengerDetail() {
   }
 
   /* Save */
-  const DATE_FIELDS = ['birth_date','rg_issue_date','passport_issue','passport_expiry','rne_expiry','rne_issue','parent1_birth_date','parent2_birth_date']
 
   const save = async () => {
     // Validação local — marca campos em vermelho
@@ -968,7 +971,7 @@ export default function PassengerDetail() {
       const finalStatus = (form.status === 'rascunho' || !form.status) ? 'active' : form.status
       const payload = { ...rest, status: finalStatus }
       // Datas vazias → null
-      DATE_FIELDS.forEach(k => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null })
+      DATE_FIELDS_LIST.forEach(k => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null })
       // Se o autosave já criou um rascunho, finaliza esse mesmo registro.
       cancelTimer()
       const st = draftRef.current
