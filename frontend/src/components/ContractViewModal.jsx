@@ -108,6 +108,16 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
               <Row label="Total (USD)" value={money(c.total_usd, 'US$')} />
               <Row label="Total (BRL)" value={money(c.total_brl, 'R$')} />
               <Row label="Câmbio" value={c.exchange_rate ? String(Number(c.exchange_rate)).replace('.', ',') : null} />
+
+              {c.invoice_number && (
+                <>
+                  <SecLabel>Fatura</SecLabel>
+                  <Row label="Nº da fatura" value={c.invoice_number} />
+                  <Row label="Data da fatura" value={fmtDateBR(c.invoice_date)} />
+                  <Row label="Faturado em" value={fmtDateBR(String(c.invoiced_at || '').slice(0, 10))} />
+                  <Row label="Matrícula (reserva)" value={c.reservation_number} />
+                </>
+              )}
             </>
           )}
         </div>
@@ -141,7 +151,7 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
 
       {showPdf && (
         <ContractPdfPreviewModal contractId={contractId}
-          allowDownload={!c || c.signature_type !== 'digital' || c.stage === 'assinado'}
+          allowDownload={!c || c.signature_type !== 'digital' || ['assinado', 'revisao', 'a_faturar', 'faturado'].includes(c.stage)}
           onClose={() => setShowPdf(false)} />
       )}
     </div>

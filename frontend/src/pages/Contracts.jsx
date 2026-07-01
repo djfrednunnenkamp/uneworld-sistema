@@ -832,7 +832,7 @@ export default function Contracts() {
                 return canInvoice ? actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id)) : null
               }
               if (stage === 'faturado') {
-                return canInvoice ? actBtn('Editar fatura', 'card', '#059669', () => setInvoiceId(row.id)) : null
+                return null   // faturado é só leitura (ver documento / olho / excluir)
               }
               if (!canEdit) return null
               return (
@@ -878,7 +878,7 @@ export default function Contracts() {
       {viewId && (
         <ContractViewModal
           contractId={viewId}
-          canEdit={canEdit}
+          canEdit={canEdit && !['a_faturar', 'faturado'].includes((rows.find(r => r.id === viewId) || {}).stage)}
           onClose={() => setViewId(null)}
           onEdit={() => { const id = viewId; setViewId(null); setModal(id) }}
           onViewLog={canViewLog ? () => navigate(`/log?contract_id=${viewId}`) : undefined}
