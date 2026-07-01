@@ -37,7 +37,7 @@ const STAGE_META = {
   assinado:  { label: 'Assinado',        color: '#0891b2' },
   revisao:   { label: 'Em revisão',      color: '#7c3aed' },
   aprovado:  { label: 'Aprovado',        color: '#059669' },
-  a_faturar: { label: 'A faturar',       color: '#ca8a04' },
+  a_faturar: { label: 'Em faturamento',  color: '#ca8a04' },
   faturado:  { label: 'Faturado',        color: '#059669' },
 }
 function StageBadge({ stage }) {
@@ -732,7 +732,7 @@ export default function Contracts() {
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'revisao',   label: 'Em revisão',       color: '#7c3aed', count: stageCount('revisao') },
     ...(canInvoiceView ? [
-      { key: 'a_faturar', label: 'A faturar',       color: '#ca8a04', count: stageCount('a_faturar') },
+      { key: 'a_faturar', label: 'Em faturamento',  color: '#ca8a04', count: stageCount('a_faturar') },
       { key: 'faturado',  label: 'Faturados',       color: '#059669', count: stageCount('faturado') },
     ] : []),
     ...(canDelete ? [{ key: 'trash', label: 'Excluídos', color: '#dc2626', count: deletedCount }] : []),
