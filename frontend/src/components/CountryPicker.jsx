@@ -90,9 +90,12 @@ export default function CountryPicker({ value, onChange }) {
           >
             {/* Header */}
             <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 10 }}>
-                Selecionar nacionalidade
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                  Selecionar nacionalidade
+                </p>
+                <button type="button" onClick={() => setOpen(false)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+              </div>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>
                   <Ic n="search" s={14} />

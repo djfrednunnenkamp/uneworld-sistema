@@ -215,10 +215,11 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
             <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
 
               {/* Título + botão de classe na mesma linha */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                 <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
                   Preferência de assento
                 </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   type="button"
                   onClick={() => setClassOpen(true)}
@@ -238,6 +239,8 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
                     : '✈ Classe de voo'}
                   <span style={{ fontSize: 9, opacity: .7 }}>▼</span>
                 </button>
+                <button type="button" onClick={save} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+                </div>
               </div>
 
               {/* Posição no avião */}
@@ -421,9 +424,12 @@ export default function SeatPicker({ seatType, seatPos, flightClass, onChangeSea
           >
             {/* Header */}
             <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0' }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
-                Selecionar classe de voo
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                  Selecionar classe de voo
+                </p>
+                <button type="button" onClick={() => setClassOpen(false)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+              </div>
             </div>
 
             {/* Classes */}

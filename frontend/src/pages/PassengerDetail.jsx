@@ -583,6 +583,7 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
                   <p style={{fontSize:15,fontWeight:700,color:'#1e293b',margin:0}}>{viewDoc.display_name}</p>
                   <span style={{padding:'2px 8px',borderRadius:8,fontSize:11,fontWeight:600,background:`${ti.color}15`,color:ti.color}}>{viewDoc.doc_type_label}</span>
                 </div>
+                <button type="button" onClick={() => setViewDoc(null)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0, marginLeft:'auto' }}><Ic n="x" s={16}/></button>
               </div>
 
               {/* Corpo — todos os campos */}
@@ -644,6 +645,7 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
                 <p style={{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}}>Observações</p>
                 <p style={{fontSize:12,color:'#94a3b8',margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{notesDoc.display_name}</p>
               </div>
+              <button type="button" onClick={() => setNotesDoc(null)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0, marginLeft:'auto' }}><Ic n="x" s={16}/></button>
             </div>
             <div style={{padding:'16px 20px'}}>
               <textarea
@@ -684,6 +686,7 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
                 <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Editar documento</p>
                 <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>{editDoc.doc_type_label} — apenas metadados (imagem não é alterada)</p>
               </div>
+              <button type="button" onClick={() => setEditDoc(null)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0, marginLeft:'auto' }}><Ic n="x" s={16}/></button>
             </div>
 
             <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
@@ -1371,13 +1374,16 @@ export default function PassengerDetail() {
             animation: 'mIn .15s ease',
           }}
         >
-          <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0' }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-              Observações do passageiro
-            </p>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-              Informações adicionais, preferências gerais ou anotações internas
-            </p>
+          <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                Observações do passageiro
+              </p>
+              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                Informações adicionais, preferências gerais ou anotações internas
+              </p>
+            </div>
+            <button type="button" onClick={() => setNotesOpen(false)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
           </div>
           <div style={{ padding: '16px 20px' }}>
             <textarea

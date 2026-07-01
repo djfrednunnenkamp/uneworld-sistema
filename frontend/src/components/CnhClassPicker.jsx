@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Ic } from './Icon'
 
 const CNH_CLASSES = [
   { id: 'A',  label: 'A',  desc: 'Motocicletas, motonetas e ciclomotores' },
@@ -51,12 +52,17 @@ export default function CnhClassPicker({ value, onChange }) {
           >
             {/* Header */}
             <div style={{ padding: '16px 18px 14px', borderBottom: '1px solid #e2e8f0' }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-                Categoria da CNH
-              </p>
-              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-                Selecione a categoria habilitada
-              </p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                    Categoria da CNH
+                  </p>
+                  <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                    Selecione a categoria habilitada
+                  </p>
+                </div>
+                <button type="button" onClick={() => setOpen(false)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+              </div>
             </div>
 
             {/* Lista */}

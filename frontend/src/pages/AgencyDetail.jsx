@@ -886,9 +886,12 @@ export default function AgencyDetail() {
           style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:400, padding:20 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,.24)', animation:'mIn .15s ease' }}>
-            <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0' }}>
-              <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Observações da agência</p>
-              <p style={{ fontSize:12, color:'#94a3b8', marginTop:3 }}>Informações adicionais, preferências ou anotações internas</p>
+            <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+              <div style={{ minWidth:0 }}>
+                <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>Observações da agência</p>
+                <p style={{ fontSize:12, color:'#94a3b8', marginTop:3 }}>Informações adicionais, preferências ou anotações internas</p>
+              </div>
+              <button type="button" onClick={() => setNotesOpen(false)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
             </div>
             <div style={{ padding:'16px 20px' }}>
               <textarea

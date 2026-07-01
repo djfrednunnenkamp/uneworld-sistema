@@ -99,9 +99,12 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
           >
             {/* Header */}
             <div style={{ padding: '16px 18px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>
-                Tipo de alimentação
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                  Tipo de alimentação
+                </p>
+                <button type="button" onClick={save} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+              </div>
 
               {/* Observações — no topo */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -254,12 +257,17 @@ export default function DietPicker({ value, notes, onChange, onChangeNotes }) {
             }}
           >
             <div style={{ padding: '16px 18px 14px', borderBottom: '1px solid #e2e8f0' }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-                Observações alimentares
-              </p>
-              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-                Descreva restrições, alergias ou preferências específicas
-              </p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                    Observações alimentares
+                  </p>
+                  <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                    Descreva restrições, alergias ou preferências específicas
+                  </p>
+                </div>
+                <button type="button" onClick={() => setNotesOpen(false)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+              </div>
             </div>
 
             <div style={{ padding: '16px 18px' }}>

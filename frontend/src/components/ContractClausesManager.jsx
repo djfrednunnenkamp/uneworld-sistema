@@ -51,10 +51,11 @@ function ClauseModal({ clause, onClose, onSaved }) {
       style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, padding:20 }}>
       <div onClick={e => e.stopPropagation()}
         style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:880, maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,.24)' }}>
-        <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', flexShrink:0 }}>
+        <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid #e2e8f0', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
           <p style={{ fontSize:14, fontWeight:600, color:'#1e293b', margin:0 }}>
             {isEdit ? 'Editar cláusula' : 'Nova cláusula de contrato'}
           </p>
+          <button type="button" onClick={onClose} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
         </div>
 
         <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:14, overflowY:'auto', flex:1 }}>

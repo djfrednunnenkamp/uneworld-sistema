@@ -112,9 +112,12 @@ export default function AgencyPicker({ selectedIds = [], onChange }) {
           >
             {/* Header */}
             <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #e2e8f0' }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 10 }}>
-                Selecionar agências
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
+                  Selecionar agências
+                </p>
+                <button type="button" onClick={save} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+              </div>
               {/* Barra de busca */}
               <div style={{ position: 'relative' }}>
                 <span style={{

@@ -120,6 +120,7 @@ export default function BrazilCityPicker({ value, onChange }) {
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>
                   {step === 'state' ? 'Estado' : 'Cidade'}
                 </span>
+                <button type="button" onClick={() => setOpen(false)} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
               </div>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}>

@@ -271,10 +271,11 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
               <>
                 {/* Header: título + botão Outro */}
                 <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
                       Que tipo de documento?
                     </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button
                       type="button"
                       onClick={() => pickType(docTypes.find(t => t.key === 'other') ?? { key:'other', label:'Outro documento', icon:'📎', color:'#475569', fields:[] })}
@@ -290,6 +291,8 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                     >
                       📎 Outro documento
                     </button>
+                    <button type="button" onClick={close} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
+                    </div>
                   </div>
 
                   {/* Busca */}
@@ -361,6 +364,7 @@ export default function DocTypePicker({ passengerId, onUploaded }) {
                   <span style={{ color: '#cbd5e1' }}>·</span>
                   <span style={{ fontSize: 18 }}>{typeInfo.icon}</span>
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>{typeInfo.label}</p>
+                  <button type="button" onClick={close} title="Fechar" style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
                 </div>
 
                 {/* Corpo dois lados */}
