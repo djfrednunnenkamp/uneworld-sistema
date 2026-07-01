@@ -174,7 +174,7 @@ export default function DataTable({
                       {extraActions && extraActions(row)}
                       {onEdit && <button className="r-btn edit" title="Editar"     onClick={() => onEdit(row)}><Ic n="edit" s={13}/></button>}
                       {onDocs && (!showDocs || showDocs(row)) && <button className="r-btn view" title={docsTitle} onClick={() => onDocs(row)}><Ic n={docsIcon}  s={13}/></button>}
-                      <button className="r-btn view" title="Visualizar" onClick={() => onView?.(row)}><Ic n="eye"  s={13}/></button>
+                      {onView && <button className="r-btn view" title="Visualizar" onClick={() => onView(row)}><Ic n="eye"  s={13}/></button>}
                       {onDelete && <button className="r-btn del" title="Excluir" onClick={() => onDelete(row)}><Ic n="trash" s={13}/></button>}
                     </div>
                   </td>

@@ -11,6 +11,7 @@ import CnpjInput from './CnpjInput'
 import MoneyInput from './MoneyInput'
 import EmailInput from './EmailInput'
 import ContractPdfPreviewModal from './ContractPdfPreviewModal'
+import ContractViewModal from './ContractViewModal'
 import RichTextEditor from './RichTextEditor'
 import { Ic } from './Icon'
 import { usePrefs } from '../context/PrefsContext'
@@ -463,6 +464,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // (separado para criar/editar). Trocar aqui salva o novo padrão no perfil.
   const [layout, setLayout] = useState(isEdit ? contractEditLayout : contractCreateLayout)
   const [showPreview, setShowPreview] = useState(false)
+  const [showOverview, setShowOverview] = useState(false)   // popup de visão geral (read-only)
   const [previewData, setPreviewData] = useState(null)
   const [loadedStage, setLoadedStage] = useState('em_edicao')
   const [reviewNote, setReviewNote] = useState('')   // motivo da reprovação (quando voltou da revisão)
@@ -1391,6 +1393,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {isEdit && (
+              <button type="button" onClick={() => setShowOverview(true)} title="Resumo do contrato (somente leitura)"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="list" s={13} /> Visão geral
+              </button>
+            )}
+            {isEdit && (
               <button type="button" onClick={() => { setPreviewData({ payload: buildPayload(), overrides: { reservation_number: reservationNumber, contract_date: contractDate || null } }); setShowPreview(true) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#1a2d4f', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 <Ic n="eye" s={13} /> Ver documento
@@ -2097,6 +2105,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             </button>
           ) : null}
         />
+      )}
+      {showOverview && isEdit && (
+        <ContractViewModal contractId={contractId} canEdit={false} zIndex={620} onClose={() => setShowOverview(false)} />
       )}
       {clauseEditor && (
         <CustomClauseModal

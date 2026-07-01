@@ -14,7 +14,7 @@ const money = (v, cur) => (v == null || v === '') ? '' : `${cur} ${Number(v).toL
 /* Popup de visualização do contrato — resumo read-only. Toda linha é clicável e
  * copia o valor pra área de transferência (igual Passageiros/Agências). No rodapé:
  * Editar (abre o formulário) e OK (fecha). */
-export default function ContractViewModal({ contractId, canEdit = false, onClose, onEdit, onViewLog }) {
+export default function ContractViewModal({ contractId, canEdit = false, onClose, onEdit, onViewLog, zIndex = 300 }) {
   const [c, setC] = useState(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
@@ -55,7 +55,7 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 20 }}>
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
         style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 520, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.24)', animation: 'mIn .15s ease' }}>
 

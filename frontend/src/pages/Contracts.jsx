@@ -808,7 +808,6 @@ export default function Contracts() {
           </div>
         ) : undefined}
         onAdd={canEdit && (tab === 'em_edicao' || tab === 'geral') ? () => setModal('new') : undefined}
-        onView={(row) => setViewId(row.id)}
         onDocs={tab === 'trash' ? undefined : handleDocs}
         showDocs={(row) =>
           // Enviado: sempre dá para ver online (física = ver/imprimir; digital = só ver).
@@ -822,37 +821,36 @@ export default function Contracts() {
             ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={contractsApi.restore} onPurge={contractsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
             : tab === 'rascunho'
             ? (row) => actBtn('Continuar editando', 'edit', '#7c3aed', () => setModal(row.id))
-            : (canEdit || canReview || canInvoice) ? (row) => {
+            : (row) => {
               // Na aba Geral cada linha segue a SUA própria etapa; nas demais, a aba.
               const stage = tab === 'geral' ? row.stage : tab
-              if (stage === 'revisao') {
-                return canReview ? actBtn('Revisar contrato', 'check', '#7c3aed', () => setReviewId(row.id)) : null
-              }
-              if (stage === 'a_faturar') {
-                return canInvoice ? actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id)) : null
-              }
-              if (stage === 'faturado') {
-                return null   // faturado é só leitura (ver documento / olho / excluir)
-              }
-              if (!canEdit) return null
-              return (
-                stage === 'em_edicao' ? actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row), sendingIds.has(row.id))
-                : stage === 'enviado' ? (
-                  row.signature_type === 'digital' ? (
-                    <>
-                      {actBtn(checkingIds.has(row.id) ? 'Verificando...' : 'Verificar assinatura', 'check', '#2563eb', () => handleCheckSignature(row), checkingIds.has(row.id))}
-                      {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
-                    </>
-                  ) : (
-                    <>
-                      {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
-                      {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
-                    </>
-                  )
+              const editable = canEdit && stage === 'em_edicao'
+              // Ícone primário: editável → lápis (entra na edição); senão → olho
+              // (visão geral, read-only). A visão geral também abre por um botão
+              // dentro do formulário.
+              const primary = editable
+                ? actBtn('Editar contrato', 'edit', '#1a2d4f', () => setModal(row.id))
+                : actBtn('Visão geral', 'eye', '#475569', () => setViewId(row.id))
+              // Ação específica da etapa.
+              let stageAction = null
+              if (canReview && stage === 'revisao') stageAction = actBtn('Revisar contrato', 'check', '#7c3aed', () => setReviewId(row.id))
+              else if (canInvoice && stage === 'a_faturar') stageAction = actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id))
+              else if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'mail', '#2563eb', () => handleSend(row), sendingIds.has(row.id))
+              else if (canEdit && stage === 'enviado') stageAction = (
+                row.signature_type === 'digital' ? (
+                  <>
+                    {actBtn(checkingIds.has(row.id) ? 'Verificando...' : 'Verificar assinatura', 'check', '#2563eb', () => handleCheckSignature(row), checkingIds.has(row.id))}
+                    {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
+                  </>
+                ) : (
+                  <>
+                    {actBtn('Voltar para edição', 'rotate', '#b45309', () => setReopenRow(row))}
+                    {actBtn('Anexar contrato assinado', 'ul', '#059669', () => setUploadRow(row))}
+                  </>
                 )
-                : null
               )
-            } : undefined}
+              return <>{primary}{stageAction}</>
+            }}
         onDelete={tab !== 'trash' && canDelete ? (row) => setDelRow(row) : undefined}
         loading={loading}
       />
