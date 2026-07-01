@@ -1026,6 +1026,31 @@ export default function PassengerDetail() {
     } finally { setSaving(false) }
   }
 
+  // Todos os campos obrigatórios preenchidos? (mesma regra do save, sem efeitos)
+  const isComplete = () => {
+    if (!(form.first_name?.trim() || form.last_name?.trim())) return false
+    if (!form.email?.trim()) return false
+    if (!form.is_foreign && !form.cpf?.replace(/\D/g, '')) return false
+    if (!form.gender || !form.birth_date || !form.phone1?.trim()) return false
+    if (!form.street?.trim() || !form.city?.trim() || !form.cep?.replace(/\D/g, '') ||
+        !form.number?.trim() || !form.neighborhood?.trim() || !form.country?.trim()) return false
+    return true
+  }
+  // Salva como RASCUNHO (sem validar) e sai.
+  const saveDraftAndLeave = async (proceed) => {
+    const st = draftRef.current
+    setSaving(true)
+    try {
+      const p = { ...draftPayload(), status: 'rascunho' }
+      if (st.id) await passengersApi.update(st.id, p)
+      else { const r = await passengersApi.create(p); st.id = r.data.id }
+      st.discarded = true; cancelTimer(); setIsDirty(false)
+      toast.success('Salvo nos rascunhos.')
+      setLeavePrompt(null); proceed()
+    } catch { toast.error('Erro ao salvar rascunho.') }
+    finally { setSaving(false) }
+  }
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
@@ -1501,11 +1526,12 @@ export default function PassengerDetail() {
           setIsDirty(false)
           const p = leavePrompt.proceed; setLeavePrompt(null); p()
         }}
-        onSave={async () => {
+        onSaveDraft={draftMode ? () => saveDraftAndLeave(leavePrompt.proceed) : undefined}
+        onSave={(!draftMode || isComplete()) ? async () => {
           const ok = await save({ noNav: true })
           const p = leavePrompt.proceed; setLeavePrompt(null)
           if (ok) p()
-        }}
+        } : undefined}
       />
     )}
     </>

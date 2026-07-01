@@ -623,6 +623,29 @@ export default function AgencyDetail() {
     } finally { setSaving(false) }
   }
 
+  // Todos os campos obrigatórios preenchidos? (mesma regra do save, sem efeitos)
+  const isComplete = () => {
+    if (isFisica) { if (!form.cpf?.replace(/\D/g, '') || !form.name?.trim() || !form.last_name?.trim()) return false }
+    else { if (!form.cnpj?.replace(/\D/g, '') || !form.company_name?.trim()) return false }
+    if (!form.email?.trim() || !form.phone?.replace(/\D/g, '')) return false
+    if (!form.commission_rate && form.commission_rate !== 0) return false
+    return true
+  }
+  // Salva como RASCUNHO (sem validar) e sai.
+  const saveDraftAndLeave = async (proceed) => {
+    const st = draftRef.current
+    setSaving(true)
+    try {
+      const p = { ...draftPayload(), status: 'rascunho' }
+      if (st.id) await agenciesApi.update(st.id, p)
+      else { const r = await agenciesApi.create(p); st.id = r.data.id }
+      st.discarded = true; cancelTimer(); setIsDirty(false)
+      toast.success('Salvo nos rascunhos.')
+      setLeavePrompt(null); proceed()
+    } catch { toast.error('Erro ao salvar rascunho.') }
+    finally { setSaving(false) }
+  }
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Carregando…</div>
 
   const errStyle = { borderColor: '#dc2626', background: '#fef2f2' }
@@ -989,11 +1012,12 @@ export default function AgencyDetail() {
             setIsDirty(false)
             const p = leavePrompt.proceed; setLeavePrompt(null); p()
           }}
-          onSave={async () => {
+          onSaveDraft={draftMode ? () => saveDraftAndLeave(leavePrompt.proceed) : undefined}
+          onSave={(!draftMode || isComplete()) ? async () => {
             const ok = await save({ noNav: true })
             const p = leavePrompt.proceed; setLeavePrompt(null)
             if (ok) p()   // salvou → segue para o destino; senão fica na tela vendo os erros
-          }}
+          } : undefined}
         />
       )}
     </>
