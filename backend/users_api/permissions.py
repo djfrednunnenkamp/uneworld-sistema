@@ -38,6 +38,8 @@ PERMISSION_FIELDS = [
     'contracts_custom_clauses',
     'contracts_clauses_edit',
     'contracts_review',
+    'contracts_invoice_view',
+    'contracts_invoice',
     # Roteiros
     'roteiros_view',
     'roteiros_edit',

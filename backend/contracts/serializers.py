@@ -108,6 +108,7 @@ class ContractListSerializer(serializers.ModelSerializer):
                   'total_brl', 'total_usd', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
                   'autentique_document_id',
                   'created_at', 'updated_at', 'sent_at', 'signed_at', 'reviewed_at', 'review_note',
+                  'invoice_number', 'invoice_date', 'invoiced_at',
                   'is_deleted', 'deleted_at']
 
     def get_agency_name(self, obj):
@@ -163,11 +164,12 @@ class ContractSerializer(serializers.ModelSerializer):
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'stage', 'signed_file', 'signed_verification',
-                  'reviewed_at', 'review_note',
+                  'reviewed_at', 'review_note', 'invoice_number', 'invoice_date', 'invoiced_at',
                   'autentique_document_id', 'autentique_data',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data', 'custom_clauses',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
-        read_only_fields = ['autentique_document_id', 'autentique_data', 'reviewed_at', 'review_note']
+        read_only_fields = ['autentique_document_id', 'autentique_data', 'reviewed_at', 'review_note',
+                            'invoice_number', 'invoice_date', 'invoiced_at']
 
     def validate(self, attrs):
         # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado

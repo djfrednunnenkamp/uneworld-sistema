@@ -122,6 +122,9 @@ export const contractsApi = {
   reviewData:       (id) => api.get(`/contracts/${id}/review-data/`),
   approve:          (id) => api.post(`/contracts/${id}/approve/`),
   reject:           (id, note) => api.post(`/contracts/${id}/reject/`, { note }),
+  // Faturamento: dados da fatura + faturar (número e data).
+  invoiceData:      (id) => api.get(`/contracts/${id}/invoice-data/`),
+  invoice:          (id, invoice_number, invoice_date) => api.post(`/contracts/${id}/invoice/`, { invoice_number, invoice_date }),
 }
 
 export const itinerariesApi = {

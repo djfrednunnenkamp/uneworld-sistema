@@ -166,10 +166,21 @@ def build_review_data(contract):
         'payment_method': i.payment_method or '',
     } for i in installments]
 
+    payer_name = None
+    if contract.contratante_id and getattr(contract, 'contratante', None):
+        payer_name = getattr(contract.contratante, 'full_name', None) or str(contract.contratante)
+    payer_name = payer_name or (contract.payer_name or None)
+
     return {
         'contract_id': contract.id,
         'reservation_number': contract.reservation_number,
         'stage': contract.stage,
+        'agency_name': str(contract.agency) if contract.agency_id else None,
+        'payer_name': payer_name,
+        'package_name': contract.package_name or None,
+        'contract_date': contract.contract_date.isoformat() if contract.contract_date else None,
+        'departure_date': contract.departure_date.isoformat() if contract.departure_date else None,
+        'return_date': contract.return_date.isoformat() if contract.return_date else None,
         'base_currency': contract.base_currency,
         'payment_type': contract.payment_type,
         'exchange_rate': {

@@ -10,6 +10,7 @@ import ContractViewModal from '../components/ContractViewModal'
 import SignedFileViewer from '../components/SignedFileViewer'
 import ContractPdfPreviewModal from '../components/ContractPdfPreviewModal'
 import ContractReviewModal from '../components/ContractReviewModal'
+import ContractInvoiceModal from '../components/ContractInvoiceModal'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
@@ -36,6 +37,8 @@ const STAGE_META = {
   assinado:  { label: 'Assinado',        color: '#0891b2' },
   revisao:   { label: 'Em revisão',      color: '#7c3aed' },
   aprovado:  { label: 'Aprovado',        color: '#059669' },
+  a_faturar: { label: 'A faturar',       color: '#ca8a04' },
+  faturado:  { label: 'Faturado',        color: '#059669' },
 }
 function StageBadge({ stage }) {
   const m = STAGE_META[stage] || { label: stage || '—', color: '#94a3b8' }
@@ -394,6 +397,8 @@ export default function Contracts() {
   const canEdit   = !!user?.is_superuser || perms.contracts_edit
   const canDelete = !!user?.is_superuser || perms.contracts_delete
   const canReview = !!user?.is_superuser || perms.contracts_review
+  const canInvoiceView = !!user?.is_superuser || perms.contracts_invoice_view
+  const canInvoice = !!user?.is_superuser || perms.contracts_invoice
   const canViewLog = !!user?.is_superuser || perms.contracts_view_logs
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
@@ -423,6 +428,7 @@ export default function Contracts() {
   const [downloadingId, setDownloadingId] = useState(null)
   const [uploadRow, setUploadRow] = useState(null)   // contrato p/ anexar assinado (abre popup)
   const [reviewId, setReviewId] = useState(null)     // id do contrato em revisão (abre popup)
+  const [invoiceId, setInvoiceId] = useState(null)   // id do contrato p/ faturar (abre popup)
   const [signedUrl, setSignedUrl] = useState(null)   // url do assinado em visualização
   const [previewId, setPreviewId] = useState(null)   // contrato p/ pré-visualizar o PDF gerado
 
@@ -662,8 +668,10 @@ export default function Contracts() {
       ? { key: 'sent_at',   label: 'Enviado em',  align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : tab === 'revisao'
       ? { key: 'signed_at', label: 'Assinado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
-      : tab === 'aprovado'
+      : tab === 'a_faturar'
       ? { key: 'reviewed_at', label: 'Aprovado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      : tab === 'faturado'
+      ? { key: 'invoiced_at', label: 'Faturado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : tab === 'trash'
       ? { key: 'deleted_at', label: 'Excluído em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH }
@@ -680,6 +688,10 @@ export default function Contracts() {
       { key: 'departure_date',     label: 'Data viagem', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH },
       { key: 'total_brl',          label: 'Total (BRL)', align: 'center', render: (v) => v ? fmtBRL(v) : DASH },
       { key: 'signature_type',     label: 'Assinatura',  align: 'center', render: (v) => <SignatureBadge type={v} /> },
+      // Nº da fatura só na aba Faturados.
+      ...(tab === 'faturado' ? [{ key: 'invoice_number', label: 'Nº fatura', align: 'center', render: (v, row) => (
+        <span>{v || DASH}{row.invoice_date ? <span style={{ display: 'block', fontSize: 11, color: '#94a3b8' }}>{fmtDateBR(row.invoice_date)}</span> : null}</span>
+      ) }] : []),
       // Coluna de status só na aba Geral (nas demais a aba já define a etapa).
       ...(tab === 'geral' ? [{ key: 'stage', label: 'Status', align: 'center', render: (v, row) => isReproved(row) ? <ReprovedBadge note={row.review_note} /> : <StageBadge stage={v} /> }] : []),
       dateCol,
@@ -719,7 +731,10 @@ export default function Contracts() {
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'revisao',   label: 'Em revisão',       color: '#7c3aed', count: stageCount('revisao') },
-    { key: 'aprovado',  label: 'Aprovados',        color: '#059669', count: stageCount('aprovado') },
+    ...(canInvoiceView ? [
+      { key: 'a_faturar', label: 'A faturar',       color: '#ca8a04', count: stageCount('a_faturar') },
+      { key: 'faturado',  label: 'Faturados',       color: '#059669', count: stageCount('faturado') },
+    ] : []),
     ...(canDelete ? [{ key: 'trash', label: 'Excluídos', color: '#dc2626', count: deletedCount }] : []),
   ]
   const tabBar = (
@@ -798,20 +813,26 @@ export default function Contracts() {
         showDocs={(row) =>
           // Enviado: sempre dá para ver online (física = ver/imprimir; digital = só ver).
           row.stage === 'enviado' ? true
-          : ['assinado', 'revisao', 'aprovado'].includes(row.stage) ? !!row.signed_file
+          : ['assinado', 'revisao', 'aprovado', 'a_faturar', 'faturado'].includes(row.stage) ? !!row.signed_file
           : false}
-        docsTitle={['assinado', 'revisao', 'aprovado'].includes(tab) ? 'Ver contrato assinado'
+        docsTitle={['assinado', 'revisao', 'aprovado', 'a_faturar', 'faturado'].includes(tab) ? 'Ver contrato assinado'
           : 'Ver contrato'}
         extraActions={
           tab === 'trash'
             ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={contractsApi.restore} onPurge={contractsApi.purge} canPurge={canPurge} onChanged={reloadAll} />
             : tab === 'rascunho'
             ? (row) => actBtn('Continuar editando', 'edit', '#7c3aed', () => setModal(row.id))
-            : (canEdit || canReview) ? (row) => {
+            : (canEdit || canReview || canInvoice) ? (row) => {
               // Na aba Geral cada linha segue a SUA própria etapa; nas demais, a aba.
               const stage = tab === 'geral' ? row.stage : tab
               if (stage === 'revisao') {
                 return canReview ? actBtn('Revisar contrato', 'check', '#7c3aed', () => setReviewId(row.id)) : null
+              }
+              if (stage === 'a_faturar') {
+                return canInvoice ? actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id)) : null
+              }
+              if (stage === 'faturado') {
+                return canInvoice ? actBtn('Editar fatura', 'card', '#059669', () => setInvoiceId(row.id)) : null
               }
               if (!canEdit) return null
               return (
@@ -850,6 +871,9 @@ export default function Contracts() {
       )}
       {reviewId && (
         <ContractReviewModal contractId={reviewId} onClose={() => setReviewId(null)} onDone={reloadAll} />
+      )}
+      {invoiceId && (
+        <ContractInvoiceModal contractId={invoiceId} onClose={() => setInvoiceId(null)} onDone={reloadAll} />
       )}
       {viewId && (
         <ContractViewModal

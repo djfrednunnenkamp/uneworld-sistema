@@ -35,7 +35,7 @@ export default function ContractReviewModal({ contractId, onClose, onDone }) {
     setBusy(true)
     try {
       await contractsApi.approve(contractId)
-      toast.success('Contrato aprovado.')
+      toast.success('Contrato aprovado — liberado para faturar.')
       onDone?.(); onClose()
     } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao aprovar.') }
     finally { setBusy(false) }

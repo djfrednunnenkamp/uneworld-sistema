@@ -99,7 +99,9 @@ class Contract(models.Model):
         ('enviado', 'Enviado para assinatura'),
         ('assinado', 'Assinado'),
         ('revisao', 'Em revisão'),
-        ('aprovado', 'Aprovado'),
+        ('aprovado', 'Aprovado'),        # legado — hoje aprovar já manda para 'a_faturar'
+        ('a_faturar', 'A faturar'),
+        ('faturado', 'Faturado'),
     ]
     stage       = models.CharField('Etapa', max_length=12, choices=STAGE_CHOICES, default='em_edicao', db_index=True)
     # Revisão da operadora (após a assinatura completa).
@@ -107,6 +109,12 @@ class Contract(models.Model):
     reviewed_at = models.DateTimeField('Revisado em', null=True, blank=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='contracts_reviewed', verbose_name='Revisado por')
+    # Faturamento (após aprovado → a_faturar → faturado).
+    invoice_number = models.CharField('Número da fatura', max_length=60, blank=True, default='')
+    invoice_date   = models.DateField('Data da fatura', null=True, blank=True)
+    invoiced_at    = models.DateTimeField('Faturado em', null=True, blank=True)
+    invoiced_by    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='contracts_invoiced', verbose_name='Faturado por')
     signed_file = models.FileField('Contrato assinado', upload_to=secure_signed_path, null=True, blank=True)
     # Resultado da conferência automática (OCR/leitura) do contrato assinado contra
     # os dados do contrato. Guardado para o aviso de divergências ficar persistente.

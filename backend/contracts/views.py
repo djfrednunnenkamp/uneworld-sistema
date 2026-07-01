@@ -151,6 +151,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('contracts_delete')()]
         if self.action in ('approve', 'reject', 'review_data'):
             return [RequirePermission('contracts_review')()]
+        if self.action == 'invoice':
+            return [RequirePermission('contracts_invoice')()]
+        if self.action == 'invoice_data':
+            return [RequirePermission('contracts_invoice_view', 'contracts_invoice')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge', 'discard',
                            'send_for_signature', 'upload_signed', 'reopen', 'check_signature'):
             return [RequirePermission('contracts_edit')()]
@@ -309,17 +313,57 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
-        """Revisão → Aprovado (a operadora conferiu os dados)."""
+        """Revisão → A faturar (a operadora conferiu os dados; libera para faturar)."""
         from django.utils import timezone
         contract = self.get_object()
         if contract.stage != 'revisao':
             return Response({'error': 'Só é possível aprovar um contrato em revisão.'},
                             status=http_status.HTTP_400_BAD_REQUEST)
-        contract.stage = 'aprovado'
+        contract.stage = 'a_faturar'
         contract.reviewed_at = timezone.now()
         contract.reviewed_by = request.user
         contract.review_note = ''
         contract.save(update_fields=['stage', 'reviewed_at', 'reviewed_by', 'review_note'])
+        return Response(ContractSerializer(contract, context={'request': request}).data)
+
+    @action(detail=True, methods=['get'], url_path='invoice-data')
+    def invoice_data(self, request, pk=None):
+        """Dados relevantes da fatura (totais, comissão, pagamento, agência,
+        pagante e datas) + a fatura já registrada, se houver."""
+        from .review import build_review_data
+        contract = self.get_object()
+        data = build_review_data(contract)
+        data['invoice'] = {
+            'number': contract.invoice_number or '',
+            'date': contract.invoice_date.isoformat() if contract.invoice_date else None,
+        }
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='invoice')
+    def invoice(self, request, pk=None):
+        """A faturar → Faturado. Registra número e data da fatura."""
+        from django.utils import timezone
+        from datetime import date as _date
+        contract = self.get_object()
+        if contract.stage not in ('a_faturar', 'faturado'):
+            return Response({'error': 'Só é possível faturar um contrato que está "A faturar".'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        number = (request.data.get('invoice_number') or '').strip()
+        if not number:
+            return Response({'error': 'Informe o número da fatura.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        raw_date = (request.data.get('invoice_date') or '').strip()
+        inv_date = None
+        if raw_date:
+            try:
+                inv_date = _date.fromisoformat(raw_date)
+            except ValueError:
+                return Response({'error': 'Data da fatura inválida.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        contract.invoice_number = number
+        contract.invoice_date = inv_date
+        contract.invoiced_at = timezone.now()
+        contract.invoiced_by = request.user
+        contract.stage = 'faturado'
+        contract.save(update_fields=['invoice_number', 'invoice_date', 'invoiced_at', 'invoiced_by', 'stage'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='reject')

@@ -75,6 +75,8 @@ class UserPermissions(models.Model):
     contracts_custom_clauses = models.BooleanField(default=False)
     contracts_clauses_edit = models.BooleanField(default=False)   # editar/criar cláusulas no contrato (sem roteiro)
     contracts_review = models.BooleanField(default=False)         # revisar (aprovar/reprovar) contratos assinados — operadora
+    contracts_invoice_view = models.BooleanField(default=False)   # ver as abas "A faturar" e "Faturado"
+    contracts_invoice = models.BooleanField(default=False)        # faturar (mover A faturar → Faturado)
 
     # Roteiros
     roteiros_view   = models.BooleanField(default=False)
