@@ -38,6 +38,11 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
   }, [contract.id])
 
   const pickFile = (f) => {
+    if (f) {
+      const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '')
+      if (!isPdf) { toast.error('Apenas arquivos PDF são aceitos.'); return }
+      if (f.size > 15 * 1024 * 1024) { toast.error('Arquivo muito grande (máx. 15 MB).'); return }
+    }
     if (fileUrl) URL.revokeObjectURL(fileUrl)
     setFile(f || null)
     setFileUrl(f ? URL.createObjectURL(f) : null)
@@ -98,7 +103,7 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
           <div style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(37,99,235,.10)', border: '3px dashed #2563eb', borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, pointerEvents: 'none', backdropFilter: 'blur(1px)' }}>
             <div style={{ width: 56, height: 56, borderRadius: 14, background: '#dbeafe', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="ul" s={26} /></div>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#1e40af' }}>Solte o contrato assinado aqui</div>
-            <div style={{ fontSize: 12.5, color: '#3b82f6' }}>PDF, JPG ou PNG</div>
+            <div style={{ fontSize: 12.5, color: '#3b82f6' }}>Somente PDF</div>
           </div>
         )}
         {/* Header */}
@@ -157,8 +162,8 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
             ) : (
               <div>
                 <div style={secTitle}>Anexar contrato assinado</div>
-                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 12px', lineHeight: 1.5 }}>Depois de assinado à mão, anexe o PDF (ou foto). Ele aparece à esquerda para você conferir.</p>
-                <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" style={{ display: 'none' }}
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 12px', lineHeight: 1.5 }}>Depois de assinado à mão, anexe o <strong>PDF</strong> (arraste para qualquer área ou escolha). Ele aparece à esquerda para conferir.</p>
+                <input ref={inputRef} type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
                   onChange={e => pickFile(e.target.files?.[0] || null)} />
                 <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
                   style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>

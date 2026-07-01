@@ -412,7 +412,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if not f:
             return Response({'error': 'Envie o arquivo assinado (campo "file").'}, status=http_status.HTTP_400_BAD_REQUEST)
         try:
-            f = validate_document_file(f)
+            # Contrato assinado: apenas PDF (nada de imagem).
+            f = validate_document_file(f, allowed_exts={'.pdf'}, allow_images=False)
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
         from django.utils import timezone

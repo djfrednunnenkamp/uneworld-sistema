@@ -28,11 +28,18 @@ def _detect_type(header: bytes) -> str | None:
     return None
 
 
-def validate_document_file(file):
+def validate_document_file(file, allowed_exts=None, allow_images=True):
     """
     Valida e (para imagens) re-processa um arquivo uploaded.
     Retorna o InMemoryUploadedFile limpo ou levanta ValidationError.
+
+    allowed_exts/allow_images restringem os tipos aceitos (ex.: só PDF no
+    contrato assinado: allowed_exts={'.pdf'}, allow_images=False).
     """
+    allowed_exts = set(allowed_exts) if allowed_exts else set(ALLOWED_EXTENSIONS)
+    only_pdf = allowed_exts == {'.pdf'} or not allow_images
+    kinds_label = 'PDF' if only_pdf else 'JPEG, PNG ou PDF'
+
     # Camada 1 — tamanho
     if file.size > MAX_FILE_SIZE:
         raise ValidationError(
@@ -40,10 +47,10 @@ def validate_document_file(file):
         )
 
     # Camada 1 — extensão
-    ext = os.path.splitext(file.name)[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
+    ext = os.path.splitext(file.name or '')[1].lower()
+    if ext not in allowed_exts:
         raise ValidationError(
-            f'Extensão "{ext}" não permitida. Use: JPEG, PNG ou PDF.'
+            f'Extensão "{ext}" não permitida. Use: {kinds_label}.'
         )
 
     # Camada 2 — magic bytes
@@ -54,8 +61,10 @@ def validate_document_file(file):
     detected = _detect_type(header)
     if detected is None:
         raise ValidationError(
-            'Arquivo rejeitado: o conteúdo não corresponde a um JPEG, PNG ou PDF válido.'
+            f'Arquivo rejeitado: o conteúdo não corresponde a um {kinds_label} válido.'
         )
+    if detected == 'image' and not allow_images:
+        raise ValidationError('Apenas arquivos PDF são aceitos aqui.')
 
     # Extensão × magic bytes devem ser compatíveis
     if detected == 'pdf' and ext not in ('.pdf',):
