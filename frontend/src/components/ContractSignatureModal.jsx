@@ -116,12 +116,18 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           {/* Esquerda: documento / arquivo enviado */}
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #eef2f7' }}>
-            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0, borderBottom: '1px solid #eef2f7' }}>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#475569' }}>{fileUrl ? 'Contrato assinado (enviado)' : 'Contrato'}</span>
-              {docUrl && (
-                <a href={docUrl} download={`contrato_${contract.reservation_number || contract.id}.pdf`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#1a2d4f', fontSize: 12.5, fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
-                  <Ic n="dl" s={14} /> Baixar PDF
+            <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0, borderBottom: `1px solid ${fileUrl ? '#bbf7d0' : '#eef2f7'}`, background: fileUrl ? '#f0fdf4' : '#fff' }}>
+              {fileUrl ? (
+                <span title={file?.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700, color: '#15803d', minWidth: 0 }}>
+                  <Ic n="check" s={14} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Documento enviado — {file?.name || 'contrato assinado'}</span>
+                </span>
+              ) : (
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: '#475569' }}>Contrato (para assinar)</span>
+              )}
+              {(fileUrl || docUrl) && (
+                <a href={fileUrl || docUrl} download={fileUrl ? (file?.name || 'contrato_assinado') : `contrato_${contract.reservation_number || contract.id}.pdf`}
+                  style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: `1px solid ${fileUrl ? '#86efac' : '#cbd5e1'}`, background: '#fff', color: fileUrl ? '#15803d' : '#1a2d4f', fontSize: 12.5, fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
+                  <Ic n="dl" s={14} /> Baixar {fileUrl ? 'enviado' : 'PDF'}
                 </a>
               )}
             </div>
