@@ -216,6 +216,7 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
               <Ic n="briefcase" s={13} />
               <span>Comissão da agência: <strong>{commissionPct.toLocaleString('pt-BR')}%</strong> ({cur} {fmt(commissionUsd)}), já embutida. Abaixo, abata a sua comissão (no máximo o valor dela):</span>
             </div>
+            {commissionUsd > 0 ? (<>
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ width: 160 }}>
                 <Dropdown value={commUnit} clearable={false} searchable={false} options={COMM_UNIT_OPTS}
@@ -237,6 +238,11 @@ function AdjustmentsModal({ adjustments, setAdjustments, baseUsd = 0, commission
             <p style={{ fontSize: 11, color: '#a78bfa', margin: '7px 0 0' }}>
               Máximo: 100% · {cur} {fmt(commissionUsd)}{commMaxBrl ? ` · R$ ${fmt(commMaxBrl)}` : ''}
             </p>
+            </>) : (
+              <p style={{ fontSize: 11.5, color: '#7c3aed', background: '#faf5ff', border: '1px dashed #ddd6fe', borderRadius: 6, padding: '8px 10px', margin: 0 }}>
+                A comissão ainda é {cur} 0,00 — preencha os <strong>valores das acomodações</strong> (passo Valores) para ter comissão a abater aqui.
+              </p>
+            )}
           </div>
           )}
           <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>
