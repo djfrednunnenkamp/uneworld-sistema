@@ -903,7 +903,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     Object.keys(prev).forEach(id => { if (!rooms.some(r => String(r.id) === String(id))) delete prev[id] })
     if (!flashed.length) return
     setFlashRooms(new Set(flashed))
-    const t = setTimeout(() => setFlashRooms(new Set()), 1500)
+    const t = setTimeout(() => setFlashRooms(new Set()), 4600)
     return () => clearTimeout(t)
   }, [rooms])
 
