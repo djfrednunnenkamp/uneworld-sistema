@@ -387,7 +387,7 @@ function RateModal({ initial, onSave, onClose, canScript = false, canAdvanced = 
 }
 
 /* ── Lista de câmbios — usada para preencher automaticamente os contratos ── */
-export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, canScript = false, canAdvanced = true, canRounding = true, onAdd, onUpdate, onDelete, onPullInternet }) {
+export default function ExchangeRateManager({ items = [], canEdit = true, canDelete = true, canImport = false, canExport = true, canScript = false, canAdvanced = true, canRounding = true, onAdd, onUpdate, onDelete, onPullInternet, onRunNow }) {
   const navigate = useNavigate()
   const [search,  setSearch]  = useState('')
   const [modal,   setModal]   = useState(null) // null | 'new' | item
@@ -396,6 +396,8 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
   const [showImportPopup, setShowImportPopup] = useState(false)
   const [confirmPull, setConfirmPull] = useState(false)
   const [pulling, setPulling] = useState(false)
+  const [confirmRun, setConfirmRun] = useState(false)
+  const [running, setRunning] = useState(false)
   const [showDefaultTime, setShowDefaultTime] = useState(false)
   const [defaultTime, setDefaultTime] = useState('')
   const [savingDT, setSavingDT] = useState(false)
@@ -404,6 +406,12 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
     setPulling(true)
     try { await onPullInternet?.(); setConfirmPull(false) }
     finally { setPulling(false) }
+  }
+
+  const handleRunNow = async () => {
+    setRunning(true)
+    try { await onRunNow?.(); setConfirmRun(false) }
+    finally { setRunning(false) }
   }
 
   const openDefaultTime = async () => {
@@ -454,6 +462,11 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
           {canEdit && onPullInternet && (
             <button onClick={() => setConfirmPull(true)} disabled={pulling} style={btnCsv('#7c3aed')} title="Puxar todas as moedas da internet (→ BRL)">
               <Ic n="globe" s={13} /> {pulling ? 'Puxando…' : 'Atualizar da internet'}
+            </button>
+          )}
+          {onRunNow && (
+            <button onClick={() => setConfirmRun(true)} disabled={running} style={btnCsv('#0284c7')} title="Forçar a atualização automática agora (sem esperar o horário)">
+              <Ic n="clock" s={13} /> {running ? 'Atualizando…' : 'Atualizar câmbio agora'}
             </button>
           )}
           {canAdvanced && (
@@ -600,6 +613,15 @@ export default function ExchangeRateManager({ items = [], canEdit = true, canDel
           okLabel={pulling ? 'Puxando…' : 'Puxar da internet'}
           onOk={handlePull}
           onCancel={() => !pulling && setConfirmPull(false)}
+        />
+      )}
+      {confirmRun && (
+        <ConfirmModal
+          title="Atualizar câmbio agora"
+          message="Você realmente quer atualizar o câmbio agora? Todas as moedas com atualização automática ligada serão atualizadas na hora (pela fonte configurada: script, link ou API), sem esperar o horário agendado."
+          okLabel={running ? 'Atualizando…' : 'Sim, atualizar agora'}
+          onOk={handleRunNow}
+          onCancel={() => !running && setConfirmRun(false)}
         />
       )}
     </>

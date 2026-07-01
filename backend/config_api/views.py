@@ -965,7 +965,7 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm(
         'settings_exchange_rates',
         extra_write=['test_script'],
-        action_perms={'pull_internet': 'advanced', 'default_time': 'advanced'},
+        action_perms={'pull_internet': 'advanced', 'default_time': 'advanced', 'run_now': 'update_now'},
     )
 
     def get_queryset(self):
@@ -985,6 +985,18 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
             return Response({'error': f'Não foi possível puxar da internet: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)
         return Response({'created': created, 'updated': updated})
+
+    @action(detail=False, methods=['post'], url_path='run-now')
+    def run_now(self, request):
+        """Força a atualização automática AGORA — atualiza todas as moedas com
+        auto-atualização ligada (script/link/API), sem esperar o horário."""
+        from .exchange_service import update_due
+        try:
+            n = update_due(force=True)
+        except Exception as e:
+            return Response({'error': f'Não foi possível atualizar agora: {e}'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'updated': n})
 
     @action(detail=False, methods=['post'], url_path='test-script')
     def test_script(self, request):

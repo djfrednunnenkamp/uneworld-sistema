@@ -211,6 +211,7 @@ export const PERM_GROUPS = [
           ['settings_exchange_rates_edit',        'Criar / Editar câmbio'],
           ['settings_exchange_rates_advanced',    'Opções avançadas (auto-atualização / fonte externa)'],
           ['settings_exchange_rates_rounding',    'Opções de arredondamento'],
+          ['settings_exchange_rates_update_now',  'Atualizar câmbio agora (forçar atualização manual)'],
           ['settings_exchange_rates_delete',      'Excluir câmbio'],
           ['settings_exchange_rates_bulk_import', 'Importação em massa via CSV'],
           ['settings_exchange_rates_export',      'Exportar como CSV (download)'],

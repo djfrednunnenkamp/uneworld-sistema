@@ -158,21 +158,27 @@ def pull_all_from_internet():
     return created, updated
 
 
-def update_due(now=None):
+def update_due(now=None, force=False):
     """Atualiza os câmbios com auto_update cujo horário (próprio ou o geral) já
-    chegou hoje e que ainda não foram atualizados hoje. Roda no agendador."""
+    chegou hoje e que ainda não foram atualizados hoje. Roda no agendador.
+
+    Com force=True atualiza AGORA todas as moedas com auto_update ligado,
+    ignorando horário e a marca de "já atualizado hoje" (botão manual)."""
     from django.utils import timezone
     from .models import ConfigExchangeRate, ConfigExchangeSettings
     now = now or timezone.localtime()
     today = now.date()
     default_time = ConfigExchangeSettings.get().default_update_time
 
-    candidates = ConfigExchangeRate.objects.filter(
-        auto_update=True, to_currency='BRL',
-    ).exclude(last_auto_update=today)
+    candidates = ConfigExchangeRate.objects.filter(auto_update=True, to_currency='BRL')
+    if not force:
+        candidates = candidates.exclude(last_auto_update=today)
 
     due = []
     for row in candidates:
+        if force:
+            due.append(row)
+            continue
         eff = row.update_time or default_time
         if eff is not None and eff <= now.time():
             due.append(row)
