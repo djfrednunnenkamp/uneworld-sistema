@@ -55,6 +55,7 @@ export const PERM_GROUPS = [
       ['contracts_edit_exchange_rate', 'Alterar o câmbio do contrato (por padrão é fixo das Configurações)'],
       ['contracts_custom_clauses', 'Escrever cláusulas personalizadas no contrato'],
       ['contracts_clauses_edit', 'Definir cláusulas no contrato quando não há roteiro'],
+      ['contracts_review', 'Revisar contratos assinados (aprovar / reprovar) — operadora'],
       ['contracts_view_logs', 'Ver log de atividades dos contratos'],
     ],
   },
@@ -438,6 +439,7 @@ export const PERM_DEPENDENCIES = {
 
   contracts_edit:   'contracts_view',
   contracts_delete: 'contracts_view',
+  contracts_review: 'contracts_view',
   contracts_change_seller: 'contracts_edit',
   contracts_edit_exchange_rate: 'contracts_edit',
   contracts_custom_clauses: 'contracts_edit',

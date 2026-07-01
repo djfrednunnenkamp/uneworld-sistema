@@ -37,6 +37,7 @@ PERMISSION_FIELDS = [
     'contracts_edit_exchange_rate',
     'contracts_custom_clauses',
     'contracts_clauses_edit',
+    'contracts_review',
     # Roteiros
     'roteiros_view',
     'roteiros_edit',

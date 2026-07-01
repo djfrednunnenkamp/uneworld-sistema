@@ -74,13 +74,14 @@ def _apply_autentique_state(contract, doc, save=True):
     }
     became_signed = False
     fields = ['autentique_data']
-    if autentique.is_fully_signed(doc) and contract.stage != 'assinado':
+    if autentique.is_fully_signed(doc) and contract.stage not in ('revisao', 'aprovado'):
         url = autentique.signed_file_url(doc)
         if url:
             pdf = autentique.download(url)
             fname = f'contrato_{contract.reservation_number or contract.id}_assinado.pdf'
             contract.signed_file.save(fname, ContentFile(pdf), save=False)
-            contract.stage = 'assinado'
+            # Assinatura completa → vai direto para a revisão da operadora.
+            contract.stage = 'revisao'
             contract.signed_at = timezone.now()
             fields += ['signed_file', 'stage', 'signed_at']
             became_signed = True
@@ -148,6 +149,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('contracts_delete')()]
+        if self.action in ('approve', 'reject', 'review_data'):
+            return [RequirePermission('contracts_review')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge', 'discard',
                            'send_for_signature', 'upload_signed', 'reopen', 'check_signature'):
             return [RequirePermission('contracts_edit')()]
@@ -292,6 +295,58 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.save(update_fields=update_fields)
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
+    @action(detail=True, methods=['get'], url_path='review-data')
+    def review_data(self, request, pk=None):
+        """Detalhamento + alertas da revisão (câmbio manual, valores vs roteiro,
+        totais que não batem, desconto, dedução de comissão)."""
+        from .review import build_review_data
+        contract = self.get_object()
+        return Response(build_review_data(contract))
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        """Revisão → Aprovado (a operadora conferiu os dados)."""
+        from django.utils import timezone
+        contract = self.get_object()
+        if contract.stage != 'revisao':
+            return Response({'error': 'Só é possível aprovar um contrato em revisão.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        contract.stage = 'aprovado'
+        contract.reviewed_at = timezone.now()
+        contract.reviewed_by = request.user
+        contract.review_note = ''
+        contract.save(update_fields=['stage', 'reviewed_at', 'reviewed_by', 'review_note'])
+        return Response(ContractSerializer(contract, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        """Revisão → Em edição (reprovado), com motivo, para a agência corrigir.
+
+        A assinatura anterior é descartada (o contrato será reeditado e reenviado
+        para assinatura)."""
+        from django.utils import timezone
+        contract = self.get_object()
+        if contract.stage != 'revisao':
+            return Response({'error': 'Só é possível reprovar um contrato em revisão.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        note = (request.data.get('note') or '').strip()
+        if not note:
+            return Response({'error': 'Informe o motivo da reprovação.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        contract.stage = 'em_edicao'
+        contract.reviewed_at = timezone.now()
+        contract.reviewed_by = request.user
+        contract.review_note = note
+        # A assinatura anterior deixa de valer — limpa para uma nova rodada.
+        contract.signed_file = None
+        contract.signed_at = None
+        contract.autentique_document_id = ''
+        contract.autentique_data = None
+        contract.save(update_fields=['stage', 'reviewed_at', 'reviewed_by', 'review_note',
+                                     'signed_file', 'signed_at', 'autentique_document_id',
+                                     'autentique_data'])
+        return Response(ContractSerializer(contract, context={'request': request}).data)
+
     @action(detail=True, methods=['post'], url_path='upload-signed', parser_classes=[MultiPartParser, FormParser])
     def upload_signed(self, request, pk=None):
         """Upload do contrato assinado → move para 'Assinado'. Valida o arquivo
@@ -314,11 +369,11 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
         from django.utils import timezone
         contract.signed_file = f
-        contract.stage = 'assinado'
+        # Assinado (física) → vai direto para a revisão da operadora.
+        contract.stage = 'revisao'
         contract.signed_at = timezone.now()
         contract.save(update_fields=['signed_file', 'stage', 'signed_at'])
-        # A mudança de etapa para 'assinado' já é registrada no log como ação
-        # 'sign' (Assinado) pelo sinal em audit/tracking.py — não duplicamos aqui.
+        # A mudança de etapa já é registrada no log pelo sinal em audit/tracking.py.
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
 
@@ -346,7 +401,7 @@ def autentique_webhook(request):
 
     pending = Contract.objects.filter(
         signature_type='digital', is_deleted=False,
-    ).exclude(autentique_document_id='').exclude(stage='assinado')
+    ).exclude(autentique_document_id='').exclude(stage__in=['revisao', 'aprovado'])
 
     changed = 0
     for contract in pending:

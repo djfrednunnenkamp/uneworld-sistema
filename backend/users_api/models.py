@@ -74,6 +74,7 @@ class UserPermissions(models.Model):
     contracts_edit_exchange_rate = models.BooleanField(default=False)
     contracts_custom_clauses = models.BooleanField(default=False)
     contracts_clauses_edit = models.BooleanField(default=False)   # editar/criar cláusulas no contrato (sem roteiro)
+    contracts_review = models.BooleanField(default=False)         # revisar (aprovar/reprovar) contratos assinados — operadora
 
     # Roteiros
     roteiros_view   = models.BooleanField(default=False)

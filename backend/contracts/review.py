@@ -1,0 +1,196 @@
+"""Dados da REVISÃO de um contrato (fase 'revisao').
+
+Monta um detalhamento item a item + alertas automáticos para a operadora
+conferir antes de aprovar: câmbio alterado manualmente, valor por pessoa
+diferente do roteiro, totais que não batem (entrada+parcelas ≠ total),
+desconto aplicado e dedução da comissão da agência.
+
+A aritmética espelha ContractSerializer._recalc_totals para bater com o total
+gravado no contrato."""
+from decimal import Decimal
+
+
+def _d(v):
+    return Decimal(str(v)) if v is not None else None
+
+
+def _s(v):
+    return str(v) if v is not None else None
+
+
+def build_review_data(contract):
+    from .serializers import _default_exchange_rate
+
+    lines = list(contract.accommodation_lines.select_related('accommodation_type').all())
+    adjustments = list(contract.adjustments.all())
+    installments = list(contract.installments.all())
+
+    rate = _d(contract.exchange_rate)
+    default_rate = _default_exchange_rate(
+        from_currency=contract.base_currency or 'USD',
+        payment_type=contract.payment_type or 'parcelado')
+    default_rate = _d(default_rate)
+
+    # Tabela de preços do roteiro (valor/pessoa + taxas por tipo de acomodação).
+    itin_map = {}
+    if contract.itinerary_id:
+        for il in contract.itinerary.accommodation_lines.all():
+            if il.accommodation_type_id is not None:
+                itin_map[il.accommodation_type_id] = (_d(il.value_per_person), _d(il.taxes))
+
+    flags = []
+
+    # ── Linhas de acomodação (com comparação vs roteiro) ──
+    accom_items = []
+    accom_total = Decimal('0')
+    value_subtotal = Decimal('0')
+    for l in lines:
+        vp = _d(l.value_per_person_usd) or Decimal('0')
+        tx = _d(l.taxes_usd) or Decimal('0')
+        qty = l.quantity or 0
+        subtotal = (vp + tx) * qty
+        accom_total += subtotal
+        value_subtotal += vp * qty
+        name = l.accommodation_type.name if l.accommodation_type_id else '—'
+        base = itin_map.get(l.accommodation_type_id)
+        changed = False
+        base_vp = base_tx = None
+        if base is not None:
+            base_vp, base_tx = base
+            changed = (vp != (base_vp or Decimal('0'))) or (tx != (base_tx or Decimal('0')))
+        accom_items.append({
+            'type': name,
+            'value_per_person_usd': _s(vp), 'taxes_usd': _s(tx), 'quantity': qty,
+            'subtotal_usd': _s(subtotal),
+            'itinerary_value_per_person': _s(base_vp),
+            'itinerary_taxes': _s(base_tx),
+            'has_itinerary_baseline': base is not None,
+            'changed_from_itinerary': changed,
+        })
+        if changed:
+            flags.append({
+                'level': 'warn', 'code': 'accom_changed',
+                'message': f'"{name}": valor por pessoa/taxas diferem do roteiro '
+                           f'(roteiro: {base_vp}/pessoa + {base_tx} taxas · '
+                           f'contrato: {vp}/pessoa + {tx} taxas).',
+            })
+
+    # ── Ajustes genéricos (extras/descontos) ──
+    adj_items = []
+    adj_total = Decimal('0')
+    for a in adjustments:
+        if a.kind == 'comissao':
+            continue
+        amount = a.amount_usd(accom_total, rate or Decimal('0'))
+        adj_total += amount if a.kind == 'acrescimo' else -amount
+        item = {
+            'kind': a.kind, 'description': a.description or '', 'mode': a.mode,
+            'amount_usd': _s(amount),
+            'percent': _s(a.percent) if a.percent else None,
+            'value_brl': _s(a.value_brl) if a.value_brl else None,
+            'value_usd': _s(a.value_usd) if a.value_usd else None,
+        }
+        adj_items.append(item)
+        if a.kind == 'desconto':
+            flags.append({
+                'level': 'warn', 'code': 'discount',
+                'message': f'Desconto aplicado{(" — " + a.description) if a.description else ""}: '
+                           f'US$ {amount}.',
+            })
+
+    # ── Comissão da agência (embutida no total) ──
+    commission = Decimal('0')
+    commission_pct = None
+    if contract.agency_id and contract.agency.commission_rate:
+        commission_pct = _d(contract.agency.commission_rate)
+        commission = value_subtotal * (commission_pct / Decimal('100'))
+
+    # ── Dedução da comissão ──
+    comm_disc = Decimal('0')
+    comm_disc_item = None
+    ca = next((a for a in adjustments if a.kind == 'comissao'), None)
+    if ca and commission:
+        if ca.mode == 'percentual':
+            d = commission * (ca.percent or Decimal('0')) / Decimal('100')
+        elif ca.mode == 'valor_brl':
+            d = (ca.value_brl / rate) if rate else Decimal('0')
+        else:
+            d = ca.value_usd or Decimal('0')
+        comm_disc = max(Decimal('0'), min(_d(d), commission))
+        comm_disc_item = {
+            'mode': ca.mode,
+            'percent': _s(ca.percent) if ca.percent else None,
+            'value_brl': _s(ca.value_brl) if ca.value_brl else None,
+            'value_usd': _s(ca.value_usd) if ca.value_usd else None,
+            'amount_usd': _s(comm_disc),
+        }
+        flags.append({
+            'level': 'warn', 'code': 'commission_discount',
+            'message': f'Dedução da comissão da agência: US$ {comm_disc}.',
+        })
+
+    # ── Câmbio alterado manualmente ──
+    exchange_manual = (rate is not None and default_rate is not None and rate != default_rate)
+    if exchange_manual:
+        flags.append({
+            'level': 'warn', 'code': 'exchange_manual',
+            'message': f'Câmbio alterado manualmente: usado {rate} · '
+                       f'configurado {default_rate} ({contract.base_currency}→BRL, '
+                       f'{"à vista" if (contract.payment_type == "a_vista") else "parcelado"}).',
+        })
+
+    # ── Entrada + parcelas x total ──
+    entrada_brl = sum((_d(i.value_brl) or Decimal('0')) for i in installments if i.kind == 'entrada')
+    parcelas_brl = sum((_d(i.value_brl) or Decimal('0')) for i in installments if i.kind == 'parcela')
+    paid_total = entrada_brl + parcelas_brl
+    total_brl = _d(contract.total_brl)
+    totals_match = True
+    totals_diff = None
+    if total_brl is not None and installments:
+        diff = paid_total - total_brl
+        if abs(diff) > Decimal('0.01'):
+            totals_match = False
+            totals_diff = _s(diff)
+            flags.append({
+                'level': 'error', 'code': 'totals_mismatch',
+                'message': f'Entrada + parcelas (R$ {paid_total}) não batem com o total do '
+                           f'contrato (R$ {total_brl}). Diferença: R$ {diff}.',
+            })
+
+    installment_items = [{
+        'kind': i.kind,
+        'installment_number': i.installment_number,
+        'detail': i.detail or '',
+        'due_date': i.due_date.isoformat() if i.due_date else None,
+        'value_brl': _s(i.value_brl),
+        'payment_method': i.payment_method or '',
+    } for i in installments]
+
+    return {
+        'contract_id': contract.id,
+        'reservation_number': contract.reservation_number,
+        'stage': contract.stage,
+        'base_currency': contract.base_currency,
+        'payment_type': contract.payment_type,
+        'exchange_rate': {
+            'used': _s(rate), 'default': _s(default_rate), 'manual': exchange_manual,
+        },
+        'accommodation_lines': accom_items,
+        'accom_subtotal_usd': _s(accom_total),
+        'adjustments': adj_items,
+        'adjustments_total_usd': _s(adj_total),
+        'commission': {
+            'pct': _s(commission_pct), 'amount_usd': _s(commission),
+        } if commission_pct is not None else None,
+        'commission_discount': comm_disc_item,
+        'total_usd': _s(contract.total_usd),
+        'total_brl': _s(total_brl),
+        'installments': installment_items,
+        'entrada_brl': _s(entrada_brl),
+        'parcelas_brl': _s(parcelas_brl),
+        'paid_total_brl': _s(paid_total),
+        'totals_match': totals_match,
+        'totals_diff_brl': totals_diff,
+        'review_note': contract.review_note or '',
+        'flags': flags,
+    }
