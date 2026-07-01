@@ -6,6 +6,8 @@ import { agenciesApi, usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
+import { useNavGuard } from '../context/NavGuardContext'
+import LeaveGuardModal from '../components/LeaveGuardModal'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import EmailInput from '../components/EmailInput'
@@ -396,6 +398,16 @@ export default function AgencyDetail() {
   const isDirtyRef = useRef(isDirty)
   useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
 
+  // Guardião de saída: avisa antes de sair com alterações não salvas.
+  const { setGuard, clearGuard, guardedNavigate } = useNavGuard()
+  const [leavePrompt, setLeavePrompt] = useState(null)   // { proceed }
+  useEffect(() => {
+    setGuard({ when: () => isDirtyRef.current, attempt: (proceed) => setLeavePrompt({ proceed }) })
+    return () => clearGuard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const go = (to) => (guardedNavigate || navigate)(to)
+
   const silentLoad = useCallback(() => {
     if (!isNew && !isDirtyRef.current) {
       agenciesApi.get(id)
@@ -547,7 +559,7 @@ export default function AgencyDetail() {
     commission_rate: 'Comissão',
   }
 
-  const save = async () => {
+  const save = async ({ noNav = false } = {}) => {
     const errs = {}
     if (isFisica) {
       if (!form.cpf?.replace(/\D/g,''))    errs.cpf          = true
@@ -567,7 +579,7 @@ export default function AgencyDetail() {
         const first = document.querySelector('[data-err="true"] input, [data-err="true"] .fi, [data-err="true"]')
         if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }, 100)
-      return
+      return false
     }
     setFieldErrors({})
     setSaving(true)
@@ -588,24 +600,26 @@ export default function AgencyDetail() {
         await agenciesApi.update(st.id, payload)
         toast.success('Agência salva.')
         setIsDirty(false); setSaving(false)
-        navigate(`/agencias/${st.id}`, { replace: true })
-        return
+        if (!noNav) navigate(`/agencias/${st.id}`, { replace: true })
+        return true
       }
       if (isNew) {
         const r = await agenciesApi.create(payload)
         toast.success('Agência criada com sucesso.')
-        navigate(`/agencias/${r.data.id}`, { replace: true })
+        if (!noNav) navigate(`/agencias/${r.data.id}`, { replace: true })
       } else {
         await agenciesApi.update(id, payload)
         toast.success('Agência salva.')
       }
       setIsDirty(false)
+      return true
     } catch (err) {
       const errData = err.response?.data
       const msg = errData?.detail
         ?? (typeof errData === 'object' ? Object.entries(errData).map(([k,v]) => `${k}: ${Array.isArray(v)?v[0]:v}`).join(' | ') : null)
         ?? 'Erro ao salvar.'
       toast.error(msg, { duration: 6000 })
+      return false
     } finally { setSaving(false) }
   }
 
@@ -640,7 +654,7 @@ export default function AgencyDetail() {
               : (form.company_name || form.name)?.trim() || (isNew ? 'Nova agência' : 'Agência')
             }
           </h1>
-          {!isNew && <button className="link-btn" onClick={() => navigate('/agencias')} style={{ fontSize: 12, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>editar</button>}
+          {!isNew && <button className="link-btn" onClick={() => go('/agencias')} style={{ fontSize: 12, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>editar</button>}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
           {draftMode ? (
@@ -669,7 +683,7 @@ export default function AgencyDetail() {
               📋 Log
             </button>
           )}
-          <button className="btn btn-outline" onClick={() => navigate('/agencias')}>
+          <button className="btn btn-outline" onClick={() => go('/agencias')}>
             <Ic n="logout" s={13} style={{ transform: 'rotate(180deg)' }} /> Voltar
           </button>
           {canEdit && (
@@ -964,6 +978,24 @@ export default function AgencyDetail() {
         </div>
       )}
 
+      {leavePrompt && (
+        <LeaveGuardModal
+          entity="cadastro da agência"
+          saving={saving}
+          onStay={() => setLeavePrompt(null)}
+          onDiscard={async () => {
+            const st = draftRef.current
+            if (draftMode && st.id) { st.discarded = true; cancelTimer(); try { await agenciesApi.discard(st.id) } catch { /* noop */ } }
+            setIsDirty(false)
+            const p = leavePrompt.proceed; setLeavePrompt(null); p()
+          }}
+          onSave={async () => {
+            const ok = await save({ noNav: true })
+            const p = leavePrompt.proceed; setLeavePrompt(null)
+            if (ok) p()   // salvou → segue para o destino; senão fica na tela vendo os erros
+          }}
+        />
+      )}
     </>
   )
 }

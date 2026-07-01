@@ -7,6 +7,7 @@ import ChangePasswordModal from './ChangePasswordModal'
 import TermsModal from './TermsModal'
 import TermsAcceptGate from './TermsAcceptGate'
 import { useAuth } from '../context/AuthContext'
+import { NavGuardProvider } from '../context/NavGuardContext'
 import { auditApi } from '../api'
 
 const menuItemStyle = {
@@ -69,6 +70,7 @@ export default function Layout() {
   }, [])
 
   return (
+    <NavGuardProvider>
     <div className="app">
       <Sidebar />
       <div className="main">
@@ -158,5 +160,6 @@ export default function Layout() {
       {showTerms    && <TermsModal          onClose={() => setShowTerms(false)} />}
       {user?.needs_terms_acceptance && <TermsAcceptGate onAccepted={refreshUser} />}
     </div>
+    </NavGuardProvider>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Ic } from './Icon'
 import { useAuth } from '../context/AuthContext'
+import { useNavGuard } from '../context/NavGuardContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { getLocalJobs, subscribeLocalJobs } from '../utils/localJobs'
 import { dashboardWsUrl } from '../utils/ws'
@@ -21,7 +22,9 @@ const NAV_BASE = [
 
 export default function Sidebar() {
   const { pathname } = useLocation()
-  const navigate     = useNavigate()
+  const rawNavigate  = useNavigate()
+  const { guardedNavigate } = useNavGuard()
+  const navigate     = guardedNavigate || rawNavigate
   const { user } = useAuth()
   let lastGroup      = null
 

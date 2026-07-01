@@ -7,6 +7,8 @@ import { passengersApi, documentsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
+import { useNavGuard } from '../context/NavGuardContext'
+import LeaveGuardModal from '../components/LeaveGuardModal'
 import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
 import EmailInput from '../components/EmailInput'
@@ -830,6 +832,16 @@ export default function PassengerDetail() {
   const isDirtyRef = useRef(isDirty)
   useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
 
+  // Guardião de saída: avisa antes de sair com alterações não salvas.
+  const { setGuard, clearGuard, guardedNavigate } = useNavGuard()
+  const [leavePrompt, setLeavePrompt] = useState(null)   // { proceed }
+  useEffect(() => {
+    setGuard({ when: () => isDirtyRef.current, attempt: (proceed) => setLeavePrompt({ proceed }) })
+    return () => clearGuard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const go = (to) => (guardedNavigate || navigate)(to)
+
   /* Autosave de rascunho — só para cadastro novo ou rascunho aberto p/ continuar. */
   const draftPayload = () => {
     const { gender_custom, full_name, ...rest } = form
@@ -935,7 +947,7 @@ export default function PassengerDetail() {
 
   /* Save */
 
-  const save = async () => {
+  const save = async ({ noNav = false } = {}) => {
     // Validação local — marca campos em vermelho
     const errs = {}
     const hasName = form.first_name?.trim() || form.last_name?.trim()
@@ -961,7 +973,7 @@ export default function PassengerDetail() {
         if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }, 150)
 
-      return
+      return false
     }
     setFieldErrors({})
     setSaving(true)
@@ -981,19 +993,20 @@ export default function PassengerDetail() {
         await passengersApi.update(st.id, payload)
         toast.success('Passageiro salvo.')
         setIsDirty(false); setSaving(false)
-        navigate(`/passageiros/${st.id}`)
-        return
+        if (!noNav) navigate(`/passageiros/${st.id}`)
+        return true
       }
       if (isNew) {
         const r = await passengersApi.create(payload)
         toast.success('Passageiro criado.')
         setIsDirty(false)
-        navigate(`/passageiros/${r.data.id}`)
+        if (!noNav) navigate(`/passageiros/${r.data.id}`)
       } else {
         await passengersApi.update(id, payload)
         toast.success('Passageiro salvo.')
         setIsDirty(false)
       }
+      return true
     } catch (e) {
       const data = e.response?.data
       // Marca campos com erro retornado pela API
@@ -1009,6 +1022,7 @@ export default function PassengerDetail() {
                    : null)
                ?? 'Erro ao salvar. Verifique os dados.'
       toast.error(msg)
+      return false
     } finally { setSaving(false) }
   }
 
@@ -1100,11 +1114,11 @@ export default function PassengerDetail() {
             </button>
           )}
           {fromListId ? (
-            <button className="btn btn-outline" onClick={() => navigate(`/viagens/${fromListId}`)}>
+            <button className="btn btn-outline" onClick={() => go(`/viagens/${fromListId}`)}>
               <Ic n="logout" s={13} />Voltar para a lista
             </button>
           ) : (
-            <button className="btn btn-outline" onClick={() => navigate('/passageiros')}>
+            <button className="btn btn-outline" onClick={() => go('/passageiros')}>
               <Ic n="logout" s={13} />Voltar
             </button>
           )}
@@ -1475,6 +1489,24 @@ export default function PassengerDetail() {
           </div>
         </div>
       </div>
+    )}
+    {leavePrompt && (
+      <LeaveGuardModal
+        entity="cadastro do passageiro"
+        saving={saving}
+        onStay={() => setLeavePrompt(null)}
+        onDiscard={async () => {
+          const st = draftRef.current
+          if (draftMode && st.id) { st.discarded = true; cancelTimer(); try { await passengersApi.discard(st.id) } catch { /* noop */ } }
+          setIsDirty(false)
+          const p = leavePrompt.proceed; setLeavePrompt(null); p()
+        }}
+        onSave={async () => {
+          const ok = await save({ noNav: true })
+          const p = leavePrompt.proceed; setLeavePrompt(null)
+          if (ok) p()
+        }}
+      />
     )}
     </>
   )
