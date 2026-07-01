@@ -9,6 +9,7 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { useNavGuard } from '../context/NavGuardContext'
 import LeaveGuardModal from '../components/LeaveGuardModal'
+import CepInput from '../components/CepInput'
 import { Ic } from '../components/Icon'
 import DelModal from '../components/DelModal'
 import EmailInput from '../components/EmailInput'
@@ -1388,9 +1389,8 @@ export default function PassengerDetail() {
               <F label="CEP *">
                 {canFull ? (
                   <div className="cep-wrap">
-                    <input
-                      className="fi" value={form.cep ?? ''} onChange={set('cep')}
-                      placeholder="00000-000"
+                    <CepInput
+                      value={form.cep ?? ''} onChange={v => set('cep')({ target: { value: v } })}
                       style={fieldErrors.cep ? errStyle : {}}
                       onKeyDown={(e) => e.key === 'Enter' && lookupCep()}
                     />

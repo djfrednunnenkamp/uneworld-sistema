@@ -8,6 +8,7 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { useNavGuard } from '../context/NavGuardContext'
 import LeaveGuardModal from '../components/LeaveGuardModal'
+import CepInput from '../components/CepInput'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import EmailInput from '../components/EmailInput'
@@ -886,7 +887,7 @@ export default function AgencyDetail() {
         <div className="grid3">
           <F label="CEP">
             <div className="cep-wrap">
-              <input className="fi" value={form.cep ?? ''} onChange={set('cep')} placeholder="00000-000"
+              <CepInput value={form.cep ?? ''} onChange={v => setV('cep', v)}
                 onKeyDown={e => e.key === 'Enter' && lookupCep()} />
               <button className="cep-btn" onClick={lookupCep} disabled={cepLoading} title="Buscar CEP">
                 <Ic n="search" s={13}/>
