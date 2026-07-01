@@ -818,8 +818,8 @@ export default function Contracts() {
         onAdd={canEdit && (tab === 'em_edicao' || tab === 'geral') ? () => setModal('new') : undefined}
         onDocs={tab === 'trash' ? undefined : handleDocs}
         showDocs={(row) =>
-          // Enviado (popup de Assinatura) e Em revisão (olhinho) não têm ícone de PDF na linha.
-          ['assinado', 'aprovado', 'a_faturar', 'faturado'].includes(row.stage) ? !!row.signed_file
+          // Enviado, Em revisão e Em faturamento não têm ícone de PDF na linha (via popup/olhinho).
+          ['assinado', 'aprovado', 'faturado'].includes(row.stage) ? !!row.signed_file
           : false}
         docsTitle={['assinado', 'revisao', 'aprovado', 'a_faturar', 'faturado'].includes(tab) ? 'Ver contrato assinado'
           : 'Ver contrato'}
@@ -849,6 +849,15 @@ export default function Contracts() {
                   </>
                 )
               }
+              // "Em faturamento": só 3 ações — Faturar (cartão), Visão geral, Excluir.
+              if (stage === 'a_faturar' && canInvoice) {
+                return (
+                  <>
+                    {actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id))}
+                    {actBtn('Visão geral', 'eye', '#475569', () => setViewId(row.id))}
+                  </>
+                )
+              }
               const editable = canEdit && stage === 'em_edicao'
               // Ícone primário: editável → lápis (entra na edição); senão → olho.
               const primary = editable
@@ -856,8 +865,7 @@ export default function Contracts() {
                 : actBtn('Visão geral', 'eye', '#475569', () => setViewId(row.id))
               // Ação específica da etapa.
               let stageAction = null
-              if (canInvoice && stage === 'a_faturar') stageAction = actBtn('Faturar', 'card', '#ca8a04', () => setInvoiceId(row.id))
-              else if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'feather', '#2563eb', () => setSendRow(row), sendingIds.has(row.id))
+              if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'feather', '#2563eb', () => setSendRow(row), sendingIds.has(row.id))
               return <>{primary}{stageAction}</>
             }}
         onDelete={tab !== 'trash' && canDelete ? (row) => setDelRow(row) : undefined}
