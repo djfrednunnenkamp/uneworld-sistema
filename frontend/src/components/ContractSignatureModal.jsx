@@ -17,6 +17,7 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
   const [fileUrl, setFileUrl] = useState(null)      // preview do arquivo enviado (esquerda)
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [dragOver, setDragOver] = useState(false)   // arraste-e-solte
   const [docUrl, setDocUrl] = useState(null)        // PDF do contrato (blob)
   const [docStatus, setDocStatus] = useState('loading')  // loading | ready | error
   const inputRef = useRef(null)
@@ -74,6 +75,16 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
     finally { setBusy(false) }
   }
 
+  // Arrastar-e-soltar em qualquer área do popup (só física).
+  const onDrop = (e) => {
+    e.preventDefault(); setDragOver(false)
+    if (isDigital || busy) return
+    const f = e.dataTransfer?.files?.[0]
+    if (f) pickFile(f)
+  }
+  const onDragOver = (e) => { if (isDigital || busy) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; if (!dragOver) setDragOver(true) }
+  const onDragLeave = (e) => { if (e.currentTarget === e.target) setDragOver(false) }
+
   const leftUrl = fileUrl || docUrl
   const secTitle = { fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 8 }
 
@@ -81,7 +92,15 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
     <div onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 560, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 980, height: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+        onDragOver={onDragOver} onDragEnter={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+        style={{ position: 'relative', background: '#fff', borderRadius: 14, width: '100%', maxWidth: 980, height: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+        {dragOver && !isDigital && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(37,99,235,.10)', border: '3px dashed #2563eb', borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, pointerEvents: 'none', backdropFilter: 'blur(1px)' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: '#dbeafe', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="ul" s={26} /></div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#1e40af' }}>Solte o contrato assinado aqui</div>
+            <div style={{ fontSize: 12.5, color: '#3b82f6' }}>PDF, JPG ou PNG</div>
+          </div>
+        )}
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="feather" s={19} /></div>
