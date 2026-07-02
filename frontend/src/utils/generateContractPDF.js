@@ -909,9 +909,21 @@ export async function generateContractPDF(contract, opts = {}) {
     })
   }
 
+  // Cruza com um traço diagonal (topo-esquerdo → canto inferior-direito) o espaço
+  // vazio que começa em `top` até logo acima do rodapé — só quando o vazio é grande.
+  const crossEmptyIfLarge = (top) => {
+    const bottom = ph - 12
+    if (bottom - top > 45) {
+      doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.4)
+      doc.line(marginX, top, marginX + contentW, bottom)
+    }
+  }
+
   // ═══ ASSINATURAS — só no contrato FÍSICO ══════════════════════════════════
   if (contract.signature_type !== 'digital') {
-    if (y + 26 > pageBottom) { doc.addPage(); y = marginTop }
+    // Se as assinaturas não cabem e vão p/ a próxima página, a atual fica com um
+    // vão grande no fim → cruza esse vazio antes de virar a página.
+    if (y + 26 > pageBottom) { crossEmptyIfLarge(y + 6); doc.addPage(); y = marginTop }
     y += 11
     const sigGap = 14
     const sigColW = (contentW - sigGap) / 2
@@ -922,6 +934,10 @@ export async function generateContractPDF(contract, opts = {}) {
     drawText(doc, 'Assinatura do Contratante', marginX + sigColW / 2, y, { size: 9.5, color: SUB, align: 'center' })
     drawText(doc, 'Assinatura da Operadora / Agência', marginX + sigColW + sigGap + sigColW / 2, y, { size: 9.5, color: SUB, align: 'center' })
   }
+
+  // ═══ TRAÇO NO ESPAÇO VAZIO FINAL ══════════════════════════════════════════
+  // Sobrou bastante espaço em branco no fim (última página) → cruza com o traço.
+  crossEmptyIfLarge(y + 6)
 
   // ═══ NUMERAÇÃO DE PÁGINA ══════════════════════════════════════════════════
   const pageCount = doc.internal.getNumberOfPages()
