@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 
 /* Campo de valor com MÁSCARA AO VIVO (padrão BR): o usuário digita e o número
  * já vai sendo formatado com ponto de milhar e vírgula decimal, preenchendo da
@@ -27,30 +27,60 @@ export function formatMoney(value, { min = 2, max = 2 } = {}) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: min, maximumFractionDigits: max })
 }
 
+// Mesmo número? (ignora forma da string: "5" == "5.00" == "" vs vazio)
+function sameValue(a, b) {
+  const ea = a === '' || a == null
+  const eb = b === '' || b == null
+  if (ea || eb) return ea === eb
+  return Number(a) === Number(b)
+}
+
 export default function MoneyInput({ value, onChange, style, placeholder, minDecimals = 2, maxDecimals = 2, ...rest }) {
-  const ref = useRef(null)
   const decimals = maxDecimals
   const factor = 10 ** decimals
 
-  const display = formatMoney(value, { min: decimals, max: decimals })
+  // O texto exibido é ESTADO LOCAL — atualizado na hora dentro do onChange. Assim
+  // o input não "reverte" pro valor da prop (que chega async pelo pai) a cada
+  // tecla, que era o que fazia a tela piscar e o cursor pular. O valor canônico
+  // (ex.: "1234.56") continua indo pro pai normalmente.
+  const [display, setDisplay] = useState(() => formatMoney(value, { min: decimals, max: decimals }))
+  const lastCanonical = useRef(value)
+  const ref = useRef(null)
 
-  const putCursorEnd = () => requestAnimationFrame(() => {
+  // Máscara direita→esquerda: o caret fica sempre no fim. Feito ANTES do paint
+  // (useLayoutEffect) e só quando o campo está focado — sem flash e sem o "pulo"
+  // que o requestAnimationFrame causava.
+  useLayoutEffect(() => {
     const el = ref.current
-    if (!el) return
-    const end = el.value.length
-    try { el.setSelectionRange(end, end) } catch { /* alguns tipos não suportam */ }
-  })
+    if (el && document.activeElement === el) {
+      const end = el.value.length
+      try { el.setSelectionRange(end, end) } catch { /* alguns tipos não suportam */ }
+    }
+  }, [display])
+
+  // Ressincroniza SÓ quando o valor muda por FORA (reset do form, aplicar
+  // sugestão, cálculo automático) — não durante a digitação.
+  useEffect(() => {
+    if (!sameValue(value, lastCanonical.current)) {
+      setDisplay(formatMoney(value, { min: decimals, max: decimals }))
+      lastCanonical.current = value
+    }
+  }, [value, decimals])
 
   const handleChange = (e) => {
     const digits = e.target.value.replace(/\D/g, '')
     const num = Number(digits)
+    let canonical
     if (!digits || num === 0) {
-      onChange('')                       // vazio ou tudo zero → limpa
+      canonical = ''                       // vazio ou tudo zero → limpa
+      setDisplay('')
     } else {
       const n = num / factor
-      onChange(String(Number(n.toFixed(decimals))))
+      canonical = String(Number(n.toFixed(decimals)))
+      setDisplay(formatMoney(canonical, { min: decimals, max: decimals }))
     }
-    putCursorEnd()
+    lastCanonical.current = canonical
+    onChange(canonical)
   }
 
   return (
