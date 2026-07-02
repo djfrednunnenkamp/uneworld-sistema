@@ -32,6 +32,20 @@ const fmtBRL = (v) => v == null ? '' : `R$ ${Number(v).toLocaleString('pt-BR', {
 const DASH = <span style={{ color: '#cbd5e1' }}>—</span>
 const fmtDateTimeBR = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') }
 
+// Tempo relativo desde a criação ("há 5 minutos", "há 2 horas"). Passou de 1 dia
+// → retorna null (aí a coluna mostra só a data).
+const relCreatedBR = (iso) => {
+  if (!iso) return null
+  const t = new Date(iso); if (isNaN(t)) return null
+  const secs = Math.floor((Date.now() - t.getTime()) / 1000)
+  if (secs < 60) return 'agora mesmo'
+  const min = Math.floor(secs / 60)
+  if (min < 60) return `há ${min} ${min === 1 ? 'minuto' : 'minutos'}`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `há ${h} ${h === 1 ? 'hora' : 'horas'}`
+  return null
+}
+
 // Etapas do contrato — rótulo e cor compartilhados entre as abas e a coluna
 // "Status" da aba Geral.
 const STAGE_META = {
@@ -718,7 +732,16 @@ export default function Contracts() {
       ? { key: 'invoiced_at', label: 'Faturado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
       : tab === 'trash'
       ? { key: 'deleted_at', label: 'Excluído em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
-      : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH }
+      : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v, row) => {
+          const date = v ? fmtDateBR(v) : DASH
+          const rel = relCreatedBR(row.created_at)   // "há X min/horas" até 1 dia
+          return rel ? (
+            <div style={{ lineHeight: 1.2 }}>
+              <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>{rel}</div>
+              <div style={{ fontSize: 12.5, color: '#64748b' }}>{date}</div>
+            </div>
+          ) : date
+        } }
     return [
       { key: 'reservation_number', label: 'Reserva', align: 'center', render: (v, row) => (
         <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
