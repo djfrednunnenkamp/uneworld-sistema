@@ -267,3 +267,31 @@ class ContractCommissionFieldsTest(DjTestCase):
         self.assertIsNone(d['commission_pct'])
         self.assertIsNone(d['commission_usd'])
         self.assertIsNone(d['commission_brl'])
+
+
+class InvoiceRejectTest(_APITestCase):
+    """Recusar contrato a partir do faturamento (A faturar → Em edição, com motivo).
+    Quem fatura (contracts_invoice) pode recusar; sem motivo é 400."""
+    def setUp(self):
+        self.ag = Agency.objects.create(name='Ag', person_type='juridica')
+        self.invoicer = _mkuser('invoicer', contracts_invoice=True)
+        self.c = Contract.objects.create(agency=self.ag, status='ativo', stage='a_faturar', total_brl=100)
+
+    def test_invoicer_can_reject_from_a_faturar(self):
+        self.client.force_authenticate(self.invoicer)
+        r = self.client.post(f'/api/contracts/{self.c.id}/reject/', {'note': 'faltou documento'}, format='json')
+        self.assertEqual(r.status_code, 200, getattr(r, 'data', None))
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.stage, 'em_edicao')
+        self.assertEqual(self.c.review_note, 'faltou documento')
+
+    def test_reject_requires_note(self):
+        self.client.force_authenticate(self.invoicer)
+        r = self.client.post(f'/api/contracts/{self.c.id}/reject/', {'note': '  '}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_viewer_cannot_reject(self):
+        viewer = _mkuser('viewer', contracts_view=True)
+        self.client.force_authenticate(viewer)
+        r = self.client.post(f'/api/contracts/{self.c.id}/reject/', {'note': 'x'}, format='json')
+        self.assertEqual(r.status_code, 403)

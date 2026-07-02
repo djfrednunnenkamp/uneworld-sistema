@@ -165,8 +165,11 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('contracts_delete')()]
-        if self.action in ('approve', 'reject', 'review_data'):
+        if self.action in ('approve', 'review_data'):
             return [RequirePermission('contracts_review')()]
+        # Recusar pode partir da revisão (quem revisa) OU do faturamento (quem fatura).
+        if self.action == 'reject':
+            return [RequirePermission('contracts_review', 'contracts_invoice')()]
         if self.action == 'invoice':
             return [RequirePermission('contracts_invoice')()]
         if self.action == 'invoice_data':
@@ -395,14 +398,14 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='reject')
     def reject(self, request, pk=None):
-        """Revisão → Em edição (reprovado), com motivo, para a agência corrigir.
+        """Revisão OU A faturar → Em edição (recusado), com motivo, para corrigir.
 
         A assinatura anterior é descartada (o contrato será reeditado e reenviado
         para assinatura)."""
         from django.utils import timezone
         contract = self.get_object()
-        if contract.stage != 'revisao':
-            return Response({'error': 'Só é possível reprovar um contrato em revisão.'},
+        if contract.stage not in ('revisao', 'a_faturar'):
+            return Response({'error': 'Só é possível recusar um contrato em revisão ou a faturar.'},
                             status=http_status.HTTP_400_BAD_REQUEST)
         note = (request.data.get('note') or '').strip()
         if not note:

@@ -17,6 +17,8 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
   const [busy, setBusy] = useState(false)
   const [number, setNumber] = useState('')
   const [date, setDate] = useState('')
+  const [rejecting, setRejecting] = useState(false)
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -35,6 +37,17 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
       toast.success('Contrato faturado.')
       onDone?.(); onClose()
     } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao faturar.') }
+    finally { setBusy(false) }
+  }
+
+  const reject = async () => {
+    if (!note.trim()) { toast.error('Informe o motivo da recusa.'); return }
+    setBusy(true)
+    try {
+      await contractsApi.reject(contractId, note.trim())
+      toast.success('Contrato recusado — voltou para edição.')
+      onDone?.(); onClose()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao recusar.') }
     finally { setBusy(false) }
   }
 
@@ -128,13 +141,41 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
         </div>
 
         {!loading && data && (
-          <div style={{ borderTop: '1px solid #eef2f7', padding: '14px 20px', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
-            <button onClick={() => !busy && onClose()} disabled={busy}
-              style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
-            <button onClick={submit} disabled={busy}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 22px', borderRadius: 8, border: 'none', background: '#ca8a04', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? .6 : 1 }}>
-              <Ic n="check" s={15} /> {busy ? 'Salvando…' : (alreadyInvoiced ? 'Salvar fatura' : 'Faturar')}
-            </button>
+          <div style={{ borderTop: '1px solid #eef2f7', padding: '14px 20px', flexShrink: 0 }}>
+            {rejecting ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={lbl}>Motivo da recusa (a agência verá)</label>
+                <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} autoFocus
+                  placeholder="Ex.: dados divergentes; total não bate com as parcelas; falta documento…"
+                  style={{ width: '100%', resize: 'vertical', padding: '9px 11px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setRejecting(false)} disabled={busy}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Voltar</button>
+                  <button onClick={reject} disabled={busy}
+                    style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? .6 : 1 }}>
+                    {busy ? 'Recusando…' : 'Confirmar recusa'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                {/* Recusar só faz sentido antes de faturar (volta o contrato p/ edição). */}
+                {!alreadyInvoiced ? (
+                  <button onClick={() => setRejecting(true)} disabled={busy}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Ic n="x" s={14} /> Recusar
+                  </button>
+                ) : <span />}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => !busy && onClose()} disabled={busy}
+                    style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
+                  <button onClick={submit} disabled={busy}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 22px', borderRadius: 8, border: 'none', background: '#ca8a04', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? .6 : 1 }}>
+                    <Ic n="check" s={15} /> {busy ? 'Salvando…' : (alreadyInvoiced ? 'Salvar fatura' : 'Faturar')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
