@@ -520,6 +520,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [clauseEditor, setClauseEditor] = useState(null) // { index, initial } | null
   const [reservationNumber, setReservationNumber] = useState('')
   const [contractDate, setContractDate] = useState('')
+  const [opCompany, setOpCompany] = useState(null)   // dados da operadora (p/ o PIX na revisão)
 
   useEffect(() => {
     Promise.all([
@@ -534,6 +535,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       setClauses(cl.data)
       setPaymentMethods(pm.data)
       setExchangeRates(er.data || [])
+      setOpCompany(oc.data || null)
       if (!isEdit) {
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
@@ -1370,6 +1372,16 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       ? (passengers.find(p => p.id === form.contratante)?.full_name ?? '—')
       : (payer.payer_name ? `${payer.payer_name} (CNPJ)` : '—')
 
+    // PIX que aparecerá no contrato: por padrão o da UneWorld (operadora); o da
+    // agência só quando ela marcou "usar PIX da agência" E tem chave cadastrada.
+    const PIX_LBL = { cpf: 'CPF', cnpj: 'CNPJ', email: 'E-mail', telefone: 'Telefone', aleatorio: 'Aleatória' }
+    const useAgencyPix = !!(ag && ag.use_agency_pix && (ag.pix_key || '').trim())
+    const pixSrc = useAgencyPix ? ag : opCompany
+    const pixKey = (pixSrc && pixSrc.pix_key) || ''
+    const pixTypeLbl = pixSrc && pixSrc.pix_key_type ? (PIX_LBL[pixSrc.pix_key_type] || pixSrc.pix_key_type) : ''
+    const pixReview = `${useAgencyPix ? 'Agência' : 'Operadora (UneWorld)'}` +
+      (pixKey ? ` — ${pixTypeLbl ? pixTypeLbl + ' ' : ''}${pixKey}` : ' — (sem chave cadastrada)')
+
     const sec = (title, children) => (
       <div style={{ border: '1px solid #e6eaf1', borderRadius: 10, overflow: 'hidden' }}>
         <div style={{ background: '#f8fafc', borderBottom: '1px solid #eef2f7', padding: '8px 14px', fontSize: 11.5, fontWeight: 800, color: '#1a2d4f', textTransform: 'uppercase', letterSpacing: '.04em' }}>{title}</div>
@@ -1412,6 +1424,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           row('Roteiro / pacote', it ? it.name : (form.package_name || '—'), 'rot'),
           row('Contratante / pagante', contratanteName, 'ct'),
           row('Vendedor', `${currentSeller.name}${currentSeller.email || currentSeller.phone ? ` (${[currentSeller.email, currentSeller.phone].filter(Boolean).join(' · ')})` : ''}`, 'sel'),
+          row('PIX do contrato', pixReview, 'pix'),
         ])}
 
         {sec('Pacote de viagem', [
