@@ -4,9 +4,18 @@ import { toast } from 'sonner'
 import { configApi } from '../api'
 import { Ic } from './Icon'
 import EmailInput from './EmailInput'
+import Dropdown from './Dropdown'
 import CsvImportPopup from './CsvImportPopup'
 import { exportSectionCsv } from '../utils/sectionCsv'
 import { CSV_SAMPLES } from '../utils/csvSamples'
+
+const PIX_TYPE_OPTS = [
+  { value: 'cpf',       label: 'CPF' },
+  { value: 'cnpj',      label: 'CNPJ' },
+  { value: 'email',     label: 'E-mail' },
+  { value: 'telefone',  label: 'Telefone' },
+  { value: 'aleatorio', label: 'Chave aleatória' },
+]
 
 const inp = { padding:'8px 10px', border:'1px solid #e2e8f0', borderRadius:6, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b', boxSizing:'border-box' }
 const lbl = { fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', display:'block', marginBottom:5 }
@@ -134,14 +143,9 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
       <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:12 }}>
         <div>
           <label style={lbl}>Tipo de chave PIX</label>
-          <select style={{ ...inp, width:'100%' }} value={form.pix_key_type} onChange={set('pix_key_type')} disabled={!canEdit}>
-            <option value="">Selecione</option>
-            <option value="cpf">CPF</option>
-            <option value="cnpj">CNPJ</option>
-            <option value="email">E-mail</option>
-            <option value="telefone">Telefone</option>
-            <option value="aleatorio">Chave aleatória</option>
-          </select>
+          <Dropdown value={form.pix_key_type || null} options={PIX_TYPE_OPTS} placeholder="Selecione"
+            disabled={!canEdit} searchable={false}
+            onChange={v => setForm(f => ({ ...f, pix_key_type: v || '' }))} />
         </div>
         <div>
           <label style={lbl}>Chave PIX</label>
