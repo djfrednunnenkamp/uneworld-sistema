@@ -1519,12 +1519,21 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
                   'updated_at']
 
 
+CEO_SENSITIVE_FIELDS = ['ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign']
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def operating_company(request):
     from users_api.permissions import has_any_perm
-    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_view',
-                         'settings_operating_company_edit'):
+    can_settings = has_any_perm(request.user, 'manage_settings', 'settings_operating_company_view',
+                                'settings_operating_company_edit')
+    # Quem cria/vê contratos também precisa dos dados da operadora (cabeçalho do
+    # contrato, PIX, forma de assinatura padrão) — mas NÃO dos campos sensíveis do
+    # CEO (token Autentique). Sem isso, o form de contrato quebra para usuários de
+    # agência, que podem criar contrato mas não têm acesso às Configurações.
+    can_contract = has_any_perm(request.user, 'contracts_view', 'contracts_edit')
+    if not (can_settings or can_contract):
         return Response(status=403)
     obj = OperatingCompany.get()
     if request.method == 'PATCH':
@@ -1534,7 +1543,11 @@ def operating_company(request):
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(ser.data)
-    return Response(OperatingCompanySerializer(obj).data)
+    data = OperatingCompanySerializer(obj).data
+    if not can_settings:
+        for k in CEO_SENSITIVE_FIELDS:
+            data.pop(k, None)
+    return Response(data)
 
 
 # ── Termos e condições ───────────────────────────────────────────────────────

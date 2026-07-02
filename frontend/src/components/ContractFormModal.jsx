@@ -530,7 +530,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     Promise.all([
       agenciesApi.list(), passengersApi.list({ page_size: 1000 }), itinerariesApi.list({ page_size: 1000 }),
       configApi.accommodations(), configApi.contractClauses(), configApi.paymentMethods(), configApi.exchangeRates(),
-      configApi.operatingCompany(),
+      // Operadora é opcional (só preenche padrões de assinatura/PIX): se faltar
+      // permissão, não derruba o form inteiro.
+      configApi.operatingCompany().catch(() => ({ data: null })),
     ]).then(([ag, pax, it, ac, cl, pm, er, oc]) => {
       setAgencies(ag.data.results ?? ag.data)
       setPassengers(pax.data.results ?? pax.data)

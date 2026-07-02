@@ -158,3 +158,26 @@ class ContractClauseSanitizeApiTest(APITestCase):
         saved = ContractClause.objects.get(id=r.data['id'])
         self.assertNotIn('<script', saved.content.lower())
         self.assertIn('ok', saved.content)
+
+
+class OperatingCompanyContractAccessTest(APITestCase):
+    """Quem cria contrato (mas não tem acesso a Configurações) precisa LER a
+    operadora para montar o contrato — sem ver os campos sensíveis do CEO."""
+    def test_contract_user_reads_without_ceo_fields(self):
+        self.client.force_authenticate(make_user('vend', contracts_edit=True))
+        r = self.client.get('/api/config/operating-company/')
+        self.assertEqual(r.status_code, 200)
+        self.assertNotIn('ceo_autentique_token', r.data)
+        self.assertIn('default_signature_type', r.data)
+        self.assertIn('pix_key', r.data)
+
+    def test_settings_user_sees_ceo_fields(self):
+        self.client.force_authenticate(make_user('cfg', settings_operating_company_view=True))
+        r = self.client.get('/api/config/operating-company/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('ceo_autentique_token', r.data)
+
+    def test_user_without_any_access_gets_403(self):
+        self.client.force_authenticate(make_user('nobody'))
+        r = self.client.get('/api/config/operating-company/')
+        self.assertEqual(r.status_code, 403)
