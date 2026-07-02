@@ -521,6 +521,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [reservationNumber, setReservationNumber] = useState('')
   const [contractDate, setContractDate] = useState('')
   const [opCompany, setOpCompany] = useState(null)   // dados da operadora (p/ o PIX na revisão)
+  const [showReviewConfirm, setShowReviewConfirm] = useState(false)  // pop-up de revisão antes de salvar
 
   useEffect(() => {
     Promise.all([
@@ -1254,8 +1255,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     }
   }
 
+  // Salvar (em qualquer visão) abre o pop-up de revisão; só salva de fato quando
+  // o usuário confirma lá dentro.
   const handleSaveClick = () => {
     if (!validateRequired()) return
+    setShowReviewConfirm(true)
+  }
+
+  // Confirmação DENTRO do pop-up de revisão → salva (fecha o pop-up; se os valores
+  // não batem com o total, mostra antes o aviso de divergência).
+  const confirmFromReview = () => {
+    setShowReviewConfirm(false)
     if (totalMismatch) { setConfirmMismatch(true); return }
     doSave()
   }
@@ -2225,6 +2235,32 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           </div>
         </div>
       </div>
+
+      {showReviewConfirm && (
+        <div onMouseDown={e => { if (e.target === e.currentTarget) setShowReviewConfirm(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 720, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.3)', position: 'relative' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>Revisar antes de salvar</div>
+              <button onClick={() => setShowReviewConfirm(false)} title="Fechar"
+                style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: '16px 20px', overflowY: 'auto' }}>
+              {renderReview()}
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
+              <button onClick={() => setShowReviewConfirm(false)} disabled={saving}
+                style={{ padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Voltar
+              </button>
+              <button onClick={confirmFromReview} disabled={saving || loading}
+                style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Ic n="check" s={13} /> {saving ? 'Salvando…' : (isEdit ? 'Salvar' : 'Finalizar contrato')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmMismatch && (
         <MismatchConfirm
