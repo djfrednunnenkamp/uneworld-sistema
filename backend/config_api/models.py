@@ -74,12 +74,16 @@ class ConfigPaymentMethod(models.Model):
 
 
 class ConfigPaymentPlan(models.Model):
-    """Modelo/sugestão de pagamento reutilizável: entrada (% do total) + nº de
-    parcelas + forma de pagamento + agenda de vencimentos. Serve de base para os
-    roteiros (que guardam uma CÓPIA) e, via roteiro, é sugerido no contrato com um
-    botão de "aplicar" que preenche entrada e parcelas."""
+    """Modelo/sugestão de pagamento reutilizável: entrada (opcional, em R$ ou % do
+    total) + nº de parcelas + forma de pagamento + agenda de vencimentos. Serve de
+    base para os roteiros (que guardam uma CÓPIA) e, via roteiro, é sugerido no
+    contrato com um botão de "aplicar" que preenche entrada e parcelas."""
+    DOWN_PAYMENT_MODE_CHOICES = [('percent', '% do total'), ('valor', 'Valor em R$')]
     name                 = models.CharField('Nome', max_length=120)
-    down_payment_percent = models.DecimalField('Entrada (% do total)', max_digits=5, decimal_places=2, default=0)
+    has_down_payment     = models.BooleanField('Tem entrada', default=False)
+    down_payment_mode    = models.CharField('Tipo da entrada', max_length=10, choices=DOWN_PAYMENT_MODE_CHOICES, default='percent')
+    # Interpretado conforme down_payment_mode: 'percent' → % do total; 'valor' → R$.
+    down_payment_value   = models.DecimalField('Entrada (valor ou %)', max_digits=12, decimal_places=2, default=0)
     installments_count   = models.PositiveSmallIntegerField('Nº de parcelas', default=0)
     payment_method       = models.CharField('Forma de pagamento', max_length=100, blank=True)
     first_due_days       = models.PositiveSmallIntegerField('1º vencimento (dias após aplicar)', default=30)

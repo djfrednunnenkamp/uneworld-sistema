@@ -850,13 +850,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     const p = plan || itineraryPlan
     if (!p) return
     const total = Number(computedTotalBrl || 0)
-    const pct = Number(p.down_payment_percent || 0)
     const n = Math.max(0, parseInt(p.installments_count) || 0)
     const method = p.payment_method || ''
     const firstDue = parseInt(p.first_due_days) || 0
     const interval = parseInt(p.interval_days) || 0
+    // Entrada: R$ fixo ou % do total, conforme o modo (só se "tem entrada").
+    const hasDp = !!p.has_down_payment
+    const dpMode = p.down_payment_mode || 'percent'
+    const dpVal = Number(p.down_payment_value || 0)
+    const entradaBrl = hasDp ? (dpMode === 'valor' ? round2(dpVal) : round2(total * dpVal / 100)) : 0
+    const withEntrada = hasDp && entradaBrl > 0
     const addDays = (days) => { const dt = new Date(); dt.setHours(0, 0, 0, 0); dt.setDate(dt.getDate() + days); return dt.toISOString().slice(0, 10) }
-    const snapshot = { name: p.name || '', down_payment_percent: pct, installments_count: n, payment_method: method, first_due_days: firstDue, interval_days: interval }
+    const snapshot = { name: p.name || '', has_down_payment: hasDp, down_payment_mode: dpMode, down_payment_value: dpVal, installments_count: n, payment_method: method, first_due_days: firstDue, interval_days: interval }
 
     if (n <= 0) {
       // Sem parcelas → pagamento à vista (valor total de uma vez)
@@ -868,9 +873,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     }
 
     setPaymentType('parcelado')
-    const entradaBrl = pct > 0 ? round2(total * pct / 100) : 0
-    setHasEntrada(pct > 0)
-    setEntrada(prev => ({ ...prev, value_brl: pct > 0 ? entradaBrl : '', payment_method: method, due_date: pct > 0 ? addDays(0) : '' }))
+    setHasEntrada(withEntrada)
+    setEntrada(prev => ({ ...prev, value_brl: withEntrada ? entradaBrl : '', payment_method: method, due_date: withEntrada ? addDays(0) : '' }))
     setParcelasMethod(method)
     const remaining = round2(total - entradaBrl)
     const base = Math.floor((remaining / n) * 100) / 100
@@ -1956,9 +1960,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px', marginBottom: 14 }}>
                   <div style={{ flex: 1, fontSize: 12.5, color: '#1e40af', lineHeight: 1.5 }}>
                     <strong>Sugestão de pagamento{itineraryPlan.name ? ` — ${itineraryPlan.name}` : ''}:</strong>{' '}
-                    {Number(itineraryPlan.installments_count) > 0
-                      ? `${Number(itineraryPlan.down_payment_percent) > 0 ? `entrada ${Number(itineraryPlan.down_payment_percent)}% + ` : 'sem entrada · '}${itineraryPlan.installments_count}x`
-                      : 'pagamento à vista'}
+                    {itineraryPlan.has_down_payment
+                      ? `entrada ${itineraryPlan.down_payment_mode === 'valor' ? `R$ ${Number(itineraryPlan.down_payment_value || 0).toLocaleString('pt-BR')}` : `${Number(itineraryPlan.down_payment_value || 0)}%`}${Number(itineraryPlan.installments_count) > 0 ? ' + ' : ''}`
+                      : ''}
+                    {Number(itineraryPlan.installments_count) > 0 ? `${itineraryPlan.installments_count}x` : (itineraryPlan.has_down_payment ? '' : 'pagamento à vista')}
                     {itineraryPlan.payment_method ? ` · ${itineraryPlan.payment_method}` : ''}
                     {Number(itineraryPlan.installments_count) > 0 ? ` · 1º venc. ${itineraryPlan.first_due_days || 0} dias, a cada ${itineraryPlan.interval_days || 0} dias` : ''}
                   </div>

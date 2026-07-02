@@ -7,16 +7,19 @@ import PaymentPlanFields from './PaymentPlanFields'
  * sozinho). Cada modelo é uma sugestão reutilizável (entrada % + nº de parcelas +
  * forma + vencimentos) que os roteiros podem copiar. */
 
-const BLANK = { name: '', down_payment_percent: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 }
+const BLANK = { name: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 }
 
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }
 const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }
 
 function describe(p) {
   const n = Number(p.installments_count) || 0
-  const pct = Number(p.down_payment_percent) || 0
   const parts = []
-  parts.push(n > 0 ? (pct > 0 ? `entrada ${pct}% + ${n}x` : `${n}x sem entrada`) : 'à vista')
+  if (p.has_down_payment) {
+    const val = Number(p.down_payment_value) || 0
+    parts.push('entrada ' + (p.down_payment_mode === 'valor' ? `R$ ${val.toLocaleString('pt-BR')}` : `${val}%`))
+  }
+  parts.push(n > 0 ? `${n}x` : 'à vista')
   if (p.payment_method) parts.push(p.payment_method)
   if (n > 0) parts.push(`1º venc. ${p.first_due_days || 0}d, a cada ${p.interval_days || 0}d`)
   return parts.join(' · ')
@@ -46,7 +49,9 @@ export default function PaymentPlanManager({ canEdit, canDelete }) {
     if (!e.name?.trim()) { toast.error('Dê um nome ao modelo.'); return }
     const payload = {
       name: e.name.trim(),
-      down_payment_percent: Number(e.down_payment_percent) || 0,
+      has_down_payment: !!e.has_down_payment,
+      down_payment_mode: e.down_payment_mode || 'percent',
+      down_payment_value: Number(e.down_payment_value) || 0,
       installments_count: parseInt(e.installments_count) || 0,
       payment_method: e.payment_method || '',
       first_due_days: parseInt(e.first_due_days) || 0,
@@ -108,8 +113,12 @@ export default function PaymentPlanManager({ canEdit, canDelete }) {
             <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e2e8f0', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
               {editing.id ? 'Editar modelo de pagamento' : 'Novo modelo de pagamento'}
             </div>
-            <div style={{ padding: '18px 24px' }}>
-              <PaymentPlanFields value={editing} onChange={setEditing} methodOptions={methods} showName />
+            <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>Nome do modelo</label>
+                <input className="fi" value={editing.name || ''} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="Ex.: Sinal + 10x boleto" autoFocus />
+              </div>
+              <PaymentPlanFields value={editing} onChange={setEditing} methodOptions={methods} />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '0 24px 22px' }}>
               <button onClick={() => setEditing(null)} style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>

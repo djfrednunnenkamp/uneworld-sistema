@@ -194,7 +194,7 @@ export default function ItineraryDetail() {
     configApi.services().then(r => setServiceOpts(r.data)).catch(() => {})
     configApi.accommodations().then(r => setAccommodationOpts(r.data.results ?? r.data)).catch(() => {})
     configApi.contractClauses().then(r => setClauseList(r.data.results ?? r.data)).catch(() => {})
-    ;['seguro', 'pagamento', 'condicoes', 'documentacao'].forEach(k => {
+    ;['seguro', 'condicoes', 'documentacao'].forEach(k => {
       configApi.itineraryTemplates(k).then(r => setTemplatesByKind(prev => ({ ...prev, [k]: r.data }))).catch(() => {})
     })
     configApi.paymentPlans().then(r => setPaymentPlanOpts(r.data.results ?? r.data)).catch(() => {})
@@ -667,14 +667,7 @@ export default function ItineraryDetail() {
               onChange={v => setData(d => ({ ...d, pricing_info: v }))} />
           </FormRow>
 
-          <FormRow label="Forma de pagamento">
-            <TemplatePicker options={(templatesByKind.pagamento || []).map(t => ({ value: t.id, label: t.name, content: t.content }))}
-              onUse={content => setData(d => ({ ...d, payment_info: content }))} />
-            <RichTextEditor title="Forma de pagamento" value={data.payment_info} disabled={!canEdit}
-              onChange={v => setData(d => ({ ...d, payment_info: v }))} />
-          </FormRow>
-
-          <FormRow label="Sugestão de pagamento (aplicável no contrato)">
+          <FormRow label="Forma de pagamento (aplicável no contrato)">
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: data.payment_plan ? 12 : 0, flexWrap: 'wrap' }}>
               {/* Escolher um modelo das Configurações → copia (snapshot) pro roteiro */}
               <div style={{ minWidth: 240 }}>
@@ -684,7 +677,8 @@ export default function ItineraryDetail() {
                   onChange={pid => {
                     const p = paymentPlanOpts.find(x => x.id === pid)
                     if (p) setData(d => ({ ...d, payment_plan: {
-                      name: p.name, down_payment_percent: p.down_payment_percent,
+                      name: p.name, has_down_payment: p.has_down_payment,
+                      down_payment_mode: p.down_payment_mode, down_payment_value: p.down_payment_value,
                       installments_count: p.installments_count, payment_method: p.payment_method,
                       first_due_days: p.first_due_days, interval_days: p.interval_days,
                     } }))
@@ -692,7 +686,7 @@ export default function ItineraryDetail() {
               </div>
               {!data.payment_plan
                 ? <button type="button" disabled={!canEdit}
-                    onClick={() => setData(d => ({ ...d, payment_plan: { name: '', down_payment_percent: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 } }))}
+                    onClick={() => setData(d => ({ ...d, payment_plan: { has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 } }))}
                     style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                     + Criar do zero
                   </button>

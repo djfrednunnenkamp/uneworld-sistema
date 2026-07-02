@@ -165,14 +165,27 @@ def build_review_data(contract):
     plan_diffs = []
     if plan:
         parcelas_count = sum(1 for i in installments if i.kind == 'parcela')
-        plan_pct    = _d(plan.get('down_payment_percent'))
         plan_count  = plan.get('installments_count')
         plan_method = (plan.get('payment_method') or '').strip()
-        if plan_pct is not None and total_brl is not None:
-            expected_entrada = (total_brl * plan_pct / Decimal('100')).quantize(Decimal('0.01'))
-            if abs(entrada_brl - expected_entrada) > Decimal('0.01'):
-                plan_diffs.append(
-                    f'entrada agora R$ {entrada_brl} (sugerido R$ {expected_entrada} = {plan_pct}% do total)')
+        # Entrada esperada conforme o modo (R$ ou %). Compat com snapshot antigo
+        # que só tinha down_payment_percent.
+        has_dp = plan.get('has_down_payment')
+        mode   = plan.get('down_payment_mode')
+        val    = _d(plan.get('down_payment_value'))
+        if mode is None and plan.get('down_payment_percent') is not None:
+            val = _d(plan.get('down_payment_percent'))
+            mode = 'percent'
+            has_dp = (val or Decimal('0')) > 0
+        expected_entrada = None
+        if has_dp is False:
+            expected_entrada = Decimal('0')
+        elif val is not None:
+            if mode == 'valor':
+                expected_entrada = val.quantize(Decimal('0.01'))
+            elif total_brl is not None:
+                expected_entrada = (total_brl * val / Decimal('100')).quantize(Decimal('0.01'))
+        if expected_entrada is not None and abs(entrada_brl - expected_entrada) > Decimal('0.01'):
+            plan_diffs.append(f'entrada agora R$ {entrada_brl} (sugerido R$ {expected_entrada})')
         if plan_count is not None and int(parcelas_count) != int(plan_count):
             plan_diffs.append(f'parcelas agora {parcelas_count} (sugerido {int(plan_count)})')
         if plan_method:

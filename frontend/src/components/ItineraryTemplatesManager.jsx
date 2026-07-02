@@ -21,7 +21,8 @@ const btnPri = { padding: '8px 16px', borderRadius: 7, border: 'none', backgroun
 
 const TEMPLATE_KINDS = [
   { value: 'seguro',       label: 'Adicional de Seguro Viagem' },
-  { value: 'pagamento',    label: 'Forma de Pagamento' },
+  // 'pagamento' saiu daqui: a forma de pagamento agora é estruturada
+  // (Configurações › Modelos de Pagamento), não mais texto livre.
   { value: 'condicoes',    label: 'Condições Gerais para Compra do Pacote' },
   { value: 'documentacao', label: 'Documentação Necessária para a Viagem' },
 ]
