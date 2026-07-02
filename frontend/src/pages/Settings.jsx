@@ -75,7 +75,7 @@ function splitCsvLineSettings(line) {
                   + tipos de documento + aeroportos + companhias aéreas
                   + perfis de permissão + mapas de ônibus
    Formato: lista,nome,pessoas,casal,pais,estado,codigo */
-function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, paymentMethods = [], exchangeRates = [], itineraryTemplates = [], operatingCompany = null, filename) {
+function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, states, cities, docTypes, airports, airlines, permProfiles, busMaps, contractClauses = [], termsContent = null, paymentMethods = [], exchangeRates = [], itineraryTemplates = [], operatingCompany = null, paymentPlans = [], filename) {
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`
   const rows = ['lista,nome,pessoas,casal,pais,estado,codigo']
   simpleGroups.forEach(({ label, items }) => {
@@ -153,6 +153,14 @@ function exportCombinedCsvFull(simpleGroups, accoms, continents, countries, stat
     })
     rows.push(`${q('Operadora')},${q(o.company_name || 'Operadora')},,,,,${q(payload)}`)
   }
+  paymentPlans.forEach(p => {
+    const payload = JSON.stringify({
+      has_down_payment: !!p.has_down_payment, down_payment_mode: p.down_payment_mode || 'percent',
+      down_payment_value: p.down_payment_value ?? 0, installments_count: p.installments_count ?? 0,
+      payment_method: p.payment_method || '', first_due_days: p.first_due_days ?? 30, interval_days: p.interval_days ?? 30,
+    })
+    rows.push(`${q('Modelos de Pagamento')},${q(p.name)},,,,,${q(payload)}`)
+  })
   downloadCsv(rows.join('\n'), filename, { model_label: 'Exportação CSV — Todas as configurações' })
 }
 
@@ -1758,6 +1766,7 @@ export default function Settings() {
       const viewContractClauses = can('settings_contract_clauses', 'view') && include('contract_clauses')
       const viewTerms       = can('settings_terms', 'view') && include('terms')
       const viewPaymentMethods = can('settings_payment_methods', 'view') && include('payment_methods')
+      const viewPaymentPlans   = can('settings_payment_methods', 'view') && include('payment_plans')
       const viewExchangeRates  = can('settings_exchange_rates',  'view') && include('exchange_rates')
       const viewItineraryTemplates = can('settings_itinerary_templates', 'view') && include('itinerary_templates')
       const viewOperatingCompany   = can('settings_operating_company',   'view') && include('operating_company')
@@ -1767,7 +1776,7 @@ export default function Settings() {
       const wantCities    = geoLevel === 'cidades'
       let ctRes = { data: [] }, cRes = { data: [] }, sRes = { data: [] }, cities = []
       let dtData = [], apData = [], alData = [], ppData = [], bmData = [], ccData = [], termsContent = null
-      let pmData = [], erData = [], itData = [], ocData = null
+      let pmData = [], erData = [], itData = [], ocData = null, planData = []
       const fetches = []
       if (viewCountries) fetches.push(configApi.continents().then(r => { ctRes = r }))
       if (viewCountries && wantCountries) fetches.push(
@@ -1794,8 +1803,9 @@ export default function Settings() {
       if (viewExchangeRates)  fetches.push(configApi.exchangeRates().then(r => { erData = r.data }))
       if (viewItineraryTemplates) fetches.push(configApi.itineraryTemplates().then(r => { itData = r.data }))
       if (viewOperatingCompany)   fetches.push(configApi.operatingCompany().then(r => { ocData = r.data }))
+      if (viewPaymentPlans)       fetches.push(configApi.paymentPlans().then(r => { planData = r.data.results ?? r.data }))
       await Promise.all(fetches)
-      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], ctRes.data, cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, pmData, erData, itData, ocData, 'todas_as_configuracoes.csv')
+      exportCombinedCsvFull(viewableGroups, viewAccoms ? accoms : [], ctRes.data, cRes.data, sRes.data, cities, dtData, apData, alData, ppData, bmData, ccData, termsContent, pmData, erData, itData, ocData, planData, 'todas_as_configuracoes.csv')
     } catch { toast.error('Erro ao exportar.') }
   }
 
@@ -2046,6 +2056,7 @@ export default function Settings() {
           ...(can('settings_contract_clauses', 'view') ? [{ key: 'contract_clauses', label: 'Cláusulas de Contrato' }] : []),
           ...(can('settings_terms', 'view') ? [{ key: 'terms', label: 'Termos e Condições' }] : []),
           ...(can('settings_payment_methods', 'view') ? [{ key: 'payment_methods', label: 'Formas de Pagamento' }] : []),
+          ...(can('settings_payment_methods', 'view') ? [{ key: 'payment_plans',   label: 'Modelos de Pagamento' }] : []),
           ...(can('settings_exchange_rates',  'view') ? [{ key: 'exchange_rates',  label: 'Câmbio' }] : []),
           ...(can('settings_itinerary_templates', 'view') ? [{ key: 'itinerary_templates', label: 'Modelos de Texto do Roteiro' }] : []),
           ...(can('settings_operating_company',   'view') ? [{ key: 'operating_company',   label: 'Operadora' }] : []),
@@ -2110,7 +2121,7 @@ export default function Settings() {
                 {activeDef.key === 'holidays'        && <ItemList items={holidays} loading={loadingHo} onAdd={can('settings_holidays','edit') ? addHoliday : undefined} onUpdate={can('settings_holidays','edit') ? updateHoliday : undefined} onDelete={can('settings_holidays','delete') ? delHoliday : undefined} canImport={can('settings_holidays','bulk_import')} canExport={can('settings_holidays','export')} placeholder="Nome do feriado…" addTitle="Novo feriado" editTitle="Editar feriado" filename="feriados.csv" type="holidays" />}
                 {activeDef.key === 'services'        && <ItemList items={services} loading={loadingSv} onAdd={can('settings_services','edit') ? addService : undefined} onUpdate={can('settings_services','edit') ? updateService : undefined} onDelete={can('settings_services','delete') ? delService : undefined} canImport={can('settings_services','bulk_import')} canExport={can('settings_services','export')} placeholder="Nome do serviço…" addTitle="Novo serviço" editTitle="Editar serviço" filename="servicos.csv" type="services" />}
                 {activeDef.key === 'payment_methods' && <ItemList items={paymentMethods} loading={loadingPM} onAdd={can('settings_payment_methods','edit') ? addPaymentMethod : undefined} onUpdate={can('settings_payment_methods','edit') ? updatePaymentMethod : undefined} onDelete={can('settings_payment_methods','delete') ? delPaymentMethod : undefined} canImport={can('settings_payment_methods','bulk_import')} canExport={can('settings_payment_methods','export')} placeholder="Nome da forma de pagamento…" addTitle="Nova forma de pagamento" editTitle="Editar forma de pagamento" filename="formas_pagamento.csv" type="payment_methods" />}
-                {activeDef.key === 'payment_plans'   && <PaymentPlanManager canEdit={can('settings_payment_methods','edit')} canDelete={can('settings_payment_methods','delete')} />}
+                {activeDef.key === 'payment_plans'   && <PaymentPlanManager canEdit={can('settings_payment_methods','edit')} canDelete={can('settings_payment_methods','delete')} canImport={can('settings_payment_methods','bulk_import')} canExport={can('settings_payment_methods','export')} />}
                 {activeDef.key === 'exchange_rates'  && <ExchangeRateManager items={exchangeRates} canEdit={can('settings_exchange_rates','edit')} canDelete={can('settings_exchange_rates','delete')} canImport={can('settings_exchange_rates','bulk_import')} canExport={can('settings_exchange_rates','export')} canAdvanced={can('settings_exchange_rates','advanced')} canRounding={can('settings_exchange_rates','rounding')} onAdd={addExchangeRate} onUpdate={updateExchangeRate} onDelete={delExchangeRate} onPullInternet={can('settings_exchange_rates','advanced') ? pullExchangeInternet : undefined} onRunNow={can('settings_exchange_rates','update_now') ? runExchangeNow : undefined} onUpdateOne={can('settings_exchange_rates','update_now') ? updateOneExchange : undefined} canScript={isSu} />}
                 {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       canExport={can('settings_prof_cards','export')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards"       onImportWeb={can('settings_prof_cards','import_web') ? () => configApi.importProfCards() : null} />}
                 {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} canExport={can('settings_list_additionals','export')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}

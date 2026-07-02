@@ -172,6 +172,18 @@ function parseCombinedCsv(text, labelToKey) {
         extras.update_time    = parsed.update_time || ''
       } catch { /* câmbio exportado em formato antigo/inválido */ }
     }
+    if (listKey === 'payment_plans' && extras.code) {
+      try {
+        const parsed = JSON.parse(extras.code)
+        extras.has_down_payment   = !!parsed.has_down_payment
+        extras.down_payment_mode  = parsed.down_payment_mode || 'percent'
+        extras.down_payment_value = parsed.down_payment_value ?? 0
+        extras.installments_count = parsed.installments_count ?? 0
+        extras.payment_method     = parsed.payment_method || ''
+        extras.first_due_days     = parsed.first_due_days ?? 30
+        extras.interval_days      = parsed.interval_days ?? 30
+      } catch { /* modelo de pagamento exportado em formato antigo/inválido */ }
+    }
     return { listLabel, listKey, name, extras }
   }).filter(r => r.listLabel || r.name)
 }
@@ -257,6 +269,16 @@ const API_MAP = {
                        source_url: extras.source_url || '', script: extras.script || '',
                        update_time: extras.update_time || null,
                      }), del: (id) => configApi.delExchangeRate(id), label: 'Câmbio' },
+  payment_plans:   { add: (name, extras) => configApi.addPaymentPlan({
+                       name,
+                       has_down_payment: !!extras.has_down_payment,
+                       down_payment_mode: extras.down_payment_mode || 'percent',
+                       down_payment_value: extras.down_payment_value ?? 0,
+                       installments_count: extras.installments_count ?? 0,
+                       payment_method: extras.payment_method || '',
+                       first_due_days: extras.first_due_days ?? 30,
+                       interval_days: extras.interval_days ?? 30,
+                     }), del: (id) => configApi.delPaymentPlan(id), label: 'Modelos de Pagamento' },
 }
 
 const LABEL_TO_KEY = Object.fromEntries(
@@ -264,7 +286,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Tipos com campos extras (não só "nome") — usam o mesmo parser rico do CSV combinado
-const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms', 'exchange_rates', 'itinerary_templates', 'operating_company'])
+const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms', 'exchange_rates', 'itinerary_templates', 'operating_company', 'payment_plans'])
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
 const EXPORT_ONLY_KEYS = new Set()
@@ -334,6 +356,7 @@ const BULK_DELETE_PERM = {
   bus_maps:        'settings_bus_maps_delete',
   perm_profiles:   'settings_user_profiles_delete',
   payment_methods: 'settings_payment_methods_delete',
+  payment_plans:   'settings_payment_methods_delete',
   exchange_rates:  'settings_exchange_rates_delete',
   itinerary_categories: 'settings_itinerary_categories_bulk_delete',
   destinations:    'settings_destinations_bulk_delete',

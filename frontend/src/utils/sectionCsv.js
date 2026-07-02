@@ -66,6 +66,19 @@ export const SECTION_ROW_BUILDERS = {
     })
     return `${q(label)},${q(`${er.from_currency} → ${er.to_currency}`)},,,,,${q(payload)}`
   },
+  payment_plans: (label, p) => {
+    // Modelo de pagamento estruturado: todos os campos no JSON da coluna "codigo".
+    const payload = JSON.stringify({
+      has_down_payment: !!p.has_down_payment,
+      down_payment_mode: p.down_payment_mode || 'percent',
+      down_payment_value: p.down_payment_value ?? 0,
+      installments_count: p.installments_count ?? 0,
+      payment_method: p.payment_method || '',
+      first_due_days: p.first_due_days ?? 30,
+      interval_days: p.interval_days ?? 30,
+    })
+    return `${q(label)},${q(p.name)},,,,,${q(payload)}`
+  },
 }
 
 export function downloadCsv(text, filename, logMeta) {

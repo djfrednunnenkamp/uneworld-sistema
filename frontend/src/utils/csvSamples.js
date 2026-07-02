@@ -85,6 +85,14 @@ export const CSV_SAMPLES = {
     ].join('\n'),
     filename: 'modelo_modelos_roteiro.csv',
   },
+  payment_plans: {
+    content: [
+      'lista,nome,pessoas,casal,pais,estado,codigo',
+      'Modelos de Pagamento,Sinal + 10x boleto,,,,,"{""has_down_payment"":true,""down_payment_mode"":""valor"",""down_payment_value"":1000,""installments_count"":10,""payment_method"":""Boleto"",""first_due_days"":30,""interval_days"":30}"',
+      'Modelos de Pagamento,20% + 12x cartão,,,,,"{""has_down_payment"":true,""down_payment_mode"":""percent"",""down_payment_value"":20,""installments_count"":12,""payment_method"":""Cartão de crédito"",""first_due_days"":30,""interval_days"":30}"',
+    ].join('\n'),
+    filename: 'modelo_modelos_pagamento.csv',
+  },
   operating_company: {
     content: [
       'lista,nome,pessoas,casal,pais,estado,codigo',

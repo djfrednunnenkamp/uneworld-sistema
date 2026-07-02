@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
+import { exportSectionCsv } from '../utils/sectionCsv'
+import { CSV_SAMPLES } from '../utils/csvSamples'
+import CsvImportPopup from './CsvImportPopup'
 import PaymentPlanFields from './PaymentPlanFields'
+
+const inp    = { padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', color: '#0f172a', boxSizing: 'border-box', transition: 'border-color .15s' }
+const btnPri = { padding: '9px 16px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }
+const btnCsv = (color) => ({ padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${color}33`, background: `${color}11`, color, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' })
 
 /* Configurações › Modelos de Pagamento — CRUD autossuficiente (carrega e salva
  * sozinho). Cada modelo é uma sugestão reutilizável (entrada % + nº de parcelas +
@@ -25,12 +33,20 @@ function describe(p) {
   return parts.join(' · ')
 }
 
-export default function PaymentPlanManager({ canEdit, canDelete }) {
+export default function PaymentPlanManager({ canEdit, canDelete, canImport, canExport }) {
+  const navigate = useNavigate()
   const [plans, setPlans]     = useState([])
   const [methods, setMethods] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)   // objeto em edição ({} = novo) ou null
   const [saving, setSaving]   = useState(false)
+  const [search, setSearch]   = useState('')
+  const [showImport, setShowImport] = useState(false)
+
+  const filtered = useMemo(() => {
+    const query = search.toLowerCase()
+    return plans.filter(p => (p.name || '').toLowerCase().includes(query))
+  }, [plans, search])
 
   const load = () => {
     setLoading(true)
@@ -76,24 +92,27 @@ export default function PaymentPlanManager({ canEdit, canDelete }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
-          Modelos de sugestão de pagamento — usados nos roteiros e aplicados nos contratos.
-        </p>
-        {canEdit && (
-          <button onClick={openNew} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            + Novo modelo
-          </button>
-        )}
+      {/* Toolbar padrão: busca + adicionar + CSV (igual às outras configurações) */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome…"
+          style={{ ...inp, flex: 1, minWidth: 160 }}
+          onFocus={e => e.target.style.borderColor = '#1a2d4f'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+        {canEdit && <button onClick={openNew} style={btnPri}>+ Adicionar</button>}
+        {canExport && <button onClick={() => exportSectionCsv('payment_plans', 'Modelos de Pagamento', plans, 'modelos_pagamento.csv')} style={btnCsv('#059669')} title="Exportar como CSV">⬇ Exportar</button>}
+        {canImport && <button onClick={() => setShowImport(true)} style={btnCsv('#2e6db4')} title="Importar de CSV">⬆ Importar</button>}
       </div>
+
+      <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
+        {loading ? 'Carregando…' : `${filtered.length} de ${plans.length} ${plans.length !== 1 ? 'modelos' : 'modelo'}`}
+      </p>
 
       {loading ? (
         <p style={{ color: '#94a3b8', fontSize: 13 }}>Carregando…</p>
-      ) : plans.length === 0 ? (
-        <p style={{ color: '#94a3b8', fontSize: 13 }}>Nenhum modelo cadastrado ainda.</p>
+      ) : filtered.length === 0 ? (
+        <p style={{ color: '#94a3b8', fontSize: 13 }}>{plans.length === 0 ? 'Nenhum modelo cadastrado ainda.' : 'Nenhum resultado.'}</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {plans.map(p => (
+          {filtered.map(p => (
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
@@ -128,6 +147,19 @@ export default function PaymentPlanManager({ canEdit, canDelete }) {
             </div>
           </div>
         </div>
+      )}
+
+      {showImport && (
+        <CsvImportPopup
+          title="Importar CSV — Modelos de Pagamento"
+          sampleContent={CSV_SAMPLES['payment_plans']?.content}
+          sampleFilename={CSV_SAMPLES['payment_plans']?.filename}
+          onClose={() => setShowImport(false)}
+          onFile={async (file) => {
+            const csvText = await file.text()
+            navigate('/configuracoes/import', { state: { csvText, filename: file.name, type: 'payment_plans', existingNames: plans.map(p => p.name), existingItems: plans } })
+          }}
+        />
       )}
     </div>
   )
