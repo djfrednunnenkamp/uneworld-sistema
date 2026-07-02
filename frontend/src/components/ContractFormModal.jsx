@@ -431,6 +431,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const autosaveTimerRef = useRef(null)
   const lastSavedRef    = useRef(null)   // snapshot já persistido (evita re-salvar igual)
   const originalSnapshotRef = useRef(null) // estado ORIGINAL ao abrir (p/ descartar edições)
+  const settledRef      = useRef(false)  // já passou a janela de efeitos automáticos pós-abertura
   const baselineReadyRef = useRef(false) // fixa o estado inicial sem salvá-lo
   const [savingState, setSavingState] = useState('idle') // 'idle' | 'saving' | 'saved'
 
@@ -1310,7 +1311,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       else onClose()
       return
     }
-    const changed = originalSnapshotRef.current != null && JSON.stringify(buildPayload()) !== originalSnapshotRef.current
+    // Só pergunta se REALMENTE mudou algo desde que abriu (após a janela de
+    // assentamento dos efeitos automáticos). Sem mudança do usuário → fecha direto.
+    const changed = settledRef.current && originalSnapshotRef.current != null &&
+      JSON.stringify(buildPayload()) !== originalSnapshotRef.current
     if (changed) setLeavePrompt(true)
     else onClose()
   }
@@ -1399,8 +1403,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       baselineReadyRef.current = true
       lastSavedRef.current = autosaveSnapshot
       originalSnapshotRef.current = autosaveSnapshot   // guarda o original p/ "descartar"
+      // Janela de assentamento: efeitos automáticos (recebido, parcelas, à vista…)
+      // mexem no form logo após abrir. Enquanto não assenta, o "original" acompanha
+      // pra NÃO acusar uma mudança que o usuário não fez.
+      setTimeout(() => { settledRef.current = true }, 1800)
       return
     }
+    if (!settledRef.current) originalSnapshotRef.current = autosaveSnapshot  // ainda assentando
     clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = setTimeout(() => runAutosave(autosaveSnapshot), 1200)
     return () => clearTimeout(autosaveTimerRef.current)
