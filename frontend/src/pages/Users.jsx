@@ -803,7 +803,7 @@ function FDrop({ label, value, onChange, options, searchable = false }) {
 }
 
 /* ── Dropdown multi-seleção: filtra usuários que têm UMA ou VÁRIAS permissões específicas (AND) ── */
-function PermFilterDrop({ selected, onChange }) {
+function PermFilterDrop({ selected, onChange, groups = PERM_GROUPS }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const active = selected.size > 0
@@ -847,7 +847,7 @@ function PermFilterDrop({ selected, onChange }) {
               ✕ Limpar seleção
             </button>
           )}
-          {PERM_GROUPS.map(g => (
+          {groups.map(g => (
             <div key={g.title} style={{ marginBottom: 10 }}>
               <p style={{display:'flex',alignItems:'center',gap:6,fontSize:10.5,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.04em',margin:'0 0 5px'}}>
                 {g.icon && <span style={{display:'flex'}}><Ic n={g.icon} s={11}/></span>}
@@ -942,6 +942,21 @@ export default function Users() {
     ...ROLE_OPTS,
     ...permProfiles.map(p => ({ value: `profile:${p.id}`, label: p.name, badge: 'bg-purple' })),
   ]
+
+  // Filtro de Permissões do admin de agência: só as permissões que ele tem.
+  const permFilterGroups = useMemo(() => {
+    if (!isAgAdmin) return PERM_GROUPS
+    const has = k => !!myP[k]
+    const keep = items => (items || []).filter(([k]) => has(k))
+    return PERM_GROUPS.map(g => {
+      if (g.sections) {
+        const sections = g.sections.map(s => ({ ...s, items: keep(s.items) })).filter(s => s.items.length)
+        return sections.length ? { ...g, sections } : null
+      }
+      const items = keep(g.items)
+      return items.length ? { ...g, items } : null
+    }).filter(Boolean)
+  }, [isAgAdmin, myP])
 
   // Opções do filtro de Agência: montadas a partir das agências presentes nos
   // usuários carregados (só usuários de agência têm `agencies`).
@@ -1146,10 +1161,11 @@ export default function Users() {
           <input className="search-in" placeholder="Buscar por nome, e-mail ou login…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
 
-        <FDrop label="Perfil"  value={roleFilter}   onChange={setRoleFilter}   options={roleOpts}   />
+        {/* Admin de agência: "Perfil" é irrelevante (esconde); "Permissões" só as dele. */}
+        {!isAgAdmin && <FDrop label="Perfil"  value={roleFilter}   onChange={setRoleFilter}   options={roleOpts}   />}
         {!isAgAdmin && <FDrop label="Agência" value={agencyFilter} onChange={setAgencyFilter} options={agencyOpts} searchable />}
         <FDrop label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTS} />
-        <PermFilterDrop selected={permFilter} onChange={setPermFilter} />
+        <PermFilterDrop selected={permFilter} onChange={setPermFilter} groups={permFilterGroups} />
         <DateRangeDrop label="Criado" from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
         <DateRangeDrop label="Modificado" from={modifiedFrom} to={modifiedTo} onFrom={setModifiedFrom} onTo={setModifiedTo} />
 
