@@ -11,7 +11,7 @@ from rest_framework import status
 from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, InviteRateThrottle
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
-from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile
+from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids
 
 
 def _password_error(new_pw, user=None):
@@ -45,7 +45,12 @@ def _needs_terms_acceptance(perms):
 
 def serialize_user(u, perms=None):
     perms = perms or get_user_permissions(u)
+    scope = agency_scope_ids(u)   # None p/ interno/superusuário; lista de ids p/ usuário de agência
     return {
+        # Usuário de agência: front usa isto para travar/auto-preencher a agência
+        # (ex.: no contrato ele não escolhe agência, já é a dele).
+        'is_agency_user': scope is not None,
+        'agency_ids':     scope or [],
         'id':           u.id,
         'username':     u.username,
         'email':        u.email,

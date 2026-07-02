@@ -547,9 +547,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
         // Contrato novo nasce parcelado → usa a taxa parcelada (cai p/ à vista se não houver).
         const usdRate = usdBrl ? (Number(usdBrl.rate_installment) || Number(usdBrl.rate)) : null
+        // Usuário de agência não escolhe agência: o contrato já nasce travado na dele.
+        const agList = ag.data.results ?? ag.data
+        const agencyDefault = me?.is_agency_user
+          ? ((me.agency_ids?.find(id => agList.some(a => a.id === id))) ?? agList[0]?.id ?? null)
+          : null
         // Contrato novo herda a forma de assinatura padrão da Operadora.
         setForm(f => ({ ...f, signature_type: oc.data?.default_signature_type || 'fisica',
-          ...(usdRate != null ? { exchange_rate: usdRate } : {}) }))
+          ...(usdRate != null ? { exchange_rate: usdRate } : {}),
+          ...(agencyDefault != null ? { agency: agencyDefault } : {}) }))
       }
     }).catch(() => toast.error('Erro ao carregar dados auxiliares.'))
     // Lista de vendedores só importa para quem pode trocar o vendedor.
@@ -1674,10 +1680,17 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
                   <label style={lbl}>Agência de viagem (intermediadora) *</label>
-                  <EntityPicker items={agencyItems} selectedIds={form.agency ? [form.agency] : []}
-                    onChange={(ids) => setForm(f => ({ ...f, agency: ids[0] ?? null }))}
-                    title="Selecionar agência" searchPlaceholder="Buscar agência…" placeholder="— Selecionar agência —"
-                    emptyLabel="Nenhuma agência encontrada" createLink={{ label: 'Adicionar nova agência', to: '/agencias' }} />
+                  {me?.is_agency_user ? (
+                    // Usuário de agência não escolhe: o contrato é sempre da agência dele.
+                    <div style={{ ...inpRO, display: 'flex', alignItems: 'center' }}>
+                      {(agencies.find(a => a.id === form.agency) && agencyLabel(agencies.find(a => a.id === form.agency))) || 'Sua agência'}
+                    </div>
+                  ) : (
+                    <EntityPicker items={agencyItems} selectedIds={form.agency ? [form.agency] : []}
+                      onChange={(ids) => setForm(f => ({ ...f, agency: ids[0] ?? null }))}
+                      title="Selecionar agência" searchPlaceholder="Buscar agência…" placeholder="— Selecionar agência —"
+                      emptyLabel="Nenhuma agência encontrada" createLink={{ label: 'Adicionar nova agência', to: '/agencias' }} />
+                  )}
                 </div>
                 <div>
                   <label style={lbl}>Roteiro / pacote</label>
