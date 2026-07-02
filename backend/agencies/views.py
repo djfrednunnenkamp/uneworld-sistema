@@ -151,25 +151,22 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
                          'full_name': f'{user.first_name} {user.last_name}'.strip() or user.email,
                          'role': m.role, 'is_active': user.is_active}, status=201)
 
-    @action(detail=True, methods=['patch'], url_path=r'members/(?P<member_id>\d+)',
+    # PATCH (alterar papel, ex.: tornar admin da agência) e DELETE (remover da
+    # agência) na MESMA rota members/<id>. Precisam ficar numa única @action —
+    # dois @action com o mesmo url_path geram padrões duplicados e um dos métodos
+    # cai em 405 (o router usa o primeiro que casa a URL).
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'members/(?P<member_id>\d+)',
             permission_classes=[IsAdminUser])
-    def update_member(self, request, pk=None, member_id=None):
+    def member_detail(self, request, pk=None, member_id=None):
         agency = self.get_object()
         try:
             m = agency.members.get(id=member_id)
-            if 'role' in request.data:
-                m.role = request.data['role']
-                m.save()
-            return Response({'id': m.id, 'role': m.role})
         except AgencyMember.DoesNotExist:
             return Response({'error': 'Membro não encontrado.'}, status=404)
-
-    @action(detail=True, methods=['delete'], url_path=r'members/(?P<member_id>\d+)',
-            permission_classes=[IsAdminUser])
-    def remove_member(self, request, pk=None, member_id=None):
-        agency = self.get_object()
-        try:
-            agency.members.get(id=member_id).delete()
+        if request.method == 'DELETE':
+            m.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except AgencyMember.DoesNotExist:
-            return Response({'error': 'Membro não encontrado.'}, status=404)
+        if 'role' in request.data:
+            m.role = request.data['role']
+            m.save()
+        return Response({'id': m.id, 'role': m.role})
