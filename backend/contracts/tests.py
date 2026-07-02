@@ -295,3 +295,90 @@ class InvoiceRejectTest(_APITestCase):
         self.client.force_authenticate(viewer)
         r = self.client.post(f'/api/contracts/{self.c.id}/reject/', {'note': 'x'}, format='json')
         self.assertEqual(r.status_code, 403)
+
+
+# ── Segurança do PDF de assinatura física (QR por página) ─────────────────────
+class SigningTokenTest(DjTestCase):
+    def test_token_roundtrip_and_tamper(self):
+        from contracts.signing import make_token, parse_token
+        t = make_token(75, 3, 2, 5)
+        self.assertEqual(parse_token(t), {'cid': 75, 'ver': 3, 'page': 2, 'total': 5})
+        # adulterar qualquer parte quebra a assinatura
+        self.assertIsNone(parse_token(t.replace(':2:', ':4:')))   # troca página
+        self.assertIsNone(parse_token(t[:-1] + ('A' if t[-1] != 'A' else 'B')))  # troca assinatura
+        self.assertIsNone(parse_token('lixo'))
+        self.assertIsNone(parse_token('UNE1:75:3:2:5:'))
+
+
+class SigningQrEndpointTest(_APITestCase):
+    def setUp(self):
+        self.ag = Agency.objects.create(name='A', person_type='juridica')
+        self.user = _mkuser('u', contracts_edit=True)
+        self.c = Contract.objects.create(agency=self.ag, status='ativo', total_brl=100)
+
+    def test_issue_tokens_for_pages(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.post(f'/api/contracts/{self.c.id}/signing-qr/', {'pages': 3}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['version'], self.c.signing_version)
+        self.assertEqual(len(r.data['tokens']), 3)
+        from contracts.signing import parse_token
+        p = parse_token(r.data['tokens'][1]['token'])
+        self.assertEqual(p, {'cid': self.c.id, 'ver': self.c.signing_version, 'page': 2, 'total': 3})
+
+    def test_invalid_page_count(self):
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.post(f'/api/contracts/{self.c.id}/signing-qr/', {'pages': 0}, format='json').status_code, 400)
+
+
+class SignedPdfVerifyTest(DjTestCase):
+    """Gera um PDF com QR reais (como o front faria) e testa a verificação."""
+    def setUp(self):
+        self.ag = Agency.objects.create(name='A', person_type='juridica')
+        self.c = Contract.objects.create(agency=self.ag, status='ativo', total_brl=100)
+
+    def _pdf_with_qrs(self, cid, ver, total, pages=None, order=None):
+        import io, qrcode, fitz
+        from contracts.signing import make_token
+        pages = pages if pages is not None else list(range(1, total + 1))
+        if order is not None:
+            pages = order
+        doc = fitz.open()
+        for pnum in pages:
+            page = doc.new_page(width=595, height=842)
+            tok = make_token(cid, ver, pnum, total)
+            buf = io.BytesIO(); qrcode.make(tok).save(buf, format='PNG')
+            page.insert_image(fitz.Rect(595 - 90, 842 - 90, 595 - 20, 842 - 20), stream=buf.getvalue())
+        data = doc.tobytes(); doc.close()
+        return data
+
+    def test_valid_document(self):
+        from contracts.qr_verify import verify_signed_pdf
+        pdf = self._pdf_with_qrs(self.c.id, self.c.signing_version, 3)
+        ok, code, _ = verify_signed_pdf(self.c, pdf)
+        self.assertTrue(ok, code)
+
+    def test_stale_version_rejected(self):
+        from contracts.qr_verify import verify_signed_pdf
+        pdf = self._pdf_with_qrs(self.c.id, self.c.signing_version, 3)   # versão atual
+        self.c.signing_version += 1; self.c.save()                       # contrato editado depois
+        ok, code, _ = verify_signed_pdf(self.c, pdf)
+        self.assertFalse(ok); self.assertEqual(code, 'stale_version')
+
+    def test_other_contract_rejected(self):
+        from contracts.qr_verify import verify_signed_pdf
+        pdf = self._pdf_with_qrs(self.c.id + 999, self.c.signing_version, 3)
+        ok, code, _ = verify_signed_pdf(self.c, pdf)
+        self.assertFalse(ok); self.assertEqual(code, 'other_contract')
+
+    def test_missing_page_rejected(self):
+        from contracts.qr_verify import verify_signed_pdf
+        pdf = self._pdf_with_qrs(self.c.id, self.c.signing_version, 3, pages=[1, 2])  # falta a 3
+        ok, code, _ = verify_signed_pdf(self.c, pdf)
+        self.assertFalse(ok); self.assertEqual(code, 'missing_pages')
+
+    def test_wrong_order_rejected(self):
+        from contracts.qr_verify import verify_signed_pdf
+        pdf = self._pdf_with_qrs(self.c.id, self.c.signing_version, 3, order=[1, 3, 2])
+        ok, code, _ = verify_signed_pdf(self.c, pdf)
+        self.assertFalse(ok); self.assertEqual(code, 'wrong_order')

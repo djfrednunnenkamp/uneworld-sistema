@@ -122,6 +122,11 @@ class Contract(models.Model):
     invoiced_by    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='contracts_invoiced', verbose_name='Faturado por')
     signed_file = models.FileField('Contrato assinado', upload_to=secure_signed_path, null=True, blank=True)
+    # Versão de assinatura: sobe a cada edição do contrato. O PDF baixado para
+    # assinatura física carrega um QR por página com (contrato, versão, página, total)
+    # assinado (HMAC). No upload do assinado escaneado, o backend lê os QR e confere
+    # se é este contrato, na versão ATUAL, com todas as páginas na ordem certa.
+    signing_version = models.PositiveIntegerField('Versão de assinatura', default=1)
     # Resultado da conferência automática (OCR/leitura) do contrato assinado contra
     # os dados do contrato. Guardado para o aviso de divergências ficar persistente.
     signed_verification = models.JSONField('Conferência do assinado', null=True, blank=True)

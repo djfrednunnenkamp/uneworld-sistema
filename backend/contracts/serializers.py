@@ -479,6 +479,9 @@ class ContractSerializer(serializers.ModelSerializer):
             validated_data['contratante'] = None
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        # Toda edição sobe a versão de assinatura: invalida os PDFs baixados antes
+        # (o QR deles carrega a versão antiga) — ver contracts/signing.py.
+        instance.signing_version = (instance.signing_version or 1) + 1
         instance.save()
         self._save_children(instance, accommodation_lines, guests, installments, clauses, adjustments)
         self._recalc_totals(instance)

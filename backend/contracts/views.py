@@ -425,6 +425,23 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                      'autentique_data'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
+    @action(detail=True, methods=['post'], url_path='signing-qr')
+    def signing_qr(self, request, pk=None):
+        """Emite os tokens de segurança (um por página) para o PDF de assinatura
+        física. O front gera o PDF, conta as páginas e pede os tokens aqui; cada
+        token é assinado no backend e vira um QR no canto da página."""
+        from .signing import make_token
+        contract = self.get_object()
+        try:
+            n = int(request.data.get('pages') or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n < 1 or n > 200:
+            return Response({'error': 'Número de páginas inválido.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        ver = contract.signing_version
+        tokens = [{'page': i, 'total': n, 'token': make_token(contract.id, ver, i, n)} for i in range(1, n + 1)]
+        return Response({'version': ver, 'pages': n, 'tokens': tokens})
+
     @action(detail=True, methods=['post'], url_path='upload-signed', parser_classes=[MultiPartParser, FormParser])
     def upload_signed(self, request, pk=None):
         """Upload do contrato assinado → move para 'Assinado'. Valida o arquivo
@@ -446,6 +463,21 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             f = validate_document_file(f, allowed_exts={'.pdf'}, allow_images=False)
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        # Segurança do assinado físico: lê os QR de cada página e confere se é este
+        # contrato, na versão atual, com todas as páginas na ordem. Bloqueia se não.
+        from django.conf import settings as dj_settings
+        if getattr(dj_settings, 'CONTRACT_QR_VERIFY', True):
+            try:
+                f.seek(0); pdf_bytes = f.read(); f.seek(0)
+            except Exception:
+                pdf_bytes = None
+            if pdf_bytes:
+                from .qr_verify import verify_signed_pdf
+                ok, code, message = verify_signed_pdf(contract, pdf_bytes)
+                if not ok:
+                    return Response({'error': message, 'code': code}, status=http_status.HTTP_400_BAD_REQUEST)
+
         from django.utils import timezone
         contract.signed_file = f
         # Assinado (física) → vai direto para a revisão da operadora.

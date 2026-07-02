@@ -23,6 +23,12 @@ pypdf==6.14.2
 pytesseract==0.3.13
 pdf2image==1.17.0
 pymupdf==1.27.2.3
+# Segurança do PDF de assinatura física: lê os QR de cada página do assinado
+# escaneado (PyMuPDF rasteriza + OpenCV decodifica). opencv-headless não precisa
+# de libs gráficas (pode exigir libgomp1 no sistema). qrcode gera os QR nos testes.
+opencv-python-headless==5.0.0.93
+numpy==2.5.0
+qrcode==8.2
 requests==2.34.2
 RestrictedPython==8.3
 # Verificação de e-mail no cadastro: consulta de registros MX do domínio.

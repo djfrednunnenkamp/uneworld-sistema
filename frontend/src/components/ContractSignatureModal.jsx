@@ -29,7 +29,8 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
     contractsApi.get(contract.id)
       .then(async r => {
         if (cancelled) return
-        url = await generateContractPDF(r.data, { output: 'bloburl' })
+        // Física: embute o QR de segurança por página (assinado no backend).
+        url = await generateContractPDF(r.data, { output: 'bloburl', signing: r.data.signature_type !== 'digital' })
         if (cancelled) { URL.revokeObjectURL(url); return }
         setDocUrl(url); setDocStatus('ready')
       })

@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import { configApi } from '../api'
+import { configApi, contractsApi } from '../api'
 
 // ── Paleta (RGB) — alinhamento e cores feitos 100% em jsPDF, sem CSS ──────────
 const NAV        = [26, 45, 79]      // #1a2d4f (títulos de cláusulas)
@@ -944,6 +944,33 @@ export async function generateContractPDF(contract, opts = {}) {
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
     drawText(doc, `Página ${i} de ${pageCount}`, pw / 2, ph - 8, { size: 8, color: [148, 163, 184], align: 'center' })
+  }
+
+  // ═══ QR DE SEGURANÇA (assinatura física) ══════════════════════════════════
+  // Um QR por página no canto inferior direito, com um token ASSINADO no backend
+  // (contrato + versão + página + total). No upload do assinado, o backend lê os
+  // QR e confere tudo (ver contracts/qr_verify.py). Sem os tokens, não gera o PDF
+  // (senão o upload seria recusado por falta de código).
+  if (opts.signing) {
+    let tokens = []
+    try {
+      const r = await contractsApi.signingQr(contract.id, pageCount)
+      tokens = r.data?.tokens || []
+    } catch {
+      throw new Error('Não foi possível gerar o código de segurança do PDF. Tente novamente.')
+    }
+    if (tokens.length !== pageCount) {
+      throw new Error('Não foi possível gerar o código de segurança do PDF.')
+    }
+    const QRCode = (await import('qrcode')).default
+    const qrSize = 15                                   // mm
+    const qx = pw - marginX - qrSize                    // canto inferior direito
+    const qy = ph - marginBottom - qrSize
+    for (let i = 1; i <= pageCount; i++) {
+      const url = await QRCode.toDataURL(tokens[i - 1].token, { margin: 0, errorCorrectionLevel: 'M', width: 320 })
+      doc.setPage(i)
+      doc.addImage(url, 'PNG', qx, qy, qrSize, qrSize)
+    }
   }
 
   // ═══ NOME DO ARQUIVO ══════════════════════════════════════════════════════
