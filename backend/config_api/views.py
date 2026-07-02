@@ -1587,11 +1587,19 @@ class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         obj = serializer.save()
         self._ensure_single_agency_default(obj)
+        self._reapply_to_linked_users(obj)
 
     def _ensure_single_agency_default(self, obj):
         # Só UM perfil pode ser o padrão de agência — ao marcar um, desmarca os demais.
         if obj.is_agency_default:
             PermissionProfile.objects.exclude(pk=obj.pk).filter(is_agency_default=True).update(is_agency_default=False)
+
+    def _reapply_to_linked_users(self, profile):
+        # Link VIVO: ao editar o perfil, re-aplica as permissões a todos os usuários
+        # vinculados a ele (inclui os usuários de agência ligados ao perfil padrão).
+        from users_api.permissions import apply_profile
+        for perms in profile.linked_permissions.select_related('user').all():
+            apply_profile(perms.user, profile)
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

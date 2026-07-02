@@ -220,3 +220,52 @@ class ValidateTokenEndpointsTest(APITestCase):
         r = self.client.post('/api/users/reset-password/validate/',
                              {'token': '00000000-0000-0000-0000-000000000000'}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class ProfileLiveLinkTest(APITestCase):
+    """Link VIVO entre Perfil de Permissão e usuário: editar o perfil nas
+    Configurações re-aplica as permissões a todos os usuários vinculados."""
+    def setUp(self):
+        cache.clear()
+        from config_api.models import PermissionProfile
+        self.root = make_user('root', superuser=True, password=ADMIN_PW)
+        self.prof = PermissionProfile.objects.create(
+            name='Agência', is_agency_default=True,
+            permissions={'passengers_view_basic': True, 'contracts_view': False},
+        )
+
+    def test_agency_user_created_is_linked_and_follows_profile(self):
+        from config_api.models import PermissionProfile
+        self.client.force_authenticate(self.root)
+        # Cria usuário de agência → vincula ao perfil padrão e copia as permissões.
+        r = self.client.post('/api/users/create/',
+                             {'email': 'ag@x.com', 'first_name': 'Ag', 'agency_user': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        uid = r.data['id']
+        self.assertEqual(r.data['profile_id'], self.prof.id)
+        perms = UserPermissions.objects.get(user_id=uid)
+        self.assertTrue(perms.passengers_view_basic)
+        self.assertFalse(perms.contracts_view)
+
+        # Edita o perfil → deve propagar para o usuário vinculado (link vivo).
+        self.client.patch(f'/api/config/permission-profiles/{self.prof.id}/',
+                          {'permissions': {'passengers_view_basic': True, 'contracts_view': True}}, format='json')
+        perms.refresh_from_db()
+        self.assertTrue(perms.contracts_view)
+
+    def test_manual_permission_edit_unlinks(self):
+        self.client.force_authenticate(self.root)
+        r = self.client.post('/api/users/create/',
+                             {'email': 'ag2@x.com', 'first_name': 'Ag2', 'agency_user': True}, format='json')
+        uid = r.data['id']
+        # Ajuste manual (profile_id=null) desvincula: perfil não sobrescreve mais.
+        self.client.patch(f'/api/users/{uid}/',
+                          {'permissions': {'passengers_view_basic': False}, 'profile_id': None}, format='json')
+        perms = UserPermissions.objects.get(user_id=uid)
+        self.assertIsNone(perms.profile_id)
+        # Editar o perfil agora NÃO deve tocar o usuário desvinculado.
+        self.client.patch(f'/api/config/permission-profiles/{self.prof.id}/',
+                          {'permissions': {'passengers_view_basic': True}}, format='json')
+        perms.refresh_from_db()
+        self.assertFalse(perms.passengers_view_basic)

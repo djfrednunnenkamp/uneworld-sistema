@@ -29,6 +29,17 @@ class UserPermissions(models.Model):
     user       = models.OneToOneField(User, on_delete=models.CASCADE, related_name='permissions')
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Perfil de permissão vinculado (link VIVO): quando o usuário é criado/atualizado
+    # com um perfil, ele fica "amarrado" a ele. Editar o perfil nas Configurações
+    # re-aplica as permissões a todos os vinculados (ver PermissionProfileViewSet).
+    # Toggle manual de permissão desvincula (vira personalizado). SET_NULL para não
+    # perder o usuário se o perfil for excluído.
+    profile    = models.ForeignKey(
+        'config_api.PermissionProfile', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='linked_permissions',
+        verbose_name='Perfil de permissão vinculado',
+    )
+
     # Dados de perfil
     phone      = models.CharField(max_length=30, blank=True, default='')
 

@@ -194,6 +194,26 @@ def agency_scope_ids(user):
     return ids or None
 
 
+def apply_profile(user, profile):
+    """Vincula o usuário ao perfil de permissão e copia as permissões dele.
+
+    O vínculo é VIVO: ao editar o perfil nas Configurações, chamamos isto de novo
+    para cada usuário vinculado, mantendo tudo sincronizado (ver
+    PermissionProfileViewSet._reapply_to_linked_users). Perfil é um template
+    confiável — aplica sem o filtro de "permissões concedíveis" do ator.
+    Superusuário é ignorado (tem acesso total de qualquer forma)."""
+    if user.is_superuser:
+        return
+    perms = get_user_permissions(user)
+    perms.profile = profile
+    src = profile.permissions if (profile and isinstance(profile.permissions, dict)) else {}
+    for key in PERMISSION_FIELDS:
+        if key in src:
+            setattr(perms, key, bool(src[key]))
+    perms.save()
+    sync_is_staff(user)
+
+
 def sync_is_staff(user):
     """Recalcula user.is_staff a partir das permissões administrativas atuais."""
     if user.is_superuser:

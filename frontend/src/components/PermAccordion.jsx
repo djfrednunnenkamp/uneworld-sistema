@@ -6,20 +6,24 @@ import {
 } from '../utils/permGroups'
 
 /* ── Barra de presets ── */
-export function PermPresetBar({ setForm, extraProfiles = [] }) {
+export function PermPresetBar({ setForm, extraProfiles = [], onSelectProfile }) {
   const btnBase = { padding:'4px 11px', borderRadius:6, border:'1px solid #e2e8f0', background:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', transition:'all .12s' }
-  const apply = (perms) => setForm(f => ({ ...f, permissions: applyPermChanges(EMPTY_PERMISSIONS, perms) }))
+  // profileId != null → vincula o usuário a esse perfil (link vivo); null → personalizado.
+  const apply = (perms, profileId = null) => {
+    setForm(f => ({ ...f, permissions: applyPermChanges(EMPTY_PERMISSIONS, perms), profile_id: profileId }))
+    onSelectProfile?.(profileId)
+  }
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', paddingBottom:2 }}>
       <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.04em', whiteSpace:'nowrap' }}>Preset:</span>
       {[
-        { label:'Usuário padrão', perms: PRESET_USER },
-        { label:'Administrador',  perms: PRESET_ADMIN },
-        ...extraProfiles.map(p => ({ label: p.name, perms: p.permissions })),
-      ].map(({ label, perms }) => (
+        { label:'Usuário padrão', perms: PRESET_USER, id: null },
+        { label:'Administrador',  perms: PRESET_ADMIN, id: null },
+        ...extraProfiles.map(p => ({ label: p.name, perms: p.permissions, id: p.id })),
+      ].map(({ label, perms, id }) => (
         <button key={label} type="button"
           style={{ ...btnBase, color:'#475569' }}
-          onClick={() => apply(perms)}
+          onClick={() => apply(perms, id)}
           onMouseEnter={e => { e.currentTarget.style.borderColor='#2e6db4'; e.currentTarget.style.color='#2e6db4' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
           {label}
@@ -27,7 +31,7 @@ export function PermPresetBar({ setForm, extraProfiles = [] }) {
       ))}
       <button type="button"
         style={{ ...btnBase, color:'#94a3b8' }}
-        onClick={() => setForm(f => ({ ...f, permissions: { ...EMPTY_PERMISSIONS } }))}
+        onClick={() => { setForm(f => ({ ...f, permissions: { ...EMPTY_PERMISSIONS }, profile_id: null })); onSelectProfile?.(null) }}
         onMouseEnter={e => { e.currentTarget.style.borderColor='#fecaca'; e.currentTarget.style.color='#dc2626' }}
         onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#94a3b8' }}>
         Limpar tudo

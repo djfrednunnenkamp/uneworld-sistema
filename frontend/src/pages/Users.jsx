@@ -40,7 +40,7 @@ const ROLE_OPTS = [
 ]
 
 
-const EMPTY = { first_name:'', last_name:'', email:'', phone:'', password:'', is_active:true, is_superuser:false, permissions: { ...EMPTY_PERMISSIONS } }
+const EMPTY = { first_name:'', last_name:'', email:'', phone:'', password:'', is_active:true, is_superuser:false, profile_id: null, permissions: { ...EMPTY_PERMISSIONS } }
 
 /* ── Toggle (switch) ── */
 function Toggle({ checked, onChange, disabled }) {
@@ -238,8 +238,16 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
   const canManagePerms  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_manage_permissions
   const canEditProfile  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_edit
   const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setFe(p => { const n={...p}; delete n[k]; return n }) }
-  const setPerm    = (key, val)  => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
-  const setPermAll = (keys, val) => setForm(f => ({ ...f, permissions: applyPermChanges(f.permissions, Object.fromEntries(keys.map(k => [k, val]))) }))
+  // Mexer numa permissão à mão desvincula do perfil (profile_id: null) — vira personalizado.
+  const setPerm    = (key, val)  => setForm(f => ({ ...f, profile_id: null, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
+  const setPermAll = (keys, val) => setForm(f => ({ ...f, profile_id: null, permissions: applyPermChanges(f.permissions, Object.fromEntries(keys.map(k => [k, val]))) }))
+
+  const linkedProfileName = form.profile_id ? (permProfiles.find(p => p.id === form.profile_id)?.name || null) : null
+  const linkedBanner = linkedProfileName ? (
+    <div style={{fontSize:12,color:'#6d28d9',background:'#f5f3ff',border:'1px solid #ddd6fe',borderRadius:6,padding:'6px 10px',lineHeight:1.4}}>
+      🔗 Vinculado ao perfil <b>{linkedProfileName}</b> — editar esse perfil em Configurações atualiza este usuário automaticamente. Ajustar uma permissão à mão desvincula.
+    </div>
+  ) : null
 
   useEffect(() => {
     if (isEdit && user?.id) {
@@ -263,10 +271,12 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
         savedId = r.data.id
         toast.success('Usuário criado. Convite enviado por e-mail.')
       } else if (mode === 'profile') {
-        await usersApi.update(user.id, { ...form, permissions: undefined })
+        // Edição de dados básicos: não mexe em permissões nem no vínculo de perfil.
+        await usersApi.update(user.id, { ...form, permissions: undefined, profile_id: undefined })
         toast.success('Perfil atualizado.')
       } else {
-        await usersApi.update(user.id, { permissions: form.permissions, is_superuser: form.is_superuser })
+        // profile_id vai junto: preserva o vínculo vivo (ou null se personalizado).
+        await usersApi.update(user.id, { permissions: form.permissions, is_superuser: form.is_superuser, profile_id: form.profile_id ?? null })
         toast.success('Permissões atualizadas.')
       }
       if (savedId || mode !== 'perms') {
@@ -369,6 +379,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
               ) : (
                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>
+                  {linkedBanner}
                   {PERM_GROUPS.map(g => (
                     <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
                   ))}
@@ -382,6 +393,7 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
           ) : canManagePerms ? (
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
               <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>
+              {linkedBanner}
               {PERM_GROUPS.map(g => (
                 <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
               ))}

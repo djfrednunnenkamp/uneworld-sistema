@@ -11,7 +11,7 @@ from rest_framework import status
 from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, InviteRateThrottle
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
-from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions
+from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile
 
 
 def _password_error(new_pw, user=None):
@@ -61,6 +61,9 @@ def serialize_user(u, perms=None):
         'last_login':   u.last_login,
         'updated_at':   perms.updated_at,
         'permissions':  permissions_dict(u),
+        # Perfil de permissão vinculado (link vivo). null = permissões personalizadas.
+        'profile_id':   perms.profile_id,
+        'profile_name': perms.profile.name if perms.profile_id else None,
         'is_deleted':   perms.is_deleted,
         'deleted_at':   perms.deleted_at,
         'needs_terms_acceptance': _needs_terms_acceptance(perms),
@@ -236,17 +239,22 @@ def user_create(request):
         user.is_staff     = True
         user.save()
     if not user.is_superuser:
+        from config_api.models import PermissionProfile
+        can_perms = has_any_perm(request.user, 'manage_users', 'users_manage_permissions')
+        prof = None
         if data.get('agency_user'):
             # Usuário de AGÊNCIA: recebe automaticamente o perfil marcado como
-            # "padrão de agência" nas Configurações (template controlado pelos
-            # admins). Aplicado sem o filtro do ator — é um perfil confiável.
-            from config_api.models import PermissionProfile
+            # "padrão de agência" nas Configurações (template controlado pelos admins).
             prof = PermissionProfile.objects.filter(is_agency_default=True, is_deleted=False).first()
-            if prof and isinstance(prof.permissions, dict):
-                _apply_permissions(user, {'permissions': prof.permissions}, actor=None)
-        else:
+        elif can_perms and data.get('profile_id'):
+            # Usuário vinculado a um perfil escolhido no cadastro.
+            prof = PermissionProfile.objects.filter(pk=data['profile_id'], is_deleted=False).first()
+        if prof:
+            # Vínculo VIVO: editar o perfil depois re-aplica a este usuário.
+            apply_profile(user, prof)
+        elif not data.get('agency_user'):
             perm_data = dict(data)
-            if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
+            if not can_perms:
                 perm_data.pop('permissions', None)
             _apply_permissions(user, perm_data, actor=request.user)
 
@@ -309,10 +317,27 @@ def user_update(request, pk):
 
     user.save()
     if not user.is_superuser:
+        from config_api.models import PermissionProfile
+        can_perms = has_any_perm(request.user, 'manage_users', 'users_manage_permissions')
         perm_data = dict(data)
-        if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
+        if not can_perms:
             perm_data.pop('permissions', None)
-        _apply_permissions(user, perm_data, actor=request.user)
+            perm_data.pop('profile_id', None)
+        if perm_data.get('profile_id'):
+            # Vincula a um perfil (link vivo). Editar o perfil depois re-aplica aqui.
+            prof = PermissionProfile.objects.filter(pk=perm_data['profile_id'], is_deleted=False).first()
+            if prof:
+                apply_profile(user, prof)
+            else:
+                _apply_permissions(user, perm_data, actor=request.user)
+        else:
+            _apply_permissions(user, perm_data, actor=request.user)
+            # O front manda profile_id=null ao mexer numa permissão à mão: desvincula.
+            if 'profile_id' in perm_data:
+                perms = get_user_permissions(user)
+                if perms.profile_id is not None:
+                    perms.profile = None
+                    perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
     if 'phone' in data and has_any_perm(request.user, 'manage_users', 'users_edit'):
