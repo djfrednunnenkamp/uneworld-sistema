@@ -40,6 +40,12 @@ def build_review_data(contract):
 
     flags = []
 
+    # Comissão da agência: na conferência o valor/pessoa é exibido COMISSIONADO
+    # (base × (1+%)), igual ao resto do sistema; o subtotal soma normal e a comissão
+    # é ABATIDA do total mais abaixo. value_subtotal (base) é o que gera a comissão.
+    comm_rate = _d(contract.agency.commission_rate) if (contract.agency_id and contract.agency.commission_rate) else Decimal('0')
+    comm_factor = Decimal('1') + (comm_rate / Decimal('100'))
+
     # ── Linhas de acomodação (com comparação vs roteiro) ──
     accom_items = []
     accom_total = Decimal('0')
@@ -48,9 +54,10 @@ def build_review_data(contract):
         vp = _d(l.value_per_person_usd) or Decimal('0')
         tx = _d(l.taxes_usd) or Decimal('0')
         qty = l.quantity or 0
-        subtotal = (vp + tx) * qty
+        vp_comm = vp * comm_factor          # valor/pessoa comissionado (exibido)
+        subtotal = (vp_comm + tx) * qty
         accom_total += subtotal
-        value_subtotal += vp * qty
+        value_subtotal += vp * qty          # base (sem comissão) — gera a comissão
         name = l.accommodation_type.name if l.accommodation_type_id else '—'
         base = itin_map.get(l.accommodation_type_id)
         changed = False
@@ -60,9 +67,10 @@ def build_review_data(contract):
             changed = (vp != (base_vp or Decimal('0'))) or (tx != (base_tx or Decimal('0')))
         accom_items.append({
             'type': name,
-            'value_per_person_usd': _s(vp), 'taxes_usd': _s(tx), 'quantity': qty,
+            'value_per_person_usd': _s(vp_comm), 'taxes_usd': _s(tx), 'quantity': qty,
             'subtotal_usd': _s(subtotal),
-            'itinerary_value_per_person': _s(base_vp),
+            # Roteiro exibido também comissionado, para a comparação bater visualmente.
+            'itinerary_value_per_person': _s(base_vp * comm_factor) if base_vp is not None else None,
             'itinerary_taxes': _s(base_tx),
             'has_itinerary_baseline': base is not None,
             'changed_from_itinerary': changed,
