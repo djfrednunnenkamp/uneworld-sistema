@@ -50,6 +50,7 @@ export const SECTION_ROW_BUILDERS = {
     const payload = JSON.stringify({
       company_name: o.company_name || '', cnpj: o.cnpj || '', seller: o.seller || '',
       phone: o.phone || '', mobile: o.mobile || '', email: o.email || '', address: o.address || '',
+      pix_key_type: o.pix_key_type || '', pix_key: o.pix_key || '',
       default_signature_type: o.default_signature_type || 'fisica',
     })
     return `${q(label)},${q(o.company_name || 'Operadora')},,,,,${q(payload)}`

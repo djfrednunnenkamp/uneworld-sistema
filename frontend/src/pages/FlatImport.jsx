@@ -154,6 +154,8 @@ function parseCombinedCsv(text, labelToKey) {
         extras.mobile  = p.mobile || ''
         extras.email   = p.email || ''
         extras.address = p.address || ''
+        extras.pix_key_type = p.pix_key_type || ''
+        extras.pix_key      = p.pix_key || ''
         extras.default_signature_type = p.default_signature_type || 'fisica'
       } catch { /* operadora exportada em formato antigo/inválido */ }
     }
@@ -259,6 +261,7 @@ const API_MAP = {
                        company_name: extras.company_name || name || '', cnpj: extras.cnpj || '',
                        seller: extras.seller || '', phone: extras.phone || '', mobile: extras.mobile || '',
                        email: extras.email || '', address: extras.address || '',
+                       pix_key_type: extras.pix_key_type || '', pix_key: extras.pix_key || '',
                        default_signature_type: extras.default_signature_type || 'fisica',
                      }), del: null, label: 'Operadora' },
   exchange_rates:  { add: (name, extras) => configApi.addExchangeRate({

@@ -27,6 +27,7 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
   const [showImport, setShowImport] = useState(false)
   const [form, setForm] = useState({
     company_name: '', cnpj: '', seller: '', phone: '', mobile: '', email: '', address: '',
+    pix_key_type: '', pix_key: '',
     default_signature_type: 'fisica',
     ceo_name: '', ceo_email: '', ceo_autentique_token: '', ceo_auto_sign: false,
   })
@@ -38,6 +39,7 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
         setForm({
           company_name: d.company_name ?? '', cnpj: d.cnpj ?? '', seller: d.seller ?? '',
           phone: d.phone ?? '', mobile: d.mobile ?? '', email: d.email ?? '', address: d.address ?? '',
+          pix_key_type: d.pix_key_type ?? '', pix_key: d.pix_key ?? '',
           default_signature_type: d.default_signature_type ?? 'fisica',
           ceo_name: d.ceo_name ?? '', ceo_email: d.ceo_email ?? '',
           ceo_autentique_token: d.ceo_autentique_token ?? '', ceo_auto_sign: !!d.ceo_auto_sign,
@@ -126,6 +128,25 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
       <div>
         <label style={lbl}>Endereço</label>
         <input style={{ ...inp, width:'100%' }} value={form.address} onChange={set('address')} disabled={!canEdit} />
+      </div>
+
+      {/* PIX da UneWorld — aparece no contrato quando a agência marca "usar PIX da UneWorld". */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:12 }}>
+        <div>
+          <label style={lbl}>Tipo de chave PIX</label>
+          <select style={{ ...inp, width:'100%' }} value={form.pix_key_type} onChange={set('pix_key_type')} disabled={!canEdit}>
+            <option value="">Selecione</option>
+            <option value="cpf">CPF</option>
+            <option value="cnpj">CNPJ</option>
+            <option value="email">E-mail</option>
+            <option value="telefone">Telefone</option>
+            <option value="aleatorio">Chave aleatória</option>
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Chave PIX</label>
+          <input style={{ ...inp, width:'100%' }} value={form.pix_key} onChange={set('pix_key')} disabled={!canEdit} placeholder="Chave PIX da UneWorld" />
+        </div>
       </div>
 
       <div>

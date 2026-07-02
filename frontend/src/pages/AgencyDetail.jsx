@@ -46,7 +46,7 @@ const EMPTY = {
   commission_rate: '', cep: '', street: '', number: '', complement: '',
   neighborhood: '', city: '', state: '', country: 'Brasil',
   receives_mail: false, use_andes_banking: false,
-  pix_key_type: '', pix_key: '', notes: '',
+  pix_key_type: '', pix_key: '', use_uneworld_pix: false, notes: '',
 }
 
 const IBGE = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome'
@@ -920,6 +920,16 @@ export default function AgencyDetail() {
       {/* ── Dados PIX ── */}
       <div className="section">
         <div className="section-title">Dados PIX</div>
+        {/* Qual PIX vai no contrato desta agência: o da UneWorld ou o desta agência. */}
+        <div style={{ marginBottom: 16 }}>
+          <label className="fl">No contrato, usar o PIX da UneWorld?</label>
+          <Toggle checked={form.use_uneworld_pix} onChange={setB('use_uneworld_pix')} />
+          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+            {form.use_uneworld_pix
+              ? 'O contrato desta agência mostrará o PIX da UneWorld (Configurações › Operadora).'
+              : 'O contrato desta agência mostrará o PIX cadastrado abaixo.'}
+          </div>
+        </div>
         <div className="grid3">
           <F label="Tipo de chave PIX">
             <FormSelect
