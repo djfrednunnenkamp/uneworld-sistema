@@ -914,7 +914,7 @@ export async function generateContractPDF(contract, opts = {}) {
   const crossEmptyIfLarge = (top) => {
     const bottom = ph - 12
     if (bottom - top > 45) {
-      doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.4)
+      doc.setDrawColor(203, 213, 225); doc.setLineWidth(1.0)
       doc.line(marginX, top, marginX + contentW, bottom)
     }
   }
