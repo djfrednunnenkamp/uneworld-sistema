@@ -1302,7 +1302,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     if (autosaveRef.current.id) return true
     const p = buildPayload()
     const txt = v => (v || '').toString().trim()
-    return !!(p.agency || p.itinerary || p.contratante || txt(p.payer_name) || txt(p.payer_document) ||
+    // Usuário de agência: a agência vem travada/auto-preenchida — não conta como
+    // "conteúdo" dele (senão o clique-fora pergunta sem ele ter digitado nada).
+    const agency = me?.is_agency_user ? null : p.agency
+    return !!(agency || p.itinerary || p.contratante || txt(p.payer_name) || txt(p.payer_document) ||
       txt(p.payer_phone) || txt(p.payer_email) || txt(p.payer_address) || (p.guests && p.guests.length) ||
       (p.accommodation_lines && p.accommodation_lines.length) || (p.installments && p.installments.length) ||
       (p.adjustments && p.adjustments.length) || (p.custom_clauses && p.custom_clauses.length) ||
@@ -1369,8 +1372,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     // auto-populados (câmbio, moeda base, totais, vendedor, arredondamento) NÃO
     // contam — senão o sistema criaria rascunho sozinho ao abrir a tela.
     const txt = (v) => (v || '').toString().trim()
+    // Agência auto-preenchida do usuário de agência não conta (não cria rascunho sozinho).
+    const agency = me?.is_agency_user ? null : p.agency
     const hasContent = !!(
-      p.agency || p.itinerary || p.contratante ||
+      agency || p.itinerary || p.contratante ||
       txt(p.payer_name) || txt(p.payer_document) || txt(p.payer_phone) || txt(p.payer_email) || txt(p.payer_address) ||
       (p.guests && p.guests.length) || (p.accommodation_lines && p.accommodation_lines.length) ||
       (p.installments && p.installments.length) || (p.adjustments && p.adjustments.length) ||
