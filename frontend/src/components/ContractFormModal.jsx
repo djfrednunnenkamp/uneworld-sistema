@@ -493,7 +493,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     { key: 'valores',     title: 'Valores' },
     { key: 'pagamento',   title: 'Pagamento' },
     ...(showClausesStep ? [{ key: 'clausulas', title: 'Cláusulas' }] : []),
-    { key: 'revisao',     title: 'Revisão' },
+    // A etapa "Revisão" saiu do passo a passo — a revisão agora é o pop-up que
+    // abre ao clicar em Salvar (renderReview via showReviewConfirm).
   ]
   const lastStep = STEPS.length - 1
   const curKey = STEPS[Math.min(step, lastStep)]?.key
@@ -2188,8 +2189,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               </div>
             )}
             </>)}
-
-            {layout === 'steps' && curKey === 'revisao' && renderReview()}
             </div>
           </div>
         )}
