@@ -36,6 +36,7 @@ const ROLE_OPTS = [
   { value: '',           label: 'Todos os perfis'               },
   { value: 'superuser',  label: 'Superusuário', badge: 'bg-blue'   },
   { value: 'admin',      label: 'Administrador', badge: 'bg-green'  },
+  { value: 'agency',     label: 'Agência',       badge: 'bg-purple' },
   { value: 'user',       label: 'Usuário',       badge: 'bg-amber'  },
 ]
 
@@ -272,7 +273,17 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
         .then(r => setEmailPrefs({ receive_deadline_emails: !!r.data.receive_deadline_emails, receive_task_emails: !!r.data.receive_task_emails, receive_birthday_emails: !!r.data.receive_birthday_emails }))
         .catch(() => {})
     }
-    configApi.permissionProfiles().then(r => setPermProfiles(r.data)).catch(() => {})
+    configApi.permissionProfiles().then(r => {
+      setPermProfiles(r.data)
+      // Admin de agência criando: já parte do perfil padrão da agência (baseline),
+      // e ajusta a partir dali (o backend aplica esse baseline + os ajustes dele).
+      if (!isEdit && isAgencyAdmin) {
+        const def = r.data.find(p => p.is_agency_default)
+        if (def && def.permissions) {
+          setForm(f => ({ ...f, permissions: sanitizePerms({ ...EMPTY_PERMISSIONS, ...def.permissions }) }))
+        }
+      }
+    }).catch(() => {})
   }, [isEdit, user?.id])
 
   const save = async () => {
@@ -409,18 +420,21 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
             </div>
           ) : canManagePerms ? (
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {isAgencyAdmin && mode === 'new' ? (
-                <div style={{fontSize:12.5,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px',lineHeight:1.5}}>
-                  O novo usuário começa com o <b>perfil padrão da agência</b>. Depois de criar, você pode ajustar as permissões dele (entre as que você tem).
-                </div>
+              {/* Admin de agência: sem presets/perfis, só ajusta permissões (limitadas às dele),
+                  tanto na criação quanto na edição. Na criação já vem do perfil padrão da agência. */}
+              {isAgencyAdmin ? (
+                mode === 'new' && (
+                  <div style={{fontSize:12.5,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px',lineHeight:1.5}}>
+                    O novo usuário começa com o <b>perfil padrão da agência</b>. Ajuste abaixo as permissões dele (entre as que você tem).
+                  </div>
+                )
               ) : (<>
-                {/* Admin de agência não atribui perfis: só ajusta permissões (limitadas às dele). */}
-                {!isAgencyAdmin && <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>}
-                {!isAgencyAdmin && linkedBanner}
-                {visibleGroups.map(g => (
-                  <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
-                ))}
+                <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>
+                {linkedBanner}
               </>)}
+              {visibleGroups.map(g => (
+                <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
+              ))}
             </div>
           ) : null)}
         </div>
@@ -942,7 +956,11 @@ export default function Users() {
     if (u.is_superuser) return 'superuser'
     const p = matchProfile(u)
     if (p) return `profile:${p.id}`
-    return u.is_staff ? 'admin' : 'user'
+    if (u.is_staff) return 'admin'
+    // Usuário de agência continua "Agência" mesmo sem casar um perfil (ex.: o admin
+    // tirou uma permissão dele → desvinculou do perfil, mas segue sendo de agência).
+    if (u.is_agency_user) return 'agency'
+    return 'user'
   }
 
   const hasFilters = !!roleFilter || !!statusFilter || permFilter.size > 0 || createdFrom || createdTo || modifiedFrom || modifiedTo
@@ -1188,8 +1206,8 @@ export default function Users() {
                         </BadgeTooltip>
                       : (() => {
                           const p = matchProfile(u)
-                          const label = p ? p.name : u.is_staff ? 'Administrador' : 'Usuário'
-                          const cls   = p ? 'bg-purple' : u.is_staff ? 'bg-green' : 'bg-amber'
+                          const label = p ? p.name : u.is_staff ? 'Administrador' : u.is_agency_user ? 'Agência' : 'Usuário'
+                          const cls   = p ? 'bg-purple' : u.is_staff ? 'bg-green' : u.is_agency_user ? 'bg-purple' : 'bg-amber'
                           return (
                             <BadgeTooltip badge={<span className={`badge ${cls}`} style={{ cursor:'help' }}>{label}</span>}>
                               <PermsTooltipContent permissions={u.permissions} />

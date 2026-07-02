@@ -281,6 +281,23 @@ def user_create(request):
                 perm_data.pop('permissions', None)
             _apply_permissions(user, perm_data, actor=request.user)
 
+        # Admin de agência pode ajustar as permissões JÁ na criação: parte do
+        # baseline (perfil padrão, aplicado acima) e sobrepõe com o que ele escolheu,
+        # SEMPRE limitado às permissões que ele mesmo tem (actor=request.user). Se
+        # customizou em relação ao perfil, desvincula (senão o link vivo sobrescreveria).
+        if is_agency_admin_create and isinstance(data.get('permissions'), dict):
+            sent = data['permissions']
+            _apply_permissions(user, {'permissions': sent}, actor=request.user)
+            base = prof.permissions if (prof and isinstance(prof.permissions, dict)) else {}
+            actor_perms = get_user_permissions(request.user)
+            customized = any(bool(sent.get(k)) != bool(base.get(k))
+                             for k in PERMISSION_FIELDS if getattr(actor_perms, k, False))
+            if customized:
+                up = get_user_permissions(user)
+                if up.profile_id is not None:
+                    up.profile = None
+                    up.save(update_fields=['profile'])
+
     # Admin de agência: vincula o novo usuário à agência dele (senão ficaria órfão
     # e invisível). Usa a agência informada, se for uma que ele administra, ou a
     # única que ele administra.

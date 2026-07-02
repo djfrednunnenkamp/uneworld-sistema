@@ -282,9 +282,11 @@ class AgencyAdminManagementTest(APITestCase):
         from config_api.models import PermissionProfile
         self.agA = Agency.objects.create(name='A', person_type='juridica')
         self.agB = Agency.objects.create(name='B', person_type='juridica')
+        # lists_view no baseline é uma permissão que o admin NÃO tem — serve para
+        # testar que o baseline dela é preservado (o admin não pode mexer nela).
         PermissionProfile.objects.create(name='Agência', is_agency_default=True,
-                                         permissions={'passengers_view_basic': True, 'contracts_view': True})
-        # admin da agência A: tem passengers_view_basic mas NÃO contracts_edit
+                                         permissions={'passengers_view_basic': True, 'contracts_view': True, 'lists_view': True})
+        # admin da agência A: tem passengers_view_basic/contracts_view, mas NÃO lists_view nem contracts_edit
         self.admin = make_user('admin_ag', passengers_view_basic=True, contracts_view=True)
         AgencyMember.objects.create(agency=self.agA, user=self.admin, role='admin')
         # membro comum da agência A
@@ -314,6 +316,25 @@ class AgencyAdminManagementTest(APITestCase):
         u = User.objects.get(email='novo@x.com')
         self.assertTrue(AgencyMember.objects.filter(agency=self.agA, user=u).exists())
         self.assertTrue(u.permissions.passengers_view_basic)   # veio do perfil padrão
+        self.assertTrue(u.permissions.lists_view)              # baseline (admin não tem essa) preservado
+
+    def test_create_with_custom_permissions_at_creation(self):
+        """Admin pode ajustar permissões JÁ na criação: revoga o que ele tem,
+        não concede o que não tem, e o baseline das que ele não tem é preservado."""
+        self.client.force_authenticate(self.admin)
+        r = self.client.post('/api/users/create/', {
+            'email': 'custom@x.com', 'first_name': 'Custom',
+            # tira passengers_view_basic (o admin tem → pode revogar); tenta tirar
+            # lists_view (o admin NÃO tem → ignorado, baseline fica True)
+            'permissions': {'passengers_view_basic': False, 'contracts_view': True, 'lists_view': False},
+        }, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        from django.contrib.auth.models import User
+        u = User.objects.get(email='custom@x.com')
+        self.assertFalse(u.permissions.passengers_view_basic)  # revogado na criação
+        self.assertTrue(u.permissions.contracts_view)          # mantido
+        self.assertTrue(u.permissions.lists_view)              # admin não pode mexer → baseline preservado
+        self.assertIsNone(u.permissions.profile_id)            # customizou → desvinculado
 
     def test_edit_permission_bounded_to_admin_own(self):
         self.client.force_authenticate(self.admin)
