@@ -209,3 +209,22 @@ class AgencyScopeTest(_APITestCase):
         p = self.aguser.permissions; p.agencies_view = True; p.save()
         ids = self._ids(self.client.get('/api/agencies/'))
         self.assertEqual(ids, [self.agA.id])
+
+
+class ContractBroadcastSignalTest(DjTestCase):
+    """Toda alteração de contrato (inclusive o webhook do Autentique, que salva o
+    Contract) deve avisar a tela de Contratos via broadcast('contracts')."""
+    def test_save_broadcasts_contracts_scope(self):
+        with mock.patch('dashboard.signals._broadcast') as bc:
+            c = Contract.objects.create(status='rascunho', total_brl=10)
+            self.assertIn(mock.call('contracts'), bc.call_args_list)
+            bc.reset_mock()
+            c.total_brl = 20
+            c.save(update_fields=['total_brl'])
+            bc.assert_any_call('contracts')
+
+    def test_delete_broadcasts_contracts_scope(self):
+        c = Contract.objects.create(status='rascunho', total_brl=10)
+        with mock.patch('dashboard.signals._broadcast') as bc:
+            c.delete()
+            bc.assert_any_call('contracts')

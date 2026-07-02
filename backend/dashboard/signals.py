@@ -31,6 +31,16 @@ def on_enrollment(sender, **kwargs):
     _broadcast('stats')
 
 
+# ── Contratos ─────────────────────────────────────────────────────────────────
+# Qualquer alteração no contrato (edição, autosave, exclusão E o webhook do
+# Autentique, que também salva o Contract) avisa todos os usuários na tela de
+# Contratos para recarregarem sozinhos (silentReload no scope 'contracts').
+
+@receiver([post_save, post_delete], sender='contracts.Contract')
+def on_contract(sender, **kwargs):
+    _broadcast('contracts')
+
+
 @receiver(post_save, sender='agenda.EmailLog')
 def on_email_log(sender, **kwargs):
     _broadcast('emails')
