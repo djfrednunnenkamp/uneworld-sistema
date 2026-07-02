@@ -716,17 +716,27 @@ function BlockOrDeleteModal({ user, onBlock, onDelete, onClose, initialStep = 'c
 }
 
 /* ── Dropdown de filtro simples (estilo Log/Passageiros) ── */
-function FDrop({ label, value, onChange, options }) {
+function FDrop({ label, value, onChange, options, searchable = false }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const ref = useRef(null)
+  const searchRef = useRef(null)
   const active = value !== options[0].value
   const selected = options.find(o => o.value === value)
+  const shown = (searchable && query.trim())
+    ? options.filter(o => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : options
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  // Ao abrir, limpa a busca e foca o campo (dropdown com busca).
+  useEffect(() => {
+    if (open) { setQuery(''); if (searchable) setTimeout(() => searchRef.current?.focus(), 0) }
+  }, [open, searchable])
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -750,9 +760,19 @@ function FDrop({ label, value, onChange, options }) {
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
           background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0',
-          boxShadow: '0 8px 24px rgba(0,0,0,.10)', minWidth: 180, overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(0,0,0,.10)', minWidth: 200, overflow: 'hidden',
         }}>
-          {options.map(opt => {
+          {searchable && (
+            <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9' }}>
+              <input ref={searchRef} value={query} onChange={e => setQuery(e.target.value)} placeholder={`Buscar ${label.toLowerCase()}…`}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b' }} />
+            </div>
+          )}
+          <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+          {shown.length === 0 && (
+            <div style={{ padding: '10px 14px', fontSize: 12.5, color: '#94a3b8' }}>Nada encontrado</div>
+          )}
+          {shown.map(opt => {
             const sel = value === opt.value
             return (
               <button key={opt.value} type="button"
@@ -775,6 +795,7 @@ function FDrop({ label, value, onChange, options }) {
               </button>
             )
           })}
+          </div>
         </div>
       )}
     </div>
@@ -1126,7 +1147,7 @@ export default function Users() {
         </div>
 
         <FDrop label="Perfil"  value={roleFilter}   onChange={setRoleFilter}   options={roleOpts}   />
-        {!isAgAdmin && <FDrop label="Agência" value={agencyFilter} onChange={setAgencyFilter} options={agencyOpts} />}
+        {!isAgAdmin && <FDrop label="Agência" value={agencyFilter} onChange={setAgencyFilter} options={agencyOpts} searchable />}
         <FDrop label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTS} />
         <PermFilterDrop selected={permFilter} onChange={setPermFilter} />
         <DateRangeDrop label="Criado" from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />
