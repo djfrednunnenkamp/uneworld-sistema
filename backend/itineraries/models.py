@@ -75,6 +75,11 @@ class Itinerary(models.Model):
     # Cláusulas do contrato definidas pelo roteiro — o contrato puxa daqui.
     clauses        = models.ManyToManyField('config_api.ContractClause', blank=True, related_name='itineraries', verbose_name='Cláusulas do contrato')
     custom_clauses = models.JSONField('Cláusulas personalizadas', default=list, blank=True)
+    # Sugestão de pagamento (SNAPSHOT/cópia): {name, down_payment_percent,
+    # installments_count, payment_method, first_due_days, interval_days}. Vem de um
+    # Modelo de pagamento das Configurações ou é criada do zero aqui. O contrato lê
+    # daqui para oferecer o botão "aplicar sugestão de pagamento". null = sem sugestão.
+    payment_plan   = models.JSONField('Sugestão de pagamento', null=True, blank=True)
 
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)

@@ -513,6 +513,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [installmentsCount, setInstallmentsCount] = useState(0)
   const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
   const [parcelasMethod, setParcelasMethod] = useState('') // forma de pagamento geral das parcelas
+  const [itineraryPlan, setItineraryPlan] = useState(null) // sugestão de pagamento do roteiro selecionado
+  const [appliedPlan,   setAppliedPlan]   = useState(null) // snapshot da sugestão aplicada (vai pro payload)
   const [selectedClauses, setSelectedClauses] = useState([])
   const [customClauses, setCustomClauses] = useState([]) // [{ name, content }] — só deste contrato
   const [clauseEditor, setClauseEditor] = useState(null) // { index, initial } | null
@@ -592,6 +594,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           })
           itinAccomPricingRef.current = pricing
           setPricedTypeIds(new Set(Object.keys(pricing).map(Number)))
+          setItineraryPlan(ir.data?.payment_plan || null)
         } catch { /* sem travamento se a busca do roteiro falhar */ }
       }
       setAdjustments((d.adjustments ?? []).map(a => ({
@@ -619,6 +622,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       const parcelaRows = (d.installments ?? []).filter(i => i.kind === 'parcela').sort((a, b) => a.installment_number - b.installment_number)
       const ptype = d.payment_type || 'parcelado'
       setPaymentType(ptype)
+      setAppliedPlan(d.payment_plan_applied || null)
       if (ptype === 'a_vista') {
         const p = parcelaRows[0] || entradaRow
         if (p) setAvista({ due_date: p.due_date ?? '', value_brl: p.value_brl ?? '', payment_method: p.payment_method ?? '', detail: p.detail ?? '' })
@@ -823,17 +827,63 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         // Cláusulas vêm do roteiro: o contrato passa a usar as cláusulas dele.
         setSelectedClauses(Array.isArray(r.data?.clauses) ? r.data.clauses : [])
         setCustomClauses(Array.isArray(r.data?.custom_clauses) ? r.data.custom_clauses : [])
+        // Sugestão de pagamento do roteiro (para o botão "Aplicar sugestão").
+        setItineraryPlan(r.data?.payment_plan || null)
       } catch { /* mantém os valores atuais se a busca falhar */ }
     } else {
       // Remover o roteiro: limpa tudo que ele havia preenchido (e o aeroporto).
       itinAccomPricingRef.current = {}
       setPricedTypeIds(new Set())
       setDepartureAirportObj(null)
+      setItineraryPlan(null)
       setForm(f => ({
         ...f, itinerary: null,
         package_name: '', departure_date: '', return_date: '', departure_airport: '',
       }))
     }
+  }
+
+  /* Aplica a sugestão de pagamento do roteiro: entrada = total × %, parcelas =
+   * (total − entrada) ÷ N, vencimentos a partir dos dias configurados no modelo.
+   * Guarda o snapshot aplicado para a revisão comparar depois (flag de alteração). */
+  const applyPaymentPlan = (plan) => {
+    const p = plan || itineraryPlan
+    if (!p) return
+    const total = Number(computedTotalBrl || 0)
+    const pct = Number(p.down_payment_percent || 0)
+    const n = Math.max(0, parseInt(p.installments_count) || 0)
+    const method = p.payment_method || ''
+    const firstDue = parseInt(p.first_due_days) || 0
+    const interval = parseInt(p.interval_days) || 0
+    const addDays = (days) => { const dt = new Date(); dt.setHours(0, 0, 0, 0); dt.setDate(dt.getDate() + days); return dt.toISOString().slice(0, 10) }
+    const snapshot = { name: p.name || '', down_payment_percent: pct, installments_count: n, payment_method: method, first_due_days: firstDue, interval_days: interval }
+
+    if (n <= 0) {
+      // Sem parcelas → pagamento à vista (valor total de uma vez)
+      setPaymentType('a_vista')
+      setAvista(prev => ({ ...prev, payment_method: method, due_date: addDays(firstDue) }))
+      setAppliedPlan(snapshot)
+      toast.success('Sugestão aplicada (pagamento à vista).')
+      return
+    }
+
+    setPaymentType('parcelado')
+    const entradaBrl = pct > 0 ? round2(total * pct / 100) : 0
+    setHasEntrada(pct > 0)
+    setEntrada(prev => ({ ...prev, value_brl: pct > 0 ? entradaBrl : '', payment_method: method, due_date: pct > 0 ? addDays(0) : '' }))
+    setParcelasMethod(method)
+    const remaining = round2(total - entradaBrl)
+    const base = Math.floor((remaining / n) * 100) / 100
+    const rows = Array.from({ length: n }, (_, i) => ({
+      detail: '',
+      due_date: addDays(firstDue + i * interval),
+      value_brl: i === n - 1 ? round2(remaining - base * (n - 1)) : base,
+      payment_method: method,
+    }))
+    setInstallmentsCount(n)
+    setInstallments(rows)
+    setAppliedPlan(snapshot)
+    toast.success('Sugestão de pagamento aplicada.')
   }
 
   // ── Tipos de Acomodação / Valores — auto-gerado a partir dos QUARTOS ──
@@ -1135,6 +1185,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       ...contratanteFields,
       received_down_payment_brl: toDec(form.received_down_payment_brl),
       received_installments_brl: toDec(form.received_installments_brl),
+      payment_plan_applied: appliedPlan,
       round_step: Number(form.round_step) || 0, round_mode: form.round_mode || 'nearest', round_currency: form.round_currency || 'brl',
       signature_type: form.signature_type || 'fisica',
       accommodation_lines: accomLines.filter(l => l.accommodation_type).map(l => ({
@@ -1899,6 +1950,26 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             {/* Pagamento */}
             <div style={card}>
               <p style={sectionTitle}><Ic n="clock" s={14} /> Pagamento</p>
+
+              {/* Sugestão de pagamento vinda do roteiro — botão aplica entrada + parcelas */}
+              {itineraryPlan && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px', marginBottom: 14 }}>
+                  <div style={{ flex: 1, fontSize: 12.5, color: '#1e40af', lineHeight: 1.5 }}>
+                    <strong>Sugestão de pagamento{itineraryPlan.name ? ` — ${itineraryPlan.name}` : ''}:</strong>{' '}
+                    {Number(itineraryPlan.installments_count) > 0
+                      ? `${Number(itineraryPlan.down_payment_percent) > 0 ? `entrada ${Number(itineraryPlan.down_payment_percent)}% + ` : 'sem entrada · '}${itineraryPlan.installments_count}x`
+                      : 'pagamento à vista'}
+                    {itineraryPlan.payment_method ? ` · ${itineraryPlan.payment_method}` : ''}
+                    {Number(itineraryPlan.installments_count) > 0 ? ` · 1º venc. ${itineraryPlan.first_due_days || 0} dias, a cada ${itineraryPlan.interval_days || 0} dias` : ''}
+                  </div>
+                  <button type="button" onClick={() => applyPaymentPlan(itineraryPlan)}
+                    style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
+                    Aplicar sugestão
+                  </button>
+                </div>
+              )}
 
               {/* Forma de pagamento + resumo (câmbio e totais) na mesma linha */}
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 14 }}>

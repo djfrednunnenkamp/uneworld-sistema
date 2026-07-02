@@ -16,7 +16,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
-                     OperatingCompany, ConfigPaymentMethod, ConfigExchangeRate,
+                     OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent, ConfigDestination, ConfigHoliday, ConfigService,
                      ConfigItineraryTemplate)
 from users_api.permissions import RequirePermission
@@ -890,6 +890,21 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
     queryset = ConfigPaymentMethod.objects.all()
     serializer_class = PaymentMethodSerializer
     pagination_class = None
+    get_permissions = _settings_perm('settings_payment_methods')
+
+
+class PaymentPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigPaymentPlan
+        fields = ['id', 'name', 'down_payment_percent', 'installments_count',
+                  'payment_method', 'first_due_days', 'interval_days']
+
+
+class PaymentPlanViewSet(viewsets.ModelViewSet):
+    queryset = ConfigPaymentPlan.objects.all()
+    serializer_class = PaymentPlanSerializer
+    pagination_class = None
+    # Mesma área/permissão das formas de pagamento (settings_payment_methods_*).
     get_permissions = _settings_perm('settings_payment_methods')
 
 

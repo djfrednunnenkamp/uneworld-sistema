@@ -163,6 +163,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'base_currency', 'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
+                  'payment_plan_applied',
                   'stage', 'signed_file', 'signed_verification',
                   'reviewed_at', 'review_note', 'invoice_number', 'invoice_date', 'invoiced_at',
                   'autentique_document_id', 'autentique_data',

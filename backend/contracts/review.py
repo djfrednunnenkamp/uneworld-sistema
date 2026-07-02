@@ -157,6 +157,34 @@ def build_review_data(contract):
                            f'contrato (R$ {total_brl}). Diferença: R$ {diff}.',
             })
 
+    # ── Sugestão de pagamento (do roteiro) alterada pelo usuário ──
+    # Compara o estado atual com o snapshot aplicado. A entrada é comparada pelo
+    # VALOR que o % sugerido daria para o total ATUAL (assim mudar só o total não
+    # gera falso alerta; mudar a entrada à mão, sim).
+    plan = contract.payment_plan_applied if isinstance(contract.payment_plan_applied, dict) else None
+    plan_diffs = []
+    if plan:
+        parcelas_count = sum(1 for i in installments if i.kind == 'parcela')
+        plan_pct    = _d(plan.get('down_payment_percent'))
+        plan_count  = plan.get('installments_count')
+        plan_method = (plan.get('payment_method') or '').strip()
+        if plan_pct is not None and total_brl is not None:
+            expected_entrada = (total_brl * plan_pct / Decimal('100')).quantize(Decimal('0.01'))
+            if abs(entrada_brl - expected_entrada) > Decimal('0.01'):
+                plan_diffs.append(
+                    f'entrada agora R$ {entrada_brl} (sugerido R$ {expected_entrada} = {plan_pct}% do total)')
+        if plan_count is not None and int(parcelas_count) != int(plan_count):
+            plan_diffs.append(f'parcelas agora {parcelas_count} (sugerido {int(plan_count)})')
+        if plan_method:
+            cur_methods = {(i.payment_method or '').strip() for i in installments if (i.payment_method or '').strip()}
+            if cur_methods and plan_method not in cur_methods:
+                plan_diffs.append(f'forma de pagamento alterada (sugerido "{plan_method}")')
+        if plan_diffs:
+            flags.append({
+                'level': 'warn', 'code': 'payment_plan_changed',
+                'message': 'A sugestão de pagamento do roteiro foi alterada: ' + '; '.join(plan_diffs) + '.',
+            })
+
     installment_items = [{
         'kind': i.kind,
         'installment_number': i.installment_number,
@@ -203,5 +231,6 @@ def build_review_data(contract):
         'totals_match': totals_match,
         'totals_diff_brl': totals_diff,
         'review_note': contract.review_note or '',
+        'payment_plan_applied': plan,
         'flags': flags,
     }

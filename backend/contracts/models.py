@@ -70,6 +70,12 @@ class Contract(models.Model):
     exchange_rate             = models.DecimalField('Câmbio', max_digits=10, decimal_places=4, null=True, blank=True)
     received_down_payment_brl = models.DecimalField('Recebido na entrada (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     received_installments_brl = models.DecimalField('Recebido a prazo (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
+    # Snapshot da SUGESTÃO de pagamento aplicada (do roteiro): {down_payment_percent,
+    # installments_count, payment_method, ...}. Gravado quando o usuário clica em
+    # "aplicar sugestão". A revisão compara o que está no contrato com este snapshot
+    # e sinaliza o que foi alterado depois (entrada, nº de parcelas, forma). null =
+    # nenhuma sugestão foi aplicada.
+    payment_plan_applied      = models.JSONField('Sugestão de pagamento aplicada', null=True, blank=True)
 
     # Arredondamento do total: arredonda o valor da moeda escolhida para o múltiplo
     # de round_step (0 = não arredonda); a outra moeda é derivada pelo câmbio.

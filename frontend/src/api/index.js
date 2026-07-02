@@ -287,6 +287,11 @@ export const configApi = {
   addPaymentMethod:  (name) => api.post('/config/payment-methods/', { name }),
   updatePaymentMethod: (id, name) => api.patch(`/config/payment-methods/${id}/`, { name }),
   delPaymentMethod:  (id)   => api.delete(`/config/payment-methods/${id}/`),
+  // Modelos de pagamento (sugestão: entrada % + nº de parcelas + vencimentos)
+  paymentPlans:      () => api.get('/config/payment-plans/'),
+  addPaymentPlan:    (data) => api.post('/config/payment-plans/', data),
+  updatePaymentPlan: (id, data) => api.patch(`/config/payment-plans/${id}/`, data),
+  delPaymentPlan:    (id)   => api.delete(`/config/payment-plans/${id}/`),
   // Câmbio
   exchangeRates:     () => api.get('/config/exchange-rates/'),
   addExchangeRate:   (data) => api.post('/config/exchange-rates/', data),

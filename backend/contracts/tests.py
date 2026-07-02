@@ -80,3 +80,40 @@ class AutentiqueDownloadHostTest(SimpleTestCase):
         kwargs = mreq.get.call_args.kwargs
         self.assertEqual(kwargs['headers']['Authorization'], 'Bearer tok-secreto')
         self.assertIs(kwargs['allow_redirects'], False)  # não segue redirect com token
+
+
+# ── Feature: sugestão de pagamento — flag de alteração na revisão ─────────────
+from decimal import Decimal
+from django.test import TestCase as DjTestCase
+from contracts.models import Contract, ContractInstallment
+from contracts.review import build_review_data
+
+
+class PaymentPlanReviewFlagTest(DjTestCase):
+    """A revisão sinaliza quando a sugestão de pagamento aplicada foi alterada."""
+    def _contract(self):
+        return Contract.objects.create(
+            total_brl=Decimal('50000.00'), payment_type='parcelado',
+            payment_plan_applied={'down_payment_percent': 20, 'installments_count': 10,
+                                  'payment_method': 'Boleto'})
+
+    def test_flag_when_entrada_and_count_changed(self):
+        c = self._contract()
+        # Sugerido: entrada 20% (=10.000) + 10x. Usuário mudou p/ 5.000 + 24x.
+        ContractInstallment.objects.create(contract=c, kind='entrada', value_brl=Decimal('5000'), order=0)
+        for i in range(24):
+            ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=i + 1,
+                                               value_brl=Decimal('1875'), order=i + 1)
+        codes = [f['code'] for f in build_review_data(c)['flags']]
+        self.assertIn('payment_plan_changed', codes)
+
+    def test_no_flag_when_matches_suggestion(self):
+        c = self._contract()
+        # Entrada 20% (=10.000) + 10x de 4.000 = 50.000, forma Boleto: bate com a sugestão.
+        ContractInstallment.objects.create(contract=c, kind='entrada', value_brl=Decimal('10000'),
+                                           payment_method='Boleto', order=0)
+        for i in range(10):
+            ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=i + 1,
+                                               value_brl=Decimal('4000'), payment_method='Boleto', order=i + 1)
+        codes = [f['code'] for f in build_review_data(c)['flags']]
+        self.assertNotIn('payment_plan_changed', codes)

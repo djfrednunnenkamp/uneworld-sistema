@@ -7,6 +7,7 @@ import TagPicker from '../components/TagPicker'
 import RichTextEditor from '../components/RichTextEditor'
 import DatePicker from '../components/DatePicker'
 import MoneyInput from '../components/MoneyInput'
+import PaymentPlanFields from '../components/PaymentPlanFields'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import usePersistedTab from '../hooks/usePersistedTab'
@@ -171,6 +172,8 @@ export default function ItineraryDetail() {
   const [serviceOpts, setServiceOpts] = useState([])
   const [accommodationOpts, setAccommodationOpts] = useState([])
   const [templatesByKind, setTemplatesByKind] = useState({})
+  const [paymentPlanOpts, setPaymentPlanOpts] = useState([])       // modelos das Configurações
+  const [paymentMethodOpts, setPaymentMethodOpts] = useState([])   // nomes de formas de pagamento
   const [clauseList, setClauseList] = useState([])   // cláusulas cadastradas em Config
 
   const load = useCallback(() => {
@@ -194,6 +197,8 @@ export default function ItineraryDetail() {
     ;['seguro', 'pagamento', 'condicoes', 'documentacao'].forEach(k => {
       configApi.itineraryTemplates(k).then(r => setTemplatesByKind(prev => ({ ...prev, [k]: r.data }))).catch(() => {})
     })
+    configApi.paymentPlans().then(r => setPaymentPlanOpts(r.data.results ?? r.data)).catch(() => {})
+    configApi.paymentMethods().then(r => setPaymentMethodOpts((r.data.results ?? r.data).map(m => m.name))).catch(() => {})
   }, [])
 
   const set = (k) => (e) => setData(d => ({ ...d, [k]: e.target.value }))
@@ -229,6 +234,7 @@ export default function ItineraryDetail() {
         hotels_reserved: data.hotels_reserved, transport_info: data.transport_info,
         documentation_info: data.documentation_info, extras: data.extras,
         clauses: data.clauses || [], custom_clauses: (data.custom_clauses || []).filter(c => (c.name || '').trim() || (c.content || '').trim()),
+        payment_plan: data.payment_plan ?? null,
       }
       const r = await itinerariesApi.update(id, payload)
       setData(r.data)
@@ -666,6 +672,42 @@ export default function ItineraryDetail() {
               onUse={content => setData(d => ({ ...d, payment_info: content }))} />
             <RichTextEditor title="Forma de pagamento" value={data.payment_info} disabled={!canEdit}
               onChange={v => setData(d => ({ ...d, payment_info: v }))} />
+          </FormRow>
+
+          <FormRow label="Sugestão de pagamento (aplicável no contrato)">
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: data.payment_plan ? 12 : 0, flexWrap: 'wrap' }}>
+              {/* Escolher um modelo das Configurações → copia (snapshot) pro roteiro */}
+              <div style={{ minWidth: 240 }}>
+                <Dropdown value={null} disabled={!canEdit}
+                  options={paymentPlanOpts.map(p => ({ value: p.id, label: p.name }))}
+                  placeholder="— Usar um modelo das Configurações —"
+                  onChange={pid => {
+                    const p = paymentPlanOpts.find(x => x.id === pid)
+                    if (p) setData(d => ({ ...d, payment_plan: {
+                      name: p.name, down_payment_percent: p.down_payment_percent,
+                      installments_count: p.installments_count, payment_method: p.payment_method,
+                      first_due_days: p.first_due_days, interval_days: p.interval_days,
+                    } }))
+                  }} />
+              </div>
+              {!data.payment_plan
+                ? <button type="button" disabled={!canEdit}
+                    onClick={() => setData(d => ({ ...d, payment_plan: { name: '', down_payment_percent: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 } }))}
+                    style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                    + Criar do zero
+                  </button>
+                : <button type="button" disabled={!canEdit}
+                    onClick={() => setData(d => ({ ...d, payment_plan: null }))}
+                    style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                    Remover sugestão
+                  </button>}
+            </div>
+            {data.payment_plan && (
+              <div style={{ pointerEvents: canEdit ? 'auto' : 'none', opacity: canEdit ? 1 : 0.6 }}>
+                <PaymentPlanFields value={data.payment_plan} methodOptions={paymentMethodOpts}
+                  onChange={pp => setData(d => ({ ...d, payment_plan: pp }))} />
+              </div>
+            )}
           </FormRow>
 
           <FormRow label="Condições gerais para compra do pacote">

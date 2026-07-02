@@ -73,6 +73,28 @@ class ConfigPaymentMethod(models.Model):
         return self.name
 
 
+class ConfigPaymentPlan(models.Model):
+    """Modelo/sugestão de pagamento reutilizável: entrada (% do total) + nº de
+    parcelas + forma de pagamento + agenda de vencimentos. Serve de base para os
+    roteiros (que guardam uma CÓPIA) e, via roteiro, é sugerido no contrato com um
+    botão de "aplicar" que preenche entrada e parcelas."""
+    name                 = models.CharField('Nome', max_length=120)
+    down_payment_percent = models.DecimalField('Entrada (% do total)', max_digits=5, decimal_places=2, default=0)
+    installments_count   = models.PositiveSmallIntegerField('Nº de parcelas', default=0)
+    payment_method       = models.CharField('Forma de pagamento', max_length=100, blank=True)
+    first_due_days       = models.PositiveSmallIntegerField('1º vencimento (dias após aplicar)', default=30)
+    interval_days        = models.PositiveSmallIntegerField('Intervalo entre parcelas (dias)', default=30)
+    created_at           = models.DateTimeField('Criado em', auto_now_add=True)
+    updated_at           = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Modelo de pagamento'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigExchangeRate(models.Model):
     """Taxa de conversão entre duas moedas — usada para preencher automaticamente
     o câmbio e o total em BRL nos contratos (ver app `contracts`).
