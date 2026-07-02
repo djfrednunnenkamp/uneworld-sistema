@@ -150,6 +150,10 @@ class ContractSerializer(serializers.ModelSerializer):
     # Calculados pelo backend — nunca digitados (ver _recalc_totals).
     total_usd     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_brl     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    # Comissão BRUTA da agência (o mesmo % embutido nos valores) — % + valor em US$/BRL.
+    commission_pct = serializers.SerializerMethodField()
+    commission_usd = serializers.SerializerMethodField()
+    commission_brl = serializers.SerializerMethodField()
     # Imutáveis após a criação (ver create()).
     reservation_number = serializers.CharField(read_only=True)
     contract_date       = serializers.DateField(read_only=True)
@@ -164,6 +168,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'seller', 'seller_data',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'base_currency', 'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
+                  'commission_pct', 'commission_usd', 'commission_brl',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'payment_plan_applied',
@@ -199,6 +204,32 @@ class ContractSerializer(serializers.ModelSerializer):
 
     def get_agency_data(self, obj):
         return _agency_brief(obj.agency) if obj.agency_id else None
+
+    def _commission_usd(self, obj):
+        """Comissão BRUTA da agência: % cadastrado na agência sobre o subtotal por
+        pessoa (sem taxas) — o mesmo valor embutido no total (ver _recalc_totals)."""
+        rate = obj.agency.commission_rate if obj.agency_id else None
+        if not rate:
+            return None
+        value_subtotal = sum(
+            (line.value_per_person_usd or Decimal('0')) * line.quantity
+            for line in obj.accommodation_lines.all()
+        )
+        comm = Decimal(value_subtotal) * (rate / Decimal('100'))
+        return comm.quantize(Decimal('0.01')) if comm else None
+
+    def get_commission_pct(self, obj):
+        rate = obj.agency.commission_rate if obj.agency_id else None
+        return rate or None
+
+    def get_commission_usd(self, obj):
+        return self._commission_usd(obj)
+
+    def get_commission_brl(self, obj):
+        comm = self._commission_usd(obj)
+        if not comm or not obj.exchange_rate:
+            return None
+        return (comm * obj.exchange_rate).quantize(Decimal('0.01'))
 
     def get_seller_data(self, obj):
         # Vendedor que aparece no contrato: o escolhido ou, na falta, o criador.

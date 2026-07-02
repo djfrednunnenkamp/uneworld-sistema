@@ -108,6 +108,9 @@ export default function ContractViewModal({ contractId, canEdit = false, onClose
               <Row label="Total (USD)" value={money(c.total_usd, 'US$')} />
               <Row label="Total (BRL)" value={money(c.total_brl, 'R$')} />
               <Row label="Câmbio" value={c.exchange_rate ? String(Number(c.exchange_rate)).replace('.', ',') : null} />
+              <Row label="Comissão agência" value={c.commission_pct != null ? `${String(Number(c.commission_pct)).replace('.', ',')}%` : null} />
+              <Row label="Comissão (USD)" value={money(c.commission_usd, 'US$')} />
+              <Row label="Comissão (BRL)" value={money(c.commission_brl, 'R$')} />
 
               {c.invoice_number && (
                 <>

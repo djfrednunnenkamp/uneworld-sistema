@@ -241,3 +241,29 @@ class ContractBroadcastSignalTest(DjTestCase):
         with mock.patch('dashboard.signals._broadcast') as bc:
             c.delete()
             bc.assert_any_call('contracts')
+
+
+class ContractCommissionFieldsTest(DjTestCase):
+    """A visão geral do contrato mostra a comissão da agência: % + valor em US$/BRL."""
+    def test_commission_pct_usd_brl(self):
+        from contracts.serializers import ContractSerializer
+        from contracts.models import ContractAccommodationLine
+        from config_api.models import ConfigAccommodation
+        ag = Agency.objects.create(name='Comissionada', person_type='juridica', commission_rate=Decimal('10'))
+        acc = ConfigAccommodation.objects.create(name='Duplo')
+        c = Contract.objects.create(agency=ag, status='ativo', exchange_rate=Decimal('5'))
+        ContractAccommodationLine.objects.create(contract=c, accommodation_type=acc, value_per_person_usd=Decimal('1000'),
+                                                 taxes_usd=Decimal('50'), quantity=2, order=0)
+        d = ContractSerializer(c).data
+        self.assertEqual(Decimal(d['commission_pct']), Decimal('10.00'))
+        self.assertEqual(Decimal(d['commission_usd']), Decimal('200.00'))   # 10% de 2000 (taxas fora)
+        self.assertEqual(Decimal(d['commission_brl']), Decimal('1000.00'))  # 200 * 5
+
+    def test_no_commission_when_agency_has_no_rate(self):
+        from contracts.serializers import ContractSerializer
+        ag = Agency.objects.create(name='SemComissao', person_type='juridica')
+        c = Contract.objects.create(agency=ag, status='ativo', exchange_rate=Decimal('5'))
+        d = ContractSerializer(c).data
+        self.assertIsNone(d['commission_pct'])
+        self.assertIsNone(d['commission_usd'])
+        self.assertIsNone(d['commission_brl'])
