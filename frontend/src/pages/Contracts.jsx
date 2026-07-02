@@ -835,7 +835,7 @@ export default function Contracts() {
               if (stage === 'enviado' && canEdit) {
                 return (
                   <>
-                    {actBtn('Assinatura', 'arrow-right', '#2563eb', () => setSignRow(row))}
+                    {actBtn('Assinatura', 'arrow-right', '#16a34a', () => setSignRow(row))}
                     {actBtn('Visão geral', 'eye', '#475569', () => setViewId(row.id))}
                   </>
                 )
@@ -865,7 +865,7 @@ export default function Contracts() {
                 : actBtn('Visão geral', 'eye', '#475569', () => setViewId(row.id))
               // Ação específica da etapa.
               let stageAction = null
-              if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'arrow-right', '#2563eb', () => setSendRow(row), sendingIds.has(row.id))
+              if (canEdit && stage === 'em_edicao') stageAction = actBtn(sendingIds.has(row.id) ? 'Enviando...' : 'Enviar para assinatura', 'arrow-right', '#16a34a', () => setSendRow(row), sendingIds.has(row.id))
               return <>{primary}{stageAction}</>
             }}
         onDelete={tab !== 'trash' && canDelete ? (row) => setDelRow(row) : undefined}
