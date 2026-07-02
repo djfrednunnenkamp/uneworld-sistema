@@ -8,6 +8,7 @@ const fmtBRL = (v) => v == null ? '—' : `R$ ${Number(v).toLocaleString('pt-BR'
 const fmtUSD = (v) => v == null ? '—' : `US$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 const fmtN   = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 const fmtDate = (iso) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR') : '—'
+const CUR_SYM = { USD: 'US$', EUR: '€', BRL: 'R$', GBP: '£', ARS: 'AR$', CLP: 'CL$', PYG: '₲', UYU: '$U' }
 
 /* Popup de FATURA — mostra os valores/dados relevantes e pede número + data da
  * fatura para mover o contrato de "A faturar" → "Faturado". */
@@ -56,6 +57,22 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
   const rowSB = { display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: '#334155' }
   const alreadyInvoiced = data?.stage === 'faturado'
 
+  // Tudo em R$ (principal), com a moeda BASE do contrato pequena embaixo.
+  const rate    = Number(data?.exchange_rate?.used) || 0
+  const baseCur = data?.base_currency || 'USD'
+  const baseSym = CUR_SYM[baseCur] || `${baseCur} `
+  const showBase = baseCur !== 'BRL' && rate > 0
+  const Money = ({ base, brl, strong, size = 12.5, color = '#0f172a', sign = '' }) => {
+    const brlVal  = brl != null ? Number(brl) : (base != null && rate ? Number(base) * rate : null)
+    const baseVal = base != null ? Number(base) : (brl != null && rate ? Number(brl) / rate : null)
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.15 }}>
+        <span style={{ fontWeight: strong ? 700 : 600, fontSize: size, color }}>{brlVal == null ? '—' : `${sign}${fmtBRL(brlVal)}`}</span>
+        {showBase && baseVal != null && <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>{sign}{baseSym} {fmtN(baseVal)}</span>}
+      </span>
+    )
+  }
+
   return (
     <div onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
@@ -92,16 +109,18 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
             {(data.commission || data.commission_discount) && (
               <div style={card}>
                 <div style={{ ...lbl, marginBottom: 6 }}>Comissão da agência</div>
-                {data.commission && <div style={{ ...rowSB, color: '#b45309' }}><span>Comissão ({fmtN(data.commission.pct)}%)</span><strong>−{fmtUSD(data.commission.amount_usd)}</strong></div>}
-                {data.commission_discount && <div style={{ ...rowSB, color: '#b45309' }}><span>Dedução</span><strong>−{fmtUSD(data.commission_discount.amount_usd)}</strong></div>}
+                {data.commission && <div style={{ ...rowSB, alignItems: 'flex-start', color: '#b45309' }}><span style={{ paddingTop: 2 }}>Comissão ({fmtN(data.commission.pct)}%)</span><Money base={data.commission.amount_usd} sign="−" color="#b45309" /></div>}
+                {data.commission_discount && <div style={{ ...rowSB, alignItems: 'flex-start', color: '#b45309' }}><span style={{ paddingTop: 2 }}>Dedução</span><Money base={data.commission_discount.amount_usd} sign="−" color="#b45309" /></div>}
               </div>
             )}
 
-            {/* Totais (abaixo da comissão) */}
+            {/* Total (R$ em destaque, moeda base pequena embaixo) */}
             <div style={{ ...card, background: '#f8fafc' }}>
-              <div style={{ ...rowSB, fontSize: 13 }}><span>Total (USD)</span><strong>{fmtUSD(data.total_usd)}</strong></div>
-              <div style={{ ...rowSB, fontSize: 14.5, color: '#0f172a', marginTop: 4 }}><span style={{ fontWeight: 700 }}>Total (BRL)</span><strong>{fmtBRL(data.total_brl)}</strong></div>
-              <div style={{ ...rowSB, fontSize: 11.5, color: '#94a3b8', marginTop: 4 }}><span>Câmbio {data.base_currency}→BRL</span><span>{fmtN(data.exchange_rate?.used)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Total</span>
+                <Money brl={data.total_brl} base={data.total_usd} strong size={17} />
+              </div>
+              <div style={{ ...rowSB, fontSize: 11.5, color: '#94a3b8', marginTop: 6 }}><span>Câmbio {data.base_currency}→BRL</span><span>{fmtN(data.exchange_rate?.used)}</span></div>
             </div>
 
             {/* Pagamento */}
@@ -109,14 +128,14 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
               <div style={{ ...lbl, marginBottom: 6 }}>Pagamento ({data.payment_type === 'a_vista' ? 'à vista' : 'parcelado'})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {data.installments.map((p, i) => (
-                  <div key={i} style={rowSB}>
-                    <span>{p.kind === 'entrada' ? 'Entrada' : `Parcela ${p.installment_number || i}`}{p.due_date ? ` · ${fmtDate(p.due_date)}` : ''}{p.payment_method ? ` · ${p.payment_method}` : ''}</span>
-                    <strong>{fmtBRL(p.value_brl)}</strong>
+                  <div key={i} style={{ ...rowSB, alignItems: 'flex-start' }}>
+                    <span style={{ paddingTop: 2 }}>{p.kind === 'entrada' ? 'Entrada' : `Parcela ${p.installment_number || i}`}{p.due_date ? ` · ${fmtDate(p.due_date)}` : ''}{p.payment_method ? ` · ${p.payment_method}` : ''}</span>
+                    <Money brl={p.value_brl} size={12} />
                   </div>
                 ))}
                 {data.installments.length > 0 && (
-                  <div style={{ ...rowSB, borderTop: '1px solid #eef2f7', marginTop: 4, paddingTop: 6, fontWeight: 700, color: data.totals_match ? '#15803d' : '#b91c1c' }}>
-                    <span>Entrada + parcelas</span><span>{fmtBRL(data.paid_total_brl)}{!data.totals_match ? ' ⚠' : ''}</span>
+                  <div style={{ ...rowSB, alignItems: 'flex-start', borderTop: '1px solid #eef2f7', marginTop: 4, paddingTop: 6, fontWeight: 700, color: data.totals_match ? '#15803d' : '#b91c1c' }}>
+                    <span style={{ paddingTop: 2 }}>Entrada + parcelas{!data.totals_match ? ' ⚠' : ''}</span><Money brl={data.paid_total_brl} strong color={data.totals_match ? '#15803d' : '#b91c1c'} />
                   </div>
                 )}
               </div>
