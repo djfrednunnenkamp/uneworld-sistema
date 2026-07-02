@@ -863,6 +863,9 @@ export default function Users() {
   const [bulkBusy,   setBulkBusy]   = useState(false)
   const [roleFilter,    setRoleFilter]    = useState('')
   const [statusFilter,  setStatusFilter]  = useState('')
+  // Filtro de Agência: 'none' (padrão) esconde os usuários de agência; 'all' mostra
+  // todos; 'ag:<id>' mostra só os da agência escolhida.
+  const [agencyFilter,  setAgencyFilter]  = useState('none')
   const [permFilter,    setPermFilter]    = useState(new Set())
   const [createdFrom,   setCreatedFrom]   = useState('')
   const [createdTo,     setCreatedTo]     = useState('')
@@ -919,6 +922,19 @@ export default function Users() {
     ...permProfiles.map(p => ({ value: `profile:${p.id}`, label: p.name, badge: 'bg-purple' })),
   ]
 
+  // Opções do filtro de Agência: montadas a partir das agências presentes nos
+  // usuários carregados (só usuários de agência têm `agencies`).
+  const agencyOpts = useMemo(() => {
+    const map = new Map()
+    users.forEach(u => (u.agencies || []).forEach(a => { if (!map.has(a.id)) map.set(a.id, a.name) }))
+    const list = [...map.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])))
+    return [
+      { value: 'none', label: 'Nenhuma (padrão)' },
+      { value: 'all',  label: 'Todos os usuários' },
+      ...list.map(([id, name]) => ({ value: `ag:${id}`, label: name, badge: 'bg-purple' })),
+    ]
+  }, [users])
+
   const silentReload = useCallback(() => {
     usersApi.list()
       .then(r => setUsers(r.data))
@@ -963,13 +979,14 @@ export default function Users() {
     return 'user'
   }
 
-  const hasFilters = !!roleFilter || !!statusFilter || permFilter.size > 0 || createdFrom || createdTo || modifiedFrom || modifiedTo
+  const hasFilters = !!roleFilter || !!statusFilter || permFilter.size > 0 || createdFrom || createdTo || modifiedFrom || modifiedTo || agencyFilter !== 'none'
   const clearFilters = () => {
     setRoleFilter('')
     setStatusFilter('')
     setPermFilter(new Set())
     setCreatedFrom(''); setCreatedTo('')
     setModifiedFrom(''); setModifiedTo('')
+    setAgencyFilter('none')
   }
 
   const tableSource = showTrash ? deletedRows : users
@@ -980,6 +997,16 @@ export default function Users() {
           || (u.username  || '').toLowerCase().includes(s)
           || (u.email     || '').toLowerCase().includes(s)
       if (!matchQ) return false
+    }
+    // Filtro de Agência (só para gestão interna; admin de agência já vê só a dele):
+    // padrão ('none') esconde usuários de agência; 'all' mostra todos; 'ag:<id>'
+    // mostra só os da agência escolhida.
+    if (!isAgAdmin) {
+      if (agencyFilter === 'none') { if (u.is_agency_user) return false }
+      else if (agencyFilter !== 'all') {
+        const agId = Number(agencyFilter.slice(3))
+        if (!(u.agency_ids || []).includes(agId)) return false
+      }
     }
     if (roleFilter && roleOf(u) !== roleFilter) return false
     if (statusFilter && statusOf(u) !== statusFilter) return false
@@ -1099,6 +1126,7 @@ export default function Users() {
         </div>
 
         <FDrop label="Perfil"  value={roleFilter}   onChange={setRoleFilter}   options={roleOpts}   />
+        {!isAgAdmin && <FDrop label="Agência" value={agencyFilter} onChange={setAgencyFilter} options={agencyOpts} />}
         <FDrop label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTS} />
         <PermFilterDrop selected={permFilter} onChange={setPermFilter} />
         <DateRangeDrop label="Criado" from={createdFrom} to={createdTo} onFrom={setCreatedFrom} onTo={setCreatedTo} />

@@ -51,6 +51,11 @@ def serialize_user(u, perms=None):
         # (ex.: no contrato ele não escolhe agência, já é a dele).
         'is_agency_user': scope is not None,
         'agency_ids':     scope or [],
+        # Agências do usuário (id+nome) — usado no filtro de Agência da lista de
+        # Usuários. Só para usuário de agência (interno não entra no filtro).
+        'agencies': ([{'id': am.agency_id, 'name': am.agency.name}
+                      for am in u.agency_memberships.select_related('agency').all()]
+                     if scope is not None else []),
         # Admin de agência: pode gerenciar os usuários da(s) agência(s) dele.
         'agency_admin_ids': agency_admin_ids(u),
         'is_agency_admin':  bool(agency_admin_ids(u)),
