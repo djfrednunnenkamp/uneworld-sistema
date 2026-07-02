@@ -1016,6 +1016,7 @@ export function ProfileModal({ profile, onClose, onSaved }) {
   const isEdit = !!profile
   const [name,    setName]    = useState(profile?.name ?? '')
   const [perms,   setPerms]   = useState(sanitizePerms({ ...EMPTY_PERMISSIONS, ...(profile?.permissions ?? {}) }))
+  const [isAgencyDefault, setIsAgencyDefault] = useState(profile?.is_agency_default ?? false)
   const [saving,  setSaving]  = useState(false)
 
   const setPerm    = (key, val)  => setPerms(p => applyPermChanges(p, { [key]: val }))
@@ -1031,10 +1032,10 @@ export function ProfileModal({ profile, onClose, onSaved }) {
     setSaving(true)
     try {
       if (isEdit) {
-        await configApi.updatePermissionProfile(profile.id, { name: name.trim(), permissions: perms })
+        await configApi.updatePermissionProfile(profile.id, { name: name.trim(), permissions: perms, is_agency_default: isAgencyDefault })
         toast.success('Perfil atualizado.')
       } else {
-        await configApi.addPermissionProfile({ name: name.trim(), permissions: perms })
+        await configApi.addPermissionProfile({ name: name.trim(), permissions: perms, is_agency_default: isAgencyDefault })
         toast.success('Perfil criado.')
       }
       onSaved()
@@ -1062,6 +1063,13 @@ export function ProfileModal({ profile, onClose, onSaved }) {
             <label style={lbl}>Nome do perfil</label>
             <input style={inp} value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Vendedor, Atendente…" />
           </div>
+          <label style={{ display:'flex', alignItems:'flex-start', gap:8, cursor:'pointer' }}>
+            <input type="checkbox" checked={isAgencyDefault} onChange={e => setIsAgencyDefault(e.target.checked)}
+              style={{ width:15, height:15, marginTop:2, accentColor:'#1a2d4f', cursor:'pointer', flexShrink:0 }} />
+            <span style={{ fontSize:13, color:'#475569', lineHeight:1.5 }}>
+              <strong>Perfil padrão dos usuários de agência</strong> — todo usuário criado dentro de uma agência recebe automaticamente estas permissões. (Só um perfil pode ser o padrão.)
+            </span>
+          </label>
           <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:12, display:'flex', flexDirection:'column', gap:6 }}>
             <PermPresetBar setForm={setFormForBar} />
             {PERM_GROUPS.map(g => (

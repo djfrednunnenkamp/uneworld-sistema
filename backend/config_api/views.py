@@ -1572,13 +1572,26 @@ def terms_and_conditions(request):
 class PermissionProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model  = PermissionProfile
-        fields = ['id', 'name', 'permissions', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+        fields = ['id', 'name', 'permissions', 'is_agency_default', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
 
 class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = PermissionProfile.objects.all()
     serializer_class = PermissionProfileSerializer
     pagination_class = None
+
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        self._ensure_single_agency_default(obj)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        self._ensure_single_agency_default(obj)
+
+    def _ensure_single_agency_default(self, obj):
+        # Só UM perfil pode ser o padrão de agência — ao marcar um, desmarca os demais.
+        if obj.is_agency_default:
+            PermissionProfile.objects.exclude(pk=obj.pk).filter(is_agency_default=True).update(is_agency_default=False)
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

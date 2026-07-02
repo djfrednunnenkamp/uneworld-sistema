@@ -236,10 +236,19 @@ def user_create(request):
         user.is_staff     = True
         user.save()
     if not user.is_superuser:
-        perm_data = dict(data)
-        if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
-            perm_data.pop('permissions', None)
-        _apply_permissions(user, perm_data, actor=request.user)
+        if data.get('agency_user'):
+            # Usuário de AGÊNCIA: recebe automaticamente o perfil marcado como
+            # "padrão de agência" nas Configurações (template controlado pelos
+            # admins). Aplicado sem o filtro do ator — é um perfil confiável.
+            from config_api.models import PermissionProfile
+            prof = PermissionProfile.objects.filter(is_agency_default=True, is_deleted=False).first()
+            if prof and isinstance(prof.permissions, dict):
+                _apply_permissions(user, {'permissions': prof.permissions}, actor=None)
+        else:
+            perm_data = dict(data)
+            if not has_any_perm(request.user, 'manage_users', 'users_manage_permissions'):
+                perm_data.pop('permissions', None)
+            _apply_permissions(user, perm_data, actor=request.user)
 
     if 'phone' in data:
         perms = get_user_permissions(user)

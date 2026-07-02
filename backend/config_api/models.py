@@ -429,6 +429,9 @@ class BusMapRow(models.Model):
 class PermissionProfile(models.Model):
     name = models.CharField('Nome', max_length=100, unique=True)
     permissions = models.JSONField('Permissões', default=dict)
+    # Perfil aplicado automaticamente aos USUÁRIOS DE AGÊNCIA ao criá-los. Só um
+    # perfil pode ser o padrão de agência (garantido no serializer).
+    is_agency_default = models.BooleanField('Perfil padrão dos usuários de agência', default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

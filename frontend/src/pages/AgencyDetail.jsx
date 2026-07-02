@@ -104,6 +104,7 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
         last_name:  form.last_name.trim(),
         password:   tempPwd,
         is_staff:   false,
+        agency_user: true,   // aplica automaticamente o perfil "padrão de agência"
       })
       const userId = r.data.id
       // Vincula à agência pelo ID (mais confiável que busca por e-mail)
