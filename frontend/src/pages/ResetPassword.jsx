@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
+import PasswordRequirements from '../components/PasswordRequirements'
 import { notifySessionChanged } from '../utils/authChannel'
 
 export default function ResetPassword() {
@@ -27,7 +28,7 @@ export default function ResetPassword() {
     if (!token) { navigate('/login'); return }
     let alive = true
     usersApi.validateResetToken(token)
-      .then(() => { if (alive) setTokenValid(true) })
+      .then(r => { if (alive) { setTokenValid(true); if (r.data?.email) setEmail(r.data.email) } })
       .catch(err => { if (alive) setError(err.response?.data?.error ?? 'Link inválido ou expirado.') })
       .finally(() => { if (alive) setChecking(false) })
     return () => { alive = false }
@@ -142,6 +143,7 @@ export default function ResetPassword() {
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>Nova senha</label>
                   <PasswordInput value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" style={inp} autoFocus
                     onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+                  <PasswordRequirements password={password} userInputs={[email]} />
                 </div>
                 <div style={{ marginBottom:24 }}>
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>Confirmar senha</label>

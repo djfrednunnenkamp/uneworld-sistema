@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usersApi, configApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
+import PasswordRequirements from '../components/PasswordRequirements'
 import TermsModal from '../components/TermsModal'
 import { hasVisibleText } from '../utils/richText'
 import { notifySessionChanged } from '../utils/authChannel'
@@ -130,6 +131,7 @@ export default function AcceptInvite() {
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>Criar senha</label>
                   <PasswordInput value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" style={inp} autoFocus
                     onFocus={e=>e.target.style.borderColor='#1a2d4f'} onBlur={e=>e.target.style.borderColor='#e2e8f0'} />
+                  <PasswordRequirements password={password} userInputs={[invite?.email, invite?.first_name, invite?.last_name]} />
                 </div>
                 <div style={{ marginBottom:24 }}>
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>Confirmar senha</label>

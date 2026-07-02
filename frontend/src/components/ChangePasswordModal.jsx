@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { authApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import PasswordInput from './PasswordInput'
+import PasswordRequirements from './PasswordRequirements'
 
 const overlay = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
@@ -26,6 +28,7 @@ const label = {
 }
 
 export default function ChangePasswordModal({ onClose }) {
+  const { user } = useAuth()
   const [current,  setCurrent]  = useState('')
   const [newPw,    setNewPw]    = useState('')
   const [confirm,  setConfirm]  = useState('')
@@ -65,6 +68,7 @@ export default function ChangePasswordModal({ onClose }) {
             <label style={label}>Nova senha</label>
             <PasswordInput value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Mínimo 8 caracteres" style={inp}
               onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            <PasswordRequirements password={newPw} userInputs={[user?.email, user?.first_name, user?.last_name]} />
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={label}>Confirmar nova senha</label>

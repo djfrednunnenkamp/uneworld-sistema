@@ -8,6 +8,7 @@ import { useWebSocket } from '../hooks/useWebSocket'
 import DelModal from '../components/DelModal'
 import TrashRowActions from '../components/TrashRowActions'
 import PasswordInput from '../components/PasswordInput'
+import PasswordRequirements from '../components/PasswordRequirements'
 import EmailInput from '../components/EmailInput'
 import PhoneInput from '../components/PhoneInput'
 import DateRangeDrop from '../components/DateRangeDrop'
@@ -510,6 +511,7 @@ function KeyMenuModal({ user, canSetPwd, onClose }) {
             <div>
               <label style={lbl}>Nova senha</label>
               <PasswordInput style={fldStyle} value={pwd} onChange={e => setPwd(e.target.value)} placeholder="Mínimo 8 caracteres" />
+              <PasswordRequirements password={pwd} userInputs={[user?.email, user?.first_name, user?.last_name]} />
             </div>
             <div>
               <label style={lbl}>Confirmar nova senha</label>
