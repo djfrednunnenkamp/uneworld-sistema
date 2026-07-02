@@ -88,14 +88,7 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
               </div>
             </div>
 
-            {/* Totais */}
-            <div style={{ ...card, background: '#f8fafc' }}>
-              <div style={{ ...rowSB, fontSize: 13 }}><span>Total (USD)</span><strong>{fmtUSD(data.total_usd)}</strong></div>
-              <div style={{ ...rowSB, fontSize: 14.5, color: '#0f172a', marginTop: 4 }}><span style={{ fontWeight: 700 }}>Total (BRL)</span><strong>{fmtBRL(data.total_brl)}</strong></div>
-              <div style={{ ...rowSB, fontSize: 11.5, color: '#94a3b8', marginTop: 4 }}><span>Câmbio {data.base_currency}→BRL</span><span>{fmtN(data.exchange_rate?.used)}</span></div>
-            </div>
-
-            {/* Comissão */}
+            {/* Comissão (acima do total: a comissão é abatida do total) */}
             {(data.commission || data.commission_discount) && (
               <div style={card}>
                 <div style={{ ...lbl, marginBottom: 6 }}>Comissão da agência</div>
@@ -103,6 +96,13 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
                 {data.commission_discount && <div style={{ ...rowSB, color: '#b45309' }}><span>Dedução</span><strong>−{fmtUSD(data.commission_discount.amount_usd)}</strong></div>}
               </div>
             )}
+
+            {/* Totais (abaixo da comissão) */}
+            <div style={{ ...card, background: '#f8fafc' }}>
+              <div style={{ ...rowSB, fontSize: 13 }}><span>Total (USD)</span><strong>{fmtUSD(data.total_usd)}</strong></div>
+              <div style={{ ...rowSB, fontSize: 14.5, color: '#0f172a', marginTop: 4 }}><span style={{ fontWeight: 700 }}>Total (BRL)</span><strong>{fmtBRL(data.total_brl)}</strong></div>
+              <div style={{ ...rowSB, fontSize: 11.5, color: '#94a3b8', marginTop: 4 }}><span>Câmbio {data.base_currency}→BRL</span><span>{fmtN(data.exchange_rate?.used)}</span></div>
+            </div>
 
             {/* Pagamento */}
             <div style={card}>
