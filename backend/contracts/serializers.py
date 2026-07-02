@@ -38,8 +38,9 @@ def _agency_brief(a):
         'mobile': a.mobile, 'email': a.email, 'responsible': a.responsible,
         'address': ', '.join(filter(None, [a.street, a.number, a.neighborhood, a.city, a.state])),
         'commission_rate': a.commission_rate,
-        # PIX que vai no contrato: o da agência ou o da UneWorld (use_uneworld_pix).
-        'pix_key_type': a.pix_key_type, 'pix_key': a.pix_key, 'use_uneworld_pix': a.use_uneworld_pix,
+        # PIX que vai no contrato: o da UneWorld (padrão) ou o da agência
+        # (use_agency_pix=True, só se a agência tiver PIX).
+        'pix_key_type': a.pix_key_type, 'pix_key': a.pix_key, 'use_agency_pix': a.use_agency_pix,
     }
 
 

@@ -46,17 +46,18 @@ const EMPTY = {
   commission_rate: '', cep: '', street: '', number: '', complement: '',
   neighborhood: '', city: '', state: '', country: 'Brasil',
   receives_mail: false,
-  pix_key_type: '', pix_key: '', use_uneworld_pix: false, notes: '',
+  pix_key_type: '', pix_key: '', use_agency_pix: false, notes: '',
 }
 
 const IBGE = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome'
 
 /* ── Toggle ── */
-function Toggle({ checked, onChange }) {
+function Toggle({ checked, onChange, disabled = false }) {
   return (
-    <label className="toggle-wrap">
+    <label className="toggle-wrap" style={disabled ? { opacity: .45, cursor: 'not-allowed' } : undefined}>
       <span className="toggle">
-        <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} />
+        <input type="checkbox" checked={!!checked} disabled={disabled}
+          onChange={e => { if (!disabled) onChange(e.target.checked) }} />
         <span className="toggle-slider" />
       </span>
       <span className="toggle-label">{checked ? 'Sim' : 'Não'}</span>
@@ -768,13 +769,24 @@ export default function AgencyDetail() {
               <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
             </div>
             <div>
-              <label className="fl">PIX no contrato</label>
-              <Toggle checked={form.use_uneworld_pix} onChange={setB('use_uneworld_pix')} />
-              <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4, maxWidth: 230, lineHeight: 1.4 }}>
-                {form.use_uneworld_pix
-                  ? 'Usará o PIX da UneWorld (Configurações › Operadora).'
-                  : 'Usará o PIX desta agência (seção Dados PIX abaixo).'}
-              </div>
+              <label className="fl">PIX da agência no contrato</label>
+              {(() => {
+                const hasAgencyPix = !!(form.pix_key || '').trim()
+                const on = hasAgencyPix && form.use_agency_pix
+                return (
+                  <>
+                    <Toggle checked={on} disabled={!hasAgencyPix}
+                      onChange={v => setB('use_agency_pix')(v)} />
+                    <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4, maxWidth: 230, lineHeight: 1.4 }}>
+                      {!hasAgencyPix
+                        ? 'Cadastre um PIX abaixo para poder usar o PIX da agência. Sem isso, o contrato usa o PIX da UneWorld.'
+                        : on
+                          ? 'Usará o PIX desta agência no contrato.'
+                          : 'Usará o PIX da UneWorld (Configurações › Operadora).'}
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           </div>
           {/* Col 2 — Nome fantasma (company_name para física, name para jurídica) */}

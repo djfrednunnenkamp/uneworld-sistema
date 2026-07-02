@@ -69,9 +69,9 @@ class Agency(models.Model):
     # PIX
     pix_key_type = models.CharField('Tipo de chave PIX', max_length=20, choices=PIX_TYPE_CHOICES, blank=True)
     pix_key      = models.CharField('Chave PIX', max_length=200, blank=True)
-    # No CONTRATO desta agência, qual PIX aparece: o desta agência (False, padrão)
-    # ou o da UneWorld/Operadora (True).
-    use_uneworld_pix = models.BooleanField('Usar o PIX da UneWorld no contrato', default=False)
+    # No CONTRATO desta agência, qual PIX aparece: o da UneWorld/Operadora (False,
+    # padrão) ou o desta agência (True). Só faz sentido ligar se a agência tem PIX.
+    use_agency_pix = models.BooleanField('No contrato, usar o PIX desta agência (senão, o da UneWorld)', default=False)
 
     # Observações
     notes = models.TextField('Observações', blank=True)

@@ -675,23 +675,23 @@ export async function generateContractPDF(contract, opts = {}) {
       for (const [lab, val] of fields) cyy = drawField(doc, cx, cyy, colW, lab, val, 8) + 0.6
       return cyy
     }
-    // PIX para pagamento: mostra o da AGÊNCIA ou o da UNEWORLD conforme o botão
-    // "usar PIX da UneWorld" no cadastro da agência.
+    // PIX para pagamento: por PADRÃO é o da UNEWORLD (operadora); só usa o da
+    // AGÊNCIA quando ela marca "usar PIX da agência" E tem PIX cadastrado.
     const PIX_LBL = { cpf: 'CPF', cnpj: 'CNPJ', email: 'E-mail', telefone: 'Telefone', aleatorio: 'Aleatória' }
-    const useUwPix = !!ag.use_uneworld_pix
     const pixField = (src) => (src && src.pix_key)
       ? [[`PIX${src.pix_key_type ? ` (${PIX_LBL[src.pix_key_type] || src.pix_key_type})` : ''}:`, dashTxt(src.pix_key)]]
       : []
+    const useAgencyPix = !!ag.use_agency_pix && !!ag.pix_key
     const b1 = drawCol(colX1, 'Agência Intermediadora', [
       ['Empresa:', dashTxt(ag.name)], ['CNPJ:', dashTxt(ag.cnpj)], ['Telefone:', dashTxt(ag.phone)],
       ['E-mail:', dashTxt(ag.email)], ['Endereço:', dashTxt(ag.address)],
-      ...(!useUwPix ? pixField(ag) : []),
+      ...(useAgencyPix ? pixField(ag) : []),
     ])
     const b2 = drawCol(colX2, 'Operadora Fornecedora', [
       ['Empresa:', dashTxt(company.company_name)], ['CNPJ:', dashTxt(company.cnpj)],
       ['Telefone:', dashTxt(company.mobile || company.phone)], ['E-mail:', dashTxt(company.email)],
       ['Endereço:', dashTxt(company.address)],
-      ...(useUwPix ? pixField(company) : []),
+      ...(!useAgencyPix ? pixField(company) : []),
     ])
     const bottom = Math.max(b1, b2)
     doc.setDrawColor(...GRID); doc.setLineWidth(0.2)

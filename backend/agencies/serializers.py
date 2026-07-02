@@ -13,7 +13,7 @@ class AgencySerializer(serializers.ModelSerializer):
             'municipal_registration', 'responsible', 'phone', 'mobile', 'email',
             'website', 'commission_rate', 'cep', 'street', 'number', 'complement',
             'neighborhood', 'city', 'state', 'country', 'receives_mail',
-            'pix_key_type', 'pix_key', 'use_uneworld_pix', 'notes',
+            'pix_key_type', 'pix_key', 'use_agency_pix', 'notes',
             'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
