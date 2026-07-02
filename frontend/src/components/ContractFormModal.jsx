@@ -430,6 +430,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const autosaveRef     = useRef({ id: contractId || null, saving: false, dirty: null, discarded: false })
   const autosaveTimerRef = useRef(null)
   const lastSavedRef    = useRef(null)   // snapshot já persistido (evita re-salvar igual)
+  const originalSnapshotRef = useRef(null) // estado ORIGINAL ao abrir (p/ descartar edições)
   const baselineReadyRef = useRef(false) // fixa o estado inicial sem salvá-lo
   const [savingState, setSavingState] = useState('idle') // 'idle' | 'saving' | 'saved'
 
@@ -1299,9 +1300,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       txt(p.package_name) || p.departure_date || p.return_date || txt(p.departure_airport) || txt(p.observations))
   }
 
-  // Clique fora: contrato novo com conteúdo → pergunta; senão fecha direto.
+  // Clique fora:
+  //  - contrato NOVO com conteúdo → pergunta (rascunho/salvar/descartar);
+  //  - EDITANDO um existente com alterações desde que abriu → pergunta (salvar/descartar);
+  //  - senão fecha direto.
   const requestClose = () => {
-    if (!isEdit && contractHasContent()) setLeavePrompt(true)
+    if (!isEdit) {
+      if (contractHasContent()) setLeavePrompt(true)
+      else onClose()
+      return
+    }
+    const changed = originalSnapshotRef.current != null && JSON.stringify(buildPayload()) !== originalSnapshotRef.current
+    if (changed) setLeavePrompt(true)
     else onClose()
   }
 
@@ -1309,6 +1319,29 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const saveDraftAndClose = async () => {
     setSaving(true)
     try { clearTimeout(autosaveTimerRef.current); await runAutosave(JSON.stringify(buildPayload())) }
+    finally { setSaving(false); setLeavePrompt(false); onClose() }
+  }
+
+  // Editando: "Salvar alterações" → comita o estado atual e fecha.
+  const saveEditsAndClose = async () => {
+    setSaving(true)
+    try { clearTimeout(autosaveTimerRef.current); await runAutosave(JSON.stringify(buildPayload())) }
+    finally { setSaving(false); setLeavePrompt(false); onClose() }
+  }
+
+  // Editando: "Descartar alterações" → como o autosave já pode ter gravado as
+  // edições, reverte o contrato ao estado ORIGINAL (de quando abriu) e fecha.
+  const discardEditsAndClose = async () => {
+    const st = autosaveRef.current
+    st.discarded = true
+    clearTimeout(autosaveTimerRef.current)
+    setSaving(true)
+    try {
+      while (st.saving) await new Promise(r => setTimeout(r, 60))   // espera autosave em curso
+      if (st.id && originalSnapshotRef.current) {
+        await contractsApi.update(st.id, JSON.parse(originalSnapshotRef.current))
+      }
+    } catch { /* ignora — reverter falhou, ainda assim fecha */ }
     finally { setSaving(false); setLeavePrompt(false); onClose() }
   }
 
@@ -1365,6 +1398,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     if (!baselineReadyRef.current) {        // 1ª vez pronto: fixa a baseline, não salva
       baselineReadyRef.current = true
       lastSavedRef.current = autosaveSnapshot
+      originalSnapshotRef.current = autosaveSnapshot   // guarda o original p/ "descartar"
       return
     }
     clearTimeout(autosaveTimerRef.current)
@@ -2312,9 +2346,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           entity="contrato"
           saving={saving}
           onStay={() => setLeavePrompt(false)}
-          onDiscard={() => { setLeavePrompt(false); handleCancel() }}
-          onSaveDraft={saveDraftAndClose}
-          onSave={isComplete() ? () => { setLeavePrompt(false); handleSaveClick() } : undefined}
+          onDiscard={isEdit ? discardEditsAndClose : () => { setLeavePrompt(false); handleCancel() }}
+          onSaveDraft={isEdit ? undefined : saveDraftAndClose}
+          onSave={isEdit ? saveEditsAndClose : (isComplete() ? () => { setLeavePrompt(false); handleSaveClick() } : undefined)}
         />
       )}
       {clauseEditor && (
