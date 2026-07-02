@@ -157,9 +157,9 @@ export default function ContractReviewModal({ contractId, onClose, onDone }) {
                     </div>
                   ))}
                   {data.commission && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309' }}>
                       <span>Comissão da agência ({fmtN(data.commission.pct)}%)</span>
-                      <span style={{ fontWeight: 600 }}>{fmtUSD(data.commission.amount_usd)}</span>
+                      <span style={{ fontWeight: 600 }}>−{fmtUSD(data.commission.amount_usd)}</span>
                     </div>
                   )}
                   {data.commission_discount && (

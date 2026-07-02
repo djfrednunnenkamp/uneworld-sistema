@@ -99,7 +99,7 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
             {(data.commission || data.commission_discount) && (
               <div style={card}>
                 <div style={{ ...lbl, marginBottom: 6 }}>Comissão da agência</div>
-                {data.commission && <div style={rowSB}><span>Comissão ({fmtN(data.commission.pct)}%)</span><strong>{fmtUSD(data.commission.amount_usd)}</strong></div>}
+                {data.commission && <div style={{ ...rowSB, color: '#b45309' }}><span>Comissão ({fmtN(data.commission.pct)}%)</span><strong>−{fmtUSD(data.commission.amount_usd)}</strong></div>}
                 {data.commission_discount && <div style={{ ...rowSB, color: '#b45309' }}><span>Dedução</span><strong>−{fmtUSD(data.commission_discount.amount_usd)}</strong></div>}
               </div>
             )}

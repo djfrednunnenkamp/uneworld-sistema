@@ -143,6 +143,15 @@ def build_review_data(contract):
     entrada_brl = sum((_d(i.value_brl) or Decimal('0')) for i in installments if i.kind == 'entrada')
     parcelas_brl = sum((_d(i.value_brl) or Decimal('0')) for i in installments if i.kind == 'parcela')
     paid_total = entrada_brl + parcelas_brl
+    # Total exibido na conferência (revisão/fatura): acomodações − comissão da
+    # agência (a comissão é ABATIDA, não somada) + ajustes + dedução de comissão.
+    # Só muda a exibição da conferência; o total armazenado do contrato, as parcelas
+    # e o PDF continuam como estão (comissão embutida/somada).
+    review_total_usd = accom_total + adj_total - commission + comm_disc
+    review_total_brl = (review_total_usd * rate) if rate is not None else _d(contract.total_brl)
+    # As parcelas representam o que o cliente paga (total REAL do contrato), então a
+    # conferência "entrada + parcelas x total" compara com o total armazenado — assim
+    # não vira alarme falso por causa do total líquido exibido acima.
     total_brl = _d(contract.total_brl)
     totals_match = True
     totals_diff = None
@@ -255,8 +264,8 @@ def build_review_data(contract):
             'pct': _s(commission_pct), 'amount_usd': _s(commission),
         } if commission_pct is not None else None,
         'commission_discount': comm_disc_item,
-        'total_usd': _s(contract.total_usd),
-        'total_brl': _s(total_brl),
+        'total_usd': _s(review_total_usd),
+        'total_brl': _s(review_total_brl),
         'installments': installment_items,
         'entrada_brl': _s(entrada_brl),
         'parcelas_brl': _s(parcelas_brl),
