@@ -40,6 +40,19 @@ def build_review_data(contract):
 
     flags = []
 
+    # Assinado anexado SEM a verificação automática do QR (scan ilegível, confirmado
+    # manualmente no upload) → aviso bem visível para a operadora conferir à mão.
+    sv = contract.signed_verification if isinstance(contract.signed_verification, dict) else None
+    if sv and sv.get('qr_status') == 'unverified':
+        who = sv.get('overridden_by') or 'um usuário'
+        flags.append({
+            'level': 'error', 'code': 'qr_unverified',
+            'message': f'⚠ O documento assinado foi anexado SEM a verificação automática do '
+                       f'código de segurança (o QR não pôde ser lido no scan; anexado mesmo assim por '
+                       f'{who}). Confira à mão se é ESTE contrato, na versão atual, com TODAS as páginas '
+                       f'na ordem certa antes de aprovar.',
+        })
+
     # Comissão da agência: na conferência o valor/pessoa é exibido COMISSIONADO
     # (base × (1+%)), igual ao resto do sistema; o subtotal soma normal e a comissão
     # é ABATIDA do total mais abaixo. value_subtotal (base) é o que gera a comissão.

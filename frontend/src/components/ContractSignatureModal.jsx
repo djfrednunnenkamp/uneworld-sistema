@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { contractsApi } from '../api'
 import { generateContractPDF } from '../utils/generateContractPDF'
 import SignedFileViewer from './SignedFileViewer'
+import ConfirmModal from './ConfirmModal'
 import { Ic } from './Icon'
 
 /** Popup de ASSINATURA (etapa "Para assinatura"), em duas colunas:
@@ -20,6 +21,7 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
   const [dragOver, setDragOver] = useState(false)   // arraste-e-solte
   const [docUrl, setDocUrl] = useState(null)        // PDF do contrato (blob)
   const [docStatus, setDocStatus] = useState('loading')  // loading | ready | error
+  const [overridePrompt, setOverridePrompt] = useState(null)  // {message} quando o QR não pôde ser lido
   const inputRef = useRef(null)
   const label = contract?.reservation_number ? `Reserva ${contract.reservation_number}` : `Contrato #${contract?.id}`
 
@@ -51,19 +53,30 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
   }
   useEffect(() => () => { if (fileUrl) URL.revokeObjectURL(fileUrl) }, [fileUrl])
 
-  const upload = async () => {
+  const upload = async (override = false) => {
     if (!file) { toast.error('Selecione o arquivo assinado.'); return }
     if (!confirmed) { toast.error('Confirme que o contrato está assinado e correto.'); return }
     setBusy(true)
     // Progresso na notificação: o upload + verificação dos QR pode demorar; assim
     // a pessoa vê que está andando (igual ao "Verificando assinatura…" do digital).
-    const toastId = toast.loading('Enviando e verificando o contrato assinado…')
+    const toastId = toast.loading(override ? 'Anexando o documento…' : 'Enviando e verificando o contrato assinado…')
     try {
-      await contractsApi.uploadSigned(contract.id, file)
-      toast.success('Contrato assinado anexado. Movido para "Em revisão".', { id: toastId })
+      await contractsApi.uploadSigned(contract.id, file, { override })
+      toast.success(override ? 'Documento anexado (sem verificação). Movido para "Em revisão".'
+                             : 'Contrato assinado anexado. Movido para "Em revisão".', { id: toastId })
+      setOverridePrompt(null)
       onDone?.('revisao')
-    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao anexar o contrato assinado.', { id: toastId }) }
-    finally { setBusy(false) }
+    } catch (e) {
+      const data = e?.response?.data || {}
+      // QR ilegível (scan ruim): o backend permite anexar mesmo assim se a pessoa
+      // confirmar que é o documento certo. Abre a confirmação em vez de só o erro.
+      if (data.can_override && !override) {
+        toast.dismiss(toastId)
+        setOverridePrompt({ message: data.error })
+      } else {
+        toast.error(data.error || 'Erro ao anexar o contrato assinado.', { id: toastId })
+      }
+    } finally { setBusy(false) }
   }
 
   const check = async () => {
@@ -198,6 +211,18 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
             style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Fechar</button>
         </div>
       </div>
+
+      {overridePrompt && (
+        <ConfirmModal
+          title="Não foi possível verificar o documento"
+          message={overridePrompt.message}
+          detail="Você confirma que este é o documento correto e assinado? Ele seguirá para a revisão MARCADO COMO NÃO VERIFICADO, e a operadora verá um aviso para conferir à mão."
+          okLabel="Sim, anexar mesmo assim"
+          danger
+          onOk={() => upload(true)}
+          onCancel={() => !busy && setOverridePrompt(null)}
+        />
+      )}
     </div>
   )
 }

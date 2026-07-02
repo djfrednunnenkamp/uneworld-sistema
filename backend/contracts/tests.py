@@ -382,3 +382,53 @@ class SignedPdfVerifyTest(DjTestCase):
         pdf = self._pdf_with_qrs(self.c.id, self.c.signing_version, 3, order=[1, 3, 2])
         ok, code, _ = verify_signed_pdf(self.c, pdf)
         self.assertFalse(ok); self.assertEqual(code, 'wrong_order')
+
+
+class UploadSignedOverrideTest(_APITestCase):
+    """QR ilegível (scan ruim): oferece confirmar e anexar mesmo assim (marcado
+    NÃO verificado). Erro definitivo (outro contrato) NÃO permite override."""
+    def setUp(self):
+        self.ag = Agency.objects.create(name='A', person_type='juridica')
+        self.user = _mkuser('editor', contracts_edit=True)
+        self.c = Contract.objects.create(agency=self.ag, status='ativo', stage='enviado', total_brl=100)
+
+    def _pdf_no_qr(self):
+        import fitz
+        doc = fitz.open(); doc.new_page(width=595, height=842)
+        b = doc.tobytes(); doc.close(); return b
+
+    def test_unreadable_qr_offers_override_then_accepts(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.force_authenticate(self.user)
+        pdf = self._pdf_no_qr()
+        r = self.client.post(f'/api/contracts/{self.c.id}/upload-signed/',
+                             {'file': SimpleUploadedFile('a.pdf', pdf, content_type='application/pdf')}, format='multipart')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data.get('code'), 'no_qr')
+        self.assertTrue(r.data.get('can_override'))
+        r2 = self.client.post(f'/api/contracts/{self.c.id}/upload-signed/',
+                             {'file': SimpleUploadedFile('a.pdf', pdf, content_type='application/pdf'),
+                              'override_unverified': 'true'}, format='multipart')
+        self.assertEqual(r2.status_code, 200, r2.data)
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.stage, 'revisao')
+        self.assertEqual((self.c.signed_verification or {}).get('qr_status'), 'unverified')
+        from contracts.review import build_review_data
+        codes = [f['code'] for f in build_review_data(self.c)['flags']]
+        self.assertIn('qr_unverified', codes)
+
+    def test_hard_failure_cannot_override(self):
+        import io, fitz, qrcode
+        from contracts.signing import make_token
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.force_authenticate(self.user)
+        doc = fitz.open(); page = doc.new_page(width=595, height=842)
+        buf = io.BytesIO(); qrcode.make(make_token(self.c.id + 999, 1, 1, 1)).save(buf, format='PNG')
+        page.insert_image(fitz.Rect(595 - 90, 842 - 90, 595 - 20, 842 - 20), stream=buf.getvalue())
+        pdf = doc.tobytes(); doc.close()
+        r = self.client.post(f'/api/contracts/{self.c.id}/upload-signed/',
+                             {'file': SimpleUploadedFile('a.pdf', pdf, content_type='application/pdf'),
+                              'override_unverified': 'true'}, format='multipart')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data.get('code'), 'other_contract')
+        self.assertFalse(r.data.get('can_override'))

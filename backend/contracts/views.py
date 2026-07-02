@@ -464,9 +464,16 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
 
+        from django.utils import timezone
         # Segurança do assinado físico: lê os QR de cada página e confere se é este
-        # contrato, na versão atual, com todas as páginas na ordem. Bloqueia se não.
+        # contrato, na versão atual, com todas as páginas na ordem.
+        # - Erros DEFINITIVOS (contrato/versão/ordem/faltando) → bloqueia sempre.
+        # - QR ILEGÍVEL (scan ruim) → deixa confirmar manualmente (override_unverified):
+        #   segue para a revisão, mas marcado como NÃO verificado (aviso na revisão).
         from django.conf import settings as dj_settings
+        # verified = passou na conferência automática dos QR.
+        verification = {'qr_status': 'verified', 'at': timezone.now().isoformat()}
+        SOFT_CODES = {'no_qr', 'unreadable_pages'}
         if getattr(dj_settings, 'CONTRACT_QR_VERIFY', True):
             try:
                 f.seek(0); pdf_bytes = f.read(); f.seek(0)
@@ -476,14 +483,23 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 from .qr_verify import verify_signed_pdf
                 ok, code, message = verify_signed_pdf(contract, pdf_bytes)
                 if not ok:
-                    return Response({'error': message, 'code': code}, status=http_status.HTTP_400_BAD_REQUEST)
+                    override = str(request.data.get('override_unverified', '')).lower() in ('1', 'true', 'yes', 'on')
+                    if code in SOFT_CODES and override:
+                        from audit.tracking import user_display
+                        verification = {'qr_status': 'unverified', 'reason': code, 'message': message,
+                                        'overridden_by': user_display(request.user),
+                                        'at': timezone.now().isoformat()}
+                    else:
+                        # can_override True só nos casos de QR ilegível (o front pergunta).
+                        return Response({'error': message, 'code': code, 'can_override': code in SOFT_CODES},
+                                        status=http_status.HTTP_400_BAD_REQUEST)
 
-        from django.utils import timezone
         contract.signed_file = f
         # Assinado (física) → vai direto para a revisão da operadora.
         contract.stage = 'revisao'
         contract.signed_at = timezone.now()
-        contract.save(update_fields=['signed_file', 'stage', 'signed_at'])
+        contract.signed_verification = verification
+        contract.save(update_fields=['signed_file', 'stage', 'signed_at', 'signed_verification'])
         # A mudança de etapa já é registrada no log pelo sinal em audit/tracking.py.
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
