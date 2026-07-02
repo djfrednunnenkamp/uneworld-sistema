@@ -196,7 +196,7 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
                   </label>
                 )}
 
-                <button type="button" onClick={upload} disabled={busy || !file || !confirmed}
+                <button type="button" onClick={() => upload()} disabled={busy || !file || !confirmed}
                   style={{ width: '100%', marginTop: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 18px', borderRadius: 8, border: 'none', background: (busy || !file || !confirmed) ? '#94a3b8' : '#059669', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: (busy || !file || !confirmed) ? 'default' : 'pointer', fontFamily: 'inherit' }}>
                   <Ic n="check" s={15} /> {busy ? 'Enviando…' : 'Enviar contrato assinado'}
                 </button>

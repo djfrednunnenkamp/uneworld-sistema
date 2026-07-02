@@ -13,6 +13,7 @@ import ContractReviewModal from '../components/ContractReviewModal'
 import ContractInvoiceModal from '../components/ContractInvoiceModal'
 import SendSignatureModal from '../components/SendSignatureModal'
 import ContractSignatureModal from '../components/ContractSignatureModal'
+import ConfirmModal from '../components/ConfirmModal'
 import DateRangeDrop from '../components/DateRangeDrop'
 import { Ic } from '../components/Icon'
 import { generateContractPDF } from '../utils/generateContractPDF'
@@ -184,12 +185,13 @@ function FDrop({ label, value, onChange, options, icon = 'list', avatar = false,
  * Mostra o documento ao lado para conferência VISUAL (humana) e pede confirmação
  * manual de que está assinado. A conferência automática (OCR/IA) está pausada —
  * ver backend contracts/verify.py para retomar no futuro. */
-function SignedUploadModal({ contractId, onClose, onUpload }) {
+function SignedUploadModal({ contractId, onClose, onUploaded }) {
   const [file, setFile] = useState(null)
   const [drag, setDrag] = useState(false)
   const [busy, setBusy] = useState(false)
   const [sigOk, setSigOk] = useState(false)
   const [objUrl, setObjUrl] = useState(null)
+  const [overridePrompt, setOverridePrompt] = useState(null)  // {message} quando o QR não pôde ser lido
   const inputRef = useRef(null)
 
   // Enquanto o popup está aberto, impede o navegador de abrir o arquivo solto
@@ -211,11 +213,30 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
 
   const pick = (f) => { setFile(f); setSigOk(false) }
 
-  const submit = async () => {
+  // Upload + verificação dos QR. Se o QR não pôde ser lido (scan ruim), o backend
+  // devolve can_override → abre a confirmação ("tem certeza que é o documento?").
+  // Se a pessoa confirmar, reenvia com override e segue (marcado não verificado).
+  const doUpload = async (override = false) => {
     if (!file) return
     setBusy(true)
-    try { await onUpload(file) } finally { setBusy(false) }
+    const toastId = toast.loading(override ? 'Anexando o documento…' : 'Enviando e verificando o contrato assinado…')
+    try {
+      await contractsApi.uploadSigned(contractId, file, { override })
+      toast.success(override ? 'Documento anexado (sem verificação). Movido para "Em revisão".'
+                             : 'Contrato assinado anexado. Movido para "Em revisão".', { id: toastId })
+      setOverridePrompt(null)
+      onUploaded()
+    } catch (e) {
+      const data = e?.response?.data || {}
+      if (data.can_override && !override) {
+        toast.dismiss(toastId)
+        setOverridePrompt({ message: data.error })
+      } else {
+        toast.error(data.error || 'Erro ao anexar o contrato assinado.', { id: toastId })
+      }
+    } finally { setBusy(false) }
   }
+  const submit = () => doUpload(false)
 
   const canSend = !!file && !busy && sigOk
 
@@ -276,6 +297,19 @@ function SignedUploadModal({ contractId, onClose, onUpload }) {
             style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: !canSend ? '#94a3b8' : '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canSend ? 'default' : 'pointer', fontFamily: 'inherit' }}>{busy ? 'Enviando…' : 'Enviar'}</button>
         </div>
       </div>
+
+      {overridePrompt && (
+        <ConfirmModal
+          title="Não foi possível verificar o documento"
+          message="Não conseguimos ler o código de autenticação (QR) do documento enviado. Você tem certeza de que este é o documento correto e assinado?"
+          detail="Se confirmar, ele será anexado e seguirá para a revisão MARCADO COMO NÃO VERIFICADO, e a operadora verá um aviso para conferir à mão. Se não, você volta para escolher o arquivo."
+          okLabel="Sim, tenho certeza — anexar"
+          danger
+          zIndex={600}
+          onOk={() => doUpload(true)}
+          onCancel={() => !busy && setOverridePrompt(null)}
+        />
+      )}
     </div>
   )
 }
@@ -625,14 +659,12 @@ export default function Contracts() {
     }
   }
 
-  const handleUploadFile = async (file) => {
-    try {
-      await contractsApi.uploadSigned(uploadRow.id, file)
-      toast.success('Contrato assinado anexado. Movido para "Em revisão".')
-      setUploadRow(null)
-      setTab('revisao')   // assinado → segue para a revisão da operadora
-      load()
-    } catch { toast.error('Erro ao anexar o contrato assinado.') }
+  // O upload (e o fluxo de confirmação quando o QR não pôde ser lido) fica dentro
+  // do SignedUploadModal; aqui só navegamos após o sucesso.
+  const handleUploaded = () => {
+    setUploadRow(null)
+    setTab('revisao')   // assinado → segue para a revisão da operadora
+    load()
   }
 
   // Aba Excluídos usa a MESMA tabela/filtros — só muda a fonte (itens excluídos).
@@ -877,7 +909,7 @@ export default function Contracts() {
       />
 
       {uploadRow && (
-        <SignedUploadModal contractId={uploadRow.id} onClose={() => setUploadRow(null)} onUpload={handleUploadFile} />
+        <SignedUploadModal contractId={uploadRow.id} onClose={() => setUploadRow(null)} onUploaded={handleUploaded} />
       )}
       {signedUrl && (
         <SignedFileModal url={signedUrl.url} contractId={signedUrl.id} contractLabel={signedUrl.label} onClose={() => setSignedUrl(null)} />
