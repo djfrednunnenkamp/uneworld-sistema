@@ -836,15 +836,23 @@ export async function generateContractPDF(contract, opts = {}) {
     const payHalf   = Math.ceil(payRows.length / 2)
     const col7W     = (contentW - colGap) / 2
     const col7RX    = marginX + col7W + colGap
-    const startP7   = doc.internal.getNumberOfPages()
-    const b7L = drawTable(doc, { x: marginX, y: y7, width: col7W, ...tables.payment, rows: payRows.slice(0, payHalf), ...tableOpts })
-    const leftEndP7 = doc.internal.getNumberOfPages()
-    doc.setPage(startP7)
-    const b7R = drawTable(doc, { x: col7RX, y: y7, width: col7W, ...tables.payment, rows: payRows.slice(payHalf), ...tableOpts })
-    const rightEndP7 = doc.internal.getNumberOfPages()
-    if (leftEndP7 > rightEndP7)      { doc.setPage(leftEndP7); y = b7L + 2.5 }
-    else if (rightEndP7 > leftEndP7) { y = b7R + 2.5 }
-    else                             { y = Math.max(b7L, b7R) + 2.5 }
+    // Duas colunas SÓ quando as duas metades cabem na página atual (sem paginar).
+    // Se transbordar, cada coluna paginaria para uma página nova no fim do PDF
+    // (addPage sempre anexa no fim), deixando páginas meio-vazias antes das
+    // cláusulas. Nesse caso, cai para UMA coluna inteira, que pagina linha a linha.
+    // Altura estimada de uma coluna (cabeçalho + linhas) com margem de segurança
+    // de 8 mm — no limite, prefere coluna única a arriscar transbordo em 2 colunas.
+    const estColH = tableOpts.headerHeight + payHalf * tableOpts.rowHeight + 8
+    if (y7 + estColH <= pageBottom) {
+      const startP7 = doc.internal.getNumberOfPages()
+      const b7L = drawTable(doc, { x: marginX, y: y7, width: col7W, ...tables.payment, rows: payRows.slice(0, payHalf), ...tableOpts })
+      doc.setPage(startP7)
+      const b7R = drawTable(doc, { x: col7RX, y: y7, width: col7W, ...tables.payment, rows: payRows.slice(payHalf), ...tableOpts })
+      y = Math.max(b7L, b7R) + 2.5
+    } else {
+      // Uma coluna inteira — pagina limpo e as cláusulas seguem em sequência.
+      y = drawTable(doc, { x: marginX, y: y7, width: contentW, ...tables.payment, ...tableOpts }) + 2.5
+    }
   }
 
   // ═══ CLÁUSULAS CONTRATUAIS ════════════════════════════════════════════════
