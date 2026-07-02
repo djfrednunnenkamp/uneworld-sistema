@@ -528,6 +528,48 @@ function drawTable(doc, opts) {
   return cy
 }
 
+/* Tabela em DUAS COLUNAS lado a lado que pagina as duas JUNTAS: cada página
+ * recebe k linhas na esquerda e k na direita (cabeçalho repetido); ao encher,
+ * as duas seguem juntas na próxima página. Evita o bug de paginar cada coluna
+ * de forma independente (que jogava sobras em páginas separadas). Retorna o y
+ * final (na última página desenhada). */
+function drawTwoColumnTable(doc, { x, y, width, colGap, columns, rows, opts }) {
+  const { rowHeight = 6, headerHeight = 7, fontSize = 8, headerFontSize = 7.5, pageTop = 10, pageBottom = 288 } = opts
+  const padX = 1.8, lineGap = 1.18
+  const colW  = (width - colGap) / 2
+  const colRX = x + colW + colGap
+  // Larguras internas das colunas (dentro de meia largura), p/ medir a quebra.
+  const totalW = columns.reduce((s, c) => s + (c.width || 1), 0)
+  const cw = columns.map(c => (c.width || 1) / totalW * colW)
+  const rowH = (cells, fs, bold, minH) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(fs)
+    const maxLines = Math.max(1, ...cells.map((t, ci) => doc.splitTextToSize(String(t ?? ''), cw[ci] - padX * 2).length))
+    return Math.max(minH, maxLines * (fs * PT2MM * lineGap) + 2.0)
+  }
+  const headerH = rowH(columns.map(c => c.title), headerFontSize, true, headerHeight)
+  const maxBodyH = Math.max(rowHeight, ...rows.map(r => rowH(r, fontSize, false, rowHeight)))
+
+  let cy = y, rest = rows.slice()
+  while (rest.length) {
+    let avail = pageBottom - cy - headerH
+    if (avail < maxBodyH) { doc.addPage(); cy = pageTop; avail = pageBottom - cy - headerH }
+    const k = Math.max(1, Math.floor(avail / maxBodyH))          // cabem k linhas por coluna
+    const placed = Math.min(k * 2, rest.length)                  // quantas linhas vão nesta página
+    const leftN = Math.ceil(placed / 2)                          // balanceia as duas colunas
+    const leftRows  = rest.slice(0, leftN)
+    const rightRows = rest.slice(leftN, placed)
+    const startP = doc.internal.getNumberOfPages()
+    // Dimensionadas p/ caber → drawTable NÃO pagina internamente.
+    const bL = drawTable(doc, { x, y: cy, width: colW, columns, rows: leftRows, ...opts })
+    doc.setPage(startP)
+    const bR = rightRows.length ? drawTable(doc, { x: colRX, y: cy, width: colW, columns, rows: rightRows, ...opts }) : cy
+    cy = Math.max(bL, bR)
+    rest = rest.slice(placed)
+    if (rest.length) { doc.addPage(); cy = pageTop }
+  }
+  return cy
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
  * Geração do contrato — TUDO desenhado nativamente em jsPDF (sem html2canvas).
  * ════════════════════════════════════════════════════════════════════════════ */
@@ -833,26 +875,12 @@ export async function generateContractPDF(contract, opts = {}) {
   } else if (payRows.length <= 6) {
     y = drawTable(doc, { x: marginX, y: y7, width: contentW, ...tables.payment, ...tableOpts }) + 2.5
   } else {
-    const payHalf   = Math.ceil(payRows.length / 2)
-    const col7W     = (contentW - colGap) / 2
-    const col7RX    = marginX + col7W + colGap
-    // Duas colunas SÓ quando as duas metades cabem na página atual (sem paginar).
-    // Se transbordar, cada coluna paginaria para uma página nova no fim do PDF
-    // (addPage sempre anexa no fim), deixando páginas meio-vazias antes das
-    // cláusulas. Nesse caso, cai para UMA coluna inteira, que pagina linha a linha.
-    // Altura estimada de uma coluna (cabeçalho + linhas) com margem de segurança
-    // de 8 mm — no limite, prefere coluna única a arriscar transbordo em 2 colunas.
-    const estColH = tableOpts.headerHeight + payHalf * tableOpts.rowHeight + 8
-    if (y7 + estColH <= pageBottom) {
-      const startP7 = doc.internal.getNumberOfPages()
-      const b7L = drawTable(doc, { x: marginX, y: y7, width: col7W, ...tables.payment, rows: payRows.slice(0, payHalf), ...tableOpts })
-      doc.setPage(startP7)
-      const b7R = drawTable(doc, { x: col7RX, y: y7, width: col7W, ...tables.payment, rows: payRows.slice(payHalf), ...tableOpts })
-      y = Math.max(b7L, b7R) + 2.5
-    } else {
-      // Uma coluna inteira — pagina limpo e as cláusulas seguem em sequência.
-      y = drawTable(doc, { x: marginX, y: y7, width: contentW, ...tables.payment, ...tableOpts }) + 2.5
-    }
+    // Duas colunas lado a lado que paginam JUNTAS (esquerda + direita por página),
+    // com o cabeçalho repetido. As cláusulas seguem logo abaixo, sem páginas soltas.
+    y = drawTwoColumnTable(doc, {
+      x: marginX, y: y7, width: contentW, colGap,
+      columns: tables.payment.columns, rows: payRows, opts: tableOpts,
+    }) + 2.5
   }
 
   // ═══ CLÁUSULAS CONTRATUAIS ════════════════════════════════════════════════
