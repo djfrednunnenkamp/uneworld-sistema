@@ -45,7 +45,7 @@ const EMPTY = {
   responsible: '', phone: '', mobile: '', email: '', website: '',
   commission_rate: '', cep: '', street: '', number: '', complement: '',
   neighborhood: '', city: '', state: '', country: 'Brasil',
-  receives_mail: false, use_andes_banking: false,
+  receives_mail: false,
   pix_key_type: '', pix_key: '', use_uneworld_pix: false, notes: '',
 }
 
@@ -761,15 +761,20 @@ export default function AgencyDetail() {
         </div>
         {/* grid3 — alinha com todas as linhas abaixo */}
         <div className="grid3">
-          {/* Col 1: dois toggles lado a lado */}
-          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end' }}>
+          {/* Col 1: toggles agrupados no topo à esquerda */}
+          <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <div>
               <label className="fl">Mala direta impressa</label>
               <Toggle checked={form.receives_mail} onChange={setB('receives_mail')} />
             </div>
             <div>
-              <label className="fl">Dados bancários Uneworld</label>
-              <Toggle checked={form.use_andes_banking} onChange={setB('use_andes_banking')} />
+              <label className="fl">PIX no contrato</label>
+              <Toggle checked={form.use_uneworld_pix} onChange={setB('use_uneworld_pix')} />
+              <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4, maxWidth: 230, lineHeight: 1.4 }}>
+                {form.use_uneworld_pix
+                  ? 'Usará o PIX da UneWorld (Configurações › Operadora).'
+                  : 'Usará o PIX desta agência (seção Dados PIX abaixo).'}
+              </div>
             </div>
           </div>
           {/* Col 2 — Nome fantasma (company_name para física, name para jurídica) */}
@@ -917,19 +922,9 @@ export default function AgencyDetail() {
 
       </div>
 
-      {/* ── Dados PIX ── */}
+      {/* ── Dados PIX ── (o toggle "PIX no contrato" fica no topo, junto dos demais) */}
       <div className="section">
         <div className="section-title">Dados PIX</div>
-        {/* Qual PIX vai no contrato desta agência: o da UneWorld ou o desta agência. */}
-        <div style={{ marginBottom: 16 }}>
-          <label className="fl">No contrato, usar o PIX da UneWorld?</label>
-          <Toggle checked={form.use_uneworld_pix} onChange={setB('use_uneworld_pix')} />
-          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
-            {form.use_uneworld_pix
-              ? 'O contrato desta agência mostrará o PIX da UneWorld (Configurações › Operadora).'
-              : 'O contrato desta agência mostrará o PIX cadastrado abaixo.'}
-          </div>
-        </div>
         <div className="grid3">
           <F label="Tipo de chave PIX">
             <FormSelect

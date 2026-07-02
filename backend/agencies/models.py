@@ -65,7 +65,6 @@ class Agency(models.Model):
 
     # Preferências
     receives_mail      = models.BooleanField('Receber mala direta impressa', default=False)
-    use_andes_banking  = models.BooleanField('Utilizar dados bancários da Andes', default=False)
 
     # PIX
     pix_key_type = models.CharField('Tipo de chave PIX', max_length=20, choices=PIX_TYPE_CHOICES, blank=True)
