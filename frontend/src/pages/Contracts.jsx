@@ -401,6 +401,10 @@ export default function Contracts() {
   const canReview = !!user?.is_superuser || perms.contracts_review
   const canInvoiceView = !!user?.is_superuser || perms.contracts_invoice_view
   const canInvoice = !!user?.is_superuser || perms.contracts_invoice
+  // Usuário de agência acompanha o contrato até o fim (Em faturamento / Faturado),
+  // mas só VÊ o estado — não fatura (o botão Faturar exige contracts_invoice, que
+  // ele não tem, e o backend também bloqueia as ações de avanço de etapa).
+  const isAgencyUser = !!user?.is_agency_user
   const canViewLog = !!user?.is_superuser || perms.contracts_view_logs
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(true)
@@ -739,7 +743,7 @@ export default function Contracts() {
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'revisao',   label: 'Em revisão',       color: '#7c3aed', count: stageCount('revisao') },
-    ...(canInvoiceView ? [
+    ...((canInvoiceView || isAgencyUser) ? [
       { key: 'a_faturar', label: 'Em faturamento',  color: '#ca8a04', count: stageCount('a_faturar') },
       { key: 'faturado',  label: 'Faturados',       color: '#059669', count: stageCount('faturado') },
     ] : []),

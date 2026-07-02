@@ -210,6 +210,19 @@ class AgencyScopeTest(_APITestCase):
         ids = self._ids(self.client.get('/api/agencies/'))
         self.assertEqual(ids, [self.agA.id])
 
+    def test_agency_user_sees_finalized_stages_but_cannot_advance(self):
+        """Usuário de agência acompanha o contrato faturado (só vê o estado), mas
+        não pode aprovar a revisão nem faturar (read-only garantido no backend)."""
+        # contrato da agência já faturado
+        self.cA.stage = 'faturado'; self.cA.save(update_fields=['stage'])
+        self.client.force_authenticate(self.aguser)
+        # vê o contrato faturado na lista escopada
+        ids = self._ids(self.client.get('/api/contracts/'))
+        self.assertIn(self.cA.id, ids)
+        # mas não consegue faturar nem aprovar (sem contracts_invoice/contracts_review)
+        self.assertEqual(self.client.post(f'/api/contracts/{self.cA.id}/invoice/', {}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(f'/api/contracts/{self.cA.id}/approve/', {}, format='json').status_code, 403)
+
 
 class ContractBroadcastSignalTest(DjTestCase):
     """Toda alteração de contrato (inclusive o webhook do Autentique, que salva o
