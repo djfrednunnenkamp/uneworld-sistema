@@ -46,6 +46,19 @@ const relCreatedBR = (iso) => {
   return null
 }
 
+// Célula de data com o tempo relativo ("há X min/horas") acima — até 1 dia; depois
+// mostra só a data. `dateStr` = data já formatada; `iso` = timestamp p/ o relativo.
+const dateCell = (dateStr, iso) => {
+  const rel = relCreatedBR(iso)
+  const date = dateStr || DASH
+  return rel ? (
+    <div style={{ lineHeight: 1.2 }}>
+      <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>{rel}</div>
+      <div style={{ fontSize: 12.5, color: '#64748b' }}>{date}</div>
+    </div>
+  ) : date
+}
+
 // Etapas do contrato — rótulo e cor compartilhados entre as abas e a coluna
 // "Status" da aba Geral.
 const STAGE_META = {
@@ -722,26 +735,19 @@ export default function Contracts() {
 
   // Coluna de data muda conforme a aba: criado / enviado / assinado / excluído.
   const cols = useMemo(() => {
+    // Em todas as abas, a coluna de data mostra o tempo relativo acima (via dateCell).
     const dateCol = tab === 'enviado'
-      ? { key: 'sent_at',   label: 'Enviado em',  align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      ? { key: 'sent_at',   label: 'Enviado em',  align: 'center', render: (v) => dateCell(v ? fmtDateTimeBR(v) : null, v) }
       : tab === 'revisao'
-      ? { key: 'signed_at', label: 'Assinado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      ? { key: 'signed_at', label: 'Assinado em', align: 'center', render: (v) => dateCell(v ? fmtDateTimeBR(v) : null, v) }
       : tab === 'a_faturar'
-      ? { key: 'reviewed_at', label: 'Aprovado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      ? { key: 'reviewed_at', label: 'Aprovado em', align: 'center', render: (v) => dateCell(v ? fmtDateTimeBR(v) : null, v) }
       : tab === 'faturado'
-      ? { key: 'invoiced_at', label: 'Faturado em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
+      ? { key: 'invoiced_at', label: 'Faturado em', align: 'center', render: (v) => dateCell(v ? fmtDateTimeBR(v) : null, v) }
       : tab === 'trash'
-      ? { key: 'deleted_at', label: 'Excluído em', align: 'center', render: (v) => v ? fmtDateTimeBR(v) : DASH }
-      : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v, row) => {
-          const date = v ? fmtDateBR(v) : DASH
-          const rel = relCreatedBR(row.created_at)   // "há X min/horas" até 1 dia
-          return rel ? (
-            <div style={{ lineHeight: 1.2 }}>
-              <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>{rel}</div>
-              <div style={{ fontSize: 12.5, color: '#64748b' }}>{date}</div>
-            </div>
-          ) : date
-        } }
+      ? { key: 'deleted_at', label: 'Excluído em', align: 'center', render: (v) => dateCell(v ? fmtDateTimeBR(v) : null, v) }
+      // "Criado em": a data é a do contrato, mas o relativo vem de created_at (timestamp real).
+      : { key: 'contract_date', label: 'Criado em', align: 'center', render: (v, row) => dateCell(v ? fmtDateBR(v) : null, row.created_at) }
     return [
       { key: 'reservation_number', label: 'Reserva', align: 'center', render: (v, row) => (
         <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
