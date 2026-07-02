@@ -12,9 +12,9 @@ import { Ic } from './Icon'
  *   danger  — destaque vermelho mais forte (cabeçalho/ícone), pra ações
  *             realmente destrutivas (ex: apagar tudo de uma importação CSV)
  */
-export default function ConfirmModal({ title = 'Confirmar exclusão', message, detail, okLabel = 'Excluir', onOk, onCancel, danger = false }) {
+export default function ConfirmModal({ title = 'Confirmar exclusão', message, detail, okLabel = 'Excluir', onOk, onCancel, danger = false, zIndex }) {
   return (
-    <div className="overlay" onClick={onCancel}>
+    <div className="overlay" style={zIndex ? { zIndex } : undefined} onClick={onCancel}>
       <div className="mbox" style={{ maxWidth: 400, border: danger ? '1.5px solid #fecaca' : undefined }} onClick={e => e.stopPropagation()}>
         <div className="mhead" style={danger ? { background:'#fef2f2', borderBottom:'1px solid #fecaca' } : undefined}>
           <span className="mtitle" style={danger ? { color:'#b91c1c' } : undefined}>{title}</span>

@@ -219,6 +219,7 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
           detail="Você confirma que este é o documento correto e assinado? Ele seguirá para a revisão MARCADO COMO NÃO VERIFICADO, e a operadora verá um aviso para conferir à mão."
           okLabel="Sim, anexar mesmo assim"
           danger
+          zIndex={600}
           onOk={() => upload(true)}
           onCancel={() => !busy && setOverridePrompt(null)}
         />
