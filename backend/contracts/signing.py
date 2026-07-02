@@ -16,7 +16,8 @@ import hmac
 from django.conf import settings
 
 _PREFIX = 'UNE1'
-_SIG_LEN = 16          # 16 chars base32 ≈ 80 bits — sobra para evitar forja
+_SIG_LEN = 10          # 10 chars base32 ≈ 50 bits — o bastante contra forja e
+                       # deixa o token curto (QR menos denso, cabe pequeno na margem)
 
 
 def _secret():

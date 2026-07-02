@@ -590,7 +590,9 @@ export async function generateContractPDF(contract, opts = {}) {
   const pw  = doc.internal.pageSize.getWidth()
   const ph  = doc.internal.pageSize.getHeight()
 
-  const marginX = 11, marginTop = 6, marginBottom = 10
+  // No PDF de assinatura reservamos uma margem inferior maior para o QR de
+  // segurança caber ABAIXO do conteúdo (nunca sobre ele) e num tamanho legível.
+  const marginX = 11, marginTop = 6, marginBottom = opts.signing ? 18 : 10
   const contentW  = pw - marginX * 2
   const pageBottom = ph - marginBottom
 
@@ -963,11 +965,14 @@ export async function generateContractPDF(contract, opts = {}) {
       throw new Error('Não foi possível gerar o código de segurança do PDF.')
     }
     const QRCode = (await import('qrcode')).default
-    const qrSize = 15                                   // mm
-    const qx = pw - marginX - qrSize                    // canto inferior direito
-    const qy = ph - marginBottom - qrSize
+    // O QR fica na MARGEM inferior direita reservada (marginBottom=18 quando
+    // signing): ABAIXO do conteúdo (que vai só até pageBottom = ph-18), então
+    // nunca tapa nada. 14 mm é legível mesmo em scan modesto (~200 dpi).
+    const qrSize = 14
+    const qx = pw - qrSize - 4                          // 4 mm da borda direita do papel
+    const qy = ph - qrSize - 3                          // ph-17 → 1 mm abaixo do fim do conteúdo
     for (let i = 1; i <= pageCount; i++) {
-      const url = await QRCode.toDataURL(tokens[i - 1].token, { margin: 0, errorCorrectionLevel: 'M', width: 320 })
+      const url = await QRCode.toDataURL(tokens[i - 1].token, { margin: 0, errorCorrectionLevel: 'M', width: 400 })
       doc.setPage(i)
       doc.addImage(url, 'PNG', qx, qy, qrSize, qrSize)
     }

@@ -55,11 +55,14 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
     if (!file) { toast.error('Selecione o arquivo assinado.'); return }
     if (!confirmed) { toast.error('Confirme que o contrato está assinado e correto.'); return }
     setBusy(true)
+    // Progresso na notificação: o upload + verificação dos QR pode demorar; assim
+    // a pessoa vê que está andando (igual ao "Verificando assinatura…" do digital).
+    const toastId = toast.loading('Enviando e verificando o contrato assinado…')
     try {
       await contractsApi.uploadSigned(contract.id, file)
-      toast.success('Contrato assinado anexado. Movido para "Em revisão".')
+      toast.success('Contrato assinado anexado. Movido para "Em revisão".', { id: toastId })
       onDone?.('revisao')
-    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao anexar o contrato assinado.') }
+    } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao anexar o contrato assinado.', { id: toastId }) }
     finally { setBusy(false) }
   }
 

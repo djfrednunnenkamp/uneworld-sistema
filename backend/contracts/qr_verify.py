@@ -36,7 +36,7 @@ def _decode_page(pix, cv2, np):
     return out
 
 
-def read_pdf_page_tokens(pdf_bytes, dpi=220):
+def read_pdf_page_tokens(pdf_bytes, dpi=300):
     """Para cada página do PDF, devolve a lista de tokens VÁLIDOS encontrados.
     Retorna lista-de-listas (índice = página física, 0-based)."""
     import fitz  # PyMuPDF
