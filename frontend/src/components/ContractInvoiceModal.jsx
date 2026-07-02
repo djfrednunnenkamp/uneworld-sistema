@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { contractsApi } from '../api'
+import SignedFileViewer from './SignedFileViewer'
 import { Ic } from './Icon'
 import DatePicker from './DatePicker'
 
@@ -73,11 +74,13 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
     )
   }
 
+  // Quando há documento assinado, abre-o à ESQUERDA e os dados da fatura à direita.
+  const hasPdf = !!data?.signed_file
   return (
     <div onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 640, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: hasPdf ? 1080 : 640, height: hasPdf ? '92vh' : undefined, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: '#fef9c3', color: '#ca8a04', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="card" s={20} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -87,7 +90,14 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
           <button onClick={() => !busy && onClose()} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e6eaf1', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic n="x" s={16} /></button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+        {/* Corpo: documento assinado à ESQUERDA (quando houver) + dados da fatura à direita */}
+        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          {hasPdf && (
+            <div style={{ flex: 1.2, minWidth: 0, minHeight: 0, borderRight: '1px solid #eef2f7', display: 'flex' }}>
+              <SignedFileViewer url={data.signed_file} />
+            </div>
+          )}
+          <div style={{ flex: hasPdf ? '0 0 470px' : 1, minWidth: 0, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {loading ? (
             <p style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0' }}>Carregando…</p>
           ) : !data ? (
@@ -157,6 +167,7 @@ export default function ContractInvoiceModal({ contractId, onClose, onDone }) {
               </div>
             </div>
           </>)}
+          </div>
         </div>
 
         {!loading && data && (

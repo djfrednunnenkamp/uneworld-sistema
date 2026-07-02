@@ -266,6 +266,8 @@ def build_review_data(contract):
         'contract_id': contract.id,
         'reservation_number': contract.reservation_number,
         'stage': contract.stage,
+        # URL autenticada do arquivo assinado (para o preview ao lado na conferência).
+        'signed_file': f'/api/contracts/{contract.id}/signed-file/' if contract.signed_file else None,
         'agency_name': str(contract.agency) if contract.agency_id else None,
         'payer_name': payer_name,
         'package_name': contract.package_name or None,
