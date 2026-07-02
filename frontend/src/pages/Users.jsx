@@ -1222,6 +1222,7 @@ export default function Users() {
                 )}
                 <th>Usuário</th>
                 <th style={{textAlign:'center'}}>E-mail</th>
+                <th style={{textAlign:'center'}}>Origem</th>
                 <th style={{textAlign:'center'}}>Perfil</th>
                 <th style={{textAlign:'center'}}>Status</th>
                 <th style={{width:130,textAlign:'center'}}></th>
@@ -1248,6 +1249,12 @@ export default function Users() {
                     </div>
                   </td>
                   <td className="t-muted" style={{textAlign:'center'}}><CopyCell value={u.email} muted /></td>
+                  <td style={{textAlign:'center'}}>
+                    {/* Origem: interno (operadora) x agência (mostra o nome da agência). */}
+                    {u.is_agency_user
+                      ? <span className="badge bg-purple">{(u.agencies || []).map(a => a.name).join(', ') || 'Agência'}</span>
+                      : <span className="badge bg-blue">Operadora</span>}
+                  </td>
                   <td style={{textAlign:'center'}}>
                     {u.is_superuser
                       ? <BadgeTooltip badge={<span className="badge bg-blue" style={{ cursor:'help' }}>Superusuário</span>}>
