@@ -98,15 +98,34 @@ class PaymentPlanReviewFlagTest(DjTestCase):
                                   'down_payment_value': 20, 'installments_count': 10,
                                   'payment_method': 'Boleto'})
 
-    def test_flag_when_entrada_and_count_changed(self):
+    def _flags(self, c):
+        return {f['code']: f['level'] for f in build_review_data(c)['flags']}
+
+    def test_unfavorable_changes_are_warnings(self):
         c = self._contract()
-        # Sugerido: entrada 20% (=10.000) + 10x. Usuário mudou p/ 5.000 + 24x.
+        # Sugerido: entrada 20% (=10.000) + 10x. Usuário baixou p/ 5.000 + 24x
+        # (entrada MENOR e MAIS parcelas = desfavorável → alerta laranja).
         ContractInstallment.objects.create(contract=c, kind='entrada', value_brl=Decimal('5000'), order=0)
         for i in range(24):
             ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=i + 1,
                                                value_brl=Decimal('1875'), order=i + 1)
-        codes = [f['code'] for f in build_review_data(c)['flags']]
-        self.assertIn('payment_plan_changed', codes)
+        f = self._flags(c)
+        self.assertEqual(f.get('payment_entrada_down'), 'warn')
+        self.assertEqual(f.get('payment_installments_up'), 'warn')
+
+    def test_favorable_changes_are_green(self):
+        # Entrada MAIOR (15.000 vs 10.000) e MENOS parcelas (8 vs 10) → verde ('good').
+        c = Contract.objects.create(
+            total_brl=Decimal('50000.00'), payment_type='parcelado',
+            payment_plan_applied={'has_down_payment': True, 'down_payment_mode': 'percent',
+                                  'down_payment_value': 20, 'installments_count': 10})
+        ContractInstallment.objects.create(contract=c, kind='entrada', value_brl=Decimal('15000'), order=0)
+        for i in range(8):
+            ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=i + 1,
+                                               value_brl=Decimal('4375'), order=i + 1)
+        f = self._flags(c)
+        self.assertEqual(f.get('payment_entrada_up'), 'good')
+        self.assertEqual(f.get('payment_installments_down'), 'good')
 
     def test_no_flag_when_matches_suggestion(self):
         c = self._contract()
@@ -116,11 +135,12 @@ class PaymentPlanReviewFlagTest(DjTestCase):
         for i in range(10):
             ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=i + 1,
                                                value_brl=Decimal('4000'), payment_method='Boleto', order=i + 1)
-        codes = [f['code'] for f in build_review_data(c)['flags']]
-        self.assertNotIn('payment_plan_changed', codes)
+        codes = list(self._flags(c).keys())
+        self.assertFalse(any(code.startswith('payment_entrada') or code.startswith('payment_installments')
+                             for code in codes))
 
-    def test_flag_with_valor_entrada_mode(self):
-        # Entrada como VALOR fixo (R$ 10.000). Usuário baixou p/ R$ 3.000 → flag.
+    def test_valor_entrada_mode_lower_is_warning(self):
+        # Entrada como VALOR fixo (R$ 10.000). Usuário baixou p/ R$ 3.000 → alerta.
         c = Contract.objects.create(
             total_brl=Decimal('50000.00'), payment_type='parcelado',
             payment_plan_applied={'has_down_payment': True, 'down_payment_mode': 'valor',
@@ -129,5 +149,4 @@ class PaymentPlanReviewFlagTest(DjTestCase):
         for i in range(10):
             ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=i + 1,
                                                value_brl=Decimal('4700'), order=i + 1)
-        codes = [f['code'] for f in build_review_data(c)['flags']]
-        self.assertIn('payment_plan_changed', codes)
+        self.assertEqual(self._flags(c).get('payment_entrada_down'), 'warn')

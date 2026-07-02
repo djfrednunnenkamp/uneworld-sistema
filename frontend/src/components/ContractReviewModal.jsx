@@ -11,6 +11,7 @@ const FLAG_STYLE = {
   error: { bg: '#fef2f2', border: '#fecaca', color: '#b91c1c', ic: 'warn' },
   warn:  { bg: '#fffbeb', border: '#fde68a', color: '#b45309', ic: 'warn' },
   info:  { bg: '#eff6ff', border: '#bfdbfe', color: '#1e40af', ic: 'warn' },
+  good:  { bg: '#f0fdf4', border: '#bbf7d0', color: '#15803d', ic: 'check' },  // mudança favorável (verde)
 }
 
 /* Popup de REVISÃO da operadora — detalhamento item a item + alertas, com
