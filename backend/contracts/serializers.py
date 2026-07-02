@@ -368,6 +368,15 @@ class ContractSerializer(serializers.ModelSerializer):
                 validated_data.pop(f, None)
 
         user = getattr(request, 'user', None) if request else None
+        # Usuário de agência: o contrato é SEMPRE de uma agência dele. Se não
+        # escolheu (ou escolheu uma fora do escopo), força para a agência dele.
+        from users_api.permissions import agency_scope_ids
+        scope = agency_scope_ids(user)
+        if scope is not None:
+            ag = validated_data.get('agency')
+            if not (ag and ag.id in scope):
+                from agencies.models import Agency
+                validated_data['agency'] = Agency.objects.filter(id__in=scope).first()
         # Vendedor: por padrão é o próprio criador. Só pode ser outro usuário se
         # quem cria tiver a permissão contracts_change_seller — senão é forçado
         # ao criador, mesmo que o payload tente mandar outro.
@@ -401,6 +410,15 @@ class ContractSerializer(serializers.ModelSerializer):
         installments        = validated_data.pop('installments', None)
         adjustments         = validated_data.pop('adjustments', None)
         clauses              = validated_data.pop('clauses', None)
+        # Usuário de agência não pode mover o contrato para uma agência fora do
+        # escopo dele — mantém a agência atual nesse caso.
+        from users_api.permissions import agency_scope_ids
+        _req = self.context.get('request')
+        _scope = agency_scope_ids(getattr(_req, 'user', None) if _req else None)
+        if _scope is not None and 'agency' in validated_data:
+            ag = validated_data.get('agency')
+            if not (ag and ag.id in _scope):
+                validated_data.pop('agency', None)
         # Cláusulas personalizadas só podem ser alteradas por quem tem a permissão.
         if 'custom_clauses' in validated_data:
             request = self.context.get('request')

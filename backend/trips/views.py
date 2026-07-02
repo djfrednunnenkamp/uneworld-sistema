@@ -143,7 +143,13 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     ordering_fields  = ['name', 'start_date', 'created_at']
 
     def get_queryset(self):
+        from users_api.permissions import agency_scope_ids
         qs     = super().get_queryset()
+        # Usuário de agência só vê listas em que a agência dele tem passageiros
+        # (a Lista não tem agência direta; o vínculo é via ListEnrollment.agency).
+        scope = agency_scope_ids(self.request.user)
+        if scope is not None:
+            qs = qs.filter(list_enrollments__agency_id__in=scope).distinct()
         status = self.request.query_params.get('status')
         if status:
             qs = qs.filter(status=status)

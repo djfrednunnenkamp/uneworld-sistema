@@ -95,6 +95,14 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         agencies = validated_data.pop('agencies', [])
         passenger = super().create(validated_data)
         passenger.agencies.set(agencies)
+        # Usuário de agência: garante que o passageiro criado fique ligado à(s)
+        # agência(s) dele — senão ele não conseguiria nem ver o que acabou de criar.
+        from users_api.permissions import agency_scope_ids
+        req = self.context.get('request')
+        scope = agency_scope_ids(getattr(req, 'user', None) if req else None)
+        if scope:
+            from agencies.models import Agency
+            passenger.agencies.add(*Agency.objects.filter(id__in=scope))
         return passenger
 
     def update(self, instance, validated_data):

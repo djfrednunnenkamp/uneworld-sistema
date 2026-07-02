@@ -150,3 +150,62 @@ class PaymentPlanReviewFlagTest(DjTestCase):
             ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=i + 1,
                                                value_brl=Decimal('4700'), order=i + 1)
         self.assertEqual(self._flags(c).get('payment_entrada_down'), 'warn')
+
+
+# ── Escopo por agência (usuário de agência vê só os dados da agência dele) ────
+from django.contrib.auth.models import User as DjUser
+from rest_framework.test import APITestCase as _APITestCase
+from users_api.models import UserPermissions
+from users_api.permissions import agency_scope_ids
+from agencies.models import Agency, AgencyMember
+
+
+def _mkuser(username, superuser=False, staff=False, **perms):
+    u = DjUser.objects.create_user(username=username, email=f'{username}@x.com', password='pw12345678')
+    if superuser:
+        u.is_superuser = True; u.is_staff = True; u.save()
+    elif staff:
+        u.is_staff = True; u.save()
+    p, _ = UserPermissions.objects.get_or_create(user=u)
+    for k, v in perms.items():
+        setattr(p, k, v)
+    p.save()
+    return u
+
+
+class AgencyScopeTest(_APITestCase):
+    def setUp(self):
+        self.agA = Agency.objects.create(name='A', person_type='juridica')
+        self.agB = Agency.objects.create(name='B', person_type='juridica')
+        self.aguser = _mkuser('aguser', contracts_view=True)   # não-staff → escopado
+        AgencyMember.objects.create(agency=self.agA, user=self.aguser)
+        self.cA = Contract.objects.create(agency=self.agA, status='ativo', total_brl=100)
+        self.cB = Contract.objects.create(agency=self.agB, status='ativo', total_brl=100)
+
+    def _ids(self, r):
+        data = r.data.get('results') if isinstance(r.data, dict) else r.data
+        return [c['id'] for c in data]
+
+    def test_scope_helper(self):
+        self.assertEqual(sorted(agency_scope_ids(self.aguser)), [self.agA.id])
+        self.assertIsNone(agency_scope_ids(_mkuser('root', superuser=True)))  # interno → sem escopo
+
+    def test_agency_user_sees_only_own_contracts(self):
+        self.client.force_authenticate(self.aguser)
+        ids = self._ids(self.client.get('/api/contracts/'))
+        self.assertIn(self.cA.id, ids)
+        self.assertNotIn(self.cB.id, ids)
+
+    def test_internal_user_sees_all_contracts(self):
+        self.client.force_authenticate(_mkuser('root2', superuser=True))
+        ids = self._ids(self.client.get('/api/contracts/'))
+        self.assertIn(self.cA.id, ids)
+        self.assertIn(self.cB.id, ids)
+
+    def test_agency_user_only_sees_own_agency(self):
+        self.aguser2 = self.aguser
+        self.client.force_authenticate(self.aguser)
+        # com agencies_view pra listar agências
+        p = self.aguser.permissions; p.agencies_view = True; p.save()
+        ids = self._ids(self.client.get('/api/agencies/'))
+        self.assertEqual(ids, [self.agA.id])

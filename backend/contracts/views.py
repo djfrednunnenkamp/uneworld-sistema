@@ -129,7 +129,12 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         from django.db.models import Q
+        from users_api.permissions import agency_scope_ids
         qs = super().get_queryset()
+        # Usuário de agência só vê contratos da(s) própria(s) agência(s).
+        scope = agency_scope_ids(self.request.user)
+        if scope is not None:
+            qs = qs.filter(agency_id__in=scope)
         # Rascunhos são PRIVADOS de quem criou — em qualquer ação (listar, abrir,
         # editar, descartar) só o dono enxerga o seu rascunho. Contratos
         # finalizados seguem compartilhados normalmente.

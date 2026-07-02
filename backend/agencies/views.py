@@ -38,7 +38,12 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
 
     def get_queryset(self):
         from django.db.models import Q
+        from users_api.permissions import agency_scope_ids
         qs = super().get_queryset()   # aplica o filtro de soft-delete (is_deleted)
+        # Usuário de agência só enxerga a(s) própria(s) agência(s).
+        scope = agency_scope_ids(self.request.user)
+        if scope is not None:
+            qs = qs.filter(id__in=scope)
         # Rascunhos são PRIVADOS de quem criou (listar/abrir/editar/descartar).
         qs = qs.filter(~Q(status='rascunho') | Q(created_by=self.request.user))
         # Na listagem, rascunhos ficam fora por padrão; ?status=rascunho traz só eles.

@@ -179,6 +179,21 @@ def has_any_perm(user, *perm_keys):
     return any(getattr(perms, key, False) for key in perm_keys)
 
 
+def agency_scope_ids(user):
+    """IDs das agências às quais o usuário pertence QUANDO ele é um 'usuário de
+    agência' — membro de ao menos uma agência e SEM ser equipe interna (não staff
+    nem superusuário). Nesse caso, o acesso a dados é limitado a essas agências.
+
+    Retorna None quando NÃO há escopo (superusuário, equipe interna/staff, ou
+    usuário sem nenhuma agência) — aí vê tudo, sujeito só às permissões normais."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    if user.is_superuser or user.is_staff:
+        return None
+    ids = list(user.agency_memberships.values_list('agency_id', flat=True))
+    return ids or None
+
+
 def sync_is_staff(user):
     """Recalcula user.is_staff a partir das permissões administrativas atuais."""
     if user.is_superuser:
