@@ -11,7 +11,7 @@ from rest_framework import status
 from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, InviteRateThrottle
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
-from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids
+from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids, agency_admin_ids, can_manage_agency_user
 
 
 def _password_error(new_pw, user=None):
@@ -51,6 +51,9 @@ def serialize_user(u, perms=None):
         # (ex.: no contrato ele não escolhe agência, já é a dele).
         'is_agency_user': scope is not None,
         'agency_ids':     scope or [],
+        # Admin de agência: pode gerenciar os usuários da(s) agência(s) dele.
+        'agency_admin_ids': agency_admin_ids(u),
+        'is_agency_admin':  bool(agency_admin_ids(u)),
         'id':           u.id,
         'username':     u.username,
         'email':        u.email,
@@ -208,10 +211,19 @@ def change_password(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_list(request):
-    if not has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_block', 'users_delete', 'users_manage_permissions'):
+    is_internal = has_any_perm(request.user, 'manage_users', 'users_view', 'users_edit', 'users_block', 'users_delete', 'users_manage_permissions')
+    admin_ids = agency_admin_ids(request.user)
+    if not is_internal and not admin_ids:
         return Response({'error': 'Sem permissão.'}, status=403)
     show_deleted = request.query_params.get('deleted') in ('1', 'true', 'True')
-    users = User.objects.all().order_by('username')
+    if is_internal:
+        users = User.objects.all().order_by('username')
+    else:
+        # Admin de agência: só vê os usuários da(s) agência(s) que ele administra,
+        # e nunca contas internas (staff/superusuário).
+        users = (User.objects
+                 .filter(agency_memberships__agency_id__in=admin_ids, is_superuser=False, is_staff=False)
+                 .distinct().order_by('username'))
     result = []
     for u in users:
         perms = get_user_permissions(u)
@@ -223,8 +235,13 @@ def user_list(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def user_create(request):
-    if not has_any_perm(request.user, 'manage_users', 'users_edit'):
+    is_internal_mgr = has_any_perm(request.user, 'manage_users', 'users_edit')
+    actor_admin_ids = agency_admin_ids(request.user)
+    if not (is_internal_mgr or actor_admin_ids):
         return Response({'error': 'Sem permissão.'}, status=403)
+    # Admin de agência (não interno) cria só usuários DA agência dele: vira membro
+    # automaticamente e recebe o perfil padrão de agência (não pode forjar permissões).
+    is_agency_admin_create = bool(actor_admin_ids) and not is_internal_mgr
     data       = request.data
     email      = data.get('email', '').strip().lower()
     first_name = data.get('first_name', '').strip()
@@ -246,8 +263,9 @@ def user_create(request):
     if not user.is_superuser:
         from config_api.models import PermissionProfile
         can_perms = has_any_perm(request.user, 'manage_users', 'users_manage_permissions')
+        want_agency_profile = bool(data.get('agency_user')) or is_agency_admin_create
         prof = None
-        if data.get('agency_user'):
+        if want_agency_profile:
             # Usuário de AGÊNCIA: recebe automaticamente o perfil marcado como
             # "padrão de agência" nas Configurações (template controlado pelos admins).
             prof = PermissionProfile.objects.filter(is_agency_default=True, is_deleted=False).first()
@@ -257,11 +275,24 @@ def user_create(request):
         if prof:
             # Vínculo VIVO: editar o perfil depois re-aplica a este usuário.
             apply_profile(user, prof)
-        elif not data.get('agency_user'):
+        elif not want_agency_profile:
             perm_data = dict(data)
             if not can_perms:
                 perm_data.pop('permissions', None)
             _apply_permissions(user, perm_data, actor=request.user)
+
+    # Admin de agência: vincula o novo usuário à agência dele (senão ficaria órfão
+    # e invisível). Usa a agência informada, se for uma que ele administra, ou a
+    # única que ele administra.
+    if is_agency_admin_create:
+        from agencies.models import AgencyMember
+        req_ag = data.get('agency_id')
+        try:
+            req_ag = int(req_ag) if req_ag is not None else None
+        except (TypeError, ValueError):
+            req_ag = None
+        target_agency = req_ag if req_ag in actor_admin_ids else actor_admin_ids[0]
+        AgencyMember.objects.get_or_create(agency_id=target_agency, user=user, defaults={'role': 'operator'})
 
     if 'phone' in data:
         perms = get_user_permissions(user)
@@ -286,15 +317,18 @@ def user_create(request):
 @api_view(['PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_update(request, pk):
-    if not has_any_perm(request.user, 'manage_users', 'users_edit', 'users_block', 'users_manage_permissions'):
-        return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    # Admin de agência pode editar os usuários da agência dele (limitado às
+    # permissões que ele mesmo tem; ver _apply_permissions/actor abaixo).
+    is_agency_admin_edit = can_manage_agency_user(request.user, user)
+    if not (has_any_perm(request.user, 'manage_users', 'users_edit', 'users_block', 'users_manage_permissions') or is_agency_admin_edit):
+        return Response({'error': 'Sem permissão.'}, status=403)
 
     data = request.data
-    if has_any_perm(request.user, 'manage_users', 'users_edit'):
+    if has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit:
         if 'first_name' in data: user.first_name = data['first_name']
         if 'last_name'  in data: user.last_name  = data['last_name']
         if 'email' in data:
@@ -308,7 +342,7 @@ def user_update(request, pk):
                 # (que busca por e-mail e autentica pelo username) não quebrar.
                 user.email    = new_email
                 user.username = new_email
-    if has_any_perm(request.user, 'manage_users', 'users_edit', 'users_block'):
+    if has_any_perm(request.user, 'manage_users', 'users_edit', 'users_block') or is_agency_admin_edit:
         if 'is_active'  in data: user.is_active  = bool(data['is_active'])
 
     # Apenas superusuários existentes podem conceder/revogar superusuário
@@ -323,12 +357,18 @@ def user_update(request, pk):
     user.save()
     if not user.is_superuser:
         from config_api.models import PermissionProfile
-        can_perms = has_any_perm(request.user, 'manage_users', 'users_manage_permissions')
+        # Gestor interno pode vincular perfil; admin de agência edita permissões,
+        # mas SEMPRE limitado às que ele tem (actor=request.user filtra) e NUNCA
+        # pode forjar um perfil (evita escalar concedendo um perfil forte).
+        internal_perms = has_any_perm(request.user, 'manage_users', 'users_manage_permissions')
+        can_perms = internal_perms or is_agency_admin_edit
         perm_data = dict(data)
         if not can_perms:
             perm_data.pop('permissions', None)
             perm_data.pop('profile_id', None)
-        if perm_data.get('profile_id'):
+        if not internal_perms:
+            perm_data.pop('profile_id', None)   # só gestor interno linka perfil
+        if internal_perms and perm_data.get('profile_id'):
             # Vincula a um perfil (link vivo). Editar o perfil depois re-aplica aqui.
             prof = PermissionProfile.objects.filter(pk=perm_data['profile_id'], is_deleted=False).first()
             if prof:
@@ -345,7 +385,7 @@ def user_update(request, pk):
                     perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
-    if 'phone' in data and has_any_perm(request.user, 'manage_users', 'users_edit'):
+    if 'phone' in data and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit):
         perms = get_user_permissions(user)
         perms.phone = (data.get('phone') or '').strip()
         perms.save(update_fields=['phone'])
@@ -520,12 +560,13 @@ def user_delete(request, pk):
     """Soft-delete — nunca remove o usuário do banco. Marca como excluído
     (vai pra aba "Excluídos") e desativa o login; só um superusuário pode
     restaurar ou remover de vez (ver user_restore/user_purge)."""
-    if not (request.user.is_superuser or has_any_perm(request.user, 'users_delete')):
-        return Response({'error': 'Sem permissão para excluir usuários.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    if not (request.user.is_superuser or has_any_perm(request.user, 'users_delete')
+            or can_manage_agency_user(request.user, user)):
+        return Response({'error': 'Sem permissão para excluir usuários.'}, status=403)
     if user == request.user:
         return Response({'error': 'Não é possível excluir seu próprio usuário.'}, status=400)
     perms = get_user_permissions(user)
@@ -598,12 +639,12 @@ def _log_user_action(actor, target_user, action):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def admin_send_reset(request, pk):
-    if not has_any_perm(request.user, 'manage_users', 'users_edit'):
-        return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    if not (has_any_perm(request.user, 'manage_users', 'users_edit') or can_manage_agency_user(request.user, user)):
+        return Response({'error': 'Sem permissão.'}, status=403)
     if not _can_target_user(request.user, user):
         return Response({'error': 'Você não tem permissão para esta ação.'}, status=403)
     token = PasswordResetToken.objects.create(user=user)
@@ -615,12 +656,13 @@ def admin_send_reset(request, pk):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def admin_set_password(request, pk):
-    if not (request.user.is_superuser or has_any_perm(request.user, 'manage_users', 'users_set_password')):
-        return Response({'error': 'Sem permissão.'}, status=403)
     try:
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    if not (request.user.is_superuser or has_any_perm(request.user, 'manage_users', 'users_set_password')
+            or can_manage_agency_user(request.user, user)):
+        return Response({'error': 'Sem permissão.'}, status=403)
     if not _can_target_user(request.user, user):
         return Response({'error': 'Você não tem permissão para esta ação.'}, status=403)
     admin_password = request.data.get('admin_password', '')

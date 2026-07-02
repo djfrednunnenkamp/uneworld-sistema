@@ -268,6 +268,17 @@ function AgencyUsersTab({ agencyId }) {
     toast.success('Usuário removido da agência.')
   }
 
+  // Admin da agência: pode gerenciar os usuários da própria agência (criar,
+  // permissões limitadas às dele, senha, excluir) pela página Usuários.
+  const toggleAdmin = async (m) => {
+    const role = m.role === 'admin' ? 'operator' : 'admin'
+    try {
+      await agenciesApi.updateMember(agencyId, m.id, role)
+      toast.success(role === 'admin' ? `${m.full_name || m.email} agora é admin da agência.` : 'Admin da agência removido.')
+      load()
+    } catch { toast.error('Erro ao alterar o papel do usuário.') }
+  }
+
   const pill = (bg, color, text) => (
     <span style={{ padding:'2px 8px', borderRadius:20, fontSize:11, fontWeight:600, background:bg, color }}>{text}</span>
   )
@@ -308,11 +319,19 @@ function AgencyUsersTab({ agencyId }) {
                   <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{m.full_name || m.email}</p>
                   <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{m.email}</p>
                 </div>
-                {/* Badges — só mostra Admin e Inativo se relevante */}
+                {/* Badges — só mostra Inativo se relevante */}
                 <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                  {m.is_staff && pill('#eff6ff','#2563eb','Admin')}
                   {!m.is_active && pill('#fee2e2','#dc2626','Inativo')}
                 </div>
+                {/* Admin da agência — clique para alternar (pode gerenciar os usuários da agência) */}
+                <button type="button" onClick={() => toggleAdmin(m)}
+                  title={m.role === 'admin' ? 'Remover admin da agência' : 'Tornar admin da agência (pode gerenciar os usuários desta agência)'}
+                  style={{ padding:'3px 11px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', flexShrink:0,
+                    border: m.role === 'admin' ? '1px solid #c4b5fd' : '1px solid #e2e8f0',
+                    background: m.role === 'admin' ? '#f5f3ff' : '#fff',
+                    color: m.role === 'admin' ? '#6d28d9' : '#94a3b8' }}>
+                  {m.role === 'admin' ? '★ Admin da agência' : 'Tornar admin'}
+                </button>
                 {/* Ações */}
                 <div className="r-acts">
                   <button className="r-btn edit" title="Editar"

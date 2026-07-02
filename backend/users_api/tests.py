@@ -269,3 +269,89 @@ class ProfileLiveLinkTest(APITestCase):
                           {'permissions': {'passengers_view_basic': True}}, format='json')
         perms.refresh_from_db()
         self.assertFalse(perms.passengers_view_basic)
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class AgencyAdminManagementTest(APITestCase):
+    """Admin de agência (AgencyMember.role='admin') gerencia SÓ os usuários da
+    agência dele: criar, listar, permissões (limitadas às dele), senha e excluir.
+    Nunca toca contas internas nem usuários de outra agência."""
+    def setUp(self):
+        cache.clear()
+        from agencies.models import Agency, AgencyMember
+        from config_api.models import PermissionProfile
+        self.agA = Agency.objects.create(name='A', person_type='juridica')
+        self.agB = Agency.objects.create(name='B', person_type='juridica')
+        PermissionProfile.objects.create(name='Agência', is_agency_default=True,
+                                         permissions={'passengers_view_basic': True, 'contracts_view': True})
+        # admin da agência A: tem passengers_view_basic mas NÃO contracts_edit
+        self.admin = make_user('admin_ag', passengers_view_basic=True, contracts_view=True)
+        AgencyMember.objects.create(agency=self.agA, user=self.admin, role='admin')
+        # membro comum da agência A
+        self.memberA = make_user('memberA', passengers_view_basic=True)
+        AgencyMember.objects.create(agency=self.agA, user=self.memberA, role='operator')
+        # usuário da agência B (fora do alcance do admin de A)
+        self.memberB = make_user('memberB')
+        AgencyMember.objects.create(agency=self.agB, user=self.memberB, role='operator')
+        # conta interna (nunca gerenciável por admin de agência)
+        self.staff = make_user('staff', password=ADMIN_PW, manage_users=True)
+
+    def test_list_only_own_agency_users(self):
+        self.client.force_authenticate(self.admin)
+        r = self.client.get('/api/users/')
+        ids = [u['id'] for u in r.data]
+        self.assertIn(self.memberA.id, ids)
+        self.assertIn(self.admin.id, ids)
+        self.assertNotIn(self.memberB.id, ids)
+        self.assertNotIn(self.staff.id, ids)
+
+    def test_create_user_links_to_agency_and_applies_default_profile(self):
+        self.client.force_authenticate(self.admin)
+        r = self.client.post('/api/users/create/', {'email': 'novo@x.com', 'first_name': 'Novo'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        from django.contrib.auth.models import User
+        from agencies.models import AgencyMember
+        u = User.objects.get(email='novo@x.com')
+        self.assertTrue(AgencyMember.objects.filter(agency=self.agA, user=u).exists())
+        self.assertTrue(u.permissions.passengers_view_basic)   # veio do perfil padrão
+
+    def test_edit_permission_bounded_to_admin_own(self):
+        self.client.force_authenticate(self.admin)
+        # admin NÃO tem contracts_edit → não consegue conceder (fica False)
+        r = self.client.patch(f'/api/users/{self.memberA.id}/',
+                              {'permissions': {'contracts_edit': True, 'passengers_view_basic': False},
+                               'profile_id': None}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.memberA.refresh_from_db()
+        p = self.memberA.permissions
+        self.assertFalse(p.contracts_edit)         # não pôde conceder o que não tem
+        self.assertFalse(p.passengers_view_basic)  # pôde REVOGAR o que ele tem
+
+    def test_cannot_touch_other_agency_user(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.patch(f'/api/users/{self.memberB.id}/', {'first_name': 'X'}, format='json').status_code, 403)
+        self.assertEqual(self.client.delete(f'/api/users/{self.memberB.id}/delete/').status_code, 403)
+
+    def test_cannot_touch_internal_account(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.patch(f'/api/users/{self.staff.id}/', {'first_name': 'X'}, format='json').status_code, 403)
+
+    def test_can_reset_password_of_own_user(self):
+        self.client.force_authenticate(self.admin)
+        r = self.client.post(f'/api/users/{self.memberA.id}/set-password/',
+                             {'admin_password': 'pw12345678', 'password': 'NovaSenha#42'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.memberA.refresh_from_db()
+        self.assertTrue(self.memberA.check_password('NovaSenha#42'))
+
+    def test_can_delete_own_user(self):
+        self.client.force_authenticate(self.admin)
+        r = self.client.delete(f'/api/users/{self.memberA.id}/delete/')
+        self.assertEqual(r.status_code, 204)
+        self.memberA.refresh_from_db()
+        self.assertTrue(self.memberA.permissions.is_deleted)
+
+    def test_non_admin_member_cannot_manage(self):
+        self.client.force_authenticate(self.memberA)   # operador comum, não admin
+        self.assertEqual(self.client.get('/api/users/').status_code, 403)
+        self.assertEqual(self.client.post('/api/users/create/', {'email': 'z@x.com'}, format='json').status_code, 403)

@@ -31,7 +31,8 @@ export default function Sidebar() {
   const hasAccess = (perms) =>
     !perms || user?.is_superuser || perms.some(p => user?.permissions?.[p])
 
-  const NAV = NAV_BASE.filter(item => hasAccess(item.perms))
+  // Admin de agência vê o item Usuários (gerencia os usuários da agência dele).
+  const NAV = NAV_BASE.filter(item => hasAccess(item.perms) || (item.id === '/usuarios' && user?.is_agency_admin))
 
   /* Jobs de importação em background (vacinas, países, aeroportos…) — barra de
      progresso ao vivo recebida via WebSocket, visível em qualquer tela. */

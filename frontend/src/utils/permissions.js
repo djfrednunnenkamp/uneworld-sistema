@@ -19,6 +19,8 @@ const ROUTE_PERMS = [
 export function canAccess(user, path) {
   if (!user) return false
   if (user.is_superuser) return true
+  // Admin de agência acessa a página Usuários (gerencia os usuários da agência dele).
+  if (user.is_agency_admin && path.startsWith('/usuarios')) return true
   const permissions = user.permissions ?? {}
   const rule = ROUTE_PERMS.find(r => path.startsWith(r.prefix))
   if (!rule) return true

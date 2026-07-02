@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -235,8 +235,25 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
   const myPeM = me?.permissions ?? {}
-  const canManagePerms  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_manage_permissions
-  const canEditProfile  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_edit
+  // Admin de agência gerencia os usuários da agência dele: pode editar dados e
+  // permissões, mas SÓ as permissões que ele mesmo tem (limite espelhado no backend).
+  const isAgencyAdmin   = !!me?.is_agency_admin
+  const canManagePerms  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_manage_permissions || isAgencyAdmin
+  const canEditProfile  = !!me?.is_superuser || !!myPeM.manage_users || !!myPeM.users_edit || isAgencyAdmin
+  // Grupos de permissão visíveis: admin de agência só vê/edita as que ele tem.
+  const visibleGroups = useMemo(() => {
+    if (!isAgencyAdmin) return PERM_GROUPS
+    const has = k => !!myPeM[k]
+    const keep = items => (items || []).filter(([k]) => has(k))
+    return PERM_GROUPS.map(g => {
+      if (g.sections) {
+        const sections = g.sections.map(s => ({ ...s, items: keep(s.items) })).filter(s => s.items.length)
+        return sections.length ? { ...g, sections } : null
+      }
+      const items = keep(g.items)
+      return items.length ? { ...g, items } : null
+    }).filter(Boolean)
+  }, [isAgencyAdmin, me])
   const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setFe(p => { const n={...p}; delete n[k]; return n }) }
   // Mexer numa permissão à mão desvincula do perfil (profile_id: null) — vira personalizado.
   const setPerm    = (key, val)  => setForm(f => ({ ...f, profile_id: null, permissions: applyPermChanges(f.permissions, { [key]: val }) }))
@@ -392,11 +409,18 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
             </div>
           ) : canManagePerms ? (
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>
-              {linkedBanner}
-              {PERM_GROUPS.map(g => (
-                <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
-              ))}
+              {isAgencyAdmin && mode === 'new' ? (
+                <div style={{fontSize:12.5,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px',lineHeight:1.5}}>
+                  O novo usuário começa com o <b>perfil padrão da agência</b>. Depois de criar, você pode ajustar as permissões dele (entre as que você tem).
+                </div>
+              ) : (<>
+                {/* Admin de agência não atribui perfis: só ajusta permissões (limitadas às dele). */}
+                {!isAgencyAdmin && <PermPresetBar setForm={setForm} extraProfiles={permProfiles}/>}
+                {!isAgencyAdmin && linkedBanner}
+                {visibleGroups.map(g => (
+                  <PermAccordionItem key={g.title} group={g} permissions={form.permissions} onToggle={setPerm} onToggleAll={setPermAll} />
+                ))}
+              </>)}
             </div>
           ) : null)}
         </div>
@@ -837,11 +861,13 @@ export default function Users() {
   const navigate = useNavigate()
   const myP        = me?.permissions ?? {}
   const isSu       = !!me?.is_superuser
-  const canCreate      = isSu || !!myP.manage_users || !!myP.users_edit
-  const canManagePerms = isSu || !!myP.manage_users || !!myP.users_manage_permissions
-  const canBlockU      = isSu || !!myP.manage_users || !!myP.users_block
-  const canDeleteU     = isSu || !!myP.manage_users || !!myP.users_delete
-  const canSetPassword = isSu || !!myP.manage_users || !!myP.users_set_password
+  // Admin de agência gerencia os usuários da agência dele (criar, permissões, senha, excluir).
+  const isAgAdmin  = !!me?.is_agency_admin
+  const canCreate      = isSu || !!myP.manage_users || !!myP.users_edit || isAgAdmin
+  const canManagePerms = isSu || !!myP.manage_users || !!myP.users_manage_permissions || isAgAdmin
+  const canBlockU      = isSu || !!myP.manage_users || !!myP.users_block || isAgAdmin
+  const canDeleteU     = isSu || !!myP.manage_users || !!myP.users_delete || isAgAdmin
+  const canSetPassword = isSu || !!myP.manage_users || !!myP.users_set_password || isAgAdmin
   const canViewLog     = isSu || !!myP.users_view_logs
   const canKeyMenu     = canCreate || canSetPassword
 

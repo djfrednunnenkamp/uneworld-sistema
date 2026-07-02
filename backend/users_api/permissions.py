@@ -214,6 +214,34 @@ def apply_profile(user, profile):
     sync_is_staff(user)
 
 
+def agency_admin_ids(user):
+    """IDs das agências onde o usuário é ADMIN (AgencyMember.role='admin') e é um
+    usuário de agência (não interno). Um admin de agência pode gerenciar os
+    usuários dessas agências: criar, excluir, ajustar permissões (limitado às que
+    ele próprio tem) e redefinir senha. Retorna [] para interno/superusuário —
+    esses usam as permissões normais, não a via de admin de agência."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return []
+    if user.is_superuser or user.is_staff:
+        return []
+    return list(user.agency_memberships.filter(role='admin').values_list('agency_id', flat=True))
+
+
+def can_manage_agency_user(actor, target):
+    """True se `actor` (admin de agência) pode gerenciar `target`: o alvo é membro
+    de alguma agência administrada por `actor` e NÃO é interno (staff/superusuário).
+    Nunca deixa um admin de agência mexer numa conta interna (fronteira de
+    privilégio) nem em si mesmo por esta via."""
+    if not target or target.is_superuser or target.is_staff:
+        return False
+    if actor and target.pk == actor.pk:
+        return False
+    ids = agency_admin_ids(actor)
+    if not ids:
+        return False
+    return target.agency_memberships.filter(agency_id__in=ids).exists()
+
+
 def sync_is_staff(user):
     """Recalcula user.is_staff a partir das permissões administrativas atuais."""
     if user.is_superuser:
