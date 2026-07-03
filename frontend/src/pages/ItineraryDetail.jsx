@@ -7,7 +7,7 @@ import TagPicker from '../components/TagPicker'
 import RichTextEditor from '../components/RichTextEditor'
 import DatePicker from '../components/DatePicker'
 import MoneyInput from '../components/MoneyInput'
-import PaymentPlanFields from '../components/PaymentPlanFields'
+import PaymentPlanFields, { PaymentPlanTester } from '../components/PaymentPlanFields'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import usePersistedTab from '../hooks/usePersistedTab'
@@ -266,12 +266,27 @@ export default function ItineraryDetail() {
 
   // ── Modelos de pagamento do roteiro (multi-seleção) ──
   const [planEditor, setPlanEditor]         = useState(null)   // { index, plan, isNew, makeGlobal } | null
+  const [planTesting, setPlanTesting]       = useState(false)  // simulador aberto (a partir do editor)
   const [showPlanPicker, setShowPlanPicker] = useState(false)  // popup "adicionar das Configurações"
-  const [pickerSel, setPickerSel]           = useState([])     // ids selecionados no popup
+  const [pickerSel, setPickerSel]           = useState([])     // ids (dos modelos globais) marcados no popup
 
-  const addPlansFromConfig = () => {
-    const toAdd = pickerSel.map(pid => paymentPlanOpts.find(x => x.id === pid)).filter(Boolean).map(planFromModel)
-    setData(d => ({ ...d, payment_plans: [...(d.payment_plans || []), ...toAdd] }))
+  // Abre o popup já com os modelos globais que o roteiro usa MARCADOS (via _cfgId).
+  const openPlanPicker = () => {
+    setPickerSel((data.payment_plans || []).filter(p => p._cfgId).map(p => p._cfgId))
+    setShowPlanPicker(true)
+  }
+  // Sincroniza a seleção: adiciona os recém-marcados e remove os desmarcados que
+  // vieram das Configurações. Itens exclusivos do roteiro (sem _cfgId) não são tocados.
+  const applyPlanPicker = () => {
+    setData(d => {
+      const current = d.payment_plans || []
+      const currentCfgIds = new Set(current.filter(p => p._cfgId).map(p => p._cfgId))
+      const kept  = current.filter(p => !p._cfgId || pickerSel.includes(p._cfgId))
+      const toAdd = pickerSel.filter(cid => !currentCfgIds.has(cid))
+        .map(cid => paymentPlanOpts.find(x => x.id === cid)).filter(Boolean)
+        .map(p => ({ ...planFromModel(p), _cfgId: p.id }))
+      return { ...d, payment_plans: [...kept, ...toAdd] }
+    })
     setShowPlanPicker(false); setPickerSel([])
   }
   const openNewPlan  = () => setPlanEditor({ index: null, plan: { ...BLANK_PLAN, _uid: planUid() }, isNew: true, makeGlobal: false })
@@ -729,7 +744,7 @@ export default function ItineraryDetail() {
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '4px 24px', boxShadow: '0 1px 4px rgba(0,0,0,.04)', marginTop: 20 }}>
           <FormRow label="Formas de pagamento (aplicáveis no contrato)">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: (data.payment_plans?.length) ? 12 : 0 }}>
-              <button type="button" disabled={!canEdit} onClick={() => { setPickerSel([]); setShowPlanPicker(true) }}
+              <button type="button" disabled={!canEdit} onClick={openPlanPicker}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                 <Ic n="plus" s={13} /> Adicionar das Configurações
               </button>
@@ -857,8 +872,8 @@ export default function ItineraryDetail() {
             </div>
             <div style={{ padding: '12px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
               <button type="button" onClick={() => setShowPlanPicker(false)} className="btn btn-outline">Cancelar</button>
-              <button type="button" onClick={addPlansFromConfig} disabled={pickerSel.length === 0} className="btn btn-primary" style={{ opacity: pickerSel.length === 0 ? .6 : 1 }}>
-                Adicionar{pickerSel.length ? ` (${pickerSel.length})` : ''}
+              <button type="button" onClick={applyPlanPicker} className="btn btn-primary">
+                Confirmar{pickerSel.length ? ` (${pickerSel.length})` : ''}
               </button>
             </div>
           </div>
@@ -874,6 +889,12 @@ export default function ItineraryDetail() {
               <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
                 {planEditor.isNew ? 'Nova forma de pagamento (deste roteiro)' : 'Editar forma de pagamento (deste roteiro)'}
               </div>
+              <button type="button" onClick={() => setPlanTesting(true)}
+                style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff' }}>
+                <Ic n="card" s={14} /> Testar forma de pagamento
+              </button>
               <button type="button" onClick={() => setPlanEditor(null)} title="Fechar" style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={18} /></button>
             </div>
             <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
@@ -881,9 +902,7 @@ export default function ItineraryDetail() {
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>Nome do modelo</label>
                 <input className="fi" value={planEditor.plan.name || ''} onChange={e => setPlanEditor(ed => ({ ...ed, plan: { ...ed.plan, name: e.target.value } }))} placeholder="Deixe em branco para gerar automaticamente (ex.: Entrada 20% + 10x)" autoFocus />
               </div>
-              <PaymentPlanFields value={planEditor.plan} methodOptions={paymentMethodOpts}
-                onChange={pp => setPlanEditor(ed => ({ ...ed, plan: pp }))} />
-              {/* Chave: exclusivo do roteiro (padrão) ou também global */}
+              {/* Chave: exclusivo do roteiro (padrão) ou também global — no topo */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', background: '#f8fafc' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Também salvar como modelo global</div>
@@ -897,12 +916,15 @@ export default function ItineraryDetail() {
                   <span className="toggle-label">{planEditor.makeGlobal ? 'Global' : 'Só aqui'}</span>
                 </label>
               </div>
+              <PaymentPlanFields value={planEditor.plan} methodOptions={paymentMethodOpts} showTestButton={false}
+                onChange={pp => setPlanEditor(ed => ({ ...ed, plan: pp }))} />
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
               <button type="button" onClick={() => setPlanEditor(null)} className="btn btn-outline">Cancelar</button>
               <button type="button" onClick={savePlanEditor} className="btn btn-primary">Salvar</button>
             </div>
           </div>
+          {planTesting && <PaymentPlanTester value={planEditor.plan} onClose={() => setPlanTesting(false)} />}
         </div>
       )}
     </div>
