@@ -258,6 +258,22 @@ fieldset:disabled { opacity: .75; }
 .dash-bottom { display: flex; gap: 16px; align-items: stretch; max-height: 480px; }
 .dash-email { flex: 0 0 480px; }
 
+/* Minha conta — sidebar de tópicos à esquerda + conteúdo à direita. */
+.acc-main { display: flex; flex: 1; min-height: 0; }
+.acc-nav { width: 210px; flex-shrink: 0; border-right: 1px solid #f1f5f9; padding: 12px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+.acc-navitem { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 12px; border: none; border-radius: 8px; background: none; color: #64748b; font-size: 13.5px; font-weight: 500; cursor: pointer; font-family: inherit; transition: background .12s, color .12s; }
+.acc-navitem:hover { background: #f8fafc; color: #334155; }
+.acc-navitem.on { background: #eef4fd; color: #1a2d4f; font-weight: 700; }
+.acc-content { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 24px; }
+
+@media (max-width: 640px) {
+  .acc-main { flex-direction: column; }
+  .acc-nav { width: 100%; flex-direction: row; overflow-x: auto; overflow-y: hidden; border-right: none; border-bottom: 1px solid #f1f5f9; padding: 8px 10px; gap: 6px; }
+  .acc-navitem { width: auto; flex-shrink: 0; white-space: nowrap; padding: 7px 12px; border-radius: 999px; }
+  .acc-navitem.on { background: #1a2d4f; color: #fff; }
+  .acc-content { padding: 18px 16px; }
+}
+
 @media (max-width: 900px) {
   /* ── Sidebar como gaveta deslizante ── */
   .sidebar {
