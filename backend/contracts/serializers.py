@@ -191,6 +191,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'seller', 'seller_data',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'base_currency', 'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
+                  'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value',
                   'commission_pct', 'commission_usd', 'commission_brl',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
@@ -201,7 +202,8 @@ class ContractSerializer(serializers.ModelSerializer):
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data', 'custom_clauses',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         read_only_fields = ['autentique_document_id', 'autentique_data', 'reviewed_at', 'review_note',
-                            'invoice_number', 'invoice_date', 'invoiced_at']
+                            'invoice_number', 'invoice_date', 'invoiced_at',
+                            'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value']
 
     def validate_custom_clauses(self, value):
         # Sanitiza o HTML das cláusulas personalizadas antes de salvar (A-12).
@@ -384,7 +386,18 @@ class ContractSerializer(serializers.ModelSerializer):
             comm_disc = max(Decimal('0'), min(Decimal(d), commission))
         total_usd = accom_total + adj_total + commission - comm_disc
         # Desconto à vista (global) abate do total quando o pagamento é à vista.
-        total_usd = total_usd - avista_discount_usd(contract.payment_type, total_usd, exchange_rate)
+        # Guarda um snapshot (valor + modo + %) para exibir a linha no PDF e na tela.
+        avista_disc = avista_discount_usd(contract.payment_type, total_usd, exchange_rate)
+        total_usd = total_usd - avista_disc
+        contract.a_vista_discount_usd = avista_disc
+        if avista_disc > 0:
+            from config_api.models import SystemSettings
+            ss = SystemSettings.get()
+            contract.a_vista_discount_mode  = ss.a_vista_discount_mode or ''
+            contract.a_vista_discount_value = ss.a_vista_discount_value or Decimal('0')
+        else:
+            contract.a_vista_discount_mode  = ''
+            contract.a_vista_discount_value = Decimal('0')
         total_brl = total_usd * exchange_rate if exchange_rate else None
 
         # Arredondamento opcional: arredonda a moeda escolhida pro múltiplo de
@@ -408,7 +421,8 @@ class ContractSerializer(serializers.ModelSerializer):
         contract.total_usd     = total_usd
         contract.exchange_rate = exchange_rate
         contract.total_brl     = total_brl
-        contract.save(update_fields=['total_usd', 'exchange_rate', 'total_brl'])
+        contract.save(update_fields=['total_usd', 'exchange_rate', 'total_brl',
+                                     'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value'])
 
     def create(self, validated_data):
         accommodation_lines = validated_data.pop('accommodation_lines', [])

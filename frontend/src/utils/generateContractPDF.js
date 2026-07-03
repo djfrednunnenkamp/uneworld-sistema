@@ -806,11 +806,18 @@ export async function generateContractPDF(contract, opts = {}) {
     let yy = (top + p) + 2 * r + 1.4 + 1
     if (!dry) drawSectionTitle(doc, { x: x + p, y: top + p, iconPng: icons.w_dollar, main: '6. Valores e Condições', mainSize: 8.5, r })
     const innerX = x + p, innerW = w - 2 * p
+    // Desconto à vista (snapshot no contrato) — linha própria, com valor e % ou R$.
+    const avistaDiscUsd = Number(contract.a_vista_discount_usd) || 0
+    const avVal = Number(contract.a_vista_discount_value) || 0
+    const avistaLabel = (contract.a_vista_discount_mode === 'valor')
+      ? `R$ ${avVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      : `${avVal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
     const rows = [
       ['dollar',   `Valor/pessoa (${cc})`, moneyTxt(baseSum * commFactor), false],
       ['receipt',  `Taxas (${cc})`,        moneyTxt(taxSum), false],
       ...taxaRows.map(a => ['receipt', a.lbl + (a.desc ? `: ${a.desc}` : ''), `+ ${moneyTxt(a.amt)}`, false]),
       ...(totalDescontoUsd > 0 ? [['receipt', 'Desconto', `- ${moneyTxt(totalDescontoUsd)} (${descontoPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`, false]] : []),
+      ...(avistaDiscUsd > 0 ? [['receipt', 'Desconto à vista', `- ${moneyTxt(avistaDiscUsd)} (${avistaLabel})`, false]] : []),
       ['exchange', 'Câmbio',               dashTxt(fmtRate(contract.exchange_rate)), false],
       ['wallet',   `Total (${cc})`,        moneyTxt(contract.total_usd), true],
       ['file',     'Total (BRL)',          moneyTxt(contract.total_brl), false],

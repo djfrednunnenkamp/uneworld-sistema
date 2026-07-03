@@ -75,6 +75,11 @@ class Contract(models.Model):
     total_usd                 = models.DecimalField('Soma total (USD)', max_digits=12, decimal_places=2, null=True, blank=True)
     total_brl                 = models.DecimalField('Total em (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     exchange_rate             = models.DecimalField('Câmbio', max_digits=10, decimal_places=4, null=True, blank=True)
+    # Snapshot do desconto à vista aplicado (calculado no _recalc_totals): valor em
+    # USD já abatido do total + modo/valor da config, p/ exibir a linha no PDF e na tela.
+    a_vista_discount_usd      = models.DecimalField('Desconto à vista (USD)', max_digits=12, decimal_places=2, default=0)
+    a_vista_discount_mode     = models.CharField('Tipo do desconto à vista', max_length=10, blank=True, default='')
+    a_vista_discount_value    = models.DecimalField('Desconto à vista (valor/%)', max_digits=12, decimal_places=2, default=0)
     received_down_payment_brl = models.DecimalField('Recebido na entrada (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     received_installments_brl = models.DecimalField('Recebido a prazo (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     # Snapshot da SUGESTÃO de pagamento aplicada (do roteiro): {down_payment_percent,

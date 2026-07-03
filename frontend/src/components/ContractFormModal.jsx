@@ -856,14 +856,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   }
   // Total cru (acomodações + ajustes) e, por cima, o arredondamento opcional da
   // moeda escolhida — a outra moeda é derivada pelo câmbio.
-  const [computedTotalUsd, computedTotalBrl, avistaDiscountBrl] = useMemo(() => {
+  const [computedTotalUsd, computedTotalBrl, avistaDiscountBrl, avistaDiscountUsd] = useMemo(() => {
     const rate = Number(form.exchange_rate) || 0
     let rawUsd = accomSubtotalUsd + adjustmentsTotalUsd + commissionUsd - commissionDiscountUsd
     // Desconto à vista (global): abate do total só quando o pagamento é à vista.
     // Espelha o backend (contracts.serializers.avista_discount_usd).
-    let discBrl = 0
+    let discUsd = 0, discBrl = 0
     if (paymentType === 'a_vista' && avistaDiscountCfg.value > 0) {
-      let discUsd = avistaDiscountCfg.mode === 'valor'
+      discUsd = avistaDiscountCfg.mode === 'valor'
         ? (rate ? avistaDiscountCfg.value / rate : 0)
         : rawUsd * avistaDiscountCfg.value / 100
       discUsd = Math.min(rawUsd, Math.max(0, discUsd))
@@ -872,14 +872,14 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     }
     const rawBrl = rate ? rawUsd * rate : null
     const step = Number(form.round_step) || 0
-    if (!step) return [rawUsd, rawBrl, discBrl]
+    if (!step) return [rawUsd, rawBrl, discBrl, discUsd]
     if (form.round_currency === 'usd') {
       const u = roundTo(rawUsd, step, form.round_mode)
-      return [u, rate ? u * rate : null, discBrl]
+      return [u, rate ? u * rate : null, discBrl, discUsd]
     }
-    if (rawBrl == null) return [rawUsd, null, discBrl]
+    if (rawBrl == null) return [rawUsd, null, discBrl, discUsd]
     const b = roundTo(rawBrl, step, form.round_mode)
-    return [rate ? b / rate : rawUsd, b, discBrl]
+    return [rate ? b / rate : rawUsd, b, discBrl, discUsd]
   }, [accomSubtotalUsd, adjustmentsTotalUsd, commissionUsd, commissionDiscountUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency, paymentType, avistaDiscountCfg])
 
 
@@ -1732,6 +1732,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             row(`${typeName(l.accommodation_type)} × ${l.quantity}`, `${cur} ${fmtN((Number(l.value_per_person_usd || 0) * commF + Number(l.taxes_usd || 0)) * Number(l.quantity || 1))}`, `al${i}`)),
           ...taxaItems.map((x, i) => row(x.desc || 'Acréscimo', `+ ${cur} ${fmtN(x.amt)}`, `ac${i}`)),
           ...(totalDescUsd > 0 ? [row('Desconto', `− ${cur} ${fmtN(totalDescUsd)} (${descPctReview.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`, 'desc')] : []),
+          ...(avistaDiscountUsd > 0 ? [row('Desconto à vista', `− ${cur} ${fmtN(avistaDiscountUsd)}${avistaDiscountCfg.mode === 'percent' ? ` (${avistaDiscountCfg.value}%)` : ''}`, 'davista')] : []),
           ...(Number(form.round_step) > 0 ? [row('Arredondamento', `${form.round_currency === 'usd' ? cur : 'R$'} · múltiplo de ${Number(form.round_step).toLocaleString('pt-BR')}`, 'rd')] : []),
           <div key="tot" style={{ borderTop: '1px solid #eef2f7', paddingTop: 8, marginTop: 2 }}>
             {row(<strong>Soma total ({cur})</strong>, <strong>{cur} {fmtN(computedTotalUsd)}</strong>, 'tu')}
