@@ -76,7 +76,7 @@ PERMISSION_FIELDS = [
     # Configurações — legado
     'settings_professions', 'settings_languages', 'settings_countries',
     'settings_genders', 'settings_vaccines', 'settings_doc_types',
-    'settings_prof_cards', 'settings_user_profiles', 'settings_destinations',
+    'settings_prof_cards', 'settings_user_profiles',
     'settings_list_additionals', 'settings_crew_roles',
     # Configurações — granular
     'settings_professions_view', 'settings_professions_edit', 'settings_professions_delete', 'settings_professions_bulk_delete', 'settings_professions_bulk_import', 'settings_professions_import_web', 'settings_professions_export',
@@ -100,10 +100,6 @@ PERMISSION_FIELDS = [
     'settings_terms_view', 'settings_terms_edit', 'settings_terms_bulk_import', 'settings_terms_export',
     'settings_operating_company_view', 'settings_operating_company_edit', 'settings_operating_company_bulk_import', 'settings_operating_company_export',
     'settings_itinerary_categories_view', 'settings_itinerary_categories_edit', 'settings_itinerary_categories_delete', 'settings_itinerary_categories_bulk_delete', 'settings_itinerary_categories_bulk_import', 'settings_itinerary_categories_export',
-    'settings_destinations_view', 'settings_destinations_edit', 'settings_destinations_delete', 'settings_destinations_bulk_delete', 'settings_destinations_bulk_import', 'settings_destinations_export',
-    'settings_holidays_view', 'settings_holidays_edit', 'settings_holidays_delete', 'settings_holidays_bulk_delete', 'settings_holidays_bulk_import', 'settings_holidays_export',
-    'settings_services_view', 'settings_services_edit', 'settings_services_delete', 'settings_services_bulk_delete', 'settings_services_bulk_import', 'settings_services_export',
-    'settings_itinerary_templates_view', 'settings_itinerary_templates_edit', 'settings_itinerary_templates_delete', 'settings_itinerary_templates_bulk_delete', 'settings_itinerary_templates_bulk_import', 'settings_itinerary_templates_export',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -121,7 +117,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_view', 'settings_csv_import', 'settings_csv_export',
     'settings_professions', 'settings_languages', 'settings_countries',
     'settings_genders', 'settings_vaccines', 'settings_doc_types',
-    'settings_prof_cards', 'settings_user_profiles', 'settings_destinations',
+    'settings_prof_cards', 'settings_user_profiles',
     'settings_list_additionals', 'settings_crew_roles',
     'settings_professions_view', 'settings_professions_edit', 'settings_professions_delete', 'settings_professions_bulk_delete', 'settings_professions_bulk_import', 'settings_professions_import_web', 'settings_professions_export',
     'settings_languages_view', 'settings_languages_edit', 'settings_languages_delete', 'settings_languages_bulk_delete', 'settings_languages_bulk_import', 'settings_languages_import_web', 'settings_languages_export',
@@ -144,10 +140,6 @@ STAFF_PERMISSION_FIELDS = [
     'settings_terms_view', 'settings_terms_edit', 'settings_terms_bulk_import', 'settings_terms_export',
     'settings_operating_company_view', 'settings_operating_company_edit', 'settings_operating_company_bulk_import', 'settings_operating_company_export',
     'settings_itinerary_categories_view', 'settings_itinerary_categories_edit', 'settings_itinerary_categories_delete', 'settings_itinerary_categories_bulk_delete', 'settings_itinerary_categories_bulk_import', 'settings_itinerary_categories_export',
-    'settings_destinations_view', 'settings_destinations_edit', 'settings_destinations_delete', 'settings_destinations_bulk_delete', 'settings_destinations_bulk_import', 'settings_destinations_export',
-    'settings_holidays_view', 'settings_holidays_edit', 'settings_holidays_delete', 'settings_holidays_bulk_delete', 'settings_holidays_bulk_import', 'settings_holidays_export',
-    'settings_services_view', 'settings_services_edit', 'settings_services_delete', 'settings_services_bulk_delete', 'settings_services_bulk_import', 'settings_services_export',
-    'settings_itinerary_templates_view', 'settings_itinerary_templates_edit', 'settings_itinerary_templates_delete', 'settings_itinerary_templates_bulk_delete', 'settings_itinerary_templates_bulk_import', 'settings_itinerary_templates_export',
     # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
     # ninguém Administrador. log_page_views continua porque é uma permissão
     # ativa e concedida de propósito.

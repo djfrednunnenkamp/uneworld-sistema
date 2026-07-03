@@ -133,7 +133,6 @@ class UserPermissions(models.Model):
     settings_doc_types        = models.BooleanField(default=False)
     settings_prof_cards       = models.BooleanField(default=False)
     settings_user_profiles    = models.BooleanField(default=False)
-    settings_destinations     = models.BooleanField(default=False)
     settings_list_additionals = models.BooleanField(default=False)
     settings_crew_roles       = models.BooleanField(default=False)
 
@@ -246,21 +245,6 @@ class UserPermissions(models.Model):
     settings_itinerary_categories_edit        = models.BooleanField(default=False)
     settings_itinerary_categories_delete      = models.BooleanField(default=False)
     settings_itinerary_categories_bulk_import = models.BooleanField(default=False)
-    settings_destinations_view                = models.BooleanField(default=False)
-    settings_destinations_edit                = models.BooleanField(default=False)
-    settings_destinations_delete              = models.BooleanField(default=False)
-    settings_destinations_bulk_import         = models.BooleanField(default=False)
-    settings_holidays_view                    = models.BooleanField(default=False)
-    settings_holidays_edit                    = models.BooleanField(default=False)
-    settings_holidays_delete                  = models.BooleanField(default=False)
-    settings_holidays_bulk_import             = models.BooleanField(default=False)
-    settings_services_view                    = models.BooleanField(default=False)
-    settings_services_edit                    = models.BooleanField(default=False)
-    settings_services_delete                  = models.BooleanField(default=False)
-    settings_services_bulk_import             = models.BooleanField(default=False)
-    settings_itinerary_templates_view         = models.BooleanField(default=False)
-    settings_itinerary_templates_edit         = models.BooleanField(default=False)
-    settings_itinerary_templates_delete       = models.BooleanField(default=False)
 
     # Exportar CSV (download) — granular por área. Antes o download dependia só
     # de "_view"; agora cada área tem permissão própria de download.
@@ -272,7 +256,6 @@ class UserPermissions(models.Model):
     settings_doc_types_export            = models.BooleanField(default=False)
     settings_prof_cards_export           = models.BooleanField(default=False)
     settings_user_profiles_export        = models.BooleanField(default=False)
-    settings_destinations_export         = models.BooleanField(default=False)
     settings_list_additionals_export     = models.BooleanField(default=False)
     settings_crew_roles_export           = models.BooleanField(default=False)
     settings_accommodations_export       = models.BooleanField(default=False)
@@ -286,16 +269,8 @@ class UserPermissions(models.Model):
     settings_terms_export                = models.BooleanField(default=False)
     settings_operating_company_export    = models.BooleanField(default=False)
     settings_itinerary_categories_export = models.BooleanField(default=False)
-    settings_holidays_export             = models.BooleanField(default=False)
-    settings_services_export             = models.BooleanField(default=False)
-    settings_itinerary_templates_export  = models.BooleanField(default=False)
     # Granularidade de massa completada nos campos de Roteiro (antes só item a item)
     settings_itinerary_categories_bulk_delete = models.BooleanField(default=False)
-    settings_destinations_bulk_delete         = models.BooleanField(default=False)
-    settings_holidays_bulk_delete             = models.BooleanField(default=False)
-    settings_services_bulk_delete             = models.BooleanField(default=False)
-    settings_itinerary_templates_bulk_delete  = models.BooleanField(default=False)
-    settings_itinerary_templates_bulk_import  = models.BooleanField(default=False)
 
     # Log do sistema — por área usa a mesma permissão "_view_logs" de cada
     # área (passengers_view_logs, lists_view_logs, agencies_view_logs,

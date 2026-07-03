@@ -342,50 +342,6 @@ export const PERM_GROUPS = [
         ],
       },
       {
-        label: 'Destinos', icon: 'mapicon', hue: 210,
-        items: [
-          ['settings_destinations_view',        'Ver destinos'],
-          ['settings_destinations_edit',        'Criar / Editar destinos'],
-          ['settings_destinations_delete',      'Excluir destinos'],
-          ['settings_destinations_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_destinations_bulk_import', 'Importação em massa via CSV'],
-          ['settings_destinations_export',      'Exportar como CSV (download)'],
-        ],
-      },
-      {
-        label: 'Feriados', icon: 'calendar', hue: 25,
-        items: [
-          ['settings_holidays_view',        'Ver feriados'],
-          ['settings_holidays_edit',        'Criar / Editar feriados'],
-          ['settings_holidays_delete',      'Excluir feriados'],
-          ['settings_holidays_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_holidays_bulk_import', 'Importação em massa via CSV'],
-          ['settings_holidays_export',      'Exportar como CSV (download)'],
-        ],
-      },
-      {
-        label: 'Modelos de Texto do Roteiro', icon: 'docs', hue: 250,
-        items: [
-          ['settings_itinerary_templates_view',        'Ver modelos de texto'],
-          ['settings_itinerary_templates_edit',        'Criar / Editar modelos de texto'],
-          ['settings_itinerary_templates_delete',      'Excluir modelos de texto'],
-          ['settings_itinerary_templates_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_itinerary_templates_bulk_import', 'Importação em massa via CSV'],
-          ['settings_itinerary_templates_export',      'Exportar como CSV (download)'],
-        ],
-      },
-      {
-        label: 'Serviços', icon: 'briefcase', hue: 35,
-        items: [
-          ['settings_services_view',        'Ver serviços'],
-          ['settings_services_edit',        'Criar / Editar serviços'],
-          ['settings_services_delete',      'Excluir serviços'],
-          ['settings_services_bulk_delete', 'Exclusão em massa via CSV'],
-          ['settings_services_bulk_import', 'Importação em massa via CSV'],
-          ['settings_services_export',      'Exportar como CSV (download)'],
-        ],
-      },
-      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],
@@ -563,21 +519,6 @@ export const PERM_DEPENDENCIES = {
   settings_itinerary_categories_edit:        'settings_itinerary_categories_view',
   settings_itinerary_categories_delete:      'settings_itinerary_categories_view',
   settings_itinerary_categories_bulk_import: 'settings_itinerary_categories_edit',
-  settings_destinations_view:        'settings_view',
-  settings_destinations_edit:        'settings_destinations_view',
-  settings_destinations_delete:      'settings_destinations_view',
-  settings_destinations_bulk_import: 'settings_destinations_edit',
-  settings_holidays_view:        'settings_view',
-  settings_holidays_edit:        'settings_holidays_view',
-  settings_holidays_delete:      'settings_holidays_view',
-  settings_holidays_bulk_import: 'settings_holidays_edit',
-  settings_services_view:        'settings_view',
-  settings_services_edit:        'settings_services_view',
-  settings_services_delete:      'settings_services_view',
-  settings_services_bulk_import: 'settings_services_edit',
-  settings_itinerary_templates_view:   'settings_view',
-  settings_itinerary_templates_edit:   'settings_itinerary_templates_view',
-  settings_itinerary_templates_delete: 'settings_itinerary_templates_view',
 
   // bulk_import depende de _edit (igual ao bulk_delete que depende de _delete)
   settings_professions_bulk_import:      'settings_professions_edit',
@@ -619,7 +560,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_view', 'settings_crew_roles_view', 'settings_list_categories_view',
     'settings_accommodations_view', 'settings_countries_view',
     'settings_airports_view', 'settings_airlines_view',
-    'settings_itinerary_categories_view', 'settings_destinations_view', 'settings_holidays_view', 'settings_services_view',
+    'settings_itinerary_categories_view',
   ],
   // "Importar CSV global" só aparece quando pelo menos um _bulk_import de seção está ativo
   settings_csv_import: [
@@ -628,7 +569,7 @@ export const PERM_DEPENDENCIES = {
     'settings_list_additionals_bulk_import', 'settings_crew_roles_bulk_import', 'settings_list_categories_bulk_import',
     'settings_accommodations_bulk_import', 'settings_countries_bulk_import',
     'settings_airports_bulk_import', 'settings_airlines_bulk_import',
-    'settings_itinerary_categories_bulk_import', 'settings_destinations_bulk_import', 'settings_holidays_bulk_import', 'settings_services_bulk_import',
+    'settings_itinerary_categories_bulk_import',
   ],
 
   // Exportar CSV (download) — granular por área; depende só de _view
@@ -640,7 +581,6 @@ export const PERM_DEPENDENCIES = {
   settings_doc_types_export:            'settings_doc_types_view',
   settings_prof_cards_export:           'settings_prof_cards_view',
   settings_user_profiles_export:        'settings_user_profiles_view',
-  settings_destinations_export:         'settings_destinations_view',
   settings_list_additionals_export:     'settings_list_additionals_view',
   settings_crew_roles_export:           'settings_crew_roles_view',
   settings_accommodations_export:       'settings_accommodations_view',
@@ -654,17 +594,9 @@ export const PERM_DEPENDENCIES = {
   settings_terms_export:                'settings_terms_view',
   settings_operating_company_export:    'settings_operating_company_view',
   settings_itinerary_categories_export: 'settings_itinerary_categories_view',
-  settings_holidays_export:             'settings_holidays_view',
-  settings_services_export:             'settings_services_view',
-  settings_itinerary_templates_export:  'settings_itinerary_templates_view',
 
   // Granularidade de massa completada nos campos de Roteiro
   settings_itinerary_categories_bulk_delete: 'settings_itinerary_categories_delete',
-  settings_destinations_bulk_delete:         'settings_destinations_delete',
-  settings_holidays_bulk_delete:             'settings_holidays_delete',
-  settings_services_bulk_delete:             'settings_services_delete',
-  settings_itinerary_templates_bulk_delete:  'settings_itinerary_templates_delete',
-  settings_itinerary_templates_bulk_import:  'settings_itinerary_templates_edit',
 
   settings_view_logs: 'settings_view',
 

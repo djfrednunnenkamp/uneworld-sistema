@@ -317,26 +317,6 @@ export const configApi = {
   addContinent:  (name) => api.post('/config/continents/', { name }),
   updateContinent: (id, name) => api.patch(`/config/continents/${id}/`, { name }),
   delContinent:  (id)   => api.delete(`/config/continents/${id}/`),
-  // Destinos (lista curada usada nos Roteiros — distinta da base global de cidades)
-  destinations:    () => api.get('/config/destinations/'),
-  addDestination:  (name) => api.post('/config/destinations/', { name }),
-  updateDestination: (id, name) => api.patch(`/config/destinations/${id}/`, { name }),
-  delDestination:  (id)   => api.delete(`/config/destinations/${id}/`),
-  // Feriados (associáveis aos Roteiros)
-  holidays:    () => api.get('/config/holidays/'),
-  addHoliday:  (name) => api.post('/config/holidays/', { name }),
-  updateHoliday: (id, name) => api.patch(`/config/holidays/${id}/`, { name }),
-  delHoliday:  (id)   => api.delete(`/config/holidays/${id}/`),
-  // Serviços (linhas de "serviços intermediados" do Roteiro)
-  services:    () => api.get('/config/services/'),
-  addService:  (name) => api.post('/config/services/', { name }),
-  updateService: (id, name) => api.patch(`/config/services/${id}/`, { name }),
-  delService:  (id)   => api.delete(`/config/services/${id}/`),
-  // Modelos de texto do Roteiro (seguro, forma de pagamento, condições gerais, documentação)
-  itineraryTemplates:    (kind) => api.get('/config/itinerary-templates/', { params: kind ? { kind } : {} }),
-  addItineraryTemplate:  (data) => api.post('/config/itinerary-templates/', data),
-  updateItineraryTemplate: (id, data) => api.patch(`/config/itinerary-templates/${id}/`, data),
-  delItineraryTemplate:  (id)   => api.delete(`/config/itinerary-templates/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

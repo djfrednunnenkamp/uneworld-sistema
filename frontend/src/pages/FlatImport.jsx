@@ -16,7 +16,7 @@ import { setLocalJob, finishLocalJob } from '../utils/localJobs'
 const NAME_EDIT_KEYS = new Set([
   'professions', 'languages', 'vaccines', 'genders', 'prof_cards',
   'list_addits', 'crew_roles', 'list_categories', 'countries', 'states', 'cities',
-  'continents', 'itinerary_categories', 'destinations', 'holidays', 'services',
+  'continents', 'itinerary_categories',
 ])
 const NAME_UPDATE_FN = {
   professions:     (id, name) => configApi.updateProfession(id, name),
@@ -32,9 +32,6 @@ const NAME_UPDATE_FN = {
   cities:          (id, name) => configApi.updateCity(id, name),
   continents:           (id, name) => configApi.updateContinent(id, name),
   itinerary_categories: (id, name) => configApi.updateItineraryCategory(id, name),
-  destinations:         (id, name) => configApi.updateDestination(id, name),
-  holidays:             (id, name) => configApi.updateHoliday(id, name),
-  services:             (id, name) => configApi.updateService(id, name),
 }
 const OBJECT_EDIT_KEYS = new Set(['accommodations', 'airports', 'airlines', 'bus_maps'])
 const MATCH_FIELD = { bus_maps: 'label' } // demais tipos casam pelo campo "name"
@@ -137,13 +134,6 @@ function parseCombinedCsv(text, labelToKey) {
         extras.content = parsed.content || ''
       } catch { /* formato antigo/inválido */ }
     }
-    if (listKey === 'itinerary_templates' && extras.code) {
-      try {
-        const parsed = JSON.parse(extras.code)
-        extras.kind = parsed.kind || 'condicoes'
-        extras.content = parsed.content || ''
-      } catch { /* modelo exportado em formato antigo/inválido */ }
-    }
     if (listKey === 'operating_company' && extras.code) {
       try {
         const p = JSON.parse(extras.code)
@@ -220,9 +210,6 @@ const API_MAP = {
   payment_methods: { add: (name)         => configApi.addPaymentMethod(name), del: (id) => configApi.delPaymentMethod(id), label: 'Formas de Pagamento' },
   continents:      { add: (name)         => configApi.addContinent(name),    del: (id) => configApi.delContinent(id),     label: 'Continentes' },
   itinerary_categories: { add: (name)    => configApi.addItineraryCategory(name), del: (id) => configApi.delItineraryCategory(id), label: 'Categorias de Roteiro' },
-  destinations:    { add: (name)         => configApi.addDestination(name),  del: (id) => configApi.delDestination(id),   label: 'Destinos' },
-  holidays:        { add: (name)         => configApi.addHoliday(name),      del: (id) => configApi.delHoliday(id),       label: 'Feriados' },
-  services:        { add: (name)         => configApi.addService(name),      del: (id) => configApi.delService(id),       label: 'Serviços' },
   accommodations:  { add: (name, extras) => configApi.addAccommodation({ name, capacity: extras.capacity || 1, is_couple: extras.is_couple || false }), del: (id) => configApi.delAccommodation(id), label: 'Acomodações' },
   doc_types:       { add: (name, extras) => configApi.addDocType({
                        label: name, key: extras.key || name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
@@ -253,9 +240,6 @@ const API_MAP = {
                      }), del: (id) => configApi.delContractClause(id), label: 'Cláusulas de Contrato' },
   // Singleton — "adicionar" aqui só atualiza o texto vigente, nunca cria item novo
   terms:           { add: (name, extras) => configApi.updateTerms({ content: extras.content || '' }), del: null, label: 'Termos e Condições' },
-  itinerary_templates: { add: (name, extras) => configApi.addItineraryTemplate({
-                       kind: extras.kind || 'condicoes', name, content: extras.content || '',
-                     }), del: (id) => configApi.delItineraryTemplate(id), label: 'Modelos de Texto do Roteiro' },
   // Singleton — "adicionar" aqui só atualiza os dados vigentes da operadora
   operating_company: { add: (name, extras) => configApi.updateOperatingCompany({
                        company_name: extras.company_name || name || '', cnpj: extras.cnpj || '',
@@ -289,7 +273,7 @@ const LABEL_TO_KEY = Object.fromEntries(
 )
 
 // Tipos com campos extras (não só "nome") — usam o mesmo parser rico do CSV combinado
-const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms', 'exchange_rates', 'itinerary_templates', 'operating_company', 'payment_plans'])
+const RICH_TYPES = new Set(['accommodations', 'doc_types', 'airports', 'airlines', 'bus_maps', 'perm_profiles', 'contract_clauses', 'terms', 'exchange_rates', 'operating_company', 'payment_plans'])
 
 // Seções que aparecem no CSV exportado mas não podem ser importadas
 const EXPORT_ONLY_KEYS = new Set()
@@ -362,10 +346,6 @@ const BULK_DELETE_PERM = {
   payment_plans:   'settings_payment_methods_delete',
   exchange_rates:  'settings_exchange_rates_delete',
   itinerary_categories: 'settings_itinerary_categories_bulk_delete',
-  destinations:    'settings_destinations_bulk_delete',
-  holidays:        'settings_holidays_bulk_delete',
-  services:        'settings_services_bulk_delete',
-  itinerary_templates: 'settings_itinerary_templates_bulk_delete',
 }
 
 export default function FlatImport() {

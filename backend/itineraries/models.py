@@ -21,57 +21,15 @@ class Itinerary(models.Model):
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Categoria')
     continent   = models.ForeignKey('config_api.ConfigContinent', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Continente')
-    countries     = models.ManyToManyField('config_api.ConfigCountry', blank=True, related_name='itineraries', verbose_name='Países')
-    destinations  = models.ManyToManyField('config_api.ConfigDestination', blank=True, related_name='itineraries', verbose_name='Destinos e Cidades')
 
-    # ── Conteúdo editorial ──
-    cover_title       = models.CharField('Título da capa', max_length=300, blank=True)
-    internal_title    = models.TextField('Título interno completo', blank=True)
-    subtitle          = models.CharField('Subtítulo', max_length=500, blank=True)
-    short_description = models.CharField('Breve descrição', max_length=500, blank=True)
-    holiday           = models.ForeignKey('config_api.ConfigHoliday', null=True, blank=True,
-                                           on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Feriado')
-    is_featured = models.BooleanField('Destaque na home?', default=False)
-    is_active   = models.BooleanField('Roteiro ativo?', default=True)
-    is_full     = models.BooleanField('Roteiro lotado?', default=False)
-    is_listed   = models.BooleanField('Listado no website?', default=True)
-
-    # ── Aviso ──
-    NOTICE_COLOR_CHOICES = [
-        ('laranja',   'Laranja'),
-        ('vermelho',  'Vermelho'),
-        ('verde',     'Verde'),
-        ('azul',      'Azul'),
-        ('cinza',     'Cinza'),
-    ]
-    has_notice     = models.BooleanField('Aviso', default=False)
-    notice_color   = models.CharField('Cor do aviso', max_length=20, choices=NOTICE_COLOR_CHOICES, default='laranja')
-    notice_message = models.CharField('Mensagem do aviso', max_length=300, blank=True)
-
-    # ── Datas e financeiro ──
-    day_count_correction      = models.IntegerField('Correção contagem de dias', default=0)
-    cash_discount_percent     = models.DecimalField('Desconto à vista em %', max_digits=5, decimal_places=2, default=0)
+    # ── Financeiro ──
     CURRENCY_CHOICES = [
         ('EUR', 'Euro'),
         ('USD', 'Dólar'),
         ('BRL', 'Real'),
     ]
     base_currency             = models.CharField('Moeda base', max_length=3, choices=CURRENCY_CHOICES, default='EUR')
-    additional_spread_percent = models.DecimalField('Spread adicional em %', max_digits=5, decimal_places=2, default=0)
 
-    # ── Conteúdo descritivo (textos longos, com editor rico) ──
-    about_destination    = models.TextField('Sobre o destino', blank=True)
-    day_by_day            = models.TextField('Dia a dia', blank=True)
-    package_includes      = models.TextField('O que inclui no pacote', blank=True)
-    package_excludes      = models.TextField('O que não inclui no pacote', blank=True)
-    insurance_info        = models.TextField('Adicional de seguro viagem', blank=True)
-    pricing_info          = models.TextField('Informações sobre valores', blank=True)
-    payment_info          = models.TextField('Forma de pagamento', blank=True)
-    terms_info            = models.TextField('Condições gerais para compra do pacote', blank=True)
-    hotels_reserved        = models.TextField('Hotéis reservados', blank=True)
-    transport_info        = models.TextField('Parte aérea / rodoviária', blank=True)
-    documentation_info    = models.TextField('Documentação necessária para a viagem', blank=True)
-    extras                = models.TextField('Extras', blank=True)
     # Cláusulas do contrato definidas pelo roteiro — o contrato puxa daqui.
     clauses        = models.ManyToManyField('config_api.ContractClause', blank=True, related_name='itineraries', verbose_name='Cláusulas do contrato')
     custom_clauses = models.JSONField('Cláusulas personalizadas', default=list, blank=True)
@@ -117,26 +75,6 @@ class Itinerary(models.Model):
                 i += 1
             self.slug = slug
         super().save(*args, **kwargs)
-
-
-class ItineraryServiceLine(models.Model):
-    """Linha de "serviços turísticos fornecidos por terceiros" — serviço(s)
-    de um fornecedor repassado/intermediado no Roteiro, com o percentual de
-    comissão/repasse correspondente."""
-    itinerary  = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='service_lines')
-    supplier   = models.ForeignKey('trips.Supplier', null=True, blank=True, on_delete=models.SET_NULL,
-                                    related_name='+', verbose_name='Fornecedor')
-    services   = models.ManyToManyField('config_api.ConfigService', blank=True, related_name='+', verbose_name='Serviços')
-    percentage = models.DecimalField('Percentual %', max_digits=5, decimal_places=2, default=0)
-    order      = models.PositiveIntegerField('Ordem', default=0)
-
-    class Meta:
-        ordering = ['order']
-        verbose_name = 'Linha de serviço'
-        verbose_name_plural = 'Linhas de serviço'
-
-    def __str__(self):
-        return f'{self.supplier} ({self.percentage}%)'
 
 
 class ItineraryAccommodationLine(models.Model):

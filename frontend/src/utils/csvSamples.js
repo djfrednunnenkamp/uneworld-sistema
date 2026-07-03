@@ -77,14 +77,6 @@ export const CSV_SAMPLES = {
     ].join('\n'),
     filename: 'modelo_termos_e_condicoes.csv',
   },
-  itinerary_templates: {
-    content: [
-      'lista,nome,pessoas,casal,pais,estado,codigo',
-      'Modelos de Texto do Roteiro,Condições padrão,,,,,"{""kind"":""condicoes"",""content"":""<p>Condições gerais para compra do pacote…</p>""}"',
-      'Modelos de Texto do Roteiro,Seguro premium,,,,,"{""kind"":""seguro"",""content"":""<p>Texto do adicional de seguro viagem…</p>""}"',
-    ].join('\n'),
-    filename: 'modelo_modelos_roteiro.csv',
-  },
   payment_plans: {
     content: [
       'lista,nome,pessoas,casal,pais,estado,codigo',

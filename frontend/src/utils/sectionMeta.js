@@ -26,10 +26,6 @@ export const CARD_META = {
   exchange_rates:  { icon: 'globe',     hue: 160, desc: 'Câmbio usado para preencher automaticamente os contratos.' },
   itinerary_categories: { icon: 'mapicon', hue: 190, desc: 'Categorias para classificar os roteiros (ex: Grupos Internacionais).' },
   continents:      { icon: 'globe',     hue: 200, desc: 'Continentes vinculados aos roteiros.' },
-  destinations:    { icon: 'mapicon',   hue: 210, desc: 'Destinos disponíveis para vincular aos roteiros.' },
-  holidays:        { icon: 'calendar',  hue: 25,  desc: 'Feriados e datas comerciais associáveis aos roteiros.' },
-  services:        { icon: 'briefcase', hue: 35,  desc: 'Serviços turísticos oferecidos por fornecedores nos roteiros.' },
-  itinerary_templates: { icon: 'docs', hue: 250, desc: 'Modelos de texto (seguro, condições, documentação) e modelos de pagamento usados nos roteiros.' },
 }
 
 export const sectionTileColors = (hue) => ({

@@ -17,8 +17,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
-                     ConfigItineraryCategory, ConfigContinent, ConfigDestination, ConfigHoliday, ConfigService,
-                     ConfigItineraryTemplate)
+                     ConfigItineraryCategory, ConfigContinent)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -814,70 +813,6 @@ class ContinentViewSet(viewsets.ModelViewSet):
     serializer_class = ContinentSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_countries')
-
-
-class DestinationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ConfigDestination
-        fields = ['id', 'name']
-
-
-class DestinationViewSet(viewsets.ModelViewSet):
-    queryset = ConfigDestination.objects.all()
-    serializer_class = DestinationSerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_destinations')
-
-
-class HolidaySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ConfigHoliday
-        fields = ['id', 'name']
-
-
-class HolidayViewSet(viewsets.ModelViewSet):
-    queryset = ConfigHoliday.objects.all()
-    serializer_class = HolidaySerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_holidays')
-
-
-class ServiceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ConfigService
-        fields = ['id', 'name']
-
-
-class ServiceViewSet(viewsets.ModelViewSet):
-    queryset = ConfigService.objects.all()
-    serializer_class = ServiceSerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_services')
-
-
-class ItineraryTemplateSerializer(serializers.ModelSerializer):
-    kind_display = serializers.CharField(source='get_kind_display', read_only=True)
-
-    class Meta:
-        model = ConfigItineraryTemplate
-        fields = ['id', 'kind', 'kind_display', 'name', 'content']
-
-    def validate_content(self, value):
-        from core.sanitize import sanitize_html
-        return sanitize_html(value)
-
-
-class ItineraryTemplateViewSet(viewsets.ModelViewSet):
-    serializer_class = ItineraryTemplateSerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_itinerary_templates')
-
-    def get_queryset(self):
-        qs = ConfigItineraryTemplate.objects.all()
-        kind = self.request.query_params.get('kind')
-        if kind:
-            qs = qs.filter(kind=kind)
-        return qs
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):

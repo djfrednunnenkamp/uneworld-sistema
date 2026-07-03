@@ -38,12 +38,6 @@ export const SECTION_ROW_BUILDERS = {
     const payload = JSON.stringify({ content: t.content || '' })
     return `${q(label)},${q(t.name)},,,,,${q(payload)}`
   },
-  itinerary_templates: (label, t) => {
-    // Guarda o tipo (seguro/pagamento/condições/documentação) e o conteúdo
-    // rico no JSON da coluna "codigo" — pra reimportar idêntico.
-    const payload = JSON.stringify({ kind: t.kind, content: t.content || '' })
-    return `${q(label)},${q(t.name)},,,,,${q(payload)}`
-  },
   operating_company: (label, o) => {
     // Singleton — exporta como uma única linha, com todos os dados da operadora
     // embutidos no JSON da coluna "codigo".

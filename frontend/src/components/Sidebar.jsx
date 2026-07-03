@@ -16,7 +16,7 @@ const NAV_BASE = [
   { id: '/viagens',    icon: 'plane',    label: 'Listas de Passageiros',      group: 'GESTÃO', perms: ['lists_view'] },
   { id: '/calendario', icon: 'calendar', label: 'Calendário',  group: 'GESTÃO', perms: ['calendar_view'] },
   { id: '/usuarios',      icon: 'users',    label: 'Usuários',      group: 'SISTEMA', perms: ['manage_users', 'users_view', 'users_edit', 'users_delete', 'users_manage_permissions'] },
-  { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA', perms: ['manage_settings', 'settings_view', 'settings_professions', 'settings_languages', 'settings_countries', 'settings_genders', 'settings_vaccines', 'settings_doc_types', 'settings_prof_cards', 'settings_user_profiles', 'settings_destinations', 'settings_list_additionals', 'settings_crew_roles'] },
+  { id: '/configuracoes', icon: 'settings', label: 'Configurações',  group: 'SISTEMA', perms: ['manage_settings', 'settings_view', 'settings_professions', 'settings_languages', 'settings_countries', 'settings_genders', 'settings_vaccines', 'settings_doc_types', 'settings_prof_cards', 'settings_user_profiles', 'settings_list_additionals', 'settings_crew_roles'] },
   { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA', perms: null },
 ]
 
