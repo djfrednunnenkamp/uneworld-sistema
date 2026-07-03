@@ -2,7 +2,7 @@
    página para serem compartilhados entre a casca (normalizeItinerary) e a
    aba de Pagamentos. Comportamento idêntico ao original. */
 
-export const BLANK_PLAN = { name: '', a_vista: false, a_vista_discount_mode: 'percent', a_vista_discount_value: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', down_payment_rounding: 0.01, installments_count: '', payment_method: '', installment_rounding: 0.01, first_due_days: 30, interval_days: 30 }
+export const BLANK_PLAN = { name: '', a_vista: false, has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', down_payment_rounding: 0.01, installments_count: '', payment_method: '', installment_rounding: 0.01, first_due_days: 30, interval_days: 30 }
 
 export const planUid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `p_${Date.now()}_${Math.round(Math.random() * 1e6)}`)
 
@@ -36,9 +36,7 @@ export function planSummary(p) {
 
 // Copia os campos de um modelo (das Configurações ou do editor) num item da lista.
 export const planFromModel = (p) => ({
-  _uid: planUid(), name: p.name || '', a_vista: !!p.a_vista,
-  a_vista_discount_mode: p.a_vista_discount_mode || 'percent', a_vista_discount_value: p.a_vista_discount_value ?? '',
-  has_down_payment: !!p.has_down_payment,
+  _uid: planUid(), name: p.name || '', a_vista: !!p.a_vista, has_down_payment: !!p.has_down_payment,
   down_payment_mode: p.down_payment_mode || 'percent', down_payment_value: p.down_payment_value ?? '',
   down_payment_method: p.down_payment_method || '', down_payment_rounding: p.down_payment_rounding ?? 0.01,
   installments_count: p.installments_count ?? '', payment_method: p.payment_method || '',
@@ -48,9 +46,7 @@ export const planFromModel = (p) => ({
 
 // Payload p/ salvar um modelo como GLOBAL (Configurações › Modelos de Pagamento).
 export const planToConfigPayload = (p) => ({
-  name: p.name, a_vista: !!p.a_vista,
-  a_vista_discount_mode: p.a_vista_discount_mode || 'percent', a_vista_discount_value: Number(p.a_vista_discount_value) || 0,
-  has_down_payment: !!p.has_down_payment,
+  name: p.name, a_vista: !!p.a_vista, has_down_payment: !!p.has_down_payment,
   down_payment_mode: p.down_payment_mode || 'percent', down_payment_value: Number(p.down_payment_value) || 0,
   down_payment_method: p.down_payment_method || '',
   down_payment_rounding: p.down_payment_rounding === '' || p.down_payment_rounding == null ? 0.01 : Number(p.down_payment_rounding),

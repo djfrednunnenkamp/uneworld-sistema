@@ -16,7 +16,7 @@ const btnCsv = (color) => ({ padding: '9px 12px', borderRadius: 8, border: `1.5p
  * sozinho). Cada modelo é uma sugestão reutilizável (entrada % + nº de parcelas +
  * forma + vencimentos) que os roteiros podem copiar. */
 
-const BLANK = { name: '', a_vista: false, a_vista_discount_mode: 'percent', a_vista_discount_value: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', down_payment_rounding: 0.01, installments_count: '', payment_method: '', installment_rounding: 0.01, first_due_days: 30, interval_days: 30 }
+const BLANK = { name: '', a_vista: false, has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', down_payment_rounding: 0.01, installments_count: '', payment_method: '', installment_rounding: 0.01, first_due_days: 30, interval_days: 30 }
 
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }
 const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 840, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }
@@ -91,8 +91,6 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
     const payload = {
       name: e.name?.trim() || autoName(e),
       a_vista: !!e.a_vista,
-      a_vista_discount_mode: e.a_vista_discount_mode || 'percent',
-      a_vista_discount_value: Number(e.a_vista_discount_value) || 0,
       has_down_payment: !!e.has_down_payment,
       down_payment_mode: e.down_payment_mode || 'percent',
       down_payment_value: Number(e.down_payment_value) || 0,
