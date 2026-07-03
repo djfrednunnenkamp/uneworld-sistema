@@ -80,6 +80,12 @@ class Itinerary(models.Model):
     # Modelo de pagamento das Configurações ou é criada do zero aqui. O contrato lê
     # daqui para oferecer o botão "aplicar sugestão de pagamento". null = sem sugestão.
     payment_plan   = models.JSONField('Sugestão de pagamento', null=True, blank=True)
+    # Lista de modelos de pagamento oferecidos por este roteiro (cada um é um
+    # snapshot dos campos do modelo + name). Substitui o payment_plan único; o
+    # payment_plan continua preenchido com o 1º da lista para compatibilidade
+    # com o contrato (que hoje lê um só). Cada item pode ser exclusivo do roteiro
+    # ou ter vindo (cópia) de um Modelo global das Configurações.
+    payment_plans  = models.JSONField('Modelos de pagamento do roteiro', default=list, blank=True)
 
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)

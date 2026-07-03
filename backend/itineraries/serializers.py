@@ -67,7 +67,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'about_destination', 'day_by_day', 'package_includes', 'package_excludes',
                   'insurance_info', 'pricing_info', 'payment_info', 'terms_info',
                   'hotels_reserved', 'transport_info', 'documentation_info', 'extras',
-                  'payment_plan',
+                  'payment_plan', 'payment_plans',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         # is_deleted/deleted_at só podem ser alterados pelas ações destroy/restore/purge
         # do SoftDeleteViewSetMixin. Se ficarem graváveis aqui, um usuário com apenas
