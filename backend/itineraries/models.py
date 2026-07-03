@@ -36,6 +36,10 @@ class Itinerary(models.Model):
                                           verbose_name='Companhia marítima')
     cities           = models.ManyToManyField('config_api.ConfigCity', blank=True,
                                                related_name='itineraries', verbose_name='Cidades')
+    countries        = models.ManyToManyField('config_api.ConfigCountry', blank=True,
+                                               related_name='itineraries', verbose_name='Países')
+    airports         = models.ManyToManyField('config_api.Airport', blank=True,
+                                               related_name='itineraries', verbose_name='Aeroportos')
 
     # ── Financeiro ──
     CURRENCY_CHOICES = [
@@ -120,6 +124,8 @@ class ItineraryDay(models.Model):
     day_number  = models.PositiveIntegerField('Dia nº', validators=[MinValueValidator(1)])
     title       = models.CharField('Título', max_length=300, blank=True)
     description = models.TextField('Descrição', blank=True)
+    city        = models.ForeignKey('config_api.ConfigCity', null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='+', verbose_name='Cidade do dia')
     order       = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:
@@ -141,6 +147,9 @@ class ItineraryImage(models.Model):
     """Galeria de imagens do roteiro (estrutura repetível migrada do WordPress).
     No máximo uma imagem por roteiro pode ser marcada como capa (is_cover)."""
     itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='images')
+    # Imagem da GALERIA do roteiro (day nulo) OU de um DIA específico do dia-a-dia
+    # (day preenchido). Reusa a mesma tabela/upload, sem child table extra.
+    day       = models.ForeignKey('ItineraryDay', null=True, blank=True, on_delete=models.CASCADE, related_name='images')
     image     = models.ImageField('Imagem', upload_to='itineraries/')
     caption   = models.CharField('Legenda', max_length=300, blank=True)
     is_cover  = models.BooleanField('É a capa', default=False)
@@ -161,3 +170,22 @@ class ItineraryImage(models.Model):
 
     def __str__(self):
         return f'{self.itinerary_id} · img {self.pk}'
+
+
+class ItineraryDocument(models.Model):
+    """Documento (PDF) anexado ao roteiro — ex.: programação, condições, folheto."""
+    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='documents')
+    file      = models.FileField('Arquivo', upload_to='itineraries/docs/')
+    title     = models.CharField('Título', max_length=300, blank=True)
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Documento do roteiro'
+        verbose_name_plural = 'Documentos do roteiro'
+        indexes = [
+            models.Index(fields=['itinerary', 'order'], name='idx_itindoc_itin_order'),
+        ]
+
+    def __str__(self):
+        return self.title or f'{self.itinerary_id} · doc {self.pk}'

@@ -17,6 +17,8 @@ const DatesTab         = lazy(() => import('../components/itinerary/DatesTab'))
 const AccommodationTab = lazy(() => import('../components/itinerary/AccommodationTab'))
 const PaymentsTab      = lazy(() => import('../components/itinerary/PaymentsTab'))
 const ClausesTab       = lazy(() => import('../components/itinerary/ClausesTab'))
+const ImagensTab       = lazy(() => import('../components/itinerary/ImagensTab'))
+const DiaADiaTab       = lazy(() => import('../components/itinerary/DiaADiaTab'))
 const PlaceholderTab   = lazy(() => import('../components/itinerary/PlaceholderTab'))
 
 /* Registro das abas (nova IA). Campos existentes: basic, destinos, datas, valores,
@@ -109,6 +111,13 @@ export default function ItineraryDetail() {
         payment_plans: data.payment_plans || [],
         // Compat com o contrato (que hoje lê UM só): 1º modelo da lista.
         payment_plan: (data.payment_plans || [])[0] ?? null,
+        // Novos M2M (arrays de ids) e dia-a-dia. Imagens/documentos NÃO vão aqui —
+        // são gerenciados via actions de upload/exclusão, imediatas.
+        cities: data.cities || [], countries: data.countries || [], airports: data.airports || [],
+        days: (data.days || []).map((d, i) => ({
+          id: d.id, day_number: i + 1, title: d.title || '', description: d.description || '',
+          city: d.city ?? null, order: i,
+        })),
       }
       const r = await itinerariesApi.update(id, payload)
       setData(normalizeItinerary(r.data))
@@ -136,6 +145,8 @@ export default function ItineraryDetail() {
       case 'datas':      return <DatesTab         data={data} setData={setData} canEdit={canEdit} />
       case 'valores':    return <AccommodationTab data={data} setData={setData} canEdit={canEdit} accommodationOptions={accommodationOptions} />
       case 'pagamentos': return <PaymentsTab      data={data} setData={setData} canEdit={canEdit} paymentPlanOpts={paymentPlanOpts} paymentMethodOpts={paymentMethodOpts} reloadPaymentPlans={reloadPaymentPlans} />
+      case 'imagens':    return <ImagensTab       data={data} setData={setData} canEdit={canEdit} />
+      case 'diaadia':    return <DiaADiaTab       data={data} setData={setData} canEdit={canEdit} />
       case 'regras':     return <ClausesTab       data={data} setData={setData} canEdit={canEdit} clauseList={clauseList} />
       default:           return <PlaceholderTab   title={TABS.find(t => t.key === activeKey)?.label || ''} />
     }

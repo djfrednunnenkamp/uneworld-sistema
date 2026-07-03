@@ -143,6 +143,12 @@ export const itinerariesApi = {
   deleted: ()       => api.get('/itineraries/', { params: { deleted: 1 } }),
   restore: (id)     => api.post(`/itineraries/${id}/restore/`),
   purge:   (id)     => api.delete(`/itineraries/${id}/purge/`),
+  // Imagens (galeria do roteiro ou de um dia) e documentos (PDF) — upload multipart.
+  uploadImage:    (id, file, { caption, is_cover, day } = {}) => { const fd = new FormData(); fd.append('image', file); if (caption) fd.append('caption', caption); if (is_cover) fd.append('is_cover', 'true'); if (day) fd.append('day', day); return api.post(`/itineraries/${id}/images/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
+  deleteImage:    (id, imageId) => api.delete(`/itineraries/${id}/images/${imageId}/`),
+  setCover:       (id, imageId) => api.post(`/itineraries/${id}/images/${imageId}/cover/`),
+  uploadDocument: (id, file, { title } = {}) => { const fd = new FormData(); fd.append('file', file); if (title) fd.append('title', title); return api.post(`/itineraries/${id}/documents/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
+  deleteDocument: (id, docId) => api.delete(`/itineraries/${id}/documents/${docId}/`),
 }
 
 export const documentsApi = {
@@ -218,6 +224,7 @@ export const configApi = {
   importStates:      (country_id) => api.post('/config/states/import/', { country_id }),
   // Cidades
   cities:    (state_id) => api.get('/config/cities/', { params: { state_id } }),
+  citySearch: (q) => api.get('/config/cities/', { params: { q } }),
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
   updateCity: (id, name) => api.patch(`/config/cities/${id}/`, { name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),
