@@ -44,6 +44,8 @@ export const listsApi = {
   deleted: ()      => api.get('/trips/lists/', { params: { deleted: 1 } }),
   restore: (id)    => api.post(`/trips/lists/${id}/restore/`),
   purge:   (id)    => api.delete(`/trips/lists/${id}/purge/`),
+  // ZIP dos documentos dos passageiros (todos, ou só os passenger_ids passados)
+  documentsZip:     (id, passengerIds = null) => api.post(`/trips/lists/${id}/documents-zip/`, { passenger_ids: passengerIds }, { responseType: 'blob' }),
   // Passageiros na lista
   listPassengers:   (id)          => api.get(`/trips/lists/${id}/passageiros/`),
   addPassenger:     (id, data)     => api.post(`/trips/lists/${id}/passageiros/`, data),

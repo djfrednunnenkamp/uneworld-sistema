@@ -180,9 +180,72 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('lists_csv_upload')()]
         if self.action == 'log_download':
             return [RequirePermission('lists_download')()]
+        if self.action == 'documents_zip':
+            return [RequirePermission('passengers_download_docs')()]
         if self.action in ('tasks', 'manage_task'):
             return [RequirePermission('lists_view')()]
         return super().get_permissions()
+
+    @action(detail=True, methods=['post'], url_path='documents-zip')
+    def documents_zip(self, request, pk=None):
+        """Baixa, num ZIP, todos os documentos dos passageiros da lista, organizados
+        em pastas por passageiro e cada arquivo nomeado pelo documento. Aceita
+        `passenger_ids` (lista) para restringir aos selecionados; sem isso, todos."""
+        import io, os, re, zipfile
+        from urllib.parse import quote
+        from django.http import HttpResponse
+        from passengers.models import PassengerDocument
+
+        pl = self.get_object()
+        ids = request.data.get('passenger_ids') or None
+        enrolls = (pl.list_enrollments.select_related('passenger')
+                   .filter(passenger__isnull=False))
+        if ids:
+            enrolls = enrolls.filter(passenger_id__in=ids)
+
+        type_labels = dict(PassengerDocument.DOC_TYPE_CHOICES)
+        def safe(s):
+            # Remove caracteres inválidos de nome de arquivo e limita o tamanho
+            # (nomes muito longos estouram o path ao extrair em alguns sistemas).
+            return (re.sub(r'[\\/:*?"<>|]+', '-', (s or '').strip()).strip('. ')[:80]).strip() or 'sem-nome'
+
+        buf = io.BytesIO()
+        count = 0
+        used = {}   # (pasta, arquivo) -> contador, evita sobrescrever nomes iguais
+        seen = set()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for e in enrolls:
+                p = e.passenger
+                if p.id in seen:
+                    continue
+                seen.add(p.id)
+                folder = safe(p.full_name or f'passageiro-{p.id}')
+                for d in p.documents.all():
+                    if not d.file:
+                        continue
+                    label = d.label or type_labels.get(d.doc_type) or d.doc_type or 'documento'
+                    ext = os.path.splitext(d.file.name)[1] or os.path.splitext(d.original_name or '')[1] or ''
+                    base = safe(label)
+                    key = (folder, base + ext)
+                    n = used.get(key, 0)
+                    used[key] = n + 1
+                    fname = f'{base}{ext}' if n == 0 else f'{base} ({n + 1}){ext}'
+                    try:
+                        d.file.open('rb')
+                        zf.writestr(f'{folder}/{fname}', d.file.read())
+                        d.file.close()
+                        count += 1
+                    except Exception:
+                        continue
+
+        if count == 0:
+            return Response({'error': 'Nenhum documento encontrado para baixar.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        buf.seek(0)
+        zipname = safe(pl.name or f'lista-{pl.id}') + '.zip'
+        resp = HttpResponse(buf.getvalue(), content_type='application/zip')
+        resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(zipname)}"
+        return resp
 
     # ── Passageiros na lista ─────────────────────────────────────────────────
 

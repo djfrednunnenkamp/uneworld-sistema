@@ -6061,11 +6061,13 @@ export default function TripDetail() {
   const canEditList    = !!user?.is_superuser || perms.lists_edit
   const canViewLog     = !!user?.is_superuser || perms.lists_view_logs
   const canDownloadList = !!user?.is_superuser || perms.lists_download
+  const canDownloadDocs = !!user?.is_superuser || perms.passengers_download_docs
 
   const [list,       setList]      = useState(null)
   const [loading,    setLoading]   = useState(true)
   const [showEdit,   setShowEdit]  = useState(false)
   const [showPrint,  setShowPrint] = useState(false)
+  const [downloadingDocs, setDownloadingDocs] = useState(false)
   const [showTasks,  setShowTasks] = useState(false)
   const [tab, setTab] = usePersistedTab('tab_list_detail', 'passengers')
   const [paxData, setPaxData] = useState({ enrolled: [], accomTypes: [], loading: true, busMap: null })
@@ -6084,6 +6086,28 @@ export default function TripDetail() {
       .then(r => setList(r.data))
       .catch(() => {})
   }, [id])
+
+  // Baixa um ZIP com todos os documentos dos passageiros da lista (pastas por
+  // passageiro, cada arquivo nomeado pelo documento).
+  const handleDownloadDocs = async () => {
+    if (downloadingDocs) return
+    setDownloadingDocs(true)
+    const toastId = toast.loading('Preparando os documentos…')
+    try {
+      const r = await listsApi.documentsZip(id)
+      const url = URL.createObjectURL(new Blob([r.data], { type: 'application/zip' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(list?.name || 'documentos').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'documentos'}.zip`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast.success('Documentos baixados.', { id: toastId })
+    } catch (e) {
+      let msg = 'Erro ao baixar os documentos.'
+      try { const t = await e.response?.data?.text?.(); if (t) msg = JSON.parse(t).error || msg } catch { /* mantém msg padrão */ }
+      toast.error(msg, { id: toastId })
+    } finally { setDownloadingDocs(false) }
+  }
 
   const wsUrl = user ? dashboardWsUrl() : null
   useWebSocket(wsUrl, useCallback((msg) => {
@@ -6154,6 +6178,15 @@ export default function TripDetail() {
               onMouseEnter={e => { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
               <Ic n="dl" s={13} /> Baixar
+            </button>
+          )}
+          {canDownloadDocs && (
+            <button type="button" onClick={handleDownloadDocs} disabled={downloadingDocs}
+              title="Baixar (ZIP) os documentos de todos os passageiros da lista"
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor: downloadingDocs ? 'default' : 'pointer', fontFamily:'inherit', transition:'all .12s', opacity: downloadingDocs ? .6 : 1 }}
+              onMouseEnter={e => { if (!downloadingDocs) { e.currentTarget.style.borderColor='#1a2d4f'; e.currentTarget.style.color='#1a2d4f' } }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.color='#475569' }}>
+              <Ic n="docs" s={13} /> {downloadingDocs ? 'Baixando…' : 'Baixar documentos'}
             </button>
           )}
           {canEditList && (
