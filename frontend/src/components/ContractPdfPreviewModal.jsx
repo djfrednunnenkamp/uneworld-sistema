@@ -11,6 +11,8 @@ export default function ContractPdfPreviewModal({ contractId, previewPayload = n
   const [blobUrl, setBlobUrl] = useState(null)
   const [reservation, setReservation] = useState('')
   const [status, setStatus] = useState('loading')   // loading | ready | error
+  const [receiptUrl, setReceiptUrl] = useState(null) // comprovante de pagamento (se houver)
+  const [docView, setDocView] = useState('contract') // 'contract' | 'receipt'
 
   useEffect(() => {
     let url, cancelled = false
@@ -26,6 +28,7 @@ export default function ContractPdfPreviewModal({ contractId, previewPayload = n
       .then(async data => {
         if (cancelled) return
         setReservation(data.reservation_number || '')
+        setReceiptUrl(data.payment_receipt || null)
         url = await generateContractPDF(data, { output: 'bloburl' })
         if (cancelled) { URL.revokeObjectURL(url); return }
         setBlobUrl(url); setStatus('ready')
@@ -51,9 +54,30 @@ export default function ContractPdfPreviewModal({ contractId, previewPayload = n
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#94a3b8' }}><Ic n="x" s={15} /></button>
         </div>
 
-        {status === 'loading' && <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#3f4651', color: '#cbd5e1', fontSize: 13 }}>Gerando o documento…</div>}
-        {status === 'error'   && <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#3f4651', color: '#fca5a5', fontSize: 13 }}>Não foi possível gerar o documento.</div>}
-        {status === 'ready'   && <SignedFileViewer url={blobUrl} />}
+        {/* Toggle Contrato / Comprovante — só quando há comprovante anexado. */}
+        {receiptUrl && (
+          <div style={{ display: 'flex', gap: 6, padding: '10px 12px', borderBottom: '1px solid #eef2f7', flexShrink: 0, background: '#f8fafc' }}>
+            {[
+              { key: 'contract', label: 'Contrato',     icon: 'docs' },
+              { key: 'receipt',  label: 'Comprovante',  icon: 'card' },
+            ].map(t => {
+              const active = docView === t.key
+              return (
+                <button key={t.key} type="button" onClick={() => setDocView(t.key)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: `1px solid ${active ? '#2e6db4' : '#e2e8f0'}`, background: active ? '#2e6db4' : '#fff', color: active ? '#fff' : '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Ic n={t.icon} s={13} /> {t.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {docView === 'receipt' && receiptUrl ? (
+          <SignedFileViewer key={receiptUrl} url={receiptUrl} />
+        ) : (<>
+          {status === 'loading' && <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#3f4651', color: '#cbd5e1', fontSize: 13 }}>Gerando o documento…</div>}
+          {status === 'error'   && <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#3f4651', color: '#fca5a5', fontSize: 13 }}>Não foi possível gerar o documento.</div>}
+          {status === 'ready'   && <SignedFileViewer key={blobUrl} url={blobUrl} />}
+        </>)}
 
         <div style={{ padding: '12px 18px', borderTop: '1px solid #eef2f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0 }}>
           <div>{footerExtra}</div>
