@@ -124,7 +124,7 @@ function RoundingPopup({ title, value, onSelect, onClose }) {
 function RoundingButton({ value, onClick }) {
   return (
     <button type="button" onClick={onClick}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', padding: '6px 11px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'none', letterSpacing: 'normal', whiteSpace: 'nowrap' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.color = '#2563eb' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#475569' }}>
       <Ic n="wrench" s={12} /> Arredondar: {roundLabelShort(value)}
@@ -136,7 +136,7 @@ const dueLabel = (days) => days === 0 ? 'na aplicação' : `em ${days} ${days ==
 
 /* Simulador: digita-se um valor total e vê-se a entrada + parcelas que o cliente
  * receberia com os parâmetros atuais (inclui os arredondamentos). */
-function PaymentPlanTester({ value, onClose }) {
+export function PaymentPlanTester({ value, onClose }) {
   const [total, setTotal] = useState('')
   // Aceita "12000", "12000.50" e o formato pt-BR "12.000,50".
   const t = (() => {
@@ -198,7 +198,7 @@ function PaymentPlanTester({ value, onClose }) {
   )
 }
 
-export default function PaymentPlanFields({ value, onChange, methodOptions = [] }) {
+export default function PaymentPlanFields({ value, onChange, methodOptions = [], showTestButton = true }) {
   const v = value || {}
   const set = (k, val) => onChange({ ...v, [k]: val })
   const mode = v.down_payment_mode || 'percent'
@@ -223,14 +223,17 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
       <section style={sectionCard}>
         <div style={sectionTitle}>
           <span>Entrada</span>
-          <label className="toggle-wrap" style={{ marginLeft: 'auto' }}>
-            <span className="toggle">
-              <input type="checkbox" checked={!!v.has_down_payment}
-                onChange={e => set('has_down_payment', e.target.checked)} />
-              <span className="toggle-slider" />
-            </span>
-            <span className="toggle-label">{v.has_down_payment ? 'Sim' : 'Não'}</span>
-          </label>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {v.has_down_payment && <RoundingButton value={v.down_payment_rounding} onClick={() => setRoundingFor('down')} />}
+            <label className="toggle-wrap">
+              <span className="toggle">
+                <input type="checkbox" checked={!!v.has_down_payment}
+                  onChange={e => set('has_down_payment', e.target.checked)} />
+                <span className="toggle-slider" />
+              </span>
+              <span className="toggle-label">{v.has_down_payment ? 'Sim' : 'Não'}</span>
+            </label>
+          </div>
         </div>
         {v.has_down_payment ? (
           <>
@@ -252,7 +255,6 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
                 placeholder="Selecione a forma" searchable clearable
                 onChange={val => set('down_payment_method', val || '')} />
             </div>
-            <RoundingButton value={v.down_payment_rounding} onClick={() => setRoundingFor('down')} />
           </>
         ) : (
           <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0 }}>Sem entrada — o valor é todo dividido nas parcelas.</p>
@@ -261,7 +263,12 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
 
       {/* ── Bloco PARCELAS ── */}
       <section style={sectionCard}>
-        <div style={sectionTitle}><span>Parcelas</span></div>
+        <div style={sectionTitle}>
+          <span>Parcelas</span>
+          <div style={{ marginLeft: 'auto' }}>
+            <RoundingButton value={v.installment_rounding} onClick={() => setRoundingFor('installment')} />
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12 }}>
           <div>
             <label style={lbl}>Número de parcelas</label>
@@ -286,18 +293,20 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
               onChange={e => set('interval_days', e.target.value)} placeholder="Ex.: 30" />
           </div>
         </div>
-        <RoundingButton value={v.installment_rounding} onClick={() => setRoundingFor('installment')} />
       </section>
 
       </div>
 
-      {/* Botão de testar a forma de pagamento (simulador) */}
-      <button type="button" onClick={() => setTesting(true)}
-        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-        onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe' }}
-        onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff' }}>
-        <Ic n="card" s={14} /> Testar forma de pagamento
-      </button>
+      {/* Botão de testar a forma de pagamento (simulador) — escondido quando o
+          chamador coloca o botão em outro lugar, ex.: no cabeçalho do modal. */}
+      {showTestButton && (
+        <button type="button" onClick={() => setTesting(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff' }}>
+          <Ic n="card" s={14} /> Testar forma de pagamento
+        </button>
+      )}
 
       {roundingFor === 'down' && (
         <RoundingPopup title="Arredondar o valor da entrada" value={v.down_payment_rounding}

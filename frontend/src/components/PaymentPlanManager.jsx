@@ -6,7 +6,7 @@ import { Ic } from './Icon'
 import { exportSectionCsv } from '../utils/sectionCsv'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import CsvImportPopup from './CsvImportPopup'
-import PaymentPlanFields from './PaymentPlanFields'
+import PaymentPlanFields, { PaymentPlanTester } from './PaymentPlanFields'
 
 const inp    = { padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', color: '#0f172a', boxSizing: 'border-box', transition: 'border-color .15s' }
 const btnPri = { padding: '9px 16px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }
@@ -45,6 +45,7 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
   const [saving, setSaving]   = useState(false)
   const [search, setSearch]   = useState('')
   const [showImport, setShowImport] = useState(false)
+  const [testing, setTesting] = useState(false)   // simulador aberto (a partir do cabeçalho)
 
   const filtered = useMemo(() => {
     const query = search.toLowerCase()
@@ -135,16 +136,25 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
       {editing && (
         <div style={overlay} onMouseDown={e => { if (e.target === e.currentTarget) setEditing(null) }}>
           <div style={card}>
-            <button onClick={() => setEditing(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 22, lineHeight: 1, padding: 2 }}>×</button>
-            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e2e8f0', fontSize: 16, fontWeight: 700, color: '#0f172a', flexShrink: 0 }}>
-              {editing.id ? 'Editar modelo de pagamento' : 'Novo modelo de pagamento'}
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                {editing.id ? 'Editar modelo de pagamento' : 'Novo modelo de pagamento'}
+              </div>
+              <button type="button" onClick={() => setTesting(true)}
+                style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff' }}>
+                <Ic n="card" s={14} /> Testar forma de pagamento
+              </button>
+              <button type="button" onClick={() => setEditing(null)} title="Fechar"
+                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={18} /></button>
             </div>
             <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>Nome do modelo</label>
                 <input className="fi" value={editing.name || ''} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="Ex.: Sinal + 10x boleto" autoFocus />
               </div>
-              <PaymentPlanFields value={editing} onChange={setEditing} methodOptions={methods} />
+              <PaymentPlanFields value={editing} onChange={setEditing} methodOptions={methods} showTestButton={false} />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '16px 24px', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
               <button onClick={() => setEditing(null)} style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
@@ -153,6 +163,7 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
               </button>
             </div>
           </div>
+          {testing && <PaymentPlanTester value={editing} onClose={() => setTesting(false)} />}
         </div>
       )}
 
