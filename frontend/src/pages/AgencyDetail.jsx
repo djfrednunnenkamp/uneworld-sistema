@@ -83,21 +83,50 @@ const ROLE_OPTS = [
 ]
 
 /* ── Popup de novo usuário da agência ── */
-function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
+function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) {
+  const [mode,   setMode]   = useState('pick')  // 'pick' = escolher existente | 'create' = novo
   const [form,   setForm]   = useState({ email:'', first_name:'', last_name:'' })
   const [saving, setSaving] = useState(false)
+  const [allUsers, setAllUsers] = useState([])
+  const [loadingUsers, setLoadingUsers] = useState(true)
+  const [search, setSearch] = useState('')
+  const [busyId, setBusyId] = useState(null)
 
   const lbl = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
   const inp = { width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const handleSave = async () => {
+  // Lista todos os usuários do sistema (para anexar um já existente à agência).
+  useEffect(() => {
+    usersApi.list()
+      .then(r => setAllUsers(r.data || []))
+      .catch(() => {})
+      .finally(() => setLoadingUsers(false))
+  }, [])
+
+  const memberSet = new Set(memberUserIds)
+  const s = search.trim().toLowerCase()
+  const candidates = allUsers.filter(u =>
+    !u.is_deleted && !u.is_superuser && !u.is_staff && !memberSet.has(u.id) &&
+    (!s || (u.full_name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s)))
+
+  // Anexa um usuário EXISTENTE à agência (só vira membro; mantém as permissões dele).
+  const attach = async (u) => {
+    setBusyId(u.id)
+    try {
+      await agenciesApi.addMemberById(agencyId, u.id, 'operator')
+      toast.success(`${u.full_name || u.email} adicionado à agência.`)
+      onSaved(); onClose()
+    } catch (err) {
+      toast.error(err.response?.data?.error ?? 'Erro ao adicionar o usuário.')
+    } finally { setBusyId(null) }
+  }
+
+  const handleCreate = async () => {
     if (!form.email.trim()) { toast.error('E-mail é obrigatório.'); return }
     setSaving(true)
     try {
-      // Gera senha temporária aleatória (o convite vai substituir)
       const tempPwd = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2).toUpperCase() + '!1'
-      // Cria o usuário no sistema
       const r = await usersApi.create({
         email:      form.email.trim().toLowerCase(),
         first_name: form.first_name.trim(),
@@ -106,61 +135,104 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
         is_staff:   false,
         agency_user: true,   // aplica automaticamente o perfil "padrão de agência"
       })
-      const userId = r.data.id
-      // Vincula à agência pelo ID (mais confiável que busca por e-mail)
-      await agenciesApi.addMemberById(agencyId, userId, 'operator')
-      // Envia convite por e-mail (não bloqueia se falhar)
-      usersApi.sendInvite(userId).catch(() => {})
+      await agenciesApi.addMemberById(agencyId, r.data.id, 'operator')
+      usersApi.sendInvite(r.data.id).catch(() => {})
       toast.success(`${form.first_name || form.email} adicionado com sucesso.`)
-      onSaved()
-      onClose()
+      onSaved(); onClose()
     } catch (err) {
       toast.error(err.response?.data?.error ?? err.response?.data?.email?.[0] ?? 'Erro ao criar usuário.')
     } finally { setSaving(false) }
   }
 
+  const avatar = (u) => (
+    <div style={{ width:34, height:34, borderRadius:'50%', background:'#2e6db4', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:700, flexShrink:0 }}>
+      {(u.full_name?.[0] || u.email?.[0] || '?').toUpperCase()}
+    </div>
+  )
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:440, boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
-        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>Novo usuário da agência</span>
+      <div style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:520, maxHeight:'86vh', display:'flex', flexDirection:'column', boxShadow:'0 32px 80px rgba(0,0,0,.25)', overflow:'hidden' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <span style={{ fontSize:15, fontWeight:700, color:'#0f172a' }}>
+            {mode === 'create' ? 'Novo usuário da agência' : 'Adicionar usuário à agência'}
+          </span>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:22, lineHeight:1, padding:2 }}>×</button>
         </div>
 
-        <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
-          <div>
-            <label style={lbl}>E-mail</label>
-            <EmailInput value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))}
-              placeholder="email@exemplo.com" style={inp} />
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <div>
-              <label style={lbl}>Nome</label>
-              <input value={form.first_name} onChange={set('first_name')} placeholder="Nome"
-                style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+        {mode === 'pick' ? (
+          <>
+            <div style={{ padding:'14px 22px 10px', display:'flex', gap:10, alignItems:'center', flexShrink:0 }}>
+              <div style={{ position:'relative', flex:1 }}>
+                <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', display:'flex' }}><Ic n="search" s={14}/></span>
+                <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar usuário por nome ou e-mail…"
+                  style={{ ...inp, padding:'9px 12px 9px 34px' }} />
+              </div>
+              <button type="button" onClick={() => setMode('create')}
+                style={{ padding:'9px 14px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0 }}>
+                + Criar novo
+              </button>
             </div>
-            <div>
-              <label style={lbl}>Sobrenome</label>
-              <input value={form.last_name} onChange={set('last_name')} placeholder="Sobrenome"
-                style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+            <div style={{ overflowY:'auto', padding:'0 12px 14px', flex:1 }}>
+              {loadingUsers ? (
+                <p style={{ textAlign:'center', color:'#94a3b8', padding:'24px 0', fontSize:13 }}>Carregando usuários…</p>
+              ) : candidates.length === 0 ? (
+                <p style={{ textAlign:'center', color:'#94a3b8', padding:'24px 0', fontSize:13 }}>
+                  {s ? 'Nenhum usuário encontrado.' : 'Nenhum usuário disponível para adicionar.'}
+                </p>
+              ) : candidates.map(u => (
+                <div key={u.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 12px', borderRadius:9 }}
+                  onMouseEnter={e => e.currentTarget.style.background='#f8fafc'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                  {avatar(u)}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.full_name || u.email}</p>
+                    <p style={{ fontSize:12, color:'#64748b', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.email}</p>
+                  </div>
+                  <button type="button" onClick={() => attach(u)} disabled={busyId === u.id}
+                    style={{ padding:'7px 14px', borderRadius:7, border:'1px solid #1a2d4f', background:'#fff', color:'#1a2d4f', fontSize:12.5, fontWeight:600, cursor: busyId === u.id ? 'default' : 'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                    {busyId === u.id ? 'Adicionando…' : 'Adicionar'}
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
-          <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>
-            Um e-mail de convite será enviado automaticamente para o usuário definir sua senha.
-          </p>
-        </div>
-
-        <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'flex-end' }}>
-          <button type="button" onClick={onClose}
-            style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-            Cancelar
-          </button>
-          <button type="button" onClick={handleSave} disabled={saving || !form.email.trim()}
-            style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving || !form.email.trim() ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving || !form.email.trim() ? 'default' : 'pointer', fontFamily:'inherit' }}>
-            {saving ? 'Criando…' : 'Criar e convidar'}
-          </button>
-        </div>
+          </>
+        ) : (
+          <>
+            <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14, overflowY:'auto' }}>
+              <div>
+                <label style={lbl}>E-mail</label>
+                <EmailInput value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))}
+                  placeholder="email@exemplo.com" style={inp} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <label style={lbl}>Nome</label>
+                  <input value={form.first_name} onChange={set('first_name')} placeholder="Nome"
+                    style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+                </div>
+                <div>
+                  <label style={lbl}>Sobrenome</label>
+                  <input value={form.last_name} onChange={set('last_name')} placeholder="Sobrenome"
+                    style={inp} onFocus={e => e.target.style.borderColor='#1a2d4f'} onBlur={e => e.target.style.borderColor='#e2e8f0'} />
+                </div>
+              </div>
+              <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>
+                Um e-mail de convite será enviado automaticamente para o usuário definir sua senha.
+              </p>
+            </div>
+            <div style={{ padding:'0 22px 18px', display:'flex', gap:8, justifyContent:'space-between', flexShrink:0 }}>
+              <button type="button" onClick={() => setMode('pick')}
+                style={{ padding:'8px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                ← Voltar
+              </button>
+              <button type="button" onClick={handleCreate} disabled={saving || !form.email.trim()}
+                style={{ padding:'8px 22px', borderRadius:8, border:'none', background: saving || !form.email.trim() ? '#94a3b8' : '#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor: saving || !form.email.trim() ? 'default' : 'pointer', fontFamily:'inherit' }}>
+                {saving ? 'Criando…' : 'Criar e convidar'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -362,6 +434,7 @@ function AgencyUsersTab({ agencyId }) {
       {showNew && (
         <NewAgencyUserPopup
           agencyId={agencyId}
+          memberUserIds={members.map(m => m.user_id)}
           onSaved={load}
           onClose={() => setShowNew(false)}
         />
