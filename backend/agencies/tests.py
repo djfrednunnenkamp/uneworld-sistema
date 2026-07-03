@@ -117,3 +117,35 @@ class AttachableUsersEndpointTest(APITestCase):
         self.assertIn(self.regular.email, emails)
         self.assertNotIn(self.superu.email, emails)          # superadmin nunca aparece
         self.assertNotIn('memberx@x.com', emails)            # já é membro → fora
+
+
+class AttachDemotesInternalTest(APITestCase):
+    """Anexar (com apply_agency_profile) uma conta interna/super REBAIXA para usuário
+    de agência e aplica o perfil padrão. Só um superusuário consegue (A-08)."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.root = _make_user('root8', superuser=True)
+        self.leo = _make_user('leo8', superuser=True)   # o "Léo" superadmin
+        from config_api.models import PermissionProfile
+        PermissionProfile.objects.create(name='Ag', is_agency_default=True,
+                                         permissions={'passengers_view_basic': True})
+
+    def test_super_is_demoted_and_gets_agency_profile(self):
+        self.client.force_authenticate(self.root)
+        r = self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                             {'user_id': self.leo.id, 'role': 'operator', 'apply_agency_profile': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.leo.refresh_from_db(); self.leo.permissions.refresh_from_db()
+        self.assertFalse(self.leo.is_superuser)   # rebaixado
+        self.assertFalse(self.leo.is_staff)
+        self.assertTrue(self.leo.permissions.passengers_view_basic)  # assumiu o perfil de agência
+        self.assertTrue(self.agency.members.filter(user=self.leo).exists())
+
+    def test_does_not_demote_self(self):
+        # o próprio superusuário não é rebaixado ao se anexar (evita se trancar fora)
+        self.client.force_authenticate(self.root)
+        r = self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                             {'user_id': self.root.id, 'role': 'operator', 'apply_agency_profile': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.root.refresh_from_db()
+        self.assertTrue(self.root.is_superuser)   # continua superusuário

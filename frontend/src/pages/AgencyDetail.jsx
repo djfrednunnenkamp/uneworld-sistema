@@ -93,6 +93,7 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')  // all | agency | internal
   const [busyId, setBusyId] = useState(null)
+  const [confirmUser, setConfirmUser] = useState(null)  // super/staff pede confirmação (rebaixa)
 
   const lbl = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
   const inp = { width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
@@ -118,17 +119,19 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
     (!s || (u.full_name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s)))
 
   // Anexa um usuário EXISTENTE: vira membro e ASSUME as permissões de agência
-  // (perfil padrão de agência aplicado no backend; ver _add_member).
+  // (perfil padrão aplicado no backend; conta interna/super é rebaixada — ver _add_member).
   const attach = async (u) => {
     setBusyId(u.id)
     try {
       await agenciesApi.addMemberById(agencyId, u.id, 'operator', true)
       toast.success(`${u.full_name || u.email} adicionado à agência.`)
-      onSaved(); onClose()
+      setConfirmUser(null); onSaved(); onClose()
     } catch (err) {
       toast.error(err.response?.data?.error ?? 'Erro ao adicionar o usuário.')
     } finally { setBusyId(null) }
   }
+  // Super/staff: avisa que ele será REBAIXADO para usuário de agência antes de anexar.
+  const requestAttach = (u) => (u.is_superuser || u.is_staff) ? setConfirmUser(u) : attach(u)
 
   const handleCreate = async () => {
     if (!form.email.trim()) { toast.error('E-mail é obrigatório.'); return }
@@ -205,7 +208,7 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
                     <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.full_name || u.email}</p>
                     <p style={{ fontSize:12, color:'#64748b', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.email}</p>
                   </div>
-                  <button type="button" onClick={() => attach(u)} disabled={busyId === u.id}
+                  <button type="button" onClick={() => requestAttach(u)} disabled={busyId === u.id}
                     style={{ padding:'7px 14px', borderRadius:7, border:'1px solid #1a2d4f', background:'#fff', color:'#1a2d4f', fontSize:12.5, fontWeight:600, cursor: busyId === u.id ? 'default' : 'pointer', fontFamily:'inherit', flexShrink:0 }}>
                     {busyId === u.id ? 'Adicionando…' : 'Adicionar'}
                   </button>
@@ -250,6 +253,19 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
           </>
         )}
       </div>
+
+      {confirmUser && (
+        <ConfirmModal
+          title="Rebaixar para usuário de agência?"
+          message={`${confirmUser.full_name || confirmUser.email} é uma conta ${confirmUser.is_superuser ? 'de superadmin' : 'interna (operadora)'}. Ao adicioná-lo a esta agência, ele passa a ter APENAS as permissões de agência e PERDE o acesso de admin/interno.`}
+          detail="Ele vira um usuário comum da agência (perfil padrão). Só outro superusuário poderia restaurar o acesso depois."
+          okLabel="Sim, adicionar e rebaixar"
+          danger
+          zIndex={700}
+          onOk={() => attach(confirmUser)}
+          onCancel={() => !busyId && setConfirmUser(null)}
+        />
+      )}
     </div>
   )
 }

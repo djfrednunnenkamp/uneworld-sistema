@@ -179,14 +179,20 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         if agency.members.filter(user=user).exists():
             return Response({'error': 'Usuário já pertence a esta agência.'}, status=400)
         m = AgencyMember.objects.create(agency=agency, user=user, role=role)
-        # Anexar um usuário EXISTENTE assume as permissões de agência: aplica o
-        # perfil "padrão de agência" (só p/ conta não-interna; nunca mexe em staff/super).
-        if request.data.get('apply_agency_profile') and not (user.is_staff or user.is_superuser):
+        # Anexar um usuário EXISTENTE faz ele ASSUMIR as permissões de agência:
+        # se era conta interna (staff/superusuário), rebaixa para usuário comum e
+        # aplica o perfil "padrão de agência". Só um superusuário chega aqui com uma
+        # conta interna (A-08); e nunca rebaixa a si mesmo (evita se trancar fora).
+        if request.data.get('apply_agency_profile'):
             from config_api.models import PermissionProfile
             from users_api.permissions import apply_profile
+            if (user.is_superuser or user.is_staff) and user.pk != request.user.pk:
+                user.is_superuser = False
+                user.is_staff = False
+                user.save(update_fields=['is_superuser', 'is_staff'])
             prof = PermissionProfile.objects.filter(is_agency_default=True, is_deleted=False).first()
-            if prof:
-                apply_profile(user, prof)
+            if prof and not user.is_superuser:
+                apply_profile(user, prof)   # agora aplica (não é mais superusuário)
         return Response({'id': m.id, 'email': user.email,
                          'full_name': f'{user.first_name} {user.last_name}'.strip() or user.email,
                          'role': m.role, 'is_active': user.is_active}, status=201)
