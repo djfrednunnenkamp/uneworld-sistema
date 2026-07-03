@@ -574,6 +574,18 @@ export default function Contracts() {
     reloadAll()
   }
 
+  // Restaura (tira do lixo) vários contratos selecionados de uma vez.
+  const handleBulkRestore = async (rows, after) => {
+    const toastId = toast.loading(`Restaurando ${rows.length} contrato(s)…`)
+    const results = await Promise.allSettled(rows.map(r => contractsApi.restore(r.id)))
+    const failed = results.filter(x => x.status === 'rejected').length
+    const ok = rows.length - failed
+    if (ok) toast.success(`${ok} contrato(s) restaurado(s).`, { id: toastId })
+    if (failed) toast.error(`${failed} não puderam ser restaurados.`, ok ? undefined : { id: toastId })
+    after?.()
+    reloadAll()
+  }
+
   const handleDownloadPdf = async (row) => {
     setDownloadingId(row.id)
     try {
@@ -912,13 +924,22 @@ export default function Contracts() {
         extraFilters={filterBar}
         onLog={canViewLog ? () => navigate('/log?scope=contracts') : undefined}
         headerExtra={draftsBtn}
-        bulkBar={(tab === 'trash' ? canPurge : canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', flex: 1 }}>{selRows.length} selecionados</span>
-            <button type="button" onClick={() => setBulkDel({ rows: selRows, after: clearSelection, purge: tab === 'trash' })}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Ic n="trash" s={12} /> {tab === 'trash' ? 'Excluir permanentemente' : 'Excluir selecionados'}
-            </button>
+        bulkBar={(tab === 'trash' ? (canEdit || canPurge) : canDelete) ? (selRows, { clearSelection }) => selRows.length >= 2 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: tab === 'trash' ? '#f8fafc' : '#fef2f2', border: `1.5px solid ${tab === 'trash' ? '#e2e8f0' : '#fecaca'}`, borderRadius: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: tab === 'trash' ? '#334155' : '#b91c1c', flex: 1 }}>{selRows.length} selecionados</span>
+            {/* Restaurar em lote (só na lixeira, pra quem pode editar) */}
+            {tab === 'trash' && canEdit && (
+              <button type="button" onClick={() => handleBulkRestore(selRows, clearSelection)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: '1px solid #86efac', background: '#f0fdf4', color: '#15803d', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="rotate" s={12} /> Restaurar selecionados
+              </button>
+            )}
+            {(tab !== 'trash' ? canDelete : canPurge) && (
+              <button type="button" onClick={() => setBulkDel({ rows: selRows, after: clearSelection, purge: tab === 'trash' })}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n="trash" s={12} /> {tab === 'trash' ? 'Excluir permanentemente' : 'Excluir selecionados'}
+              </button>
+            )}
             <button type="button" onClick={clearSelection}
               style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
               Cancelar
