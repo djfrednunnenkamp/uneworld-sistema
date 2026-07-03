@@ -67,9 +67,15 @@ export function simulatePaymentPlan(plan, total) {
   const method = p.payment_method || ''
   const dpMethod = p.down_payment_method || ''
 
-  // À vista: pagamento único do total (arredondado pelo passo do "valor").
+  // À vista: pagamento único do total, já com o desconto à vista (se houver),
+  // arredondado pelo passo do "valor".
   if (p.a_vista) {
-    return { total: t, entrada: null, avista: { value: roundToStep(t, instRound), method, dueDays: firstDue }, installments: [] }
+    const avMode = p.a_vista_discount_mode || 'percent'
+    const avDisc = Number(p.a_vista_discount_value || 0)
+    const withDiscount = avDisc > 0
+      ? Math.max(0, avMode === 'valor' ? t - avDisc : t * (1 - avDisc / 100))
+      : t
+    return { total: t, entrada: null, avista: { value: roundToStep(withDiscount, instRound), method, dueDays: firstDue }, installments: [] }
   }
 
   const entradaVal = hasDp ? roundToStep(dpMode === 'valor' ? dpVal : t * dpVal / 100, dpRound) : 0
@@ -222,6 +228,14 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [],
       {label}
     </button>
   )
+  // Desconto à vista (valor ou %).
+  const avMode = v.a_vista_discount_mode || 'percent'
+  const avModeBtn = (m, label) => (
+    <button type="button" onClick={() => set('a_vista_discount_mode', m)}
+      style={{ padding: '8px 14px', border: 'none', background: avMode === m ? '#1a2d4f' : '#fff', color: avMode === m ? '#fff' : '#475569', fontSize: 13, fontWeight: avMode === m ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+      {label}
+    </button>
+  )
 
   // Opções do dropdown de forma de pagamento — inclui os valores já salvos,
   // mesmo que não estejam mais na lista de Formas de Pagamento das Configurações.
@@ -264,7 +278,19 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [],
               onChange={e => set('first_due_days', e.target.value)} placeholder="Ex.: 0 (na hora)" />
           </div>
         </div>
-        <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0 }}>Pagamento único do valor total, sem entrada nem parcelas.</p>
+        <div>
+          <label style={lbl}>Desconto à vista</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', maxWidth: 320 }}>
+            <input className="fi" type="number" min="0" step="0.01" value={v.a_vista_discount_value ?? ''}
+              onChange={e => set('a_vista_discount_value', e.target.value)}
+              placeholder={avMode === 'valor' ? 'Ex.: 500' : 'Ex.: 5'} />
+            <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+              {avModeBtn('valor', 'R$')}
+              {avModeBtn('percent', '%')}
+            </div>
+          </div>
+        </div>
+        <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0 }}>Pagamento único do valor total{Number(v.a_vista_discount_value) > 0 ? ', já com o desconto à vista aplicado' : ', sem entrada nem parcelas'}.</p>
       </section>
       ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: 14, alignItems: 'start' }}>

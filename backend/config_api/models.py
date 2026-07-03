@@ -85,6 +85,10 @@ class ConfigPaymentPlan(models.Model):
     # À vista: pagamento único do total (ignora entrada/parcelas). O passo de
     # arredondamento do valor à vista reaproveita installment_rounding.
     a_vista              = models.BooleanField('À vista', default=False)
+    # Desconto aplicado quando o pagamento é à vista (interpretado por a_vista_discount_mode:
+    # 'percent' → % do total; 'valor' → R$). 0 = sem desconto.
+    a_vista_discount_mode  = models.CharField('Tipo do desconto à vista', max_length=10, choices=DOWN_PAYMENT_MODE_CHOICES, default='percent')
+    a_vista_discount_value = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, default=0)
     has_down_payment     = models.BooleanField('Tem entrada', default=False)
     down_payment_mode    = models.CharField('Tipo da entrada', max_length=10, choices=DOWN_PAYMENT_MODE_CHOICES, default='percent')
     # Interpretado conforme down_payment_mode: 'percent' → % do total; 'valor' → R$.
