@@ -702,7 +702,9 @@ export default function Contracts() {
     : tab === 'rascunho'
     ? draftRows
     : tab === 'geral'
-    ? [...rows].sort((a, b) => {
+    // "Geral" mostra tudo MENOS os já finalizados (faturados/prontos) — esses
+    // vivem só na aba "Faturados".
+    ? rows.filter(r => r.stage !== 'faturado').sort((a, b) => {
         const av = a.created_at || '', bv = b.created_at || ''
         const cmp = av !== bv ? (av < bv ? -1 : 1) : (a.id || 0) - (b.id || 0)
         return fSort === 'recent' ? -cmp : cmp
@@ -803,7 +805,7 @@ export default function Contracts() {
   )
 
   const TABS = [
-    { key: 'geral',     label: 'Geral',            color: '#1a2d4f', count: rows.length },
+    { key: 'geral',     label: 'Geral',            color: '#1a2d4f', count: rows.filter(r => r.stage !== 'faturado').length },
     { key: 'em_edicao', label: 'Em edição',       color: '#2563eb', count: stageCount('em_edicao') },
     { key: 'enviado',   label: 'Para assinatura',  color: '#d97706', count: stageCount('enviado') },
     { key: 'revisao',   label: 'Em revisão',       color: '#7c3aed', count: stageCount('revisao') },
