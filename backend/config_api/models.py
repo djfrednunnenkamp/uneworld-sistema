@@ -84,6 +84,7 @@ class ConfigPaymentPlan(models.Model):
     down_payment_mode    = models.CharField('Tipo da entrada', max_length=10, choices=DOWN_PAYMENT_MODE_CHOICES, default='percent')
     # Interpretado conforme down_payment_mode: 'percent' → % do total; 'valor' → R$.
     down_payment_value   = models.DecimalField('Entrada (valor ou %)', max_digits=12, decimal_places=2, default=0)
+    down_payment_method  = models.CharField('Forma de pagamento da entrada', max_length=100, blank=True)
     installments_count   = models.PositiveSmallIntegerField('Nº de parcelas', default=0)
     payment_method       = models.CharField('Forma de pagamento', max_length=100, blank=True)
     first_due_days       = models.PositiveSmallIntegerField('1º vencimento (dias após aplicar)', default=30)

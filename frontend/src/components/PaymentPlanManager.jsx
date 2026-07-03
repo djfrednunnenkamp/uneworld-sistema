@@ -16,7 +16,7 @@ const btnCsv = (color) => ({ padding: '9px 12px', borderRadius: 8, border: `1.5p
  * sozinho). Cada modelo é uma sugestão reutilizável (entrada % + nº de parcelas +
  * forma + vencimentos) que os roteiros podem copiar. */
 
-const BLANK = { name: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 }
+const BLANK = { name: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 }
 
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }
 const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }
@@ -26,7 +26,9 @@ function describe(p) {
   const parts = []
   if (p.has_down_payment) {
     const val = Number(p.down_payment_value) || 0
-    parts.push('entrada ' + (p.down_payment_mode === 'valor' ? `R$ ${val.toLocaleString('pt-BR')}` : `${val}%`))
+    let entrada = 'entrada ' + (p.down_payment_mode === 'valor' ? `R$ ${val.toLocaleString('pt-BR')}` : `${val}%`)
+    if (p.down_payment_method) entrada += ` (${p.down_payment_method})`
+    parts.push(entrada)
   }
   parts.push(n > 0 ? `${n}x` : 'à vista')
   if (p.payment_method) parts.push(p.payment_method)

@@ -1,6 +1,9 @@
+import Dropdown from './Dropdown'
+
 /* Campos de um Modelo/Sugestão de pagamento: entrada opcional (valor em R$ OU %
- * do total) + nº de parcelas + forma de pagamento + agenda de vencimentos (em
- * dias). Usado nas Configurações (PaymentPlanManager) e no roteiro (ItineraryDetail). */
+ * do total, com forma de pagamento própria) + nº de parcelas + forma de pagamento
+ * + agenda de vencimentos (em dias). Usado nas Configurações (PaymentPlanManager)
+ * e no roteiro (ItineraryDetail). */
 const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }
 
 export default function PaymentPlanFields({ value, onChange, methodOptions = [] }) {
@@ -14,27 +17,45 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
     </button>
   )
 
+  // Opções do dropdown de forma de pagamento — inclui os valores já salvos,
+  // mesmo que não estejam mais na lista de Formas de Pagamento das Configurações.
+  const methodOpts = Array.from(new Set([...methodOptions, v.payment_method, v.down_payment_method].filter(Boolean)))
+    .map(m => ({ value: m, label: m }))
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Entrada — checkbox liga/desliga */}
+      {/* Entrada — toggle liga/desliga (padrão do sistema) */}
       <div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <input type="checkbox" checked={!!v.has_down_payment}
-            onChange={e => set('has_down_payment', e.target.checked)}
-            style={{ width: 15, height: 15, accentColor: '#1a2d4f', cursor: 'pointer' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Tem entrada?</span>
-        </label>
+          <label className="toggle-wrap">
+            <span className="toggle">
+              <input type="checkbox" checked={!!v.has_down_payment}
+                onChange={e => set('has_down_payment', e.target.checked)} />
+              <span className="toggle-slider" />
+            </span>
+            <span className="toggle-label">{v.has_down_payment ? 'Sim' : 'Não'}</span>
+          </label>
+        </div>
         {v.has_down_payment && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 8 }}>
-            <div style={{ flex: 1 }}>
-              <label style={lbl}>{mode === 'valor' ? 'Valor da entrada (R$)' : 'Entrada (% do total)'}</label>
-              <input className="fi" type="number" min="0" step="0.01"
-                value={v.down_payment_value ?? ''} onChange={e => set('down_payment_value', e.target.value)}
-                placeholder={mode === 'valor' ? 'Ex.: 10000' : 'Ex.: 20'} />
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>{mode === 'valor' ? 'Valor da entrada (R$)' : 'Entrada (% do total)'}</label>
+                <input className="fi" type="number" min="0" step="0.01"
+                  value={v.down_payment_value ?? ''} onChange={e => set('down_payment_value', e.target.value)}
+                  placeholder={mode === 'valor' ? 'Ex.: 10000' : 'Ex.: 20'} />
+              </div>
+              <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+                {modeBtn('valor', 'R$')}
+                {modeBtn('percent', '%')}
+              </div>
             </div>
-            <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
-              {modeBtn('valor', 'R$')}
-              {modeBtn('percent', '%')}
+            <div>
+              <label style={lbl}>Forma de pagamento da entrada</label>
+              <Dropdown value={v.down_payment_method || null} options={methodOpts}
+                placeholder="Selecione a forma" searchable clearable
+                onChange={val => set('down_payment_method', val || '')} />
             </div>
           </div>
         )}
@@ -43,18 +64,16 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
       {/* Parcelas + forma + vencimentos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 12 }}>
         <div>
-          <label style={lbl}>Nº de parcelas</label>
+          <label style={lbl}>Número de parcelas</label>
           <input className="fi" type="number" min="0" max="360"
             value={v.installments_count ?? ''} onChange={e => set('installments_count', e.target.value)}
             placeholder="Ex.: 10 (0 = à vista)" />
         </div>
         <div>
           <label style={lbl}>Forma de pagamento</label>
-          <input className="fi" list="payment-plan-methods" value={v.payment_method || ''}
-            onChange={e => set('payment_method', e.target.value)} placeholder="Ex.: Boleto, Cartão, PIX" />
-          <datalist id="payment-plan-methods">
-            {methodOptions.map(m => <option key={m} value={m} />)}
-          </datalist>
+          <Dropdown value={v.payment_method || null} options={methodOpts}
+            placeholder="Selecione a forma" searchable clearable
+            onChange={val => set('payment_method', val || '')} />
         </div>
         <div>
           <label style={lbl}>1º vencimento (dias após aplicar)</label>
