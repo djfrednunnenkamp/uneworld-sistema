@@ -30,7 +30,7 @@ export const ROUNDING_OPTIONS = [
   { value: 1000, label: 'R$ 1.000' },
 ]
 // Número de exemplo mostrado em cada opção (com casas "sujas", como o cálculo gera).
-const ROUNDING_SAMPLE = 789.456
+const ROUNDING_SAMPLE = 1125.552
 const brl = (n) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const brl3 = (n) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
 
@@ -102,7 +102,7 @@ function RoundingPopup({ title, value, onSelect, onClose }) {
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
         </div>
         <div style={{ padding: '6px 18px 10px', fontSize: 11.5, color: '#94a3b8', borderBottom: '1px solid #f1f5f9', marginBottom: 4 }}>
-          Exemplo com <b style={{ color: '#64748b' }}>R$ {brl3(ROUNDING_SAMPLE)}</b>:
+          Veja como <b style={{ color: '#64748b' }}>R$ {brl3(ROUNDING_SAMPLE)}</b> fica em cada opção:
         </div>
         <div style={{ padding: '4px 0 8px', maxHeight: '52vh', overflowY: 'auto' }}>
           {ROUNDING_OPTIONS.map(o => {
@@ -114,7 +114,7 @@ function RoundingPopup({ title, value, onSelect, onClose }) {
                 onMouseLeave={e => { e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: sel ? 700 : 500, color: '#1e293b' }}>{o.label}</div>
-                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>→ R$ {brl(roundToStep(ROUNDING_SAMPLE, o.value))}</div>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>R$ {brl3(ROUNDING_SAMPLE)} → <b style={{ color: '#475569' }}>R$ {brl(roundToStep(ROUNDING_SAMPLE, o.value))}</b></div>
                 </div>
                 {sel && <span style={{ color: '#2563eb', flexShrink: 0 }}><Ic n="check" s={15} /></span>}
               </button>
