@@ -628,7 +628,10 @@ export default function Contracts() {
   const startSignatureFlow = async (id) => {
     try {
       const r = await contractsApi.get(id)
-      // _chainToSign: só o fluxo de criação emenda no pop-up de assinatura depois.
+      // Só emenda no fluxo se o contrato ainda está em edição (não já enviado/
+      // assinado/faturado — nesses casos não faz sentido reabrir a assinatura).
+      if (['enviado', 'revisao', 'a_faturar', 'faturado'].includes(r.data.stage)) return
+      // _chainToSign: sinaliza que, após confirmar, deve abrir o pop-up de assinatura.
       setSendRow({ ...r.data, _chainToSign: true })
     } catch { /* se falhar, o contrato já está salvo na lista pra reabrir depois */ }
   }
@@ -1072,11 +1075,10 @@ export default function Contracts() {
           contractId={modal === 'new' ? null : modal}
           onClose={() => { setModal(null); loadDrafts() }}
           onSaved={(savedId) => {
-            const wasNew = modal === 'new'
             setModal(null); load(); loadDrafts()
-            // Contrato novo → já emenda no fluxo de assinatura (físico/digital),
-            // sem a pessoa ter que sair e procurar o contrato na lista.
-            if (wasNew && savedId) startSignatureFlow(savedId)
+            // Ao salvar (criar OU editar) um contrato ainda em edição, já emenda
+            // no fluxo de assinatura (físico/digital), sem a pessoa sair pra lista.
+            if (savedId) startSignatureFlow(savedId)
           }}
           onPublish={handlePublish}
         />
