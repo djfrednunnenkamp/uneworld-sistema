@@ -11,7 +11,7 @@ from rest_framework import status
 from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, InviteRateThrottle
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
-from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids, agency_admin_ids, can_manage_agency_user
+from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids, agency_admin_ids, can_manage_agency_user, drop_agency_memberships_if_internal
 
 
 def _password_error(new_pw, user=None):
@@ -411,6 +411,9 @@ def user_update(request, pk):
         perms = get_user_permissions(user)
         perms.phone = (data.get('phone') or '').strip()
         perms.save(update_fields=['phone'])
+    # Se virou conta interna (staff/superusuário), deixa de ser usuário de agência →
+    # remove os vínculos de agência (senão continuava aparecendo na agência).
+    drop_agency_memberships_if_internal(user)
     return Response(serialize_user(user))
 
 

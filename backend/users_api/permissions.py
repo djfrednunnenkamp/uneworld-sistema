@@ -244,6 +244,15 @@ def can_manage_agency_user(actor, target):
     return target.agency_memberships.filter(agency_id__in=ids).exists()
 
 
+def drop_agency_memberships_if_internal(user):
+    """Conta INTERNA (staff/superusuário) não é usuário de agência → remove os
+    vínculos de agência dela. Sem isso, um usuário que foi de agência e virou
+    interno continuava aparecendo como membro da agência."""
+    if user and (user.is_staff or user.is_superuser):
+        from django.apps import apps
+        apps.get_model('agencies', 'AgencyMember').objects.filter(user=user).delete()
+
+
 def sync_is_staff(user):
     """Recalcula user.is_staff a partir das permissões administrativas atuais."""
     if user.is_superuser:

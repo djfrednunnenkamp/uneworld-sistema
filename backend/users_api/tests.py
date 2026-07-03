@@ -395,3 +395,23 @@ class ApplyProfileFullReplaceTest(APITestCase):
         self.assertFalse(u.permissions.settings_professions)
         self.assertTrue(u.permissions.passengers_view_basic)  # veio do perfil
         self.assertFalse(u.is_staff)                         # sync recalculou → não é mais staff
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class InternalDropsAgencyMembershipTest(APITestCase):
+    """Ao virar conta interna (superusuário/staff), o usuário perde os vínculos de
+    agência (não aparece mais como membro)."""
+    def setUp(self):
+        from agencies.models import Agency, AgencyMember
+        self.root = make_user('root_x', superuser=True, password=ADMIN_PW)
+        self.ag = Agency.objects.create(name='A', person_type='juridica')
+        self.u = make_user('aguser_x', passengers_view_basic=True)
+        AgencyMember.objects.create(agency=self.ag, user=self.u, role='operator')
+
+    def test_promote_to_superuser_removes_membership(self):
+        from agencies.models import AgencyMember
+        self.assertTrue(AgencyMember.objects.filter(user=self.u).exists())
+        self.client.force_authenticate(self.root)
+        r = self.client.patch(f'/api/users/{self.u.id}/', {'is_superuser': True}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertFalse(AgencyMember.objects.filter(user=self.u).exists())  # vínculo removido
