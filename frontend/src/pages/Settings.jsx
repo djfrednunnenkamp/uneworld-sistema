@@ -15,6 +15,7 @@ import ContractClausesManager from '../components/ContractClausesManager'
 import OperatingCompanyManager from '../components/OperatingCompanyManager'
 import ExchangeRateManager from '../components/ExchangeRateManager'
 import PaymentPlanManager from '../components/PaymentPlanManager'
+import AVistaOptionsButton from '../components/AVistaOptionsButton'
 import TermsAndConditionsManager from '../components/TermsAndConditionsManager'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
@@ -2035,6 +2036,7 @@ export default function Settings() {
                   <div style={{ fontSize:18, fontWeight:800, color:'#0f172a' }}>{activeDef.label}</div>
                   <div style={{ fontSize:13, color:'#64748b', lineHeight:1.45, marginTop:2 }}>{meta.desc}</div>
                 </div>
+                {activeDef.key === 'payment_plans' && <AVistaOptionsButton canEdit={can('settings_payment_methods','edit')} />}
                 <button onClick={() => setActiveList(null)} style={{ flexShrink:0, width:32, height:32, borderRadius:8, border:'1px solid #e6eaf1', background:'#fff', color:'#64748b', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <Ic n="x" s={16}/>
                 </button>

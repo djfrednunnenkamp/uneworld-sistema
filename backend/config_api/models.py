@@ -553,6 +553,13 @@ class SystemSettings(models.Model):
     """Singleton de configurações globais do sistema."""
     deadline_notification_emails = models.JSONField('E-mails de notificação de prazos', default=list, blank=True)
 
+    # Opções globais de pagamento à vista (desconto único + forma sugerida). Usadas
+    # quando o pagamento é à vista, independentemente do modelo de pagamento.
+    A_VISTA_DISCOUNT_MODE_CHOICES = [('percent', '% do total'), ('valor', 'Valor em R$')]
+    a_vista_discount_mode  = models.CharField('Tipo do desconto à vista', max_length=10, choices=A_VISTA_DISCOUNT_MODE_CHOICES, default='percent')
+    a_vista_discount_value = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, default=0)
+    a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
+
     class Meta:
         verbose_name = 'Configurações do sistema'
         verbose_name_plural = 'Configurações do sistema'

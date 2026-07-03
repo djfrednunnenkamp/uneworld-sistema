@@ -1482,7 +1482,8 @@ class BusMapViewSet(viewsets.ModelViewSet):
 class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model  = SystemSettings
-        fields = ['deadline_notification_emails']
+        fields = ['deadline_notification_emails',
+                  'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method']
 
 class _IsStaffOrSuper(BasePermission):
     def has_permission(self, request, view):
