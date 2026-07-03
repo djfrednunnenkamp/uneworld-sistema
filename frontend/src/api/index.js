@@ -283,7 +283,7 @@ export const configApi = {
   delContractClause:      (id)      => api.delete(`/config/contract-clauses/${id}/`),
   // Dados da operadora (UneWorld) — pré-preenche os contratos
   operatingCompany:       ()        => api.get('/config/operating-company/'),
-  updateOperatingCompany: (data)    => api.patch('/config/operating-company/', data),
+  updateOperatingCompany: (data)    => api.patch('/config/operating-company/', data, data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined),
   // Formas de pagamento
   paymentMethods:    () => api.get('/config/payment-methods/'),
   addPaymentMethod:  (name) => api.post('/config/payment-methods/', { name }),

@@ -5,12 +5,12 @@ from django.db.models import Q
 from django.http import StreamingHttpResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, parser_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework import serializers
-from rest_framework.parsers import MultiPartParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
@@ -1511,19 +1511,30 @@ def system_settings(request):
 # ── Dados da operadora (UneWorld) — pré-preenche contratos ──────────────────
 
 class OperatingCompanySerializer(serializers.ModelSerializer):
+    # URL do endpoint que serve a imagem (com cache-bust por updated_at); o
+    # arquivo em si é gravado na view (não pelo serializer).
+    ceo_signature = serializers.SerializerMethodField()
+
     class Meta:
         model  = OperatingCompany
         fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address',
                   'pix_key_type', 'pix_key',
                   'default_signature_type',
-                  'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign',
+                  'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign', 'ceo_signature',
                   'updated_at']
+
+    def get_ceo_signature(self, obj):
+        if not obj.ceo_signature:
+            return None
+        ts = int(obj.updated_at.timestamp()) if obj.updated_at else 0
+        return f'/api/config/operating-company/ceo-signature/?v={ts}'
 
 
 CEO_SENSITIVE_FIELDS = ['ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign']
 
 
 @api_view(['GET', 'PATCH'])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 @permission_classes([IsAuthenticated])
 def operating_company(request):
     from users_api.permissions import has_any_perm
@@ -1543,12 +1554,45 @@ def operating_company(request):
         ser = OperatingCompanySerializer(obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(ser.data)
+        # Imagem da assinatura do CEO (multipart) — tratada fora do serializer.
+        sig = request.FILES.get('ceo_signature')
+        if sig is not None:
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            from passengers.validators import validate_document_file
+            try:
+                sig = validate_document_file(sig, allowed_exts={'.png', '.jpg', '.jpeg'}, allow_images=True)
+            except DjangoValidationError as e:
+                return Response({'error': 'Assinatura inválida: ' + ' '.join(e.messages)}, status=400)
+            obj.ceo_signature = sig
+            obj.save(update_fields=['ceo_signature', 'updated_at'])
+        elif str(request.data.get('ceo_signature_clear', '')).lower() in ('1', 'true', 'yes', 'on'):
+            if obj.ceo_signature:
+                obj.ceo_signature.delete(save=False)
+            obj.ceo_signature = None
+            obj.save(update_fields=['ceo_signature', 'updated_at'])
+        return Response(OperatingCompanySerializer(obj).data)
     data = OperatingCompanySerializer(obj).data
     if not can_settings:
         for k in CEO_SENSITIVE_FIELDS:
             data.pop(k, None)
     return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def operating_company_ceo_signature(request):
+    """Serve a imagem da assinatura do CEO (para embutir no PDF físico)."""
+    from django.http import FileResponse, Http404
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_view',
+                        'settings_operating_company_edit', 'contracts_view', 'contracts_edit'):
+        return Response(status=403)
+    obj = OperatingCompany.get()
+    if not obj.ceo_signature:
+        raise Http404
+    resp = FileResponse(obj.ceo_signature.open('rb'), as_attachment=False)
+    resp['X-Frame-Options'] = 'SAMEORIGIN'
+    return resp
 
 
 # ── Termos e condições ───────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
@@ -40,11 +40,17 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
     default_signature_type: 'fisica',
     ceo_name: '', ceo_email: '', ceo_autentique_token: '', ceo_auto_sign: false,
   })
+  const [sigUrl, setSigUrl]     = useState(null)   // assinatura salva no servidor
+  const [sigFile, setSigFile]   = useState(null)   // nova imagem a enviar
+  const [sigPreview, setSigPreview] = useState(null)
+  const [sigClear, setSigClear] = useState(false)
+  const sigRef = useRef(null)
 
   useEffect(() => {
     configApi.operatingCompany()
       .then(r => {
         const d = r.data
+        setSigUrl(d.ceo_signature || null)
         setForm({
           company_name: d.company_name ?? '', cnpj: d.cnpj ?? '', seller: d.seller ?? '',
           phone: d.phone ?? '', mobile: d.mobile ?? '', email: d.email ?? '', address: d.address ?? '',
@@ -60,10 +66,35 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
+  const pickSignature = (f) => {
+    if (!f) return
+    const okType = f.type === 'image/png' || f.type === 'image/jpeg' || /\.(png|jpe?g)$/i.test(f.name || '')
+    if (!okType) { toast.error('A assinatura deve ser PNG ou JPG (idealmente PNG com fundo transparente).'); return }
+    if (f.size > 5 * 1024 * 1024) { toast.error('Imagem muito grande (máx. 5 MB).'); return }
+    if (sigPreview) URL.revokeObjectURL(sigPreview)
+    setSigFile(f); setSigPreview(URL.createObjectURL(f)); setSigClear(false)
+  }
+  const removeSignature = () => {
+    if (sigPreview) URL.revokeObjectURL(sigPreview)
+    setSigFile(null); setSigPreview(null)
+    if (sigUrl) setSigClear(true)   // tinha uma salva → marca pra apagar no save
+  }
+
   const save = async () => {
     setSaving(true)
     try {
-      await configApi.updateOperatingCompany(form)
+      let payload = form
+      if (sigFile || sigClear) {
+        const fd = new FormData()
+        Object.entries(form).forEach(([k, v]) => fd.append(k, v == null ? '' : v))
+        if (sigFile) fd.append('ceo_signature', sigFile)
+        if (sigClear && !sigFile) fd.append('ceo_signature_clear', '1')
+        payload = fd
+      }
+      const r = await configApi.updateOperatingCompany(payload)
+      setSigUrl(r.data?.ceo_signature || null)
+      if (sigPreview) URL.revokeObjectURL(sigPreview)
+      setSigFile(null); setSigPreview(null); setSigClear(false)
       toast.success('Dados da operadora salvos.')
     } catch {
       toast.error('Erro ao salvar dados da operadora.')
@@ -202,6 +233,41 @@ export default function OperatingCompanyManager({ canEdit = true, canImport = fa
             </div>
           </div>
         )}
+      </div>
+
+      {/* Assinatura do CEO (imagem) — embutida no PDF físico */}
+      <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'14px', background:'#f8fafc' }}>
+        <div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>Assinatura do CEO (imagem)</div>
+        <p style={{ fontSize:11.5, color:'#94a3b8', margin:'2px 0 12px' }}>
+          Aparece automaticamente no <strong>PDF físico</strong> (acima da linha da Operadora). Melhor formato:
+          <strong> PNG com fundo transparente</strong> (a assinatura “flutua” sobre o documento). JPG também funciona, mas fica com fundo branco.
+        </p>
+        <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
+          {/* Preview */}
+          <div style={{ width:200, height:80, border:'1px dashed #cbd5e1', borderRadius:8, background:'#fff url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\'%3E%3Crect width=\'8\' height=\'8\' fill=\'%23f1f5f9\'/%3E%3Crect x=\'8\' y=\'8\' width=\'8\' height=\'8\' fill=\'%23f1f5f9\'/%3E%3C/svg%3E") repeat', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
+            {(sigPreview || (sigUrl && !sigClear)) ? (
+              <img src={sigPreview || sigUrl} alt="Assinatura do CEO" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain' }} />
+            ) : (
+              <span style={{ fontSize:11.5, color:'#94a3b8' }}>Sem assinatura</span>
+            )}
+          </div>
+          {canEdit && (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <input ref={sigRef} type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" style={{ display:'none' }}
+                onChange={e => { const f = e.target.files?.[0]; e.target.value=''; pickSignature(f) }} />
+              <button type="button" onClick={() => sigRef.current?.click()}
+                style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1px solid #cbd5e1', background:'#fff', color:'#475569', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                <Ic n="ul" s={13}/> {(sigPreview || (sigUrl && !sigClear)) ? 'Trocar imagem' : 'Escolher imagem'}
+              </button>
+              {(sigPreview || (sigUrl && !sigClear)) && (
+                <button type="button" onClick={removeSignature}
+                  style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1px solid #fecaca', background:'#fff', color:'#dc2626', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  <Ic n="trash" s={13}/> Remover
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {canEdit && (

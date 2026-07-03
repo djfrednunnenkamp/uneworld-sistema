@@ -586,6 +586,19 @@ export async function generateContractPDF(contract, opts = {}) {
   let company = {}
   try { company = (await configApi.operatingCompany()).data } catch { /* sem dados da operadora */ }
 
+  // Assinatura do CEO (imagem) — só embutida no contrato FÍSICO, acima da linha
+  // da Operadora. Carrega como dataURL (mesma técnica do logo).
+  let ceoSigDataUrl = null
+  if (contract.signature_type !== 'digital' && company?.ceo_signature) {
+    try {
+      const resp = await fetch(company.ceo_signature)
+      if (resp.ok) {
+        const blob = await resp.blob()
+        ceoSigDataUrl = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob) })
+      }
+    } catch { /* sem assinatura do CEO: segue sem ela */ }
+  }
+
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw  = doc.internal.pageSize.getWidth()
   const ph  = doc.internal.pageSize.getHeight()
@@ -929,6 +942,19 @@ export async function generateContractPDF(contract, opts = {}) {
     y += 11
     const sigGap = 14
     const sigColW = (contentW - sigGap) / 2
+    // Assinatura do CEO (imagem) sobre a linha da Operadora — desenhada ANTES
+    // da linha, dentro do vão acima dela.
+    if (ceoSigDataUrl) {
+      try {
+        const props = doc.getImageProperties(ceoSigDataUrl)
+        const ratio = props.width / props.height
+        let sh = 10, sw = sh * ratio
+        const maxW = sigColW - 8
+        if (sw > maxW) { sw = maxW; sh = sw / ratio }
+        const cx = marginX + sigColW + sigGap + sigColW / 2
+        doc.addImage(ceoSigDataUrl, props.fileType || 'PNG', cx - sw / 2, y - sh - 0.5, sw, sh)
+      } catch { /* imagem inválida: segue sem ela */ }
+    }
     doc.setDrawColor(100, 116, 139); doc.setLineWidth(0.3)
     doc.line(marginX, y, marginX + sigColW, y)
     doc.line(marginX + sigColW + sigGap, y, pw - marginX, y)

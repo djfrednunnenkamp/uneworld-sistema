@@ -501,6 +501,9 @@ class OperatingCompany(models.Model):
     ceo_email             = models.EmailField('CEO — e-mail (conta Autentique)', blank=True)
     ceo_autentique_token  = models.CharField('CEO — token de assinatura (Autentique)', max_length=255, blank=True)
     ceo_auto_sign         = models.BooleanField('Assinar automaticamente pelo CEO nos contratos digitais', default=False)
+    # Imagem da assinatura do CEO — embutida no PDF FÍSICO (acima da linha da
+    # Operadora). PNG com fundo transparente é o ideal.
+    ceo_signature         = models.ImageField('CEO — assinatura (imagem)', upload_to='operating/', null=True, blank=True)
     updated_at     = models.DateTimeField('Atualizado em', auto_now=True)
 
     @property

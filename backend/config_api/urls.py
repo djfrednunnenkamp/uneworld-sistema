@@ -40,4 +40,5 @@ urlpatterns = [
     path('system-settings/',  views.system_settings,    name='system-settings'),
     path('terms/',            views.terms_and_conditions, name='terms'),
     path('operating-company/', views.operating_company,  name='operating-company'),
+    path('operating-company/ceo-signature/', views.operating_company_ceo_signature, name='operating-company-ceo-signature'),
 ]
