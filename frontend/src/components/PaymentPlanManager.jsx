@@ -95,10 +95,11 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
       down_payment_mode: e.down_payment_mode || 'percent',
       down_payment_value: Number(e.down_payment_value) || 0,
       down_payment_method: e.down_payment_method || '',
-      down_payment_rounding: Number(e.down_payment_rounding) || 0.01,
+      // 0 = "Sem arredondamento" — preservar (não cair no default 0,01).
+      down_payment_rounding: e.down_payment_rounding === '' || e.down_payment_rounding == null ? 0.01 : Number(e.down_payment_rounding),
       installments_count: parseInt(e.installments_count) || 0,
       payment_method: e.payment_method || '',
-      installment_rounding: Number(e.installment_rounding) || 0.01,
+      installment_rounding: e.installment_rounding === '' || e.installment_rounding == null ? 0.01 : Number(e.installment_rounding),
       first_due_days: parseInt(e.first_due_days) || 0,
       interval_days: parseInt(e.interval_days) || 0,
     }

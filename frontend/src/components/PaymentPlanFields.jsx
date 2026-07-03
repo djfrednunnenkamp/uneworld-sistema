@@ -15,6 +15,7 @@ const sectionTitle = { fontSize: 12, fontWeight: 800, color: '#1e293b', textTran
 // Opções de arredondamento (passo em R$), do mais fino ao mais grosso. Em reais,
 // R$ 0,01 (centavo) é a menor unidade real — não há como ir abaixo de 2 casas.
 export const ROUNDING_OPTIONS = [
+  { value: 0,    label: 'Sem arredondamento' },
   { value: 0.01, label: 'Centavos (R$ 0,01)' },
   { value: 0.05, label: 'Cinco centavos (R$ 0,05)' },
   { value: 0.10, label: 'Dez centavos (R$ 0,10)' },
@@ -41,7 +42,8 @@ export const roundToStep = (n, step) => {
   return Number((Math.round((Number(n) || 0) / s) * s).toFixed(2))
 }
 export const roundLabelShort = (step) => {
-  const s = Number(step) || 0.01
+  const s = Number(step)
+  if (!s) return 'Nenhum'   // 0 / vazio = sem arredondamento
   return s < 1 ? `R$ ${s.toFixed(2).replace('.', ',')}` : `R$ ${s.toLocaleString('pt-BR')}`
 }
 
@@ -90,7 +92,7 @@ export function simulatePaymentPlan(plan, total) {
 
 /* Pop-up que sugere os arredondamentos disponíveis. */
 function RoundingPopup({ title, value, onSelect, onClose }) {
-  const cur = Number(value) || 0.01
+  const cur = Number(value) || 0   // 0 = sem arredondamento
   return (
     <div onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -114,7 +116,11 @@ function RoundingPopup({ title, value, onSelect, onClose }) {
                 onMouseLeave={e => { e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: sel ? 700 : 500, color: '#1e293b' }}>{o.label}</div>
-                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>R$ {brl3(ROUNDING_SAMPLE)} → <b style={{ color: '#475569' }}>R$ {brl(roundToStep(ROUNDING_SAMPLE, o.value))}</b></div>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
+                    {o.value === 0
+                      ? <>mantém o valor exato — <b style={{ color: '#475569' }}>R$ {brl3(ROUNDING_SAMPLE)}</b></>
+                      : <>R$ {brl3(ROUNDING_SAMPLE)} → <b style={{ color: '#475569' }}>R$ {brl(roundToStep(ROUNDING_SAMPLE, o.value))}</b></>}
+                  </div>
                 </div>
                 {sel && <span style={{ color: '#2563eb', flexShrink: 0 }}><Ic n="check" s={15} /></span>}
               </button>
