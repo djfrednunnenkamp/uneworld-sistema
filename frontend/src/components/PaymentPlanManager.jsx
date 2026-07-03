@@ -19,7 +19,7 @@ const btnCsv = (color) => ({ padding: '9px 12px', borderRadius: 8, border: `1.5p
 const BLANK = { name: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 }
 
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }
-const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }
+const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 720, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }
 
 function describe(p) {
   const n = Number(p.installments_count) || 0
@@ -136,17 +136,17 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
         <div style={overlay} onMouseDown={e => { if (e.target === e.currentTarget) setEditing(null) }}>
           <div style={card}>
             <button onClick={() => setEditing(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 22, lineHeight: 1, padding: 2 }}>×</button>
-            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e2e8f0', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e2e8f0', fontSize: 16, fontWeight: 700, color: '#0f172a', flexShrink: 0 }}>
               {editing.id ? 'Editar modelo de pagamento' : 'Novo modelo de pagamento'}
             </div>
-            <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>Nome do modelo</label>
                 <input className="fi" value={editing.name || ''} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="Ex.: Sinal + 10x boleto" autoFocus />
               </div>
               <PaymentPlanFields value={editing} onChange={setEditing} methodOptions={methods} />
             </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '0 24px 22px' }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '16px 24px', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
               <button onClick={() => setEditing(null)} style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
               <button onClick={save} disabled={saving} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: saving ? '#94a3b8' : '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit' }}>
                 {saving ? 'Salvando…' : 'Salvar'}
