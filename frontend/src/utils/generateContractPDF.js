@@ -940,27 +940,33 @@ export async function generateContractPDF(contract, opts = {}) {
     // vão grande no fim → cruza esse vazio antes de virar a página.
     if (y + 26 > pageBottom) { crossEmptyIfLarge(y + 6); doc.addPage(); y = marginTop }
     y += 11
-    const sigGap = 14
-    const sigColW = (contentW - sigGap) / 2
-    // Assinatura do CEO (imagem) sobre a linha da Operadora — desenhada ANTES
-    // da linha, dentro do vão acima dela.
+    // Três assinaturas: Pagante · Agência · Operadora.
+    const sigGap = 9
+    const sigColW = (contentW - 2 * sigGap) / 3
+    const col1X = marginX
+    const col2X = marginX + sigColW + sigGap
+    const col3X = marginX + 2 * (sigColW + sigGap)
+    // Assinatura do CEO (imagem) sobre a linha da OPERADORA (3ª coluna) — desenhada
+    // ANTES da linha, dentro do vão acima dela.
     if (ceoSigDataUrl) {
       try {
         const props = doc.getImageProperties(ceoSigDataUrl)
         const ratio = props.width / props.height
         let sh = 10, sw = sh * ratio
-        const maxW = sigColW - 8
+        const maxW = sigColW - 6
         if (sw > maxW) { sw = maxW; sh = sw / ratio }
-        const cx = marginX + sigColW + sigGap + sigColW / 2
+        const cx = col3X + sigColW / 2
         doc.addImage(ceoSigDataUrl, props.fileType || 'PNG', cx - sw / 2, y - sh - 0.5, sw, sh)
       } catch { /* imagem inválida: segue sem ela */ }
     }
     doc.setDrawColor(100, 116, 139); doc.setLineWidth(0.3)
-    doc.line(marginX, y, marginX + sigColW, y)
-    doc.line(marginX + sigColW + sigGap, y, pw - marginX, y)
+    doc.line(col1X, y, col1X + sigColW, y)
+    doc.line(col2X, y, col2X + sigColW, y)
+    doc.line(col3X, y, col3X + sigColW, y)
     y += 4.5
-    drawText(doc, 'Assinatura do Contratante', marginX + sigColW / 2, y, { size: 9.5, color: SUB, align: 'center' })
-    drawText(doc, 'Assinatura da Operadora / Agência', marginX + sigColW + sigGap + sigColW / 2, y, { size: 9.5, color: SUB, align: 'center' })
+    drawText(doc, 'Assinatura do Pagante',   col1X + sigColW / 2, y, { size: 8.5, color: SUB, align: 'center' })
+    drawText(doc, 'Assinatura da Agência',    col2X + sigColW / 2, y, { size: 8.5, color: SUB, align: 'center' })
+    drawText(doc, 'Assinatura da Operadora',  col3X + sigColW / 2, y, { size: 8.5, color: SUB, align: 'center' })
   }
 
   // ═══ TRAÇO NO ESPAÇO VAZIO FINAL ══════════════════════════════════════════
