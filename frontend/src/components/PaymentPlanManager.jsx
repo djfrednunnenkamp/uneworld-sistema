@@ -19,7 +19,7 @@ const btnCsv = (color) => ({ padding: '9px 12px', borderRadius: 8, border: `1.5p
 const BLANK = { name: '', a_vista: false, has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', down_payment_rounding: 0.01, installments_count: '', payment_method: '', installment_rounding: 0.01, first_due_days: 30, interval_days: 30 }
 
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }
-const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 720, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }
+const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 840, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }
 
 function describe(p) {
   // À vista: pagamento único, ignora entrada/parcelas.
@@ -40,6 +40,21 @@ function describe(p) {
   if (p.payment_method) parts.push(p.payment_method)
   if (n > 0) parts.push(`1º venc. ${p.first_due_days || 0}d, a cada ${p.interval_days || 0}d`)
   return parts.join(' · ')
+}
+
+/* Nome automático do modelo quando o usuário não digita um — resume os parâmetros
+   (ex.: "Entrada 20% + 10x", "12x", "À vista"). */
+function autoName(p) {
+  if (p.a_vista) return 'À vista' + (p.payment_method ? ` (${p.payment_method})` : '')
+  const parts = []
+  if (p.has_down_payment) {
+    const val = Number(p.down_payment_value) || 0
+    parts.push('Entrada ' + (p.down_payment_mode === 'valor' ? `R$ ${val.toLocaleString('pt-BR')}` : `${val}%`))
+  }
+  const n = parseInt(p.installments_count) || 0
+  if (n > 0) parts.push(`${n}x`)
+  else if (!p.has_down_payment) parts.push('À vista')
+  return parts.join(' + ') || 'Modelo de pagamento'
 }
 
 export default function PaymentPlanManager({ canEdit, canDelete, canImport, canExport }) {
@@ -72,14 +87,18 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
 
   const save = async () => {
     const e = editing
-    if (!e.name?.trim()) { toast.error('Dê um nome ao modelo.'); return }
+    // Sem nome digitado → gera um automaticamente a partir dos parâmetros.
     const payload = {
-      name: e.name.trim(),
+      name: e.name?.trim() || autoName(e),
+      a_vista: !!e.a_vista,
       has_down_payment: !!e.has_down_payment,
       down_payment_mode: e.down_payment_mode || 'percent',
       down_payment_value: Number(e.down_payment_value) || 0,
+      down_payment_method: e.down_payment_method || '',
+      down_payment_rounding: Number(e.down_payment_rounding) || 0.01,
       installments_count: parseInt(e.installments_count) || 0,
       payment_method: e.payment_method || '',
+      installment_rounding: Number(e.installment_rounding) || 0.01,
       first_due_days: parseInt(e.first_due_days) || 0,
       interval_days: parseInt(e.interval_days) || 0,
     }
@@ -158,7 +177,7 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
             <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }}>Nome do modelo</label>
-                <input className="fi" value={editing.name || ''} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="Ex.: Sinal + 10x boleto" autoFocus />
+                <input className="fi" value={editing.name || ''} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="Deixe em branco para gerar automaticamente (ex.: Entrada 20% + 10x)" autoFocus />
               </div>
               <PaymentPlanFields value={editing} onChange={setEditing} methodOptions={methods} showTestButton={false} />
             </div>
