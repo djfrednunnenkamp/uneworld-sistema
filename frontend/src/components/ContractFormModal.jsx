@@ -50,6 +50,39 @@ function MismatchConfirm({ sumFilled, total, onOk, onCancel }) {
   )
 }
 
+/* Aviso de "há passageiros sem quarto" ao avançar/salvar — mesmo espírito do
+ * MismatchConfirm: é só um alerta, o usuário pode acomodar depois. */
+function UnaccommodatedConfirm({ count, saving, onOk, onCancel }) {
+  return (
+    <div className="overlay" style={{ zIndex: 1300 }} onClick={onCancel}>
+      <div className="mbox" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <div className="mhead">
+          <span className="mtitle">Passageiros sem acomodação</span>
+          <button className="mclose" onClick={onCancel}><Ic n="x" s={15} /></button>
+        </div>
+        <div className="mbody">
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <div style={{ color: '#f59e0b', flexShrink: 0, marginTop: 2 }}><Ic n="warn" s={20} /></div>
+            <div>
+              <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, margin: '0 0 4px' }}>
+                {count === 1
+                  ? 'Há 1 passageiro que ainda não está em nenhum quarto (em “Sem quarto”).'
+                  : `Há ${count} passageiros que ainda não estão em nenhum quarto (em “Sem quarto”).`}
+                {' '}Deseja continuar mesmo assim?
+              </p>
+              <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Você pode acomodar depois.</p>
+            </div>
+          </div>
+        </div>
+        <div className="mfoot">
+          <button className="btn btn-outline" onClick={onCancel} disabled={saving}>Voltar e acomodar</button>
+          <button className="btn btn-primary" onClick={onOk} disabled={saving}>Continuar assim mesmo</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* Popup do pagante avulso — SÓ empresa (CNPJ). Pessoa física que paga precisa
  * estar cadastrada como passageiro (e ser escolhida no seletor). Aqui digita-se
  * o CNPJ e a lupa puxa os dados pela BrasilAPI. Os dados continuam indo nos
@@ -1297,10 +1330,32 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     }
   }
 
+  // Passageiros ainda não colocados em nenhum quarto.
+  const unaccommodatedCount = guests.filter(g => g.room == null).length
+  // Guarda a ação pendente (avançar de passo / abrir revisão) enquanto o aviso
+  // de "sem acomodação" está aberto; null = sem aviso.
+  const [confirmUnaccom, setConfirmUnaccom] = useState(null)
+
+  // Avança/pula de passo (visão "passo a passo"). Se estamos saindo do passo de
+  // Passageiros (ou antes) rumo a um passo posterior e há gente sem quarto,
+  // pergunta antes de seguir.
+  const passageirosIdx = STEPS.findIndex(s => s.key === 'passageiros')
+  const goToStep = (target) => {
+    if (unaccommodatedCount > 0 && step <= passageirosIdx && target > passageirosIdx) {
+      setConfirmUnaccom(() => () => setStep(target))
+      return
+    }
+    setStep(target)
+  }
+
   // Salvar (em qualquer visão) abre o pop-up de revisão; só salva de fato quando
-  // o usuário confirma lá dentro.
+  // o usuário confirma lá dentro. Se houver passageiros sem quarto, avisa antes.
   const handleSaveClick = () => {
     if (!validateRequired()) return
+    if (unaccommodatedCount > 0) {
+      setConfirmUnaccom(() => () => setShowReviewConfirm(true))
+      return
+    }
     setShowReviewConfirm(true)
   }
 
@@ -1667,7 +1722,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             {layout === 'steps' && (
             <div style={{ display: 'flex', gap: 6, padding: '14px 20px 0', flexWrap: 'wrap' }}>
               {STEPS.map((s, idx) => (
-                <button key={s.key} type="button" onClick={() => setStep(idx)}
+                <button key={s.key} type="button" onClick={() => goToStep(idx)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, border: `1px solid ${idx === step ? '#2e6db4' : '#e6eaf1'}`, background: idx === step ? '#eff6ff' : '#fff', color: idx === step ? '#1a2d4f' : '#64748b', fontSize: 12, fontWeight: idx === step ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', fontSize: 10, fontWeight: 700, background: idx === step ? '#2e6db4' : (idx < step ? '#22c55e' : '#e2e8f0'), color: idx <= step ? '#fff' : '#94a3b8' }}>
                     {idx < step ? '✓' : idx + 1}
@@ -2332,7 +2387,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               </button>
             )}
             {(layout === 'steps' && step < lastStep) ? (
-              <button type="button" onClick={() => setStep(s => Math.min(s + 1, lastStep))}
+              <button type="button" onClick={() => goToStep(Math.min(step + 1, lastStep))}
                 style={{ ...btnPri, display: 'flex', alignItems: 'center', gap: 6 }}>
                 Próximo <Ic n="chevron" s={13} />
               </button>
@@ -2369,6 +2424,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             </div>
           </div>
         </div>
+      )}
+
+      {confirmUnaccom && (
+        <UnaccommodatedConfirm
+          count={unaccommodatedCount}
+          saving={saving}
+          onOk={() => { const fn = confirmUnaccom; setConfirmUnaccom(null); fn?.() }}
+          onCancel={() => setConfirmUnaccom(null)}
+        />
       )}
 
       {confirmMismatch && (
