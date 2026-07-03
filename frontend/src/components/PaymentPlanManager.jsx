@@ -16,7 +16,7 @@ const btnCsv = (color) => ({ padding: '9px 12px', borderRadius: 8, border: `1.5p
  * sozinho). Cada modelo é uma sugestão reutilizável (entrada % + nº de parcelas +
  * forma + vencimentos) que os roteiros podem copiar. */
 
-const BLANK = { name: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 }
+const BLANK = { name: '', has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', down_payment_rounding: 0.01, installments_count: '', payment_method: '', installment_rounding: 0.01, first_due_days: 30, interval_days: 30 }
 
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }
 const card = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 720, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)', position: 'relative' }

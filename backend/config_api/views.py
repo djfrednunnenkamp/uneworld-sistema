@@ -897,7 +897,8 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigPaymentPlan
         fields = ['id', 'name', 'has_down_payment', 'down_payment_mode', 'down_payment_value',
-                  'down_payment_method', 'installments_count', 'payment_method', 'first_due_days', 'interval_days']
+                  'down_payment_method', 'down_payment_rounding', 'installments_count', 'payment_method',
+                  'installment_rounding', 'first_due_days', 'interval_days']
 
 
 class PaymentPlanViewSet(viewsets.ModelViewSet):

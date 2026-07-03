@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 
 
@@ -85,8 +86,13 @@ class ConfigPaymentPlan(models.Model):
     # Interpretado conforme down_payment_mode: 'percent' → % do total; 'valor' → R$.
     down_payment_value   = models.DecimalField('Entrada (valor ou %)', max_digits=12, decimal_places=2, default=0)
     down_payment_method  = models.CharField('Forma de pagamento da entrada', max_length=100, blank=True)
+    # Passo de arredondamento (em R$) aplicado ao valor da entrada quando o modelo
+    # vira contrato. Ex.: 0.01 = centavos (2 casas), 1 = real inteiro, 10, 100…
+    down_payment_rounding = models.DecimalField('Arredondamento da entrada (R$)', max_digits=8, decimal_places=2, default=Decimal('0.01'))
     installments_count   = models.PositiveSmallIntegerField('Nº de parcelas', default=0)
     payment_method       = models.CharField('Forma de pagamento', max_length=100, blank=True)
+    # Passo de arredondamento (em R$) aplicado ao valor de CADA parcela.
+    installment_rounding = models.DecimalField('Arredondamento das parcelas (R$)', max_digits=8, decimal_places=2, default=Decimal('0.01'))
     first_due_days       = models.PositiveSmallIntegerField('1º vencimento (dias após aplicar)', default=30)
     interval_days        = models.PositiveSmallIntegerField('Intervalo entre parcelas (dias)', default=30)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)

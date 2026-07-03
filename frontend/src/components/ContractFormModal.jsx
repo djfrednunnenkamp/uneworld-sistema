@@ -7,6 +7,7 @@ import EntityPicker from './EntityPicker'
 import DatePicker from './DatePicker'
 import AirportPicker from './AirportPicker'
 import Dropdown from './Dropdown'
+import { roundToStep } from './PaymentPlanFields'
 import CnpjInput from './CnpjInput'
 import MoneyInput from './MoneyInput'
 import EmailInput from './EmailInput'
@@ -913,14 +914,18 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     const method = p.payment_method || ''
     const firstDue = parseInt(p.first_due_days) || 0
     const interval = parseInt(p.interval_days) || 0
-    // Entrada: R$ fixo ou % do total, conforme o modo (só se "tem entrada").
+    // Passo de arredondamento (R$) definido no modelo — aplicado aos valores reais.
+    const dpRound  = Number(p.down_payment_rounding) || 0.01
+    const instRound = Number(p.installment_rounding) || 0.01
+    // Entrada: R$ fixo ou % do total, conforme o modo (só se "tem entrada"),
+    // arredondada pelo passo do modelo.
     const hasDp = !!p.has_down_payment
     const dpMode = p.down_payment_mode || 'percent'
     const dpVal = Number(p.down_payment_value || 0)
-    const entradaBrl = hasDp ? (dpMode === 'valor' ? round2(dpVal) : round2(total * dpVal / 100)) : 0
+    const entradaBrl = hasDp ? round2(roundToStep(dpMode === 'valor' ? dpVal : total * dpVal / 100, dpRound)) : 0
     const withEntrada = hasDp && entradaBrl > 0
     const addDays = (days) => { const dt = new Date(); dt.setHours(0, 0, 0, 0); dt.setDate(dt.getDate() + days); return dt.toISOString().slice(0, 10) }
-    const snapshot = { name: p.name || '', has_down_payment: hasDp, down_payment_mode: dpMode, down_payment_value: dpVal, installments_count: n, payment_method: method, first_due_days: firstDue, interval_days: interval }
+    const snapshot = { name: p.name || '', has_down_payment: hasDp, down_payment_mode: dpMode, down_payment_value: dpVal, down_payment_rounding: dpRound, installments_count: n, payment_method: method, installment_rounding: instRound, first_due_days: firstDue, interval_days: interval }
 
     if (n <= 0) {
       // Sem parcelas → pagamento à vista (valor total de uma vez)
@@ -936,7 +941,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     setEntrada(prev => ({ ...prev, value_brl: withEntrada ? entradaBrl : '', payment_method: method, due_date: withEntrada ? addDays(0) : '' }))
     setParcelasMethod(method)
     const remaining = round2(total - entradaBrl)
-    const base = Math.floor((remaining / n) * 100) / 100
+    // Cada parcela é arredondada pelo passo do modelo; a última absorve a
+    // diferença pra soma continuar batendo com o total.
+    const base = round2(roundToStep(remaining / n, instRound))
     const rows = Array.from({ length: n }, (_, i) => ({
       detail: '',
       due_date: addDays(firstDue + i * interval),

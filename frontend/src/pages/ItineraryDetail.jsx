@@ -679,15 +679,16 @@ export default function ItineraryDetail() {
                     if (p) setData(d => ({ ...d, payment_plan: {
                       name: p.name, has_down_payment: p.has_down_payment,
                       down_payment_mode: p.down_payment_mode, down_payment_value: p.down_payment_value,
-                      down_payment_method: p.down_payment_method,
+                      down_payment_method: p.down_payment_method, down_payment_rounding: p.down_payment_rounding,
                       installments_count: p.installments_count, payment_method: p.payment_method,
+                      installment_rounding: p.installment_rounding,
                       first_due_days: p.first_due_days, interval_days: p.interval_days,
                     } }))
                   }} />
               </div>
               {!data.payment_plan
                 ? <button type="button" disabled={!canEdit}
-                    onClick={() => setData(d => ({ ...d, payment_plan: { has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', installments_count: '', payment_method: '', first_due_days: 30, interval_days: 30 } }))}
+                    onClick={() => setData(d => ({ ...d, payment_plan: { has_down_payment: false, down_payment_mode: 'percent', down_payment_value: '', down_payment_method: '', down_payment_rounding: 0.01, installments_count: '', payment_method: '', installment_rounding: 0.01, first_due_days: 30, interval_days: 30 } }))}
                     style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                     + Criar do zero
                   </button>
