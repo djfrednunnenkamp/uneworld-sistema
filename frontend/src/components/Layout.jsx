@@ -3,7 +3,6 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import Sidebar from './Sidebar'
 import AccountModal from './AccountModal'
-import ChangePasswordModal from './ChangePasswordModal'
 import TermsModal from './TermsModal'
 import TermsAcceptGate from './TermsAcceptGate'
 import { useAuth } from '../context/AuthContext'
@@ -43,7 +42,6 @@ export default function Layout() {
   const [menuOpen,      setMenuOpen]      = useState(false)
   const [sidebarOpen,   setSidebarOpen]   = useState(false)
   const [showAccount,   setShowAccount]   = useState(false)
-  const [showChangePw,  setShowChangePw]  = useState(false)
   const [showTerms,     setShowTerms]     = useState(false)
   const menuRef = useRef(null)
   const location = useLocation()
@@ -128,14 +126,6 @@ export default function Layout() {
                     style={menuItemStyle}
                     onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    onClick={() => { setMenuOpen(false); setShowChangePw(true) }}
-                  >
-                    Alterar senha
-                  </button>
-                  <button
-                    style={menuItemStyle}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
                     onClick={() => { setMenuOpen(false); setShowTerms(true) }}
                   >
                     Termos e Condições
@@ -167,7 +157,6 @@ export default function Layout() {
       />
 
       {showAccount  && <AccountModal        onClose={() => setShowAccount(false)}  onSaved={refreshUser} />}
-      {showChangePw && <ChangePasswordModal  onClose={() => setShowChangePw(false)} />}
       {showTerms    && <TermsModal          onClose={() => setShowTerms(false)} />}
       {user?.needs_terms_acceptance && <TermsAcceptGate onAccepted={refreshUser} />}
     </div>
