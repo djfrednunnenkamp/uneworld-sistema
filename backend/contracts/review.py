@@ -19,7 +19,7 @@ def _s(v):
 
 
 def build_review_data(contract):
-    from .serializers import _default_exchange_rate
+    from .serializers import _default_exchange_rate, avista_discount_usd
 
     lines = list(contract.accommodation_lines.select_related('accommodation_type').all())
     adjustments = list(contract.adjustments.all())
@@ -168,7 +168,16 @@ def build_review_data(contract):
     # agência (a comissão é ABATIDA, não somada) + ajustes + dedução de comissão.
     # Só muda a exibição da conferência; o total armazenado do contrato, as parcelas
     # e o PDF continuam como estão (comissão embutida/somada).
-    review_total_usd = accom_total + adj_total - commission + comm_disc
+    # Desconto à vista (global) — abate do total quando o pagamento é à vista, na
+    # mesma base do _recalc_totals (bruto: acomodações + ajustes + comissão − dedução).
+    avista_disc = avista_discount_usd(contract.payment_type, accom_total + adj_total + commission - comm_disc, rate)
+    if avista_disc > 0:
+        flags.append({
+            'level': 'good', 'code': 'avista_discount',
+            'message': f'Desconto à vista aplicado: US$ {avista_disc}'
+                       f'{f" (≈ R$ {avista_disc * rate})" if rate is not None else ""}.',
+        })
+    review_total_usd = accom_total + adj_total - commission + comm_disc - avista_disc
     review_total_brl = (review_total_usd * rate) if rate is not None else _d(contract.total_brl)
     # As parcelas representam o que o cliente paga (total REAL do contrato), então a
     # conferência "entrada + parcelas x total" compara com o total armazenado — assim

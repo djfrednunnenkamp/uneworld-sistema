@@ -23,6 +23,24 @@ def _default_exchange_rate(from_currency='USD', to_currency='BRL', payment_type=
     return row.rate if payment_type == 'a_vista' else (row.rate_installment or row.rate)
 
 
+def avista_discount_usd(payment_type, base_total_usd, exchange_rate):
+    """Desconto à vista GLOBAL (Configurações → Opções de pagamento à vista,
+    guardado em SystemSettings) convertido para USD. Só quando payment_type='a_vista'.
+    percent → % do total; valor → R$ convertido pelo câmbio. Limitado ao total."""
+    if (payment_type or '') != 'a_vista':
+        return Decimal('0')
+    from config_api.models import SystemSettings
+    ss = SystemSettings.get()
+    dv = Decimal(ss.a_vista_discount_value or 0)
+    if dv <= 0:
+        return Decimal('0')
+    if ss.a_vista_discount_mode == 'valor':
+        disc = (dv / exchange_rate) if exchange_rate else Decimal('0')
+    else:
+        disc = Decimal(base_total_usd) * dv / Decimal('100')
+    return max(Decimal('0'), min(Decimal(base_total_usd), disc))
+
+
 def _passenger_brief(p):
     return {
         'id': p.id, 'full_name': p.full_name, 'gender': p.gender,
@@ -365,6 +383,8 @@ class ContractSerializer(serializers.ModelSerializer):
                 d = ca.value_usd
             comm_disc = max(Decimal('0'), min(Decimal(d), commission))
         total_usd = accom_total + adj_total + commission - comm_disc
+        # Desconto à vista (global) abate do total quando o pagamento é à vista.
+        total_usd = total_usd - avista_discount_usd(contract.payment_type, total_usd, exchange_rate)
         total_brl = total_usd * exchange_rate if exchange_rate else None
 
         # Arredondamento opcional: arredonda a moeda escolhida pro múltiplo de

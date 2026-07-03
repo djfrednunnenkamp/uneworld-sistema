@@ -568,6 +568,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const canEditClauses = !!me?.is_superuser || !!me?.permissions?.contracts_clauses_edit
 
   const [exchangeRates, setExchangeRates] = useState([])   // [{from_currency, to_currency, rate}]
+  const [avistaDiscountCfg, setAvistaDiscountCfg] = useState({ mode: 'percent', value: 0 })  // desconto à vista global
   const [form, setForm] = useState({
     agency: null, itinerary: null, contratante: null, seller: null,
     package_name: '', departure_date: '', return_date: '', departure_airport: '', observations: '',
@@ -653,7 +654,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       // Operadora é opcional (só preenche padrões de assinatura/PIX): se faltar
       // permissão, não derruba o form inteiro.
       configApi.operatingCompany().catch(() => ({ data: null })),
-    ]).then(([ag, pax, it, ac, cl, pm, er, oc]) => {
+      configApi.systemSettings().catch(() => ({ data: {} })),
+    ]).then(([ag, pax, it, ac, cl, pm, er, oc, ss]) => {
       setAgencies(ag.data.results ?? ag.data)
       setPassengers(pax.data.results ?? pax.data)
       setItineraries(it.data.results ?? it.data)
@@ -662,6 +664,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       setPaymentMethods(pm.data)
       setExchangeRates(er.data || [])
       setOpCompany(oc.data || null)
+      setAvistaDiscountCfg({ mode: ss.data?.a_vista_discount_mode || 'percent', value: Number(ss.data?.a_vista_discount_value) || 0 })
       if (!isEdit) {
         setSelectedClauses((cl.data).filter(c => c.is_default).map(c => c.id))
         const usdBrl = (er.data).find(r => r.from_currency === 'USD' && r.to_currency === 'BRL')
@@ -853,20 +856,31 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   }
   // Total cru (acomodações + ajustes) e, por cima, o arredondamento opcional da
   // moeda escolhida — a outra moeda é derivada pelo câmbio.
-  const [computedTotalUsd, computedTotalBrl] = useMemo(() => {
-    const rawUsd = accomSubtotalUsd + adjustmentsTotalUsd + commissionUsd - commissionDiscountUsd
+  const [computedTotalUsd, computedTotalBrl, avistaDiscountBrl] = useMemo(() => {
     const rate = Number(form.exchange_rate) || 0
+    let rawUsd = accomSubtotalUsd + adjustmentsTotalUsd + commissionUsd - commissionDiscountUsd
+    // Desconto à vista (global): abate do total só quando o pagamento é à vista.
+    // Espelha o backend (contracts.serializers.avista_discount_usd).
+    let discBrl = 0
+    if (paymentType === 'a_vista' && avistaDiscountCfg.value > 0) {
+      let discUsd = avistaDiscountCfg.mode === 'valor'
+        ? (rate ? avistaDiscountCfg.value / rate : 0)
+        : rawUsd * avistaDiscountCfg.value / 100
+      discUsd = Math.min(rawUsd, Math.max(0, discUsd))
+      rawUsd -= discUsd
+      discBrl = rate ? round2(discUsd * rate) : (avistaDiscountCfg.mode === 'valor' ? avistaDiscountCfg.value : 0)
+    }
     const rawBrl = rate ? rawUsd * rate : null
     const step = Number(form.round_step) || 0
-    if (!step) return [rawUsd, rawBrl]
+    if (!step) return [rawUsd, rawBrl, discBrl]
     if (form.round_currency === 'usd') {
       const u = roundTo(rawUsd, step, form.round_mode)
-      return [u, rate ? u * rate : null]
+      return [u, rate ? u * rate : null, discBrl]
     }
-    if (rawBrl == null) return [rawUsd, null]
+    if (rawBrl == null) return [rawUsd, null, discBrl]
     const b = roundTo(rawBrl, step, form.round_mode)
-    return [rate ? b / rate : rawUsd, b]
-  }, [accomSubtotalUsd, adjustmentsTotalUsd, commissionUsd, commissionDiscountUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency])
+    return [rate ? b / rate : rawUsd, b, discBrl]
+  }, [accomSubtotalUsd, adjustmentsTotalUsd, commissionUsd, commissionDiscountUsd, form.exchange_rate, form.round_step, form.round_mode, form.round_currency, paymentType, avistaDiscountCfg])
 
 
   // Soma do que foi de fato preenchido em entrada + parcelas, pra comparar com o total.
@@ -2306,6 +2320,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
               {paymentType === 'a_vista' ? (
                 <div>
                   <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px' }}>O valor total é pago de uma vez — o valor já vem fixo com o total do contrato.</p>
+                  {avistaDiscountBrl > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#dcfce7', border: '1px solid #86efac', color: '#15803d', borderRadius: 8, padding: '8px 12px', margin: '0 0 10px', fontSize: 12.5, fontWeight: 600 }}>
+                      <Ic n="check" s={14} />
+                      Desconto à vista aplicado: {avistaDiscountCfg.mode === 'percent' ? `${avistaDiscountCfg.value}% · ` : ''}
+                      −R$ {avistaDiscountBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — já abatido do total.
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Valor (BRL)</label>
