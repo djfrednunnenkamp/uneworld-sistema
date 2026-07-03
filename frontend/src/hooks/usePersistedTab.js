@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 /**
  * Hook que persiste a aba ativa no localStorage.
@@ -24,10 +24,12 @@ export default function usePersistedTab(key, defaultTab) {
     }
   })
 
-  const setTab = (value) => {
+  // Setter com identidade estável (por `key`) — evita que consumidores memoizados
+  // (ex.: uma TabBar) re-renderizem a cada render do pai.
+  const setTab = useCallback((value) => {
     _setTab(value)
-    try { localStorage.setItem(key, String(value)) } catch {}
-  }
+    try { localStorage.setItem(key, String(value)) } catch { /* localStorage indisponível */ }
+  }, [key])
 
   return [tab, setTab]
 }
