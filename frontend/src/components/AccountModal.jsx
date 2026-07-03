@@ -197,7 +197,7 @@ export default function AccountModal({ onClose, onSaved }) {
         <form onSubmit={handleSave} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto', flex: 1 }}>
 
           {/* Dados pessoais */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 12 }}>
             <div>
               <label style={lbl}>Nome</label>
               <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Nome" style={inp}

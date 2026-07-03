@@ -775,7 +775,7 @@ function CountriesTab({ canEdit = true, canDelete = true, canImport = false, can
     <>
     <GeoCsvBar canEdit={canEdit} canImport={canImport} canImportWeb={canImportWeb} canExport={canExport}
       onImportCascade={importCascadeWeb} importingCascade={importingWeb === 'cascade'} />
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
       {/* ── Continentes ── */}
       <Col title="Continentes" count={continents.length}
         search={searchCo} onSearch={setSearchCo}

@@ -250,7 +250,7 @@ export default function GeoImport() {
         {/* Modo */}
         <div>
           <p style={{ fontSize:13, fontWeight:700, color:'#475569', margin:'0 0 10px', textTransform:'uppercase', letterSpacing:'.05em' }}>Modo de Importação:</p>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:10 }}>
             {MODES.map(m => (
               <div key={m.key} onClick={()=>setMode(m.key)}
                 style={{ border:`2px solid ${mode===m.key?'#2e6db4':'#e2e8f0'}`, borderRadius:10, padding:'14px 16px', cursor:'pointer',

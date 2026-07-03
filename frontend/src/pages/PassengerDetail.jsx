@@ -723,7 +723,7 @@ function DocumentsTab({ passengerId, isNew, canEdit, canDownload, canUpload }) {
               )}
 
               {/* Datas em grid */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))', gap:10 }}>
                 <div>
                   <label className="fl">Data de emissão</label>
                   <DatePicker value={editForm.issued_date} onChange={v=>setEditForm(f=>({...f,issued_date:v}))} />

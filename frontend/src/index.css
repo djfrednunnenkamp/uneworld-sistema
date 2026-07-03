@@ -240,3 +240,87 @@ fieldset:disabled { opacity: .75; }
 /* 4 pulsos (~4,4s) — destaque mais longo quando a acomodação muda sozinha */
 .accom-flash { border-radius: 8px; animation: accomFlash 1.1s ease-out 4; }
 .accom-flash .fi, .accom-flash [class*="fi"] { border-color: #2563eb !important; transition: border-color .3s; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   RESPONSIVO — telas menores / zoom / celular
+   A sidebar vira um "drawer" (gaveta) com botão hambúrguer; grades de
+   formulário colapsam para 1 coluna; tabelas rolam na horizontal; modais
+   ocupam a largura da tela. Ver Layout.jsx (hambúrguer + backdrop) e
+   Sidebar.jsx (open/onClose).
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Botão hambúrguer e backdrop do drawer: escondidos no desktop. */
+.hamburger { display: none; }
+.sb-backdrop { display: none; }
+
+@media (max-width: 900px) {
+  /* ── Sidebar como gaveta deslizante ── */
+  .sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    box-shadow: 0 12px 48px rgba(0,0,0,.35);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sb-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 999;
+    background: rgba(15,23,42,.5); backdrop-filter: blur(2px);
+    animation: fadeIn .18s ease;
+  }
+  .hamburger {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; flex-shrink: 0; margin-right: 6px;
+    border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;
+    color: #1a2d4f; cursor: pointer; padding: 0;
+  }
+  .hamburger:hover { background: #f8fafc; }
+
+  /* ── Espaçamentos e cabeçalhos ── */
+  .topbar { padding: 0 12px; }
+  .page { padding: 16px 14px; }
+  .ph { flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+  .ph-title { font-size: 19px; }
+  .ph-actions { flex-wrap: wrap; }
+  .det-header { flex-wrap: wrap; gap: 12px; }
+  .det-card { padding: 16px 16px; }
+  .section-title { font-size: 15px; }
+
+  /* ── Grades de formulário/detalhe colapsam para 1 coluna ── */
+  .form-row, .grid2, .grid3 { grid-template-columns: 1fr; }
+  .col-2, .col-full, .fi-full { grid-column: 1 / -1; }
+
+  /* ── Tabelas rolam na horizontal em vez de espremer ── */
+  .tcard { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ── Busca ocupa a largura toda; abas rolam ── */
+  .search-wrap { max-width: none; }
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ── Calendário empilha (painel lateral vai pra baixo) ── */
+  .cal-layout { flex-direction: column; }
+  .cal-side { width: 100%; }
+
+  /* ── Modais ocupam a tela ── */
+  .overlay { padding: 10px; }
+  .mbox { max-width: 100%; }
+  .mbody { max-height: 72vh; }
+}
+
+@media (max-width: 560px) {
+  .page { padding: 12px 10px; }
+  /* Nome no topo some no celular (o avatar/menu já identificam o usuário) */
+  .topbar-role { display: none; }
+  .ph-title { font-size: 18px; }
+  /* Botões de ação da página crescem pra caber o dedo, um do lado do outro */
+  .ph-actions { width: 100%; }
+  .ph-actions .btn { flex: 1; justify-content: center; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .grid3 { grid-template-columns: 1fr; }
+  .overlay { padding: 0; align-items: flex-end; }
+  /* No celular o modal encosta embaixo (estilo "bottom sheet") e ocupa tudo */
+  .mbox { max-width: 100%; border-radius: 14px 14px 0 0; max-height: 94vh; display: flex; flex-direction: column; }
+  .mbody { max-height: none; flex: 1; }
+  .mhead, .mfoot { padding-left: 16px; padding-right: 16px; }
+  .mfoot { flex-wrap: wrap; }
+  .mfoot .btn { flex: 1; justify-content: center; }
+}

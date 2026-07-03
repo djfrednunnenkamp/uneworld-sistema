@@ -9,6 +9,7 @@ import TermsAcceptGate from './TermsAcceptGate'
 import { useAuth } from '../context/AuthContext'
 import { NavGuardProvider } from '../context/NavGuardContext'
 import { auditApi } from '../api'
+import { Ic } from './Icon'
 
 const menuItemStyle = {
   display: 'block', width: '100%', padding: '9px 16px', background: 'none',
@@ -40,6 +41,7 @@ function labelForPath(pathname) {
 export default function Layout() {
   const { user, logout, refreshUser } = useAuth()
   const [menuOpen,      setMenuOpen]      = useState(false)
+  const [sidebarOpen,   setSidebarOpen]   = useState(false)
   const [showAccount,   setShowAccount]   = useState(false)
   const [showChangePw,  setShowChangePw]  = useState(false)
   const [showTerms,     setShowTerms]     = useState(false)
@@ -54,6 +56,9 @@ export default function Layout() {
     lastLoggedPath.current = location.pathname
     auditApi.logPageView(location.pathname, labelForPath(location.pathname)).catch(() => {})
   }, [location.pathname, user])
+
+  /* Fecha o menu-gaveta (mobile) sempre que a rota muda. */
+  useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
   const initials = user
     ? (`${user.first_name?.[0]??''}${user.last_name?.[0]??''}`).toUpperCase() || user.username?.[0]?.toUpperCase()
@@ -72,11 +77,17 @@ export default function Layout() {
   return (
     <NavGuardProvider>
     <div className="app">
-      <Sidebar />
+      {sidebarOpen && <div className="sb-backdrop" onClick={() => setSidebarOpen(false)} />}
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="main">
         <div className="topbar">
-          <img src="/logo.png" alt="UneWorld" style={{ height: 28, width: 'auto', display: 'block' }}
-            onError={e => { e.target.style.display='none' }} />
+          <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+            <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu" title="Menu">
+              <Ic n="menu" s={18} />
+            </button>
+            <img src="/logo.png" alt="UneWorld" style={{ height: 28, width: 'auto', display: 'block' }}
+              onError={e => { e.target.style.display='none' }} />
+          </div>
           <div className="topbar-r">
             <span className="topbar-role">{user?.full_name || user?.username || 'Administrador'}</span>
             <div ref={menuRef} style={{ position: 'relative' }}>

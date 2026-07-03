@@ -116,7 +116,7 @@ export default function CsvExportModal({ sections, countries = [], onClose, onEx
               </div>
 
               {/* Lista de seções */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', background: '#f8fafc', borderRadius: 8, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: '6px 16px', background: '#f8fafc', borderRadius: 8, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
                 {sections.map(sec => {
                   const hasFilter = sec.key === 'countries' && selected.has(sec.key)
                   const filterActive = sec.key === 'countries' && geoLevel !== 'cidades'

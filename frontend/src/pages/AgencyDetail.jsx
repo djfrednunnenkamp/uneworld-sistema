@@ -224,7 +224,7 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
                 <EmailInput value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))}
                   placeholder="email@exemplo.com" style={inp} />
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))', gap:12 }}>
                 <div>
                   <label style={lbl}>Nome</label>
                   <input value={form.first_name} onChange={set('first_name')} placeholder="Nome"
@@ -309,7 +309,7 @@ function EditAgencyUserPopup({ user, onSaved, onClose }) {
             <EmailInput value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))}
               placeholder="email@exemplo.com" style={inp} />
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))', gap:12 }}>
             <div>
               <label style={lbl}>Nome</label>
               <input value={form.first_name} onChange={set('first_name')} placeholder="Nome"

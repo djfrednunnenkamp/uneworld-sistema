@@ -787,7 +787,7 @@ export default function FlatImport() {
         {/* Modo */}
         <div>
           <p style={{ fontSize:11, fontWeight:700, color:'#64748b', margin:'0 0 8px', textTransform:'uppercase', letterSpacing:'.06em' }}>Modo de Importação:</p>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:10 }}>
             {MODES.map(m => {
               const locked = (m.key === 'all' || m.key === 'delete') && !canDestructive
               return (

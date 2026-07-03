@@ -41,7 +41,7 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
       </div>
 
       {/* Parcelas + forma + vencimentos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 12 }}>
         <div>
           <label style={lbl}>Nº de parcelas</label>
           <input className="fi" type="number" min="0" max="360"

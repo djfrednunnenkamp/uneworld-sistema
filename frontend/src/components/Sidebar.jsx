@@ -20,7 +20,7 @@ const NAV_BASE = [
   { id: '/log',           icon: 'list',    label: 'Log do Sistema',  group: 'SISTEMA', perms: null },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose }) {
   const { pathname } = useLocation()
   const rawNavigate  = useNavigate()
   const { guardedNavigate } = useNavGuard()
@@ -79,7 +79,7 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar${open ? ' open' : ''}`}>
       {/* Logo */}
       <div className="sb-logo" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img src="/logo.png" alt="UneWorld Turismo" style={{ height: 48, width: 'auto', display: 'block' }} />
@@ -99,7 +99,7 @@ export default function Sidebar() {
               {showGroup && <div className="sb-group">{item.group}</div>}
               <button
                 className={`sb-item${isActive ? ' active' : ''}`}
-                onClick={() => navigate(item.id)}
+                onClick={() => { navigate(item.id); onClose?.() }}
               >
                 <Ic n={item.icon} s={16} />
                 {item.label}

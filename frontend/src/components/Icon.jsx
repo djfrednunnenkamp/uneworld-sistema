@@ -43,6 +43,7 @@ const PATHS = {
   chevron:  ['M9 18l6-6-6-6'],
   filter:   ['M22 3H2l8 9.46V19l4 2v-8.54L22 3z'],
   'arrow-right': ['M5 12h14','M12 5l7 7-7 7'],
+  menu:     ['M3 6h18','M3 12h18','M3 18h18'],
 }
 
 export function Ic({ n, s = 16 }) {

@@ -268,7 +268,7 @@ const lbl = {
   display:'block', fontSize:11, fontWeight:700, color:'#64748b',
   textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5,
 }
-const row2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }
+const row2 = { display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))', gap:12 }
 
 /* ── Campo de e-mails de notificação por lista ── */
 function NotificationEmailsField({ emails, onChange }) {
@@ -559,7 +559,7 @@ export default function ListModal({ onClose, onSaved, initial = null }) {
             ) : (
               <div>
                 <label style={lbl}>Cidade de saída</label>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:10 }}>
                   <div>
                     <label style={{ ...lbl, marginTop:0, fontSize:10 }}>País</label>
                     <FormSelect

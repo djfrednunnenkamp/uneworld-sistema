@@ -793,7 +793,7 @@ function OriginFields({ mode, setMode, country, setCountry, state, setState, cit
       {mode === 'bus' && (
         <div>
           <label style={LBL}>Cidade de origem</label>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:10 }}>
             <div>
               <label style={{ ...LBL, marginTop:0, fontSize:10 }}>País</label>
               <FormSelect
@@ -1382,13 +1382,13 @@ function QuickEditModal({ enrollment, listId, listType, startDate, initialFocus,
               <QEField label="CPF" value={form?.cpf} onChange={v => upd('cpf', v)} />
 
               {/* 2 colunas: Nome + Sobrenome */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 14 }}>
                 <QEField label="Nome"      value={form?.first_name} onChange={v => upd('first_name', v)} />
                 <QEField label="Sobrenome" value={form?.last_name}  onChange={v => upd('last_name',  v)} />
               </div>
 
               {/* 2 colunas: Nascimento + Gênero */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 14 }}>
                 <div>
                   <label style={LBL}>Data de nascimento</label>
                   <DatePicker value={form?.birth_date || ''} onChange={v => upd('birth_date', v)} placeholder="DD/MM/AAAA" />
@@ -5600,7 +5600,7 @@ function OriginsTab({ enrolled, list }) {
       {withOrigin.length === 0 ? (
         <div className="tcard"><div className="empty-state"><p>Todos os passageiros saem da cidade padrão da lista.</p></div></div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, alignItems:'start' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))', gap:16, alignItems:'start' }}>
           <OriginColumn
             icon="🚌" title="Saindo de outras cidades"
             total={busGroups.reduce((s, g) => s + g.passengers.length, 0)}
