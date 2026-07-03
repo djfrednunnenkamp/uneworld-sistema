@@ -12,28 +12,36 @@ const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b',
 const sectionCard = { border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12, background: '#fff' }
 const sectionTitle = { fontSize: 12, fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '.04em', paddingBottom: 8, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 7 }
 
-// Opções de arredondamento (passo em R$). value=0.01 → 2 casas (centavos).
+// Opções de arredondamento (passo em R$), do mais fino ao mais grosso. Em reais,
+// R$ 0,01 (centavo) é a menor unidade real — não há como ir abaixo de 2 casas.
 export const ROUNDING_OPTIONS = [
-  { value: 0.01, label: 'Centavos (R$ 0,01)',   hint: '2 casas decimais — R$ 123,45' },
-  { value: 0.10, label: 'Dez centavos (R$ 0,10)', hint: '1 casa decimal — R$ 123,40' },
-  { value: 1,    label: 'Real inteiro (R$ 1)',   hint: 'sem centavos — R$ 123,00' },
-  { value: 5,    label: 'R$ 5',                   hint: 'múltiplos de 5 — R$ 125,00' },
-  { value: 10,   label: 'R$ 10',                  hint: 'múltiplos de 10 — R$ 120,00' },
-  { value: 50,   label: 'R$ 50',                  hint: 'múltiplos de 50 — R$ 100,00' },
-  { value: 100,  label: 'R$ 100',                 hint: 'múltiplos de 100 — R$ 100,00' },
+  { value: 0.01, label: 'Centavos (R$ 0,01)' },
+  { value: 0.05, label: 'Cinco centavos (R$ 0,05)' },
+  { value: 0.10, label: 'Dez centavos (R$ 0,10)' },
+  { value: 0.25, label: 'Vinte e cinco centavos (R$ 0,25)' },
+  { value: 0.50, label: 'Cinquenta centavos (R$ 0,50)' },
+  { value: 1,    label: 'Real inteiro (R$ 1)' },
+  { value: 5,    label: 'R$ 5' },
+  { value: 10,   label: 'R$ 10' },
+  { value: 25,   label: 'R$ 25' },
+  { value: 50,   label: 'R$ 50' },
+  { value: 100,  label: 'R$ 100' },
+  { value: 500,  label: 'R$ 500' },
+  { value: 1000, label: 'R$ 1.000' },
 ]
+// Número de exemplo mostrado em cada opção (com casas "sujas", como o cálculo gera).
+const ROUNDING_SAMPLE = 1125.552
+const brl = (n) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 // Arredonda n para o passo mais próximo (0/vazio → 2 casas por padrão).
 export const roundToStep = (n, step) => {
   const s = Number(step) || 0.01
-  return Math.round((Number(n) || 0) / s) * s
+  // toFixed(2) limpa o ruído de float (ex.: 120.30000000000001) — reais têm 2 casas.
+  return Number((Math.round((Number(n) || 0) / s) * s).toFixed(2))
 }
 export const roundLabelShort = (step) => {
   const s = Number(step) || 0.01
-  if (s === 0.01) return '2 casas'
-  if (s === 0.10) return '1 casa'
-  if (s < 1) return `R$ ${s.toFixed(2)}`
-  return `R$ ${s}`
+  return s < 1 ? `R$ ${s.toFixed(2).replace('.', ',')}` : `R$ ${s.toLocaleString('pt-BR')}`
 }
 
 /* Pop-up que sugere os arredondamentos disponíveis. */
@@ -49,17 +57,20 @@ function RoundingPopup({ title, value, onSelect, onClose }) {
           <button type="button" onClick={onClose} title="Fechar"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
         </div>
-        <div style={{ padding: '8px 0', maxHeight: '60vh', overflowY: 'auto' }}>
+        <div style={{ padding: '6px 18px 10px', fontSize: 11.5, color: '#94a3b8', borderBottom: '1px solid #f1f5f9', marginBottom: 4 }}>
+          Exemplo com <b style={{ color: '#64748b' }}>R$ {brl(ROUNDING_SAMPLE)}</b>:
+        </div>
+        <div style={{ padding: '4px 0 8px', maxHeight: '52vh', overflowY: 'auto' }}>
           {ROUNDING_OPTIONS.map(o => {
             const sel = Math.abs(cur - o.value) < 1e-9
             return (
               <button key={o.value} type="button" onClick={() => { onSelect(o.value); onClose() }}
-                style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', background: sel ? '#eff6ff' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 18px', background: sel ? '#eff6ff' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
                 onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#f8fafc' }}
                 onMouseLeave={e => { e.currentTarget.style.background = sel ? '#eff6ff' : 'transparent' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: sel ? 700 : 500, color: '#1e293b' }}>{o.label}</div>
-                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{o.hint}</div>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8' }}>→ R$ {brl(roundToStep(ROUNDING_SAMPLE, o.value))}</div>
                 </div>
                 {sel && <span style={{ color: '#2563eb', flexShrink: 0 }}><Ic n="check" s={15} /></span>}
               </button>
