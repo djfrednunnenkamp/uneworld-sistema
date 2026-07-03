@@ -84,6 +84,7 @@ const ROLE_OPTS = [
 
 /* ── Popup de novo usuário da agência ── */
 function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) {
+  const { user: me } = useAuth()
   const [mode,   setMode]   = useState('pick')  // 'pick' = escolher existente | 'create' = novo
   const [form,   setForm]   = useState({ email:'', first_name:'', last_name:'' })
   const [saving, setSaving] = useState(false)
@@ -106,8 +107,12 @@ function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) 
 
   const memberSet = new Set(memberUserIds)
   const s = search.trim().toLowerCase()
+  // Mostra TODOS os usuários, menos os superadmins (superusuário). Contas internas
+  // (staff) só aparecem para um superusuário — só ele pode anexá-las (regra A-08 no
+  // backend); pra não-superusuário, esconde (senão daria 403 ao anexar).
   const candidates = allUsers.filter(u =>
-    !u.is_deleted && !u.is_superuser && !u.is_staff && !memberSet.has(u.id) &&
+    !u.is_deleted && !u.is_superuser && !memberSet.has(u.id) &&
+    (me?.is_superuser || !u.is_staff) &&
     (!s || (u.full_name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s)))
 
   // Anexa um usuário EXISTENTE à agência (só vira membro; mantém as permissões dele).
