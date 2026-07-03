@@ -450,19 +450,69 @@ const plansFromItin = (d) => (Array.isArray(d?.payment_plans) && d.payment_plans
   ? d.payment_plans
   : (d?.payment_plan ? [d.payment_plan] : [])
 
-// Resumo curto de uma linha (para os cards compactos de sugestão).
-const planCompact = (p) => {
-  if (p.a_vista) return 'À vista' + (p.payment_method ? ` · ${p.payment_method}` : '')
-  const parts = []
+// Linhas detalhadas de uma sugestão (mostradas no tooltip ao passar o mouse).
+const planDetail = (p) => {
+  if (p.a_vista) {
+    const rows = [{ k: 'Pagamento', v: 'À vista' }]
+    if (p.payment_method) rows.push({ k: 'Forma', v: p.payment_method })
+    rows.push({ k: 'Vencimento', v: `${p.first_due_days || 0} dias após aplicar` })
+    return rows
+  }
+  const rows = []
   if (p.has_down_payment) {
     const val = Number(p.down_payment_value || 0)
-    parts.push(`entrada ${p.down_payment_mode === 'valor' ? `R$ ${val.toLocaleString('pt-BR')}` : `${val}%`}`)
+    rows.push({ k: 'Entrada', v: (p.down_payment_mode === 'valor' ? `R$ ${val.toLocaleString('pt-BR')}` : `${val}%`) + (p.down_payment_method ? ` · ${p.down_payment_method}` : '') })
   }
   const n = Number(p.installments_count) || 0
-  if (n > 0) parts.push(`${n}x`)
-  else if (!p.has_down_payment) parts.push('à vista')
-  if (p.payment_method) parts.push(p.payment_method)
-  return parts.join(' · ')
+  if (n > 0) {
+    rows.push({ k: 'Parcelas', v: `${n}x${p.payment_method ? ` · ${p.payment_method}` : ''}` })
+    rows.push({ k: 'Vencimentos', v: `1º em ${p.first_due_days || 0} dias · a cada ${p.interval_days || 0} dias` })
+  } else if (!p.has_down_payment) {
+    rows.push({ k: 'Pagamento', v: 'À vista' + (p.payment_method ? ` · ${p.payment_method}` : '') })
+  }
+  return rows
+}
+
+/* Chip de sugestão: mostra só o NOME; ao passar o mouse abre um tooltip
+   estilizado com todos os detalhes (via portal, pra não ser cortado pelo modal).
+   Clicar aplica a sugestão. */
+function SuggestionChip({ plan, index, applied, onApply }) {
+  const [pos, setPos] = useState(null)
+  const ref = useRef(null)
+  const show = () => {
+    const r = ref.current?.getBoundingClientRect()
+    if (r) setPos({ left: r.left, top: r.bottom + 6, bottomUp: r.bottom + 200 > window.innerHeight, elemTop: r.top })
+  }
+  const hide = () => setPos(null)
+  const rows = planDetail(plan)
+  const name = plan.name || `Sugestão ${index + 1}`
+  return (
+    <>
+      <button ref={ref} type="button" onClick={() => onApply(plan)}
+        onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 240, padding: '7px 13px', borderRadius: 999, border: `1px solid ${applied ? '#60a5fa' : '#dbe4ee'}`, background: applied ? '#eff6ff' : '#fff', color: '#0f172a', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .12s, box-shadow .12s' }}
+        onMouseOver={e => { e.currentTarget.style.borderColor = '#60a5fa'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,.14)' }}
+        onMouseOut={e => { e.currentTarget.style.borderColor = applied ? '#60a5fa' : '#dbe4ee'; e.currentTarget.style.boxShadow = 'none' }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{name}</span>
+        {applied && <span style={{ flexShrink: 0, color: '#2563eb', display: 'flex' }}><Ic n="check" s={13} /></span>}
+      </button>
+      {pos && createPortal(
+        <div style={{ position: 'fixed', zIndex: 3000, left: Math.max(8, Math.min(pos.left, window.innerWidth - 268)),
+          ...(pos.bottomUp ? { top: pos.elemTop - 8, transform: 'translateY(-100%)' } : { top: pos.top }),
+          width: 256, background: '#0f172a', color: '#fff', borderRadius: 10, boxShadow: '0 12px 32px rgba(0,0,0,.28)', padding: '11px 13px', pointerEvents: 'none', animation: 'mIn .12s ease' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, paddingBottom: 7, borderBottom: '1px solid rgba(255,255,255,.12)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {rows.map((row, j) => (
+              <div key={j} style={{ display: 'flex', gap: 8, fontSize: 12, lineHeight: 1.3 }}>
+                <span style={{ color: 'rgba(255,255,255,.5)', flexShrink: 0, minWidth: 76 }}>{row.k}</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{row.v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 10.5, color: 'rgba(255,255,255,.4)' }}>Clique para aplicar</div>
+        </div>, document.body)}
+    </>
+  )
 }
 
 // Arredonda à precisão do campo do backend (evita 400 "máx. N casas decimais"
@@ -2192,23 +2242,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   <div style={{ fontSize: 11.5, fontWeight: 600, color: '#64748b', marginBottom: 7 }}>
                     Sugestões de pagamento do roteiro <span style={{ color: '#cbd5e1' }}>·</span> toque para aplicar
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
-                    {itineraryPlans.map((p, i) => {
-                      const applied = appliedPlan && appliedPlan.name === (p.name || '')
-                      return (
-                        <button key={p._uid || i} type="button" onClick={() => applyPaymentPlan(p)}
-                          title={planCompact(p)}
-                          style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2, border: `1px solid ${applied ? '#60a5fa' : '#e2e8f0'}`, borderRadius: 9, background: applied ? '#eff6ff' : '#fff', padding: '8px 11px', cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .12s, box-shadow .12s', minWidth: 0 }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#60a5fa'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,.12)' }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = applied ? '#60a5fa' : '#e2e8f0'; e.currentTarget.style.boxShadow = 'none' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name || `Sugestão ${i + 1}`}</span>
-                            {applied && <span style={{ flexShrink: 0, color: '#2563eb', display: 'flex' }}><Ic n="check" s={13} /></span>}
-                          </span>
-                          <span style={{ fontSize: 11.5, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{planCompact(p)}</span>
-                        </button>
-                      )
-                    })}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {itineraryPlans.map((p, i) => (
+                      <SuggestionChip key={p._uid || i} plan={p} index={i}
+                        applied={appliedPlan && appliedPlan.name === (p.name || '')}
+                        onApply={applyPaymentPlan} />
+                    ))}
                   </div>
                 </div>
               )}
