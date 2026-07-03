@@ -606,6 +606,24 @@ def user_delete(request, pk):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+def user_unlink_agencies(request, pk):
+    """Desvincula o usuário de TODAS as agências (remove os AgencyMember). Ele deixa
+    de ser usuário de agência (some da página de agências), mas mantém a conta e as
+    permissões atuais."""
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+    # Gestor interno ou admin de uma agência do usuário podem desvincular.
+    if not (has_any_perm(request.user, 'manage_users', 'users_edit') or can_manage_agency_user(request.user, user)):
+        return Response({'error': 'Sem permissão.'}, status=403)
+    from agencies.models import AgencyMember
+    AgencyMember.objects.filter(user=user).delete()
+    return Response(serialize_user(user))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def user_restore(request, pk):
     if not request.user.is_superuser:
         return Response({'error': 'Apenas superusuário pode restaurar.'}, status=403)

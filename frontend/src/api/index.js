@@ -365,6 +365,7 @@ export const usersApi = {
   create:         (data)   => api.post('/users/create/', data),
   update:         (id, d)  => api.patch(`/users/${id}/`, d),
   remove:         (id)     => api.delete(`/users/${id}/delete/`),
+  unlinkAgencies: (id)     => api.post(`/users/${id}/unlink-agencies/`),
   restore:        (id)     => api.post(`/users/${id}/restore/`),
   purge:          (id)     => api.delete(`/users/${id}/purge/`),
   sendInvite:     (id)     => api.post(`/users/${id}/invite/`),

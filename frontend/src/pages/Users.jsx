@@ -9,6 +9,7 @@ import DelModal from '../components/DelModal'
 import TrashRowActions from '../components/TrashRowActions'
 import PasswordInput from '../components/PasswordInput'
 import PasswordRequirements from '../components/PasswordRequirements'
+import ConfirmModal from '../components/ConfirmModal'
 import EmailInput from '../components/EmailInput'
 import PhoneInput from '../components/PhoneInput'
 import DateRangeDrop from '../components/DateRangeDrop'
@@ -232,6 +233,8 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
   const [fe,           setFe]           = useState({})
   const [emailPrefs,   setEmailPrefs]   = useState({ receive_deadline_emails: false, receive_task_emails: false, receive_birthday_emails: false })
   const [permProfiles, setPermProfiles] = useState([])
+  const [unlinkAsk,    setUnlinkAsk]    = useState(false)
+  const [unlinking,    setUnlinking]    = useState(false)
   const isEdit  = mode !== 'new'
   const isSelf  = isEdit && user?.id === me?.id
   const targetIsSuperuser = isEdit && !!user?.is_superuser
@@ -286,6 +289,20 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
     }).catch(() => {})
   }, [isEdit, user?.id])
 
+  const agencyNames = (user?.agencies || []).map(a => a.name).filter(Boolean).join(', ')
+  const doUnlink = async () => {
+    setUnlinking(true)
+    try {
+      await usersApi.unlinkAgencies(user.id)
+      toast.success('Usuário desvinculado da agência.')
+      if (me?.id === user.id) refreshUser?.().catch(() => {})
+      onSaved()
+      onClose()
+    } catch (e) {
+      toast.error(e.response?.data?.error ?? 'Erro ao desvincular.')
+    } finally { setUnlinking(false); setUnlinkAsk(false) }
+  }
+
   const save = async () => {
     const errs = {}
     if (mode !== 'perms' && !form.email?.trim()) errs.email = true
@@ -335,6 +352,17 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
           <button type="button" onClick={onClose} title="Fechar" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, flexShrink:0 }}><Ic n="x" s={16}/></button>
         </div>
         <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12,overflowY:'auto'}}>
+          {isEdit && (user?.agencies?.length > 0) && (
+            <div style={{fontSize:12,color:'#9a3412',background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:6,padding:'8px 10px',lineHeight:1.5,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}>
+              <span>🏢 Usuário da agência <b>{agencyNames}</b>.</span>
+              {canEditProfile && (
+                <button type="button" onClick={() => setUnlinkAsk(true)} disabled={unlinking}
+                  style={{flexShrink:0,fontSize:12,fontWeight:600,color:'#b91c1c',background:'#fff',border:'1px solid #fecaca',borderRadius:6,padding:'5px 10px',cursor:unlinking?'default':'pointer',opacity:unlinking?.6:1}}>
+                  {unlinking ? 'Desvinculando…' : 'Desvincular da agência'}
+                </button>
+              )}
+            </div>
+          )}
           {mode !== 'perms' && (<>
           <div className="grid2">
             <div><label style={lbl}>Primeiro nome</label><input style={{...inp,...(!canEditProfile?{background:'#f8fafc',color:'#94a3b8'}:{})}} disabled={!canEditProfile} value={form.first_name} onChange={set('first_name')} placeholder="Ana" /></div>
@@ -445,6 +473,17 @@ function UserModal({ user, mode = 'new', onClose, onSaved }) {
           </button>
         </div>
       </div>
+      {unlinkAsk && (
+        <ConfirmModal
+          title="Desvincular da agência"
+          message={`Desvincular ${user?.full_name || user?.email} da agência ${agencyNames}?`}
+          detail="Ele deixa de ser usuário de agência (some da página de agências), mas mantém a conta e as permissões atuais. Para revincular, basta adicioná-lo de novo pela página da agência."
+          okLabel="Desvincular"
+          onOk={doUnlink}
+          onCancel={() => setUnlinkAsk(false)}
+          zIndex={500}
+        />
+      )}
     </div>
   )
 }
