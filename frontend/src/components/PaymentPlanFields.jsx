@@ -44,6 +44,44 @@ export const roundLabelShort = (step) => {
   return s < 1 ? `R$ ${s.toFixed(2).replace('.', ',')}` : `R$ ${s.toLocaleString('pt-BR')}`
 }
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100
+
+/* Simula um plano de pagamento para um valor total — MESMA lógica que o contrato
+ * usa ao aplicar a sugestão (entrada + parcelas iguais, última absorvendo a
+ * diferença, com o arredondamento configurado). Devolve os números "que o cliente
+ * receberia", sem tocar em estado nenhum. */
+export function simulatePaymentPlan(plan, total) {
+  const p = plan || {}
+  const t = round2(total)
+  const n = Math.max(0, parseInt(p.installments_count) || 0)
+  const hasDp = !!p.has_down_payment
+  const dpMode = p.down_payment_mode || 'percent'
+  const dpVal = Number(p.down_payment_value || 0)
+  const dpRound = Number(p.down_payment_rounding) || 0.01
+  const instRound = Number(p.installment_rounding) || 0.01
+  const firstDue = parseInt(p.first_due_days) || 0
+  const interval = parseInt(p.interval_days) || 0
+  const method = p.payment_method || ''
+  const dpMethod = p.down_payment_method || ''
+
+  const entradaVal = hasDp ? roundToStep(dpMode === 'valor' ? dpVal : t * dpVal / 100, dpRound) : 0
+  const entrada = (hasDp && entradaVal > 0) ? { value: entradaVal, method: dpMethod, dueDays: 0 } : null
+
+  if (n <= 0) {
+    // Sem parcelas → pagamento à vista do total cheio (é como o contrato aplica).
+    return { total: t, entrada: null, avista: { value: round2(t), method, dueDays: firstDue }, installments: [] }
+  }
+  const remaining = round2(t - entradaVal)
+  const base = roundToStep(remaining / n, instRound)
+  const installments = Array.from({ length: n }, (_, i) => ({
+    n: i + 1,
+    value: i === n - 1 ? round2(remaining - base * (n - 1)) : base,
+    method,
+    dueDays: firstDue + i * interval,
+  }))
+  return { total: t, entrada, avista: null, installments }
+}
+
 /* Pop-up que sugere os arredondamentos disponíveis. */
 function RoundingPopup({ title, value, onSelect, onClose }) {
   const cur = Number(value) || 0.01
@@ -94,11 +132,78 @@ function RoundingButton({ value, onClick }) {
   )
 }
 
+const dueLabel = (days) => days === 0 ? 'na aplicação' : `em ${days} ${days === 1 ? 'dia' : 'dias'}`
+
+/* Simulador: digita-se um valor total e vê-se a entrada + parcelas que o cliente
+ * receberia com os parâmetros atuais (inclui os arredondamentos). */
+function PaymentPlanTester({ value, onClose }) {
+  const [total, setTotal] = useState('')
+  // Aceita "12000", "12000.50" e o formato pt-BR "12.000,50".
+  const t = (() => {
+    const s = String(total).trim()
+    if (!s) return 0
+    return s.includes(',') ? (Number(s.replace(/\./g, '').replace(',', '.')) || 0) : (Number(s) || 0)
+  })()
+  const sim = t > 0 ? simulatePaymentPlan(value, t) : null
+  const parcSum = sim ? round2(sim.installments.reduce((a, b) => a + b.value, 0)) : 0
+  const grand = sim ? round2((sim.entrada?.value || 0) + (sim.avista?.value || 0) + parcSum) : 0
+  const bate = sim ? Math.abs(grand - sim.total) < 0.005 : true
+
+  const row = (label, val, method, dueDays) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{label}</div>
+        <div style={{ fontSize: 11.5, color: '#94a3b8' }}>{[method || null, dueLabel(dueDays)].filter(Boolean).join(' · ')}</div>
+      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', flexShrink: 0 }}>R$ {brl(val)}</div>
+    </div>
+  )
+
+  return (
+    <div onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onMouseDown={e => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 460, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.28)' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Testar forma de pagamento</span>
+          <button type="button" onClick={onClose} title="Fechar"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
+        </div>
+        <div style={{ padding: '16px 18px', overflowY: 'auto' }}>
+          <label style={lbl}>Valor total do contrato (R$)</label>
+          <input className="fi" inputMode="decimal" value={total} autoFocus
+            onChange={e => setTotal(e.target.value)} placeholder="Ex.: 12000" />
+          {!sim ? (
+            <p style={{ fontSize: 12.5, color: '#94a3b8', margin: '14px 0 0' }}>Digite um valor total para ver como ficaria para o cliente.</p>
+          ) : (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Ficaria assim para o cliente</div>
+              {sim.entrada && row('Entrada', sim.entrada.value, sim.entrada.method, sim.entrada.dueDays)}
+              {sim.avista && row('Pagamento à vista', sim.avista.value, sim.avista.method, sim.avista.dueDays)}
+              {sim.installments.map(p => row(`Parcela ${p.n} de ${sim.installments.length}`, p.value, p.method, p.dueDays))}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 12, padding: '10px 12px', borderRadius: 8, background: bate ? '#f0fdf4' : '#fef2f2', border: `1px solid ${bate ? '#bbf7d0' : '#fecaca'}` }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: bate ? '#15803d' : '#b91c1c' }}>
+                  {bate ? 'Soma confere com o total' : 'Atenção: a soma não bate com o total'}
+                </span>
+                <span style={{ fontSize: 13.5, fontWeight: 800, color: bate ? '#15803d' : '#b91c1c' }}>R$ {brl(grand)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '12px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+          <button type="button" onClick={onClose} className="btn btn-outline">Fechar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PaymentPlanFields({ value, onChange, methodOptions = [] }) {
   const v = value || {}
   const set = (k, val) => onChange({ ...v, [k]: val })
   const mode = v.down_payment_mode || 'percent'
   const [roundingFor, setRoundingFor] = useState(null)   // null | 'down' | 'installment'
+  const [testing, setTesting] = useState(false)
   const modeBtn = (m, label) => (
     <button type="button" onClick={() => set('down_payment_mode', m)}
       style={{ padding: '8px 14px', border: 'none', background: mode === m ? '#1a2d4f' : '#fff', color: mode === m ? '#fff' : '#475569', fontSize: 13, fontWeight: mode === m ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -112,6 +217,7 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
     .map(m => ({ value: m, label: m }))
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: 14, alignItems: 'start' }}>
       {/* ── Bloco ENTRADA ── */}
       <section style={sectionCard}>
@@ -183,6 +289,16 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
         <RoundingButton value={v.installment_rounding} onClick={() => setRoundingFor('installment')} />
       </section>
 
+      </div>
+
+      {/* Botão de testar a forma de pagamento (simulador) */}
+      <button type="button" onClick={() => setTesting(true)}
+        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe' }}
+        onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff' }}>
+        <Ic n="card" s={14} /> Testar forma de pagamento
+      </button>
+
       {roundingFor === 'down' && (
         <RoundingPopup title="Arredondar o valor da entrada" value={v.down_payment_rounding}
           onSelect={val => set('down_payment_rounding', val)} onClose={() => setRoundingFor(null)} />
@@ -191,6 +307,7 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [] 
         <RoundingPopup title="Arredondar o valor das parcelas" value={v.installment_rounding}
           onSelect={val => set('installment_rounding', val)} onClose={() => setRoundingFor(null)} />
       )}
+      {testing && <PaymentPlanTester value={v} onClose={() => setTesting(false)} />}
     </div>
   )
 }
