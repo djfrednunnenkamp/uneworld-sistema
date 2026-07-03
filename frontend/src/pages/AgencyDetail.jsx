@@ -108,9 +108,12 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
   }, [agencyId])
 
   const s = search.trim().toLowerCase()
-  const matchType = (u) => typeFilter === 'agency' ? u.is_agency_user
-    : typeFilter === 'internal' ? (u.is_staff && !u.is_agency_user)
-    : true
+  // Padrão ('all') esconde superadmins; 'super' inclui todos; 'agency'/'internal' filtram o tipo.
+  const matchType = (u) =>
+    typeFilter === 'agency'   ? u.is_agency_user :
+    typeFilter === 'internal' ? (u.is_staff && !u.is_agency_user && !u.is_superuser) :
+    typeFilter === 'super'    ? true :
+    !u.is_superuser
   const candidates = allUsers.filter(u => matchType(u) &&
     (!s || (u.full_name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s)))
 
@@ -184,7 +187,7 @@ function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
               <span style={{ fontSize:12, color:'#94a3b8', fontWeight:600 }}>Filtrar:</span>
               <div style={{ width:180 }}>
                 <Dropdown value={typeFilter} onChange={v => setTypeFilter(v || 'all')} clearable={false} searchable={false}
-                  options={[{ value:'all', label:'Todos (sem superadmin)' }, { value:'agency', label:'De agência' }, { value:'internal', label:'Da operadora' }]} />
+                  options={[{ value:'all', label:'Todos (sem superadmin)' }, { value:'agency', label:'De agência' }, { value:'internal', label:'Da operadora' }, { value:'super', label:'Incluir superadmins' }]} />
               </div>
             </div>
             <div style={{ overflowY:'auto', padding:'0 12px 14px', flex:1 }}>

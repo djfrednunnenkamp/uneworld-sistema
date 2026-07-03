@@ -111,11 +111,15 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         from users_api.permissions import agency_scope_ids
         agency = self.get_object()
         member_ids = set(agency.members.values_list('user_id', flat=True))
+        is_super_actor = request.user.is_superuser
         out = []
-        for u in User.objects.filter(is_active=True, is_superuser=False).order_by('first_name', 'username'):
+        for u in User.objects.filter(is_active=True).order_by('first_name', 'username'):
             if u.id in member_ids:
                 continue
-            if u.is_staff and not request.user.is_superuser:
+            # Contas privilegiadas (staff/superusuário) só entram na lista para um
+            # superusuário — só ele pode anexá-las (regra A-08). O front esconde os
+            # superadmins por padrão, com um filtro para incluí-los.
+            if (u.is_staff or u.is_superuser) and not is_super_actor:
                 continue
             out.append({
                 'id': u.id,
@@ -123,6 +127,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
                 'email': u.email,
                 'username': u.username,
                 'is_staff': u.is_staff,
+                'is_superuser': u.is_superuser,
                 'is_agency_user': agency_scope_ids(u) is not None,
             })
         return Response(out)
