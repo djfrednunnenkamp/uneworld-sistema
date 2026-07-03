@@ -268,6 +268,10 @@ def build_review_data(contract):
         'stage': contract.stage,
         # URL autenticada do arquivo assinado (para o preview ao lado na conferência).
         'signed_file': f'/api/contracts/{contract.id}/signed-file/' if contract.signed_file else None,
+        # Comprovante de pagamento + quem pagou a UneWorld (config da agência: PIX
+        # da agência → agência → Une; senão cliente → Une).
+        'payment_receipt': f'/api/contracts/{contract.id}/receipt/' if contract.payment_receipt else None,
+        'receipt_payer': 'agencia' if (contract.agency_id and getattr(contract.agency, 'use_agency_pix', False)) else 'cliente',
         'agency_name': str(contract.agency) if contract.agency_id else None,
         'payer_name': payer_name,
         'package_name': contract.package_name or None,

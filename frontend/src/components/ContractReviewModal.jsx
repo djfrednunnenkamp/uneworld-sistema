@@ -128,6 +128,31 @@ export default function ContractReviewModal({ contractId, onClose, onDone }) {
               </div>
             )}
 
+            {/* Comprovante de pagamento + de onde veio o pagamento (config da agência) */}
+            <div style={card}>
+              <div style={lbl}>Comprovante de pagamento</div>
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                {data.receipt_payer === 'agencia' ? (
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', border: '1px solid #ddd6fe', padding: '3px 10px', borderRadius: 999 }}>Agência → UneWorld</span>
+                ) : (
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '3px 10px', borderRadius: 999 }}>Cliente → UneWorld</span>
+                )}
+                {data.payment_receipt ? (
+                  <a href={data.payment_receipt} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: '#1a2d4f', textDecoration: 'none' }}>
+                    <Ic n="eye" s={14} /> Ver comprovante
+                  </a>
+                ) : (
+                  <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>Não anexado</span>
+                )}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11.5, color: '#94a3b8', lineHeight: 1.4 }}>
+                {data.receipt_payer === 'agencia'
+                  ? 'Pela configuração da agência, o pagamento é repassado pela agência à UneWorld.'
+                  : 'Pela configuração da agência, o cliente paga direto na conta da UneWorld.'}
+              </div>
+            </div>
+
             {/* Câmbio */}
             <div style={card}>
               <div style={lbl}>Câmbio ({data.base_currency} → BRL · {data.payment_type === 'a_vista' ? 'à vista' : 'parcelado'})</div>

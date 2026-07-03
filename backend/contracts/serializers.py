@@ -145,6 +145,11 @@ class ContractSerializer(serializers.ModelSerializer):
     stage         = serializers.CharField(read_only=True)
     # URL autenticada (não a pública de /media) — null quando não há arquivo.
     signed_file   = serializers.SerializerMethodField()
+    # Comprovante de pagamento (anexado junto do assinado) + quem pagou a UneWorld,
+    # derivado da config da agência (PIX da agência → agência paga a Une; senão o
+    # cliente paga direto na conta da Une).
+    payment_receipt = serializers.SerializerMethodField()
+    receipt_payer   = serializers.SerializerMethodField()
     # Conferência automática do assinado (só leitura; gravada no upload-signed).
     signed_verification = serializers.JSONField(read_only=True)
     # Calculados pelo backend — nunca digitados (ver _recalc_totals).
@@ -172,7 +177,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
                   'payment_plan_applied',
-                  'stage', 'signed_file', 'signed_verification',
+                  'stage', 'signed_file', 'payment_receipt', 'receipt_payer', 'signed_verification',
                   'reviewed_at', 'review_note', 'invoice_number', 'invoice_date', 'invoiced_at',
                   'autentique_document_id', 'autentique_data',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data', 'custom_clauses',
@@ -266,6 +271,17 @@ class ContractSerializer(serializers.ModelSerializer):
 
     def get_signed_file(self, obj):
         return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None
+
+    def get_payment_receipt(self, obj):
+        return f'/api/contracts/{obj.id}/receipt/' if obj.payment_receipt else None
+
+    def get_receipt_payer(self, obj):
+        # Quem paga a UneWorld, pela config da agência: PIX da agência no contrato
+        # → a agência recebe do cliente e repassa (agência → Une); senão o cliente
+        # paga direto na conta da UneWorld (cliente → Une). Sem agência: cliente.
+        if obj.agency_id and getattr(obj.agency, 'use_agency_pix', False):
+            return 'agencia'
+        return 'cliente'
 
     def get_passenger_list_data(self, obj):
         if not obj.passenger_list_id:

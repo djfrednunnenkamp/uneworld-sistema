@@ -16,6 +16,7 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
   const isDigital = contract?.signature_type === 'digital'
   const [file, setFile] = useState(null)
   const [fileUrl, setFileUrl] = useState(null)      // preview do arquivo enviado (esquerda)
+  const [receipt, setReceipt] = useState(null)      // comprovante de pagamento (obrigatório)
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)   // arraste-e-solte
@@ -23,6 +24,7 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
   const [docStatus, setDocStatus] = useState('loading')  // loading | ready | error
   const [overridePrompt, setOverridePrompt] = useState(null)  // {message} quando o QR não pôde ser lido
   const inputRef = useRef(null)
+  const receiptRef = useRef(null)
   const label = contract?.reservation_number ? `Reserva ${contract.reservation_number}` : `Contrato #${contract?.id}`
 
   // Gera o PDF do contrato para a coluna da esquerda.
@@ -53,15 +55,25 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
   }
   useEffect(() => () => { if (fileUrl) URL.revokeObjectURL(fileUrl) }, [fileUrl])
 
+  const pickReceipt = (f) => {
+    if (f) {
+      const okType = f.type === 'application/pdf' || /^image\//.test(f.type || '') || /\.(pdf|jpe?g|png)$/i.test(f.name || '')
+      if (!okType) { toast.error('Comprovante: aceito PDF ou imagem (JPG/PNG).'); return }
+      if (f.size > 15 * 1024 * 1024) { toast.error('Comprovante muito grande (máx. 15 MB).'); return }
+    }
+    setReceipt(f || null)
+  }
+
   const upload = async (override = false) => {
     if (!file) { toast.error('Selecione o arquivo assinado.'); return }
+    if (!receipt) { toast.error('Anexe o comprovante de pagamento.'); return }
     if (!confirmed) { toast.error('Confirme que o contrato está assinado e correto.'); return }
     setBusy(true)
     // Progresso na notificação: o upload + verificação dos QR pode demorar; assim
     // a pessoa vê que está andando (igual ao "Verificando assinatura…" do digital).
     const toastId = toast.loading(override ? 'Anexando o documento…' : 'Enviando e verificando o contrato assinado…')
     try {
-      await contractsApi.uploadSigned(contract.id, file, { override })
+      await contractsApi.uploadSigned(contract.id, file, receipt, { override })
       toast.success(override ? 'Documento anexado (sem verificação). Movido para "Em revisão".'
                              : 'Contrato assinado anexado. Movido para "Em revisão".', { id: toastId })
       setOverridePrompt(null)
@@ -188,6 +200,19 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
                 </button>
                 {file && <p style={{ fontSize: 12, color: '#334155', margin: '8px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</p>}
 
+                {/* Comprovante de pagamento — arquivo separado, obrigatório */}
+                <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px dashed #e2e8f0' }}>
+                  <div style={secTitle}>Comprovante de pagamento *</div>
+                  <p style={{ fontSize: 12.5, color: '#475569', margin: '0 0 10px', lineHeight: 1.45 }}>Anexe o comprovante/recibo do pagamento (PDF ou imagem).</p>
+                  <input ref={receiptRef} type="file" accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                    onChange={e => pickReceipt(e.target.files?.[0] || null)} />
+                  <button type="button" onClick={() => receiptRef.current?.click()} disabled={busy}
+                    style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 8, border: `1px solid ${receipt ? '#bbf7d0' : '#e2e8f0'}`, background: receipt ? '#f0fdf4' : '#fff', color: receipt ? '#15803d' : '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Ic n={receipt ? 'check' : 'ul'} s={14} /> {receipt ? 'Trocar comprovante' : 'Escolher comprovante'}
+                  </button>
+                  {receipt && <p style={{ fontSize: 12, color: '#334155', margin: '8px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{receipt.name}</p>}
+                </div>
+
                 {file && (
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 16, cursor: 'pointer' }}>
                     <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}
@@ -196,8 +221,8 @@ export default function ContractSignatureModal({ contract, onClose, onDone }) {
                   </label>
                 )}
 
-                <button type="button" onClick={() => upload()} disabled={busy || !file || !confirmed}
-                  style={{ width: '100%', marginTop: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 18px', borderRadius: 8, border: 'none', background: (busy || !file || !confirmed) ? '#94a3b8' : '#059669', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: (busy || !file || !confirmed) ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                <button type="button" onClick={() => upload()} disabled={busy || !file || !receipt || !confirmed}
+                  style={{ width: '100%', marginTop: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 18px', borderRadius: 8, border: 'none', background: (busy || !file || !receipt || !confirmed) ? '#94a3b8' : '#059669', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: (busy || !file || !receipt || !confirmed) ? 'default' : 'pointer', fontFamily: 'inherit' }}>
                   <Ic n="check" s={15} /> {busy ? 'Enviando…' : 'Enviar contrato assinado'}
                 </button>
               </div>

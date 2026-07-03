@@ -214,12 +214,14 @@ function FDrop({ label, value, onChange, options, icon = 'list', avatar = false,
  * ver backend contracts/verify.py para retomar no futuro. */
 function SignedUploadModal({ contractId, onClose, onUploaded }) {
   const [file, setFile] = useState(null)
+  const [receipt, setReceipt] = useState(null)   // comprovante de pagamento (obrigatório)
   const [drag, setDrag] = useState(false)
   const [busy, setBusy] = useState(false)
   const [sigOk, setSigOk] = useState(false)
   const [objUrl, setObjUrl] = useState(null)
   const [overridePrompt, setOverridePrompt] = useState(null)  // {message} quando o QR não pôde ser lido
   const inputRef = useRef(null)
+  const receiptRef = useRef(null)
 
   // Enquanto o popup está aberto, impede o navegador de abrir o arquivo solto
   // fora da zona de drop (comportamento padrão que abria o PDF numa página nova).
@@ -239,16 +241,24 @@ function SignedUploadModal({ contractId, onClose, onUploaded }) {
   }, [file])
 
   const pick = (f) => { setFile(f); setSigOk(false) }
+  const pickReceipt = (f) => {
+    if (f) {
+      const okType = f.type === 'application/pdf' || /^image\//.test(f.type || '') || /\.(pdf|jpe?g|png)$/i.test(f.name || '')
+      if (!okType) { toast.error('Comprovante: aceito PDF ou imagem (JPG/PNG).'); return }
+    }
+    setReceipt(f || null)
+  }
 
   // Upload + verificação dos QR. Se o QR não pôde ser lido (scan ruim), o backend
   // devolve can_override → abre a confirmação ("tem certeza que é o documento?").
   // Se a pessoa confirmar, reenvia com override e segue (marcado não verificado).
   const doUpload = async (override = false) => {
     if (!file) return
+    if (!receipt) { toast.error('Anexe o comprovante de pagamento.'); return }
     setBusy(true)
     const toastId = toast.loading(override ? 'Anexando o documento…' : 'Enviando e verificando o contrato assinado…')
     try {
-      await contractsApi.uploadSigned(contractId, file, { override })
+      await contractsApi.uploadSigned(contractId, file, receipt, { override })
       toast.success(override ? 'Documento anexado (sem verificação). Movido para "Em revisão".'
                              : 'Contrato assinado anexado. Movido para "Em revisão".', { id: toastId })
       setOverridePrompt(null)
@@ -265,7 +275,7 @@ function SignedUploadModal({ contractId, onClose, onUploaded }) {
   }
   const submit = () => doUpload(false)
 
-  const canSend = !!file && !busy && sigOk
+  const canSend = !!file && !!receipt && !busy && sigOk
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -307,6 +317,18 @@ function SignedUploadModal({ contractId, onClose, onUploaded }) {
               )}
             </div>
             {file && <p style={{ margin: '8px 2px 0', fontSize: 11.5, color: '#2e6db4', cursor: 'pointer' }} onClick={() => inputRef.current?.click()}>Trocar arquivo</p>}
+
+            {/* Comprovante de pagamento — obrigatório */}
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #e2e8f0' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.05em' }}>Comprovante de pagamento *</p>
+              <input ref={receiptRef} type="file" accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; pickReceipt(f || null) }} />
+              <button type="button" onClick={() => receiptRef.current?.click()}
+                style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 14px', borderRadius: 8, border: `1px solid ${receipt ? '#bbf7d0' : '#e2e8f0'}`, background: receipt ? '#f0fdf4' : '#fff', color: receipt ? '#15803d' : '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Ic n={receipt ? 'check' : 'ul'} s={13} /> {receipt ? 'Trocar comprovante' : 'Escolher comprovante (PDF ou imagem)'}
+              </button>
+              {receipt && <p style={{ margin: '7px 2px 0', fontSize: 11.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{receipt.name}</p>}
+            </div>
 
             {/* Confirmação manual da assinatura */}
             {file && (

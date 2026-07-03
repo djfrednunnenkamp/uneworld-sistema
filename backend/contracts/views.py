@@ -301,6 +301,21 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         resp['X-Frame-Options'] = 'SAMEORIGIN'
         return resp
 
+    @action(detail=True, methods=['get'], url_path='receipt')
+    def receipt_download(self, request, pk=None):
+        """Serve o comprovante de pagamento (anexado junto do assinado), inline."""
+        from django.http import FileResponse, Http404
+        contract = self.get_object()
+        if not contract.payment_receipt:
+            raise Http404
+        ext   = os.path.splitext(contract.payment_receipt.name)[1]
+        fname = f'comprovante_{contract.reservation_number or contract.id}{ext}'
+        _log_contract_event(request, contract, 'download',
+                            f'Baixou o comprovante de pagamento do contrato #{contract.id}')
+        resp = FileResponse(contract.payment_receipt.open('rb'), as_attachment=False, filename=fname)
+        resp['X-Frame-Options'] = 'SAMEORIGIN'
+        return resp
+
     @action(detail=True, methods=['post'], url_path='reopen')
     def reopen(self, request, pk=None):
         """Volta o contrato para 'Em edição'.
@@ -464,6 +479,16 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
 
+        # Comprovante de pagamento — OBRIGATÓRIO, anexado junto do assinado. Aceita
+        # PDF ou imagem (foto/print do comprovante).
+        receipt = request.FILES.get('receipt')
+        if not receipt:
+            return Response({'error': 'Anexe o comprovante de pagamento (campo "receipt").'}, status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+
         from django.utils import timezone
         # Segurança do assinado físico: lê os QR de cada página e confere se é este
         # contrato, na versão atual, com todas as páginas na ordem.
@@ -495,11 +520,12 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                         status=http_status.HTTP_400_BAD_REQUEST)
 
         contract.signed_file = f
+        contract.payment_receipt = receipt
         # Assinado (física) → vai direto para a revisão da operadora.
         contract.stage = 'revisao'
         contract.signed_at = timezone.now()
         contract.signed_verification = verification
-        contract.save(update_fields=['signed_file', 'stage', 'signed_at', 'signed_verification'])
+        contract.save(update_fields=['signed_file', 'payment_receipt', 'stage', 'signed_at', 'signed_verification'])
         # A mudança de etapa já é registrada no log pelo sinal em audit/tracking.py.
         return Response(ContractSerializer(contract, context={'request': request}).data)
 

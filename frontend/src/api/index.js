@@ -121,7 +121,7 @@ export const contractsApi = {
   sendForSignatureDigital: (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/contracts/${id}/send-for-signature/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
   checkSignature:   (id) => api.post(`/contracts/${id}/check-signature/`),
   reopen:           (id) => api.post(`/contracts/${id}/reopen/`),
-  uploadSigned:     (id, file, { override } = {}) => { const fd = new FormData(); fd.append('file', file); if (override) fd.append('override_unverified', 'true'); return api.post(`/contracts/${id}/upload-signed/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
+  uploadSigned:     (id, file, receipt, { override } = {}) => { const fd = new FormData(); fd.append('file', file); if (receipt) fd.append('receipt', receipt); if (override) fd.append('override_unverified', 'true'); return api.post(`/contracts/${id}/upload-signed/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
   signingQr:        (id, pages) => api.post(`/contracts/${id}/signing-qr/`, { pages }),
   // Revisão (operadora): dados item a item + alertas, aprovar / reprovar.
   reviewData:       (id) => api.get(`/contracts/${id}/review-data/`),

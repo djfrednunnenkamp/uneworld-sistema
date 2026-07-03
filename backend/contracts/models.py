@@ -12,6 +12,13 @@ def secure_signed_path(instance, filename):
     return f"contracts/signed/{uuid.uuid4().hex}{ext}"
 
 
+def secure_receipt_path(instance, filename):
+    """Nome seguro (UUID) para o comprovante/recibo de pagamento anexado junto
+    com o contrato assinado."""
+    ext = os.path.splitext(filename)[1].lower()
+    return f"contracts/receipts/{uuid.uuid4().hex}{ext}"
+
+
 class Contract(models.Model):
     """Contrato de viagem por adesão — replica a capa do modelo em PDF da UneWorld.
     Os dados da Operadora não ficam aqui: vêm de config_api.OperatingCompany
@@ -122,6 +129,9 @@ class Contract(models.Model):
     invoiced_by    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='contracts_invoiced', verbose_name='Faturado por')
     signed_file = models.FileField('Contrato assinado', upload_to=secure_signed_path, null=True, blank=True)
+    # Comprovante/recibo do pagamento, anexado junto com o contrato assinado
+    # (obrigatório no upload). Pode ser PDF ou imagem (foto/print do comprovante).
+    payment_receipt = models.FileField('Comprovante de pagamento', upload_to=secure_receipt_path, null=True, blank=True)
     # Versão de assinatura: sobe a cada edição do contrato. O PDF baixado para
     # assinatura física carrega um QR por página com (contrato, versão, página, total)
     # assinado (HMAC). No upload do assinado escaneado, o backend lê os QR e confere
