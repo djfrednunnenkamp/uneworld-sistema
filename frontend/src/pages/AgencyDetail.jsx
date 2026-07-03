@@ -84,8 +84,7 @@ const ROLE_OPTS = [
 ]
 
 /* ── Popup de novo usuário da agência ── */
-function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) {
-  const { user: me } = useAuth()
+function NewAgencyUserPopup({ agencyId, onSaved, onClose }) {
   const [mode,   setMode]   = useState('pick')  // 'pick' = escolher existente | 'create' = novo
   const [form,   setForm]   = useState({ email:'', first_name:'', last_name:'' })
   const [saving, setSaving] = useState(false)
@@ -99,25 +98,20 @@ function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) 
   const inp = { width:'100%', boxSizing:'border-box', padding:'9px 12px', border:'1.5px solid #e2e8f0', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', color:'#1e293b' }
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
-  // Lista todos os usuários do sistema (para anexar um já existente à agência).
+  // Usuários que podem ser anexados (endpoint dedicado, liberado por agencies_edit —
+  // já exclui membros, superadmins e inativos; staff só p/ superusuário).
   useEffect(() => {
-    usersApi.list()
+    agenciesApi.attachableUsers(agencyId)
       .then(r => setAllUsers(r.data || []))
-      .catch(() => {})
+      .catch(() => toast.error('Não foi possível carregar os usuários.'))
       .finally(() => setLoadingUsers(false))
-  }, [])
+  }, [agencyId])
 
-  const memberSet = new Set(memberUserIds)
   const s = search.trim().toLowerCase()
-  // Mostra TODOS os usuários, menos os superadmins (superusuário). Contas internas
-  // (staff) só aparecem para um superusuário — só ele pode anexá-las (regra A-08 no
-  // backend); pra não-superusuário, esconde (senão daria 403 ao anexar).
   const matchType = (u) => typeFilter === 'agency' ? u.is_agency_user
     : typeFilter === 'internal' ? (u.is_staff && !u.is_agency_user)
     : true
-  const candidates = allUsers.filter(u =>
-    !u.is_deleted && !u.is_superuser && !memberSet.has(u.id) &&
-    (me?.is_superuser || !u.is_staff) && matchType(u) &&
+  const candidates = allUsers.filter(u => matchType(u) &&
     (!s || (u.full_name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s)))
 
   // Anexa um usuário EXISTENTE: vira membro e ASSUME as permissões de agência
@@ -453,7 +447,6 @@ function AgencyUsersTab({ agencyId }) {
       {showNew && (
         <NewAgencyUserPopup
           agencyId={agencyId}
-          memberUserIds={members.map(m => m.user_id)}
           onSaved={load}
           onClose={() => setShowNew(false)}
         />

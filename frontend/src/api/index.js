@@ -96,6 +96,7 @@ export const agenciesApi = {
   discard:       (id)     => api.delete(`/agencies/${id}/discard/`),   // descarta rascunho
   // Membros
   listMembers:   (id)              => api.get(`/agencies/${id}/members/`),
+  attachableUsers: (id)            => api.get(`/agencies/${id}/attachable-users/`),
   addMember:     (id, email, role) => api.post(`/agencies/${id}/members/`, { email, role }),
   addMemberById: (id, userId, role, applyAgencyProfile) => api.post(`/agencies/${id}/members/`, { user_id: userId, role, apply_agency_profile: !!applyAgencyProfile }),
   updateMember:  (id, mid, role)   => api.patch(`/agencies/${id}/members/${mid}/`, { role }),

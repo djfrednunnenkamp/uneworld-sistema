@@ -96,3 +96,24 @@ class AttachAppliesAgencyProfileTest(APITestCase):
         self.assertEqual(r.status_code, 201, r.data)
         self.target.permissions.refresh_from_db()
         self.assertTrue(self.target.permissions.passengers_view_basic)   # assumiu o perfil de agência
+
+
+class AttachableUsersEndpointTest(APITestCase):
+    """O picker de anexar usa /attachable-users/ (liberado por agencies_edit),
+    sem exigir permissão de gerência de usuários."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.editor = _make_user('ed3', agencies_edit=True)   # NÃO tem users_view
+        self.regular = _make_user('reg3')
+        self.superu = _make_user('root3', superuser=True)
+        from agencies.models import AgencyMember
+        AgencyMember.objects.create(agency=self.agency, user=_make_user('memberx'))
+
+    def test_agencies_edit_can_list_without_user_mgmt_perm(self):
+        self.client.force_authenticate(self.editor)
+        r = self.client.get(f'/api/agencies/{self.agency.id}/attachable-users/')
+        self.assertEqual(r.status_code, 200, r.data)
+        emails = [u['email'] for u in r.data]
+        self.assertIn(self.regular.email, emails)
+        self.assertNotIn(self.superu.email, emails)          # superadmin nunca aparece
+        self.assertNotIn('memberx@x.com', emails)            # já é membro → fora

@@ -73,6 +73,8 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             if self.request.method == 'POST':
                 return [RequirePermission('agencies_edit')()]
             return [RequirePermission(*VIEW_PERMS)()]
+        if self.action == 'attachable_users':
+            return [RequirePermission('agencies_edit')()]
         return super().get_permissions()
 
     @action(detail=False, methods=['get'], url_path='check-cnpj')
@@ -99,6 +101,31 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         return Response(status=204)
 
     # ── Membros ──────────────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['get'], url_path='attachable-users')
+    def attachable_users(self, request, pk=None):
+        """Usuários que podem ser ANEXADOS a esta agência (para o popup "Adicionar").
+        Dados mínimos (id/nome/e-mail/flags) — liberado por `agencies_edit`, sem
+        precisar da permissão de gerência de usuários. Exclui: já-membros, inativos,
+        superusuários e (para quem não é superusuário) contas staff (regra A-08)."""
+        from users_api.permissions import agency_scope_ids
+        agency = self.get_object()
+        member_ids = set(agency.members.values_list('user_id', flat=True))
+        out = []
+        for u in User.objects.filter(is_active=True, is_superuser=False).order_by('first_name', 'username'):
+            if u.id in member_ids:
+                continue
+            if u.is_staff and not request.user.is_superuser:
+                continue
+            out.append({
+                'id': u.id,
+                'full_name': f'{u.first_name} {u.last_name}'.strip() or u.username,
+                'email': u.email,
+                'username': u.username,
+                'is_staff': u.is_staff,
+                'is_agency_user': agency_scope_ids(u) is not None,
+            })
+        return Response(out)
 
     @action(detail=True, methods=['get', 'post'], url_path='members')
     def members(self, request, pk=None):
