@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { configApi } from '../api'
+import { Ic } from './Icon'
 import { exportSectionCsv } from '../utils/sectionCsv'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 import CsvImportPopup from './CsvImportPopup'
@@ -118,8 +119,12 @@ export default function PaymentPlanManager({ canEdit, canDelete, canImport, canE
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
                 <div style={{ fontSize: 12, color: '#64748b' }}>{describe(p)}</div>
               </div>
-              {canEdit && <button onClick={() => openEdit(p)} style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 7, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, color: '#475569', cursor: 'pointer', fontFamily: 'inherit' }}>Editar</button>}
-              {canDelete && <button onClick={() => remove(p)} style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 7, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, color: '#dc2626', cursor: 'pointer', fontFamily: 'inherit' }}>Excluir</button>}
+              {(canEdit || canDelete) && (
+                <div className="r-acts" style={{ flexShrink: 0 }}>
+                  {canEdit   && <button className="r-btn edit" title="Editar"  onClick={() => openEdit(p)}><Ic n="edit"  s={13} /></button>}
+                  {canDelete && <button className="r-btn del"  title="Excluir" onClick={() => remove(p)}><Ic n="trash" s={13} /></button>}
+                </div>
+              )}
             </div>
           ))}
         </div>
