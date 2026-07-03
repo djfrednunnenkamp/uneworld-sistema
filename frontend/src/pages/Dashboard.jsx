@@ -245,7 +245,7 @@ function EmailLogWidget({ canView, canPreview, canResend, timeFormat, refreshKey
   }, [resendingId])
 
   return (
-    <div className="tcard" style={{ flex:'0 0 480px', minWidth:0, display:'flex', flexDirection:'column' }}>
+    <div className="tcard dash-email" style={{ minWidth:0, display:'flex', flexDirection:'column' }}>
       <div className="tcard-head">
         <span style={{ display:'flex', alignItems:'center', gap:6 }}>
           <Ic n="mail" s={14}/> E-mails enviados
@@ -423,7 +423,7 @@ export default function Dashboard() {
       ))}
 
       {/* ── Bottom row: listas + email log ── */}
-      <div style={{ display:'flex', gap:16, alignItems:'stretch', maxHeight:480 }}>
+      <div className="dash-bottom">
 
         {/* Listas de passageiros recentes */}
         {can('dashboard_view_lists') && (

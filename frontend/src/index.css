@@ -253,6 +253,11 @@ fieldset:disabled { opacity: .75; }
 .hamburger { display: none; }
 .sb-backdrop { display: none; }
 
+/* Dashboard — linha de baixo (listas + e-mails). No desktop: 2 colunas, a de
+   e-mails com base fixa; no mobile: empilha e ocupa a largura toda. */
+.dash-bottom { display: flex; gap: 16px; align-items: stretch; max-height: 480px; }
+.dash-email { flex: 0 0 480px; }
+
 @media (max-width: 900px) {
   /* ── Sidebar como gaveta deslizante ── */
   .sidebar {
@@ -277,7 +282,12 @@ fieldset:disabled { opacity: .75; }
 
   /* ── Espaçamentos e cabeçalhos ── */
   .topbar { padding: 0 12px; }
-  .page { padding: 16px 14px; }
+  /* overflow-x hidden = trava a "rolagem lateral" acidental da página (tabelas
+     largas rolam dentro do próprio .tcard, não movem a página). */
+  .page { padding: 16px 14px; overflow-x: hidden; }
+  /* Dashboard: linha de baixo empilha; e-mails ocupam a largura toda. */
+  .dash-bottom { flex-direction: column; max-height: none; }
+  .dash-email { flex: 1 1 auto; width: 100%; }
   .ph { flex-wrap: wrap; gap: 12px; align-items: flex-start; }
   .ph-title { font-size: 19px; }
   .ph-actions { flex-wrap: wrap; }
