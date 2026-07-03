@@ -24,11 +24,12 @@ export default function ContractReviewModal({ contractId, onClose, onDone }) {
   const [busy, setBusy] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [note, setNote] = useState('')
+  const [docView, setDocView] = useState('signed')   // 'signed' | 'receipt'
 
   useEffect(() => {
     let alive = true
     contractsApi.reviewData(contractId)
-      .then(r => { if (alive) setData(r.data) })
+      .then(r => { if (alive) { setData(r.data); if (!r.data?.signed_file && r.data?.payment_receipt) setDocView('receipt') } })
       .catch(() => { if (alive) toast.error('Erro ao carregar os dados da revisão.') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
@@ -78,8 +79,10 @@ export default function ContractReviewModal({ contractId, onClose, onDone }) {
   const th = { fontSize: 11, fontWeight: 700, color: '#94a3b8', textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eef2f7' }
   const td = { fontSize: 12.5, color: '#334155', padding: '6px 8px', borderBottom: '1px solid #f6f8fb' }
 
-  // Quando há documento assinado, abre-o à ESQUERDA e a conferência à direita.
-  const hasPdf = !!data?.signed_file
+  // Quando há documento (assinado e/ou comprovante), abre à ESQUERDA com um toggle
+  // pra alternar entre os dois; a conferência fica à direita.
+  const hasPdf = !!(data?.signed_file || data?.payment_receipt)
+  const curDocUrl = docView === 'receipt' ? data?.payment_receipt : data?.signed_file
   return (
     <div onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 20 }}>
@@ -98,8 +101,28 @@ export default function ContractReviewModal({ contractId, onClose, onDone }) {
         {/* Corpo: documento assinado à ESQUERDA (quando houver) + conferência à direita */}
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           {hasPdf && (
-            <div style={{ flex: 1.2, minWidth: 0, minHeight: 0, borderRight: '1px solid #eef2f7', display: 'flex' }}>
-              <SignedFileViewer url={data.signed_file} />
+            <div style={{ flex: 1.2, minWidth: 0, minHeight: 0, borderRight: '1px solid #eef2f7', display: 'flex', flexDirection: 'column' }}>
+              {/* Toggle: alternar entre o contrato assinado e o comprovante */}
+              <div style={{ display: 'flex', gap: 6, padding: '10px 12px', borderBottom: '1px solid #eef2f7', flexShrink: 0, background: '#f8fafc' }}>
+                {[
+                  { key: 'signed',  label: 'Contrato assinado', icon: 'docs', on: !!data.signed_file },
+                  { key: 'receipt', label: 'Comprovante',       icon: 'card', on: !!data.payment_receipt },
+                ].map(t => {
+                  const active = docView === t.key
+                  return (
+                    <button key={t.key} type="button" disabled={!t.on} onClick={() => setDocView(t.key)}
+                      title={!t.on ? 'Não anexado' : ''}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: `1px solid ${active ? '#7c3aed' : '#e2e8f0'}`, background: active ? '#7c3aed' : '#fff', color: !t.on ? '#cbd5e1' : active ? '#fff' : '#475569', fontSize: 12.5, fontWeight: 600, cursor: t.on ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                      <Ic n={t.icon} s={13} /> {t.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+                {curDocUrl
+                  ? <SignedFileViewer key={curDocUrl} url={curDocUrl} />
+                  : <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>Não anexado.</div>}
+              </div>
             </div>
           )}
           <div style={{ flex: hasPdf ? '0 0 480px' : 1, minWidth: 0, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
