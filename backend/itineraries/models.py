@@ -1,3 +1,4 @@
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
@@ -21,6 +22,20 @@ class Itinerary(models.Model):
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Categoria')
     continent   = models.ForeignKey('config_api.ConfigContinent', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Continente')
+
+    # ── Classificação (campos migrados do WordPress) ──
+    # ADITIVOS: não substituem `trip_type` (choices aereo/terrestre) nem `category`,
+    # que continuam existindo e funcionando. `itinerary_type` é a taxonomia extensível
+    # por lista; `maritime_company` só se aplica a roteiros marítimos/cruzeiros;
+    # `cities` são as cidades visitadas (múltipla seleção).
+    itinerary_type   = models.ForeignKey('config_api.ConfigItineraryType', null=True, blank=True,
+                                          on_delete=models.SET_NULL, related_name='itineraries',
+                                          verbose_name='Tipo de roteiro (lista)')
+    maritime_company = models.ForeignKey('config_api.ConfigMaritimeCompany', null=True, blank=True,
+                                          on_delete=models.SET_NULL, related_name='itineraries',
+                                          verbose_name='Companhia marítima')
+    cities           = models.ManyToManyField('config_api.ConfigCity', blank=True,
+                                               related_name='itineraries', verbose_name='Cidades')
 
     # ── Financeiro ──
     CURRENCY_CHOICES = [
@@ -95,3 +110,54 @@ class ItineraryAccommodationLine(models.Model):
 
     def __str__(self):
         return f'{self.accommodation_type} ({self.value_per_person})'
+
+
+class ItineraryDay(models.Model):
+    """Roteiro dia-a-dia (estrutura repetível migrada do WordPress). Cada linha é
+    um dia do itinerário. Substitui o que no WordPress seria um bloco/JSON repetido,
+    por uma child table indexável e consultável."""
+    itinerary   = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='days')
+    day_number  = models.PositiveIntegerField('Dia nº', validators=[MinValueValidator(1)])
+    title       = models.CharField('Título', max_length=300, blank=True)
+    description = models.TextField('Descrição', blank=True)
+    order       = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'day_number']
+        verbose_name = 'Dia do roteiro'
+        verbose_name_plural = 'Dias do roteiro'
+        constraints = [
+            models.UniqueConstraint(fields=['itinerary', 'day_number'], name='uniq_itinerary_day_number'),
+        ]
+        indexes = [
+            models.Index(fields=['itinerary', 'order'], name='idx_itinday_itin_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.itinerary_id} · Dia {self.day_number}'
+
+
+class ItineraryImage(models.Model):
+    """Galeria de imagens do roteiro (estrutura repetível migrada do WordPress).
+    No máximo uma imagem por roteiro pode ser marcada como capa (is_cover)."""
+    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='images')
+    image     = models.ImageField('Imagem', upload_to='itineraries/')
+    caption   = models.CharField('Legenda', max_length=300, blank=True)
+    is_cover  = models.BooleanField('É a capa', default=False)
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Imagem do roteiro'
+        verbose_name_plural = 'Imagens do roteiro'
+        constraints = [
+            # Garante no máximo UMA capa por roteiro (parcial: só vale quando is_cover=True).
+            models.UniqueConstraint(fields=['itinerary'], condition=models.Q(is_cover=True),
+                                    name='uniq_cover_per_itinerary'),
+        ]
+        indexes = [
+            models.Index(fields=['itinerary', 'order'], name='idx_itinimg_itin_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.itinerary_id} · img {self.pk}'

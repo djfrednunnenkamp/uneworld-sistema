@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.core.validators import RegexValidator
 from django.db import models
 
 
@@ -582,3 +583,52 @@ class ConfigContinent(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConfigItineraryType(models.Model):
+    """Tipo de roteiro como LISTA extensível (ex.: Aéreo, Terrestre, Marítimo,
+    Cruzeiro, Rodoviário). Complementa — não substitui — o campo de choices
+    Itinerary.trip_type ('aereo'/'terrestre'), que é preservado por compatibilidade."""
+    name = models.CharField('Nome', max_length=120, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Tipo de Roteiro'
+        verbose_name_plural = 'Tipos de Roteiro'
+
+    def __str__(self):
+        return self.name
+
+
+class ConfigMaritimeCompany(models.Model):
+    """Companhia marítima / de cruzeiro (ex.: MSC, Costa, Royal Caribbean)."""
+    name    = models.CharField('Nome', max_length=200, unique=True)
+    website = models.URLField('Site', blank=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Companhia Marítima'
+        verbose_name_plural = 'Companhias Marítimas'
+
+    def __str__(self):
+        return self.name
+
+
+class ConfigCurrency(models.Model):
+    """Moeda como LISTA de referência (código ISO-4217 + símbolo). Criada para
+    substituir, no futuro, o choices fixo EUR/USD/BRL. IMPORTANTE: NÃO altera
+    o campo Itinerary.base_currency (choices), preservado por compatibilidade —
+    esta tabela apenas disponibiliza o cadastro para uso posterior."""
+    code   = models.CharField('Código ISO', max_length=3, unique=True, validators=[
+        RegexValidator(r'^[A-Z]{3}$', 'Use o código ISO-4217 com 3 letras maiúsculas (ex.: USD).'),
+    ])
+    name   = models.CharField('Nome', max_length=100)
+    symbol = models.CharField('Símbolo', max_length=8, blank=True)
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = 'Moeda'
+        verbose_name_plural = 'Moedas'
+
+    def __str__(self):
+        return f'{self.code} — {self.name}'
