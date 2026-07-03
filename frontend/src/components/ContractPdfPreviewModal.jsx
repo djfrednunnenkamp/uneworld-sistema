@@ -82,17 +82,28 @@ export default function ContractPdfPreviewModal({ contractId, previewPayload = n
         <div style={{ padding: '12px 18px', borderTop: '1px solid #eef2f7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0 }}>
           <div>{footerExtra}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {!allowDownload && (
+            {/* Baixar é referente ao que está sendo visto: comprovante ou contrato. */}
+            {docView === 'receipt' && receiptUrl ? (
+              <a href={receiptUrl} download
+                onClick={() => auditApi.logDownload({
+                  label: `Baixou o comprovante do ${reservation ? `Contrato ${reservation}` : `Contrato #${contractId}`}`,
+                  model_name: 'Contract', model_label: 'Contrato', object_id: contractId,
+                }).catch(() => {})}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>
+                <Ic n="dl" s={14} /> Baixar comprovante
+              </a>
+            ) : !allowDownload ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', alignSelf: 'center' }}>
                 <Ic n="eye" s={13} /> Assinatura digital — download liberado após assinado
               </span>
-            )}
-            {allowDownload && blobUrl && <a href={blobUrl} download={`contrato_${reservation || contractId}.pdf`}
-              onClick={() => auditApi.logDownload({
-                label: `Baixou o PDF do ${reservation ? `Contrato ${reservation}` : `Contrato #${contractId}`}`,
-                model_name: 'Contract', model_label: 'Contrato', object_id: contractId,
-              }).catch(() => {})}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>Baixar</a>}
+            ) : blobUrl ? (
+              <a href={blobUrl} download={`contrato_${reservation || contractId}.pdf`}
+                onClick={() => auditApi.logDownload({
+                  label: `Baixou o PDF do ${reservation ? `Contrato ${reservation}` : `Contrato #${contractId}`}`,
+                  model_name: 'Contract', model_label: 'Contrato', object_id: contractId,
+                }).catch(() => {})}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit' }}>Baixar</a>
+            ) : null}
             <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Fechar</button>
           </div>
         </div>
