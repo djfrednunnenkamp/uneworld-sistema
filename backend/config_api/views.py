@@ -17,7 +17,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
-                     ConfigItineraryCategory, ConfigContinent)
+                     ConfigItineraryCategory, ConfigContinent,
+                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -798,6 +799,62 @@ class ItineraryCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = ItineraryCategorySerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_itinerary_categories')
+
+
+# ── Listas do Roteiro: Tipos de Roteiro, Companhias Marítimas, Moedas ──
+
+class ItineraryTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigItineraryType
+        fields = ['id', 'name']
+
+
+class ItineraryTypeViewSet(viewsets.ModelViewSet):
+    queryset = ConfigItineraryType.objects.all()
+    serializer_class = ItineraryTypeSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_itinerary_types')
+
+
+class MaritimeCompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigMaritimeCompany
+        fields = ['id', 'name', 'website']
+
+
+class MaritimeCompanyViewSet(viewsets.ModelViewSet):
+    queryset = ConfigMaritimeCompany.objects.all()
+    serializer_class = MaritimeCompanySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_maritime_companies')
+
+
+class CurrencySerializer(serializers.ModelSerializer):
+    # Declarado explícito para NÃO herdar o RegexValidator do model (que roda antes
+    # de validate_code e barraria minúsculas) — aqui normalizo p/ maiúsculas primeiro.
+    code = serializers.CharField(max_length=3)
+
+    class Meta:
+        model = ConfigCurrency
+        fields = ['id', 'code', 'name', 'symbol']
+
+    def validate_code(self, v):
+        v = (v or '').strip().upper()
+        if len(v) != 3 or not v.isalpha():
+            raise serializers.ValidationError('Use o código ISO-4217 com 3 letras (ex.: USD).')
+        qs = ConfigCurrency.objects.filter(code=v)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('Já existe uma moeda com este código.')
+        return v
+
+
+class CurrencyViewSet(viewsets.ModelViewSet):
+    queryset = ConfigCurrency.objects.all()
+    serializer_class = CurrencySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_currencies')
 
 
 class ContinentSerializer(serializers.ModelSerializer):

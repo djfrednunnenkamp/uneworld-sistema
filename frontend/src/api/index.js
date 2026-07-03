@@ -324,6 +324,21 @@ export const configApi = {
   addContinent:  (name) => api.post('/config/continents/', { name }),
   updateContinent: (id, name) => api.patch(`/config/continents/${id}/`, { name }),
   delContinent:  (id)   => api.delete(`/config/continents/${id}/`),
+  // Tipos de roteiro
+  itineraryTypes:    () => api.get('/config/itinerary-types/'),
+  addItineraryType:  (name) => api.post('/config/itinerary-types/', { name }),
+  updateItineraryType: (id, name) => api.patch(`/config/itinerary-types/${id}/`, { name }),
+  delItineraryType:  (id)   => api.delete(`/config/itinerary-types/${id}/`),
+  // Companhias marítimas
+  maritimeCompanies:    () => api.get('/config/maritime-companies/'),
+  addMaritimeCompany:   (data) => api.post('/config/maritime-companies/', data),
+  updateMaritimeCompany: (id, data) => api.patch(`/config/maritime-companies/${id}/`, data),
+  delMaritimeCompany:   (id)   => api.delete(`/config/maritime-companies/${id}/`),
+  // Moedas
+  currencies:    () => api.get('/config/currencies/'),
+  addCurrency:   (data) => api.post('/config/currencies/', data),
+  updateCurrency: (id, data) => api.patch(`/config/currencies/${id}/`, data),
+  delCurrency:   (id)   => api.delete(`/config/currencies/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

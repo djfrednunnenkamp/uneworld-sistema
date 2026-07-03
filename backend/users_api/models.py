@@ -246,6 +246,17 @@ class UserPermissions(models.Model):
     settings_itinerary_categories_delete      = models.BooleanField(default=False)
     settings_itinerary_categories_bulk_import = models.BooleanField(default=False)
 
+    # Listas do Roteiro (Tipos de Roteiro · Companhias Marítimas · Moedas)
+    settings_itinerary_types_view        = models.BooleanField(default=False)
+    settings_itinerary_types_edit        = models.BooleanField(default=False)
+    settings_itinerary_types_delete      = models.BooleanField(default=False)
+    settings_maritime_companies_view     = models.BooleanField(default=False)
+    settings_maritime_companies_edit     = models.BooleanField(default=False)
+    settings_maritime_companies_delete   = models.BooleanField(default=False)
+    settings_currencies_view             = models.BooleanField(default=False)
+    settings_currencies_edit             = models.BooleanField(default=False)
+    settings_currencies_delete           = models.BooleanField(default=False)
+
     # Exportar CSV (download) — granular por área. Antes o download dependia só
     # de "_view"; agora cada área tem permissão própria de download.
     settings_professions_export          = models.BooleanField(default=False)

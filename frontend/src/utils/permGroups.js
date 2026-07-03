@@ -342,6 +342,30 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Tipos de Roteiro', icon: 'mapicon', hue: 200,
+        items: [
+          ['settings_itinerary_types_view',   'Ver tipos de roteiro'],
+          ['settings_itinerary_types_edit',   'Criar / Editar tipos de roteiro'],
+          ['settings_itinerary_types_delete', 'Excluir tipos de roteiro'],
+        ],
+      },
+      {
+        label: 'Companhias Marítimas', icon: 'mapicon', hue: 210,
+        items: [
+          ['settings_maritime_companies_view',   'Ver companhias marítimas'],
+          ['settings_maritime_companies_edit',   'Criar / Editar companhias marítimas'],
+          ['settings_maritime_companies_delete', 'Excluir companhias marítimas'],
+        ],
+      },
+      {
+        label: 'Moedas', icon: 'card', hue: 160,
+        items: [
+          ['settings_currencies_view',   'Ver moedas'],
+          ['settings_currencies_edit',   'Criar / Editar moedas'],
+          ['settings_currencies_delete', 'Excluir moedas'],
+        ],
+      },
+      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],

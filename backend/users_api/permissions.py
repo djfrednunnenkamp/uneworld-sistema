@@ -100,6 +100,9 @@ PERMISSION_FIELDS = [
     'settings_terms_view', 'settings_terms_edit', 'settings_terms_bulk_import', 'settings_terms_export',
     'settings_operating_company_view', 'settings_operating_company_edit', 'settings_operating_company_bulk_import', 'settings_operating_company_export',
     'settings_itinerary_categories_view', 'settings_itinerary_categories_edit', 'settings_itinerary_categories_delete', 'settings_itinerary_categories_bulk_delete', 'settings_itinerary_categories_bulk_import', 'settings_itinerary_categories_export',
+    'settings_itinerary_types_view', 'settings_itinerary_types_edit', 'settings_itinerary_types_delete',
+    'settings_maritime_companies_view', 'settings_maritime_companies_edit', 'settings_maritime_companies_delete',
+    'settings_currencies_view', 'settings_currencies_edit', 'settings_currencies_delete',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -140,6 +143,9 @@ STAFF_PERMISSION_FIELDS = [
     'settings_terms_view', 'settings_terms_edit', 'settings_terms_bulk_import', 'settings_terms_export',
     'settings_operating_company_view', 'settings_operating_company_edit', 'settings_operating_company_bulk_import', 'settings_operating_company_export',
     'settings_itinerary_categories_view', 'settings_itinerary_categories_edit', 'settings_itinerary_categories_delete', 'settings_itinerary_categories_bulk_delete', 'settings_itinerary_categories_bulk_import', 'settings_itinerary_categories_export',
+    'settings_itinerary_types_view', 'settings_itinerary_types_edit', 'settings_itinerary_types_delete',
+    'settings_maritime_companies_view', 'settings_maritime_companies_edit', 'settings_maritime_companies_delete',
+    'settings_currencies_view', 'settings_currencies_edit', 'settings_currencies_delete',
     # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
     # ninguém Administrador. log_page_views continua porque é uma permissão
     # ativa e concedida de propósito.

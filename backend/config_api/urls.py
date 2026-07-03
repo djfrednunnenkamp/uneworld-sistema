@@ -25,6 +25,9 @@ router.register('bus-maps',            views.BusMapViewSet,              basenam
 router.register('permission-profiles', views.PermissionProfileViewSet,   basename='permission-profile')
 router.register('contract-clauses',    views.ContractClauseViewSet,      basename='contract-clause')
 router.register('itinerary-categories', views.ItineraryCategoryViewSet,  basename='itinerary-category')
+router.register('itinerary-types',      views.ItineraryTypeViewSet,      basename='itinerary-type')
+router.register('maritime-companies',   views.MaritimeCompanyViewSet,    basename='maritime-company')
+router.register('currencies',           views.CurrencyViewSet,           basename='currency')
 router.register('continents',           views.ContinentViewSet,          basename='continent')
 
 urlpatterns = [
