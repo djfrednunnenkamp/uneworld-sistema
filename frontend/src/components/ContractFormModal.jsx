@@ -985,6 +985,20 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   /* Aplica a sugestão de pagamento do roteiro: entrada = total × %, parcelas =
    * (total − entrada) ÷ N, vencimentos a partir dos dias configurados no modelo.
    * Guarda o snapshot aplicado para a revisão comparar depois (flag de alteração). */
+  // Zera toda a parte de pagamento — volta ao estado inicial (começar do zero).
+  const clearPayment = () => {
+    setPaymentType('parcelado')
+    setHasEntrada(false)
+    setEntrada({ detail: '', due_date: '', value_brl: '', payment_method: '' })
+    setAvista({ due_date: '', value_brl: '', payment_method: '', detail: '' })
+    setAvistaRounding(0.01)
+    setInstallmentsCount(0)
+    setInstallments([])
+    setParcelasMethod('')
+    setAppliedPlan(null)
+    toast.success('Pagamento limpo.')
+  }
+
   const applyPaymentPlan = (plan) => {
     const p = plan || itineraryPlan
     if (!p) return
@@ -2234,7 +2248,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             {(layout === 'full' || curKey === 'pagamento') && (<>
             {/* Pagamento */}
             <div style={card}>
-              <p style={sectionTitle}><Ic n="clock" s={14} /> Pagamento</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <p style={sectionTitle}><Ic n="clock" s={14} /> Pagamento</p>
+                <button type="button" onClick={clearPayment}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 7, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}>
+                  <Ic n="trash" s={12} /> Limpar tudo
+                </button>
+              </div>
 
               {/* Sugestões de pagamento do roteiro — cards compactos; o card todo aplica */}
               {itineraryPlans.length > 0 && (
