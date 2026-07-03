@@ -376,3 +376,22 @@ class AgencyAdminManagementTest(APITestCase):
         self.client.force_authenticate(self.memberA)   # operador comum, não admin
         self.assertEqual(self.client.get('/api/users/').status_code, 403)
         self.assertEqual(self.client.post('/api/users/create/', {'email': 'z@x.com'}, format='json').status_code, 403)
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class ApplyProfileFullReplaceTest(APITestCase):
+    """apply_profile define o conjunto COMPLETO: permissões antigas que NÃO estão
+    no perfil são zeradas (senão um superadmin rebaixado seguia como staff)."""
+    def test_old_perms_cleared_and_staff_recalculated(self):
+        from config_api.models import PermissionProfile
+        from users_api.permissions import apply_profile
+        u = make_user('leftover', manage_users=True, settings_professions=True, passengers_view_basic=False)
+        u.is_staff = True; u.save()
+        prof = PermissionProfile.objects.create(name='Ag', is_agency_default=True,
+                                                permissions={'passengers_view_basic': True})  # sem chaves de staff
+        apply_profile(u, prof)
+        u.refresh_from_db(); u.permissions.refresh_from_db()
+        self.assertFalse(u.permissions.manage_users)        # perm antiga zerada
+        self.assertFalse(u.permissions.settings_professions)
+        self.assertTrue(u.permissions.passengers_view_basic)  # veio do perfil
+        self.assertFalse(u.is_staff)                         # sync recalculou → não é mais staff

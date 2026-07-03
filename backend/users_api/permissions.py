@@ -207,9 +207,11 @@ def apply_profile(user, profile):
     perms = get_user_permissions(user)
     perms.profile = profile
     src = profile.permissions if (profile and isinstance(profile.permissions, dict)) else {}
+    # Um perfil define o conjunto COMPLETO de permissões: chave AUSENTE no perfil
+    # vale False (não mantém o valor antigo). Sem isso, permissões antigas do
+    # usuário (ex.: um superadmin rebaixado) sobreviviam e ele seguia como staff.
     for key in PERMISSION_FIELDS:
-        if key in src:
-            setattr(perms, key, bool(src[key]))
+        setattr(perms, key, bool(src.get(key)))
     perms.save()
     sync_is_staff(user)
 
