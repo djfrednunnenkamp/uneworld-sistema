@@ -1426,7 +1426,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         st.id = r.data.id
       }
       toast.success(isEdit ? 'Contrato salvo.' : 'Contrato criado.')
-      onSaved()
+      onSaved(st.id)
     } catch (e) {
       toast.error(e.response?.data?.error ?? 'Erro ao salvar contrato.')
     } finally {

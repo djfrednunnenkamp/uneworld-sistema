@@ -623,6 +623,16 @@ export default function Contracts() {
     finally { markSending(id, false) }
   }
 
+  // Abre o pop-up de escolha física/digital para um contrato (por id). Usado no
+  // fluxo encadeado logo após criar/salvar um contrato novo.
+  const startSignatureFlow = async (id) => {
+    try {
+      const r = await contractsApi.get(id)
+      // _chainToSign: só o fluxo de criação emenda no pop-up de assinatura depois.
+      setSendRow({ ...r.data, _chainToSign: true })
+    } catch { /* se falhar, o contrato já está salvo na lista pra reabrir depois */ }
+  }
+
   // Enviar para assinatura → confirma no popup (com escolha física/digital) e envia.
   const confirmSend = async (type) => {
     const row = sendRow
@@ -639,6 +649,11 @@ export default function Contracts() {
       setSendRow(null)
       setTab('enviado')   // segue o contrato para a aba de destino
       load()
+      // Só o fluxo de criação emenda no pop-up de assinatura (física: baixar PDF
+      // + upload; digital: verificar) — mantém a pessoa dentro do fluxo.
+      if (row._chainToSign) {
+        try { const r = await contractsApi.get(row.id); setSignRow(r.data) } catch { /* segue sem o encadeamento */ }
+      }
     } catch (e) { toast.error(e?.response?.data?.error || 'Erro ao enviar para assinatura.', { id: toastId }) }
     finally { markSending(row.id, false) }
   }
@@ -1056,7 +1071,13 @@ export default function Contracts() {
         <ContractFormModal
           contractId={modal === 'new' ? null : modal}
           onClose={() => { setModal(null); loadDrafts() }}
-          onSaved={() => { setModal(null); load(); loadDrafts() }}
+          onSaved={(savedId) => {
+            const wasNew = modal === 'new'
+            setModal(null); load(); loadDrafts()
+            // Contrato novo → já emenda no fluxo de assinatura (físico/digital),
+            // sem a pessoa ter que sair e procurar o contrato na lista.
+            if (wasNew && savedId) startSignatureFlow(savedId)
+          }}
           onPublish={handlePublish}
         />
       )}
