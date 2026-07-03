@@ -557,6 +557,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [dragOverKey, setDragOverKey] = useState(null) // zona destacada no arraste ('pool' | id do quarto | 'new')
   const [paymentType, setPaymentType] = useState('parcelado') // 'a_vista' | 'parcelado'
   const [avista, setAvista]         = useState({ due_date: '', value_brl: '', payment_method: '', detail: '' }) // pagamento à vista
+  const [avistaRounding, setAvistaRounding] = useState(0.01) // passo de arredondamento do valor à vista (vem do modelo aplicado; 0.01 = total exato)
   const [hasEntrada, setHasEntrada] = useState(false)
   const [entrada, setEntrada]       = useState({ detail: '', due_date: '', value_brl: '', payment_method: '' })
   const [installmentsCount, setInstallmentsCount] = useState(0)
@@ -845,6 +846,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   // Alterna à vista ↔ parcelado e troca o câmbio para a taxa correspondente da moeda.
   const selectPaymentType = (val) => {
     setPaymentType(val)
+    // À vista escolhido À MÃO = valor total exato (sem o arredondamento de um modelo).
+    if (val === 'a_vista') setAvistaRounding(0.01)
     const rate = rateFor(form.base_currency, val)
     if (rate != null) setForm(f => ({ ...f, exchange_rate: rate }))
   }
@@ -925,10 +928,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
     const entradaBrl = hasDp ? round2(roundToStep(dpMode === 'valor' ? dpVal : total * dpVal / 100, dpRound)) : 0
     const withEntrada = hasDp && entradaBrl > 0
     const addDays = (days) => { const dt = new Date(); dt.setHours(0, 0, 0, 0); dt.setDate(dt.getDate() + days); return dt.toISOString().slice(0, 10) }
-    const snapshot = { name: p.name || '', has_down_payment: hasDp, down_payment_mode: dpMode, down_payment_value: dpVal, down_payment_rounding: dpRound, installments_count: n, payment_method: method, installment_rounding: instRound, first_due_days: firstDue, interval_days: interval }
+    const snapshot = { name: p.name || '', a_vista: !!p.a_vista, has_down_payment: hasDp, down_payment_mode: dpMode, down_payment_value: dpVal, down_payment_rounding: dpRound, installments_count: n, payment_method: method, installment_rounding: instRound, first_due_days: firstDue, interval_days: interval }
 
-    if (n <= 0) {
-      // Sem parcelas → pagamento à vista (valor total de uma vez)
+    if (p.a_vista || n <= 0) {
+      // À vista → pagamento único do total. O valor é arredondado pelo passo do
+      // modelo via avistaRounding (o useEffect do à vista aplica sobre o total).
+      setAvistaRounding(p.a_vista ? instRound : 0.01)
       setPaymentType('a_vista')
       setAvista(prev => ({ ...prev, payment_method: method, due_date: addDays(firstDue) }))
       setAppliedPlan(snapshot)
@@ -936,6 +941,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       return
     }
 
+    setAvistaRounding(0.01)
     setPaymentType('parcelado')
     setHasEntrada(withEntrada)
     setEntrada(prev => ({ ...prev, value_brl: withEntrada ? entradaBrl : '', payment_method: method, due_date: withEntrada ? addDays(0) : '' }))
@@ -1175,9 +1181,10 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   useEffect(() => {
     if (!initializedRef.current) return
     if (paymentType !== 'a_vista') return
-    setAvista(p => ({ ...p, value_brl: computedTotalBrl != null ? computedTotalBrl : '' }))
+    // Valor à vista = total, arredondado pelo passo do modelo (0.01 = total exato).
+    setAvista(p => ({ ...p, value_brl: computedTotalBrl != null ? round2(roundToStep(computedTotalBrl, avistaRounding)) : '' }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentType, computedTotalBrl])
+  }, [paymentType, computedTotalBrl, avistaRounding])
 
   const updateInstallment = (idx, key, value) => {
     setInstallments(prev => {

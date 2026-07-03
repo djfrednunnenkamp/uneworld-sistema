@@ -64,6 +64,11 @@ export function simulatePaymentPlan(plan, total) {
   const method = p.payment_method || ''
   const dpMethod = p.down_payment_method || ''
 
+  // À vista: pagamento único do total (arredondado pelo passo do "valor").
+  if (p.a_vista) {
+    return { total: t, entrada: null, avista: { value: roundToStep(t, instRound), method, dueDays: firstDue }, installments: [] }
+  }
+
   const entradaVal = hasDp ? roundToStep(dpMode === 'valor' ? dpVal : t * dpVal / 100, dpRound) : 0
   const entrada = (hasDp && entradaVal > 0) ? { value: entradaVal, method: dpMethod, dueDays: 0 } : null
 
@@ -218,7 +223,44 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [],
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: 14, alignItems: 'start' }}>
+      {/* Tipo de pagamento: à vista (chave) OU parcelado (entrada + parcelas). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', background: '#fff' }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '.04em' }}>Pagamento à vista</span>
+        <label className="toggle-wrap" style={{ marginLeft: 'auto' }}>
+          <span className="toggle">
+            <input type="checkbox" checked={!!v.a_vista} onChange={e => set('a_vista', e.target.checked)} />
+            <span className="toggle-slider" />
+          </span>
+          <span className="toggle-label">{v.a_vista ? 'Sim' : 'Não'}</span>
+        </label>
+      </div>
+
+      {v.a_vista ? (
+      /* ── Bloco À VISTA ── */
+      <section style={sectionCard}>
+        <div style={sectionTitle}>
+          <span>À vista</span>
+          <div style={{ marginLeft: 'auto' }}>
+            <RoundingButton value={v.installment_rounding} onClick={() => setRoundingFor('avista')} />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
+          <div>
+            <label style={lbl}>Forma de pagamento</label>
+            <Dropdown value={v.payment_method || null} options={methodOpts}
+              placeholder="Selecione a forma" searchable clearable
+              onChange={val => set('payment_method', val || '')} />
+          </div>
+          <div>
+            <label style={lbl}>Vencimento (dias após aplicar)</label>
+            <input className="fi" type="number" min="0" value={v.first_due_days ?? ''}
+              onChange={e => set('first_due_days', e.target.value)} placeholder="Ex.: 0 (na hora)" />
+          </div>
+        </div>
+        <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0 }}>Pagamento único do valor total, sem entrada nem parcelas.</p>
+      </section>
+      ) : (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: 14, alignItems: 'start' }}>
       {/* ── Bloco ENTRADA ── */}
       <section style={sectionCard}>
         <div style={sectionTitle}>
@@ -296,6 +338,7 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [],
       </section>
 
       </div>
+      )}
 
       {/* Botão de testar a forma de pagamento (simulador) — escondido quando o
           chamador coloca o botão em outro lugar, ex.: no cabeçalho do modal. */}
@@ -314,6 +357,10 @@ export default function PaymentPlanFields({ value, onChange, methodOptions = [],
       )}
       {roundingFor === 'installment' && (
         <RoundingPopup title="Arredondar o valor das parcelas" value={v.installment_rounding}
+          onSelect={val => set('installment_rounding', val)} onClose={() => setRoundingFor(null)} />
+      )}
+      {roundingFor === 'avista' && (
+        <RoundingPopup title="Arredondar o valor à vista" value={v.installment_rounding}
           onSelect={val => set('installment_rounding', val)} onClose={() => setRoundingFor(null)} />
       )}
       {testing && <PaymentPlanTester value={v} onClose={() => setTesting(false)} />}

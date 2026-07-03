@@ -81,6 +81,9 @@ class ConfigPaymentPlan(models.Model):
     contrato com um botão de "aplicar" que preenche entrada e parcelas."""
     DOWN_PAYMENT_MODE_CHOICES = [('percent', '% do total'), ('valor', 'Valor em R$')]
     name                 = models.CharField('Nome', max_length=120)
+    # À vista: pagamento único do total (ignora entrada/parcelas). O passo de
+    # arredondamento do valor à vista reaproveita installment_rounding.
+    a_vista              = models.BooleanField('À vista', default=False)
     has_down_payment     = models.BooleanField('Tem entrada', default=False)
     down_payment_mode    = models.CharField('Tipo da entrada', max_length=10, choices=DOWN_PAYMENT_MODE_CHOICES, default='percent')
     # Interpretado conforme down_payment_mode: 'percent' → % do total; 'valor' → R$.
