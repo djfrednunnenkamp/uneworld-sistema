@@ -2249,6 +2249,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </p>
                   </div>
                 </div>
+                {paymentType === 'a_vista' && avistaDiscountUsd > 0 && (
+                  <p style={{ fontSize: 11.5, color: '#15803d', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Ic n="check" s={12} />
+                    Desconto à vista {avistaDiscountCfg.mode === 'percent' ? `de ${avistaDiscountCfg.value}% ` : ''}
+                    (−{cur} {avistaDiscountUsd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · −R$ {avistaDiscountBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) já abatido da soma total.
+                  </p>
+                )}
                 {commissionUsd > 0 && (
                   <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Ic n="briefcase" s={12} />
