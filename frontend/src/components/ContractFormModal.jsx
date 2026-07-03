@@ -443,6 +443,31 @@ const addMonthsIso = (iso, n) => {
 }
 
 const round2 = (n) => Math.round(n * 100) / 100
+
+// Lista de sugestões de pagamento de um roteiro (usa payment_plans; cai no
+// payment_plan único antigo se a lista estiver vazia).
+const plansFromItin = (d) => (Array.isArray(d?.payment_plans) && d.payment_plans.length)
+  ? d.payment_plans
+  : (d?.payment_plan ? [d.payment_plan] : [])
+
+// Partes do resumo de uma sugestão (pra montar um card organizado, não uma linha só).
+const planParts = (p) => {
+  if (p.a_vista) return [{ k: 'Pagamento', v: 'À vista' + (p.payment_method ? ` — ${p.payment_method}` : '') }]
+  const out = []
+  if (p.has_down_payment) {
+    const val = Number(p.down_payment_value || 0)
+    const ent = p.down_payment_mode === 'valor' ? `R$ ${val.toLocaleString('pt-BR')}` : `${val}%`
+    out.push({ k: 'Entrada', v: ent + (p.down_payment_method ? ` — ${p.down_payment_method}` : '') })
+  }
+  const n = Number(p.installments_count) || 0
+  if (n > 0) {
+    out.push({ k: 'Parcelas', v: `${n}x${p.payment_method ? ` — ${p.payment_method}` : ''}` })
+    out.push({ k: 'Vencimentos', v: `1º em ${p.first_due_days || 0} dias · a cada ${p.interval_days || 0} dias` })
+  } else if (!p.has_down_payment) {
+    out.push({ k: 'Pagamento', v: 'À vista' + (p.payment_method ? ` — ${p.payment_method}` : '') })
+  }
+  return out
+}
 // Arredonda à precisão do campo do backend (evita 400 "máx. N casas decimais"
 // quando vem precisão alta de divisões/somas ou do que foi digitado).
 const toDec = (v, places = 2) => {
@@ -563,7 +588,8 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const [installmentsCount, setInstallmentsCount] = useState(0)
   const [installments, setInstallments] = useState([]) // [{ detail, due_date, value_brl, payment_method }]
   const [parcelasMethod, setParcelasMethod] = useState('') // forma de pagamento geral das parcelas
-  const [itineraryPlan, setItineraryPlan] = useState(null) // sugestão de pagamento do roteiro selecionado
+  const [itineraryPlan, setItineraryPlan] = useState(null) // 1ª sugestão (compat)
+  const [itineraryPlans, setItineraryPlans] = useState([]) // TODAS as sugestões do roteiro
   const [appliedPlan,   setAppliedPlan]   = useState(null) // snapshot da sugestão aplicada (vai pro payload)
   const [selectedClauses, setSelectedClauses] = useState([])
   const [customClauses, setCustomClauses] = useState([]) // [{ name, content }] — só deste contrato
@@ -656,6 +682,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
           itinAccomPricingRef.current = pricing
           setPricedTypeIds(new Set(Object.keys(pricing).map(Number)))
           setItineraryPlan(ir.data?.payment_plan || null)
+          setItineraryPlans(plansFromItin(ir.data))
         } catch { /* sem travamento se a busca do roteiro falhar */ }
       }
       setAdjustments((d.adjustments ?? []).map(a => ({
@@ -890,8 +917,9 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
         // Cláusulas vêm do roteiro: o contrato passa a usar as cláusulas dele.
         setSelectedClauses(Array.isArray(r.data?.clauses) ? r.data.clauses : [])
         setCustomClauses(Array.isArray(r.data?.custom_clauses) ? r.data.custom_clauses : [])
-        // Sugestão de pagamento do roteiro (para o botão "Aplicar sugestão").
+        // Sugestões de pagamento do roteiro (para os cards "Aplicar").
         setItineraryPlan(r.data?.payment_plan || null)
+        setItineraryPlans(plansFromItin(r.data))
       } catch { /* mantém os valores atuais se a busca falhar */ }
     } else {
       // Remover o roteiro: limpa tudo que ele havia preenchido (e o aeroporto).
@@ -899,6 +927,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       setPricedTypeIds(new Set())
       setDepartureAirportObj(null)
       setItineraryPlan(null)
+      setItineraryPlans([])
       setForm(f => ({
         ...f, itinerary: null,
         package_name: '', departure_date: '', return_date: '', departure_airport: '',
@@ -2160,24 +2189,40 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             <div style={card}>
               <p style={sectionTitle}><Ic n="clock" s={14} /> Pagamento</p>
 
-              {/* Sugestão de pagamento vinda do roteiro — botão aplica entrada + parcelas */}
-              {itineraryPlan && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px', marginBottom: 14 }}>
-                  <div style={{ flex: 1, fontSize: 12.5, color: '#1e40af', lineHeight: 1.5 }}>
-                    <strong>Sugestão de pagamento{itineraryPlan.name ? ` — ${itineraryPlan.name}` : ''}:</strong>{' '}
-                    {itineraryPlan.has_down_payment
-                      ? `entrada ${itineraryPlan.down_payment_mode === 'valor' ? `R$ ${Number(itineraryPlan.down_payment_value || 0).toLocaleString('pt-BR')}` : `${Number(itineraryPlan.down_payment_value || 0)}%`}${Number(itineraryPlan.installments_count) > 0 ? ' + ' : ''}`
-                      : ''}
-                    {Number(itineraryPlan.installments_count) > 0 ? `${itineraryPlan.installments_count}x` : (itineraryPlan.has_down_payment ? '' : 'pagamento à vista')}
-                    {itineraryPlan.payment_method ? ` · ${itineraryPlan.payment_method}` : ''}
-                    {Number(itineraryPlan.installments_count) > 0 ? ` · 1º venc. ${itineraryPlan.first_due_days || 0} dias, a cada ${itineraryPlan.interval_days || 0} dias` : ''}
+              {/* Sugestões de pagamento do roteiro — um card por forma, aplicáveis com 1 clique */}
+              {itineraryPlans.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Ic n="card" s={13} /> Sugestões de pagamento do roteiro
+                    <span style={{ fontWeight: 500, color: '#64748b', textTransform: 'none', letterSpacing: 0 }}>— escolha uma para aplicar</span>
                   </div>
-                  <button type="button" onClick={() => applyPaymentPlan(itineraryPlan)}
-                    style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
-                    Aplicar sugestão
-                  </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                    {itineraryPlans.map((p, i) => {
+                      const applied = appliedPlan && appliedPlan.name === (p.name || '')
+                      return (
+                        <div key={p._uid || i} style={{ display: 'flex', flexDirection: 'column', border: `1px solid ${applied ? '#93c5fd' : '#dbeafe'}`, borderRadius: 10, background: applied ? '#eff6ff' : '#f8fbff', padding: '12px 14px', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name || `Sugestão ${i + 1}`}</div>
+                            {applied && <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: '#15803d', background: '#dcfce7', borderRadius: 999, padding: '2px 8px' }}>Aplicada</span>}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {planParts(p).map((row, j) => (
+                              <div key={j} style={{ display: 'flex', gap: 6, fontSize: 12, lineHeight: 1.35 }}>
+                                <span style={{ color: '#94a3b8', flexShrink: 0, minWidth: 74 }}>{row.k}</span>
+                                <span style={{ color: '#334155', fontWeight: 500 }}>{row.v}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <button type="button" onClick={() => applyPaymentPlan(p)}
+                            style={{ marginTop: 2, padding: '7px 12px', borderRadius: 7, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
+                            {applied ? 'Aplicar novamente' : 'Aplicar'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
