@@ -149,3 +149,22 @@ class AttachDemotesInternalTest(APITestCase):
         self.assertEqual(r.status_code, 201, r.data)
         self.root.refresh_from_db()
         self.assertTrue(self.root.is_superuser)   # continua superusuário
+
+
+class MembersExcludeSoftDeletedTest(APITestCase):
+    """Membro excluído (soft-delete) some da lista de membros da agência."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.viewer = _make_user('viewer4', agencies_view=True)
+        self.member = _make_user('member4')
+        from agencies.models import AgencyMember
+        AgencyMember.objects.create(agency=self.agency, user=self.member, role='operator')
+
+    def test_soft_deleted_member_hidden(self):
+        self.client.force_authenticate(self.viewer)
+        emails = [m['email'] for m in self.client.get(f'/api/agencies/{self.agency.id}/members/').data]
+        self.assertIn(self.member.email, emails)
+        # soft-delete o usuário
+        self.member.permissions.is_deleted = True; self.member.permissions.save()
+        emails2 = [m['email'] for m in self.client.get(f'/api/agencies/{self.agency.id}/members/').data]
+        self.assertNotIn(self.member.email, emails2)

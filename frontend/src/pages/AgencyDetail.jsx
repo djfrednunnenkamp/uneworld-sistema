@@ -366,10 +366,16 @@ function AgencyUsersTab({ agencyId }) {
     if (scope === 'agencies' || scope === 'all') silentReload()
   }, [silentReload]))
 
-  const remove = async (mid) => {
-    await agenciesApi.removeMember(agencyId, mid).catch(() => toast.error('Erro ao remover.'))
-    setConfirm(null); load()
-    toast.success('Usuário removido da agência.')
+  // Excluir o usuário (soft-delete): perde o acesso e vai para a aba "Excluídos"
+  // da página de Usuários (não é exclusão permanente; um superusuário pode restaurar).
+  const remove = async (userId) => {
+    try {
+      await usersApi.remove(userId)
+      setConfirm(null); load()
+      toast.success('Usuário excluído. Perdeu o acesso e foi para a aba "Excluídos".')
+    } catch (e) {
+      toast.error(e.response?.data?.error ?? 'Erro ao excluir o usuário.')
+    }
   }
 
   // Admin da agência: pode gerenciar os usuários da própria agência (criar,
@@ -442,8 +448,8 @@ function AgencyUsersTab({ agencyId }) {
                     onClick={() => setEditUser({ id: m.user_id, first_name: m.first_name, last_name: m.last_name, email: m.email })}>
                     <Ic n="edit" s={13} />
                   </button>
-                  <button className="r-btn del" title="Remover"
-                    onClick={() => setConfirm({ id: m.id, name: m.full_name || m.email })}>
+                  <button className="r-btn del" title="Excluir usuário"
+                    onClick={() => setConfirm({ userId: m.user_id, name: m.full_name || m.email })}>
                     <Ic n="trash" s={13} />
                   </button>
                 </div>
@@ -455,10 +461,12 @@ function AgencyUsersTab({ agencyId }) {
 
       {confirm && (
         <ConfirmModal
-          message={`Remover "${confirm.name}" desta agência?`}
-          detail="O usuário não perderá a conta, apenas o vínculo com esta agência."
-          okLabel="Remover"
-          onOk={() => remove(confirm.id)}
+          title="Excluir usuário"
+          message={`Excluir "${confirm.name}"?`}
+          detail="Ele perde o acesso ao sistema e vai para a aba “Excluídos” (não é exclusão permanente — um superusuário pode restaurar depois)."
+          okLabel="Excluir"
+          danger
+          onOk={() => remove(confirm.userId)}
           onCancel={() => setConfirm(null)}
         />
       )}

@@ -138,7 +138,10 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         agency = self.get_object()
 
         if request.method == 'GET':
-            members = agency.members.select_related('user').all()
+            # Não lista usuários excluídos (soft-delete) — eles vão para a aba
+            # "Excluídos" da página de Usuários, não ficam no quadro da agência.
+            members = agency.members.select_related('user', 'user__permissions').exclude(
+                user__permissions__is_deleted=True).all()
             return Response([{
                 'id':         m.id,
                 'user_id':    m.user.id,
