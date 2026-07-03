@@ -932,9 +932,10 @@ const LIST_DEFS = [
   { key:'operating_company', label:'Operadora',               perm:'settings_operating_company', areas:['contratos','sistema'] },
   { key:'terms',            label:'Termos e Condições',       perm:'settings_terms',             areas:['sistema'] },
   { key:'payment_methods',  label:'Formas de Pagamento',      perm:'settings_payment_methods',  areas:['contratos'] },
+  { key:'payment_plans',    label:'Modelos de Pagamento',     perm:'settings_payment_methods',  areas:['contratos','roteiros'] },
   { key:'exchange_rates',   label:'Câmbio',                   perm:'settings_exchange_rates',   areas:['contratos'] },
 ]
-const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses', 'terms']
+const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses', 'terms', 'payment_plans']
 
 function exportEmailsCsv(emails) {
   const rows = ['email', ...emails.map(e => `"${e.replace(/"/g, '""')}"`)]
