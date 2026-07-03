@@ -145,6 +145,17 @@ function PayerModal({ payer, setPayer, onClearContratante, onClose }) {
   )
 }
 
+/* Toggle (interruptor) no padrão do sistema — só o próprio interruptor é clicável. */
+function Toggle({ checked, onChange, disabled = false }) {
+  return (
+    <span onClick={() => !disabled && onChange(!checked)}
+      style={{ position: 'relative', display: 'inline-block', width: 38, height: 22, flexShrink: 0, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? .6 : 1 }}>
+      <span style={{ position: 'absolute', inset: 0, borderRadius: 22, transition: 'background .2s', background: checked ? '#1a2d4f' : '#cbd5e1' }} />
+      <span style={{ position: 'absolute', top: 4, left: checked ? 20 : 4, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.25)' }} />
+    </span>
+  )
+}
+
 /* Popup de valores extras (acréscimos) e descontos — entram na Soma total (USD).
  * Cada linha pode ser um valor fixo (US$) ou um percentual sobre o subtotal das
  * acomodações (baseUsd). */
@@ -2120,12 +2131,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                 </div>
               ) : (
                 <>
-                  {/* Entrada (opcional) */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: hasEntrada ? 8 : 12 }}>
-                    <input type="checkbox" checked={hasEntrada} onChange={e => setHasEntrada(e.target.checked)}
-                      style={{ width: 15, height: 15, accentColor: '#1a2d4f', cursor: 'pointer' }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Tem entrada?</span>
-                  </label>
+                  {/* Entrada (opcional) — só o interruptor e o texto alternam (não a linha toda). */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: hasEntrada ? 8 : 12 }}>
+                    <Toggle checked={hasEntrada} onChange={setHasEntrada} />
+                    <span onClick={() => setHasEntrada(v => !v)}
+                      style={{ fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer', userSelect: 'none' }}>Tem entrada?</span>
+                  </div>
                   {hasEntrada && (
                     <div style={{ marginBottom: 12 }}>
                       <p style={{ fontSize: 12, fontWeight: 600, color: '#475569', margin: '0 0 4px' }}>Entrada</p>
