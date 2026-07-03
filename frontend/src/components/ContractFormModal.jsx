@@ -1246,6 +1246,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
       toast.error('Selecione um contratante cadastrado ou preencha os dados do pagante manualmente.')
       return false
     }
+    // Sem permissão de incluir cláusulas, o contrato só tem cláusulas se herdar de
+    // um roteiro → a seleção de roteiro passa a ser obrigatória.
+    if (!canEditClauses && !form.itinerary) {
+      toast.error('Você não tem permissão para incluir cláusulas — selecione um roteiro (as cláusulas vêm dele).')
+      return false
+    }
     return true
   }
 
@@ -1307,6 +1313,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
 
   // Todos os obrigatórios preenchidos? (mesma regra do validateRequired, sem toast)
   const isComplete = () => !!form.agency && (!!form.contratante || !!payer.payer_name.trim())
+    && (canEditClauses || !!form.itinerary)   // sem permissão de cláusulas, roteiro é obrigatório
 
   // Há trabalho em andamento (rascunho criado ou algo preenchido)?
   const contractHasContent = () => {
@@ -1709,13 +1716,15 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   )}
                 </div>
                 <div>
-                  <label style={lbl}>Roteiro / pacote</label>
+                  <label style={lbl}>Roteiro / pacote{!canEditClauses ? ' *' : ''}</label>
                   <EntityPicker items={itineraryItems} selectedIds={form.itinerary ? [form.itinerary] : []}
                     onChange={handleSelectItinerary}
                     title="Selecionar roteiro" searchPlaceholder="Buscar roteiro…" placeholder="— Selecionar roteiro —"
                     emptyLabel="Nenhum roteiro encontrado" />
-                  <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
-                    Selecionando um roteiro, o nome do pacote e as datas são preenchidos automaticamente (e podem ser ajustados).
+                  <p style={{ fontSize: 11, color: (!canEditClauses && !form.itinerary) ? '#dc2626' : '#94a3b8', margin: '4px 0 0' }}>
+                    {(!canEditClauses && !form.itinerary)
+                      ? 'Você não tem permissão para incluir cláusulas — o roteiro é obrigatório (as cláusulas vêm dele).'
+                      : 'Selecionando um roteiro, o nome do pacote e as datas são preenchidos automaticamente (e podem ser ajustados).'}
                   </p>
                 </div>
                 <div>
