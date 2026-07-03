@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ic } from './Icon'
 
@@ -10,7 +10,7 @@ import { Ic } from './Icon'
  * multiple=true:  comportamento de seleção em lote, igual ao AgencyPicker —
  *                 marca/desmarca e só confirma ao clicar em Salvar.
  */
-export default function EntityPicker({
+const EntityPicker = forwardRef(function EntityPicker({
   items = [],
   selectedIds = [],
   onChange,
@@ -20,7 +20,7 @@ export default function EntityPicker({
   searchPlaceholder = 'Buscar…',
   emptyLabel = 'Nenhum item encontrado',
   createLink = null, // { label, to }
-}) {
+}, ref) {
   const [open, setOpen]     = useState(false)
   const [search, setSearch] = useState('')
   const [draft, setDraft]   = useState([])
@@ -32,6 +32,10 @@ export default function EntityPicker({
     setSearch('')
     setOpen(true)
   }
+
+  // Permite abrir o popup a partir de um botão externo (ex.: um "+" ao lado
+  // do campo). O chamador usa uma ref e chama `ref.current.open()`.
+  useImperativeHandle(ref, () => ({ open: openPicker }))
 
   const save = (ids) => {
     onChange(ids ?? draft)
@@ -197,4 +201,6 @@ export default function EntityPicker({
       )}
     </>
   )
-}
+})
+
+export default EntityPicker

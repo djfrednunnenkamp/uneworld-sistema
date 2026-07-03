@@ -513,6 +513,7 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   const curKey = STEPS[Math.min(step, lastStep)]?.key
   useEffect(() => { if (step > lastStep) setStep(lastStep) }, [lastStep, step])
   const [guests, setGuests]         = useState([]) // [{ passenger, room }]  room = id do quarto | null
+  const guestsPickerRef             = useRef(null)  // pra abrir o popup de hóspedes pelo botão "+"
   // Contrato novo já começa com 1 quarto criado (na edição, vêm do contrato).
   const [rooms, setRooms]           = useState(() => isEdit ? [] : [{ id: 1, type: null }]) // [{ id, type }]  type = id da acomodação | null
   const roomSeqRef                  = useRef(isEdit ? 1 : 2)     // gera ids estáveis de quarto
@@ -1042,11 +1043,24 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             placeholder="Mover…"
             onChange={v => assignGuest(g.passenger, v)} />
         </div>
-        <button type="button" title="Remover do contrato" data-no-drag
-          onClick={() => setGuests(prev => prev.filter(x => x.passenger !== g.passenger))}
-          style={{ display: 'flex', padding: 2, borderRadius: 4, border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
-          <Ic n="x" s={13} />
-        </button>
+        {g.room != null ? (
+          // Dentro de um quarto: o "X" NÃO remove do contrato — só devolve a
+          // pessoa para a área "Sem quarto", pra ser realocada. Cinza = não destrutivo.
+          <button type="button" title="Tirar do quarto (volta para 'Sem quarto')" data-no-drag
+            onClick={() => assignGuest(g.passenger, null)}
+            style={{ display: 'flex', padding: 2, borderRadius: 4, border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', flexShrink: 0 }}
+            onMouseEnter={e => e.currentTarget.style.color = '#475569'}
+            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+            <Ic n="x" s={13} />
+          </button>
+        ) : (
+          // Já em "Sem quarto": aí sim o "X" remove o hóspede do contrato.
+          <button type="button" title="Remover do contrato" data-no-drag
+            onClick={() => setGuests(prev => prev.filter(x => x.passenger !== g.passenger))}
+            style={{ display: 'flex', padding: 2, borderRadius: 4, border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
+            <Ic n="x" s={13} />
+          </button>
+        )}
       </div>
     )
   }
@@ -1850,9 +1864,22 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
             <div style={card}>
               <p style={sectionTitle}><Ic n="users" s={14} /> Nome dos passageiros / quartos</p>
               <label style={lbl}>Hóspedes (contratante e demais usuários dos serviços)</label>
-              <EntityPicker items={passengerItems} selectedIds={guestIds} onChange={handleGuestsChange}
-                multiple title="Selecionar hóspedes" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar hóspedes —"
-                emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
+              <div style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <EntityPicker ref={guestsPickerRef} items={passengerItems} selectedIds={guestIds} onChange={handleGuestsChange}
+                    multiple title="Selecionar hóspedes" searchPlaceholder="Buscar passageiro…" placeholder="— Selecionar hóspedes —"
+                    emptyLabel="Nenhum passageiro encontrado" createLink={{ label: 'Adicionar novo passageiro', to: '/passageiros' }} />
+                </div>
+                {/* Botão "+" explícito — abre o mesmo popup de seleção (mais claro
+                    que só clicar na caixa, especialmente pra quem não tem familiaridade). */}
+                <button type="button" onClick={() => guestsPickerRef.current?.open()}
+                  title="Adicionar hóspedes"
+                  style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 6, border: 'none', background: '#2e6db4', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'background .12s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#275fa0'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#2e6db4'}>
+                  <Ic n="plus" s={15} /> Adicionar
+                </button>
+              </div>
 
               {(guests.length > 0 || rooms.length > 0) && (
                 <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
