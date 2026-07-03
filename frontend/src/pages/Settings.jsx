@@ -15,7 +15,6 @@ import ContractClausesManager from '../components/ContractClausesManager'
 import OperatingCompanyManager from '../components/OperatingCompanyManager'
 import ItineraryTemplatesManager from '../components/ItineraryTemplatesManager'
 import ExchangeRateManager from '../components/ExchangeRateManager'
-import PaymentPlanManager from '../components/PaymentPlanManager'
 import TermsAndConditionsManager from '../components/TermsAndConditionsManager'
 import { Ic } from '../components/Icon'
 import { PermPresetBar, PermAccordionItem } from '../components/PermAccordion'
@@ -927,7 +926,7 @@ const LIST_DEFS = [
   { key:'destinations',     label:'Destinos',                 perm:'settings_destinations',     areas:['roteiros'] },
   { key:'holidays',         label:'Feriados',                 perm:'settings_holidays',         areas:['roteiros'] },
   { key:'services',         label:'Serviços',                 perm:'settings_services',         areas:['roteiros'] },
-  { key:'itinerary_templates', label:'Modelos de Texto do Roteiro', perm:'settings_itinerary_templates', areas:['roteiros'] },
+  { key:'itinerary_templates', label:'Modelos de Texto do Roteiro', perm:'settings_itinerary_templates', extraPerm:'settings_payment_methods', areas:['roteiros','contratos'] },
   { key:'prof_cards',       label:'Carteiras',                perm:'settings_prof_cards',        areas:['passageiros'] },
   { key:'list_addits',      label:'Adicionais de Lista',      perm:'settings_list_additionals', areas:['listas'] },
   { key:'crew_roles',       label:'Equipe técnica',           perm:'settings_crew_roles',        areas:['listas'] },
@@ -941,7 +940,8 @@ const LIST_DEFS = [
   { key:'operating_company', label:'Operadora',               perm:'settings_operating_company', areas:['contratos','sistema'] },
   { key:'terms',            label:'Termos e Condições',       perm:'settings_terms',             areas:['sistema'] },
   { key:'payment_methods',  label:'Formas de Pagamento',      perm:'settings_payment_methods',  areas:['contratos'] },
-  { key:'payment_plans',    label:'Modelos de Pagamento',     perm:'settings_payment_methods',  areas:['contratos'] },
+  // "Modelos de Pagamento" deixou de ser um card próprio: virou uma aba dentro
+  // de "Modelos de Texto do Roteiro" (ver ItineraryTemplatesManager).
   { key:'exchange_rates',   label:'Câmbio',                   perm:'settings_exchange_rates',   areas:['contratos'] },
 ]
 const WIDE_LISTS = ['doc_types', 'perm_profiles', 'accommodations', 'countries', 'airports', 'airlines', 'bus_maps', 'contract_clauses', 'terms', 'itinerary_templates']
@@ -1918,7 +1918,9 @@ export default function Settings() {
   }
 
   const filteredListDefs = LIST_DEFS
-    .filter(d => can(d.perm, 'view'))
+    // extraPerm: card visível também por uma permissão alternativa (ex.: Modelos
+    // do Roteiro aparece p/ quem só tem permissão de Modelos de Pagamento).
+    .filter(d => can(d.perm, 'view') || (d.extraPerm && can(d.extraPerm, 'view')))
     .filter(d => areaFilters.size === 0 || (d.areas || []).some(a => areaFilters.has(a)))
     .filter(d => {
       const q = listSearch.trim().toLowerCase()
@@ -2130,7 +2132,6 @@ export default function Settings() {
                 {activeDef.key === 'holidays'        && <ItemList items={holidays} loading={loadingHo} onAdd={can('settings_holidays','edit') ? addHoliday : undefined} onUpdate={can('settings_holidays','edit') ? updateHoliday : undefined} onDelete={can('settings_holidays','delete') ? delHoliday : undefined} canImport={can('settings_holidays','bulk_import')} canExport={can('settings_holidays','export')} placeholder="Nome do feriado…" addTitle="Novo feriado" editTitle="Editar feriado" filename="feriados.csv" type="holidays" />}
                 {activeDef.key === 'services'        && <ItemList items={services} loading={loadingSv} onAdd={can('settings_services','edit') ? addService : undefined} onUpdate={can('settings_services','edit') ? updateService : undefined} onDelete={can('settings_services','delete') ? delService : undefined} canImport={can('settings_services','bulk_import')} canExport={can('settings_services','export')} placeholder="Nome do serviço…" addTitle="Novo serviço" editTitle="Editar serviço" filename="servicos.csv" type="services" />}
                 {activeDef.key === 'payment_methods' && <ItemList items={paymentMethods} loading={loadingPM} onAdd={can('settings_payment_methods','edit') ? addPaymentMethod : undefined} onUpdate={can('settings_payment_methods','edit') ? updatePaymentMethod : undefined} onDelete={can('settings_payment_methods','delete') ? delPaymentMethod : undefined} canImport={can('settings_payment_methods','bulk_import')} canExport={can('settings_payment_methods','export')} placeholder="Nome da forma de pagamento…" addTitle="Nova forma de pagamento" editTitle="Editar forma de pagamento" filename="formas_pagamento.csv" type="payment_methods" />}
-                {activeDef.key === 'payment_plans'   && <PaymentPlanManager canEdit={can('settings_payment_methods','edit')} canDelete={can('settings_payment_methods','delete')} canImport={can('settings_payment_methods','bulk_import')} canExport={can('settings_payment_methods','export')} />}
                 {activeDef.key === 'exchange_rates'  && <ExchangeRateManager items={exchangeRates} canEdit={can('settings_exchange_rates','edit')} canDelete={can('settings_exchange_rates','delete')} canImport={can('settings_exchange_rates','bulk_import')} canExport={can('settings_exchange_rates','export')} canAdvanced={can('settings_exchange_rates','advanced')} canRounding={can('settings_exchange_rates','rounding')} onAdd={addExchangeRate} onUpdate={updateExchangeRate} onDelete={delExchangeRate} onPullInternet={can('settings_exchange_rates','advanced') ? pullExchangeInternet : undefined} onRunNow={can('settings_exchange_rates','update_now') ? runExchangeNow : undefined} onUpdateOne={can('settings_exchange_rates','update_now') ? updateOneExchange : undefined} canScript={isSu} />}
                 {activeDef.key === 'prof_cards'      && <ItemList items={profCards}   loading={loadingPC} onAdd={can('settings_prof_cards','edit') ? addProfCard : undefined}          onUpdate={can('settings_prof_cards','edit') ? updateProfCard : undefined}          onDelete={can('settings_prof_cards','delete') ? delProfCard : undefined}          canImport={can('settings_prof_cards','bulk_import')}       canExport={can('settings_prof_cards','export')}       placeholder="Nome da carteira…"   addTitle="Nova carteira"   editTitle="Editar carteira"   filename="carteiras.csv"        type="prof_cards"       onImportWeb={can('settings_prof_cards','import_web') ? () => configApi.importProfCards() : null} />}
                 {activeDef.key === 'list_addits'     && <ItemList items={listAddits}  loading={loadingLA} onAdd={can('settings_list_additionals','edit') ? addListAddit : undefined}   onUpdate={can('settings_list_additionals','edit') ? updateListAddit : undefined}   onDelete={can('settings_list_additionals','delete') ? delListAddit : undefined}   canImport={can('settings_list_additionals','bulk_import')} canExport={can('settings_list_additionals','export')} placeholder="Nome do adicional…"  addTitle="Novo adicional"  editTitle="Editar adicional"  filename="adicionais.csv"       type="list_addits" />}
@@ -2146,7 +2147,9 @@ export default function Settings() {
                 {activeDef.key === 'bus_maps'        && <BusMapsManager canEdit={can('settings_bus_maps','edit')} canDelete={can('settings_bus_maps','delete')} canImport={can('settings_bus_maps','bulk_import')} canExport={can('settings_bus_maps','export')} />}
                 {activeDef.key === 'contract_clauses' && <ContractClausesManager canEdit={can('settings_contract_clauses','edit')} canDelete={can('settings_contract_clauses','delete')} canImport={can('settings_contract_clauses','bulk_import')} canExport={can('settings_contract_clauses','export')} />}
                 {activeDef.key === 'operating_company' && <OperatingCompanyManager canEdit={can('settings_operating_company','edit')} canImport={can('settings_operating_company','bulk_import')} canExport={can('settings_operating_company','export')} />}
-                {activeDef.key === 'itinerary_templates' && <ItineraryTemplatesManager canEdit={can('settings_itinerary_templates','edit')} canDelete={can('settings_itinerary_templates','delete')} canImport={can('settings_itinerary_templates','bulk_import')} canExport={can('settings_itinerary_templates','export')} />}
+                {activeDef.key === 'itinerary_templates' && <ItineraryTemplatesManager canEdit={can('settings_itinerary_templates','edit')} canDelete={can('settings_itinerary_templates','delete')} canImport={can('settings_itinerary_templates','bulk_import')} canExport={can('settings_itinerary_templates','export')}
+                  showText={can('settings_itinerary_templates','view')}
+                  showPayment={can('settings_payment_methods','view')} canEditPayment={can('settings_payment_methods','edit')} canDeletePayment={can('settings_payment_methods','delete')} canImportPayment={can('settings_payment_methods','bulk_import')} canExportPayment={can('settings_payment_methods','export')} />}
                 {activeDef.key === 'terms'           && <TermsAndConditionsManager canEdit={can('settings_terms','edit')} canImport={can('settings_terms','bulk_import')} canExport={can('settings_terms','export')} onSaved={() => setActiveList(null)} />}
               </div>
             </div>

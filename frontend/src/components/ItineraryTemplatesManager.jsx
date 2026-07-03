@@ -6,6 +6,7 @@ import { Ic } from './Icon'
 import RichTextEditor from './RichTextEditor'
 import ConfirmModal from './ConfirmModal'
 import CsvImportPopup from './CsvImportPopup'
+import PaymentPlanManager from './PaymentPlanManager'
 import { exportSectionCsv } from '../utils/sectionCsv'
 import { CSV_SAMPLES } from '../utils/csvSamples'
 
@@ -90,10 +91,23 @@ function TemplateModal({ kind, template, onClose, onSaved }) {
   )
 }
 
-/* ── Gerenciador de modelos de texto do Roteiro — uma aba por tipo ── */
-export default function ItineraryTemplatesManager({ canEdit = true, canDelete = true, canImport = false, canExport = true }) {
+const PAYMENT_KIND = '__pagamento__'   // aba especial: modelos de pagamento (estruturados)
+
+/* ── Gerenciador de modelos do Roteiro — uma aba por tipo de texto, mais uma
+   aba "Modelos de Pagamento" (estruturada, reaproveita o PaymentPlanManager) ── */
+export default function ItineraryTemplatesManager({
+  canEdit = true, canDelete = true, canImport = false, canExport = true,
+  // showText: mostra as abas de texto (seguro/condições/documentação). Pode vir
+  // false p/ quem só tem permissão de Modelos de Pagamento.
+  showText = true,
+  // Permissões da aba de pagamento (settings_payment_methods). showPayment
+  // controla se a aba aparece.
+  showPayment = false, canEditPayment = false, canDeletePayment = false,
+  canImportPayment = false, canExportPayment = false,
+}) {
   const navigate = useNavigate()
-  const [kind,      setKind]      = useState(TEMPLATE_KINDS[0].value)
+  // Se o usuário não vê texto (só pagamento), já abre na aba de pagamento.
+  const [kind,      setKind]      = useState(showText ? TEMPLATE_KINDS[0].value : PAYMENT_KIND)
   const [templates, setTemplates] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [search,    setSearch]    = useState('')
@@ -102,6 +116,7 @@ export default function ItineraryTemplatesManager({ canEdit = true, canDelete = 
   const [showImport, setShowImport] = useState(false)
 
   const load = useCallback(() => {
+    if (kind === PAYMENT_KIND) return   // aba de pagamento tem carregamento próprio
     setLoading(true)
     configApi.itineraryTemplates(kind)
       .then(r => setTemplates(r.data))
@@ -147,7 +162,7 @@ export default function ItineraryTemplatesManager({ canEdit = true, canDelete = 
   return (
     <>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
-        {TEMPLATE_KINDS.map(k => (
+        {[...(showText ? TEMPLATE_KINDS : []), ...(showPayment ? [{ value: PAYMENT_KIND, label: 'Modelos de Pagamento' }] : [])].map(k => (
           <button key={k.value} type="button" onClick={() => setKind(k.value)}
             style={{
               padding: '6px 13px', borderRadius: 20, border: `1.5px solid ${kind === k.value ? '#1a2d4f' : '#e2e8f0'}`,
@@ -159,6 +174,10 @@ export default function ItineraryTemplatesManager({ canEdit = true, canDelete = 
         ))}
       </div>
 
+      {kind === PAYMENT_KIND ? (
+        <PaymentPlanManager canEdit={canEditPayment} canDelete={canDeletePayment}
+          canImport={canImportPayment} canExport={canExportPayment} />
+      ) : (<>
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome…"
           style={{ ...inp, flex: 1, minWidth: 160 }}
@@ -224,6 +243,7 @@ export default function ItineraryTemplatesManager({ canEdit = true, canDelete = 
           onCancel={() => setDelItem(null)}
         />
       )}
+      </>)}
     </>
   )
 }
