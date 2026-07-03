@@ -147,6 +147,14 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         if agency.members.filter(user=user).exists():
             return Response({'error': 'Usuário já pertence a esta agência.'}, status=400)
         m = AgencyMember.objects.create(agency=agency, user=user, role=role)
+        # Anexar um usuário EXISTENTE assume as permissões de agência: aplica o
+        # perfil "padrão de agência" (só p/ conta não-interna; nunca mexe em staff/super).
+        if request.data.get('apply_agency_profile') and not (user.is_staff or user.is_superuser):
+            from config_api.models import PermissionProfile
+            from users_api.permissions import apply_profile
+            prof = PermissionProfile.objects.filter(is_agency_default=True, is_deleted=False).first()
+            if prof:
+                apply_profile(user, prof)
         return Response({'id': m.id, 'email': user.email,
                          'full_name': f'{user.first_name} {user.last_name}'.strip() or user.email,
                          'role': m.role, 'is_active': user.is_active}, status=201)

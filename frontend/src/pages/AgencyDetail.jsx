@@ -9,6 +9,7 @@ import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { useNavGuard } from '../context/NavGuardContext'
 import LeaveGuardModal from '../components/LeaveGuardModal'
 import CepInput from '../components/CepInput'
+import Dropdown from '../components/Dropdown'
 import { Ic } from '../components/Icon'
 import PhoneInput from '../components/PhoneInput'
 import EmailInput from '../components/EmailInput'
@@ -91,6 +92,7 @@ function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) 
   const [allUsers, setAllUsers] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')  // all | agency | internal
   const [busyId, setBusyId] = useState(null)
 
   const lbl = { display:'block', fontSize:11, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }
@@ -110,16 +112,20 @@ function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) 
   // Mostra TODOS os usuários, menos os superadmins (superusuário). Contas internas
   // (staff) só aparecem para um superusuário — só ele pode anexá-las (regra A-08 no
   // backend); pra não-superusuário, esconde (senão daria 403 ao anexar).
+  const matchType = (u) => typeFilter === 'agency' ? u.is_agency_user
+    : typeFilter === 'internal' ? (u.is_staff && !u.is_agency_user)
+    : true
   const candidates = allUsers.filter(u =>
     !u.is_deleted && !u.is_superuser && !memberSet.has(u.id) &&
-    (me?.is_superuser || !u.is_staff) &&
+    (me?.is_superuser || !u.is_staff) && matchType(u) &&
     (!s || (u.full_name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s)))
 
-  // Anexa um usuário EXISTENTE à agência (só vira membro; mantém as permissões dele).
+  // Anexa um usuário EXISTENTE: vira membro e ASSUME as permissões de agência
+  // (perfil padrão de agência aplicado no backend; ver _add_member).
   const attach = async (u) => {
     setBusyId(u.id)
     try {
-      await agenciesApi.addMemberById(agencyId, u.id, 'operator')
+      await agenciesApi.addMemberById(agencyId, u.id, 'operator', true)
       toast.success(`${u.full_name || u.email} adicionado à agência.`)
       onSaved(); onClose()
     } catch (err) {
@@ -168,7 +174,7 @@ function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) 
 
         {mode === 'pick' ? (
           <>
-            <div style={{ padding:'14px 22px 10px', display:'flex', gap:10, alignItems:'center', flexShrink:0 }}>
+            <div style={{ padding:'14px 22px 6px', display:'flex', gap:10, alignItems:'center', flexShrink:0 }}>
               <div style={{ position:'relative', flex:1 }}>
                 <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', display:'flex' }}><Ic n="search" s={14}/></span>
                 <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar usuário por nome ou e-mail…"
@@ -178,6 +184,14 @@ function NewAgencyUserPopup({ agencyId, memberUserIds = [], onSaved, onClose }) 
                 style={{ padding:'9px 14px', borderRadius:8, border:'none', background:'#1a2d4f', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0 }}>
                 + Criar novo
               </button>
+            </div>
+            {/* Filtros no topo — superadmins nunca aparecem na lista. */}
+            <div style={{ padding:'0 22px 10px', display:'flex', gap:8, alignItems:'center', flexShrink:0 }}>
+              <span style={{ fontSize:12, color:'#94a3b8', fontWeight:600 }}>Filtrar:</span>
+              <div style={{ width:180 }}>
+                <Dropdown value={typeFilter} onChange={v => setTypeFilter(v || 'all')} clearable={false} searchable={false}
+                  options={[{ value:'all', label:'Todos (sem superadmin)' }, { value:'agency', label:'De agência' }, { value:'internal', label:'Da operadora' }]} />
+              </div>
             </div>
             <div style={{ overflowY:'auto', padding:'0 12px 14px', flex:1 }}>
               {loadingUsers ? (

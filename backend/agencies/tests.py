@@ -77,3 +77,22 @@ class SerializerReadOnlyFieldsTest(TestCase):
         ser.save()
         trip.refresh_from_db()
         self.assertEqual(trip.created_at, original)  # read_only: não muda
+
+
+class AttachAppliesAgencyProfileTest(APITestCase):
+    """Anexar usuário existente com apply_agency_profile assume o perfil padrão de agência."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.editor = _make_user('editor2', agencies_edit=True)
+        self.target = _make_user('target2')   # usuário comum, sem permissões
+        from config_api.models import PermissionProfile
+        PermissionProfile.objects.create(name='Agência', is_agency_default=True,
+                                         permissions={'passengers_view_basic': True})
+
+    def test_apply_agency_profile_on_attach(self):
+        self.client.force_authenticate(self.editor)
+        r = self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                             {'user_id': self.target.id, 'role': 'operator', 'apply_agency_profile': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.target.permissions.refresh_from_db()
+        self.assertTrue(self.target.permissions.passengers_view_basic)   # assumiu o perfil de agência

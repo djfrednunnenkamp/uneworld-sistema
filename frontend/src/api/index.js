@@ -97,7 +97,7 @@ export const agenciesApi = {
   // Membros
   listMembers:   (id)              => api.get(`/agencies/${id}/members/`),
   addMember:     (id, email, role) => api.post(`/agencies/${id}/members/`, { email, role }),
-  addMemberById: (id, userId, role) => api.post(`/agencies/${id}/members/`, { user_id: userId, role }),
+  addMemberById: (id, userId, role, applyAgencyProfile) => api.post(`/agencies/${id}/members/`, { user_id: userId, role, apply_agency_profile: !!applyAgencyProfile }),
   updateMember:  (id, mid, role)   => api.patch(`/agencies/${id}/members/${mid}/`, { role }),
   removeMember:  (id, mid)         => api.delete(`/agencies/${id}/members/${mid}/`),
 }
