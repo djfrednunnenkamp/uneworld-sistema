@@ -756,7 +756,8 @@ export default function Contracts() {
         </div>
       ) },
       { key: 'contratante_name',   label: 'Pagante',     align: 'center' },
-      { key: 'agency_name',        label: 'Agência',     align: 'center' },
+      // Na visão da agência não faz sentido a coluna "Agência" (é sempre a dele).
+      ...(isAgencyUser ? [] : [{ key: 'agency_name', label: 'Agência', align: 'center' }]),
       { key: 'package_name',       label: 'Viagem',      align: 'center', render: (v) => v || DASH },
       { key: 'departure_date',     label: 'Data viagem', align: 'center', render: (v) => v ? fmtDateBR(v) : DASH },
       { key: 'total_brl',          label: 'Total (BRL)', align: 'center', render: (v) => v ? fmtBRL(v) : DASH },
@@ -769,7 +770,7 @@ export default function Contracts() {
       ...(tab === 'geral' ? [{ key: 'stage', label: 'Status', align: 'center', render: (v, row) => isReproved(row) ? <ReprovedBadge note={row.review_note} /> : <StageBadge stage={v} /> }] : []),
       dateCol,
     ]
-  }, [tab])
+  }, [tab, isAgencyUser])
 
   const filterBar = (
     <>
@@ -779,7 +780,9 @@ export default function Contracts() {
       )}
       <FDrop label="Pagante"  value={fPayer}    onChange={setFPayer}    options={payerOpts}    icon="users"    avatar searchPlaceholder="Buscar pagante…" />
       <FDrop label="Viajante" value={fTraveler} onChange={setFTraveler} options={travelerOpts}  icon="users"    avatar searchPlaceholder="Buscar viajante…" />
-      <FDrop label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts}    icon="building" avatar searchPlaceholder="Buscar agência…" />
+      {!isAgencyUser && (
+        <FDrop label="Agência"  value={fAgency}   onChange={setFAgency}   options={agencyOpts}    icon="building" avatar searchPlaceholder="Buscar agência…" />
+      )}
       <FDrop label="Valor"    value={fValue}    onChange={setFValue}    options={VALUE_OPTS}    icon="card" />
       <FDrop label="Assinatura" value={fSignature} onChange={setFSignature} icon="edit"
         options={[{ value: '', label: 'Qualquer assinatura' }, { value: 'fisica', label: 'Física' }, { value: 'digital', label: 'Digital' }]} />
@@ -1031,7 +1034,7 @@ export default function Contracts() {
                   )}
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {[d.contratante_name, d.agency_name, d.package_name].filter(Boolean).join('  ·  ') || 'Sem informações ainda'}
+                      {[d.contratante_name, isAgencyUser ? null : d.agency_name, d.package_name].filter(Boolean).join('  ·  ') || 'Sem informações ainda'}
                     </div>
                     <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
                       {d.reservation_number || `#${d.id}`}{d.updated_at ? `  ·  editado ${fmtDateTimeBR(d.updated_at)}` : ''}
