@@ -1349,10 +1349,12 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
   }
 
   // Salvar (em qualquer visão) abre o pop-up de revisão; só salva de fato quando
-  // o usuário confirma lá dentro. Se houver passageiros sem quarto, avisa antes.
+  // o usuário confirma lá dentro. Se houver passageiros sem quarto, avisa antes —
+  // MAS só na visão completa: no passo a passo esse aviso já apareceu ao sair do
+  // passo de Passageiros, então aqui no Salvar final não repete.
   const handleSaveClick = () => {
     if (!validateRequired()) return
-    if (unaccommodatedCount > 0) {
+    if (layout === 'full' && unaccommodatedCount > 0) {
       setConfirmUnaccom(() => () => setShowReviewConfirm(true))
       return
     }
