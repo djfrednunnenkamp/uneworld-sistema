@@ -199,22 +199,3 @@ class ItineraryImage(models.Model):
 
     def __str__(self):
         return f'{self.itinerary_id} · img {self.pk}'
-
-
-class ItineraryDocument(models.Model):
-    """Documento (PDF) anexado ao roteiro — ex.: programação, condições, folheto."""
-    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='documents')
-    file      = models.FileField('Arquivo', upload_to='itineraries/docs/')
-    title     = models.CharField('Título', max_length=300, blank=True)
-    order     = models.PositiveIntegerField('Ordem', default=0)
-
-    class Meta:
-        ordering = ['order']
-        verbose_name = 'Documento do roteiro'
-        verbose_name_plural = 'Documentos do roteiro'
-        indexes = [
-            models.Index(fields=['itinerary', 'order'], name='idx_itindoc_itin_order'),
-        ]
-
-    def __str__(self):
-        return self.title or f'{self.itinerary_id} · doc {self.pk}'

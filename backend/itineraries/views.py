@@ -7,9 +7,9 @@ from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
-from .models import Itinerary, ItineraryImage, ItineraryDocument
+from .models import Itinerary, ItineraryImage
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
-                          ItineraryImageSerializer, ItineraryDocumentSerializer)
+                          ItineraryImageSerializer)
 
 
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
@@ -19,7 +19,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         'accommodation_lines__accommodation_type',
         'cities__state__country', 'countries', 'airports', 'keywords', 'inclusions', 'highlights',
         'itinerary_types', 'special_dates', 'continents',
-        'days__city', 'days__images', 'images', 'documents',
+        'days__city', 'days__images', 'images',
     )
     pagination_class = StandardResultsPagination
     filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
@@ -42,8 +42,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
-                           'upload_image', 'delete_image', 'set_cover',
-                           'upload_document', 'delete_document'):
+                           'upload_image', 'delete_image', 'set_cover', 'reorder_images'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
 
@@ -93,23 +92,15 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         img.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    # ── Documentos (PDFs) ──
-    @action(detail=True, methods=['post'], url_path='documents')
-    def upload_document(self, request, pk=None):
-        """POST /api/itineraries/{id}/documents/  (multipart: file, title?, order?)"""
+    @action(detail=True, methods=['post'], url_path='images/reorder')
+    def reorder_images(self, request, pk=None):
+        """POST /api/itineraries/{id}/images/reorder/  body: {"order": [id1, id2, ...]}.
+        Reordena as imagens da GALERIA (day nulo) na sequência informada."""
         itinerary = self.get_object()
-        ser = ItineraryDocumentSerializer(data=request.data, context=self.get_serializer_context())
-        ser.is_valid(raise_exception=True)
-        doc = ser.save(itinerary=itinerary)
-        out = ItineraryDocumentSerializer(doc, context=self.get_serializer_context())
-        return Response(out.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['delete'], url_path=r'documents/(?P<doc_id>[0-9]+)')
-    def delete_document(self, request, pk=None, doc_id=None):
-        """DELETE /api/itineraries/{id}/documents/{doc_id}/"""
-        itinerary = self.get_object()
-        doc = itinerary.documents.filter(pk=doc_id).first()
-        if doc is None:
-            return Response({'detail': 'Documento não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-        doc.delete()
+        order = request.data.get('order') or []
+        valid = set(itinerary.images.filter(day__isnull=True).values_list('id', flat=True))
+        with transaction.atomic():
+            for pos, img_id in enumerate(order):
+                if img_id in valid:
+                    itinerary.images.filter(pk=img_id).update(order=pos)
         return Response(status=status.HTTP_204_NO_CONTENT)

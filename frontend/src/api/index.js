@@ -148,8 +148,7 @@ export const itinerariesApi = {
   uploadImage:    (id, file, { caption, is_cover, day } = {}) => { const fd = new FormData(); fd.append('image', file); if (caption) fd.append('caption', caption); if (is_cover) fd.append('is_cover', 'true'); if (day) fd.append('day', day); return api.post(`/itineraries/${id}/images/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
   deleteImage:    (id, imageId) => api.delete(`/itineraries/${id}/images/${imageId}/`),
   setCover:       (id, imageId) => api.post(`/itineraries/${id}/images/${imageId}/cover/`),
-  uploadDocument: (id, file, { title } = {}) => { const fd = new FormData(); fd.append('file', file); if (title) fd.append('title', title); return api.post(`/itineraries/${id}/documents/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
-  deleteDocument: (id, docId) => api.delete(`/itineraries/${id}/documents/${docId}/`),
+  reorderImages:  (id, order) => api.post(`/itineraries/${id}/images/reorder/`, { order }),
 }
 
 export const documentsApi = {

@@ -2,7 +2,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent
-from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryDocument
+from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
 
@@ -93,13 +93,6 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image', 'caption', 'is_cover', 'order']
 
 
-class ItineraryDocumentSerializer(serializers.ModelSerializer):
-    """PDF/documento do roteiro. O arquivo (file) é OBRIGATÓRIO."""
-    class Meta:
-        model  = ItineraryDocument
-        fields = ['id', 'file', 'title', 'order']
-
-
 class ItineraryDaySerializer(serializers.ModelSerializer):
     """Dia-a-dia (child table gravável). day_number é OBRIGATÓRIO e >= 1.
     `id` trafega (IntegerField) para o upsert preservar o dia e suas imagens."""
@@ -147,7 +140,6 @@ class ItinerarySerializer(serializers.ModelSerializer):
     special_dates_data   = SpecialDateMiniSerializer(source='special_dates', many=True, read_only=True)
     days          = ItineraryDaySerializer(many=True, required=False)      # gravável (upsert)
     images        = serializers.SerializerMethodField()                    # só galeria (dia nulo)
-    documents     = ItineraryDocumentSerializer(many=True, read_only=True) # leitura; escrita via action
 
     def get_images(self, obj):
         # Só as imagens da GALERIA do roteiro (day nulo). As de cada dia vão aninhadas
@@ -202,7 +194,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'highlights', 'highlights_data',
                   'itinerary_types', 'itinerary_types_data',
                   'special_dates', 'special_dates_data',
-                  'days', 'images', 'documents',
+                  'days', 'images',
                   'status',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         # slug agora é GRAVÁVEL (o ItineraryDetail já tinha o input): ModelSerializer
