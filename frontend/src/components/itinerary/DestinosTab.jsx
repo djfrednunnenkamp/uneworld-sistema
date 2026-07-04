@@ -1,11 +1,10 @@
 import { memo, useEffect, useState } from 'react'
-import Dropdown from '../Dropdown'
 import TagPicker from '../TagPicker'
 import { configApi } from '../../api'
 import { FormRow, TabCard } from './ui'
 
-/* Aba "Destinos": Continente (campo existente) + Países, Cidades e Aeroportos
-   (M2M novos). Reusa o TagPicker (chips + busca async) para os três. */
+/* Aba "Destinos": Continente (seleção única, exibida como chip) + Países e
+   Cidades (M2M). Todos reusam o TagPicker (chips + busca async). */
 function DestinosTab({ data, setData, canEdit, continentOptions }) {
   const [allCountries, setAllCountries] = useState([])
   useEffect(() => { configApi.countries().then(r => setAllCountries(r.data.results ?? r.data)).catch(() => {}) }, [])
@@ -34,21 +33,28 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
       .map(c => ({ id: c.id, label: c.country_name ? `${c.name} · ${c.country_name}` : c.name,
                   raw: { id: c.id, name: c.name, country_name: c.country_name } }))
   }
-  const searchAirports = async (q) => {
-    if (!q || q.length < 2) return []
-    const r = await configApi.airports({ q })
-    return notSelected('airports', r.data.results ?? r.data)
-      .map(a => ({ id: a.id, label: `${a.iata_code ? a.iata_code + ' · ' : ''}${a.name}${a.city ? ` (${a.city})` : ''}`,
-                  raw: { id: a.id, name: a.name, iata_code: a.iata_code, city: a.city } }))
-  }
-
   const chips = (dataKey, labelFn) => (data[dataKey] || []).map(x => ({ id: x.id, label: labelFn(x) }))
+
+  // Continente: seleção ÚNICA (FK), mas exibida como chip. Escolher um substitui
+  // o anterior; o "×" limpa.
+  const continentChip = data.continent != null
+    ? [{ id: data.continent, label: continentOptions.find(o => o.value === data.continent)?.label || '—' }]
+    : []
+  const searchContinents = async (q) => {
+    const s = (q || '').toLowerCase()
+    return continentOptions
+      .filter(o => o.value !== data.continent && (!s || o.label.toLowerCase().includes(s))).slice(0, 40)
+      .map(o => ({ id: o.value, label: o.label }))
+  }
+  const setContinent = (id) => setData(d => ({ ...d, continent: id }))
 
   return (
     <TabCard>
       <FormRow label="Continente">
-        <Dropdown value={data.continent} options={continentOptions} disabled={!canEdit}
-          onChange={v => setData(d => ({ ...d, continent: v }))} placeholder="— Selecione —" />
+        <TagPicker placeholder="Buscar continente…" search={searchContinents}
+          selected={continentChip}
+          onAdd={it => canEdit && setContinent(it.id)}
+          onRemove={() => canEdit && setContinent(null)} />
       </FormRow>
 
       <FormRow label="Países">
@@ -58,18 +64,11 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
           onRemove={id => canEdit && removeItem('countries', 'countries_data', id)} />
       </FormRow>
 
-      <FormRow label="Cidades">
+      <FormRow label="Cidades" last>
         <TagPicker placeholder="Buscar cidade…" search={searchCities}
           selected={chips('cities_data', c => c.country_name ? `${c.name} · ${c.country_name}` : c.name)}
           onAdd={it => canEdit && addItem('cities', 'cities_data', it.id, it.raw)}
           onRemove={id => canEdit && removeItem('cities', 'cities_data', id)} />
-      </FormRow>
-
-      <FormRow label="Aeroportos" last>
-        <TagPicker placeholder="Buscar aeroporto (nome/IATA/cidade)…" search={searchAirports}
-          selected={chips('airports_data', a => `${a.iata_code ? a.iata_code + ' · ' : ''}${a.name}`)}
-          onAdd={it => canEdit && addItem('airports', 'airports_data', it.id, it.raw)}
-          onRemove={id => canEdit && removeItem('airports', 'airports_data', id)} />
       </FormRow>
     </TabCard>
   )
