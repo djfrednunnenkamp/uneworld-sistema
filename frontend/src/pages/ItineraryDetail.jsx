@@ -5,6 +5,7 @@ import { itinerariesApi, configApi } from '../api'
 import { Ic } from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useNavGuard } from '../context/NavGuardContext'
+import LeaveGuardModal from '../components/LeaveGuardModal'
 import usePersistedTab from '../hooks/usePersistedTab'
 import { TabBar, Chip } from '../components/itinerary/ui'
 import { TYPE_OPTS, fmtDateBR } from '../components/itinerary/constants'
@@ -252,39 +253,16 @@ export default function ItineraryDetail() {
         {renderTab()}
       </Suspense>
 
-      {/* Confirmação ao sair (rascunho/edição) — salvar / rascunho / apagar */}
+      {/* Confirmação ao sair — MESMO modal dos contratos (LeaveGuardModal) */}
       {leavePrompt && (
-        <div onMouseDown={e => { if (e.target === e.currentTarget) setLeavePrompt(null) }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onMouseDown={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.28)', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 22px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{isRascunho ? 'Sair sem finalizar?' : 'Sair sem salvar?'}</span>
-              <button type="button" onClick={() => setLeavePrompt(null)} title="Cancelar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
-            </div>
-            <div style={{ padding: '18px 22px' }}>
-              <p style={{ fontSize: 13.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
-                {isRascunho
-                  ? 'Este roteiro ainda é um rascunho. O que você quer fazer antes de sair?'
-                  : 'Há alterações não salvas neste roteiro. O que você quer fazer?'}
-              </p>
-            </div>
-            <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
-              {isRascunho ? (
-                <>
-                  <button type="button" onClick={leaveDelete} disabled={saving} className="btn btn-outline" style={{ color: '#b91c1c', borderColor: '#fecaca', marginRight: 'auto' }}>Apagar</button>
-                  <button type="button" onClick={() => leaveSaving('rascunho')} disabled={saving} className="btn btn-outline">Salvar nos rascunhos</button>
-                  <button type="button" onClick={() => leaveSaving('ativo')} disabled={saving} className="btn btn-primary">{saving ? 'Salvando…' : 'Salvar (finalizar)'}</button>
-                </>
-              ) : (
-                <>
-                  <button type="button" onClick={leaveDiscard} disabled={saving} className="btn btn-outline" style={{ color: '#b91c1c', borderColor: '#fecaca', marginRight: 'auto' }}>Descartar</button>
-                  <button type="button" onClick={() => setLeavePrompt(null)} disabled={saving} className="btn btn-outline">Cancelar</button>
-                  <button type="button" onClick={() => leaveSaving('ativo')} disabled={saving} className="btn btn-primary">{saving ? 'Salvando…' : 'Salvar'}</button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <LeaveGuardModal
+          entity="roteiro"
+          saving={saving}
+          onStay={() => setLeavePrompt(null)}
+          onDiscard={isRascunho ? leaveDelete : leaveDiscard}
+          onSaveDraft={isRascunho ? () => leaveSaving('rascunho') : undefined}
+          onSave={() => leaveSaving('ativo')}
+        />
       )}
     </div>
   )
