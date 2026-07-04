@@ -20,7 +20,6 @@ const PaymentsTab      = lazy(() => import('../components/itinerary/PaymentsTab'
 const ClausesTab       = lazy(() => import('../components/itinerary/ClausesTab'))
 const ImagensTab       = lazy(() => import('../components/itinerary/ImagensTab'))
 const DiaADiaTab       = lazy(() => import('../components/itinerary/DiaADiaTab'))
-const InclusosTab      = lazy(() => import('../components/itinerary/InclusosTab'))
 const PlaceholderTab   = lazy(() => import('../components/itinerary/PlaceholderTab'))
 
 /* Registro das abas (nova IA). Campos existentes: basic, destinos, datas, valores,
@@ -33,7 +32,6 @@ const TABS = [
   { key: 'imagens',     label: 'Imagens' },
   { key: 'destaques',   label: 'Destaques' },
   { key: 'diaadia',     label: 'Roteiro Dia a Dia' },
-  { key: 'inclusos',    label: 'Inclusos' },
   { key: 'naoinclusos', label: 'Não Inclusos' },
   { key: 'opcionais',   label: 'Opcionais' },
   { key: 'dicas',       label: 'Dicas' },
@@ -199,7 +197,6 @@ export default function ItineraryDetail() {
       case 'pagamentos': return <PaymentsTab      data={data} setData={editData} canEdit={canEdit} paymentPlanOpts={paymentPlanOpts} paymentMethodOpts={paymentMethodOpts} reloadPaymentPlans={reloadPaymentPlans} />
       case 'imagens':    return <ImagensTab       data={data} setData={editData} canEdit={canEdit} />
       case 'diaadia':    return <DiaADiaTab       data={data} setData={editData} canEdit={canEdit} />
-      case 'inclusos':   return <InclusosTab      data={data} setData={editData} canEdit={canEdit} />
       case 'regras':     return <ClausesTab       data={data} setData={editData} canEdit={canEdit} clauseList={clauseList} />
       default:           return <PlaceholderTab   title={TABS.find(t => t.key === activeKey)?.label || ''} />
     }

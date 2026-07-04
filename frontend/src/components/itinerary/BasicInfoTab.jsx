@@ -33,6 +33,27 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
     return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
   }
 
+  // Inclusos: itens que estão inclusos no pacote — mesmo comportamento das palavras-chave.
+  const [allInc, setAllInc] = useState([])
+  useEffect(() => { configApi.inclusions().then(r => setAllInc(r.data.results ?? r.data)).catch(() => {}) }, [])
+
+  const incChips = (data.inclusions_data || []).map(x => ({ id: x.id, label: x.name }))
+  const addInc = (id, raw) => setData(d => (d.inclusions || []).includes(id) ? d
+    : ({ ...d, inclusions: [...(d.inclusions || []), id], inclusions_data: [...(d.inclusions_data || []), raw] }))
+  const removeInc = (id) => setData(d => ({
+    ...d, inclusions: (d.inclusions || []).filter(x => x !== id), inclusions_data: (d.inclusions_data || []).filter(x => x.id !== id),
+  }))
+  const searchInc = async (q) => {
+    const s = (q || '').toLowerCase(); const sel = new Set(data.inclusions || [])
+    return allInc.filter(x => !sel.has(x.id) && (!s || x.name.toLowerCase().includes(s))).slice(0, 40)
+      .map(x => ({ id: x.id, label: x.name, raw: { id: x.id, name: x.name } }))
+  }
+  const createInc = async (name) => {
+    const r = await configApi.addInclusion(name)
+    setAllInc(a => [...a, r.data])
+    return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
+  }
+
   return (
     <TabCard>
       <FormRow label="Nome da viagem">
@@ -75,11 +96,17 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
             return n >= 0 ? `${n} ${n === 1 ? 'noite' : 'noites'}` : '—'
           })()} />
       </FormRow>
-      <FormRow label="Palavras-chave" last>
+      <FormRow label="Palavras-chave">
         <TagPicker popup placeholder="Buscar ou criar palavra-chave…" search={searchKw} onCreate={createKw}
           selected={kwChips}
           onAdd={it => canEdit && addKw(it.id, it.raw)}
           onRemove={id => canEdit && removeKw(id)} />
+      </FormRow>
+      <FormRow label="Inclusos" last>
+        <TagPicker popup placeholder="Buscar ou criar item incluso…" search={searchInc} onCreate={createInc}
+          selected={incChips}
+          onAdd={it => canEdit && addInc(it.id, it.raw)}
+          onRemove={id => canEdit && removeInc(id)} />
       </FormRow>
     </TabCard>
   )
