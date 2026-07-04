@@ -21,6 +21,8 @@ class Itinerary(models.Model):
     trip_type   = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='aereo')
     # Produto próprio da UneWorld (operação própria) vs. de terceiro/parceiro.
     is_own_product = models.BooleanField('Produto próprio da UneWorld', default=True)
+    # Marca o roteiro como destaque (ex.: aparecer em vitrine/home).
+    is_featured    = models.BooleanField('Destaque do roteiro', default=False)
     # Categoria puxa da lista "Categorias de acomodação" (Configurações › Categorias),
     # onde ficam Standard/Luxo/Internacional/Nacional etc.
     category    = models.ForeignKey('config_api.ConfigListCategory', null=True, blank=True,
