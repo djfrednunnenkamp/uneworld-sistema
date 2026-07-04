@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import { toast } from 'sonner'
 import { itinerariesApi, configApi } from '../api'
 import { Ic } from '../components/Icon'
@@ -93,12 +93,27 @@ export default function ItineraryDetail() {
   const continentOptions    = useMemo(() => continents.map(c => ({ value: c.id, label: c.name })), [continents])
   const accommodationOptions = useMemo(() => accommodationOpts.map(a => ({ value: a.id, label: a.name })), [accommodationOpts])
 
-  const save = async () => {
-    setSaving(true)
-    try {
-      // Payload idêntico ao anterior — nenhum campo novo é enviado nesta etapa,
-      // então backend e contratos permanecem intactos.
+  // ── Rascunho + confirmação ao sair (igual aos contratos) ──
+  const [dirty, setDirty] = useState(false)
+  const leavingRef = useRef(false)   // true durante a saída já confirmada → não re-bloqueia
+  // setData "de edição": marca dirty (a carga inicial usa setData puro, não marca).
+  const editData = useCallback((updater) => { setDirty(true); setData(updater) }, [])
+  const isRascunho = data?.status === 'rascunho'
+  const hasPending = dirty || isRascunho   // rascunho ou edição não salva
+  // Bloqueia a navegação (voltar, sidebar, aba…) enquanto houver rascunho/edição.
+  // leavingRef é lido só aqui dentro (callback), não durante o render.
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    hasPending && !leavingRef.current && currentLocation.pathname !== nextLocation.pathname)
+  // Fechar/atualizar o navegador com trabalho pendente → aviso nativo.
+  useEffect(() => {
+    const h = (e) => { if (hasPending) { e.preventDefault(); e.returnValue = '' } }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [hasPending])
+
+  const buildPayload = (status) => {
       const payload = {
+        status,
         name: data.name, slug: data.slug, start_date: data.start_date || null, end_date: data.end_date || null,
         trip_type: data.trip_type, category: data.category, continent: data.continent,
         base_currency: data.base_currency,
@@ -121,14 +136,34 @@ export default function ItineraryDetail() {
           city: d.city ?? null, order: i,
         })),
       }
-      const r = await itinerariesApi.update(id, payload)
+      return payload
+  }
+
+  // Salva com o status pedido ('ativo' finaliza; 'rascunho' mantém como rascunho).
+  const persist = async (status) => {
+    setSaving(true)
+    try {
+      const r = await itinerariesApi.update(id, buildPayload(status))
       setData(normalizeItinerary(r.data))
-      toast.success('Roteiro salvo.')
+      setDirty(false)
+      return true
     } catch {
       toast.error('Erro ao salvar roteiro.')
+      return false
     } finally {
       setSaving(false)
     }
+  }
+  // Botão "Salvar" do topo: finaliza o roteiro (vira ativo).
+  const save = async () => { if (await persist('ativo')) toast.success('Roteiro salvo.') }
+
+  // Ações do modal de confirmação ao sair.
+  const proceedLeave = () => { leavingRef.current = true; blocker.proceed?.() }
+  const leaveSaving = async (status) => { if (await persist(status)) proceedLeave() }
+  const leaveDiscard = () => proceedLeave()
+  const leaveDelete = async () => {
+    try { await itinerariesApi.remove(id) } catch { toast.error('Erro ao apagar.'); return }
+    proceedLeave()
   }
 
   if (loading) return (
@@ -142,13 +177,13 @@ export default function ItineraryDetail() {
 
   const renderTab = () => {
     switch (activeKey) {
-      case 'basic':      return <BasicInfoTab     data={data} setData={setData} canEdit={canEdit} categoryOptions={categoryOptions} />
-      case 'destinos':   return <DestinosTab      data={data} setData={setData} canEdit={canEdit} continentOptions={continentOptions} />
-      case 'valores':    return <AccommodationTab data={data} setData={setData} canEdit={canEdit} accommodationOptions={accommodationOptions} />
-      case 'pagamentos': return <PaymentsTab      data={data} setData={setData} canEdit={canEdit} paymentPlanOpts={paymentPlanOpts} paymentMethodOpts={paymentMethodOpts} reloadPaymentPlans={reloadPaymentPlans} />
-      case 'imagens':    return <ImagensTab       data={data} setData={setData} canEdit={canEdit} />
-      case 'diaadia':    return <DiaADiaTab       data={data} setData={setData} canEdit={canEdit} />
-      case 'regras':     return <ClausesTab       data={data} setData={setData} canEdit={canEdit} clauseList={clauseList} />
+      case 'basic':      return <BasicInfoTab     data={data} setData={editData} canEdit={canEdit} categoryOptions={categoryOptions} />
+      case 'destinos':   return <DestinosTab      data={data} setData={editData} canEdit={canEdit} continentOptions={continentOptions} />
+      case 'valores':    return <AccommodationTab data={data} setData={editData} canEdit={canEdit} accommodationOptions={accommodationOptions} />
+      case 'pagamentos': return <PaymentsTab      data={data} setData={editData} canEdit={canEdit} paymentPlanOpts={paymentPlanOpts} paymentMethodOpts={paymentMethodOpts} reloadPaymentPlans={reloadPaymentPlans} />
+      case 'imagens':    return <ImagensTab       data={data} setData={editData} canEdit={canEdit} />
+      case 'diaadia':    return <DiaADiaTab       data={data} setData={editData} canEdit={canEdit} />
+      case 'regras':     return <ClausesTab       data={data} setData={editData} canEdit={canEdit} clauseList={clauseList} />
       default:           return <PlaceholderTab   title={TABS.find(t => t.key === activeKey)?.label || ''} />
     }
   }
@@ -164,7 +199,10 @@ export default function ItineraryDetail() {
             onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
             ← Roteiros
           </button>
-          <h1 className="ph-title" style={{ margin: 0 }}>{data.name || 'Roteiro'}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 className="ph-title" style={{ margin: 0 }}>{data.name || 'Roteiro'}</h1>
+            {isRascunho && <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: '#fef3c7', color: '#b45309', textTransform: 'uppercase', letterSpacing: '.04em' }}>Rascunho</span>}
+          </div>
         </div>
         <div className="ph-actions" style={{ alignItems: 'center' }}>
           {canEdit && (
@@ -194,6 +232,41 @@ export default function ItineraryDetail() {
       <Suspense fallback={<TabLoading />}>
         {renderTab()}
       </Suspense>
+
+      {/* Confirmação ao sair (rascunho/edição) — salvar / rascunho / apagar */}
+      {blocker.state === 'blocked' && (
+        <div onMouseDown={e => { if (e.target === e.currentTarget) blocker.reset() }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onMouseDown={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 22px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{isRascunho ? 'Sair sem finalizar?' : 'Sair sem salvar?'}</span>
+              <button type="button" onClick={() => blocker.reset()} title="Cancelar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
+            </div>
+            <div style={{ padding: '18px 22px' }}>
+              <p style={{ fontSize: 13.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
+                {isRascunho
+                  ? 'Este roteiro ainda é um rascunho. O que você quer fazer antes de sair?'
+                  : 'Há alterações não salvas neste roteiro. O que você quer fazer?'}
+              </p>
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
+              {isRascunho ? (
+                <>
+                  <button type="button" onClick={leaveDelete} disabled={saving} className="btn btn-outline" style={{ color: '#b91c1c', borderColor: '#fecaca', marginRight: 'auto' }}>Apagar</button>
+                  <button type="button" onClick={() => leaveSaving('rascunho')} disabled={saving} className="btn btn-outline">Salvar nos rascunhos</button>
+                  <button type="button" onClick={() => leaveSaving('ativo')} disabled={saving} className="btn btn-primary">{saving ? 'Salvando…' : 'Salvar (finalizar)'}</button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={leaveDiscard} disabled={saving} className="btn btn-outline" style={{ color: '#b91c1c', borderColor: '#fecaca', marginRight: 'auto' }}>Descartar</button>
+                  <button type="button" onClick={() => blocker.reset()} disabled={saving} className="btn btn-outline">Cancelar</button>
+                  <button type="button" onClick={() => leaveSaving('ativo')} disabled={saving} className="btn btn-primary">{saving ? 'Salvando…' : 'Salvar'}</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

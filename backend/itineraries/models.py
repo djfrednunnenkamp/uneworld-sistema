@@ -73,6 +73,11 @@ class Itinerary(models.Model):
     a_vista_discount_value  = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, null=True, blank=True)
     a_vista_payment_method  = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
 
+    # Rascunho (autosalvo / não finalizado) vs Ativo. A lista mostra só ativos;
+    # rascunhos aparecem num popup à parte. 'Salvar' no detalhe finaliza (ativo).
+    STATUS_CHOICES = [('rascunho', 'Rascunho'), ('ativo', 'Ativo')]
+    status      = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo', db_index=True)
+
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)
 

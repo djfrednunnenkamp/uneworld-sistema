@@ -37,8 +37,9 @@ export default function Itineraries() {
   const [loading, setLoading] = useState(true)
   const [delRow,  setDelRow]  = useState(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [showTrash, setShowTrash] = useState(false)
+  const [view, setView] = useState('ativos')   // 'ativos' | 'rascunhos' | 'excluidos'
   const [deletedRows, setDeletedRows] = useState([])
+  const [draftRows, setDraftRows] = useState([])
 
   const load = () => {
     setLoading(true)
@@ -51,14 +52,19 @@ export default function Itineraries() {
     if (!canDelete) return
     itinerariesApi.deleted().then(r => setDeletedRows(r.data.results ?? r.data)).catch(() => {})
   }, [canDelete])
-  useEffect(() => { load() }, [])
-  useEffect(() => { loadDeleted() }, [loadDeleted, showTrash])
+  const loadDrafts = useCallback(() => {
+    itinerariesApi.drafts().then(r => setDraftRows(r.data.results ?? r.data)).catch(() => {})
+  }, [])
+  useEffect(() => { load(); loadDrafts() }, [loadDrafts])
+  useEffect(() => { loadDeleted() }, [loadDeleted, view])
   const deletedCount = deletedRows.length
+  const draftCount = draftRows.length
   const canPurge = !!user?.is_superuser && !!user?.allow_hard_delete
-  const reloadAll = () => { load(); loadDeleted() }
+  const reloadAll = () => { load(); loadDeleted(); loadDrafts() }
 
   const silentReload = useCallback(() => {
     itinerariesApi.list().then(r => setRows(r.data.results ?? r.data)).catch(() => {})
+    itinerariesApi.drafts().then(r => setDraftRows(r.data.results ?? r.data)).catch(() => {})
   }, [])
 
   const wsUrl = user ? dashboardWsUrl() : null
@@ -75,12 +81,17 @@ export default function Itineraries() {
 
   const getLabel = (row) => row.name || `#${row.id}`
 
-  const trashTabBar = canDelete && (
+  const TABS = [
+    { key: 'ativos',    label: 'Roteiros',  color: '#2563eb', count: null },
+    { key: 'rascunhos', label: 'Rascunhos', color: '#b45309', count: draftCount },
+    ...(canDelete ? [{ key: 'excluidos', label: 'Excluídos', color: '#dc2626', count: deletedCount }] : []),
+  ]
+  const tabBar = (
     <div style={{ display: 'flex', gap: 0, borderBottom: '1.5px solid #e2e8f0', marginBottom: 4 }}>
-      {[{ key: false, label: 'Roteiros', color: '#2563eb' }, { key: true, label: 'Excluídos', color: '#dc2626' }].map(t => {
-        const sel = showTrash === t.key
+      {TABS.map(t => {
+        const sel = view === t.key
         return (
-          <button key={String(t.key)} type="button" onClick={() => setShowTrash(t.key)}
+          <button key={t.key} type="button" onClick={() => setView(t.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', border: 'none', cursor: 'pointer',
               fontFamily: 'inherit', background: 'transparent', fontSize: 13.5, fontWeight: sel ? 600 : 400,
@@ -88,9 +99,9 @@ export default function Itineraries() {
               marginBottom: '-1.5px', transition: 'color .15s, border-color .15s', outline: 'none',
             }}>
             {t.label}
-            {t.key && (
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 20, background: sel ? '#fee2e2' : '#f1f5f9', color: sel ? t.color : '#94a3b8' }}>
-                {deletedCount}
+            {t.count != null && (
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 20, background: sel ? `${t.color}1a` : '#f1f5f9', color: sel ? t.color : '#94a3b8' }}>
+                {t.count}
               </span>
             )}
           </button>
@@ -99,20 +110,24 @@ export default function Itineraries() {
     </div>
   )
 
+  const isTrash = view === 'excluidos'
+  const data = view === 'ativos' ? rows : view === 'rascunhos' ? draftRows : deletedRows
+  const title = view === 'ativos' ? 'Roteiros' : view === 'rascunhos' ? 'Rascunhos' : 'Excluídos'
+
   return (
     <>
-      {canDelete && trashTabBar}
+      {tabBar}
       <DataTable
-        title={showTrash ? 'Excluídos' : 'Roteiros'}
+        title={title}
         addLabel="Adicionar Roteiro"
-        data={showTrash ? deletedRows : rows}
+        data={data}
         cols={COLS}
         searchKeys={['name', 'slug']}
-        onAdd={!showTrash && canEdit ? () => setShowCreate(true) : undefined}
-        onEdit={!showTrash && canEdit ? (row) => navigate(`/roteiros/${row.id}`) : undefined}
+        onAdd={!isTrash && canEdit ? () => setShowCreate(true) : undefined}
+        onEdit={!isTrash && canEdit ? (row) => navigate(`/roteiros/${row.id}`) : undefined}
         onView={(row) => navigate(`/roteiros/${row.id}`)}
-        onDelete={!showTrash && canDelete ? (row) => setDelRow(row) : undefined}
-        extraActions={showTrash
+        onDelete={!isTrash && canDelete ? (row) => setDelRow(row) : undefined}
+        extraActions={isTrash
           ? (row) => <TrashRowActions row={row} getLabel={getLabel} onRestore={itinerariesApi.restore} onPurge={itinerariesApi.purge} canPurge={canPurge} onChanged={reloadAll} />
           : undefined}
         loading={loading}

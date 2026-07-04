@@ -17,8 +17,9 @@ export default function ItineraryCreateModal({ onClose, onCreated }) {
     if (!name.trim()) { toast.error('Informe o nome da viagem.'); return }
     setSaving(true)
     try {
-      const r = await itinerariesApi.create({ name: name.trim(), start_date: startDate || null, end_date: endDate || null })
-      toast.success('Roteiro criado.')
+      // Nasce como RASCUNHO — só vira "ativo" quando o usuário clica em Salvar no detalhe.
+      const r = await itinerariesApi.create({ name: name.trim(), start_date: startDate || null, end_date: endDate || null, status: 'rascunho' })
+      toast.success('Rascunho criado.')
       onCreated(r.data)
     } catch {
       toast.error('Erro ao criar roteiro.')

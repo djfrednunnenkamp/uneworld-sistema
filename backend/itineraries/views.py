@@ -25,6 +25,15 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     search_fields    = ['name', 'slug']
     ordering_fields  = ['created_at', 'start_date', 'name']
 
+    def get_queryset(self):
+        qs = super().get_queryset()   # aplica o filtro is_deleted do mixin
+        if self.action == 'list':     # só a listagem separa rascunho de ativo
+            if self.request.query_params.get('status') == 'rascunho':
+                qs = qs.filter(status='rascunho')
+            else:
+                qs = qs.exclude(status='rascunho')
+        return qs
+
     def get_serializer_class(self):
         return ItineraryListSerializer if self.action == 'list' else ItinerarySerializer
 

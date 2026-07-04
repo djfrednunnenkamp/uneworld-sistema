@@ -158,6 +158,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'cities', 'cities_data', 'countries', 'countries_data',
                   'airports', 'airports_data', 'keywords', 'keywords_data',
                   'days', 'images', 'documents',
+                  'status',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         # slug agora é GRAVÁVEL (o ItineraryDetail já tinha o input): ModelSerializer
         # aplica o UniqueValidator automático (unique=True no model), que exclui o
@@ -238,5 +239,5 @@ class ItineraryListSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'base_currency',
                   'category_name', 'continent_name',
                   'itinerary_type_name', 'maritime_company_name',
-                  'created_at', 'updated_at',
+                  'status', 'created_at', 'updated_at',
                   'is_deleted', 'deleted_at']

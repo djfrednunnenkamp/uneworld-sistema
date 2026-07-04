@@ -141,6 +141,7 @@ export const itinerariesApi = {
   update:  (id, d)  => api.put(`/itineraries/${id}/`, d),
   remove:  (id)     => api.delete(`/itineraries/${id}/`),
   deleted: ()       => api.get('/itineraries/', { params: { deleted: 1 } }),
+  drafts:  ()       => api.get('/itineraries/', { params: { status: 'rascunho' } }),
   restore: (id)     => api.post(`/itineraries/${id}/restore/`),
   purge:   (id)     => api.delete(`/itineraries/${id}/purge/`),
   // Imagens (galeria do roteiro ou de um dia) e documentos (PDF) — upload multipart.
