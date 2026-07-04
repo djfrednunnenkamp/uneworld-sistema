@@ -18,7 +18,7 @@ const fmtDateBR = (iso) => {
 }
 const fmtDateTimeBR = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') }
 
-const TYPE_LABEL = { aereo: 'Aéreo', terrestre: 'Terrestre' }
+const TYPE_LABEL = { aereo: 'Aéreo', terrestre: 'Terrestre', maritimo: 'Marítimo' }
 
 const COLS = [
   { key: 'name',           label: 'Nome da viagem', align: 'left' },

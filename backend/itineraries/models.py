@@ -11,6 +11,7 @@ class Itinerary(models.Model):
     TYPE_CHOICES = [
         ('aereo',     'Aéreo'),
         ('terrestre', 'Terrestre'),
+        ('maritimo',  'Marítimo'),
     ]
 
     name        = models.CharField('Nome da viagem', max_length=300)

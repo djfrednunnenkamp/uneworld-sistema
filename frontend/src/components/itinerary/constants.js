@@ -12,6 +12,7 @@ export const CURRENCY_OPTS = [
 export const TYPE_OPTS = [
   { value: 'aereo',     label: 'Aéreo' },
   { value: 'terrestre', label: 'Terrestre' },
+  { value: 'maritimo',  label: 'Marítimo' },
 ]
 
 export const fmtDateBR = (iso) => {
