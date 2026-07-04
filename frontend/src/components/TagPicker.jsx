@@ -164,6 +164,16 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+      {/* Botão "+" sempre fixo à esquerda; as bolinhas crescem à direita. */}
+      <button type="button" ref={btnRef} onClick={toggleOpen} title="Adicionar"
+        style={{
+          width: 26, height: 26, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff',
+          color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+        <Ic n="plus" s={13} />
+      </button>
+
       {selected.map(item => (
         <span key={item.id} style={{
           display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px 4px 10px',
@@ -178,15 +188,6 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
           </span>
         </span>
       ))}
-
-      <button type="button" ref={btnRef} onClick={toggleOpen} title="Adicionar"
-        style={{
-          width: 26, height: 26, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff',
-          color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-        <Ic n="plus" s={13} />
-      </button>
 
       {open && createPortal(
         popup ? (

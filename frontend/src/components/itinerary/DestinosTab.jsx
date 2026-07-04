@@ -72,21 +72,21 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
   return (
     <TabCard>
       <FormRow label="Continente">
-        <TagPicker placeholder="Buscar continente…" search={searchContinents}
+        <TagPicker popup placeholder="Buscar continente…" search={searchContinents}
           selected={continentChip}
           onAdd={it => canEdit && setContinent(it.id)}
           onRemove={() => canEdit && setContinent(null)} />
       </FormRow>
 
       <FormRow label="Países">
-        <TagPicker placeholder="Buscar país…" search={searchCountries}
+        <TagPicker popup placeholder="Buscar país…" search={searchCountries}
           selected={chips('countries_data', c => c.name)}
           onAdd={it => canEdit && addCountry(it.id, it.raw)}
           onRemove={id => canEdit && removeItem('countries', 'countries_data', id)} />
       </FormRow>
 
       <FormRow label="Cidades" last>
-        <TagPicker placeholder="Buscar cidade…" search={searchCities}
+        <TagPicker popup placeholder="Buscar cidade…" search={searchCities}
           selected={chips('cities_data', c => c.country_name ? `${c.name} · ${c.country_name}` : c.name)}
           onAdd={it => canEdit && addItem('cities', 'cities_data', it.id, it.raw)}
           onRemove={id => canEdit && removeItem('cities', 'cities_data', id)} />
