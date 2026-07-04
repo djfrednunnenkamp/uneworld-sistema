@@ -54,12 +54,13 @@ if [ ! -d "$FRONTEND_DIR" ]; then
   exit 1
 fi
 
-# Inicia o backend Django
+# Inicia o backend Django.
+# Usa o python do venv diretamente (não depende de 'source activate', que pode
+# quebrar se o venv foi criado em outro caminho — ex.: após renomear a pasta).
 echo "[Backend]  Iniciando Django na porta 8000..."
 echo "           $BACKEND_DIR"
 cd "$BACKEND_DIR"
-source "$PROJECT_DIR/venv/bin/activate"
-python manage.py runserver 0.0.0.0:8000 &
+"$PROJECT_DIR/venv/bin/python" manage.py runserver 0.0.0.0:8000 &
 BACKEND_PID=$!
 
 # Aguarda o backend subir
