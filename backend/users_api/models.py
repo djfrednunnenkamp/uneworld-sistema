@@ -256,6 +256,9 @@ class UserPermissions(models.Model):
     settings_currencies_view             = models.BooleanField(default=False)
     settings_currencies_edit             = models.BooleanField(default=False)
     settings_currencies_delete           = models.BooleanField(default=False)
+    settings_keywords_view               = models.BooleanField(default=False)
+    settings_keywords_edit               = models.BooleanField(default=False)
+    settings_keywords_delete             = models.BooleanField(default=False)
 
     # Exportar CSV (download) — granular por área. Antes o download dependia só
     # de "_view"; agora cada área tem permissão própria de download.

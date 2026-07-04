@@ -103,6 +103,7 @@ PERMISSION_FIELDS = [
     'settings_itinerary_types_view', 'settings_itinerary_types_edit', 'settings_itinerary_types_delete',
     'settings_maritime_companies_view', 'settings_maritime_companies_edit', 'settings_maritime_companies_delete',
     'settings_currencies_view', 'settings_currencies_edit', 'settings_currencies_delete',
+    'settings_keywords_view', 'settings_keywords_edit', 'settings_keywords_delete',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -146,6 +147,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_itinerary_types_view', 'settings_itinerary_types_edit', 'settings_itinerary_types_delete',
     'settings_maritime_companies_view', 'settings_maritime_companies_edit', 'settings_maritime_companies_delete',
     'settings_currencies_view', 'settings_currencies_edit', 'settings_currencies_delete',
+    'settings_keywords_view', 'settings_keywords_edit', 'settings_keywords_delete',
     # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
     # ninguém Administrador. log_page_views continua porque é uma permissão
     # ativa e concedida de propósito.

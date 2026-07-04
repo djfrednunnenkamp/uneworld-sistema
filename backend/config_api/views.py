@@ -18,7 +18,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
-                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency)
+                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -855,6 +855,23 @@ class CurrencyViewSet(viewsets.ModelViewSet):
     serializer_class = CurrencySerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_currencies')
+
+
+class KeywordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigKeyword
+        fields = ['id', 'name']
+
+
+class KeywordViewSet(viewsets.ModelViewSet):
+    serializer_class = KeywordSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_keywords')
+
+    def get_queryset(self):
+        qs = ConfigKeyword.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
 
 
 class ContinentSerializer(serializers.ModelSerializer):

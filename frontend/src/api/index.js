@@ -339,6 +339,12 @@ export const configApi = {
   addCurrency:   (data) => api.post('/config/currencies/', data),
   updateCurrency: (id, data) => api.patch(`/config/currencies/${id}/`, data),
   delCurrency:   (id)   => api.delete(`/config/currencies/${id}/`),
+  // Palavras-chave (tags de roteiro)
+  keywords:      () => api.get('/config/keywords/'),
+  keywordSearch: (q) => api.get('/config/keywords/', { params: { q } }),
+  addKeyword:    (name) => api.post('/config/keywords/', { name }),
+  updateKeyword: (id, name) => api.patch(`/config/keywords/${id}/`, { name }),
+  delKeyword:    (id)   => api.delete(`/config/keywords/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

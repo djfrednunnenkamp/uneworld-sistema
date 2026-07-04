@@ -625,6 +625,20 @@ class ConfigMaritimeCompany(models.Model):
         return self.name
 
 
+class ConfigKeyword(models.Model):
+    """Palavra-chave de roteiro (tag). Cadastrada em Configurações e escolhida nos
+    roteiros; pode ser criada na hora pelo popup do roteiro."""
+    name = models.CharField('Nome', max_length=120, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Palavra-chave'
+        verbose_name_plural = 'Palavras-chave'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigCurrency(models.Model):
     """Moeda como LISTA de referência (código ISO-4217 + símbolo). Criada para
     substituir, no futuro, o choices fixo EUR/USD/BRL. IMPORTANTE: NÃO altera

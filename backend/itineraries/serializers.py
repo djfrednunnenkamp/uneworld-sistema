@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport
+from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword
 from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryDocument
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -46,6 +46,12 @@ class AirportMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Airport
         fields = ['id', 'name', 'iata_code', 'city', 'country']
+
+
+class KeywordMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ConfigKeyword
+        fields = ['id', 'name']
 
 
 class ItineraryImageSerializer(serializers.ModelSerializer):
@@ -96,6 +102,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
     countries_data = CountryMiniSerializer(source='countries', many=True, read_only=True)
     airports      = serializers.PrimaryKeyRelatedField(queryset=Airport.objects.all(), many=True, required=False)
     airports_data = AirportMiniSerializer(source='airports', many=True, read_only=True)
+    keywords      = serializers.PrimaryKeyRelatedField(queryset=ConfigKeyword.objects.all(), many=True, required=False)
+    keywords_data = KeywordMiniSerializer(source='keywords', many=True, read_only=True)
     days          = ItineraryDaySerializer(many=True, required=False)      # gravável (upsert)
     images        = serializers.SerializerMethodField()                    # só galeria (dia nulo)
     documents     = ItineraryDocumentSerializer(many=True, read_only=True) # leitura; escrita via action
@@ -148,7 +156,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'itinerary_type', 'itinerary_type_name',
                   'maritime_company', 'maritime_company_name',
                   'cities', 'cities_data', 'countries', 'countries_data',
-                  'airports', 'airports_data',
+                  'airports', 'airports_data', 'keywords', 'keywords_data',
                   'days', 'images', 'documents',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         # slug agora é GRAVÁVEL (o ItineraryDetail já tinha o input): ModelSerializer

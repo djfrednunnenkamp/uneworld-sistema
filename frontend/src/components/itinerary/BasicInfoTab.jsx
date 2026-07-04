@@ -1,12 +1,38 @@
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import Dropdown from '../Dropdown'
 import DatePicker from '../DatePicker'
+import TagPicker from '../TagPicker'
+import { configApi } from '../../api'
 import { FormRow, TabCard } from './ui'
 import { inp, TYPE_OPTS } from './constants'
 
-/* Aba "Informações Básicas": Nome, Slug, Categoria, Tipo, Início e Término. */
+/* Aba "Informações Básicas": Nome, Slug, Categoria, Tipo, Início, Término e
+   Palavras-chave (tags do roteiro, buscadas/criadas via Configurações). */
 function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
   const set = (k) => (e) => setData(d => ({ ...d, [k]: e.target.value }))
+
+  // Palavras-chave: reusa o TagPicker (busca + chips + criar na hora).
+  const [allKw, setAllKw] = useState([])
+  useEffect(() => { configApi.keywords().then(r => setAllKw(r.data.results ?? r.data)).catch(() => {}) }, [])
+
+  const kwChips = (data.keywords_data || []).map(k => ({ id: k.id, label: k.name }))
+  const addKw = (id, raw) => setData(d => (d.keywords || []).includes(id) ? d
+    : ({ ...d, keywords: [...(d.keywords || []), id], keywords_data: [...(d.keywords_data || []), raw] }))
+  const removeKw = (id) => setData(d => ({
+    ...d, keywords: (d.keywords || []).filter(x => x !== id), keywords_data: (d.keywords_data || []).filter(x => x.id !== id),
+  }))
+  const searchKw = async (q) => {
+    const s = (q || '').toLowerCase(); const sel = new Set(data.keywords || [])
+    return allKw.filter(k => !sel.has(k.id) && (!s || k.name.toLowerCase().includes(s))).slice(0, 40)
+      .map(k => ({ id: k.id, label: k.name, raw: { id: k.id, name: k.name } }))
+  }
+  // Não achou no banco → cria em Configurações e já seleciona.
+  const createKw = async (name) => {
+    const r = await configApi.addKeyword(name)
+    setAllKw(a => [...a, r.data])
+    return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
+  }
+
   return (
     <TabCard>
       <FormRow label="Nome da viagem">
@@ -27,9 +53,15 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
         <DatePicker value={data.start_date} relatedDate={data.end_date || null} disabled={!canEdit} fixed
           onChange={v => setData(d => ({ ...d, start_date: v }))} />
       </FormRow>
-      <FormRow label="Data de término" last>
+      <FormRow label="Data de término">
         <DatePicker value={data.end_date} relatedDate={data.start_date || null} disabled={!canEdit} fixed
           onChange={v => setData(d => ({ ...d, end_date: v }))} />
+      </FormRow>
+      <FormRow label="Palavras-chave" last>
+        <TagPicker placeholder="Buscar ou criar palavra-chave…" search={searchKw} onCreate={createKw}
+          selected={kwChips}
+          onAdd={it => canEdit && addKw(it.id, it.raw)}
+          onRemove={id => canEdit && removeKw(id)} />
       </FormRow>
     </TabCard>
   )

@@ -366,6 +366,14 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Palavras-chave', icon: 'mapicon', hue: 260,
+        items: [
+          ['settings_keywords_view',   'Ver palavras-chave'],
+          ['settings_keywords_edit',   'Criar / Editar palavras-chave'],
+          ['settings_keywords_delete', 'Excluir palavras-chave'],
+        ],
+      },
+      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],
