@@ -65,12 +65,14 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
     }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pick = (item) => { onAdd(item); setOpen(false) }
+  // No popup, selecionar/criar NÃO fecha (multi-seleção) — só o X ou clicar fora.
+  const pick = (item) => { onAdd(item); if (!popup) setOpen(false) }
   const selectedIds = new Set(selected.map(s => s.id))
   const filteredOptions = options.filter(o => !selectedIds.has(o.id))
 
   const trimmedQuery = query.trim()
-  const hasExactMatch = filteredOptions.some(o => o.label.toLowerCase() === trimmedQuery.toLowerCase())
+  // Considera selecionados também, senão "criar X" reaparece pra algo que virou selecionado.
+  const hasExactMatch = [...options, ...selected].some(o => (o.label || '').toLowerCase() === trimmedQuery.toLowerCase())
   const showCreate = !!onCreate && trimmedQuery.length > 0 && !hasExactMatch
 
   const handleCreate = async () => {
@@ -85,9 +87,53 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
   }
 
   // Conteúdo compartilhado (dropdown OU popup): campo de busca + lista + "criar".
+  // autoComplete/name/data-* desligam o autofill do navegador (Chrome insistia em
+  // sugerir "Documento de identidade" neste campo).
   const searchInput = (
     <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
+      autoComplete="off" autoCorrect="off" spellCheck={false} name="tagpicker-search" data-lpignore="true" data-1p-ignore="true"
       style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+  )
+
+  // Marcador estilo checkbox (marcado = azul com check).
+  const checkbox = (checked) => (
+    <span style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: `1.5px solid ${checked ? '#2e6db4' : '#cbd5e1'}`, background: checked ? '#2e6db4' : '#fff' }}>
+      {checked && <Ic n="check" s={11} />}
+    </span>
+  )
+
+  // Lista do POPUP: selecionados (marcados) sempre no topo → clique desmarca;
+  // depois os resultados não-selecionados → clique marca (sem fechar); e "criar".
+  const selInList = selected.filter(s => !trimmedQuery || (s.label || '').toLowerCase().includes(trimmedQuery.toLowerCase()))
+  const rowStyle = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', fontSize: 13, color: '#1e293b' }
+  const popupListBody = (
+    <>
+      {selInList.map(item => (
+        <div key={`sel-${item.id}`} onMouseDown={e => { e.preventDefault(); onRemove(item.id) }}
+          style={{ ...rowStyle, background: '#f0f6ff', fontWeight: 600 }}
+          onMouseEnter={e => e.currentTarget.style.background = '#e6f0fb'} onMouseLeave={e => e.currentTarget.style.background = '#f0f6ff'}>
+          {checkbox(true)}<span>{item.label}</span>
+        </div>
+      ))}
+      {filteredOptions.map(opt => (
+        <div key={opt.id} onMouseDown={e => { e.preventDefault(); pick(opt) }} style={rowStyle}
+          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+          {checkbox(false)}<span>{opt.label}</span>
+        </div>
+      ))}
+      {showCreate && (
+        <div onMouseDown={e => { e.preventDefault(); handleCreate() }}
+          style={{ ...rowStyle, color: '#1a2d4f', fontWeight: 600, borderTop: (selInList.length || filteredOptions.length) ? '1px solid #f1f5f9' : 'none' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+          {creating ? 'Criando…' : `+ Criar "${trimmedQuery}"`}
+        </div>
+      )}
+      {selInList.length === 0 && filteredOptions.length === 0 && !showCreate && (
+        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12.5, padding: '14px 0', margin: 0 }}>
+          {query ? 'Nenhum resultado.' : 'Digite para buscar…'}
+        </p>
+      )}
+    </>
   )
   const listBody = (
     <>
@@ -152,7 +198,7 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
                 <button type="button" onClick={() => setOpen(false)} title="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
               </div>
               <div style={{ padding: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>{searchInput}</div>
-              <div style={{ overflowY: 'auto', flex: 1 }}>{listBody}</div>
+              <div style={{ overflowY: 'auto', flex: 1 }}>{popupListBody}</div>
             </div>
           </div>
         ) : (
