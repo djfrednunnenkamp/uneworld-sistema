@@ -20,12 +20,26 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
   const notSelected = (idKey, list) => { const sel = new Set(data[idKey] || []); return list.filter(x => !sel.has(x.id)) }
 
   // Buscas (retornam [{id, label, raw}]).
+  // Países: se um continente estiver selecionado, restringe a busca aos países dele.
   const searchCountries = async (q) => {
     const s = (q || '').toLowerCase()
-    return notSelected('countries', allCountries)
-      .filter(c => !s || c.name.toLowerCase().includes(s)).slice(0, 40)
+    let list = notSelected('countries', allCountries)
+    if (data.continent != null) list = list.filter(c => c.continent === data.continent)
+    return list.filter(c => !s || c.name.toLowerCase().includes(s)).slice(0, 40)
       .map(c => ({ id: c.id, label: c.name, raw: { id: c.id, name: c.name } }))
   }
+
+  // Ao adicionar um país: se o continente ainda estiver vazio, preenche com o
+  // continente daquele país (integração automática país → continente).
+  const addCountry = (id, raw) => setData(d => {
+    if ((d.countries || []).includes(id)) return d
+    const next = { ...d, countries: [...(d.countries || []), id], countries_data: [...(d.countries_data || []), raw] }
+    if (d.continent == null) {
+      const full = allCountries.find(c => c.id === id)
+      if (full && full.continent != null) next.continent = full.continent
+    }
+    return next
+  })
   const searchCities = async (q) => {
     if (!q || q.length < 2) return []
     const r = await configApi.citySearch(q)
@@ -60,7 +74,7 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
       <FormRow label="Países">
         <TagPicker placeholder="Buscar país…" search={searchCountries}
           selected={chips('countries_data', c => c.name)}
-          onAdd={it => canEdit && addItem('countries', 'countries_data', it.id, it.raw)}
+          onAdd={it => canEdit && addCountry(it.id, it.raw)}
           onRemove={id => canEdit && removeItem('countries', 'countries_data', id)} />
       </FormRow>
 
