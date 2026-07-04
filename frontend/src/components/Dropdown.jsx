@@ -24,6 +24,8 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
   const [highlighted, setHighlighted] = useState(-1)
   const [dropStyle,   setDropStyle]   = useState({})
   const inputRef = useRef(null)
+  // Nome aleatório estável — despista o autofill do Chrome (CPF/identidade).
+  const [fieldName] = useState(() => `dd-${Math.random().toString(36).slice(2)}`)
 
   useEffect(() => {
     const h = e => {
@@ -81,6 +83,14 @@ export default function Dropdown({ value, onChange, options, placeholder = '— 
         <input
           ref={inputRef}
           readOnly={!searchable}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          name={fieldName}
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
           value={searchable && open ? query : (selected?.label ?? '')}
           onChange={searchable ? (e => { setQuery(e.target.value); if (!open) openDrop(); else setHighlighted(-1) }) : undefined}
           onMouseDown={!searchable ? (e => { e.preventDefault(); if (open) setOpen(false); else { openDrop(); inputRef.current?.focus() } }) : undefined}
