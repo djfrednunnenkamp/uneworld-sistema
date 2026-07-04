@@ -173,26 +173,28 @@ class ItineraryDay(models.Model):
 
 
 class ItineraryImage(models.Model):
-    """Galeria de imagens do roteiro (estrutura repetível migrada do WordPress).
-    No máximo uma imagem por roteiro pode ser marcada como capa (is_cover)."""
+    """Imagens do roteiro. `kind` categoriza: galeria (carrossel), capa (pode ter
+    várias), lâmina do bloqueio e lâmina do bloqueio promocional. Imagens de um DIA
+    do dia-a-dia têm `day` preenchido (kind fica como 'gallery')."""
+    KIND_CHOICES = [
+        ('gallery',        'Galeria'),
+        ('cover',          'Capa'),
+        ('blocking',       'Lâmina do Bloqueio'),
+        ('blocking_promo', 'Lâmina do Bloqueio Promocional'),
+    ]
     itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='images')
     # Imagem da GALERIA do roteiro (day nulo) OU de um DIA específico do dia-a-dia
     # (day preenchido). Reusa a mesma tabela/upload, sem child table extra.
     day       = models.ForeignKey('ItineraryDay', null=True, blank=True, on_delete=models.CASCADE, related_name='images')
     image     = models.ImageField('Imagem', upload_to='itineraries/')
     caption   = models.CharField('Legenda', max_length=300, blank=True)
-    is_cover  = models.BooleanField('É a capa', default=False)
+    kind      = models.CharField('Tipo', max_length=20, choices=KIND_CHOICES, default='gallery')
     order     = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:
         ordering = ['order']
         verbose_name = 'Imagem do roteiro'
         verbose_name_plural = 'Imagens do roteiro'
-        constraints = [
-            # Garante no máximo UMA capa por roteiro (parcial: só vale quando is_cover=True).
-            models.UniqueConstraint(fields=['itinerary'], condition=models.Q(is_cover=True),
-                                    name='uniq_cover_per_itinerary'),
-        ]
         indexes = [
             models.Index(fields=['itinerary', 'order'], name='idx_itinimg_itin_order'),
         ]

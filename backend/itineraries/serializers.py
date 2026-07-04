@@ -90,7 +90,7 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     Usada na leitura aninhada e na action de upload (multipart) do viewset."""
     class Meta:
         model  = ItineraryImage
-        fields = ['id', 'image', 'caption', 'is_cover', 'order']
+        fields = ['id', 'image', 'caption', 'kind', 'order']
 
 
 class ItineraryDaySerializer(serializers.ModelSerializer):

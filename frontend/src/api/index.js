@@ -145,9 +145,8 @@ export const itinerariesApi = {
   restore: (id)     => api.post(`/itineraries/${id}/restore/`),
   purge:   (id)     => api.delete(`/itineraries/${id}/purge/`),
   // Imagens (galeria do roteiro ou de um dia) e documentos (PDF) — upload multipart.
-  uploadImage:    (id, file, { caption, is_cover, day } = {}) => { const fd = new FormData(); fd.append('image', file); if (caption) fd.append('caption', caption); if (is_cover) fd.append('is_cover', 'true'); if (day) fd.append('day', day); return api.post(`/itineraries/${id}/images/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
+  uploadImage:    (id, file, { caption, kind, day } = {}) => { const fd = new FormData(); fd.append('image', file); if (caption) fd.append('caption', caption); if (kind) fd.append('kind', kind); if (day) fd.append('day', day); return api.post(`/itineraries/${id}/images/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
   deleteImage:    (id, imageId) => api.delete(`/itineraries/${id}/images/${imageId}/`),
-  setCover:       (id, imageId) => api.post(`/itineraries/${id}/images/${imageId}/cover/`),
   reorderImages:  (id, order) => api.post(`/itineraries/${id}/images/reorder/`, { order }),
 }
 

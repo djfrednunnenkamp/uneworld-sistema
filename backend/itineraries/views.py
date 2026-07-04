@@ -42,15 +42,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
-                           'upload_image', 'delete_image', 'set_cover', 'reorder_images'):
+                           'upload_image', 'delete_image', 'reorder_images'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
 
     # ── Galeria de imagens (upload multipart — não cabe no PUT/JSON) ──
     @action(detail=True, methods=['post'], url_path='images')
     def upload_image(self, request, pk=None):
-        """POST /api/itineraries/{id}/images/  (multipart: image, caption?, is_cover?, order?, day?).
-        Se `day` (id de um ItineraryDay deste roteiro) vier, a imagem é do DIA (nunca capa)."""
+        """POST /api/itineraries/{id}/images/  (multipart: image, caption?, kind?, order?, day?).
+        `kind`: gallery (padrão), cover, blocking, blocking_promo. Se `day` (id de um
+        ItineraryDay deste roteiro) vier, a imagem é do DIA (kind = gallery)."""
         itinerary = self.get_object()
         day = None
         day_id = request.data.get('day')
@@ -60,27 +61,12 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 return Response({'detail': 'Dia inválido para este roteiro.'}, status=status.HTTP_400_BAD_REQUEST)
         ser = ItineraryImageSerializer(data=request.data, context=self.get_serializer_context())
         ser.is_valid(raise_exception=True)
-        with transaction.atomic():
-            is_cover = bool(ser.validated_data.get('is_cover')) and day is None
-            if is_cover:   # respeita uniq_cover_per_itinerary: só uma capa
-                itinerary.images.filter(is_cover=True).update(is_cover=False)
-            img = ser.save(itinerary=itinerary, day=day, is_cover=is_cover)
+        kind = ser.validated_data.get('kind') or 'gallery'
+        if day is not None:
+            kind = 'gallery'
+        img = ser.save(itinerary=itinerary, day=day, kind=kind)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['post'], url_path=r'images/(?P<image_id>[0-9]+)/cover')
-    def set_cover(self, request, pk=None, image_id=None):
-        """POST /api/itineraries/{id}/images/{image_id}/cover/ — define a capa (imagem da galeria)."""
-        itinerary = self.get_object()
-        img = itinerary.images.filter(pk=image_id, day__isnull=True).first()
-        if img is None:
-            return Response({'detail': 'Imagem de galeria não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        with transaction.atomic():
-            itinerary.images.filter(is_cover=True).update(is_cover=False)
-            img.is_cover = True
-            img.save(update_fields=['is_cover'])
-        out = ItineraryImageSerializer(img, context=self.get_serializer_context())
-        return Response(out.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['delete'], url_path=r'images/(?P<image_id>[0-9]+)')
     def delete_image(self, request, pk=None, image_id=None):
