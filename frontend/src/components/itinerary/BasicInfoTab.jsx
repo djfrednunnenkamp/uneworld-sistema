@@ -154,7 +154,7 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
         <DatePicker value={data.end_date} relatedDate={data.start_date || null} disabled={!canEdit} fixed
           onChange={v => setData(d => ({ ...d, end_date: v }))} />
       </Field>
-      <Field label="Total de noites" full>
+      <Field label="Total de noites">
         <input style={{ ...inp, background: '#f1f5f9', color: '#475569', cursor: 'not-allowed' }} readOnly disabled
           value={(() => {
             if (!data.start_date || !data.end_date) return '—'
@@ -162,26 +162,31 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
             return n >= 0 ? `${n} ${n === 1 ? 'noite' : 'noites'}` : '—'
           })()} />
       </Field>
-      <Field label="Produto próprio da UneWorld">
-        <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default', height: 36 }}>
-          <span className="toggle">
-            <input type="checkbox" checked={data.is_own_product !== false} disabled={!canEdit}
-              onChange={e => setData(d => ({ ...d, is_own_product: e.target.checked }))} />
-            <span className="toggle-slider" />
-          </span>
-          <span className="toggle-label">{data.is_own_product !== false ? 'Sim — produto próprio' : 'Não — de terceiro/parceiro'}</span>
-        </label>
-      </Field>
-      <Field label="Destaque do roteiro">
-        <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default', height: 36 }}>
-          <span className="toggle">
-            <input type="checkbox" checked={data.is_featured === true} disabled={!canEdit}
-              onChange={e => setData(d => ({ ...d, is_featured: e.target.checked }))} />
-            <span className="toggle-slider" />
-          </span>
-          <span className="toggle-label">{data.is_featured === true ? 'Sim — em destaque' : 'Não'}</span>
-        </label>
-      </Field>
+      {/* Coluna da direita: os dois toggles empilhados na mesma linha do Total de noites. */}
+      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={flabel}>Produto próprio da UneWorld</label>
+          <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default', height: 36 }}>
+            <span className="toggle">
+              <input type="checkbox" checked={data.is_own_product !== false} disabled={!canEdit}
+                onChange={e => setData(d => ({ ...d, is_own_product: e.target.checked }))} />
+              <span className="toggle-slider" />
+            </span>
+            <span className="toggle-label">{data.is_own_product !== false ? 'Sim — produto próprio' : 'Não — de terceiro/parceiro'}</span>
+          </label>
+        </div>
+        <div>
+          <label style={flabel}>Destaque do roteiro</label>
+          <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default', height: 36 }}>
+            <span className="toggle">
+              <input type="checkbox" checked={data.is_featured === true} disabled={!canEdit}
+                onChange={e => setData(d => ({ ...d, is_featured: e.target.checked }))} />
+              <span className="toggle-slider" />
+            </span>
+            <span className="toggle-label">{data.is_featured === true ? 'Sim — em destaque' : 'Não'}</span>
+          </label>
+        </div>
+      </div>
       <Field label="Palavras-chave">
         <TagPicker popup placeholder="Buscar ou criar palavra-chave…" search={searchKw} onCreate={createKw}
           selected={kwChips}
