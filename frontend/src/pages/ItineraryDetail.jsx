@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useParams, useNavigate, useBlocker } from 'react-router-dom'
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { itinerariesApi, configApi } from '../api'
 import { Ic } from '../components/Icon'
@@ -94,22 +94,23 @@ export default function ItineraryDetail() {
   const accommodationOptions = useMemo(() => accommodationOpts.map(a => ({ value: a.id, label: a.name })), [accommodationOpts])
 
   // ── Rascunho + confirmação ao sair (igual aos contratos) ──
+  // OBS: o app usa <BrowserRouter> clássico (não data-router), então NÃO dá pra usar
+  // useBlocker. Interceptamos o botão "← Roteiros" e o fechar/atualizar do navegador.
   const [dirty, setDirty] = useState(false)
-  const leavingRef = useRef(false)   // true durante a saída já confirmada → não re-bloqueia
+  const [pendingNav, setPendingNav] = useState(null)   // destino aguardando confirmação
   // setData "de edição": marca dirty (a carga inicial usa setData puro, não marca).
   const editData = useCallback((updater) => { setDirty(true); setData(updater) }, [])
   const isRascunho = data?.status === 'rascunho'
   const hasPending = dirty || isRascunho   // rascunho ou edição não salva
-  // Bloqueia a navegação (voltar, sidebar, aba…) enquanto houver rascunho/edição.
-  // leavingRef é lido só aqui dentro (callback), não durante o render.
-  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-    hasPending && !leavingRef.current && currentLocation.pathname !== nextLocation.pathname)
   // Fechar/atualizar o navegador com trabalho pendente → aviso nativo.
   useEffect(() => {
-    const h = (e) => { if (hasPending) { e.preventDefault(); e.returnValue = '' } }
+    if (!hasPending) return
+    const h = (e) => { e.preventDefault(); e.returnValue = '' }
     window.addEventListener('beforeunload', h)
     return () => window.removeEventListener('beforeunload', h)
   }, [hasPending])
+  // Sai para a rota alvo se não houver pendência; senão abre a confirmação.
+  const tryLeave = (to = '/roteiros') => { if (hasPending) setPendingNav(to); else navigate(to) }
 
   const buildPayload = (status) => {
       const payload = {
@@ -158,12 +159,12 @@ export default function ItineraryDetail() {
   const save = async () => { if (await persist('ativo')) toast.success('Roteiro salvo.') }
 
   // Ações do modal de confirmação ao sair.
-  const proceedLeave = () => { leavingRef.current = true; blocker.proceed?.() }
-  const leaveSaving = async (status) => { if (await persist(status)) proceedLeave() }
-  const leaveDiscard = () => proceedLeave()
+  const doLeave = () => { const to = pendingNav || '/roteiros'; setPendingNav(null); navigate(to) }
+  const leaveSaving = async (status) => { if (await persist(status)) doLeave() }
+  const leaveDiscard = () => doLeave()
   const leaveDelete = async () => {
     try { await itinerariesApi.remove(id) } catch { toast.error('Erro ao apagar.'); return }
-    proceedLeave()
+    doLeave()
   }
 
   if (loading) return (
@@ -193,7 +194,7 @@ export default function ItineraryDetail() {
       {/* Cabeçalho */}
       <div className="ph" style={{ alignItems: 'flex-start' }}>
         <div>
-          <button onClick={() => navigate('/roteiros')}
+          <button onClick={() => tryLeave('/roteiros')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: 'inherit', padding: 0, marginBottom: 6 }}
             onMouseEnter={e => e.currentTarget.style.color = '#1a2d4f'}
             onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
@@ -234,13 +235,13 @@ export default function ItineraryDetail() {
       </Suspense>
 
       {/* Confirmação ao sair (rascunho/edição) — salvar / rascunho / apagar */}
-      {blocker.state === 'blocked' && (
-        <div onMouseDown={e => { if (e.target === e.currentTarget) blocker.reset() }}
+      {pendingNav !== null && (
+        <div onMouseDown={e => { if (e.target === e.currentTarget) setPendingNav(null) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onMouseDown={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.28)', overflow: 'hidden' }}>
             <div style={{ padding: '16px 22px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{isRascunho ? 'Sair sem finalizar?' : 'Sair sem salvar?'}</span>
-              <button type="button" onClick={() => blocker.reset()} title="Cancelar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
+              <button type="button" onClick={() => setPendingNav(null)} title="Cancelar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
             </div>
             <div style={{ padding: '18px 22px' }}>
               <p style={{ fontSize: 13.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
@@ -259,7 +260,7 @@ export default function ItineraryDetail() {
               ) : (
                 <>
                   <button type="button" onClick={leaveDiscard} disabled={saving} className="btn btn-outline" style={{ color: '#b91c1c', borderColor: '#fecaca', marginRight: 'auto' }}>Descartar</button>
-                  <button type="button" onClick={() => blocker.reset()} disabled={saving} className="btn btn-outline">Cancelar</button>
+                  <button type="button" onClick={() => setPendingNav(null)} disabled={saving} className="btn btn-outline">Cancelar</button>
                   <button type="button" onClick={() => leaveSaving('ativo')} disabled={saving} className="btn btn-primary">{saving ? 'Salvando…' : 'Salvar'}</button>
                 </>
               )}
