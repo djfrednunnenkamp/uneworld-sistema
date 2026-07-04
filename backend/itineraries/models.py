@@ -1,6 +1,15 @@
+import os
+import uuid
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
+
+
+def secure_itinerary_image_path(instance, filename):
+    """Nome de arquivo seguro (uuid) — descarta o nome enviado pelo cliente,
+    evitando path traversal, colisões e vazamento de informação."""
+    ext = os.path.splitext(filename)[1].lower()
+    return f"itineraries/{uuid.uuid4().hex}{ext}"
 
 
 class Itinerary(models.Model):
@@ -186,7 +195,7 @@ class ItineraryImage(models.Model):
     # Imagem da GALERIA do roteiro (day nulo) OU de um DIA específico do dia-a-dia
     # (day preenchido). Reusa a mesma tabela/upload, sem child table extra.
     day       = models.ForeignKey('ItineraryDay', null=True, blank=True, on_delete=models.CASCADE, related_name='images')
-    image     = models.ImageField('Imagem', upload_to='itineraries/')
+    image     = models.ImageField('Imagem', upload_to=secure_itinerary_image_path)
     caption   = models.CharField('Legenda', max_length=300, blank=True)
     kind      = models.CharField('Tipo', max_length=20, choices=KIND_CHOICES, default='gallery')
     order     = models.PositiveIntegerField('Ordem', default=0)

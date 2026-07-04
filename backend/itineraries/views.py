@@ -61,6 +61,15 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 return Response({'detail': 'Dia inválido para este roteiro.'}, status=status.HTTP_400_BAD_REQUEST)
         ser = ItineraryImageSerializer(data=request.data, context=self.get_serializer_context())
         ser.is_valid(raise_exception=True)
+        # Validação de segurança (tamanho, extensão × magic bytes, anti image-bomb,
+        # re-processamento que remove metadados/payloads) — mesma dos passageiros.
+        from passengers.validators import validate_document_file
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_document_file(ser.validated_data['image'],
+                                   allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         kind = ser.validated_data.get('kind') or 'gallery'
         if day is not None:
             kind = 'gallery'

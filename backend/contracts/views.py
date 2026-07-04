@@ -299,6 +299,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # Permite renderizar no iframe da mesma origem (X_FRAME_OPTIONS é DENY por
         # padrão). O middleware não sobrescreve um header já definido.
         resp['X-Frame-Options'] = 'SAMEORIGIN'
+        resp['X-Content-Type-Options'] = 'nosniff'
         return resp
 
     @action(detail=True, methods=['get'], url_path='receipt')
@@ -314,6 +315,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                             f'Baixou o comprovante de pagamento do contrato #{contract.id}')
         resp = FileResponse(contract.payment_receipt.open('rb'), as_attachment=False, filename=fname)
         resp['X-Frame-Options'] = 'SAMEORIGIN'
+        resp['X-Content-Type-Options'] = 'nosniff'
         return resp
 
     @action(detail=True, methods=['post'], url_path='reopen')

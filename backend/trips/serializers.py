@@ -7,6 +7,18 @@ class DestinationSerializer(serializers.ModelSerializer):
         model  = Destination
         fields = ['id', 'name', 'country', 'description', 'image']
 
+    def validate_image(self, value):
+        # Mesma validação segura dos demais uploads (tamanho, magic bytes,
+        # anti image-bomb, re-processamento que remove metadados/payloads).
+        if value:
+            from passengers.validators import validate_document_file
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            try:
+                validate_document_file(value, allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
+            except DjangoValidationError as e:
+                raise serializers.ValidationError(e.messages)
+        return value
+
 
 class TripListSerializer(serializers.ModelSerializer):
     destination_name    = serializers.CharField(source='destination.name', read_only=True)
