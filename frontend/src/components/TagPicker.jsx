@@ -18,7 +18,7 @@ import { computeAnchor } from '../utils/dropdownAnchor'
  *                "+ Criar 'X'" quando a busca não encontra nada com esse nome
  *   placeholder
  */
-export default function TagPicker({ selected = [], onRemove, onAdd, search, onCreate, placeholder = 'Buscar…' }) {
+export default function TagPicker({ selected = [], onRemove, onAdd, search, onCreate, placeholder = 'Buscar…', popup = false }) {
   const [open,    setOpen]    = useState(false)
   const [query,   setQuery]   = useState('')
   const [options, setOptions] = useState([])
@@ -50,13 +50,13 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
   }
 
   const toggleOpen = () => {
-    if (!open) reposition()
+    if (!open && !popup) reposition()
     setQuery('')
     setOpen(o => !o)
   }
 
   useEffect(() => {
-    if (!open) return
+    if (!open || popup) return
     window.addEventListener('scroll', reposition, true)
     window.addEventListener('resize', reposition)
     return () => {
@@ -83,6 +83,37 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
       setCreating(false)
     }
   }
+
+  // Conteúdo compartilhado (dropdown OU popup): campo de busca + lista + "criar".
+  const searchInput = (
+    <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
+      style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+  )
+  const listBody = (
+    <>
+      {filteredOptions.length === 0 && !showCreate && (
+        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12.5, padding: '12px 0', margin: 0 }}>
+          {query ? 'Nenhum resultado.' : 'Digite para buscar…'}
+        </p>
+      )}
+      {filteredOptions.map(opt => (
+        <div key={opt.id} onMouseDown={e => { e.preventDefault(); pick(opt) }}
+          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f8fafc' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+          onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+          {opt.label}
+        </div>
+      ))}
+      {showCreate && (
+        <div onMouseDown={e => { e.preventDefault(); handleCreate() }}
+          style={{ padding: '8px 12px', cursor: creating ? 'default' : 'pointer', fontSize: 13, color: '#1a2d4f', fontWeight: 600, borderTop: filteredOptions.length ? '1px solid #f1f5f9' : 'none' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+          onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+          {creating ? 'Criando…' : `+ Criar "${trimmedQuery}"`}
+        </div>
+      )}
+    </>
+  )
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
@@ -111,40 +142,26 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
       </button>
 
       {open && createPortal(
-        <div data-tagpicker-drop
-          style={{
-            ...dropStyle, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
-            zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,.14)', overflow: 'hidden',
-            display: 'flex', flexDirection: 'column',
-          }}>
-          <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
-          </div>
-          <div style={{ overflowY: 'auto' }}>
-            {filteredOptions.length === 0 && !showCreate && (
-              <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12.5, padding: '12px 0', margin: 0 }}>
-                {query ? 'Nenhum resultado.' : 'Digite para buscar…'}
-              </p>
-            )}
-            {filteredOptions.map(opt => (
-              <div key={opt.id} onMouseDown={e => { e.preventDefault(); pick(opt) }}
-                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f8fafc' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                {opt.label}
+        popup ? (
+          <div onMouseDown={e => { if (e.target === e.currentTarget) setOpen(false) }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div data-tagpicker-drop
+              style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 440, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{placeholder}</span>
+                <button type="button" onClick={() => setOpen(false)} title="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
               </div>
-            ))}
-            {showCreate && (
-              <div onMouseDown={e => { e.preventDefault(); handleCreate() }}
-                style={{ padding: '8px 12px', cursor: creating ? 'default' : 'pointer', fontSize: 13, color: '#1a2d4f', fontWeight: 600, borderTop: filteredOptions.length ? '1px solid #f1f5f9' : 'none' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                {creating ? 'Criando…' : `+ Criar "${trimmedQuery}"`}
-              </div>
-            )}
+              <div style={{ padding: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>{searchInput}</div>
+              <div style={{ overflowY: 'auto', flex: 1 }}>{listBody}</div>
+            </div>
           </div>
-        </div>,
+        ) : (
+          <div data-tagpicker-drop
+            style={{ ...dropStyle, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,.14)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: 8, borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>{searchInput}</div>
+            <div style={{ overflowY: 'auto' }}>{listBody}</div>
+          </div>
+        ),
         document.body
       )}
     </div>

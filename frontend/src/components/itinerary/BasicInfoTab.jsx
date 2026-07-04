@@ -58,7 +58,7 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
           onChange={v => setData(d => ({ ...d, end_date: v }))} />
       </FormRow>
       <FormRow label="Palavras-chave" last>
-        <TagPicker placeholder="Buscar ou criar palavra-chave…" search={searchKw} onCreate={createKw}
+        <TagPicker popup placeholder="Buscar ou criar palavra-chave…" search={searchKw} onCreate={createKw}
           selected={kwChips}
           onAdd={it => canEdit && addKw(it.id, it.raw)}
           onRemove={id => canEdit && removeKw(id)} />
