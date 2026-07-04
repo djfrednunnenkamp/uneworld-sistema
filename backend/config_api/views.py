@@ -19,7 +19,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
-                     ConfigInclusion, ConfigHighlight)
+                     ConfigInclusion, ConfigHighlight, ConfigSpecialDate)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -905,6 +905,23 @@ class HighlightViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ConfigHighlight.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class SpecialDateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigSpecialDate
+        fields = ['id', 'name']
+
+
+class SpecialDateViewSet(viewsets.ModelViewSet):
+    serializer_class = SpecialDateSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_special_dates')
+
+    def get_queryset(self):
+        qs = ConfigSpecialDate.objects.all()
         q = self.request.query_params.get('q', '').strip()
         return qs.filter(name__icontains=q) if q else qs
 

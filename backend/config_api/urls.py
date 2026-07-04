@@ -31,6 +31,7 @@ router.register('currencies',           views.CurrencyViewSet,           basenam
 router.register('keywords',              views.KeywordViewSet,            basename='keyword')
 router.register('inclusions',            views.InclusionViewSet,          basename='inclusion')
 router.register('highlights',            views.HighlightViewSet,          basename='highlight')
+router.register('special-dates',         views.SpecialDateViewSet,        basename='special-date')
 router.register('continents',           views.ContinentViewSet,          basename='continent')
 
 urlpatterns = [

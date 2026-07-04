@@ -667,6 +667,20 @@ class ConfigHighlight(models.Model):
         return self.name
 
 
+class ConfigSpecialDate(models.Model):
+    """Data especial de um pacote/roteiro (ex.: Réveillon, Carnaval, Natal,
+    Semana Santa). Cadastrada em Configurações e escolhida nos roteiros."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Data especial'
+        verbose_name_plural = 'Datas especiais'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigCurrency(models.Model):
     """Moeda como LISTA de referência (código ISO-4217 + símbolo). Criada para
     substituir, no futuro, o choices fixo EUR/USD/BRL. IMPORTANTE: NÃO altera

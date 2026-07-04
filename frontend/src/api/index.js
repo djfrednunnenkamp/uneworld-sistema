@@ -355,6 +355,10 @@ export const configApi = {
   addHighlight:  (name) => api.post('/config/highlights/', { name }),
   updateHighlight: (id, name) => api.patch(`/config/highlights/${id}/`, { name }),
   delHighlight:  (id)   => api.delete(`/config/highlights/${id}/`),
+  specialDates:  () => api.get('/config/special-dates/'),
+  addSpecialDate: (name) => api.post('/config/special-dates/', { name }),
+  updateSpecialDate: (id, name) => api.patch(`/config/special-dates/${id}/`, { name }),
+  delSpecialDate: (id)  => api.delete(`/config/special-dates/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

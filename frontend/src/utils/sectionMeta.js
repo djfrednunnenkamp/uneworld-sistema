@@ -28,6 +28,8 @@ export const CARD_META = {
   keywords:        { icon: 'mapicon',   hue: 260, desc: 'Palavras-chave (tags) usadas para classificar os roteiros.' },
   inclusions:      { icon: 'check',     hue: 150, desc: 'Itens que podem estar inclusos nos pacotes/roteiros.' },
   highlights:      { icon: 'star',      hue: 45,  desc: 'Destaques que aparecem nos pacotes/roteiros.' },
+  itinerary_types: { icon: 'mapicon',   hue: 200, desc: 'Tipos de roteiro (ex.: Aéreo, Marítimo, Cruzeiro).' },
+  special_dates:   { icon: 'calendar',  hue: 12,  desc: 'Datas especiais dos roteiros (ex.: Réveillon, Carnaval, Natal).' },
   itinerary_categories: { icon: 'mapicon', hue: 190, desc: 'Categorias para classificar os roteiros (ex: Grupos Internacionais).' },
   continents:      { icon: 'globe',     hue: 200, desc: 'Continentes vinculados aos roteiros.' },
 }

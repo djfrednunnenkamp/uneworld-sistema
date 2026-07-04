@@ -51,6 +51,10 @@ class Itinerary(models.Model):
                                                related_name='itineraries', verbose_name='Inclusos no pacote')
     highlights       = models.ManyToManyField('config_api.ConfigHighlight', blank=True,
                                                related_name='itineraries', verbose_name='Destaques')
+    itinerary_types  = models.ManyToManyField('config_api.ConfigItineraryType', blank=True,
+                                               related_name='typed_itineraries', verbose_name='Tipos de roteiro')
+    special_dates    = models.ManyToManyField('config_api.ConfigSpecialDate', blank=True,
+                                               related_name='itineraries', verbose_name='Datas especiais')
 
     # ── Financeiro ──
     CURRENCY_CHOICES = [

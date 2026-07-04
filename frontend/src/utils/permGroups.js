@@ -390,6 +390,14 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Datas Especiais', icon: 'calendar', hue: 12,
+        items: [
+          ['settings_special_dates_view',   'Ver datas especiais'],
+          ['settings_special_dates_edit',   'Criar / Editar datas especiais'],
+          ['settings_special_dates_delete', 'Excluir datas especiais'],
+        ],
+      },
+      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],

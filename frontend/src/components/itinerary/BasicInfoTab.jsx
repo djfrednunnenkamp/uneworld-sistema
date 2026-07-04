@@ -75,6 +75,48 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
     return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
   }
 
+  // Tipos de roteiro: multi-seleção reusando a lista Configurações › Tipos de Roteiro.
+  const [allIt, setAllIt] = useState([])
+  useEffect(() => { configApi.itineraryTypes().then(r => setAllIt(r.data.results ?? r.data)).catch(() => {}) }, [])
+
+  const itChips = (data.itinerary_types_data || []).map(x => ({ id: x.id, label: x.name }))
+  const addIt = (id, raw) => setData(d => (d.itinerary_types || []).includes(id) ? d
+    : ({ ...d, itinerary_types: [...(d.itinerary_types || []), id], itinerary_types_data: [...(d.itinerary_types_data || []), raw] }))
+  const removeIt = (id) => setData(d => ({
+    ...d, itinerary_types: (d.itinerary_types || []).filter(x => x !== id), itinerary_types_data: (d.itinerary_types_data || []).filter(x => x.id !== id),
+  }))
+  const searchIt = async (q) => {
+    const s = (q || '').toLowerCase(); const sel = new Set(data.itinerary_types || [])
+    return allIt.filter(x => !sel.has(x.id) && (!s || x.name.toLowerCase().includes(s))).slice(0, 40)
+      .map(x => ({ id: x.id, label: x.name, raw: { id: x.id, name: x.name } }))
+  }
+  const createIt = async (name) => {
+    const r = await configApi.addItineraryType(name)
+    setAllIt(a => [...a, r.data])
+    return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
+  }
+
+  // Datas especiais: multi-seleção da lista Configurações › Datas Especiais.
+  const [allSd, setAllSd] = useState([])
+  useEffect(() => { configApi.specialDates().then(r => setAllSd(r.data.results ?? r.data)).catch(() => {}) }, [])
+
+  const sdChips = (data.special_dates_data || []).map(x => ({ id: x.id, label: x.name }))
+  const addSd = (id, raw) => setData(d => (d.special_dates || []).includes(id) ? d
+    : ({ ...d, special_dates: [...(d.special_dates || []), id], special_dates_data: [...(d.special_dates_data || []), raw] }))
+  const removeSd = (id) => setData(d => ({
+    ...d, special_dates: (d.special_dates || []).filter(x => x !== id), special_dates_data: (d.special_dates_data || []).filter(x => x.id !== id),
+  }))
+  const searchSd = async (q) => {
+    const s = (q || '').toLowerCase(); const sel = new Set(data.special_dates || [])
+    return allSd.filter(x => !sel.has(x.id) && (!s || x.name.toLowerCase().includes(s))).slice(0, 40)
+      .map(x => ({ id: x.id, label: x.name, raw: { id: x.id, name: x.name } }))
+  }
+  const createSd = async (name) => {
+    const r = await configApi.addSpecialDate(name)
+    setAllSd(a => [...a, r.data])
+    return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
+  }
+
   return (
     <TabCard>
       <FormRow label="Nome da viagem">
@@ -129,11 +171,23 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
           onAdd={it => canEdit && addInc(it.id, it.raw)}
           onRemove={id => canEdit && removeInc(id)} />
       </FormRow>
-      <FormRow label="Destaques" last>
+      <FormRow label="Destaques">
         <TagPicker popup placeholder="Buscar ou criar destaque…" search={searchHl} onCreate={createHl}
           selected={hlChips}
           onAdd={it => canEdit && addHl(it.id, it.raw)}
           onRemove={id => canEdit && removeHl(id)} />
+      </FormRow>
+      <FormRow label="Tipos de roteiro">
+        <TagPicker popup placeholder="Buscar ou criar tipo de roteiro…" search={searchIt} onCreate={createIt}
+          selected={itChips}
+          onAdd={it => canEdit && addIt(it.id, it.raw)}
+          onRemove={id => canEdit && removeIt(id)} />
+      </FormRow>
+      <FormRow label="Datas especiais" last>
+        <TagPicker popup placeholder="Buscar ou criar data especial…" search={searchSd} onCreate={createSd}
+          selected={sdChips}
+          onAdd={it => canEdit && addSd(it.id, it.raw)}
+          onRemove={id => canEdit && removeSd(id)} />
       </FormRow>
     </TabCard>
   )

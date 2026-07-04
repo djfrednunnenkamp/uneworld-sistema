@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight
+from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate
 from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryDocument
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -66,6 +66,18 @@ class HighlightMiniSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
+class ItineraryTypeMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ConfigItineraryType
+        fields = ['id', 'name']
+
+
+class SpecialDateMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ConfigSpecialDate
+        fields = ['id', 'name']
+
+
 class ItineraryImageSerializer(serializers.ModelSerializer):
     """Imagem da galeria do roteiro OU de um dia. O arquivo (image) é OBRIGATÓRIO.
     Usada na leitura aninhada e na action de upload (multipart) do viewset."""
@@ -120,6 +132,10 @@ class ItinerarySerializer(serializers.ModelSerializer):
     inclusions_data = InclusionMiniSerializer(source='inclusions', many=True, read_only=True)
     highlights      = serializers.PrimaryKeyRelatedField(queryset=ConfigHighlight.objects.all(), many=True, required=False)
     highlights_data = HighlightMiniSerializer(source='highlights', many=True, read_only=True)
+    itinerary_types      = serializers.PrimaryKeyRelatedField(queryset=ConfigItineraryType.objects.all(), many=True, required=False)
+    itinerary_types_data = ItineraryTypeMiniSerializer(source='itinerary_types', many=True, read_only=True)
+    special_dates        = serializers.PrimaryKeyRelatedField(queryset=ConfigSpecialDate.objects.all(), many=True, required=False)
+    special_dates_data   = SpecialDateMiniSerializer(source='special_dates', many=True, read_only=True)
     days          = ItineraryDaySerializer(many=True, required=False)      # gravável (upsert)
     images        = serializers.SerializerMethodField()                    # só galeria (dia nulo)
     documents     = ItineraryDocumentSerializer(many=True, read_only=True) # leitura; escrita via action
@@ -175,6 +191,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'airports', 'airports_data', 'keywords', 'keywords_data',
                   'inclusions', 'inclusions_data',
                   'highlights', 'highlights_data',
+                  'itinerary_types', 'itinerary_types_data',
+                  'special_dates', 'special_dates_data',
                   'days', 'images', 'documents',
                   'status',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
