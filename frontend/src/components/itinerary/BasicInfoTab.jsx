@@ -3,11 +3,24 @@ import Dropdown from '../Dropdown'
 import DatePicker from '../DatePicker'
 import TagPicker from '../TagPicker'
 import { configApi } from '../../api'
-import { FormRow, TabCard } from './ui'
 import { inp, TYPE_OPTS } from './constants'
 
-/* Aba "Informações Básicas": Nome, Slug, Categoria, Tipo, Início, Término e
-   Palavras-chave (tags do roteiro, buscadas/criadas via Configurações). */
+const flabel = { fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }
+
+/* Campo do formulário em grid: rótulo em cima, campo embaixo. `full` ocupa as
+   duas colunas. */
+function Field({ label, children, full }) {
+  return (
+    <div style={{ gridColumn: full ? '1 / -1' : 'auto', minWidth: 0 }}>
+      <label style={flabel}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+/* "Informações Básicas" (exibida num pop-up, em duas colunas): Nome, Slug,
+   Categoria, Tipo, datas, e os seletores de tags (palavras-chave, inclusos,
+   destaques, tipos de roteiro, datas especiais). */
 function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
   const set = (k) => (e) => setData(d => ({ ...d, [k]: e.target.value }))
 
@@ -118,23 +131,39 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
   }
 
   return (
-    <TabCard>
-      <FormRow label="Nome da viagem">
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 24px' }}>
+      <Field label="Nome da viagem" full>
         <input style={inp} value={data.name || ''} disabled={!canEdit} onChange={set('name')} />
-      </FormRow>
-      <FormRow label="Slug">
+      </Field>
+      <Field label="Slug" full>
         <input style={inp} value={data.slug || ''} disabled={!canEdit} onChange={set('slug')} />
-      </FormRow>
-      <FormRow label="Categoria">
+      </Field>
+      <Field label="Categoria">
         <Dropdown value={data.category} options={categoryOptions} disabled={!canEdit}
           onChange={v => setData(d => ({ ...d, category: v }))} placeholder="— Selecione —" />
-      </FormRow>
-      <FormRow label="Tipo">
+      </Field>
+      <Field label="Tipo">
         <Dropdown value={data.trip_type} options={TYPE_OPTS} disabled={!canEdit}
           onChange={v => setData(d => ({ ...d, trip_type: v }))} />
-      </FormRow>
-      <FormRow label="Produto próprio da UneWorld">
-        <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+      </Field>
+      <Field label="Data de início">
+        <DatePicker value={data.start_date} relatedDate={data.end_date || null} disabled={!canEdit} fixed
+          onChange={v => setData(d => ({ ...d, start_date: v }))} />
+      </Field>
+      <Field label="Data de término">
+        <DatePicker value={data.end_date} relatedDate={data.start_date || null} disabled={!canEdit} fixed
+          onChange={v => setData(d => ({ ...d, end_date: v }))} />
+      </Field>
+      <Field label="Total de noites">
+        <input style={{ ...inp, background: '#f1f5f9', color: '#475569', cursor: 'not-allowed' }} readOnly disabled
+          value={(() => {
+            if (!data.start_date || !data.end_date) return '—'
+            const n = Math.round((new Date(data.end_date) - new Date(data.start_date)) / 86400000)
+            return n >= 0 ? `${n} ${n === 1 ? 'noite' : 'noites'}` : '—'
+          })()} />
+      </Field>
+      <Field label="Produto próprio da UneWorld">
+        <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default', height: 36 }}>
           <span className="toggle">
             <input type="checkbox" checked={data.is_own_product !== false} disabled={!canEdit}
               onChange={e => setData(d => ({ ...d, is_own_product: e.target.checked }))} />
@@ -142,54 +171,38 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
           </span>
           <span className="toggle-label">{data.is_own_product !== false ? 'Sim — produto próprio' : 'Não — de terceiro/parceiro'}</span>
         </label>
-      </FormRow>
-      <FormRow label="Data de início">
-        <DatePicker value={data.start_date} relatedDate={data.end_date || null} disabled={!canEdit} fixed
-          onChange={v => setData(d => ({ ...d, start_date: v }))} />
-      </FormRow>
-      <FormRow label="Data de término">
-        <DatePicker value={data.end_date} relatedDate={data.start_date || null} disabled={!canEdit} fixed
-          onChange={v => setData(d => ({ ...d, end_date: v }))} />
-      </FormRow>
-      <FormRow label="Total de noites">
-        <input style={{ ...inp, background: '#f1f5f9', color: '#475569', cursor: 'not-allowed' }} readOnly disabled
-          value={(() => {
-            if (!data.start_date || !data.end_date) return '—'
-            const n = Math.round((new Date(data.end_date) - new Date(data.start_date)) / 86400000)
-            return n >= 0 ? `${n} ${n === 1 ? 'noite' : 'noites'}` : '—'
-          })()} />
-      </FormRow>
-      <FormRow label="Palavras-chave">
+      </Field>
+      <Field label="Palavras-chave">
         <TagPicker popup placeholder="Buscar ou criar palavra-chave…" search={searchKw} onCreate={createKw}
           selected={kwChips}
           onAdd={it => canEdit && addKw(it.id, it.raw)}
           onRemove={id => canEdit && removeKw(id)} />
-      </FormRow>
-      <FormRow label="Inclusos">
+      </Field>
+      <Field label="Inclusos">
         <TagPicker popup placeholder="Buscar ou criar item incluso…" search={searchInc} onCreate={createInc}
           selected={incChips}
           onAdd={it => canEdit && addInc(it.id, it.raw)}
           onRemove={id => canEdit && removeInc(id)} />
-      </FormRow>
-      <FormRow label="Destaques">
+      </Field>
+      <Field label="Destaques">
         <TagPicker popup placeholder="Buscar ou criar destaque…" search={searchHl} onCreate={createHl}
           selected={hlChips}
           onAdd={it => canEdit && addHl(it.id, it.raw)}
           onRemove={id => canEdit && removeHl(id)} />
-      </FormRow>
-      <FormRow label="Tipos de roteiro">
+      </Field>
+      <Field label="Tipos de roteiro">
         <TagPicker popup placeholder="Buscar ou criar tipo de roteiro…" search={searchIt} onCreate={createIt}
           selected={itChips}
           onAdd={it => canEdit && addIt(it.id, it.raw)}
           onRemove={id => canEdit && removeIt(id)} />
-      </FormRow>
-      <FormRow label="Datas especiais" last>
+      </Field>
+      <Field label="Datas especiais" full>
         <TagPicker popup placeholder="Buscar ou criar data especial…" search={searchSd} onCreate={createSd}
           selected={sdChips}
           onAdd={it => canEdit && addSd(it.id, it.raw)}
           onRemove={id => canEdit && removeSd(id)} />
-      </FormRow>
-    </TabCard>
+      </Field>
+    </div>
   )
 }
 

@@ -13,7 +13,7 @@ import { normalizeItinerary } from '../components/itinerary/paymentPlan'
 
 /* Abas carregadas sob demanda (code-splitting): o JS de cada aba só é baixado
    quando ela é aberta pela primeira vez, e só a aba ativa fica montada. */
-const BasicInfoTab     = lazy(() => import('../components/itinerary/BasicInfoTab'))
+const BasicInfoModal   = lazy(() => import('../components/itinerary/BasicInfoModal'))
 const DestinosTab      = lazy(() => import('../components/itinerary/DestinosTab'))
 const AccommodationTab = lazy(() => import('../components/itinerary/AccommodationTab'))
 const PaymentsTab      = lazy(() => import('../components/itinerary/PaymentsTab'))
@@ -25,7 +25,6 @@ const PlaceholderTab   = lazy(() => import('../components/itinerary/PlaceholderT
 /* Registro das abas (nova IA). Campos existentes: basic, destinos, datas, valores,
    pagamentos, regras. As demais são placeholders até receberem seus campos. */
 const TABS = [
-  { key: 'basic',       label: 'Informações Básicas' },
   { key: 'destinos',    label: 'Destinos' },
   { key: 'valores',     label: 'Valores' },
   { key: 'pagamentos',  label: 'Pagamentos' },
@@ -49,10 +48,11 @@ export default function ItineraryDetail() {
   const { user } = useAuth()
   const perms   = user?.permissions ?? {}
   const canEdit = !!user?.is_superuser || perms.roteiros_edit
-  const [tab, setTab] = usePersistedTab('tab_itinerary_detail', 'basic')
+  const [tab, setTab] = usePersistedTab('tab_itinerary_detail', 'destinos')
 
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
+  const [showBasic, setShowBasic] = useState(false)   // pop-up de Informações básicas
   const [data,    setData]    = useState(null)
   const [categories, setCategories] = useState([])
   const [continents, setContinents] = useState([])
@@ -186,11 +186,10 @@ export default function ItineraryDetail() {
 
   const categoryLabel  = categories.find(c => c.id === data.category)?.name
   const continentLabel = continents.find(c => c.id === data.continent)?.name
-  const activeKey = TABS.some(t => t.key === tab) ? tab : 'basic'
+  const activeKey = TABS.some(t => t.key === tab) ? tab : 'destinos'
 
   const renderTab = () => {
     switch (activeKey) {
-      case 'basic':      return <BasicInfoTab     data={data} setData={editData} canEdit={canEdit} categoryOptions={categoryOptions} />
       case 'destinos':   return <DestinosTab      data={data} setData={editData} canEdit={canEdit} continentOptions={continentOptions} />
       case 'valores':    return <AccommodationTab data={data} setData={editData} canEdit={canEdit} accommodationOptions={accommodationOptions} />
       case 'pagamentos': return <PaymentsTab      data={data} setData={editData} canEdit={canEdit} paymentPlanOpts={paymentPlanOpts} paymentMethodOpts={paymentMethodOpts} reloadPaymentPlans={reloadPaymentPlans} />
@@ -218,6 +217,10 @@ export default function ItineraryDetail() {
           </div>
         </div>
         <div className="ph-actions" style={{ alignItems: 'center', gap: 8 }}>
+          <button type="button" onClick={() => setShowBasic(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Ic n="list" s={13} />Informações básicas
+          </button>
           {canEdit && isRascunho && (
             <button type="button" onClick={saveDraft} disabled={saving}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -251,6 +254,14 @@ export default function ItineraryDetail() {
       <Suspense fallback={<TabLoading />}>
         {renderTab()}
       </Suspense>
+
+      {/* Pop-up de Informações básicas (2 colunas) */}
+      {showBasic && (
+        <Suspense fallback={null}>
+          <BasicInfoModal data={data} setData={editData} canEdit={canEdit}
+            categoryOptions={categoryOptions} onClose={() => setShowBasic(false)} />
+        </Suspense>
+      )}
 
       {/* Confirmação ao sair — MESMO modal dos contratos (LeaveGuardModal) */}
       {leavePrompt && (
