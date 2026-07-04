@@ -131,7 +131,7 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 24px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '11px 24px' }}>
       <Field label="Nome da viagem" full>
         <input style={inp} value={data.name || ''} disabled={!canEdit} onChange={set('name')} />
       </Field>
