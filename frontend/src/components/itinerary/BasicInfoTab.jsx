@@ -162,28 +162,28 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
             return n >= 0 ? `${n} ${n === 1 ? 'noite' : 'noites'}` : '—'
           })()} />
       </Field>
-      {/* Coluna da direita: os dois toggles empilhados na mesma linha do Total de noites. */}
-      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={flabel}>Produto próprio da UneWorld</label>
+      {/* Coluna da direita: os dois toggles lado a lado, na mesma linha do Total de noites. */}
+      <div style={{ minWidth: 0, display: 'flex', gap: 16 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <label style={{ ...flabel, fontSize: 11 }}>Produto próprio da UneWorld</label>
           <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default', height: 36 }}>
             <span className="toggle">
               <input type="checkbox" checked={data.is_own_product !== false} disabled={!canEdit}
                 onChange={e => setData(d => ({ ...d, is_own_product: e.target.checked }))} />
               <span className="toggle-slider" />
             </span>
-            <span className="toggle-label">{data.is_own_product !== false ? 'Sim — produto próprio' : 'Não — de terceiro/parceiro'}</span>
+            <span className="toggle-label" style={{ fontSize: 11.5 }}>{data.is_own_product !== false ? 'Sim — próprio' : 'Não — terceiro'}</span>
           </label>
         </div>
-        <div>
-          <label style={flabel}>Destaque do roteiro</label>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <label style={{ ...flabel, fontSize: 11 }}>Destaque do roteiro</label>
           <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default', height: 36 }}>
             <span className="toggle">
               <input type="checkbox" checked={data.is_featured === true} disabled={!canEdit}
                 onChange={e => setData(d => ({ ...d, is_featured: e.target.checked }))} />
               <span className="toggle-slider" />
             </span>
-            <span className="toggle-label">{data.is_featured === true ? 'Sim — em destaque' : 'Não'}</span>
+            <span className="toggle-label" style={{ fontSize: 11.5 }}>{data.is_featured === true ? 'Sim — em destaque' : 'Não'}</span>
           </label>
         </div>
       </div>
