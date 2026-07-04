@@ -110,6 +110,22 @@ class Itinerary(models.Model):
     # conteúdo do roteiro em si).
     notes              = models.TextField('Observações', blank=True, default='')
 
+    # Vínculo vivo com templates (por campo): _template = template de origem;
+    # _template_linked = se True, editar o template nas Configurações reaplica o
+    # texto aqui. Editar o texto à mão desliga o vínculo (feito no frontend).
+    info_included_template          = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_included_template_linked   = models.BooleanField(default=False)
+    info_not_included_template      = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_not_included_template_linked = models.BooleanField(default=False)
+    info_optionals_template         = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_optionals_template_linked  = models.BooleanField(default=False)
+    info_tips_template              = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_tips_template_linked       = models.BooleanField(default=False)
+    info_documents_template         = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_documents_template_linked  = models.BooleanField(default=False)
+    info_promo_rules_template       = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_promo_rules_template_linked = models.BooleanField(default=False)
+
     # Rascunho (autosalvo / não finalizado) vs Ativo. A lista mostra só ativos;
     # rascunhos aparecem num popup à parte. 'Salvar' no detalhe finaliza (ativo).
     STATUS_CHOICES = [('rascunho', 'Rascunho'), ('ativo', 'Ativo')]
@@ -223,3 +239,46 @@ class ItineraryImage(models.Model):
 
     def __str__(self):
         return f'{self.itinerary_id} · img {self.pk}'
+
+
+class ItineraryFieldTemplate(models.Model):
+    """Template reutilizável para os campos de texto da aba 'Informações do
+    Roteiro'. Cada template pertence a UM campo. Ao ser editado nas Configurações,
+    reaplica o conteúdo aos roteiros vinculados (vínculo vivo ligado)."""
+    FIELD_CHOICES = [
+        ('included',     'Incluso no Pacote'),
+        ('not_included', 'Não Incluso no Pacote'),
+        ('optionals',    'Opcionais'),
+        ('tips',         'Dicas de Viagem'),
+        ('documents',    'Documentos Necessários'),
+        ('promo_rules',  'Regras Promoção'),
+    ]
+    # field -> (coluna de conteúdo, coluna do FK, coluna do vínculo) no Itinerary.
+    FIELD_COLUMNS = {
+        'included':     ('info_included',     'info_included_template',     'info_included_template_linked'),
+        'not_included': ('info_not_included', 'info_not_included_template', 'info_not_included_template_linked'),
+        'optionals':    ('info_optionals',    'info_optionals_template',    'info_optionals_template_linked'),
+        'tips':         ('info_tips',         'info_tips_template',         'info_tips_template_linked'),
+        'documents':    ('info_documents',    'info_documents_template',    'info_documents_template_linked'),
+        'promo_rules':  ('info_promo_rules',  'info_promo_rules_template',  'info_promo_rules_template_linked'),
+    }
+
+    field      = models.CharField('Campo', max_length=20, choices=FIELD_CHOICES, db_index=True)
+    name       = models.CharField('Nome do template', max_length=200)
+    content    = models.TextField('Conteúdo', blank=True, default='')
+    order      = models.PositiveIntegerField('Ordem', default=0)
+    created_at = models.DateTimeField('Criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        ordering = ['field', 'order', 'name']
+        verbose_name = 'Template de campo do roteiro'
+        verbose_name_plural = 'Templates de campos do roteiro'
+
+    def __str__(self):
+        return f'{self.get_field_display()} · {self.name}'
+
+    def apply_to_linked(self):
+        """Reaplica este conteúdo aos roteiros com vínculo vivo ligado a ele."""
+        content_col, fk_col, linked_col = self.FIELD_COLUMNS[self.field]
+        Itinerary.objects.filter(**{fk_col: self, linked_col: True}).update(**{content_col: self.content})

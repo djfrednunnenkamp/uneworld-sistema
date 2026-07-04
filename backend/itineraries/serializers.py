@@ -2,9 +2,15 @@ from django.db import transaction
 from rest_framework import serializers
 
 from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent
-from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage
+from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryFieldTemplate
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
+
+
+class ItineraryFieldTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ItineraryFieldTemplate
+        fields = ['id', 'field', 'name', 'content', 'order']
 
 
 class ItineraryAccommodationLineSerializer(serializers.ModelSerializer):
@@ -189,6 +195,13 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_general', 'info_included', 'info_not_included', 'info_optionals',
                   'info_tips', 'info_documents', 'info_promo_rules',
                   'notes',
+                  # Vínculo vivo com templates (por campo): FK + toggle.
+                  'info_included_template', 'info_included_template_linked',
+                  'info_not_included_template', 'info_not_included_template_linked',
+                  'info_optionals_template', 'info_optionals_template_linked',
+                  'info_tips_template', 'info_tips_template_linked',
+                  'info_documents_template', 'info_documents_template_linked',
+                  'info_promo_rules_template', 'info_promo_rules_template_linked',
                   # novos:
                   'itinerary_type', 'itinerary_type_name',
                   'maritime_company', 'maritime_company_name',

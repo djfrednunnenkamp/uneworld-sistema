@@ -7,9 +7,32 @@ from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
-from .models import Itinerary, ItineraryImage
+from .models import Itinerary, ItineraryImage, ItineraryFieldTemplate
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
-                          ItineraryImageSerializer)
+                          ItineraryImageSerializer, ItineraryFieldTemplateSerializer)
+
+
+class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):
+    """CRUD dos templates de campo (aba Informações do Roteiro). Ler é liberado a
+    quem edita roteiros (para escolher no dropdown); criar/editar/excluir exige
+    quem gerencia Configurações. Ao editar um template, o texto é reaplicado aos
+    roteiros vinculados (vínculo vivo)."""
+    serializer_class = ItineraryFieldTemplateSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [RequirePermission('manage_settings', 'roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+        return [RequirePermission('manage_settings')()]
+
+    def get_queryset(self):
+        qs = ItineraryFieldTemplate.objects.all()
+        field = self.request.query_params.get('field')
+        return qs.filter(field=field) if field else qs
+
+    def perform_update(self, serializer):
+        template = serializer.save()
+        template.apply_to_linked()   # propaga o novo conteúdo aos roteiros vinculados
 
 
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
