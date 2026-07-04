@@ -113,13 +113,21 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
         <div key={`sel-${item.id}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onRemove(item.id) }}
           style={{ ...rowStyle, background: '#f0f6ff', fontWeight: 600 }}
           onMouseEnter={e => e.currentTarget.style.background = '#e6f0fb'} onMouseLeave={e => e.currentTarget.style.background = '#f0f6ff'}>
-          {checkbox(true)}<span>{item.label}</span>
+          {checkbox(true)}
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+            <span>{item.label}</span>
+            {item.sublabel && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>{item.sublabel}</span>}
+          </span>
         </div>
       ))}
       {filteredOptions.map(opt => (
         <div key={opt.id} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); pick(opt) }} style={rowStyle}
           onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-          {checkbox(false)}<span>{opt.label}</span>
+          {checkbox(false)}
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+            <span>{opt.label}</span>
+            {opt.sublabel && <span style={{ fontSize: 11, color: '#94a3b8' }}>{opt.sublabel}</span>}
+          </span>
         </div>
       ))}
       {showCreate && (

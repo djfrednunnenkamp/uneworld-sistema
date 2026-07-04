@@ -28,12 +28,13 @@ class ItineraryAccommodationLineSerializer(serializers.ModelSerializer):
 
 class CityMiniSerializer(serializers.ModelSerializer):
     """Leitura resumida de cidade (reusa ConfigCity: Cidade→Estado→País)."""
-    state_name   = serializers.CharField(source='state.name', read_only=True, default=None)
-    country_name = serializers.CharField(source='state.country.name', read_only=True, default=None)
+    state_name     = serializers.CharField(source='state.name', read_only=True, default=None)
+    country_name   = serializers.CharField(source='state.country.name', read_only=True, default=None)
+    continent_name = serializers.CharField(source='state.country.continent.name', read_only=True, default=None)
 
     class Meta:
         model  = ConfigCity
-        fields = ['id', 'name', 'state_name', 'country_name']
+        fields = ['id', 'name', 'state_name', 'country_name', 'continent_name']
 
 
 class CountryMiniSerializer(serializers.ModelSerializer):

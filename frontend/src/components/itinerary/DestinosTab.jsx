@@ -41,19 +41,18 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
     }
     return next
   })
-  // Cidades: se houver país(es) selecionado(s), lista as cidades desses países
-  // (navegável, mesmo sem digitar) e permite buscar por nome. Sem país
-  // selecionado, cai na busca global por nome (mín. 2 letras).
-  const mapCity = (c) => ({ id: c.id, label: c.country_name ? `${c.name} · ${c.country_name}` : c.name,
-                            raw: { id: c.id, name: c.name, country_name: c.country_name } })
+  // Subtítulo "Continente · País" (linha de baixo, menor).
+  const citySub = (c) => [c.continent_name, c.country_name].filter(Boolean).join(' · ')
+  // Cidades: nome na 1ª linha; "Continente · País" na 2ª. Lista navegável mesmo
+  // sem digitar (amostra do backend) e busca por nome; se houver país(es)
+  // selecionado(s), restringe a eles.
+  const mapCity = (c) => ({ id: c.id, label: c.name, sublabel: citySub(c),
+                            raw: { id: c.id, name: c.name, country_name: c.country_name, continent_name: c.continent_name } })
   const searchCities = async (q) => {
     const countryIds = data.countries || []
-    if (countryIds.length > 0) {
-      const r = await configApi.citiesByCountries(countryIds.join(','), q || '')
-      return notSelected('cities', r.data.results ?? r.data).map(mapCity)
-    }
-    if (!q || q.length < 2) return []
-    const r = await configApi.citySearch(q)
+    const r = countryIds.length > 0
+      ? await configApi.citiesByCountries(countryIds.join(','), q || '')
+      : await configApi.citySearch(q || '')
     return notSelected('cities', r.data.results ?? r.data).map(mapCity)
   }
   const chips = (dataKey, labelFn) => (data[dataKey] || []).map(x => ({ id: x.id, label: labelFn(x) }))
@@ -86,7 +85,7 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
 
       <FormRow label="Cidades" last>
         <TagPicker popup placeholder="Buscar cidade…" search={searchCities}
-          selected={chips('cities_data', c => c.country_name ? `${c.name} · ${c.country_name}` : c.name)}
+          selected={(data.cities_data || []).map(c => ({ id: c.id, label: c.name, sublabel: citySub(c) }))}
           onAdd={it => canEdit && addItem('cities', 'cities_data', it.id, it.raw)}
           onRemove={id => canEdit && removeItem('cities', 'cities_data', id)} />
       </FormRow>

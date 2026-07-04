@@ -1233,12 +1233,13 @@ class VaccineViewSet(viewsets.ModelViewSet):
 
 
 class CitySerializer(serializers.ModelSerializer):
-    state_name   = serializers.CharField(source='state.name', read_only=True, default=None)
-    country_name = serializers.CharField(source='state.country.name', read_only=True, default=None)
+    state_name     = serializers.CharField(source='state.name', read_only=True, default=None)
+    country_name   = serializers.CharField(source='state.country.name', read_only=True, default=None)
+    continent_name = serializers.CharField(source='state.country.continent.name', read_only=True, default=None)
 
     class Meta:
         model = ConfigCity
-        fields = ['id', 'name', 'state_name', 'country_name']
+        fields = ['id', 'name', 'state_name', 'country_name', 'continent_name']
 
 
 class CityViewSet(viewsets.ModelViewSet):
@@ -1249,7 +1250,7 @@ class CityViewSet(viewsets.ModelViewSet):
         state_id = self.request.query_params.get('state_id')
         country_ids = self.request.query_params.get('country_ids')
         q = self.request.query_params.get('q')
-        base = ConfigCity.objects.select_related('state__country')
+        base = ConfigCity.objects.select_related('state__country', 'state__country__continent')
         if state_id:
             return base.filter(state_id=state_id)
         # Filtro por país(es): lista as cidades dos países escolhidos no roteiro,
@@ -1259,10 +1260,12 @@ class CityViewSet(viewsets.ModelViewSet):
             qs = base.filter(state__country_id__in=ids)
             if q:
                 qs = qs.filter(name__icontains=q)
-            return qs.order_by('name')[:100]
+            return qs.order_by('name')[:200]
         if q:
-            return base.filter(name__icontains=q)[:50]
-        return ConfigCity.objects.none()
+            return base.filter(name__icontains=q).order_by('name')[:200]
+        # Sem país e sem busca: amostra inicial (há dezenas de milhares no total —
+        # o usuário refina digitando).
+        return base.order_by('name')[:200]
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})
 
