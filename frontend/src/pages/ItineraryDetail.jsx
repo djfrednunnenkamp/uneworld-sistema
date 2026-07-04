@@ -30,7 +30,6 @@ const TABS = [
   { key: 'valores',     label: 'Valores' },
   { key: 'pagamentos',  label: 'Pagamentos' },
   { key: 'imagens',     label: 'Imagens' },
-  { key: 'destaques',   label: 'Destaques' },
   { key: 'diaadia',     label: 'Roteiro Dia a Dia' },
   { key: 'naoinclusos', label: 'Não Inclusos' },
   { key: 'opcionais',   label: 'Opcionais' },
@@ -142,7 +141,7 @@ export default function ItineraryDetail() {
         a_vista_payment_method: data.a_vista_payment_method || '',
         // Novos M2M (arrays de ids) e dia-a-dia. Imagens/documentos NÃO vão aqui —
         // são gerenciados via actions de upload/exclusão, imediatas.
-        cities: data.cities || [], countries: data.countries || [], airports: data.airports || [], keywords: data.keywords || [], inclusions: data.inclusions || [],
+        cities: data.cities || [], countries: data.countries || [], airports: data.airports || [], keywords: data.keywords || [], inclusions: data.inclusions || [], highlights: data.highlights || [],
         days: (data.days || []).map((d, i) => ({
           id: d.id, day_number: i + 1, title: d.title || '', description: d.description || '',
           city: d.city ?? null, order: i,

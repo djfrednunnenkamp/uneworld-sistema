@@ -653,6 +653,20 @@ class ConfigInclusion(models.Model):
         return self.name
 
 
+class ConfigHighlight(models.Model):
+    """Destaque de um pacote/roteiro (ex.: Guia em português, City tour incluso,
+    Hotéis 5 estrelas). Cadastrado em Configurações e escolhido nos roteiros."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Destaque'
+        verbose_name_plural = 'Destaques'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigCurrency(models.Model):
     """Moeda como LISTA de referência (código ISO-4217 + símbolo). Criada para
     substituir, no futuro, o choices fixo EUR/USD/BRL. IMPORTANTE: NÃO altera

@@ -105,6 +105,7 @@ PERMISSION_FIELDS = [
     'settings_currencies_view', 'settings_currencies_edit', 'settings_currencies_delete',
     'settings_keywords_view', 'settings_keywords_edit', 'settings_keywords_delete',
     'settings_inclusions_view', 'settings_inclusions_edit', 'settings_inclusions_delete',
+    'settings_highlights_view', 'settings_highlights_edit', 'settings_highlights_delete',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -150,6 +151,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_currencies_view', 'settings_currencies_edit', 'settings_currencies_delete',
     'settings_keywords_view', 'settings_keywords_edit', 'settings_keywords_delete',
     'settings_inclusions_view', 'settings_inclusions_edit', 'settings_inclusions_delete',
+    'settings_highlights_view', 'settings_highlights_edit', 'settings_highlights_delete',
     # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
     # ninguém Administrador. log_page_views continua porque é uma permissão
     # ativa e concedida de propósito.

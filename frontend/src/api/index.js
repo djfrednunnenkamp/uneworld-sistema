@@ -351,6 +351,10 @@ export const configApi = {
   addInclusion:  (name) => api.post('/config/inclusions/', { name }),
   updateInclusion: (id, name) => api.patch(`/config/inclusions/${id}/`, { name }),
   delInclusion:  (id)   => api.delete(`/config/inclusions/${id}/`),
+  highlights:    () => api.get('/config/highlights/'),
+  addHighlight:  (name) => api.post('/config/highlights/', { name }),
+  updateHighlight: (id, name) => api.patch(`/config/highlights/${id}/`, { name }),
+  delHighlight:  (id)   => api.delete(`/config/highlights/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

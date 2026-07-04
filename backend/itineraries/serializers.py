@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion
+from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight
 from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryDocument
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -60,6 +60,12 @@ class InclusionMiniSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
+class HighlightMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ConfigHighlight
+        fields = ['id', 'name']
+
+
 class ItineraryImageSerializer(serializers.ModelSerializer):
     """Imagem da galeria do roteiro OU de um dia. O arquivo (image) é OBRIGATÓRIO.
     Usada na leitura aninhada e na action de upload (multipart) do viewset."""
@@ -112,6 +118,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
     keywords_data = KeywordMiniSerializer(source='keywords', many=True, read_only=True)
     inclusions      = serializers.PrimaryKeyRelatedField(queryset=ConfigInclusion.objects.all(), many=True, required=False)
     inclusions_data = InclusionMiniSerializer(source='inclusions', many=True, read_only=True)
+    highlights      = serializers.PrimaryKeyRelatedField(queryset=ConfigHighlight.objects.all(), many=True, required=False)
+    highlights_data = HighlightMiniSerializer(source='highlights', many=True, read_only=True)
     days          = ItineraryDaySerializer(many=True, required=False)      # gravável (upsert)
     images        = serializers.SerializerMethodField()                    # só galeria (dia nulo)
     documents     = ItineraryDocumentSerializer(many=True, read_only=True) # leitura; escrita via action
@@ -166,6 +174,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'cities', 'cities_data', 'countries', 'countries_data',
                   'airports', 'airports_data', 'keywords', 'keywords_data',
                   'inclusions', 'inclusions_data',
+                  'highlights', 'highlights_data',
                   'days', 'images', 'documents',
                   'status',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']

@@ -54,6 +54,27 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
     return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
   }
 
+  // Destaques: mesmo comportamento de inclusos/palavras-chave.
+  const [allHl, setAllHl] = useState([])
+  useEffect(() => { configApi.highlights().then(r => setAllHl(r.data.results ?? r.data)).catch(() => {}) }, [])
+
+  const hlChips = (data.highlights_data || []).map(x => ({ id: x.id, label: x.name }))
+  const addHl = (id, raw) => setData(d => (d.highlights || []).includes(id) ? d
+    : ({ ...d, highlights: [...(d.highlights || []), id], highlights_data: [...(d.highlights_data || []), raw] }))
+  const removeHl = (id) => setData(d => ({
+    ...d, highlights: (d.highlights || []).filter(x => x !== id), highlights_data: (d.highlights_data || []).filter(x => x.id !== id),
+  }))
+  const searchHl = async (q) => {
+    const s = (q || '').toLowerCase(); const sel = new Set(data.highlights || [])
+    return allHl.filter(x => !sel.has(x.id) && (!s || x.name.toLowerCase().includes(s))).slice(0, 40)
+      .map(x => ({ id: x.id, label: x.name, raw: { id: x.id, name: x.name } }))
+  }
+  const createHl = async (name) => {
+    const r = await configApi.addHighlight(name)
+    setAllHl(a => [...a, r.data])
+    return { id: r.data.id, label: r.data.name, raw: { id: r.data.id, name: r.data.name } }
+  }
+
   return (
     <TabCard>
       <FormRow label="Nome da viagem">
@@ -102,11 +123,17 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
           onAdd={it => canEdit && addKw(it.id, it.raw)}
           onRemove={id => canEdit && removeKw(id)} />
       </FormRow>
-      <FormRow label="Inclusos" last>
+      <FormRow label="Inclusos">
         <TagPicker popup placeholder="Buscar ou criar item incluso…" search={searchInc} onCreate={createInc}
           selected={incChips}
           onAdd={it => canEdit && addInc(it.id, it.raw)}
           onRemove={id => canEdit && removeInc(id)} />
+      </FormRow>
+      <FormRow label="Destaques" last>
+        <TagPicker popup placeholder="Buscar ou criar destaque…" search={searchHl} onCreate={createHl}
+          selected={hlChips}
+          onAdd={it => canEdit && addHl(it.id, it.raw)}
+          onRemove={id => canEdit && removeHl(id)} />
       </FormRow>
     </TabCard>
   )

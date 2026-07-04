@@ -262,6 +262,9 @@ class UserPermissions(models.Model):
     settings_inclusions_view             = models.BooleanField(default=False)
     settings_inclusions_edit             = models.BooleanField(default=False)
     settings_inclusions_delete           = models.BooleanField(default=False)
+    settings_highlights_view             = models.BooleanField(default=False)
+    settings_highlights_edit             = models.BooleanField(default=False)
+    settings_highlights_delete           = models.BooleanField(default=False)
 
     # Exportar CSV (download) — granular por área. Antes o download dependia só
     # de "_view"; agora cada área tem permissão própria de download.

@@ -382,6 +382,14 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Destaques', icon: 'star', hue: 45,
+        items: [
+          ['settings_highlights_view',   'Ver destaques'],
+          ['settings_highlights_edit',   'Criar / Editar destaques'],
+          ['settings_highlights_delete', 'Excluir destaques'],
+        ],
+      },
+      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],

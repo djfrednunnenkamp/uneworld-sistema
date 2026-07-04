@@ -19,7 +19,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
-                     ConfigInclusion)
+                     ConfigInclusion, ConfigHighlight)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -888,6 +888,23 @@ class InclusionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ConfigInclusion.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class HighlightSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigHighlight
+        fields = ['id', 'name']
+
+
+class HighlightViewSet(viewsets.ModelViewSet):
+    serializer_class = HighlightSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_highlights')
+
+    def get_queryset(self):
+        qs = ConfigHighlight.objects.all()
         q = self.request.query_params.get('q', '').strip()
         return qs.filter(name__icontains=q) if q else qs
 

@@ -30,6 +30,7 @@ router.register('maritime-companies',   views.MaritimeCompanyViewSet,    basenam
 router.register('currencies',           views.CurrencyViewSet,           basename='currency')
 router.register('keywords',              views.KeywordViewSet,            basename='keyword')
 router.register('inclusions',            views.InclusionViewSet,          basename='inclusion')
+router.register('highlights',            views.HighlightViewSet,          basename='highlight')
 router.register('continents',           views.ContinentViewSet,          basename='continent')
 
 urlpatterns = [
