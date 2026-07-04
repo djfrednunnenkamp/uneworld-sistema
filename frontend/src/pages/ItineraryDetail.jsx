@@ -127,7 +127,8 @@ export default function ItineraryDetail() {
       const payload = {
         status,
         name: data.name, slug: data.slug, start_date: data.start_date || null, end_date: data.end_date || null,
-        trip_type: data.trip_type, category: data.category, continent: data.continent,
+        trip_type: data.trip_type, is_own_product: data.is_own_product !== false,
+        category: data.category, continent: data.continent,
         base_currency: data.base_currency,
         accommodation_lines: (data.accommodation_lines || []).map(l => ({
           accommodation_type: l.accommodation_type, value_per_person: l.value_per_person || 0, taxes: l.taxes || 0,

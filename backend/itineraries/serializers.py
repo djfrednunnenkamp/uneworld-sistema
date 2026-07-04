@@ -145,7 +145,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Itinerary
-        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type',
+        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'is_own_product',
                   'clauses', 'custom_clauses', 'clauses_data',
                   'category', 'category_name', 'continent', 'continent_name',
                   'base_currency',

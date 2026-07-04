@@ -18,6 +18,8 @@ class Itinerary(models.Model):
     start_date  = models.DateField('Data de início', null=True, blank=True)
     end_date    = models.DateField('Data de término', null=True, blank=True)
     trip_type   = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='aereo')
+    # Produto próprio da UneWorld (operação própria) vs. de terceiro/parceiro.
+    is_own_product = models.BooleanField('Produto próprio da UneWorld', default=True)
     category    = models.ForeignKey('config_api.ConfigItineraryCategory', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Categoria')
     continent   = models.ForeignKey('config_api.ConfigContinent', null=True, blank=True,

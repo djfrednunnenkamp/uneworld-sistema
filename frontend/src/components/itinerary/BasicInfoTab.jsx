@@ -49,6 +49,16 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
         <Dropdown value={data.trip_type} options={TYPE_OPTS} disabled={!canEdit}
           onChange={v => setData(d => ({ ...d, trip_type: v }))} />
       </FormRow>
+      <FormRow label="Produto próprio da UneWorld">
+        <label className="toggle-wrap" style={{ cursor: canEdit ? 'pointer' : 'default' }}>
+          <span className="toggle">
+            <input type="checkbox" checked={data.is_own_product !== false} disabled={!canEdit}
+              onChange={e => setData(d => ({ ...d, is_own_product: e.target.checked }))} />
+            <span className="toggle-slider" />
+          </span>
+          <span className="toggle-label">{data.is_own_product !== false ? 'Sim — produto próprio' : 'Não — de terceiro/parceiro'}</span>
+        </label>
+      </FormRow>
       <FormRow label="Data de início">
         <DatePicker value={data.start_date} relatedDate={data.end_date || null} disabled={!canEdit} fixed
           onChange={v => setData(d => ({ ...d, start_date: v }))} />
