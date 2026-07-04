@@ -126,7 +126,7 @@ export default function ItineraryDetail() {
         status,
         name: data.name, slug: data.slug, start_date: data.start_date || null, end_date: data.end_date || null,
         trip_type: data.trip_type, is_own_product: data.is_own_product !== false, is_featured: data.is_featured === true,
-        category: data.category, continent: data.continent,
+        category: data.category, continent: data.continent, continents: data.continents || [],
         base_currency: data.base_currency,
         accommodation_lines: (data.accommodation_lines || []).map(l => ({
           accommodation_type: l.accommodation_type, value_per_person: l.value_per_person || 0, taxes: l.taxes || 0,
@@ -185,7 +185,7 @@ export default function ItineraryDetail() {
   if (!data) return null
 
   const categoryLabel  = categories.find(c => c.id === data.category)?.name
-  const continentLabel = continents.find(c => c.id === data.continent)?.name
+  const continentLabel = (data.continents_data || []).map(c => c.name).join(', ') || null
   const activeKey = TABS.some(t => t.key === tab) ? tab : 'destinos'
 
   const renderTab = () => {

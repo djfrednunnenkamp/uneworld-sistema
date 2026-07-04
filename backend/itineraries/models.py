@@ -29,6 +29,9 @@ class Itinerary(models.Model):
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Categoria')
     continent   = models.ForeignKey('config_api.ConfigContinent', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Continente')
+    # Continentes (multi-seleção). O FK `continent` acima fica por compatibilidade.
+    continents  = models.ManyToManyField('config_api.ConfigContinent', blank=True,
+                                          related_name='itineraries_multi', verbose_name='Continentes')
 
     # ── Classificação (campos migrados do WordPress) ──
     # ADITIVOS: não substituem `trip_type` (choices aereo/terrestre) nem `category`,

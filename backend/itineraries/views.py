@@ -18,7 +18,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     ).prefetch_related(
         'accommodation_lines__accommodation_type',
         'cities__state__country', 'countries', 'airports', 'keywords', 'inclusions', 'highlights',
-        'itinerary_types', 'special_dates',
+        'itinerary_types', 'special_dates', 'continents',
         'days__city', 'days__images', 'images', 'documents',
     )
     pagination_class = StandardResultsPagination

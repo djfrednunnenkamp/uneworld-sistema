@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate
+from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent
 from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryDocument
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -78,6 +78,12 @@ class SpecialDateMiniSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
+class ContinentMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ConfigContinent
+        fields = ['id', 'name']
+
+
 class ItineraryImageSerializer(serializers.ModelSerializer):
     """Imagem da galeria do roteiro OU de um dia. O arquivo (image) é OBRIGATÓRIO.
     Usada na leitura aninhada e na action de upload (multipart) do viewset."""
@@ -124,6 +130,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
     cities_data   = CityMiniSerializer(source='cities', many=True, read_only=True)
     countries     = serializers.PrimaryKeyRelatedField(queryset=ConfigCountry.objects.all(), many=True, required=False)
     countries_data = CountryMiniSerializer(source='countries', many=True, read_only=True)
+    continents      = serializers.PrimaryKeyRelatedField(queryset=ConfigContinent.objects.all(), many=True, required=False)
+    continents_data = ContinentMiniSerializer(source='continents', many=True, read_only=True)
     airports      = serializers.PrimaryKeyRelatedField(queryset=Airport.objects.all(), many=True, required=False)
     airports_data = AirportMiniSerializer(source='airports', many=True, read_only=True)
     keywords      = serializers.PrimaryKeyRelatedField(queryset=ConfigKeyword.objects.all(), many=True, required=False)
@@ -179,7 +187,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
         model  = Itinerary
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'is_own_product', 'is_featured',
                   'clauses', 'custom_clauses', 'clauses_data',
-                  'category', 'category_name', 'continent', 'continent_name',
+                  'category', 'category_name', 'continent', 'continent_name', 'continents', 'continents_data',
                   'base_currency',
                   'accommodation_lines',
                   'payment_plan', 'payment_plans',

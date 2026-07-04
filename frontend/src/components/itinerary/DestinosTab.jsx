@@ -28,14 +28,16 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
       .map(c => ({ id: c.id, label: c.name, raw: { id: c.id, name: c.name } }))
   }
 
-  // Ao adicionar um país: se o continente ainda estiver vazio, preenche com o
-  // continente daquele país (integração automática país → continente).
+  // Ao adicionar um país: inclui automaticamente o continente daquele país na
+  // lista de continentes (se ainda não estiver lá) — integração país → continente.
   const addCountry = (id, raw) => setData(d => {
     if ((d.countries || []).includes(id)) return d
     const next = { ...d, countries: [...(d.countries || []), id], countries_data: [...(d.countries_data || []), raw] }
-    if (d.continent == null) {
-      const full = allCountries.find(c => c.id === id)
-      if (full && full.continent != null) next.continent = full.continent
+    const full = allCountries.find(c => c.id === id)
+    if (full && full.continent != null && !(d.continents || []).includes(full.continent)) {
+      const contName = full.continent_name || continentOptions.find(o => o.value === full.continent)?.label || '—'
+      next.continents = [...(d.continents || []), full.continent]
+      next.continents_data = [...(d.continents_data || []), { id: full.continent, name: contName }]
     }
     return next
   })
@@ -56,26 +58,23 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
   }
   const chips = (dataKey, labelFn) => (data[dataKey] || []).map(x => ({ id: x.id, label: labelFn(x) }))
 
-  // Continente: seleção ÚNICA (FK), mas exibida como chip. Escolher um substitui
-  // o anterior; o "×" limpa.
-  const continentChip = data.continent != null
-    ? [{ id: data.continent, label: continentOptions.find(o => o.value === data.continent)?.label || '—' }]
-    : []
+  // Continente: multi-seleção (chips), igual a Países.
+  const continentChips = (data.continents_data || []).map(x => ({ id: x.id, label: x.name }))
   const searchContinents = async (q) => {
     const s = (q || '').toLowerCase()
+    const sel = new Set(data.continents || [])
     return continentOptions
-      .filter(o => o.value !== data.continent && (!s || o.label.toLowerCase().includes(s))).slice(0, 40)
-      .map(o => ({ id: o.value, label: o.label }))
+      .filter(o => !sel.has(o.value) && (!s || o.label.toLowerCase().includes(s))).slice(0, 40)
+      .map(o => ({ id: o.value, label: o.label, raw: { id: o.value, name: o.label } }))
   }
-  const setContinent = (id) => setData(d => ({ ...d, continent: id }))
 
   return (
     <TabCard>
       <FormRow label="Continente">
         <TagPicker popup placeholder="Buscar continente…" search={searchContinents}
-          selected={continentChip}
-          onAdd={it => canEdit && setContinent(it.id)}
-          onRemove={() => canEdit && setContinent(null)} />
+          selected={continentChips}
+          onAdd={it => canEdit && addItem('continents', 'continents_data', it.id, it.raw)}
+          onRemove={id => canEdit && removeItem('continents', 'continents_data', id)} />
       </FormRow>
 
       <FormRow label="Países">
