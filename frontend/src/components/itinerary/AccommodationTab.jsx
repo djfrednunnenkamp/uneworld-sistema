@@ -1,14 +1,32 @@
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import Dropdown from '../Dropdown'
 import MoneyInput from '../MoneyInput'
 import { Ic } from '../Icon'
+import { configApi } from '../../api'
 import { FormRow, TabCard } from './ui'
 import { inp, CURRENCY_OPTS } from './constants'
 
 /* Aba "Valores": moeda base + tabela de preços por acomodação (valor/pessoa + taxas).
    Esses valores são puxados automaticamente para o contrato ao escolher o roteiro. */
 function AccommodationTab({ data, setData, canEdit, accommodationOptions }) {
-  const currencyLabel = (CURRENCY_OPTS.find(c => c.value === data.base_currency)?.value) || data.base_currency || ''
+  // Moeda base: as opções vêm das moedas cadastradas no Câmbio (favoritas no topo).
+  const [currencyOpts, setCurrencyOpts] = useState(CURRENCY_OPTS)
+  useEffect(() => {
+    configApi.exchangeRates().then(r => {
+      const rows = r.data.results ?? r.data
+      const seen = new Map()   // code -> é favorita?
+      rows.forEach(er => {
+        if (er.from_currency) seen.set(er.from_currency, seen.get(er.from_currency) || !!er.is_favorite)
+        if (er.to_currency && !seen.has(er.to_currency)) seen.set(er.to_currency, false)
+      })
+      const opts = [...seen.entries()]
+        .sort((a, b) => (Number(b[1]) - Number(a[1])) || a[0].localeCompare(b[0]))
+        .map(([code]) => ({ value: code, label: code }))
+      if (opts.length) setCurrencyOpts(opts)
+    }).catch(() => {})
+  }, [])
+
+  const currencyLabel = data.base_currency || ''
   const accomLines = data.accommodation_lines || []
   const addAccomLine    = () => setData(d => ({ ...d, accommodation_lines: [...(d.accommodation_lines || []), { accommodation_type: null, value_per_person: 0, taxes: 0 }] }))
   const updateAccomLine = (idx, patch) => setData(d => ({ ...d, accommodation_lines: d.accommodation_lines.map((l, i) => i === idx ? { ...l, ...patch } : l) }))
@@ -18,7 +36,7 @@ function AccommodationTab({ data, setData, canEdit, accommodationOptions }) {
     <>
       <TabCard>
         <FormRow label="Moeda base" last>
-          <Dropdown value={data.base_currency} options={CURRENCY_OPTS} disabled={!canEdit}
+          <Dropdown value={data.base_currency} options={currencyOpts} disabled={!canEdit}
             onChange={v => setData(d => ({ ...d, base_currency: v }))} />
         </FormRow>
       </TabCard>

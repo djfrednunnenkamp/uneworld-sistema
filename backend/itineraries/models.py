@@ -62,12 +62,9 @@ class Itinerary(models.Model):
                                                related_name='itineraries', verbose_name='Datas especiais')
 
     # ── Financeiro ──
-    CURRENCY_CHOICES = [
-        ('EUR', 'Euro'),
-        ('USD', 'Dólar'),
-        ('BRL', 'Real'),
-    ]
-    base_currency             = models.CharField('Moeda base', max_length=3, choices=CURRENCY_CHOICES, default='EUR')
+    # Moeda base: código ISO-4217 (3 letras). Sem `choices` fixo — as opções vêm
+    # das moedas cadastradas no Câmbio (Configurações › Câmbio).
+    base_currency             = models.CharField('Moeda base', max_length=3, default='EUR')
 
     # Cláusulas do contrato definidas pelo roteiro — o contrato puxa daqui.
     clauses        = models.ManyToManyField('config_api.ContractClause', blank=True, related_name='itineraries', verbose_name='Cláusulas do contrato')
