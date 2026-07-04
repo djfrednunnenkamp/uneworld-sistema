@@ -343,6 +343,11 @@ def user_update(request, pk):
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    # Fronteira de privilégio: um não-superusuário NUNCA edita uma conta
+    # superusuária. Sem isso, quem tem users_edit poderia trocar o e-mail de um
+    # superadmin, disparar forgot-password e assumir a conta (takeover / A-02).
+    if not _can_target_user(request.user, user):
+        return Response({'error': 'Você não tem permissão para editar esta conta.'}, status=403)
     # Admin de agência pode editar os usuários da agência dele (limitado às
     # permissões que ele mesmo tem; ver _apply_permissions/actor abaixo).
     is_agency_admin_edit = can_manage_agency_user(request.user, user)
@@ -470,6 +475,10 @@ def send_user_invite(request, pk):
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
+    # Fronteira de privilégio: não-superusuário não dispara convite de ativação
+    # para conta superusuária (mesma classe de risco do admin_send_reset).
+    if not _can_target_user(request.user, user):
+        return Response({'error': 'Você não tem permissão para esta ação.'}, status=403)
 
     invite = InviteToken.objects.create(
         email=user.email, first_name=user.first_name, last_name=user.last_name,
@@ -592,6 +601,9 @@ def user_delete(request, pk):
     if not (request.user.is_superuser or has_any_perm(request.user, 'users_delete')
             or can_manage_agency_user(request.user, user)):
         return Response({'error': 'Sem permissão para excluir usuários.'}, status=403)
+    # Fronteira de privilégio: não-superusuário não exclui/desativa conta superusuária.
+    if not _can_target_user(request.user, user):
+        return Response({'error': 'Você não tem permissão para editar esta conta.'}, status=403)
     if user == request.user:
         return Response({'error': 'Não é possível excluir seu próprio usuário.'}, status=400)
     perms = get_user_permissions(user)
@@ -617,6 +629,9 @@ def user_unlink_agencies(request, pk):
     # Gestor interno ou admin de uma agência do usuário podem desvincular.
     if not (has_any_perm(request.user, 'manage_users', 'users_edit') or can_manage_agency_user(request.user, user)):
         return Response({'error': 'Sem permissão.'}, status=403)
+    # Fronteira de privilégio: não-superusuário não manipula conta superusuária.
+    if not _can_target_user(request.user, user):
+        return Response({'error': 'Você não tem permissão para editar esta conta.'}, status=403)
     from agencies.models import AgencyMember
     AgencyMember.objects.filter(user=user).delete()
     return Response(serialize_user(user))

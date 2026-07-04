@@ -79,6 +79,60 @@ class PasswordResetBoundaryTest(APITestCase):
         r = self.client.post(f'/api/users/{self.target_su.id}/send-reset/', {}, format='json')
         self.assertEqual(r.status_code, 200)
 
+    # ── user_update (takeover por troca de e-mail — A-02) ────────────────────
+    def test_non_superuser_cannot_change_superuser_email(self):
+        """Um não-superusuário com users_edit NÃO pode trocar o e-mail de um
+        superusuário (senão dispararia forgot-password no e-mail novo e assumiria
+        a conta). Espera 403 e e-mail inalterado."""
+        original = self.target_su.email
+        self.client.force_authenticate(self.actor)
+        r = self.client.patch(f'/api/users/{self.target_su.id}/',
+                              {'email': 'atacante@evil.com'}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.target_su.refresh_from_db()
+        self.assertEqual(self.target_su.email, original)
+        self.assertNotEqual(self.target_su.email, 'atacante@evil.com')
+
+    def test_superuser_can_change_superuser_email(self):
+        """Superusuário continua podendo editar o e-mail de outra conta
+        superusuária (comportamento esperado do sistema)."""
+        self.client.force_authenticate(self.super_root)
+        r = self.client.patch(f'/api/users/{self.target_su.id}/',
+                              {'email': 'novo_admin@x.com'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.target_su.refresh_from_db()
+        self.assertEqual(self.target_su.email, 'novo_admin@x.com')
+        # username fica sincronizado com o e-mail (usado no login).
+        self.assertEqual(self.target_su.username, 'novo_admin@x.com')
+
+    def test_non_superuser_can_still_edit_regular_user_email(self):
+        """Regressão: a nova checagem NÃO pode quebrar a edição legítima de uma
+        conta comum por quem tem users_edit."""
+        self.client.force_authenticate(self.actor)
+        r = self.client.patch(f'/api/users/{self.target_reg.id}/',
+                              {'email': 'regular_novo@x.com'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.target_reg.refresh_from_db()
+        self.assertEqual(self.target_reg.email, 'regular_novo@x.com')
+
+    # ── outros caminhos da mesma classe (endereçados na mesma auditoria) ─────
+    def test_non_superuser_cannot_delete_superuser(self):
+        """Não-superusuário com users_delete não pode desativar (soft-delete) um
+        superusuário."""
+        deleter = make_user('deleter', password=ADMIN_PW, users_delete=True)
+        self.client.force_authenticate(deleter)
+        r = self.client.delete(f'/api/users/{self.target_su.id}/delete/')
+        self.assertEqual(r.status_code, 403)
+        self.target_su.refresh_from_db()
+        self.assertTrue(self.target_su.is_active)
+
+    def test_non_superuser_cannot_invite_superuser(self):
+        """Não-superusuário com users_edit não pode disparar convite de ativação
+        para uma conta superusuária."""
+        self.client.force_authenticate(self.actor)
+        r = self.client.post(f'/api/users/{self.target_su.id}/invite/', {}, format='json')
+        self.assertEqual(r.status_code, 403)
+
 
 @override_settings(CACHES=LOCMEM_CACHE)
 class RateLimitTest(APITestCase):
