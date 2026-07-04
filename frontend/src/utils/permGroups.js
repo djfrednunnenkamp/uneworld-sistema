@@ -374,6 +374,14 @@ export const PERM_GROUPS = [
         ],
       },
       {
+        label: 'Inclusos', icon: 'check', hue: 150,
+        items: [
+          ['settings_inclusions_view',   'Ver inclusos'],
+          ['settings_inclusions_edit',   'Criar / Editar inclusos'],
+          ['settings_inclusions_delete', 'Excluir inclusos'],
+        ],
+      },
+      {
         label: 'Tipos de Acomodação', icon: 'bed', hue: 280,
         items: [
           ['settings_accommodations_view',        'Ver tipos de acomodação'],

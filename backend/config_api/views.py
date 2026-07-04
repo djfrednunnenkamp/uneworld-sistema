@@ -18,7 +18,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
-                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword)
+                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
+                     ConfigInclusion)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -870,6 +871,23 @@ class KeywordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ConfigKeyword.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class InclusionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigInclusion
+        fields = ['id', 'name']
+
+
+class InclusionViewSet(viewsets.ModelViewSet):
+    serializer_class = InclusionSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_inclusions')
+
+    def get_queryset(self):
+        qs = ConfigInclusion.objects.all()
         q = self.request.query_params.get('q', '').strip()
         return qs.filter(name__icontains=q) if q else qs
 

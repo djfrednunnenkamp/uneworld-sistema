@@ -45,6 +45,8 @@ class Itinerary(models.Model):
                                                related_name='itineraries', verbose_name='Aeroportos')
     keywords         = models.ManyToManyField('config_api.ConfigKeyword', blank=True,
                                                related_name='itineraries', verbose_name='Palavras-chave')
+    inclusions       = models.ManyToManyField('config_api.ConfigInclusion', blank=True,
+                                               related_name='itineraries', verbose_name='Inclusos no pacote')
 
     # ── Financeiro ──
     CURRENCY_CHOICES = [

@@ -346,6 +346,11 @@ export const configApi = {
   addKeyword:    (name) => api.post('/config/keywords/', { name }),
   updateKeyword: (id, name) => api.patch(`/config/keywords/${id}/`, { name }),
   delKeyword:    (id)   => api.delete(`/config/keywords/${id}/`),
+  // Inclusos (itens do pacote)
+  inclusions:    () => api.get('/config/inclusions/'),
+  addInclusion:  (name) => api.post('/config/inclusions/', { name }),
+  updateInclusion: (id, name) => api.patch(`/config/inclusions/${id}/`, { name }),
+  delInclusion:  (id)   => api.delete(`/config/inclusions/${id}/`),
   // Categorias de lista
   listCategories:    () => api.get('/config/list-categories/'),
   addListCategory:   (name) => api.post('/config/list-categories/', { name }),

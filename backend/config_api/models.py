@@ -639,6 +639,20 @@ class ConfigKeyword(models.Model):
         return self.name
 
 
+class ConfigInclusion(models.Model):
+    """Item que pode estar INCLUSO num pacote/roteiro (ex.: Café da manhã, Traslados,
+    Seguro viagem). Cadastrado em Configurações e escolhido nos roteiros."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Incluso'
+        verbose_name_plural = 'Inclusos'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigCurrency(models.Model):
     """Moeda como LISTA de referência (código ISO-4217 + símbolo). Criada para
     substituir, no futuro, o choices fixo EUR/USD/BRL. IMPORTANTE: NÃO altera

@@ -26,6 +26,7 @@ export const CARD_META = {
   payment_plans:   { icon: 'card',      hue: 210, desc: 'Modelos de pagamento (entrada % + parcelas) reutilizáveis nos roteiros e contratos.' },
   exchange_rates:  { icon: 'globe',     hue: 160, desc: 'Câmbio usado para preencher automaticamente os contratos.' },
   keywords:        { icon: 'mapicon',   hue: 260, desc: 'Palavras-chave (tags) usadas para classificar os roteiros.' },
+  inclusions:      { icon: 'check',     hue: 150, desc: 'Itens que podem estar inclusos nos pacotes/roteiros.' },
   itinerary_categories: { icon: 'mapicon', hue: 190, desc: 'Categorias para classificar os roteiros (ex: Grupos Internacionais).' },
   continents:      { icon: 'globe',     hue: 200, desc: 'Continentes vinculados aos roteiros.' },
 }

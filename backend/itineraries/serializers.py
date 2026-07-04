@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword
+from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion
 from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryDocument
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -51,6 +51,12 @@ class AirportMiniSerializer(serializers.ModelSerializer):
 class KeywordMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ConfigKeyword
+        fields = ['id', 'name']
+
+
+class InclusionMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ConfigInclusion
         fields = ['id', 'name']
 
 
@@ -104,6 +110,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
     airports_data = AirportMiniSerializer(source='airports', many=True, read_only=True)
     keywords      = serializers.PrimaryKeyRelatedField(queryset=ConfigKeyword.objects.all(), many=True, required=False)
     keywords_data = KeywordMiniSerializer(source='keywords', many=True, read_only=True)
+    inclusions      = serializers.PrimaryKeyRelatedField(queryset=ConfigInclusion.objects.all(), many=True, required=False)
+    inclusions_data = InclusionMiniSerializer(source='inclusions', many=True, read_only=True)
     days          = ItineraryDaySerializer(many=True, required=False)      # gravável (upsert)
     images        = serializers.SerializerMethodField()                    # só galeria (dia nulo)
     documents     = ItineraryDocumentSerializer(many=True, read_only=True) # leitura; escrita via action
@@ -157,6 +165,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'maritime_company', 'maritime_company_name',
                   'cities', 'cities_data', 'countries', 'countries_data',
                   'airports', 'airports_data', 'keywords', 'keywords_data',
+                  'inclusions', 'inclusions_data',
                   'days', 'images', 'documents',
                   'status',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
