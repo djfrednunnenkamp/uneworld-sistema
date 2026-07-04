@@ -2228,6 +2228,13 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                   </div>
                   <p style={{ fontSize: 10.5, color: '#94a3b8', margin: '4px 0 0' }}>O câmbio é ajustado automaticamente conforme à vista ou parcelado.</p>
                 </div>
+                {paymentType === 'a_vista' && avistaDiscountUsd > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#dcfce7', border: '1px solid #86efac', color: '#15803d', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, fontWeight: 600 }}>
+                    <Ic n="check" s={14} />
+                    Desconto à vista {avistaDiscountCfg.mode === 'percent' ? `de ${avistaDiscountCfg.value}% ` : ''}
+                    (−{cur} {avistaDiscountUsd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · −R$ {avistaDiscountBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) já abatido da soma total.
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Soma total ({cur})</label>
@@ -2249,13 +2256,6 @@ export default function ContractFormModal({ contractId, onClose, onSaved, onPubl
                     </p>
                   </div>
                 </div>
-                {paymentType === 'a_vista' && avistaDiscountUsd > 0 && (
-                  <p style={{ fontSize: 11.5, color: '#15803d', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Ic n="check" s={12} />
-                    Desconto à vista {avistaDiscountCfg.mode === 'percent' ? `de ${avistaDiscountCfg.value}% ` : ''}
-                    (−{cur} {avistaDiscountUsd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · −R$ {avistaDiscountBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) já abatido da soma total.
-                  </p>
-                )}
                 {commissionUsd > 0 && (
                   <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Ic n="briefcase" s={12} />
