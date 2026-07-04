@@ -9,7 +9,7 @@ export default function LeaveGuardModal({ onDiscard, onSaveDraft, onSave, onStay
     <div onClick={e => { if (e.target === e.currentTarget && !saving) onStay() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 700, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 540, boxShadow: '0 24px 64px rgba(0,0,0,.28)', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fffbeb', color: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic n="warn" s={19} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
