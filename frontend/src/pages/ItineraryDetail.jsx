@@ -167,6 +167,8 @@ export default function ItineraryDetail() {
   }
   // Botão "Salvar" do topo: finaliza o roteiro (vira ativo).
   const save = async () => { if (await persist('ativo')) toast.success('Roteiro salvo.') }
+  // Botão "Salvar rascunho": salva mantendo como rascunho (não finaliza).
+  const saveDraft = async () => { if (await persist('rascunho')) toast.success('Salvo nos rascunhos.') }
 
   // Ações do modal de confirmação ao sair (proceed vem do guard → navega ao destino).
   const doLeave = () => { const p = leavePrompt; setLeavePrompt(null); p?.proceed?.() }
@@ -215,11 +217,17 @@ export default function ItineraryDetail() {
             {isRascunho && <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: '#fef3c7', color: '#b45309', textTransform: 'uppercase', letterSpacing: '.04em' }}>Rascunho</span>}
           </div>
         </div>
-        <div className="ph-actions" style={{ alignItems: 'center' }}>
+        <div className="ph-actions" style={{ alignItems: 'center', gap: 8 }}>
+          {canEdit && isRascunho && (
+            <button type="button" onClick={saveDraft} disabled={saving}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <Ic n="feather" s={13} />{saving ? 'Salvando…' : 'Salvar rascunho'}
+            </button>
+          )}
           {canEdit && (
             <button type="button" onClick={save} disabled={saving}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a2d4f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Ic n="check" s={13} />{saving ? 'Salvando…' : 'Salvar'}
+              <Ic n="check" s={13} />{saving ? 'Salvando…' : (isRascunho ? 'Salvar e finalizar' : 'Salvar')}
             </button>
           )}
         </div>
