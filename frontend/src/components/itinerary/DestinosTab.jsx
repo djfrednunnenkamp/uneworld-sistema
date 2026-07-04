@@ -20,11 +20,11 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
   const notSelected = (idKey, list) => { const sel = new Set(data[idKey] || []); return list.filter(x => !sel.has(x.id)) }
 
   // Buscas (retornam [{id, label, raw}]).
-  // Países: lista completa (a escolha de continente não remove países).
+  // Países: lista completa (sem corte — são ~250, filtro local).
   const searchCountries = async (q) => {
     const s = (q || '').toLowerCase()
     return notSelected('countries', allCountries)
-      .filter(c => !s || c.name.toLowerCase().includes(s)).slice(0, 40)
+      .filter(c => !s || c.name.toLowerCase().includes(s))
       .map(c => ({ id: c.id, label: c.name, raw: { id: c.id, name: c.name } }))
   }
 
