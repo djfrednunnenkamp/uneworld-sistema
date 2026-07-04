@@ -8,7 +8,9 @@ from .views import validate_email
 
 
 def _serve_email_logo(request):
-    logo_path = settings.BASE_DIR.parent / 'frontend' / 'public' / 'logo-email.png'
+    # Logo dos e-mails — servido pelo próprio backend (o frontend agora é um
+    # repositório separado, então o arquivo vive aqui em core/assets/).
+    logo_path = settings.BASE_DIR / 'core' / 'assets' / 'logo-email.png'
     return FileResponse(open(logo_path, 'rb'), content_type='image/png')
 
 

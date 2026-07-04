@@ -17,7 +17,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [backend, frontend]
+        service: [backend]   # frontend agora tem repositório próprio (uneworld-intranet-web)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
