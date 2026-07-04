@@ -8,11 +8,12 @@ import ImageLightbox from './ImageLightbox'
 
 const slotBox = { position: 'relative', width: '100%', maxWidth: 240, height: 150, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#f8fafc' }
 
-/* Campo de uma única imagem (lâminas). Clicar abre o lightbox; aceita soltar
-   um arquivo para upload automático. */
-function SingleImageSlot({ image, canEdit, onUpload, onDelete, onView }) {
+/* Campo de uma única imagem (lâminas). Clicar abre o lightbox; aceita soltar um
+   arquivo (upload) OU uma imagem arrastada de outro campo (muda o tipo dela). A
+   própria imagem pode ser arrastada para outro campo. */
+function SingleImageSlot({ image, kind, canEdit, onUpload, onDelete, onMoveKind, onView }) {
   const [busy, setBusy] = useState(false)
-  const [fileOver, setFileOver] = useState(false)
+  const [dropActive, setDropActive] = useState(false)
   const ref = useRef(null)
   const upload = async (file) => {
     if (!file) return
@@ -20,18 +21,24 @@ function SingleImageSlot({ image, canEdit, onUpload, onDelete, onView }) {
     try { await onUpload(file) } catch { toast.error('Falha ao enviar imagem.') } finally { setBusy(false) }
   }
   const isFileDrag = (e) => Array.from(e.dataTransfer?.types || []).includes('Files')
+  const hasImgPayload = (e) => Array.from(e.dataTransfer?.types || []).includes('text/plain')
+  const onDragOver = (e) => { if (canEdit && (isFileDrag(e) || hasImgPayload(e))) { e.preventDefault(); setDropActive(true) } }
   const onDrop = (e) => {
-    if (canEdit && e.dataTransfer?.files?.length) { e.preventDefault(); upload(e.dataTransfer.files[0]) }
-    setFileOver(false)
+    setDropActive(false)
+    if (!canEdit) return
+    if (e.dataTransfer?.files?.length) { e.preventDefault(); upload(e.dataTransfer.files[0]); return }
+    let p = null
+    try { p = JSON.parse(e.dataTransfer.getData('text/plain')) } catch { /* payload inválido */ }
+    if (p && p.kind !== kind) { e.preventDefault(); onMoveKind?.(p.id, kind) }
   }
   return (
-    <div onDragOver={e => { if (canEdit && isFileDrag(e)) { e.preventDefault(); setFileOver(true) } }}
-      onDragLeave={() => setFileOver(false)} onDrop={onDrop}
-      style={{ borderRadius: 8, outline: fileOver ? '2px dashed #2e6db4' : 'none', outlineOffset: 4 }}>
+    <div onDragOver={onDragOver} onDragLeave={() => setDropActive(false)} onDrop={onDrop}
+      style={{ borderRadius: 8, outline: dropActive ? '2px dashed #2e6db4' : 'none', outlineOffset: 4 }}>
       {image ? (
-        <div style={slotBox}>
-          <img src={image.image} alt="" onClick={() => onView?.(image.image)}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} />
+        <div style={slotBox} draggable={canEdit}
+          onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: image.id, kind })); e.dataTransfer.effectAllowed = 'move' }}>
+          <img src={image.image} alt="" draggable={false} onClick={() => onView?.(image.image)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: canEdit ? 'grab' : 'zoom-in' }} />
           {canEdit && (
             <button type="button" title="Excluir" onClick={() => onDelete(image.id)}
               style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'rgba(220,38,38,.92)', color: '#fff' }}>
@@ -85,6 +92,19 @@ function ImagensTab({ data, setData, canEdit }) {
     })
     itinerariesApi.reorderImages(id, ids).catch(() => toast.error('Falha ao reordenar.'))
   }
+  // Arrastar uma imagem de um campo para outro → muda o tipo dela. Ao cair numa
+  // lâmina (single), o ocupante anterior volta pra galeria.
+  const moveKind = async (imgId, targetKind) => {
+    setData(d => {
+      let imgs = (d.images || []).map(im => im.id === imgId ? { ...im, kind: targetKind } : im)
+      if (targetKind === 'blocking' || targetKind === 'blocking_promo') {
+        imgs = imgs.map(im => (im.kind === targetKind && im.id !== imgId) ? { ...im, kind: 'gallery' } : im)
+      }
+      return { ...d, images: imgs }
+    })
+    try { await itinerariesApi.setImageKind(id, imgId, targetKind) }
+    catch { toast.error('Falha ao mover a imagem.') }
+  }
 
   const grid = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 20, alignItems: 'stretch' }
 
@@ -94,27 +114,27 @@ function ImagensTab({ data, setData, canEdit }) {
         <TabCard style={{ padding: '20px 24px' }}>
           <p style={cardTitle}>Capas do roteiro</p>
           <p style={cardSub}>Uma ou mais imagens de capa. Arraste para ordenar.</p>
-          <GalleryManager images={covers} canEdit={canEdit} onView={setLightbox}
-            onUpload={upload('cover')} onDelete={deleteImg} onReorder={reorder('cover')} />
+          <GalleryManager images={covers} kind="cover" canEdit={canEdit} onView={setLightbox}
+            onUpload={upload('cover')} onDelete={deleteImg} onReorder={reorder('cover')} onMoveKind={moveKind} />
         </TabCard>
         <TabCard style={{ padding: '20px 24px' }}>
           <p style={cardTitle}>Lâmina do Bloqueio</p>
           <p style={cardSub}>Imagem única.</p>
-          <SingleImageSlot image={blocking} canEdit={canEdit} onView={setLightbox}
-            onUpload={upload('blocking')} onDelete={deleteImg} />
+          <SingleImageSlot image={blocking} kind="blocking" canEdit={canEdit} onView={setLightbox}
+            onUpload={upload('blocking')} onDelete={deleteImg} onMoveKind={moveKind} />
         </TabCard>
 
         <TabCard style={{ padding: '20px 24px' }}>
           <p style={cardTitle}>Galeria de imagens</p>
           <p style={cardSub}>Imagens do roteiro. Arraste para ordenar.</p>
-          <GalleryManager images={gallery} canEdit={canEdit} onView={setLightbox}
-            onUpload={upload('gallery')} onDelete={deleteImg} onReorder={reorder('gallery')} />
+          <GalleryManager images={gallery} kind="gallery" canEdit={canEdit} onView={setLightbox}
+            onUpload={upload('gallery')} onDelete={deleteImg} onReorder={reorder('gallery')} onMoveKind={moveKind} />
         </TabCard>
         <TabCard style={{ padding: '20px 24px' }}>
           <p style={cardTitle}>Lâmina do Bloqueio Promocional</p>
           <p style={cardSub}>Imagem única.</p>
-          <SingleImageSlot image={blockingPromo} canEdit={canEdit} onView={setLightbox}
-            onUpload={upload('blocking_promo')} onDelete={deleteImg} />
+          <SingleImageSlot image={blockingPromo} kind="blocking_promo" canEdit={canEdit} onView={setLightbox}
+            onUpload={upload('blocking_promo')} onDelete={deleteImg} onMoveKind={moveKind} />
         </TabCard>
       </div>
 

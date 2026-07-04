@@ -42,7 +42,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
-                           'upload_image', 'delete_image', 'reorder_images'):
+                           'upload_image', 'delete_image', 'reorder_images', 'set_image_kind'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
 
@@ -86,6 +86,27 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         img.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path=r'images/(?P<image_id>[0-9]+)/kind')
+    def set_image_kind(self, request, pk=None, image_id=None):
+        """POST /api/itineraries/{id}/images/{image_id}/kind/  body: {"kind": "..."}.
+        Move a imagem entre capa/galeria/lâminas (arrastar de um campo para outro).
+        Ao mover para uma lâmina (single), o ocupante anterior vira galeria."""
+        itinerary = self.get_object()
+        img = itinerary.images.filter(pk=image_id, day__isnull=True).first()
+        if img is None:
+            return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        kind = request.data.get('kind')
+        valid = {c[0] for c in ItineraryImage.KIND_CHOICES}
+        if kind not in valid:
+            return Response({'detail': 'Tipo inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            if kind in ('blocking', 'blocking_promo'):
+                itinerary.images.filter(kind=kind, day__isnull=True).exclude(pk=img.pk).update(kind='gallery')
+            img.kind = kind
+            img.save(update_fields=['kind'])
+        out = ItineraryImageSerializer(img, context=self.get_serializer_context())
+        return Response(out.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='images/reorder')
     def reorder_images(self, request, pk=None):
