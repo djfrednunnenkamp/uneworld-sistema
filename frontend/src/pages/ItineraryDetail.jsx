@@ -13,7 +13,6 @@ import { normalizeItinerary } from '../components/itinerary/paymentPlan'
    quando ela é aberta pela primeira vez, e só a aba ativa fica montada. */
 const BasicInfoTab     = lazy(() => import('../components/itinerary/BasicInfoTab'))
 const DestinosTab      = lazy(() => import('../components/itinerary/DestinosTab'))
-const DatesTab         = lazy(() => import('../components/itinerary/DatesTab'))
 const AccommodationTab = lazy(() => import('../components/itinerary/AccommodationTab'))
 const PaymentsTab      = lazy(() => import('../components/itinerary/PaymentsTab'))
 const ClausesTab       = lazy(() => import('../components/itinerary/ClausesTab'))
@@ -26,7 +25,6 @@ const PlaceholderTab   = lazy(() => import('../components/itinerary/PlaceholderT
 const TABS = [
   { key: 'basic',       label: 'Informações Básicas' },
   { key: 'destinos',    label: 'Destinos' },
-  { key: 'datas',       label: 'Datas' },
   { key: 'valores',     label: 'Valores' },
   { key: 'pagamentos',  label: 'Pagamentos' },
   { key: 'imagens',     label: 'Imagens' },
@@ -146,7 +144,6 @@ export default function ItineraryDetail() {
     switch (activeKey) {
       case 'basic':      return <BasicInfoTab     data={data} setData={setData} canEdit={canEdit} categoryOptions={categoryOptions} />
       case 'destinos':   return <DestinosTab      data={data} setData={setData} canEdit={canEdit} continentOptions={continentOptions} />
-      case 'datas':      return <DatesTab         data={data} setData={setData} canEdit={canEdit} />
       case 'valores':    return <AccommodationTab data={data} setData={setData} canEdit={canEdit} accommodationOptions={accommodationOptions} />
       case 'pagamentos': return <PaymentsTab      data={data} setData={setData} canEdit={canEdit} paymentPlanOpts={paymentPlanOpts} paymentMethodOpts={paymentMethodOpts} reloadPaymentPlans={reloadPaymentPlans} />
       case 'imagens':    return <ImagensTab       data={data} setData={setData} canEdit={canEdit} />
