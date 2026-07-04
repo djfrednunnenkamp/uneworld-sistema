@@ -106,6 +106,10 @@ class Itinerary(models.Model):
     info_documents     = models.TextField('Documentos Necessários', blank=True, default='')
     info_promo_rules   = models.TextField('Regras Promoção', blank=True, default='')
 
+    # Observações internas do roteiro (lembretes/pendências da equipe — não é
+    # conteúdo do roteiro em si).
+    notes              = models.TextField('Observações', blank=True, default='')
+
     # Rascunho (autosalvo / não finalizado) vs Ativo. A lista mostra só ativos;
     # rascunhos aparecem num popup à parte. 'Salvar' no detalhe finaliza (ativo).
     STATUS_CHOICES = [('rascunho', 'Rascunho'), ('ativo', 'Ativo')]
