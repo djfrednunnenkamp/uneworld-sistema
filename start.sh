@@ -3,16 +3,34 @@
 #
 # Desde a separação do sistema, backend e frontend ficam em pastas irmãs:
 #   UneWorld System/
-#     ├── Uni Back   (este repositório — backend Django)
-#     └── Uni Front  (frontend React/Vite)
+#     ├── Uni_Back   (este repositório — backend Django)
+#     └── Uni_Front  (frontend React/Vite)
 #
 # O caminho do frontend pode ser sobrescrito com a variável FRONTEND_DIR:
 #   FRONTEND_DIR="/outro/caminho" ./start.sh
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend"
-# Por padrão, o front é a pasta irmã "Uni Front" ao lado do Uni Back.
-FRONTEND_DIR="${FRONTEND_DIR:-$(cd "$PROJECT_DIR/.." && pwd)/Uni Front}"
+# Por padrão, o front é a pasta irmã ao lado do back. Aceita tanto "Uni_Front"
+# quanto "Uni Front" (com espaço). Pode ser sobrescrito via FRONTEND_DIR.
+if [ -z "$FRONTEND_DIR" ]; then
+  PARENT_DIR="$(cd "$PROJECT_DIR/.." && pwd)"
+  for candidate in "$PARENT_DIR/Uni_Front" "$PARENT_DIR/Uni Front"; do
+    if [ -d "$candidate" ]; then
+      FRONTEND_DIR="$candidate"
+      break
+    fi
+  done
+  # Fallback: procura uma pasta irmã com package.json + vite.config.js
+  if [ -z "$FRONTEND_DIR" ]; then
+    for candidate in "$PARENT_DIR"/*/; do
+      if [ -f "${candidate}package.json" ] && [ -f "${candidate}vite.config.js" ]; then
+        FRONTEND_DIR="${candidate%/}"
+        break
+      fi
+    done
+  fi
+fi
 
 # IP local da máquina (para exibir o endereço de rede)
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
