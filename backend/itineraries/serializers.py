@@ -185,6 +185,9 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'accommodation_lines',
                   'payment_plan', 'payment_plans',
                   'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method',
+                  # Aba "Informações do Roteiro" (textos ricos):
+                  'info_general', 'info_included', 'info_not_included', 'info_optionals',
+                  'info_tips', 'info_documents', 'info_promo_rules',
                   # novos:
                   'itinerary_type', 'itinerary_type_name',
                   'maritime_company', 'maritime_company_name',

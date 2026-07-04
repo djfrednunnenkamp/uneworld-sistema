@@ -97,6 +97,15 @@ class Itinerary(models.Model):
     a_vista_discount_value  = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, null=True, blank=True)
     a_vista_payment_method  = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
 
+    # Aba "Informações do Roteiro": campos de texto rico (HTML), editados na intranet.
+    info_general       = models.TextField('Informações', blank=True, default='')
+    info_included      = models.TextField('Incluso no Pacote', blank=True, default='')
+    info_not_included  = models.TextField('Não Incluso no Pacote', blank=True, default='')
+    info_optionals     = models.TextField('Opcionais', blank=True, default='')
+    info_tips          = models.TextField('Dicas de Viagem', blank=True, default='')
+    info_documents     = models.TextField('Documentos Necessários', blank=True, default='')
+    info_promo_rules   = models.TextField('Regras Promoção', blank=True, default='')
+
     # Rascunho (autosalvo / não finalizado) vs Ativo. A lista mostra só ativos;
     # rascunhos aparecem num popup à parte. 'Salvar' no detalhe finaliza (ativo).
     STATUS_CHOICES = [('rascunho', 'Rascunho'), ('ativo', 'Ativo')]
