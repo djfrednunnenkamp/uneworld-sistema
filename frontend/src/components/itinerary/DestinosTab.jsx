@@ -43,18 +43,31 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
   })
   // Subtítulo "Continente · País" (linha de baixo, menor).
   const citySub = (c) => [c.continent_name, c.country_name].filter(Boolean).join(' · ')
-  // Cidades: nome na 1ª linha; "Continente · País" na 2ª. Lista navegável mesmo
-  // sem digitar (amostra do backend) e busca por nome; se houver país(es)
-  // selecionado(s), restringe a eles.
+  // Cidades: busca GLOBAL (não filtra pelo país selecionado); nome na 1ª linha e
+  // "Continente · País" na 2ª. Lista navegável mesmo sem digitar (amostra).
   const mapCity = (c) => ({ id: c.id, label: c.name, sublabel: citySub(c),
-                            raw: { id: c.id, name: c.name, country_name: c.country_name, continent_name: c.continent_name } })
+                            raw: { id: c.id, name: c.name, country_name: c.country_name, continent_name: c.continent_name,
+                                   country_id: c.country, continent_id: c.continent } })
   const searchCities = async (q) => {
-    const countryIds = data.countries || []
-    const r = countryIds.length > 0
-      ? await configApi.citiesByCountries(countryIds.join(','), q || '')
-      : await configApi.citySearch(q || '')
+    const r = await configApi.citySearch(q || '')
     return notSelected('cities', r.data.results ?? r.data).map(mapCity)
   }
+
+  // Ao adicionar uma cidade: inclui automaticamente o país e o continente dela
+  // (se ainda não estiverem nas listas) — integração cidade → país → continente.
+  const addCity = (id, raw) => setData(d => {
+    if ((d.cities || []).includes(id)) return d
+    const next = { ...d, cities: [...(d.cities || []), id], cities_data: [...(d.cities_data || []), raw] }
+    if (raw.country_id != null && !(next.countries || []).includes(raw.country_id)) {
+      next.countries = [...(next.countries || []), raw.country_id]
+      next.countries_data = [...(next.countries_data || []), { id: raw.country_id, name: raw.country_name }]
+    }
+    if (raw.continent_id != null && !(next.continents || []).includes(raw.continent_id)) {
+      next.continents = [...(next.continents || []), raw.continent_id]
+      next.continents_data = [...(next.continents_data || []), { id: raw.continent_id, name: raw.continent_name }]
+    }
+    return next
+  })
   const chips = (dataKey, labelFn) => (data[dataKey] || []).map(x => ({ id: x.id, label: labelFn(x) }))
 
   // Continente: multi-seleção (chips), igual a Países.
@@ -86,7 +99,7 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
       <FormRow label="Cidades" last>
         <TagPicker popup placeholder="Buscar cidade…" search={searchCities}
           selected={(data.cities_data || []).map(c => ({ id: c.id, label: c.name, sublabel: citySub(c) }))}
-          onAdd={it => canEdit && addItem('cities', 'cities_data', it.id, it.raw)}
+          onAdd={it => canEdit && addCity(it.id, it.raw)}
           onRemove={id => canEdit && removeItem('cities', 'cities_data', id)} />
       </FormRow>
     </TabCard>

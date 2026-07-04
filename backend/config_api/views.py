@@ -1236,10 +1236,12 @@ class CitySerializer(serializers.ModelSerializer):
     state_name     = serializers.CharField(source='state.name', read_only=True, default=None)
     country_name   = serializers.CharField(source='state.country.name', read_only=True, default=None)
     continent_name = serializers.CharField(source='state.country.continent.name', read_only=True, default=None)
+    country        = serializers.IntegerField(source='state.country_id', read_only=True)
+    continent      = serializers.IntegerField(source='state.country.continent_id', read_only=True)
 
     class Meta:
         model = ConfigCity
-        fields = ['id', 'name', 'state_name', 'country_name', 'continent_name']
+        fields = ['id', 'name', 'state_name', 'country_name', 'continent_name', 'country', 'continent']
 
 
 class CityViewSet(viewsets.ModelViewSet):
