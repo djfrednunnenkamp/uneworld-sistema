@@ -11,7 +11,7 @@ export default function BasicInfoModal({ data, setData, canEdit, categoryOptions
           <span className="mtitle">Informações básicas</span>
           <button className="mclose" onClick={onClose}><Ic n="x" s={15} /></button>
         </div>
-        <div className="mbody">
+        <div className="mbody" style={{ maxHeight: '74vh' }}>
           <BasicInfoTab data={data} setData={setData} canEdit={canEdit} categoryOptions={categoryOptions} />
         </div>
         <div className="mfoot">
