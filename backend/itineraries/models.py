@@ -21,7 +21,9 @@ class Itinerary(models.Model):
     trip_type   = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='aereo')
     # Produto próprio da UneWorld (operação própria) vs. de terceiro/parceiro.
     is_own_product = models.BooleanField('Produto próprio da UneWorld', default=True)
-    category    = models.ForeignKey('config_api.ConfigItineraryCategory', null=True, blank=True,
+    # Categoria puxa da lista "Categorias de acomodação" (Configurações › Categorias),
+    # onde ficam Standard/Luxo/Internacional/Nacional etc.
+    category    = models.ForeignKey('config_api.ConfigListCategory', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Categoria')
     continent   = models.ForeignKey('config_api.ConfigContinent', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='itineraries', verbose_name='Continente')

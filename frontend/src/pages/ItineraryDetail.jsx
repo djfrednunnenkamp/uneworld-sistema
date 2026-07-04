@@ -79,7 +79,7 @@ export default function ItineraryDetail() {
   }, [])
 
   useEffect(() => {
-    configApi.itineraryCategories().then(r => setCategories(r.data)).catch(() => {})
+    configApi.listCategories().then(r => setCategories(r.data.results ?? r.data)).catch(() => {})
     configApi.continents().then(r => setContinents(r.data)).catch(() => {})
     configApi.accommodations().then(r => setAccommodationOpts(r.data.results ?? r.data)).catch(() => {})
     configApi.contractClauses().then(r => setClauseList(r.data.results ?? r.data)).catch(() => {})
