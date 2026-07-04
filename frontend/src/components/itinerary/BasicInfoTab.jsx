@@ -67,6 +67,14 @@ function BasicInfoTab({ data, setData, canEdit, categoryOptions }) {
         <DatePicker value={data.end_date} relatedDate={data.start_date || null} disabled={!canEdit} fixed
           onChange={v => setData(d => ({ ...d, end_date: v }))} />
       </FormRow>
+      <FormRow label="Total de noites">
+        <input style={{ ...inp, background: '#f1f5f9', color: '#475569', cursor: 'not-allowed' }} readOnly disabled
+          value={(() => {
+            if (!data.start_date || !data.end_date) return '—'
+            const n = Math.round((new Date(data.end_date) - new Date(data.start_date)) / 86400000)
+            return n >= 0 ? `${n} ${n === 1 ? 'noite' : 'noites'}` : '—'
+          })()} />
+      </FormRow>
       <FormRow label="Palavras-chave" last>
         <TagPicker popup placeholder="Buscar ou criar palavra-chave…" search={searchKw} onCreate={createKw}
           selected={kwChips}
