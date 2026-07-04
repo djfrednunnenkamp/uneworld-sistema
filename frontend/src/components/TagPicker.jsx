@@ -27,6 +27,7 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
   const btnRef = useRef(null)
 
   useEffect(() => {
+    if (popup) return   // no popup, quem fecha é o overlay/X — o handler global é só do dropdown
     const h = e => {
       if (btnRef.current && !btnRef.current.contains(e.target) && !e.target.closest('[data-tagpicker-drop]')) {
         setOpen(false)
@@ -34,7 +35,7 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
     }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
-  }, [])
+  }, [popup])
 
   useEffect(() => {
     if (!open) return
@@ -109,20 +110,20 @@ export default function TagPicker({ selected = [], onRemove, onAdd, search, onCr
   const popupListBody = (
     <>
       {selInList.map(item => (
-        <div key={`sel-${item.id}`} onMouseDown={e => { e.preventDefault(); onRemove(item.id) }}
+        <div key={`sel-${item.id}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onRemove(item.id) }}
           style={{ ...rowStyle, background: '#f0f6ff', fontWeight: 600 }}
           onMouseEnter={e => e.currentTarget.style.background = '#e6f0fb'} onMouseLeave={e => e.currentTarget.style.background = '#f0f6ff'}>
           {checkbox(true)}<span>{item.label}</span>
         </div>
       ))}
       {filteredOptions.map(opt => (
-        <div key={opt.id} onMouseDown={e => { e.preventDefault(); pick(opt) }} style={rowStyle}
+        <div key={opt.id} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); pick(opt) }} style={rowStyle}
           onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
           {checkbox(false)}<span>{opt.label}</span>
         </div>
       ))}
       {showCreate && (
-        <div onMouseDown={e => { e.preventDefault(); handleCreate() }}
+        <div onMouseDown={e => { e.preventDefault(); e.stopPropagation(); handleCreate() }}
           style={{ ...rowStyle, color: '#1a2d4f', fontWeight: 600, borderTop: (selInList.length || filteredOptions.length) ? '1px solid #f1f5f9' : 'none' }}
           onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
           {creating ? 'Criando…' : `+ Criar "${trimmedQuery}"`}
