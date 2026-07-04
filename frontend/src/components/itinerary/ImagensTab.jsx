@@ -4,25 +4,34 @@ import { itinerariesApi } from '../../api'
 import { Ic } from '../Icon'
 import { TabCard } from './ui'
 import GalleryManager from './GalleryManager'
+import ImageLightbox from './ImageLightbox'
 
-const slotBox = { position: 'relative', width: 200, height: 130, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }
+const slotBox = { position: 'relative', width: '100%', maxWidth: 240, height: 150, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#f8fafc' }
 
-/* Campo de uma única imagem (lâminas). Mostra a imagem com excluir, ou o upload. */
-function SingleImageSlot({ label, image, canEdit, onUpload, onDelete }) {
+/* Campo de uma única imagem (lâminas). Clicar abre o lightbox; aceita soltar
+   um arquivo para upload automático. */
+function SingleImageSlot({ image, canEdit, onUpload, onDelete, onView }) {
   const [busy, setBusy] = useState(false)
+  const [fileOver, setFileOver] = useState(false)
   const ref = useRef(null)
-  const pick = async (e) => {
-    const f = (e.target.files || [])[0]; e.target.value = ''
-    if (!f) return
+  const upload = async (file) => {
+    if (!file) return
     setBusy(true)
-    try { await onUpload(f) } catch { toast.error('Falha ao enviar imagem.') } finally { setBusy(false) }
+    try { await onUpload(file) } catch { toast.error('Falha ao enviar imagem.') } finally { setBusy(false) }
+  }
+  const isFileDrag = (e) => Array.from(e.dataTransfer?.types || []).includes('Files')
+  const onDrop = (e) => {
+    if (canEdit && e.dataTransfer?.files?.length) { e.preventDefault(); upload(e.dataTransfer.files[0]) }
+    setFileOver(false)
   }
   return (
-    <div style={{ minWidth: 0 }}>
-      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>{label}</p>
+    <div onDragOver={e => { if (canEdit && isFileDrag(e)) { e.preventDefault(); setFileOver(true) } }}
+      onDragLeave={() => setFileOver(false)} onDrop={onDrop}
+      style={{ borderRadius: 8, outline: fileOver ? '2px dashed #2e6db4' : 'none', outlineOffset: 4 }}>
       {image ? (
         <div style={slotBox}>
-          <img src={image.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={image.image} alt="" onClick={() => onView?.(image.image)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} />
           {canEdit && (
             <button type="button" title="Excluir" onClick={() => onDelete(image.id)}
               style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'rgba(220,38,38,.92)', color: '#fff' }}>
@@ -37,14 +46,17 @@ function SingleImageSlot({ label, image, canEdit, onUpload, onDelete }) {
           <span style={{ fontSize: 11.5, fontWeight: 600 }}>{busy ? 'Enviando…' : 'Adicionar'}</span>
         </button>
       ) : <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0 }}>Sem imagem.</p>}
-      <input ref={ref} type="file" accept="image/*" style={{ display: 'none' }} onChange={pick} />
+      <input ref={ref} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = (e.target.files || [])[0]; e.target.value = ''; upload(f) }} />
     </div>
   )
 }
 
-/* Aba "Imagens": duas linhas. Cada uma tem à esquerda um carrossel (Capas /
-   Galeria, com upload múltiplo e reordenar por arrastar) e à direita um campo
-   de imagem única (Lâmina do Bloqueio / Lâmina do Bloqueio Promocional). */
+const cardTitle = { fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }
+const cardSub = { fontSize: 12, color: '#94a3b8', margin: '0 0 16px' }
+
+/* Aba "Imagens": quatro cards em grade 2×2. À esquerda (largo) os carrosséis de
+   Capas e Galeria; à direita as lâminas (imagem única). Arrastar arquivos para
+   qualquer campo faz upload; clicar na imagem abre o lightbox. */
 function ImagensTab({ data, setData, canEdit }) {
   const id = data.id
   const images = data.images || []
@@ -52,6 +64,7 @@ function ImagensTab({ data, setData, canEdit }) {
   const gallery       = images.filter(im => im.kind === 'gallery')
   const blocking      = images.find(im => im.kind === 'blocking') || null
   const blockingPromo = images.find(im => im.kind === 'blocking_promo') || null
+  const [lightbox, setLightbox] = useState(null)
 
   const upload = (kind) => async (file) => {
     const r = await itinerariesApi.uploadImage(id, file, { kind })
@@ -73,35 +86,39 @@ function ImagensTab({ data, setData, canEdit }) {
     itinerariesApi.reorderImages(id, ids).catch(() => toast.error('Falha ao reordenar.'))
   }
 
-  const rowStyle = { display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' }
+  const grid = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 20, alignItems: 'stretch' }
 
   return (
     <>
-      <TabCard style={{ padding: '20px 24px' }}>
-        <div style={rowStyle}>
-          <div style={{ flex: 1, minWidth: 300 }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }}>Capas do roteiro</p>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px' }}>Uma ou mais imagens de capa. Arraste para ordenar.</p>
-            <GalleryManager images={covers} canEdit={canEdit}
-              onUpload={upload('cover')} onDelete={deleteImg} onReorder={reorder('cover')} />
-          </div>
-          <SingleImageSlot label="Lâmina do Bloqueio" image={blocking} canEdit={canEdit}
+      <div style={grid}>
+        <TabCard style={{ padding: '20px 24px' }}>
+          <p style={cardTitle}>Capas do roteiro</p>
+          <p style={cardSub}>Uma ou mais imagens de capa. Arraste para ordenar.</p>
+          <GalleryManager images={covers} canEdit={canEdit} onView={setLightbox}
+            onUpload={upload('cover')} onDelete={deleteImg} onReorder={reorder('cover')} />
+        </TabCard>
+        <TabCard style={{ padding: '20px 24px' }}>
+          <p style={cardTitle}>Lâmina do Bloqueio</p>
+          <p style={cardSub}>Imagem única.</p>
+          <SingleImageSlot image={blocking} canEdit={canEdit} onView={setLightbox}
             onUpload={upload('blocking')} onDelete={deleteImg} />
-        </div>
-      </TabCard>
+        </TabCard>
 
-      <TabCard style={{ padding: '20px 24px', marginTop: 20 }}>
-        <div style={rowStyle}>
-          <div style={{ flex: 1, minWidth: 300 }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }}>Galeria de imagens</p>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px' }}>Imagens do roteiro. Arraste para ordenar.</p>
-            <GalleryManager images={gallery} canEdit={canEdit}
-              onUpload={upload('gallery')} onDelete={deleteImg} onReorder={reorder('gallery')} />
-          </div>
-          <SingleImageSlot label="Lâmina do Bloqueio Promocional" image={blockingPromo} canEdit={canEdit}
+        <TabCard style={{ padding: '20px 24px' }}>
+          <p style={cardTitle}>Galeria de imagens</p>
+          <p style={cardSub}>Imagens do roteiro. Arraste para ordenar.</p>
+          <GalleryManager images={gallery} canEdit={canEdit} onView={setLightbox}
+            onUpload={upload('gallery')} onDelete={deleteImg} onReorder={reorder('gallery')} />
+        </TabCard>
+        <TabCard style={{ padding: '20px 24px' }}>
+          <p style={cardTitle}>Lâmina do Bloqueio Promocional</p>
+          <p style={cardSub}>Imagem única.</p>
+          <SingleImageSlot image={blockingPromo} canEdit={canEdit} onView={setLightbox}
             onUpload={upload('blocking_promo')} onDelete={deleteImg} />
-        </div>
-      </TabCard>
+        </TabCard>
+      </div>
+
+      <ImageLightbox url={lightbox} onClose={() => setLightbox(null)} />
     </>
   )
 }
