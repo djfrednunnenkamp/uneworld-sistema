@@ -143,6 +143,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'base_currency',
                   'accommodation_lines',
                   'payment_plan', 'payment_plans',
+                  'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method',
                   # novos:
                   'itinerary_type', 'itinerary_type_name',
                   'maritime_company', 'maritime_company_name',

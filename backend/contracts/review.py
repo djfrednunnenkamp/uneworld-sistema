@@ -170,7 +170,7 @@ def build_review_data(contract):
     # e o PDF continuam como estão (comissão embutida/somada).
     # Desconto à vista (global) — abate do total quando o pagamento é à vista, na
     # mesma base do _recalc_totals (bruto: acomodações + ajustes + comissão − dedução).
-    avista_disc = avista_discount_usd(contract.payment_type, accom_total + adj_total + commission - comm_disc, rate)
+    avista_disc = avista_discount_usd(contract.payment_type, accom_total + adj_total + commission - comm_disc, rate, contract.itinerary)
     if avista_disc > 0:
         flags.append({
             'level': 'good', 'code': 'avista_discount',

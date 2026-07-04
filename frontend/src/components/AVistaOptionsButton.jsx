@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { configApi } from '../api'
-import Dropdown from './Dropdown'
 import { Ic } from './Icon'
+import AVistaOptionsFields from './AVistaOptionsFields'
 
 /* Botão + mini-modal das OPÇÕES GLOBAIS de pagamento à vista (desconto único +
    forma sugerida), guardadas no singleton SystemSettings. Fica no cabeçalho do
    pop-up "Modelos de Pagamento". Autossuficiente: carrega e salva sozinho. */
-const inp = { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1e293b', boxSizing: 'border-box', width: '100%' }
-const lblStyle = { display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 5 }
 
 export default function AVistaOptionsButton({ canEdit }) {
   const [open, setOpen]       = useState(false)
@@ -47,14 +45,6 @@ export default function AVistaOptionsButton({ canEdit }) {
     finally { setSaving(false) }
   }
 
-  const methodOpts = Array.from(new Set([...methods, method].filter(Boolean))).map(m => ({ value: m, label: m }))
-  const modeBtn = (m, label) => (
-    <button type="button" onClick={() => canEdit && setMode(m)} disabled={!canEdit}
-      style={{ padding: '8px 14px', border: 'none', background: mode === m ? '#1a2d4f' : '#fff', color: mode === m ? '#fff' : '#475569', fontSize: 13, fontWeight: mode === m ? 700 : 500, cursor: canEdit ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-      {label}
-    </button>
-  )
-
   return (
     <>
       <button type="button" onClick={openModal} title="Opções de pagamento à vista"
@@ -77,25 +67,8 @@ export default function AVistaOptionsButton({ canEdit }) {
               {loading ? (
                 <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '8px 0' }}>Carregando…</p>
               ) : (
-                <>
-                  <div>
-                    <label style={lblStyle}>Desconto à vista</label>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                      <input style={inp} type="number" min="0" step="0.01" value={value} disabled={!canEdit}
-                        onChange={e => setValue(e.target.value)} placeholder={mode === 'valor' ? 'Ex.: 500' : 'Ex.: 5'} />
-                      <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
-                        {modeBtn('valor', 'R$')}
-                        {modeBtn('percent', '%')}
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '6px 0 0' }}>0 = sem desconto. Pode ser em reais ou porcentagem.</p>
-                  </div>
-                  <div>
-                    <label style={lblStyle}>Forma de pagamento à vista</label>
-                    <Dropdown value={method || null} options={methodOpts} disabled={!canEdit}
-                      placeholder="Selecione a forma" searchable clearable onChange={v => setMethod(v || '')} />
-                  </div>
-                </>
+                <AVistaOptionsFields mode={mode} value={value} method={method} methodOptions={methods} canEdit={canEdit}
+                  onChange={p => { if ('mode' in p) setMode(p.mode); if ('value' in p) setValue(p.value); if ('method' in p) setMethod(p.method) }} />
               )}
             </div>
             <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

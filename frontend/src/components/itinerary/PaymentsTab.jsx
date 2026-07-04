@@ -3,12 +3,14 @@ import { toast } from 'sonner'
 import { configApi } from '../../api'
 import { Ic } from '../Icon'
 import PaymentPlanFields, { PaymentPlanTester } from '../PaymentPlanFields'
+import AVistaOptionsFields from '../AVistaOptionsFields'
 import { FormRow, TabCard } from './ui'
 import { BLANK_PLAN, planUid, planAutoName, planSummary, planFromModel, planToConfigPayload } from './paymentPlan'
 
 /* Aba "Pagamentos": modelos de pagamento que o roteiro oferece ao contrato.
    Cada modelo pode vir das Configurações (global) ou ser exclusivo do roteiro. */
 function PaymentsTab({ data, setData, canEdit, paymentPlanOpts, paymentMethodOpts, reloadPaymentPlans }) {
+  const [showAvista, setShowAvista]         = useState(false)  // modal das opções à vista deste roteiro
   const [planEditor, setPlanEditor]         = useState(null)   // { index, plan, isNew, makeGlobal } | null
   const [planTesting, setPlanTesting]       = useState(false)
   const [showPlanPicker, setShowPlanPicker] = useState(false)
@@ -69,6 +71,11 @@ function PaymentsTab({ data, setData, canEdit, paymentPlanOpts, paymentMethodOpt
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 700, cursor: canEdit ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
             <Ic n="plus" s={13} /> Criar exclusiva deste roteiro
           </button>
+          <button type="button" onClick={() => setShowAvista(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #86efac', background: '#f0fdf4', color: '#15803d', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Ic n="card" s={13} /> Opções de pagamento à vista
+            {data.a_vista_discount_value != null && data.a_vista_discount_value !== '' && <span style={{ fontSize: 11, fontWeight: 600, opacity: .85 }}>· deste roteiro</span>}
+          </button>
         </div>
         {plans.length === 0 ? (
           <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Nenhuma forma de pagamento definida. Adicione um modelo das Configurações ou crie uma exclusiva deste roteiro.</p>
@@ -91,6 +98,40 @@ function PaymentsTab({ data, setData, canEdit, paymentPlanOpts, paymentMethodOpt
           </div>
         )}
       </FormRow>
+
+      {/* Modal: Opções de pagamento à vista SÓ deste roteiro (override do padrão do sistema) */}
+      {showAvista && (
+        <div onMouseDown={e => { if (e.target === e.currentTarget) setShowAvista(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(3px)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onMouseDown={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 22px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Opções de pagamento à vista · deste roteiro</span>
+              <button type="button" onClick={() => setShowAvista(false)} title="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}><Ic n="x" s={16} /></button>
+            </div>
+            <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <AVistaOptionsFields
+                mode={data.a_vista_discount_mode || 'percent'}
+                value={data.a_vista_discount_value ?? ''}
+                method={data.a_vista_payment_method || ''}
+                methodOptions={paymentMethodOpts} canEdit={canEdit}
+                hint="Vazio = usa o padrão do sistema (Configurações → Opções de pagamento à vista). Preenchido = vale só para este roteiro."
+                onChange={p => setData(d => ({
+                  ...d,
+                  ...(('mode' in p) ? { a_vista_discount_mode: p.mode } : {}),
+                  ...(('value' in p) ? { a_vista_discount_value: p.value } : {}),
+                  ...(('method' in p) ? { a_vista_payment_method: p.method } : {}),
+                }))} />
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              {canEdit && (data.a_vista_discount_value != null && data.a_vista_discount_value !== '') ? (
+                <button type="button" onClick={() => setData(d => ({ ...d, a_vista_discount_value: null, a_vista_payment_method: '' }))}
+                  className="btn btn-outline" style={{ color: '#b91c1c', borderColor: '#fecaca' }}>Voltar ao padrão do sistema</button>
+              ) : <span />}
+              <button type="button" onClick={() => setShowAvista(false)} className="btn btn-primary">Pronto</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Popup: adicionar modelos das Configurações (multi-seleção) */}
       {showPlanPicker && (

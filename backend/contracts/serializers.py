@@ -23,18 +23,27 @@ def _default_exchange_rate(from_currency='USD', to_currency='BRL', payment_type=
     return row.rate if payment_type == 'a_vista' else (row.rate_installment or row.rate)
 
 
-def avista_discount_usd(payment_type, base_total_usd, exchange_rate):
-    """Desconto à vista GLOBAL (Configurações → Opções de pagamento à vista,
-    guardado em SystemSettings) convertido para USD. Só quando payment_type='a_vista'.
-    percent → % do total; valor → R$ convertido pelo câmbio. Limitado ao total."""
-    if (payment_type or '') != 'a_vista':
-        return Decimal('0')
+def avista_discount_source(itinerary=None):
+    """Fonte efetiva do desconto à vista: o OVERRIDE do roteiro (se configurado —
+    a_vista_discount_value não nulo) tem prioridade; senão o padrão do sistema
+    (Configurações → Opções de pagamento à vista, em SystemSettings). Retorna (mode, value)."""
+    if itinerary is not None and getattr(itinerary, 'a_vista_discount_value', None) is not None:
+        return (itinerary.a_vista_discount_mode or 'percent', Decimal(itinerary.a_vista_discount_value or 0))
     from config_api.models import SystemSettings
     ss = SystemSettings.get()
-    dv = Decimal(ss.a_vista_discount_value or 0)
+    return (ss.a_vista_discount_mode or 'percent', Decimal(ss.a_vista_discount_value or 0))
+
+
+def avista_discount_usd(payment_type, base_total_usd, exchange_rate, itinerary=None):
+    """Desconto à vista em USD, da fonte efetiva (override do roteiro senão sistema).
+    Só quando payment_type='a_vista'. percent → % do total; valor → R$ pelo câmbio;
+    limitado ao total."""
+    if (payment_type or '') != 'a_vista':
+        return Decimal('0')
+    mode, dv = avista_discount_source(itinerary)
     if dv <= 0:
         return Decimal('0')
-    if ss.a_vista_discount_mode == 'valor':
+    if mode == 'valor':
         disc = (dv / exchange_rate) if exchange_rate else Decimal('0')
     else:
         disc = Decimal(base_total_usd) * dv / Decimal('100')
@@ -387,14 +396,13 @@ class ContractSerializer(serializers.ModelSerializer):
         total_usd = accom_total + adj_total + commission - comm_disc
         # Desconto à vista (global) abate do total quando o pagamento é à vista.
         # Guarda um snapshot (valor + modo + %) para exibir a linha no PDF e na tela.
-        avista_disc = avista_discount_usd(contract.payment_type, total_usd, exchange_rate)
+        avista_disc = avista_discount_usd(contract.payment_type, total_usd, exchange_rate, contract.itinerary)
         total_usd = total_usd - avista_disc
         contract.a_vista_discount_usd = avista_disc
         if avista_disc > 0:
-            from config_api.models import SystemSettings
-            ss = SystemSettings.get()
-            contract.a_vista_discount_mode  = ss.a_vista_discount_mode or ''
-            contract.a_vista_discount_value = ss.a_vista_discount_value or Decimal('0')
+            mode, value = avista_discount_source(contract.itinerary)
+            contract.a_vista_discount_mode  = mode or ''
+            contract.a_vista_discount_value = value or Decimal('0')
         else:
             contract.a_vista_discount_mode  = ''
             contract.a_vista_discount_value = Decimal('0')

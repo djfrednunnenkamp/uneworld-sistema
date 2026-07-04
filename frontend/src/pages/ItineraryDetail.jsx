@@ -111,6 +111,10 @@ export default function ItineraryDetail() {
         payment_plans: data.payment_plans || [],
         // Compat com o contrato (que hoje lê UM só): 1º modelo da lista.
         payment_plan: (data.payment_plans || [])[0] ?? null,
+        // Override das opções à vista deste roteiro (vazio → null = usa o padrão do sistema).
+        a_vista_discount_mode: data.a_vista_discount_mode || 'percent',
+        a_vista_discount_value: (data.a_vista_discount_value === '' || data.a_vista_discount_value == null) ? null : Number(data.a_vista_discount_value),
+        a_vista_payment_method: data.a_vista_payment_method || '',
         // Novos M2M (arrays de ids) e dia-a-dia. Imagens/documentos NÃO vão aqui —
         // são gerenciados via actions de upload/exclusão, imediatas.
         cities: data.cities || [], countries: data.countries || [], airports: data.airports || [],
