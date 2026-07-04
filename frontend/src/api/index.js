@@ -226,6 +226,7 @@ export const configApi = {
   // Cidades
   cities:    (state_id) => api.get('/config/cities/', { params: { state_id } }),
   citySearch: (q) => api.get('/config/cities/', { params: { q } }),
+  citiesByCountries: (country_ids, q) => api.get('/config/cities/', { params: { country_ids, q } }),
   addCity:   (state_id, name) => api.post('/config/cities/', { state_id, name }),
   updateCity: (id, name) => api.patch(`/config/cities/${id}/`, { name }),
   delCity:   (id) => api.delete(`/config/cities/${id}/`),

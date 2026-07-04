@@ -20,12 +20,11 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
   const notSelected = (idKey, list) => { const sel = new Set(data[idKey] || []); return list.filter(x => !sel.has(x.id)) }
 
   // Buscas (retornam [{id, label, raw}]).
-  // Países: se um continente estiver selecionado, restringe a busca aos países dele.
+  // Países: lista completa (a escolha de continente não remove países).
   const searchCountries = async (q) => {
     const s = (q || '').toLowerCase()
-    let list = notSelected('countries', allCountries)
-    if (data.continent != null) list = list.filter(c => c.continent === data.continent)
-    return list.filter(c => !s || c.name.toLowerCase().includes(s)).slice(0, 40)
+    return notSelected('countries', allCountries)
+      .filter(c => !s || c.name.toLowerCase().includes(s)).slice(0, 40)
       .map(c => ({ id: c.id, label: c.name, raw: { id: c.id, name: c.name } }))
   }
 
@@ -40,12 +39,20 @@ function DestinosTab({ data, setData, canEdit, continentOptions }) {
     }
     return next
   })
+  // Cidades: se houver país(es) selecionado(s), lista as cidades desses países
+  // (navegável, mesmo sem digitar) e permite buscar por nome. Sem país
+  // selecionado, cai na busca global por nome (mín. 2 letras).
+  const mapCity = (c) => ({ id: c.id, label: c.country_name ? `${c.name} · ${c.country_name}` : c.name,
+                            raw: { id: c.id, name: c.name, country_name: c.country_name } })
   const searchCities = async (q) => {
+    const countryIds = data.countries || []
+    if (countryIds.length > 0) {
+      const r = await configApi.citiesByCountries(countryIds.join(','), q || '')
+      return notSelected('cities', r.data.results ?? r.data).map(mapCity)
+    }
     if (!q || q.length < 2) return []
     const r = await configApi.citySearch(q)
-    return notSelected('cities', r.data.results ?? r.data)
-      .map(c => ({ id: c.id, label: c.country_name ? `${c.name} · ${c.country_name}` : c.name,
-                  raw: { id: c.id, name: c.name, country_name: c.country_name } }))
+    return notSelected('cities', r.data.results ?? r.data).map(mapCity)
   }
   const chips = (dataKey, labelFn) => (data[dataKey] || []).map(x => ({ id: x.id, label: labelFn(x) }))
 

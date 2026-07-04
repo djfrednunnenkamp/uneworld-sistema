@@ -1247,11 +1247,21 @@ class CityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         state_id = self.request.query_params.get('state_id')
+        country_ids = self.request.query_params.get('country_ids')
         q = self.request.query_params.get('q')
+        base = ConfigCity.objects.select_related('state__country')
         if state_id:
-            return ConfigCity.objects.filter(state_id=state_id).select_related('state__country')
+            return base.filter(state_id=state_id)
+        # Filtro por país(es): lista as cidades dos países escolhidos no roteiro,
+        # com busca opcional por nome. Limita p/ não trazer milhares de uma vez.
+        if country_ids:
+            ids = [int(x) for x in country_ids.split(',') if x.strip().isdigit()]
+            qs = base.filter(state__country_id__in=ids)
+            if q:
+                qs = qs.filter(name__icontains=q)
+            return qs.order_by('name')[:100]
         if q:
-            return ConfigCity.objects.filter(name__icontains=q).select_related('state__country')[:50]
+            return base.filter(name__icontains=q)[:50]
         return ConfigCity.objects.none()
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})
