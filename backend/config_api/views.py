@@ -1479,25 +1479,7 @@ class AirportViewSet(viewsets.ModelViewSet):
 
 # ── Companhias Aéreas ────────────────────────────────────────────────────────
 
-AIRLINE_LOGO_SIZE = (320, 160)   # todas as logos ficam neste tamanho (PNG transparente)
-
-
-def normalize_airline_logo(raw_bytes):
-    """Ajusta qualquer imagem para 320×160 PNG (fundo transparente), centralizada.
-    Garante que TODA logo saia no mesmo tamanho. Levanta ValueError se inválida."""
-    from io import BytesIO
-    from PIL import Image
-    from django.core.files.base import ContentFile
-    try:
-        img = Image.open(BytesIO(raw_bytes)).convert('RGBA')
-    except Exception:
-        raise ValueError('imagem inválida')
-    img.thumbnail(AIRLINE_LOGO_SIZE, Image.LANCZOS)
-    canvas = Image.new('RGBA', AIRLINE_LOGO_SIZE, (0, 0, 0, 0))
-    canvas.paste(img, ((AIRLINE_LOGO_SIZE[0] - img.width) // 2, (AIRLINE_LOGO_SIZE[1] - img.height) // 2), img)
-    out = BytesIO()
-    canvas.save(out, format='PNG', optimize=True)
-    return ContentFile(out.getvalue())
+from .airline_logos import normalize_logo_bytes, normalized_kiwi_logo, save_airline_logo
 
 
 class AirlineSerializer(serializers.ModelSerializer):
@@ -1527,11 +1509,6 @@ class AirlineViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_favorite=True)
         return qs.order_by('-is_favorite', 'name')
 
-    def _save_logo(self, airline, content_file):
-        if airline.logo:
-            airline.logo.delete(save=False)   # remove o arquivo antigo
-        airline.logo.save('logo.png', content_file, save=True)
-
     @action(detail=True, methods=['post'], url_path='logo', parser_classes=[MultiPartParser, FormParser])
     def set_logo(self, request, pk=None):
         """Define/remove a logo (upload manual, já recortada no front). Normaliza para 320×160."""
@@ -1544,31 +1521,22 @@ class AirlineViewSet(viewsets.ModelViewSet):
         if not f:
             return Response({'error': 'Envie a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            cf = normalize_airline_logo(f.read())
+            cf = normalize_logo_bytes(f.read())
         except ValueError:
             return Response({'error': 'Imagem inválida.'}, status=status.HTTP_400_BAD_REQUEST)
-        self._save_logo(airline, cf)
+        save_airline_logo(airline, cf)
         return Response(AirlineSerializer(airline, context=self.get_serializer_context()).data)
 
     @action(detail=True, methods=['post'], url_path='fetch-logo')
     def fetch_logo(self, request, pk=None):
         """Baixa a logo da internet (Kiwi) pelo código IATA e normaliza para 320×160."""
         airline = self.get_object()
-        code = (airline.iata_code or '').strip().upper()
-        if not code:
+        if not (airline.iata_code or '').strip():
             return Response({'error': 'A companhia não tem código IATA.'}, status=status.HTTP_400_BAD_REQUEST)
-        url = f'https://images.kiwi.com/airlines/128/{code}.png'
-        try:
-            resp = requests.get(url, timeout=10, headers={'User-Agent': 'UneWorld/1.0'})
-        except Exception:
-            return Response({'error': 'Falha ao acessar a internet.'}, status=status.HTTP_502_BAD_GATEWAY)
-        if resp.status_code != 200 or not resp.content:
-            return Response({'error': 'Logo não encontrada para este código IATA.'}, status=status.HTTP_404_NOT_FOUND)
-        try:
-            cf = normalize_airline_logo(resp.content)
-        except ValueError:
-            return Response({'error': 'A imagem baixada é inválida.'}, status=status.HTTP_400_BAD_REQUEST)
-        self._save_logo(airline, cf)
+        cf = normalized_kiwi_logo(airline.iata_code)
+        if cf is None:
+            return Response({'error': 'Logo não encontrada na internet para este código IATA.'}, status=status.HTTP_404_NOT_FOUND)
+        save_airline_logo(airline, cf)
         return Response(AirlineSerializer(airline, context=self.get_serializer_context()).data)
 
     @action(detail=False, methods=['post'])

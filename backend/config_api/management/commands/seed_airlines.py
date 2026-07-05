@@ -94,6 +94,29 @@ class Command(BaseCommand):
                 progress(i, total)
 
         Airline.objects.bulk_create(to_create, batch_size=500)
+
+        # Baixa as logos (Kiwi) das companhias que têm IATA e ainda não têm logo —
+        # em paralelo (só a rede vai pra thread; o save no banco fica na principal).
+        # Tolerante a falhas: quem não tiver logo na Kiwi simplesmente fica sem.
+        from concurrent.futures import ThreadPoolExecutor
+        from config_api.airline_logos import normalized_kiwi_logo, save_airline_logo
+
+        candidates = [a for a in Airline.objects.exclude(iata_code='').only('id', 'iata_code', 'logo')
+                      if not a.logo]
+        total_logos = len(candidates)
+        if total_logos:
+            done = 0
+            with ThreadPoolExecutor(max_workers=8) as ex:
+                for airline, cf in zip(candidates, ex.map(lambda a: normalized_kiwi_logo(a.iata_code), candidates)):
+                    if cf is not None:
+                        try:
+                            save_airline_logo(airline, cf)
+                        except Exception:
+                            pass
+                    done += 1
+                    if done % 20 == 0 or done == total_logos:
+                        progress(done, total_logos)
+
         self.stdout.write(self.style.SUCCESS(
             f'Importadas {len(to_create)} companhias aéreas.'
         ))
