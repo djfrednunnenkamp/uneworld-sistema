@@ -963,7 +963,7 @@ class HotelSerializer(serializers.ModelSerializer):
         model = ConfigHotel
         fields = ['id', 'name', 'city', 'city_data',
                   'categories', 'categories_data',
-                  'website', 'phone', 'description']
+                  'website', 'phone', 'description', 'is_global']
 
 
 class HotelViewSet(viewsets.ModelViewSet):
@@ -978,6 +978,7 @@ class HotelViewSet(viewsets.ModelViewSet):
               .prefetch_related('categories'))
         if self.action != 'list':
             return qs
+        qs = qs.filter(is_global=True)   # catálogo/busca: só hotéis globais
         q = self.request.query_params.get('q', '').strip()
         if q:
             qs = qs.filter(name__icontains=q)
