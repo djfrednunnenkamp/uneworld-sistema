@@ -390,25 +390,3 @@ class ItineraryBoat(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class ItineraryTerrestre(models.Model):
-    """Serviço terrestre reservado do roteiro (aba 'Terrestre'). Espelha o barco,
-    alimentado pelo catálogo de Terrestres (Configurações)."""
-    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='terrestres')
-    config_terrestre = models.ForeignKey('config_api.ConfigTerrestre', null=True, blank=True,
-                                         on_delete=models.SET_NULL, related_name='+')
-    config_terrestre_linked = models.BooleanField(default=True)
-    name      = models.CharField('Nome', max_length=300)
-    check_in  = models.DateField('Check-in', null=True, blank=True)
-    check_out = models.DateField('Check-out', null=True, blank=True)
-    notes     = models.TextField('Observações', blank=True, default='')
-    order     = models.PositiveIntegerField('Ordem', default=0)
-
-    class Meta:
-        ordering = ['order', 'id']
-        verbose_name = 'Terrestre do roteiro'
-        verbose_name_plural = 'Terrestres do roteiro'
-
-    def __str__(self):
-        return self.name

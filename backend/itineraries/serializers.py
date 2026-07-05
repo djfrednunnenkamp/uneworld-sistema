@@ -1,10 +1,9 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat, ConfigTerrestre
+from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
-                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
-                     ItineraryTerrestre)
+                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat)
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
 
@@ -135,35 +134,6 @@ class ItineraryBoatSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ItineraryBoat
         fields = ['id', 'itinerary', 'config_boat', 'config_boat_data', 'config_boat_linked',
-                  'name', 'check_in', 'check_out', 'notes', 'order']
-
-
-class ConfigTerrestreMiniSerializer(serializers.ModelSerializer):
-    """Dados do terrestre do catálogo exibidos junto do terrestre reservado."""
-    media = serializers.SerializerMethodField()
-
-    class Meta:
-        model  = ConfigTerrestre
-        fields = ['id', 'website', 'description', 'media']
-
-    def get_media(self, obj):
-        out = []
-        for m in obj.media.all():
-            try:
-                url = m.file.url
-            except ValueError:
-                url = None
-            if url:
-                out.append({'id': m.id, 'url': url, 'kind': m.kind})
-        return out
-
-
-class ItineraryTerrestreSerializer(serializers.ModelSerializer):
-    config_terrestre_data = ConfigTerrestreMiniSerializer(source='config_terrestre', read_only=True)
-
-    class Meta:
-        model  = ItineraryTerrestre
-        fields = ['id', 'itinerary', 'config_terrestre', 'config_terrestre_data', 'config_terrestre_linked',
                   'name', 'check_in', 'check_out', 'notes', 'order']
 
 
