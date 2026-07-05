@@ -368,14 +368,27 @@ class ItinerarySerializer(serializers.ModelSerializer):
     # ── Persistência das child tables (padrão rebuild, igual accommodation_lines) ──
     def _save_accommodation_lines(self, itinerary, lines):
         itinerary.accommodation_lines.all().delete()
-        for i, line in enumerate(lines):
+        # Uma categoria por partida: colapsa duplicatas de (tipo, partida) mantendo
+        # a última ocorrência (linhas sem tipo definido passam livres).
+        seen = {}       # (type_id, fd_id, td_id) -> posição em cleaned
+        cleaned = []
+        for line in lines:
             # Descarta partida que não seja deste roteiro (a linha vira "geral").
             fd = line.get('flight_departure')
             td = line.get('terrestre_departure')
             if fd is not None and fd.itinerary_id != itinerary.id:
-                line = {**line, 'flight_departure': None}
+                line = {**line, 'flight_departure': None}; fd = None
             if td is not None and td.itinerary_id != itinerary.id:
-                line = {**line, 'terrestre_departure': None}
+                line = {**line, 'terrestre_departure': None}; td = None
+            at = line.get('accommodation_type')
+            key = (at.id, getattr(fd, 'id', None), getattr(td, 'id', None)) if at is not None else None
+            if key is not None and key in seen:
+                cleaned[seen[key]] = line          # mesma categoria/partida → sobrescreve
+            else:
+                if key is not None:
+                    seen[key] = len(cleaned)
+                cleaned.append(line)
+        for i, line in enumerate(cleaned):
             ItineraryAccommodationLine.objects.create(itinerary=itinerary, order=i, **line)
 
     def _save_days(self, itinerary, days):
