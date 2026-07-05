@@ -32,6 +32,11 @@ class Itinerary(models.Model):
     is_own_product = models.BooleanField('Produto próprio da UneWorld', default=True)
     # Marca o roteiro como destaque (ex.: aparecer em vitrine/home).
     is_featured    = models.BooleanField('Destaque do roteiro', default=False)
+    # Meios de transporte do roteiro — controlam quais abas aparecem no detalhe
+    # (Voo/Barco/Terrestre). Independentes: um roteiro pode ter mais de um.
+    has_voo        = models.BooleanField('Transporte aéreo (Voo)', default=False)
+    has_barco      = models.BooleanField('Transporte marítimo (Barco)', default=False)
+    has_terrestre  = models.BooleanField('Transporte terrestre', default=False)
     # Categoria puxa da lista "Categorias de acomodação" (Configurações › Categorias),
     # onde ficam Standard/Luxo/Internacional/Nacional etc.
     category    = models.ForeignKey('config_api.ConfigListCategory', null=True, blank=True,

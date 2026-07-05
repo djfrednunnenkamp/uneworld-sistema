@@ -306,6 +306,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'is_own_product', 'is_featured',
+                  'has_voo', 'has_barco', 'has_terrestre',
                   'clauses', 'custom_clauses', 'clauses_data',
                   'category', 'category_name', 'continent', 'continent_name', 'continents', 'continents_data',
                   'base_currency',
