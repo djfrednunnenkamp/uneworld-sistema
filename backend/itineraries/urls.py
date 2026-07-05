@@ -2,7 +2,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (ItineraryViewSet, ItineraryFieldTemplateViewSet,
                     ItineraryDepartureViewSet, ItineraryFlightViewSet, ItineraryHotelViewSet,
-                    ItineraryBoatViewSet)
+                    ItineraryBoatViewSet, ItineraryTerrestreViewSet)
 
 router = DefaultRouter()
 # Rotas nomeadas ANTES de '' para não serem capturadas pela rota de detalhe do
@@ -12,6 +12,7 @@ router.register('departures', ItineraryDepartureViewSet, basename='itinerary-dep
 router.register('flights', ItineraryFlightViewSet, basename='itinerary-flight')
 router.register('hotels', ItineraryHotelViewSet, basename='itinerary-hotel')
 router.register('boats', ItineraryBoatViewSet, basename='itinerary-boat')
+router.register('terrestres', ItineraryTerrestreViewSet, basename='itinerary-terrestre')
 router.register('', ItineraryViewSet, basename='itinerary')
 
 urlpatterns = router.urls

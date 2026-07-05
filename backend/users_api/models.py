@@ -276,6 +276,11 @@ class UserPermissions(models.Model):
     settings_boats_delete                = models.BooleanField(default=False)
     settings_boats_bulk_import           = models.BooleanField(default=False)
     settings_boats_export                = models.BooleanField(default=False)
+    settings_terrestre_view              = models.BooleanField(default=False)
+    settings_terrestre_edit              = models.BooleanField(default=False)
+    settings_terrestre_delete            = models.BooleanField(default=False)
+    settings_terrestre_bulk_import       = models.BooleanField(default=False)
+    settings_terrestre_export            = models.BooleanField(default=False)
 
     # Exportar CSV (download) — granular por área. Antes o download dependia só
     # de "_view"; agora cada área tem permissão própria de download.

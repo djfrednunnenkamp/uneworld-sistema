@@ -8,11 +8,11 @@ from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
-                     ItineraryFlight, ItineraryHotel, ItineraryBoat)
+                     ItineraryFlight, ItineraryHotel, ItineraryBoat, ItineraryTerrestre)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
-                          ItineraryHotelSerializer, ItineraryBoatSerializer)
+                          ItineraryHotelSerializer, ItineraryBoatSerializer, ItineraryTerrestreSerializer)
 
 
 def _roteiro_edit_permissions(self):
@@ -83,6 +83,20 @@ class ItineraryBoatViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ItineraryBoat.objects.all()
+        if self.action == 'list':
+            itinerary = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return qs
+
+
+class ItineraryTerrestreViewSet(viewsets.ModelViewSet):
+    """Terrestres reservados de um roteiro (aba Terrestre). Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryTerrestreSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryTerrestre.objects.all()
         if self.action == 'list':
             itinerary = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()

@@ -20,7 +20,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
-                     ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia)
+                     ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
+                     ConfigTerrestre, ConfigTerrestreMedia)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -1114,6 +1115,76 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
         ids = request.data.get('ids', [])
         for i, mid in enumerate(ids):
             ConfigBoatMedia.objects.filter(id=mid).update(order=i)
+        return Response({'ok': True})
+
+
+class TerrestreMediaSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ConfigTerrestreMedia
+        fields = ['id', 'terrestre', 'file', 'url', 'kind', 'order']
+        extra_kwargs = {'file': {'write_only': True}}
+        read_only_fields = ['kind']
+
+    def get_url(self, obj):
+        try:
+            return obj.file.url
+        except ValueError:
+            return None
+
+
+class TerrestreSerializer(serializers.ModelSerializer):
+    media = TerrestreMediaSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ConfigTerrestre
+        fields = ['id', 'name', 'website', 'description', 'is_global', 'media']
+
+
+class TerrestreViewSet(viewsets.ModelViewSet):
+    """Catálogo de serviços terrestres (Configurações)."""
+    serializer_class = TerrestreSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_terrestre')
+
+    def get_queryset(self):
+        qs = ConfigTerrestre.objects.prefetch_related('media')
+        if self.action != 'list':
+            return qs
+        qs = qs.filter(is_global=True)
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        from itineraries.models import ItineraryTerrestre
+        ItineraryTerrestre.objects.filter(config_terrestre=obj, config_terrestre_linked=True).update(name=obj.name)
+
+
+class TerrestreMediaViewSet(viewsets.ModelViewSet):
+    """Imagens/vídeos de um terrestre (upload multipart)."""
+    serializer_class = TerrestreMediaSerializer
+    pagination_class = None
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    get_permissions = _settings_perm('settings_terrestre', extra_write=['reorder'])
+
+    def get_queryset(self):
+        qs = ConfigTerrestreMedia.objects.all()
+        terrestre = self.request.query_params.get('terrestre')
+        return qs.filter(terrestre_id=terrestre) if terrestre else qs
+
+    def perform_create(self, serializer):
+        f = self.request.FILES.get('file')
+        ctype = (getattr(f, 'content_type', '') or '').lower()
+        kind = ConfigTerrestreMedia.VIDEO if ctype.startswith('video') else ConfigTerrestreMedia.IMAGE
+        serializer.save(kind=kind)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        ids = request.data.get('ids', [])
+        for i, mid in enumerate(ids):
+            ConfigTerrestreMedia.objects.filter(id=mid).update(order=i)
         return Response({'ok': True})
 
 
