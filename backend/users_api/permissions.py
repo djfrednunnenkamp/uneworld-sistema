@@ -108,6 +108,7 @@ PERMISSION_FIELDS = [
     'settings_highlights_view', 'settings_highlights_edit', 'settings_highlights_delete',
     'settings_special_dates_view', 'settings_special_dates_edit', 'settings_special_dates_delete',
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
+    'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -156,6 +157,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_highlights_view', 'settings_highlights_edit', 'settings_highlights_delete',
     'settings_special_dates_view', 'settings_special_dates_edit', 'settings_special_dates_delete',
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
+    'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete',
     # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
     # ninguém Administrador. log_page_views continua porque é uma permissão
     # ativa e concedida de propósito.

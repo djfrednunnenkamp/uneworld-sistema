@@ -271,6 +271,9 @@ class UserPermissions(models.Model):
     settings_hotels_view                 = models.BooleanField(default=False)
     settings_hotels_edit                 = models.BooleanField(default=False)
     settings_hotels_delete               = models.BooleanField(default=False)
+    settings_boats_view                  = models.BooleanField(default=False)
+    settings_boats_edit                  = models.BooleanField(default=False)
+    settings_boats_delete                = models.BooleanField(default=False)
 
     # Exportar CSV (download) — granular por área. Antes o download dependia só
     # de "_view"; agora cada área tem permissão própria de download.

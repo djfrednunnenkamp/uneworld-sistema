@@ -20,7 +20,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
-                     ConfigHotel, ConfigHotelCategory)
+                     ConfigHotel, ConfigHotelCategory, ConfigBoat, ConfigBoatMedia)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -987,6 +987,63 @@ class HotelViewSet(viewsets.ModelViewSet):
             if ids:
                 qs = qs.filter(city_id__in=ids)
         return qs
+
+
+class BoatMediaSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ConfigBoatMedia
+        fields = ['id', 'boat', 'file', 'url', 'kind', 'order']
+        extra_kwargs = {'file': {'write_only': True}}
+        read_only_fields = ['kind']
+
+    def get_url(self, obj):
+        try:
+            return obj.file.url
+        except ValueError:
+            return None
+
+
+class BoatSerializer(serializers.ModelSerializer):
+    media = BoatMediaSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ConfigBoat
+        fields = ['id', 'name', 'website', 'description', 'media']
+
+
+class BoatViewSet(viewsets.ModelViewSet):
+    """Catálogo de barcos (Configurações)."""
+    serializer_class = BoatSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_boats')
+
+    def get_queryset(self):
+        qs = ConfigBoat.objects.prefetch_related('media')
+        if self.action != 'list':
+            return qs
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class BoatMediaViewSet(viewsets.ModelViewSet):
+    """Imagens/vídeos de um barco (upload multipart)."""
+    serializer_class = BoatMediaSerializer
+    pagination_class = None
+    parser_classes = [MultiPartParser, FormParser]
+    get_permissions = _settings_perm('settings_boats')
+
+    def get_queryset(self):
+        qs = ConfigBoatMedia.objects.all()
+        boat = self.request.query_params.get('boat')
+        return qs.filter(boat_id=boat) if boat else qs
+
+    def perform_create(self, serializer):
+        f = self.request.FILES.get('file')
+        ctype = (getattr(f, 'content_type', '') or '').lower()
+        kind = ConfigBoatMedia.VIDEO if ctype.startswith('video') else ConfigBoatMedia.IMAGE
+        serializer.save(kind=kind)
 
 
 class ContinentSerializer(serializers.ModelSerializer):

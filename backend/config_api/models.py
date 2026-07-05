@@ -758,3 +758,43 @@ class ConfigHotel(models.Model):
 
     def __str__(self):
         return self.name
+
+
+def boat_media_path(instance, filename):
+    """Nome único (uuid) para imagens/vídeos do barco, preservando a extensão."""
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'bin'
+    return f'boats/{uuid.uuid4().hex}.{ext}'
+
+
+class ConfigBoat(models.Model):
+    """Catálogo de barcos (Configurações). Nome, site, descrição e mídias."""
+    name        = models.CharField('Nome', max_length=300, db_index=True)
+    website     = models.CharField('Site', max_length=500, blank=True)
+    description = models.TextField('Descrição', blank=True, default='')
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Barco'
+        verbose_name_plural = 'Barcos'
+
+    def __str__(self):
+        return self.name
+
+
+class ConfigBoatMedia(models.Model):
+    """Imagem ou vídeo de um barco."""
+    IMAGE = 'image'
+    VIDEO = 'video'
+    boat        = models.ForeignKey(ConfigBoat, on_delete=models.CASCADE, related_name='media')
+    file        = models.FileField('Arquivo', upload_to=boat_media_path)
+    kind        = models.CharField('Tipo', max_length=10, default=IMAGE)
+    order       = models.PositiveIntegerField('Ordem', default=0)
+    uploaded_at = models.DateTimeField('Enviado em', auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Mídia de barco'
+        verbose_name_plural = 'Mídias de barco'
+
+    def __str__(self):
+        return f'{self.boat_id} · {self.kind}'
