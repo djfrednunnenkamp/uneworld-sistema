@@ -989,6 +989,18 @@ class HotelViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(city_id__in=ids)
         return qs
 
+    def perform_update(self, serializer):
+        """Ao salvar o hotel no catálogo, reaplica nome/cidade/telefone aos
+        hotéis de roteiro vinculados (vínculo vivo ligado)."""
+        hotel = serializer.save()
+        c = hotel.city
+        label = ', '.join([p for p in [c.name if c else None,
+                                       c.state.name if c and c.state else None,
+                                       c.state.country.name if c and c.state and c.state.country else None] if p])
+        from itineraries.models import ItineraryHotel
+        ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True).update(
+            name=hotel.name, city=label, phone=hotel.phone)
+
 
 class BoatMediaSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()

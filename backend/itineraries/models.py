@@ -348,6 +348,9 @@ class ItineraryHotel(models.Model):
     # removido de lá depois; name/city ficam guardados como cópia resiliente.
     config_hotel = models.ForeignKey('config_api.ConfigHotel', null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name='+')
+    # Vínculo vivo: se True, editar o hotel nas Configurações reaplica nome/
+    # cidade/telefone aqui. Editar esses campos à mão desliga (feito no front).
+    config_hotel_linked = models.BooleanField(default=True)
     name      = models.CharField('Nome do hotel', max_length=300)
     city      = models.CharField('Cidade', max_length=200, blank=True)
     check_in  = models.DateField('Check-in', null=True, blank=True)

@@ -92,7 +92,7 @@ class ItineraryHotelSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryHotel
-        fields = ['id', 'itinerary', 'config_hotel', 'config_hotel_data',
+        fields = ['id', 'itinerary', 'config_hotel', 'config_hotel_data', 'config_hotel_linked',
                   'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'notes', 'order']
 
 
