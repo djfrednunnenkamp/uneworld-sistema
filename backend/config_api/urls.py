@@ -33,6 +33,7 @@ router.register('inclusions',            views.InclusionViewSet,          basena
 router.register('highlights',            views.HighlightViewSet,          basename='highlight')
 router.register('special-dates',         views.SpecialDateViewSet,        basename='special-date')
 router.register('continents',           views.ContinentViewSet,          basename='continent')
+router.register('operating-company-contacts', views.OperatingCompanyContactViewSet, basename='operating-company-contact')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -16,7 +16,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
-                     OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
+                     OperatingCompany, OperatingCompanyContact, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate)
@@ -1606,6 +1606,24 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
             return None
         ts = int(obj.updated_at.timestamp()) if obj.updated_at else 0
         return f'/api/config/operating-company/ceo-signature/?v={ts}'
+
+
+class OperatingCompanyContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = OperatingCompanyContact
+        fields = ['id', 'name', 'role', 'email', 'phone', 'order']
+
+
+class OperatingCompanyContactViewSet(viewsets.ModelViewSet):
+    """CRUD dos contatos (equipe) da operadora — aba 'Contatos'."""
+    serializer_class = OperatingCompanyContactSerializer
+    pagination_class = None
+    get_permissions  = _settings_perm('settings_operating_company')
+
+    def get_queryset(self):
+        qs = OperatingCompanyContact.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
 
 
 CEO_SENSITIVE_FIELDS = ['ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign']
