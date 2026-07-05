@@ -346,7 +346,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'itinerary_types', 'itinerary_types_data',
                   'special_dates', 'special_dates_data',
                   'days', 'images',
-                  'status',
+                  'status', 'is_published',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         # slug agora é GRAVÁVEL (o ItineraryDetail já tinha o input): ModelSerializer
         # aplica o UniqueValidator automático (unique=True no model), que exclui o

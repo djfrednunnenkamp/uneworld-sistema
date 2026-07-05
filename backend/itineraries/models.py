@@ -146,6 +146,9 @@ class Itinerary(models.Model):
     # rascunhos aparecem num popup à parte. 'Salvar' no detalhe finaliza (ativo).
     STATUS_CHOICES = [('rascunho', 'Rascunho'), ('ativo', 'Ativo')]
     status      = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo', db_index=True)
+    # Visibilidade pública, independente de rascunho/ativo: só publicado fica visível
+    # ao público. Um roteiro finalizado nasce "não publicado" até ser publicado.
+    is_published = models.BooleanField('Publicado (visível ao público)', default=False, db_index=True)
 
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)
