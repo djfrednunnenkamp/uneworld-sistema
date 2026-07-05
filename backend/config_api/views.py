@@ -1023,8 +1023,8 @@ class HotelMediaViewSet(viewsets.ModelViewSet):
     """Imagens/vídeos de um hotel (upload multipart)."""
     serializer_class = HotelMediaSerializer
     pagination_class = None
-    parser_classes = [MultiPartParser, FormParser]
-    get_permissions = _settings_perm('settings_hotels')
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    get_permissions = _settings_perm('settings_hotels', extra_write=['reorder'])
 
     def get_queryset(self):
         qs = ConfigHotelMedia.objects.all()
@@ -1036,6 +1036,13 @@ class HotelMediaViewSet(viewsets.ModelViewSet):
         ctype = (getattr(f, 'content_type', '') or '').lower()
         kind = ConfigHotelMedia.VIDEO if ctype.startswith('video') else ConfigHotelMedia.IMAGE
         serializer.save(kind=kind)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        ids = request.data.get('ids', [])
+        for i, mid in enumerate(ids):
+            ConfigHotelMedia.objects.filter(id=mid).update(order=i)
+        return Response({'ok': True})
 
 
 class BoatMediaSerializer(serializers.ModelSerializer):
@@ -1080,8 +1087,8 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
     """Imagens/vídeos de um barco (upload multipart)."""
     serializer_class = BoatMediaSerializer
     pagination_class = None
-    parser_classes = [MultiPartParser, FormParser]
-    get_permissions = _settings_perm('settings_boats')
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    get_permissions = _settings_perm('settings_boats', extra_write=['reorder'])
 
     def get_queryset(self):
         qs = ConfigBoatMedia.objects.all()
@@ -1093,6 +1100,13 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
         ctype = (getattr(f, 'content_type', '') or '').lower()
         kind = ConfigBoatMedia.VIDEO if ctype.startswith('video') else ConfigBoatMedia.IMAGE
         serializer.save(kind=kind)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        ids = request.data.get('ids', [])
+        for i, mid in enumerate(ids):
+            ConfigBoatMedia.objects.filter(id=mid).update(order=i)
+        return Response({'ok': True})
 
 
 class ContinentSerializer(serializers.ModelSerializer):
