@@ -493,11 +493,23 @@ class ItineraryListSerializer(serializers.ModelSerializer):
     # Aditivos (o frontend ignora campos extras) — úteis para novas colunas na listagem.
     itinerary_type_name   = serializers.CharField(source='itinerary_type.name', read_only=True, default=None)
     maritime_company_name = serializers.CharField(source='maritime_company.name', read_only=True, default=None)
+    cover                 = serializers.SerializerMethodField()   # miniatura da capa
 
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'base_currency',
                   'category_name', 'continent_name',
-                  'itinerary_type_name', 'maritime_company_name',
-                  'status', 'created_at', 'updated_at',
+                  'itinerary_type_name', 'maritime_company_name', 'cover',
+                  'status', 'is_published', 'has_unpublished_changes',
+                  'created_at', 'updated_at',
                   'is_deleted', 'deleted_at']
+
+    def get_cover(self, obj):
+        # Capa: imagem kind='cover'; senão a 1ª imagem da galeria (day nulo).
+        imgs = list(obj.images.all())
+        cover = next((i for i in imgs if i.kind == 'cover'), None) \
+            or next((i for i in imgs if i.day_id is None), None)
+        if not cover or not cover.image:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(cover.image.url) if request else cover.image.url
