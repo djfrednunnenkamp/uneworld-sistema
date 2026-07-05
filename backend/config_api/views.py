@@ -1066,7 +1066,7 @@ class BoatSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ConfigBoat
-        fields = ['id', 'name', 'website', 'description', 'media']
+        fields = ['id', 'name', 'website', 'description', 'is_global', 'media']
 
 
 class BoatViewSet(viewsets.ModelViewSet):
@@ -1079,8 +1079,16 @@ class BoatViewSet(viewsets.ModelViewSet):
         qs = ConfigBoat.objects.prefetch_related('media')
         if self.action != 'list':
             return qs
+        qs = qs.filter(is_global=True)   # catálogo/busca: só barcos globais
         q = self.request.query_params.get('q', '').strip()
         return qs.filter(name__icontains=q) if q else qs
+
+    def perform_update(self, serializer):
+        """Ao salvar o barco no catálogo, reaplica o nome aos barcos de roteiro
+        vinculados (vínculo vivo ligado)."""
+        boat = serializer.save()
+        from itineraries.models import ItineraryBoat
+        ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True).update(name=boat.name)
 
 
 class BoatMediaViewSet(viewsets.ModelViewSet):

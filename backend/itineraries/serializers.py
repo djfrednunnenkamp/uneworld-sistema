@@ -1,9 +1,9 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel
+from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
-                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel)
+                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat)
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
 
@@ -106,6 +106,35 @@ class ItineraryHotelSerializer(serializers.ModelSerializer):
         model  = ItineraryHotel
         fields = ['id', 'itinerary', 'config_hotel', 'config_hotel_data', 'config_hotel_linked',
                   'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'notes', 'order']
+
+
+class ConfigBoatMiniSerializer(serializers.ModelSerializer):
+    """Dados do barco do catálogo exibidos junto do barco reservado."""
+    media = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = ConfigBoat
+        fields = ['id', 'website', 'description', 'media']
+
+    def get_media(self, obj):
+        out = []
+        for m in obj.media.all():
+            try:
+                url = m.file.url
+            except ValueError:
+                url = None
+            if url:
+                out.append({'id': m.id, 'url': url, 'kind': m.kind})
+        return out
+
+
+class ItineraryBoatSerializer(serializers.ModelSerializer):
+    config_boat_data = ConfigBoatMiniSerializer(source='config_boat', read_only=True)
+
+    class Meta:
+        model  = ItineraryBoat
+        fields = ['id', 'itinerary', 'config_boat', 'config_boat_data', 'config_boat_linked',
+                  'name', 'check_in', 'check_out', 'notes', 'order']
 
 
 class ItineraryFlightSerializer(serializers.ModelSerializer):

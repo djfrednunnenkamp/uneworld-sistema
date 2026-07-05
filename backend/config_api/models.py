@@ -798,6 +798,8 @@ class ConfigBoat(models.Model):
     name        = models.CharField('Nome', max_length=300, db_index=True)
     website     = models.CharField('Site', max_length=500, blank=True)
     description = models.TextField('Descrição', blank=True, default='')
+    # False = barco criado só para um roteiro (não aparece no catálogo geral).
+    is_global   = models.BooleanField('No catálogo geral', default=True, db_index=True)
 
     class Meta:
         ordering = ['name']

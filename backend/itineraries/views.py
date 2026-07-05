@@ -8,11 +8,11 @@ from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
-                     ItineraryFlight, ItineraryHotel)
+                     ItineraryFlight, ItineraryHotel, ItineraryBoat)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
-                          ItineraryHotelSerializer)
+                          ItineraryHotelSerializer, ItineraryBoatSerializer)
 
 
 def _roteiro_edit_permissions(self):
@@ -69,6 +69,20 @@ class ItineraryHotelViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ItineraryHotel.objects.all()
+        if self.action == 'list':
+            itinerary = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return qs
+
+
+class ItineraryBoatViewSet(viewsets.ModelViewSet):
+    """Barcos reservados de um roteiro (aba Barco). Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryBoatSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryBoat.objects.all()
         if self.action == 'list':
             itinerary = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()

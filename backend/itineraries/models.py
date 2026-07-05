@@ -367,3 +367,26 @@ class ItineraryHotel(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ItineraryBoat(models.Model):
+    """Barco reservado do roteiro (aba 'Barco'). Espelha o hotel, alimentado
+    pelo catálogo de Barcos (Configurações)."""
+    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='boats')
+    config_boat = models.ForeignKey('config_api.ConfigBoat', null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name='+')
+    # Vínculo vivo: se True, editar o barco nas Configurações reaplica o nome aqui.
+    config_boat_linked = models.BooleanField(default=True)
+    name      = models.CharField('Nome do barco', max_length=300)
+    check_in  = models.DateField('Check-in', null=True, blank=True)
+    check_out = models.DateField('Check-out', null=True, blank=True)
+    notes     = models.TextField('Observações', blank=True, default='')
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Barco do roteiro'
+        verbose_name_plural = 'Barcos do roteiro'
+
+    def __str__(self):
+        return self.name
