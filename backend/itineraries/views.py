@@ -47,6 +47,17 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
             return qs.filter(departure_id=departure) if departure else qs.none()
         return qs
 
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        """Reordena os voos na sequência informada: body {"order": [id1, id2, ...]}."""
+        ids = request.data.get('order') or []
+        valid = set(ItineraryFlight.objects.filter(pk__in=ids).values_list('id', flat=True))
+        with transaction.atomic():
+            for pos, fid in enumerate(ids):
+                if fid in valid:
+                    ItineraryFlight.objects.filter(pk=fid).update(order=pos)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):
     """CRUD dos templates de campo (aba Informações do Roteiro). Ler é liberado a
