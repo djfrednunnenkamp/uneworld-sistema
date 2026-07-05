@@ -344,3 +344,24 @@ class ItineraryFlight(models.Model):
 
     def __str__(self):
         return f'{self.departure_id} · voo {self.flight_number or self.pk}'
+
+
+class ItineraryHotel(models.Model):
+    """Hotel reservado do roteiro (aba 'Hotéis')."""
+    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='hotels')
+    name      = models.CharField('Nome do hotel', max_length=300)
+    city      = models.CharField('Cidade', max_length=200, blank=True)
+    check_in  = models.DateField('Check-in', null=True, blank=True)
+    check_out = models.DateField('Check-out', null=True, blank=True)
+    address   = models.CharField('Endereço', max_length=400, blank=True)
+    phone     = models.CharField('Telefone', max_length=40, blank=True)
+    notes     = models.TextField('Observações', blank=True, default='')
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Hotel do roteiro'
+        verbose_name_plural = 'Hotéis do roteiro'
+
+    def __str__(self):
+        return self.name

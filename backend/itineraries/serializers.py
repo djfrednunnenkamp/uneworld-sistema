@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
-                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight)
+                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel)
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
 
@@ -73,6 +73,12 @@ class ItineraryDepartureSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ItineraryDeparture
         fields = ['id', 'itinerary', 'airport', 'airport_data', 'order']
+
+
+class ItineraryHotelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ItineraryHotel
+        fields = ['id', 'itinerary', 'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'notes', 'order']
 
 
 class ItineraryFlightSerializer(serializers.ModelSerializer):

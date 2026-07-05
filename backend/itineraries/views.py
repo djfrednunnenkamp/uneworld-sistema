@@ -7,10 +7,12 @@ from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
-from .models import Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight
+from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
+                     ItineraryFlight, ItineraryHotel)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
-                          ItineraryDepartureSerializer, ItineraryFlightSerializer)
+                          ItineraryDepartureSerializer, ItineraryFlightSerializer,
+                          ItineraryHotelSerializer)
 
 
 def _roteiro_edit_permissions(self):
@@ -57,6 +59,20 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
                 if fid in valid:
                     ItineraryFlight.objects.filter(pk=fid).update(order=pos)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ItineraryHotelViewSet(viewsets.ModelViewSet):
+    """Hotéis reservados de um roteiro (aba Hotéis). Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryHotelSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryHotel.objects.all()
+        if self.action == 'list':
+            itinerary = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return qs
 
 
 class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):
