@@ -196,6 +196,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_tips', 'info_documents', 'info_promo_rules',
                   'notes',
                   # Vínculo vivo com templates (por campo): FK + toggle.
+                  'info_general_template', 'info_general_template_linked',
                   'info_included_template', 'info_included_template_linked',
                   'info_not_included_template', 'info_not_included_template_linked',
                   'info_optionals_template', 'info_optionals_template_linked',

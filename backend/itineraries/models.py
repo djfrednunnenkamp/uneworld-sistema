@@ -113,6 +113,8 @@ class Itinerary(models.Model):
     # Vínculo vivo com templates (por campo): _template = template de origem;
     # _template_linked = se True, editar o template nas Configurações reaplica o
     # texto aqui. Editar o texto à mão desliga o vínculo (feito no frontend).
+    info_general_template           = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_general_template_linked    = models.BooleanField(default=False)
     info_included_template          = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     info_included_template_linked   = models.BooleanField(default=False)
     info_not_included_template      = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
@@ -246,6 +248,7 @@ class ItineraryFieldTemplate(models.Model):
     Roteiro'. Cada template pertence a UM campo. Ao ser editado nas Configurações,
     reaplica o conteúdo aos roteiros vinculados (vínculo vivo ligado)."""
     FIELD_CHOICES = [
+        ('general',      'Informações'),
         ('included',     'Incluso no Pacote'),
         ('not_included', 'Não Incluso no Pacote'),
         ('optionals',    'Opcionais'),
@@ -255,6 +258,7 @@ class ItineraryFieldTemplate(models.Model):
     ]
     # field -> (coluna de conteúdo, coluna do FK, coluna do vínculo) no Itinerary.
     FIELD_COLUMNS = {
+        'general':      ('info_general',      'info_general_template',      'info_general_template_linked'),
         'included':     ('info_included',     'info_included_template',     'info_included_template_linked'),
         'not_included': ('info_not_included', 'info_not_included_template', 'info_not_included_template_linked'),
         'optionals':    ('info_optionals',    'info_optionals_template',    'info_optionals_template_linked'),
