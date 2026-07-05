@@ -57,9 +57,14 @@ class AirportMiniSerializer(serializers.ModelSerializer):
 
 
 class AirlineMiniSerializer(serializers.ModelSerializer):
+    logo = serializers.SerializerMethodField()
+
     class Meta:
         model  = Airline
-        fields = ['id', 'name', 'iata_code']
+        fields = ['id', 'name', 'iata_code', 'logo']
+
+    def get_logo(self, obj):
+        return obj.logo.url if obj.logo else None
 
 
 class ItineraryDepartureSerializer(serializers.ModelSerializer):
