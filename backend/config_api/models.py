@@ -827,3 +827,18 @@ class ConfigBoatMedia(models.Model):
 
     def __str__(self):
         return f'{self.boat_id} · {self.kind}'
+
+
+class ConfigTerrestreCompany(models.Model):
+    """Empresa/transportadora terrestre (Configurações) — usada nos trechos da
+    aba Terrestre do roteiro (equivalente à Companhia Aérea dos voos)."""
+    name        = models.CharField('Nome', max_length=200, unique=True)
+    is_favorite = models.BooleanField('Favorito', default=False, db_index=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Empresa terrestre'
+        verbose_name_plural = 'Empresas terrestres'
+
+    def __str__(self):
+        return self.name

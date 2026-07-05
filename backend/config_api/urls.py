@@ -38,6 +38,7 @@ router.register('hotels',                views.HotelViewSet,              basena
 router.register('hotel-media',           views.HotelMediaViewSet,         basename='hotel-media')
 router.register('boats',                 views.BoatViewSet,               basename='config-boat')
 router.register('boat-media',            views.BoatMediaViewSet,          basename='boat-media')
+router.register('terrestre-companies',   views.TerrestreCompanyViewSet,   basename='terrestre-company')
 router.register('operating-company-contacts', views.OperatingCompanyContactViewSet, basename='operating-company-contact')
 
 urlpatterns = [

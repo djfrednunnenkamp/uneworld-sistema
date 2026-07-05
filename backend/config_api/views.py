@@ -20,7 +20,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
-                     ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia)
+                     ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
+                     ConfigTerrestreCompany)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -1115,6 +1116,26 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
         for i, mid in enumerate(ids):
             ConfigBoatMedia.objects.filter(id=mid).update(order=i)
         return Response({'ok': True})
+
+
+class TerrestreCompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigTerrestreCompany
+        fields = ['id', 'name', 'is_favorite']
+
+
+class TerrestreCompanyViewSet(viewsets.ModelViewSet):
+    """Empresas terrestres (Configurações) — usadas nos trechos da aba Terrestre."""
+    serializer_class = TerrestreCompanySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_terrestre_companies')
+
+    def get_queryset(self):
+        qs = ConfigTerrestreCompany.objects.all()
+        if self.action != 'list':
+            return qs
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
 
 
 class ContinentSerializer(serializers.ModelSerializer):

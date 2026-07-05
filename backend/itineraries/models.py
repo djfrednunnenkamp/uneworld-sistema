@@ -390,3 +390,34 @@ class ItineraryBoat(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ItineraryTerrestreDeparture(models.Model):
+    """Cidade de partida do roteiro (coluna esquerda da aba 'Terrestre').
+    Espelha o aeroporto de saída da aba Voo, mas com Cidade."""
+    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='terrestre_departures')
+    city      = models.ForeignKey('config_api.ConfigCity', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade de partida')
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Cidade de partida (terrestre)'
+        verbose_name_plural = 'Cidades de partida (terrestre)'
+
+
+class ItineraryTerrestreLeg(models.Model):
+    """Trecho terrestre a partir de uma cidade de partida (coluna direita).
+    Espelha o voo: empresa, identificação, origem→destino (cidades), horários."""
+    departure      = models.ForeignKey(ItineraryTerrestreDeparture, on_delete=models.CASCADE, related_name='legs')
+    company        = models.ForeignKey('config_api.ConfigTerrestreCompany', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Empresa')
+    service_number = models.CharField('Identificação', max_length=40, blank=True)
+    origin         = models.ForeignKey('config_api.ConfigCity', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Origem')
+    destination    = models.ForeignKey('config_api.ConfigCity', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Destino')
+    departs_at     = models.DateTimeField('Saída', null=True, blank=True)
+    arrives_at     = models.DateTimeField('Chegada', null=True, blank=True)
+    order          = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Trecho terrestre do roteiro'
+        verbose_name_plural = 'Trechos terrestres do roteiro'

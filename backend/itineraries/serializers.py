@@ -1,9 +1,10 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat
+from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat, ConfigTerrestreCompany
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
-                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat)
+                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg)
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
 
@@ -73,6 +74,32 @@ class ItineraryDepartureSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ItineraryDeparture
         fields = ['id', 'itinerary', 'airport', 'airport_data', 'order']
+
+
+class TerrestreCompanyMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ConfigTerrestreCompany
+        fields = ['id', 'name', 'is_favorite']
+
+
+class ItineraryTerrestreDepartureSerializer(serializers.ModelSerializer):
+    city_data = CityMiniSerializer(source='city', read_only=True)
+
+    class Meta:
+        model  = ItineraryTerrestreDeparture
+        fields = ['id', 'itinerary', 'city', 'city_data', 'order']
+
+
+class ItineraryTerrestreLegSerializer(serializers.ModelSerializer):
+    company_data     = TerrestreCompanyMiniSerializer(source='company', read_only=True)
+    origin_data      = CityMiniSerializer(source='origin', read_only=True)
+    destination_data = CityMiniSerializer(source='destination', read_only=True)
+
+    class Meta:
+        model  = ItineraryTerrestreLeg
+        fields = ['id', 'departure', 'company', 'company_data', 'service_number',
+                  'origin', 'origin_data', 'destination', 'destination_data',
+                  'departs_at', 'arrives_at', 'order']
 
 
 class ConfigHotelMiniSerializer(serializers.ModelSerializer):

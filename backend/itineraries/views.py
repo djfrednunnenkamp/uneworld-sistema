@@ -8,11 +8,13 @@ from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
-                     ItineraryFlight, ItineraryHotel, ItineraryBoat)
+                     ItineraryFlight, ItineraryHotel, ItineraryBoat,
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
-                          ItineraryHotelSerializer, ItineraryBoatSerializer)
+                          ItineraryHotelSerializer, ItineraryBoatSerializer,
+                          ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer)
 
 
 def _roteiro_edit_permissions(self):
@@ -58,6 +60,44 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
             for pos, fid in enumerate(ids):
                 if fid in valid:
                     ItineraryFlight.objects.filter(pk=fid).update(order=pos)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ItineraryTerrestreDepartureViewSet(viewsets.ModelViewSet):
+    """Cidades de partida de um roteiro (aba Terrestre). Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryTerrestreDepartureSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryTerrestreDeparture.objects.select_related('city__state__country')
+        if self.action == 'list':
+            itinerary = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return qs
+
+
+class ItineraryTerrestreLegViewSet(viewsets.ModelViewSet):
+    """Trechos terrestres de uma cidade de partida. Filtra por ?departure=<id>."""
+    serializer_class = ItineraryTerrestreLegSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryTerrestreLeg.objects.select_related('company', 'origin__state__country', 'destination__state__country')
+        if self.action == 'list':
+            departure = self.request.query_params.get('departure')
+            return qs.filter(departure_id=departure) if departure else qs.none()
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        ids = request.data.get('order') or []
+        valid = set(ItineraryTerrestreLeg.objects.filter(pk__in=ids).values_list('id', flat=True))
+        with transaction.atomic():
+            for pos, lid in enumerate(ids):
+                if lid in valid:
+                    ItineraryTerrestreLeg.objects.filter(pk=lid).update(order=pos)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
