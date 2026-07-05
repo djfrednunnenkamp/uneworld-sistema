@@ -28,8 +28,10 @@ class ItineraryDepartureViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ItineraryDeparture.objects.select_related('airport')
-        itinerary = self.request.query_params.get('itinerary')
-        return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        if self.action == 'list':   # o filtro só vale na listagem; detalhe (get/put/delete) usa tudo
+            itinerary = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return qs
 
 
 class ItineraryFlightViewSet(viewsets.ModelViewSet):
@@ -40,8 +42,10 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ItineraryFlight.objects.select_related('airline', 'origin', 'destination')
-        departure = self.request.query_params.get('departure')
-        return qs.filter(departure_id=departure) if departure else qs.none()
+        if self.action == 'list':   # filtro só na listagem; detalhe (get/put/delete) usa tudo
+            departure = self.request.query_params.get('departure')
+            return qs.filter(departure_id=departure) if departure else qs.none()
+        return qs
 
 
 class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):
