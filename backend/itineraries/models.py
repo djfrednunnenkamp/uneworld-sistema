@@ -186,6 +186,14 @@ class ItineraryAccommodationLine(models.Model):
     itinerary          = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='accommodation_lines')
     accommodation_type = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True,
                                             on_delete=models.SET_NULL, related_name='+', verbose_name='Tipo de acomodação')
+    # Ponto de partida ao qual este preço pertence (o valor muda conforme a saída).
+    # Um dos dois, ou nenhum (lista "geral" quando o roteiro não tem Voo/Terrestre).
+    flight_departure    = models.ForeignKey('ItineraryDeparture', null=True, blank=True,
+                                             on_delete=models.CASCADE, related_name='accommodation_lines',
+                                             verbose_name='Partida (aéreo)')
+    terrestre_departure = models.ForeignKey('ItineraryTerrestreDeparture', null=True, blank=True,
+                                             on_delete=models.CASCADE, related_name='accommodation_lines',
+                                             verbose_name='Partida (terrestre)')
     value_per_person   = models.DecimalField('Valor por pessoa', max_digits=12, decimal_places=2, default=0)
     taxes              = models.DecimalField('Taxas', max_digits=12, decimal_places=2, default=0)
     order              = models.PositiveIntegerField('Ordem', default=0)

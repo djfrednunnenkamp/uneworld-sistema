@@ -20,7 +20,8 @@ class ItineraryAccommodationLineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryAccommodationLine
-        fields = ['id', 'accommodation_type', 'accommodation_type_name', 'value_per_person', 'taxes', 'order']
+        fields = ['id', 'accommodation_type', 'accommodation_type_name', 'value_per_person', 'taxes', 'order',
+                  'flight_departure', 'terrestre_departure']
 
     # ── Validação de valores monetários (não podem ser negativos) ──
     def validate_value_per_person(self, v):
@@ -362,6 +363,13 @@ class ItinerarySerializer(serializers.ModelSerializer):
     def _save_accommodation_lines(self, itinerary, lines):
         itinerary.accommodation_lines.all().delete()
         for i, line in enumerate(lines):
+            # Descarta partida que não seja deste roteiro (a linha vira "geral").
+            fd = line.get('flight_departure')
+            td = line.get('terrestre_departure')
+            if fd is not None and fd.itinerary_id != itinerary.id:
+                line = {**line, 'flight_departure': None}
+            if td is not None and td.itinerary_id != itinerary.id:
+                line = {**line, 'terrestre_departure': None}
             ItineraryAccommodationLine.objects.create(itinerary=itinerary, order=i, **line)
 
     def _save_days(self, itinerary, days):
