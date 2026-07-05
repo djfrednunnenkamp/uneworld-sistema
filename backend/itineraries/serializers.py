@@ -78,13 +78,25 @@ class ItineraryDepartureSerializer(serializers.ModelSerializer):
 class ConfigHotelMiniSerializer(serializers.ModelSerializer):
     """Dados do hotel do catálogo exibidos junto do hotel reservado."""
     categories = serializers.SerializerMethodField()
+    media      = serializers.SerializerMethodField()
 
     class Meta:
         model  = ConfigHotel
-        fields = ['id', 'website', 'description', 'categories']
+        fields = ['id', 'website', 'description', 'categories', 'media']
 
     def get_categories(self, obj):
         return [c.name for c in obj.categories.all()]
+
+    def get_media(self, obj):
+        out = []
+        for m in obj.media.all():
+            try:
+                url = m.file.url
+            except ValueError:
+                url = None
+            if url:
+                out.append({'id': m.id, 'url': url, 'kind': m.kind})
+        return out
 
 
 class ItineraryHotelSerializer(serializers.ModelSerializer):

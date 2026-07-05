@@ -768,6 +768,31 @@ def boat_media_path(instance, filename):
     return f'boats/{uuid.uuid4().hex}.{ext}'
 
 
+def hotel_media_path(instance, filename):
+    """Nome único (uuid) para imagens/vídeos do hotel, preservando a extensão."""
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'bin'
+    return f'hotels/{uuid.uuid4().hex}.{ext}'
+
+
+class ConfigHotelMedia(models.Model):
+    """Imagem ou vídeo de um hotel."""
+    IMAGE = 'image'
+    VIDEO = 'video'
+    hotel       = models.ForeignKey(ConfigHotel, on_delete=models.CASCADE, related_name='media')
+    file        = models.FileField('Arquivo', upload_to=hotel_media_path)
+    kind        = models.CharField('Tipo', max_length=10, default=IMAGE)
+    order       = models.PositiveIntegerField('Ordem', default=0)
+    uploaded_at = models.DateTimeField('Enviado em', auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Mídia de hotel'
+        verbose_name_plural = 'Mídias de hotel'
+
+    def __str__(self):
+        return f'{self.hotel_id} · {self.kind}'
+
+
 class ConfigBoat(models.Model):
     """Catálogo de barcos (Configurações). Nome, site, descrição e mídias."""
     name        = models.CharField('Nome', max_length=300, db_index=True)

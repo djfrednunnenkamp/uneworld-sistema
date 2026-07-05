@@ -20,7 +20,7 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
-                     ConfigHotel, ConfigHotelCategory, ConfigBoat, ConfigBoatMedia)
+                     ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -955,15 +955,32 @@ class HotelCitySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'state_name', 'country_name']
 
 
+class HotelMediaSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ConfigHotelMedia
+        fields = ['id', 'hotel', 'file', 'url', 'kind', 'order']
+        extra_kwargs = {'file': {'write_only': True}}
+        read_only_fields = ['kind']
+
+    def get_url(self, obj):
+        try:
+            return obj.file.url
+        except ValueError:
+            return None
+
+
 class HotelSerializer(serializers.ModelSerializer):
     city_data       = HotelCitySerializer(source='city', read_only=True)
     categories_data = HotelCategorySerializer(source='categories', many=True, read_only=True)
+    media           = HotelMediaSerializer(many=True, read_only=True)
 
     class Meta:
         model = ConfigHotel
         fields = ['id', 'name', 'city', 'city_data',
                   'categories', 'categories_data',
-                  'website', 'phone', 'description', 'is_global']
+                  'website', 'phone', 'description', 'is_global', 'media']
 
 
 class HotelViewSet(viewsets.ModelViewSet):
@@ -975,7 +992,7 @@ class HotelViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = (ConfigHotel.objects
               .select_related('city__state__country')
-              .prefetch_related('categories'))
+              .prefetch_related('categories', 'media'))
         if self.action != 'list':
             return qs
         qs = qs.filter(is_global=True)   # catálogo/busca: só hotéis globais
@@ -1000,6 +1017,25 @@ class HotelViewSet(viewsets.ModelViewSet):
         from itineraries.models import ItineraryHotel
         ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True).update(
             name=hotel.name, city=label, phone=hotel.phone)
+
+
+class HotelMediaViewSet(viewsets.ModelViewSet):
+    """Imagens/vídeos de um hotel (upload multipart)."""
+    serializer_class = HotelMediaSerializer
+    pagination_class = None
+    parser_classes = [MultiPartParser, FormParser]
+    get_permissions = _settings_perm('settings_hotels')
+
+    def get_queryset(self):
+        qs = ConfigHotelMedia.objects.all()
+        hotel = self.request.query_params.get('hotel')
+        return qs.filter(hotel_id=hotel) if hotel else qs
+
+    def perform_create(self, serializer):
+        f = self.request.FILES.get('file')
+        ctype = (getattr(f, 'content_type', '') or '').lower()
+        kind = ConfigHotelMedia.VIDEO if ctype.startswith('video') else ConfigHotelMedia.IMAGE
+        serializer.save(kind=kind)
 
 
 class BoatMediaSerializer(serializers.ModelSerializer):
