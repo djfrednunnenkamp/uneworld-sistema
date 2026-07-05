@@ -12,6 +12,12 @@ def secure_itinerary_image_path(instance, filename):
     return f"itineraries/{uuid.uuid4().hex}{ext}"
 
 
+def secure_itinerary_document_path(instance, filename):
+    """Igual ao de imagem, para os documentos anexados (aba Observações)."""
+    ext = os.path.splitext(filename)[1].lower()
+    return f"itineraries/docs/{uuid.uuid4().hex}{ext}"
+
+
 class Itinerary(models.Model):
     """Roteiro turístico (pacote/itinerário publicável) — distinto da Lista
     de Passageiros (trips.PassengerList): o Roteiro é o "produto" comercial
@@ -208,6 +214,29 @@ class ItineraryAccommodationLine(models.Model):
 
     def __str__(self):
         return f'{self.accommodation_type} ({self.value_per_person})'
+
+
+class ItineraryDocument(models.Model):
+    """Documento anexado a um roteiro (painel lateral da aba Observações): um
+    arquivo Office/PDF — editável no navegador via OnlyOffice — ou apenas um
+    link externo (abre em nova aba)."""
+    itinerary  = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='documents')
+    name       = models.CharField('Nome', max_length=255, blank=True)
+    file       = models.FileField('Arquivo', upload_to=secure_itinerary_document_path, null=True, blank=True)
+    url        = models.URLField('Link externo', max_length=1000, blank=True)
+    order      = models.PositiveIntegerField('Ordem', default=0)
+    # Muda a cada salvamento vindo do OnlyOffice → invalida o cache do editor.
+    edit_key   = models.CharField(max_length=40, blank=True, default='')
+    created_at = models.DateTimeField('Criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Documento do roteiro'
+        verbose_name_plural = 'Documentos do roteiro'
+
+    def __str__(self):
+        return self.name or (self.file.name if self.file else self.url)
 
 
 class ItineraryDay(models.Model):

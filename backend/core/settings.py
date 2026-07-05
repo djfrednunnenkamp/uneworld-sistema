@@ -151,6 +151,12 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# ── OnlyOffice Document Server (edição de Office na aba Observações do roteiro) ──
+# Vazio = integração desligada (o front mostra baixar/visualizar em vez de editar).
+ONLYOFFICE_DS_URL      = config('ONLYOFFICE_DS_URL', default='')       # URL pública do DS (ex.: http://localhost:8080)
+ONLYOFFICE_JWT_SECRET  = config('ONLYOFFICE_JWT_SECRET', default='')   # segredo compartilhado com o DS
+ONLYOFFICE_BACKEND_URL = config('ONLYOFFICE_BACKEND_URL', default='')  # URL do Django alcançável PELO container do DS
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Cache — usado pelo rate limiting (A-04). Com Redis (produção/multi-worker) o

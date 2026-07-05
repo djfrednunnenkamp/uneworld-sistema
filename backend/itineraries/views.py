@@ -1,20 +1,30 @@
+import urllib.request
+
+from django.conf import settings
+from django.core.files.base import ContentFile
 from django.db import transaction
+from django.utils.crypto import get_random_string
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
+from . import onlyoffice
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
                      ItineraryFlight, ItineraryHotel, ItineraryBoat,
-                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg)
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
                           ItineraryHotelSerializer, ItineraryBoatSerializer,
-                          ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer)
+                          ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer,
+                          ItineraryDocumentSerializer)
 
 
 def _roteiro_edit_permissions(self):
@@ -127,6 +137,76 @@ class ItineraryBoatViewSet(viewsets.ModelViewSet):
             itinerary = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
         return qs
+
+
+class ItineraryDocumentViewSet(viewsets.ModelViewSet):
+    """Documentos anexados ao roteiro (painel da aba Observações). Filtra por
+    ?itinerary=<id>. Aceita upload de arquivo (multipart) ou link (JSON)."""
+    serializer_class = ItineraryDocumentSerializer
+    pagination_class = None
+    parser_classes   = [MultiPartParser, FormParser, JSONParser]
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryDocument.objects.all()
+        if self.action == 'list':
+            itinerary = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return qs
+
+    def perform_create(self, serializer):
+        itinerary = serializer.validated_data.get('itinerary')
+        last = ItineraryDocument.objects.filter(itinerary=itinerary).order_by('-order').first()
+        serializer.save(order=(last.order + 1) if last else 0)
+
+    @action(detail=True, methods=['get'], url_path='config')
+    def config(self, request, pk=None):
+        """Config assinada para o editor OnlyOffice no navegador."""
+        doc = self.get_object()
+        if not onlyoffice.is_configured():
+            return Response({'detail': 'Editor OnlyOffice não configurado.'}, status=status.HTTP_409_CONFLICT)
+        if not doc.file:
+            return Response({'detail': 'Este item é um link, não um arquivo.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(onlyoffice.editor_config(doc, request.user))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([])          # o DS chama sem sessão de usuário
+@permission_classes([AllowAny])      # protegido pela assinatura JWT, não por login
+def document_callback(request, pk):
+    """Callback do OnlyOffice: ao salvar, o DS envia o arquivo editado aqui."""
+    doc = ItineraryDocument.objects.filter(pk=pk).first()
+    if not doc:
+        return Response({'error': 1})
+    payload = request.data or {}
+
+    # Valida o JWT do callback (corpo pode vir assinado dentro de `token`).
+    secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
+    if secret:
+        token = payload.get('token') or (request.headers.get('Authorization', '').replace('Bearer ', '') or '')
+        try:
+            decoded = onlyoffice.jwt_decode(token, secret)
+            payload = decoded.get('payload', decoded)
+        except Exception:
+            return Response({'error': 1})
+
+    # status 2 = pronto para salvar; 6 = force save (salvamento manual/intermediário).
+    if payload.get('status') in (2, 6):
+        file_url = payload.get('url')
+        if file_url:
+            try:
+                with urllib.request.urlopen(file_url, timeout=30) as resp:
+                    content = resp.read()
+                doc.file.save(doc.file.name.split('/')[-1], ContentFile(content), save=False)
+                doc.edit_key = get_random_string(12)
+                doc.save(update_fields=['file', 'edit_key', 'updated_at'])
+            except Exception:
+                return Response({'error': 1})
+    return Response({'error': 0})
 
 
 class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):

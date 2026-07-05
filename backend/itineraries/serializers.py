@@ -4,7 +4,8 @@ from rest_framework import serializers
 from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat, ConfigTerrestreCompany
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
-                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg)
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument)
+from . import onlyoffice
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
 
@@ -33,6 +34,51 @@ class ItineraryAccommodationLineSerializer(serializers.ModelSerializer):
         if v is not None and v < 0:
             raise serializers.ValidationError('As taxas não podem ser negativas.')
         return v
+
+
+class ItineraryDocumentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+    kind     = serializers.SerializerMethodField()   # word|excel|powerpoint|pdf|other|link
+    editable = serializers.SerializerMethodField()   # dá pra editar no OnlyOffice?
+    is_link  = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = ItineraryDocument
+        fields = ['id', 'itinerary', 'name', 'file', 'file_url', 'url', 'kind', 'editable', 'is_link', 'created_at']
+        extra_kwargs = {'file': {'write_only': True, 'required': False}, 'name': {'required': False}}
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+
+    def get_is_link(self, obj):
+        return bool(obj.url and not obj.file)
+
+    def get_kind(self, obj):
+        if obj.url and not obj.file:
+            return 'link'
+        return onlyoffice.doc_kind(obj.name or (obj.file.name if obj.file else ''))
+
+    def get_editable(self, obj):
+        return bool(obj.file) and onlyoffice.is_editable(obj.name or obj.file.name) and onlyoffice.is_configured()
+
+    def validate(self, attrs):
+        # Precisa ser OU arquivo OU link.
+        has_file = attrs.get('file') is not None
+        has_url  = bool(attrs.get('url'))
+        if not has_file and not has_url and not self.instance:
+            raise serializers.ValidationError('Envie um arquivo ou informe um link.')
+        return attrs
+
+    def create(self, validated_data):
+        f = validated_data.get('file')
+        if f is not None and not validated_data.get('name'):
+            validated_data['name'] = f.name        # nome amigável = nome original enviado
+        elif not validated_data.get('name') and validated_data.get('url'):
+            validated_data['name'] = validated_data['url']
+        return super().create(validated_data)
 
 
 class CityMiniSerializer(serializers.ModelSerializer):
