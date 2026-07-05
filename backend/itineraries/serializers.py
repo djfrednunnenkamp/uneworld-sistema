@@ -295,6 +295,12 @@ class ItinerarySerializer(serializers.ModelSerializer):
         if start and end and end < start:
             raise serializers.ValidationError(
                 {'end_date': 'A data de término não pode ser anterior à data de início.'})
+        # ── Aéreo e Terrestre são mutuamente exclusivos (Barco pode coexistir) ──
+        has_voo = attrs.get('has_voo', getattr(self.instance, 'has_voo', False))
+        has_ter = attrs.get('has_terrestre', getattr(self.instance, 'has_terrestre', False))
+        if has_voo and has_ter:
+            raise serializers.ValidationError(
+                {'has_terrestre': 'Um roteiro não pode ter transporte Aéreo e Terrestre ao mesmo tempo.'})
         return attrs
 
     def get_clauses_data(self, obj):
