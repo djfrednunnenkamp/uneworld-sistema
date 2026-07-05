@@ -1,7 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent
+from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel)
 
@@ -75,10 +75,25 @@ class ItineraryDepartureSerializer(serializers.ModelSerializer):
         fields = ['id', 'itinerary', 'airport', 'airport_data', 'order']
 
 
+class ConfigHotelMiniSerializer(serializers.ModelSerializer):
+    """Dados do hotel do catálogo exibidos junto do hotel reservado."""
+    categories = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = ConfigHotel
+        fields = ['id', 'website', 'description', 'categories']
+
+    def get_categories(self, obj):
+        return [c.name for c in obj.categories.all()]
+
+
 class ItineraryHotelSerializer(serializers.ModelSerializer):
+    config_hotel_data = ConfigHotelMiniSerializer(source='config_hotel', read_only=True)
+
     class Meta:
         model  = ItineraryHotel
-        fields = ['id', 'itinerary', 'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'notes', 'order']
+        fields = ['id', 'itinerary', 'config_hotel', 'config_hotel_data',
+                  'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'notes', 'order']
 
 
 class ItineraryFlightSerializer(serializers.ModelSerializer):

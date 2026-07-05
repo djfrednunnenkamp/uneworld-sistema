@@ -979,7 +979,14 @@ class HotelViewSet(viewsets.ModelViewSet):
         if self.action != 'list':
             return qs
         q = self.request.query_params.get('q', '').strip()
-        return qs.filter(name__icontains=q) if q else qs
+        if q:
+            qs = qs.filter(name__icontains=q)
+        cities = self.request.query_params.get('cities', '').strip()
+        if cities:
+            ids = [int(c) for c in cities.split(',') if c.strip().isdigit()]
+            if ids:
+                qs = qs.filter(city_id__in=ids)
+        return qs
 
 
 class ContinentSerializer(serializers.ModelSerializer):
