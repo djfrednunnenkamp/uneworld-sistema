@@ -19,7 +19,8 @@ from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigStat
                      OperatingCompany, OperatingCompanyContact, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
-                     ConfigInclusion, ConfigHighlight, ConfigSpecialDate)
+                     ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
+                     ConfigHotel, ConfigHotelCategory)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -922,6 +923,61 @@ class SpecialDateViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ConfigSpecialDate.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class HotelCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigHotelCategory
+        fields = ['id', 'name']
+
+
+class HotelCategoryViewSet(viewsets.ModelViewSet):
+    """Categorias de hotel — geridas no próprio pop-up de hotéis."""
+    serializer_class = HotelCategorySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_hotels')
+
+    def get_queryset(self):
+        qs = ConfigHotelCategory.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class HotelCitySerializer(serializers.ModelSerializer):
+    """Cidade enxuta para exibir junto do hotel (nome, estado, país)."""
+    state_name   = serializers.CharField(source='state.name', read_only=True, default=None)
+    country_name = serializers.CharField(source='state.country.name', read_only=True, default=None)
+
+    class Meta:
+        model = ConfigCity
+        fields = ['id', 'name', 'state_name', 'country_name']
+
+
+class HotelSerializer(serializers.ModelSerializer):
+    city_data       = HotelCitySerializer(source='city', read_only=True)
+    categories_data = HotelCategorySerializer(source='categories', many=True, read_only=True)
+
+    class Meta:
+        model = ConfigHotel
+        fields = ['id', 'name', 'city', 'city_data',
+                  'categories', 'categories_data',
+                  'website', 'phone', 'description']
+
+
+class HotelViewSet(viewsets.ModelViewSet):
+    """Catálogo global de hotéis (Configurações)."""
+    serializer_class = HotelSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_hotels')
+
+    def get_queryset(self):
+        qs = (ConfigHotel.objects
+              .select_related('city__state__country')
+              .prefetch_related('categories'))
+        if self.action != 'list':
+            return qs
         q = self.request.query_params.get('q', '').strip()
         return qs.filter(name__icontains=q) if q else qs
 

@@ -726,3 +726,35 @@ class OperatingCompanyContact(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConfigHotelCategory(models.Model):
+    """Categoria de hotel (ex.: 5 estrelas, Resort, Boutique). Gerida direto no
+    pop-up de hotéis das Configurações."""
+    name = models.CharField('Nome', max_length=150, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Categoria de hotel'
+        verbose_name_plural = 'Categorias de hotel'
+
+    def __str__(self):
+        return self.name
+
+
+class ConfigHotel(models.Model):
+    """Catálogo global de hotéis (Configurações)."""
+    name        = models.CharField('Nome', max_length=300, db_index=True)
+    city        = models.ForeignKey(ConfigCity, null=True, blank=True, on_delete=models.SET_NULL, related_name='hotels')
+    categories  = models.ManyToManyField(ConfigHotelCategory, blank=True, related_name='hotels')
+    website     = models.CharField('Site', max_length=500, blank=True)
+    phone       = models.CharField('Telefone', max_length=40, blank=True)
+    description = models.TextField('Descrição', blank=True, default='')
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Hotel'
+        verbose_name_plural = 'Hotéis'
+
+    def __str__(self):
+        return self.name
