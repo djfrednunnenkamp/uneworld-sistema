@@ -1,8 +1,11 @@
+import json
 import urllib.request
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, filters, status
@@ -262,9 +265,30 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
-                           'upload_image', 'delete_image', 'reorder_images', 'set_image_kind'):
+                           'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
+                           'publish', 'unpublish'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+
+    # ── Publicação: tira a FOTO do estado atual (published_data) e liga is_published.
+    # É o que o site público mostra; editar depois não muda a foto até republicar. ──
+    @action(detail=True, methods=['post'])
+    def publish(self, request, pk=None):
+        obj = self.get_object()
+        snapshot = ItinerarySerializer(obj, context=self.get_serializer_context()).data
+        obj.published_data = json.loads(json.dumps(snapshot, cls=DjangoJSONEncoder))
+        obj.is_published = True
+        obj.has_unpublished_changes = False
+        obj.published_at = timezone.now()
+        obj.save(update_fields=['published_data', 'is_published', 'has_unpublished_changes', 'published_at'])
+        return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'])
+    def unpublish(self, request, pk=None):
+        obj = self.get_object()
+        obj.is_published = False
+        obj.save(update_fields=['is_published'])
+        return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
 
     # ── Galeria de imagens (upload multipart — não cabe no PUT/JSON) ──
     @action(detail=True, methods=['post'], url_path='images')

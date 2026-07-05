@@ -392,7 +392,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'itinerary_types', 'itinerary_types_data',
                   'special_dates', 'special_dates_data',
                   'days', 'images',
-                  'status', 'is_published',
+                  'status', 'is_published', 'has_unpublished_changes', 'published_at',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         # slug agora é GRAVÁVEL (o ItineraryDetail já tinha o input): ModelSerializer
         # aplica o UniqueValidator automático (unique=True no model), que exclui o
@@ -409,7 +409,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
         # envia só name+datas) e roteiros já existentes com esses campos nulos quebrariam.
         # A obrigatoriedade é aplicada onde é seguro: nas child tables novas (day_number
         # em ItineraryDay, arquivo em ItineraryImage), que nenhum client antigo envia.
-        read_only_fields = ['created_at', 'updated_at', 'is_deleted', 'deleted_at']
+        read_only_fields = ['created_at', 'updated_at', 'is_deleted', 'deleted_at',
+                            'has_unpublished_changes', 'published_at']
 
     # ── Persistência das child tables (padrão rebuild, igual accommodation_lines) ──
     def _save_accommodation_lines(self, itinerary, lines):
@@ -478,6 +479,11 @@ class ItinerarySerializer(serializers.ModelSerializer):
             self._save_accommodation_lines(instance, accommodation_lines)
         if days is not None:
             self._save_days(instance, days)
+        # Salvar a cópia de trabalho de um roteiro publicado = "alterações não
+        # publicadas" (o site segue na foto até publicar de novo pela action).
+        if instance.is_published and not instance.has_unpublished_changes:
+            instance.has_unpublished_changes = True
+            instance.save(update_fields=['has_unpublished_changes'])
         return instance
 
 

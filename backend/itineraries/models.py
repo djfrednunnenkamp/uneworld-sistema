@@ -1,5 +1,6 @@
 import os
 import uuid
+from django.core.serializers.json import DjangoJSONEncoder
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
@@ -155,6 +156,12 @@ class Itinerary(models.Model):
     # Visibilidade pública, independente de rascunho/ativo: só publicado fica visível
     # ao público. Um roteiro finalizado nasce "não publicado" até ser publicado.
     is_published = models.BooleanField('Publicado (visível ao público)', default=False, db_index=True)
+    # Versionamento público: ao publicar, tira-se uma FOTO do estado completo do
+    # roteiro (published_data) — é ISSO que o site público mostra. Editar e salvar
+    # altera só a cópia de trabalho; o site continua na foto até publicar de novo.
+    published_data          = models.JSONField('Foto publicada', null=True, blank=True, default=None, encoder=DjangoJSONEncoder)
+    published_at            = models.DateTimeField('Publicado em', null=True, blank=True)
+    has_unpublished_changes = models.BooleanField('Alterações não publicadas', default=False)
 
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)
