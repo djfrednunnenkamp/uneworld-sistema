@@ -105,6 +105,7 @@ class Itinerary(models.Model):
     info_tips          = models.TextField('Dicas de Viagem', blank=True, default='')
     info_documents     = models.TextField('Documentos Necessários', blank=True, default='')
     info_promo_rules   = models.TextField('Regras Promoção', blank=True, default='')
+    info_insurance     = models.TextField('Seguros', blank=True, default='')
 
     # Observações internas do roteiro (lembretes/pendências da equipe — não é
     # conteúdo do roteiro em si).
@@ -127,6 +128,8 @@ class Itinerary(models.Model):
     info_documents_template_linked  = models.BooleanField(default=False)
     info_promo_rules_template       = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     info_promo_rules_template_linked = models.BooleanField(default=False)
+    info_insurance_template         = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_insurance_template_linked  = models.BooleanField(default=False)
 
     # Rascunho (autosalvo / não finalizado) vs Ativo. A lista mostra só ativos;
     # rascunhos aparecem num popup à parte. 'Salvar' no detalhe finaliza (ativo).
@@ -255,6 +258,7 @@ class ItineraryFieldTemplate(models.Model):
         ('tips',         'Dicas de Viagem'),
         ('documents',    'Documentos Necessários'),
         ('promo_rules',  'Regras Promoção'),
+        ('insurance',    'Seguros'),
     ]
     # field -> (coluna de conteúdo, coluna do FK, coluna do vínculo) no Itinerary.
     FIELD_COLUMNS = {
@@ -265,6 +269,7 @@ class ItineraryFieldTemplate(models.Model):
         'tips':         ('info_tips',         'info_tips_template',         'info_tips_template_linked'),
         'documents':    ('info_documents',    'info_documents_template',    'info_documents_template_linked'),
         'promo_rules':  ('info_promo_rules',  'info_promo_rules_template',  'info_promo_rules_template_linked'),
+        'insurance':    ('info_insurance',    'info_insurance_template',    'info_insurance_template_linked'),
     }
 
     field      = models.CharField('Campo', max_length=20, choices=FIELD_CHOICES, db_index=True)
