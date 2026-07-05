@@ -1,6 +1,12 @@
+import uuid
 from decimal import Decimal
 from django.core.validators import RegexValidator
 from django.db import models
+
+
+def airline_logo_path(instance, filename):
+    """Nome único (uuid) para a logo da companhia — evita cache velho ao trocar."""
+    return f'airlines/{uuid.uuid4().hex}.png'
 
 
 class ConfigProfession(models.Model):
@@ -372,6 +378,9 @@ class Airline(models.Model):
     iata_code   = models.CharField('Código IATA', max_length=10, blank=True, db_index=True)
     country     = models.CharField('País', max_length=200, blank=True)
     is_favorite = models.BooleanField('Favorito', default=False, db_index=True)
+    # Logo normalizada em 320×160 PNG (fundo transparente) — upload manual (com
+    # recorte no front) ou baixada da Kiwi pelo código IATA.
+    logo        = models.ImageField('Logo', upload_to=airline_logo_path, null=True, blank=True)
 
     class Meta:
         ordering            = ['name']
