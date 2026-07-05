@@ -1,8 +1,9 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from config_api.models import ConfigCity, ConfigCountry, Airport, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent
-from .models import Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryFieldTemplate
+from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent
+from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
+                     ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight)
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
 
@@ -53,6 +54,32 @@ class AirportMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Airport
         fields = ['id', 'name', 'iata_code', 'city', 'country']
+
+
+class AirlineMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Airline
+        fields = ['id', 'name', 'iata_code']
+
+
+class ItineraryDepartureSerializer(serializers.ModelSerializer):
+    airport_data = AirportMiniSerializer(source='airport', read_only=True)
+
+    class Meta:
+        model  = ItineraryDeparture
+        fields = ['id', 'itinerary', 'airport', 'airport_data', 'order']
+
+
+class ItineraryFlightSerializer(serializers.ModelSerializer):
+    airline_data     = AirlineMiniSerializer(source='airline', read_only=True)
+    origin_data      = AirportMiniSerializer(source='origin', read_only=True)
+    destination_data = AirportMiniSerializer(source='destination', read_only=True)
+
+    class Meta:
+        model  = ItineraryFlight
+        fields = ['id', 'departure', 'airline', 'airline_data', 'flight_number',
+                  'origin', 'origin_data', 'destination', 'destination_data',
+                  'departs_at', 'arrives_at', 'order']
 
 
 class KeywordMiniSerializer(serializers.ModelSerializer):

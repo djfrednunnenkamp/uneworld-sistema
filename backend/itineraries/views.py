@@ -7,9 +7,41 @@ from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from users_api.permissions import RequirePermission
 
-from .models import Itinerary, ItineraryImage, ItineraryFieldTemplate
+from .models import Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
-                          ItineraryImageSerializer, ItineraryFieldTemplateSerializer)
+                          ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
+                          ItineraryDepartureSerializer, ItineraryFlightSerializer)
+
+
+def _roteiro_edit_permissions(self):
+    """Ler: quem vê roteiros; criar/editar/excluir: quem edita roteiros."""
+    if self.action in ('list', 'retrieve'):
+        return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+    return [RequirePermission('roteiros_edit')()]
+
+
+class ItineraryDepartureViewSet(viewsets.ModelViewSet):
+    """Aeroportos de saída de um roteiro (aba Voo). Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryDepartureSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryDeparture.objects.select_related('airport')
+        itinerary = self.request.query_params.get('itinerary')
+        return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+
+
+class ItineraryFlightViewSet(viewsets.ModelViewSet):
+    """Voos de um aeroporto de saída (aba Voo). Filtra por ?departure=<id>."""
+    serializer_class = ItineraryFlightSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryFlight.objects.select_related('airline', 'origin', 'destination')
+        departure = self.request.query_params.get('departure')
+        return qs.filter(departure_id=departure) if departure else qs.none()
 
 
 class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):

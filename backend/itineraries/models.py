@@ -306,3 +306,41 @@ class ItineraryFieldTemplate(models.Model):
         """Reaplica este conteúdo aos roteiros com vínculo vivo ligado a ele."""
         content_col, fk_col, linked_col = self.FIELD_COLUMNS[self.field]
         Itinerary.objects.filter(**{fk_col: self, linked_col: True}).update(**{content_col: self.content})
+
+
+class ItineraryDeparture(models.Model):
+    """Aeroporto de saída do roteiro (coluna esquerda da aba 'Voo'). Cada roteiro
+    aéreo pode ter vários pontos de saída, escolhidos da lista de Aeroportos das
+    Configurações."""
+    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='departures')
+    airport   = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de saída')
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Aeroporto de saída do roteiro'
+        verbose_name_plural = 'Aeroportos de saída do roteiro'
+
+    def __str__(self):
+        return f'{self.itinerary_id} · saída {self.airport_id}'
+
+
+class ItineraryFlight(models.Model):
+    """Voo (trecho) a partir de um aeroporto de saída — coluna direita da aba 'Voo'.
+    Vários voos encadeados formam as conexões/pontes."""
+    departure     = models.ForeignKey(ItineraryDeparture, on_delete=models.CASCADE, related_name='flights')
+    airline       = models.ForeignKey('config_api.Airline', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Companhia')
+    flight_number = models.CharField('Número do voo', max_length=20, blank=True)
+    origin        = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Origem')
+    destination   = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Destino')
+    departs_at    = models.DateTimeField('Saída', null=True, blank=True)
+    arrives_at    = models.DateTimeField('Chegada', null=True, blank=True)
+    order         = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Voo do roteiro'
+        verbose_name_plural = 'Voos do roteiro'
+
+    def __str__(self):
+        return f'{self.departure_id} · voo {self.flight_number or self.pk}'
