@@ -266,9 +266,17 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
                            'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
-                           'publish', 'unpublish'):
+                           'publish', 'unpublish', 'reorder'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+
+    # ── Ordem manual da listagem (arrastar) — alimenta a ordem do site público ──
+    @action(detail=False, methods=['post'])
+    def reorder(self, request):
+        ids = request.data.get('order') or []
+        for i, pk in enumerate(ids):
+            Itinerary.objects.filter(pk=pk).update(order=i)
+        return Response({'ok': True, 'count': len(ids)})
 
     # ── Publicação: tira a FOTO do estado atual (published_data) e liga is_published.
     # É o que o site público mostra; editar depois não muda a foto até republicar. ──

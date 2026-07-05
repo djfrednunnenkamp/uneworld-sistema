@@ -168,11 +168,13 @@ class Itinerary(models.Model):
 
     is_deleted  = models.BooleanField('Excluído', default=False, db_index=True)
     deleted_at  = models.DateTimeField('Excluído em', null=True, blank=True)
+    # Ordem manual (arrastar na listagem) — vai alimentar a ordem do site público.
+    order       = models.PositiveIntegerField('Ordem', default=0, db_index=True)
 
     class Meta:
         verbose_name = 'Roteiro'
         verbose_name_plural = 'Roteiros'
-        ordering = ['-created_at']
+        ordering = ['order', '-created_at']
 
     def __str__(self):
         return self.name

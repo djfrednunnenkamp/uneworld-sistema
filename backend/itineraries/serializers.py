@@ -500,7 +500,7 @@ class ItineraryListSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'base_currency',
                   'category_name', 'continent_name',
                   'itinerary_type_name', 'maritime_company_name', 'cover',
-                  'status', 'is_published', 'has_unpublished_changes',
+                  'status', 'is_published', 'has_unpublished_changes', 'order',
                   'created_at', 'updated_at',
                   'is_deleted', 'deleted_at']
 
