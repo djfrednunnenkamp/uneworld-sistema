@@ -396,6 +396,36 @@ def log_page_view(request):
 
 @api_view(['POST'])
 @drf_permission_classes([IsAuthenticated])
+def log_actions(request):
+    """Recebe em LOTE as interações da tela (cliques em botões, checkboxes,
+    toggles, abas, edição de campos) e grava como navegação. Em lote pra não
+    fazer uma requisição por clique. O conteúdo digitado NUNCA vem — só o rótulo
+    do que foi clicado/editado."""
+    events = request.data.get('events')
+    if not isinstance(events, list):
+        return Response({'error': 'events (lista) é obrigatório.'}, status=400)
+    user = request.user
+    ud = user_display(user)
+    ip = get_current_ip()
+    rows = []
+    for e in events[:200]:   # trava de segurança
+        label = (str(e.get('label') or '')).strip()[:200]
+        if not label:
+            continue
+        path = (str(e.get('path') or '')).strip()[:500]
+        rows.append(AuditLog(
+            user=user, user_display=ud, action='view',
+            model_name='PageView', model_label='Navegação',
+            object_id=str(e.get('object_id') or ''), object_repr=label,
+            changes={'Caminho': path} if path else {}, ip_address=ip,
+        ))
+    if rows:
+        AuditLog.objects.bulk_create(rows)
+    return Response({'ok': True, 'count': len(rows)}, status=201)
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
 def refine_login_location(request):
     """Recebe a localização precisa do navegador (com consentimento da
     pessoa, via navigator.geolocation) e refina o login mais recente dela,
