@@ -38,6 +38,8 @@ class Itinerary(models.Model):
     # Total de noites: normalmente calculado das datas. Se preenchido aqui (manual),
     # sobrepõe o cálculo — para casos em que o número de noites difere do intervalo.
     nights_override = models.PositiveIntegerField('Noites (manual)', null=True, blank=True)
+    # Capacidade total de pessoas do roteiro (nº de lugares no bloqueio aéreo).
+    capacity        = models.PositiveIntegerField('Capacidade (pessoas)', null=True, blank=True)
     trip_type   = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='aereo')
     # Produto próprio da UneWorld (operação própria) vs. de terceiro/parceiro.
     is_own_product = models.BooleanField('Produto próprio da UneWorld', default=True)
