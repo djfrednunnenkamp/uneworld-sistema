@@ -120,10 +120,23 @@ class Itinerary(models.Model):
     info_insurance     = models.TextField('Seguros', blank=True, default='')
     info_values        = models.TextField('Informações sobre Valores', blank=True, default='')
     info_extras        = models.TextField('Extras', blank=True, default='')
+    # Observações por aba (bagagem, políticas, etc.) — editadas nas próprias abas
+    # (Voo/Hotéis/Valores/Terrestre/Barco), com suporte a template (igual aos campos
+    # de Informações do Roteiro).
+    flight_notes        = models.TextField('Observações dos Voos', blank=True, default='')
+    hotel_notes         = models.TextField('Observações dos Hotéis', blank=True, default='')
+    accommodation_notes = models.TextField('Observações dos Valores', blank=True, default='')
+    terrestre_notes     = models.TextField('Observações do Terrestre', blank=True, default='')
+    boat_notes          = models.TextField('Observações do Barco', blank=True, default='')
 
     # Observações internas do roteiro (lembretes/pendências da equipe — não é
     # conteúdo do roteiro em si).
     notes              = models.TextField('Observações', blank=True, default='')
+
+    # Mapa do roteiro (Google My Maps): o usuário cola o link/iframe de compartilhar;
+    # o site mostra o mapa embutido. Guarda o texto cru (pode ser o <iframe> inteiro
+    # ou só a URL) — a URL do src é extraída na exibição.
+    map_embed_url      = models.TextField('Mapa (link/embed do Google My Maps)', blank=True, default='')
 
     # Vínculo vivo com templates (por campo): _template = template de origem;
     # _template_linked = se True, editar o template nas Configurações reaplica o
@@ -148,6 +161,16 @@ class Itinerary(models.Model):
     info_values_template_linked     = models.BooleanField(default=False)
     info_extras_template            = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     info_extras_template_linked     = models.BooleanField(default=False)
+    flight_notes_template           = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    flight_notes_template_linked    = models.BooleanField(default=False)
+    hotel_notes_template            = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    hotel_notes_template_linked     = models.BooleanField(default=False)
+    accommodation_notes_template        = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    accommodation_notes_template_linked = models.BooleanField(default=False)
+    terrestre_notes_template        = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    terrestre_notes_template_linked = models.BooleanField(default=False)
+    boat_notes_template             = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    boat_notes_template_linked      = models.BooleanField(default=False)
 
     # Rascunho (autosalvo / não finalizado) vs Ativo. A lista mostra só ativos;
     # rascunhos aparecem num popup à parte. 'Salvar' no detalhe finaliza (ativo).
@@ -289,7 +312,9 @@ class ItineraryImage(models.Model):
     # Imagem da GALERIA do roteiro (day nulo) OU de um DIA específico do dia-a-dia
     # (day preenchido). Reusa a mesma tabela/upload, sem child table extra.
     day       = models.ForeignKey('ItineraryDay', null=True, blank=True, on_delete=models.CASCADE, related_name='images')
-    image     = models.ImageField('Imagem', upload_to=secure_itinerary_image_path)
+    # FileField (não ImageField) pra aceitar também VÍDEO na galeria. O tipo é
+    # validado na action de upload (imagem: jpg/png; vídeo: mp4/webm/mov/…).
+    image     = models.FileField('Arquivo (imagem/vídeo)', upload_to=secure_itinerary_image_path)
     caption   = models.CharField('Legenda', max_length=300, blank=True)
     kind      = models.CharField('Tipo', max_length=20, choices=KIND_CHOICES, default='gallery')
     order     = models.PositiveIntegerField('Ordem', default=0)
@@ -325,6 +350,11 @@ class ItineraryFieldTemplate(models.Model):
         ('insurance',    'Seguros'),
         ('values',       'Informações sobre Valores'),
         ('extras',       'Extras'),
+        ('flights',      'Observações dos Voos'),
+        ('hotels',       'Observações dos Hotéis'),
+        ('accommodation','Observações dos Valores'),
+        ('terrestre',    'Observações do Terrestre'),
+        ('boat',         'Observações do Barco'),
     ]
     # field -> (coluna de conteúdo, coluna do FK, coluna do vínculo) no Itinerary.
     FIELD_COLUMNS = {
@@ -338,6 +368,11 @@ class ItineraryFieldTemplate(models.Model):
         'insurance':    ('info_insurance',    'info_insurance_template',    'info_insurance_template_linked'),
         'values':       ('info_values',       'info_values_template',       'info_values_template_linked'),
         'extras':       ('info_extras',       'info_extras_template',       'info_extras_template_linked'),
+        'flights':      ('flight_notes',        'flight_notes_template',        'flight_notes_template_linked'),
+        'hotels':       ('hotel_notes',         'hotel_notes_template',         'hotel_notes_template_linked'),
+        'accommodation':('accommodation_notes', 'accommodation_notes_template', 'accommodation_notes_template_linked'),
+        'terrestre':    ('terrestre_notes',     'terrestre_notes_template',     'terrestre_notes_template_linked'),
+        'boat':         ('boat_notes',          'boat_notes_template',          'boat_notes_template_linked'),
     }
 
     field      = models.CharField('Campo', max_length=20, choices=FIELD_CHOICES, db_index=True)

@@ -118,3 +118,34 @@ def validate_document_file(file, allowed_exts=None, allow_images=True):
         file.seek(0)
 
     return file
+
+
+# ── Vídeo (galeria de roteiros) ──────────────────────────────────────────────
+MAX_VIDEO_SIZE = 200 * 1024 * 1024  # 200 MB
+VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov', '.m4v', '.ogv'}
+# Átomos iniciais (bytes 4-8) de contêineres MP4/MOV (ISO BMFF / QuickTime).
+_MP4_ATOMS = {b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide', b'pnot'}
+
+
+def validate_video_file(file):
+    """Valida um upload de VÍDEO (extensão, tamanho e magic bytes do contêiner).
+    Não re-processa o conteúdo (só imagens são reprocessadas). Levanta
+    ValidationError se algo estiver fora do esperado."""
+    ext = os.path.splitext(file.name or '')[1].lower()
+    if ext not in VIDEO_EXTENSIONS:
+        raise ValidationError(
+            f'Extensão "{ext}" não permitida. Vídeos aceitos: MP4, WebM, MOV, M4V, OGV.'
+        )
+    if file.size > MAX_VIDEO_SIZE:
+        raise ValidationError(
+            f'Vídeo muito grande ({file.size // 1024 // 1024} MB). Máximo: 200 MB.'
+        )
+    file.seek(0)
+    header = file.read(16)
+    file.seek(0)
+    is_mp4 = len(header) >= 8 and header[4:8] in _MP4_ATOMS
+    is_webm = header.startswith(b'\x1aE\xdf\xa3')   # EBML (WebM/MKV)
+    is_ogg = header.startswith(b'OggS')             # OGG (OGV)
+    if not (is_mp4 or is_webm or is_ogg):
+        raise ValidationError('Arquivo rejeitado: o conteúdo não parece um vídeo válido.')
+    return file

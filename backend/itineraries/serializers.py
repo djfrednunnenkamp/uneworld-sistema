@@ -260,11 +260,17 @@ class ContinentMiniSerializer(serializers.ModelSerializer):
 
 
 class ItineraryImageSerializer(serializers.ModelSerializer):
-    """Imagem da galeria do roteiro OU de um dia. O arquivo (image) é OBRIGATÓRIO.
-    Usada na leitura aninhada e na action de upload (multipart) do viewset."""
+    """Imagem/vídeo da galeria do roteiro OU de um dia. O arquivo (image) é
+    OBRIGATÓRIO. Usada na leitura aninhada e na action de upload (multipart)."""
+    is_video = serializers.SerializerMethodField()
+
     class Meta:
         model  = ItineraryImage
-        fields = ['id', 'image', 'caption', 'kind', 'order']
+        fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video']
+
+    def get_is_video(self, obj):
+        name = (getattr(obj.image, 'name', '') or '').lower()
+        return name.endswith(('.mp4', '.webm', '.mov', '.m4v', '.ogv'))
 
 
 class ItineraryDaySerializer(serializers.ModelSerializer):
@@ -370,7 +376,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_general', 'info_included', 'info_not_included', 'info_optionals',
                   'info_tips', 'info_documents', 'info_promo_rules', 'info_insurance',
                   'info_values', 'info_extras',
-                  'notes',
+                  'notes', 'map_embed_url',
                   # Vínculo vivo com templates (por campo): FK + toggle.
                   'info_general_template', 'info_general_template_linked',
                   'info_included_template', 'info_included_template_linked',
@@ -382,6 +388,11 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_insurance_template', 'info_insurance_template_linked',
                   'info_values_template', 'info_values_template_linked',
                   'info_extras_template', 'info_extras_template_linked',
+                  'flight_notes', 'flight_notes_template', 'flight_notes_template_linked',
+                  'hotel_notes', 'hotel_notes_template', 'hotel_notes_template_linked',
+                  'accommodation_notes', 'accommodation_notes_template', 'accommodation_notes_template_linked',
+                  'terrestre_notes', 'terrestre_notes_template', 'terrestre_notes_template_linked',
+                  'boat_notes', 'boat_notes_template', 'boat_notes_template_linked',
                   # novos:
                   'itinerary_type', 'itinerary_type_name',
                   'maritime_company', 'maritime_company_name',
@@ -541,6 +552,11 @@ class ItineraryListSerializer(serializers.ModelSerializer):
     itinerary_type_name   = serializers.CharField(source='itinerary_type.name', read_only=True, default=None)
     maritime_company_name = serializers.CharField(source='maritime_company.name', read_only=True, default=None)
     cover                 = serializers.SerializerMethodField()   # miniatura da capa
+    # Nome/datas da FOTO publicada — pro seletor de roteiros do contrato mostrar o
+    # que a agência realmente vê (alterações não publicadas não aparecem).
+    pub_name       = serializers.SerializerMethodField()
+    pub_start_date = serializers.SerializerMethodField()
+    pub_end_date   = serializers.SerializerMethodField()
 
     class Meta:
         model  = Itinerary
@@ -548,8 +564,16 @@ class ItineraryListSerializer(serializers.ModelSerializer):
                   'category_name', 'continent_name',
                   'itinerary_type_name', 'maritime_company_name', 'cover',
                   'status', 'is_published', 'has_unpublished_changes', 'order',
+                  'pub_name', 'pub_start_date', 'pub_end_date',
                   'created_at', 'updated_at',
                   'is_deleted', 'deleted_at']
+
+    def _pub(self, obj, key):
+        d = obj.published_data if (obj.is_published and obj.published_data) else None
+        return d.get(key) if isinstance(d, dict) else None
+    def get_pub_name(self, obj):       return self._pub(obj, 'name') or obj.name
+    def get_pub_start_date(self, obj): return self._pub(obj, 'start_date') or obj.start_date
+    def get_pub_end_date(self, obj):   return self._pub(obj, 'end_date') or obj.end_date
 
     def get_cover(self, obj):
         # Capa: imagem kind='cover'; senão a 1ª imagem da galeria (day nulo).

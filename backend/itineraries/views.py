@@ -193,10 +193,42 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
         _audit(self.request, 'upload' if doc.file else 'create', doc,
                model_name='ItineraryDocument', model_label='Documento do roteiro')
 
+    def perform_update(self, serializer):
+        doc = serializer.save()
+        _audit(self.request, 'update', doc,
+               model_name='ItineraryDocument', model_label='Documento do roteiro')
+
     def perform_destroy(self, instance):
         _audit(self.request, 'delete', instance,
                model_name='ItineraryDocument', model_label='Documento do roteiro')
         instance.delete()
+
+    @action(detail=False, methods=['post'], url_path='create_blank')
+    def create_blank(self, request):
+        """Cria um documento Office EM BRANCO (Word/Excel/PowerPoint) já anexado ao
+        roteiro, pronto para editar no OnlyOffice. body: {itinerary, kind, name?}.
+        kind = word|cell|slide."""
+        from django.core.files.base import ContentFile
+        from . import blank_office
+        itinerary_id = request.data.get('itinerary')
+        kind = request.data.get('kind')
+        ext = blank_office.KIND_EXT.get(kind)
+        if not ext:
+            return Response({'detail': 'Tipo inválido (use word, cell ou slide).'}, status=status.HTTP_400_BAD_REQUEST)
+        itinerary = Itinerary.objects.filter(pk=itinerary_id).first()
+        if itinerary is None:
+            return Response({'detail': 'Roteiro inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        default = {'word': 'Documento', 'cell': 'Planilha', 'slide': 'Apresentação'}[kind]
+        name = (request.data.get('name') or '').strip() or default
+        if not name.lower().endswith('.' + ext):
+            name = f'{name}.{ext}'
+        last = ItineraryDocument.objects.filter(itinerary=itinerary).order_by('-order').first()
+        doc = ItineraryDocument(itinerary=itinerary, name=name, order=(last.order + 1) if last else 0)
+        doc.file.save(f'novo.{ext}', ContentFile(blank_office.blank_file(kind)), save=False)
+        doc.save()
+        _audit(request, 'create', doc, model_name='ItineraryDocument', model_label='Documento do roteiro')
+        return Response(ItineraryDocumentSerializer(doc, context={'request': request}).data,
+                        status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
@@ -361,6 +393,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         _audit(request, 'unpublish', obj)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
 
+    # ── Foto PUBLICADA (o que o público / contrato deve ver). Se o roteiro está
+    # publicado, devolve o snapshot congelado (published_data) — alterações não
+    # publicadas ficam invisíveis. Sem foto (nunca publicado), cai no estado vivo. ──
+    @action(detail=True, methods=['get'])
+    def public(self, request, pk=None):
+        obj = self.get_object()
+        if obj.is_published and obj.published_data:
+            return Response(obj.published_data)
+        return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
+
     # ── Galeria de imagens (upload multipart — não cabe no PUT/JSON) ──
     @action(detail=True, methods=['post'], url_path='images')
     def upload_image(self, request, pk=None):
@@ -376,18 +418,26 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 return Response({'detail': 'Dia inválido para este roteiro.'}, status=status.HTTP_400_BAD_REQUEST)
         ser = ItineraryImageSerializer(data=request.data, context=self.get_serializer_context())
         ser.is_valid(raise_exception=True)
-        # Validação de segurança (tamanho, extensão × magic bytes, anti image-bomb,
-        # re-processamento que remove metadados/payloads) — mesma dos passageiros.
-        from passengers.validators import validate_document_file
-        from django.core.exceptions import ValidationError as DjangoValidationError
-        try:
-            validate_document_file(ser.validated_data['image'],
-                                   allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
-        except DjangoValidationError as e:
-            return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+        upload = ser.validated_data['image']
         kind = ser.validated_data.get('kind') or 'gallery'
         if day is not None:
             kind = 'gallery'
+        # Vídeo só é aceito na GALERIA (não em capa/lâminas). Imagem: jpg/png com
+        # re-processamento; vídeo: validação de contêiner (mesma base dos passageiros).
+        import os as _os
+        from passengers.validators import validate_document_file, validate_video_file, VIDEO_EXTENSIONS
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        is_video = _os.path.splitext(upload.name or '')[1].lower() in VIDEO_EXTENSIONS
+        try:
+            if is_video:
+                if kind != 'gallery':
+                    return Response({'image': ['Vídeos só podem ser adicionados à galeria.']},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                validate_video_file(upload)
+            else:
+                validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         img = ser.save(itinerary=itinerary, day=day, kind=kind)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
