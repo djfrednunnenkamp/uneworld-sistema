@@ -1493,30 +1493,35 @@ class CityViewSet(viewsets.ModelViewSet):
         from django.db.models import Case, When, Value, IntegerField
         from .textsearch import normalize_text
         state_id = self.request.query_params.get('state_id')
-        country_ids = self.request.query_params.get('country_ids')
+        # `prefer`/`country_ids`: países a PRIORIZAR no ranking (não filtram — cidades
+        # deles aparecem primeiro, mas outras cidades continuam pesquisáveis). Sem
+        # busca, mostramos só as cidades dos países preferidos (contexto do roteiro).
+        prefer = self.request.query_params.get('prefer') or self.request.query_params.get('country_ids')
         q = self.request.query_params.get('q')
         base = ConfigCity.objects.select_related('state__country', 'state__country__continent')
         if state_id:
             return base.filter(state_id=state_id)
+        prefer_ids = [int(x) for x in (prefer or '').split(',') if x.strip().isdigit()]
 
-        # Busca insensível a acento/caixa (name_ascii) + ranking: quem COMEÇA com o
-        # termo aparece primeiro, depois quem contém, e por fim em ordem alfabética.
-        def search(qs, term):
-            nq = normalize_text(term)
-            qs = qs.filter(name_ascii__icontains=nq)
-            return qs.annotate(
-                _rank=Case(When(name_ascii__startswith=nq, then=Value(0)),
-                           default=Value(1), output_field=IntegerField())
-            ).order_by('_rank', 'name')[:200]
-
-        # Filtro por país(es): cidades dos países escolhidos, com busca opcional.
-        if country_ids:
-            ids = [int(x) for x in country_ids.split(',') if x.strip().isdigit()]
-            qs = base.filter(state__country_id__in=ids)
-            return search(qs, q) if q else qs.order_by('name')[:200]
         if q:
-            return search(base, q)
-        # Sem país e sem busca: amostra inicial (o usuário refina digitando).
+            nq = normalize_text(q)
+            qs = base.filter(name_ascii__icontains=nq)
+            order = []
+            if prefer_ids:   # cidades dos países selecionados vêm primeiro
+                qs = qs.annotate(_pref=Case(
+                    When(state__country_id__in=prefer_ids, then=Value(0)),
+                    default=Value(1), output_field=IntegerField()))
+                order.append('_pref')
+            # quem COMEÇA com o termo antes de quem só contém; depois alfabético
+            qs = qs.annotate(_rank=Case(
+                When(name_ascii__startswith=nq, then=Value(0)),
+                default=Value(1), output_field=IntegerField()))
+            order += ['_rank', 'name']
+            return qs.order_by(*order)[:200]
+
+        # Sem busca: se há países preferidos, mostra as cidades deles; senão amostra.
+        if prefer_ids:
+            return base.filter(state__country_id__in=prefer_ids).order_by('name')[:200]
         return base.order_by('name')[:200]
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})
