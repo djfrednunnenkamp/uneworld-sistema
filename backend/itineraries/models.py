@@ -350,8 +350,9 @@ class ItineraryImage(models.Model):
     KIND_CHOICES = [
         ('gallery',        'Galeria'),
         ('cover',          'Capa'),
+        # Lâminas do bloqueio: pode ter várias, ordenadas; a primeira (menor
+        # `order`) é a padrão que o sistema usa.
         ('blocking',       'Lâmina do Bloqueio'),
-        ('blocking_promo', 'Lâmina do Bloqueio Promocional'),
     ]
     itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='images')
     # Imagem da GALERIA do roteiro (day nulo) OU de um DIA específico do dia-a-dia

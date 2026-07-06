@@ -426,8 +426,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='images')
     def upload_image(self, request, pk=None):
         """POST /api/itineraries/{id}/images/  (multipart: image, caption?, kind?, order?, day?).
-        `kind`: gallery (padrão), cover, blocking, blocking_promo. Se `day` (id de um
-        ItineraryDay deste roteiro) vier, a imagem é do DIA (kind = gallery)."""
+        `kind`: gallery (padrão), cover, blocking. Se `day` (id de um ItineraryDay
+        deste roteiro) vier, a imagem é do DIA (kind = gallery)."""
         itinerary = self.get_object()
         day = None
         day_id = request.data.get('day')
@@ -475,7 +475,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def set_image_kind(self, request, pk=None, image_id=None):
         """POST /api/itineraries/{id}/images/{image_id}/kind/  body: {"kind": "..."}.
         Move a imagem entre capa/galeria/lâminas (arrastar de um campo para outro).
-        Ao mover para uma lâmina (single), o ocupante anterior vira galeria."""
+        Capa, galeria e lâminas aceitam várias imagens."""
         itinerary = self.get_object()
         img = itinerary.images.filter(pk=image_id, day__isnull=True).first()
         if img is None:
@@ -484,11 +484,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         valid = {c[0] for c in ItineraryImage.KIND_CHOICES}
         if kind not in valid:
             return Response({'detail': 'Tipo inválido.'}, status=status.HTTP_400_BAD_REQUEST)
-        with transaction.atomic():
-            if kind in ('blocking', 'blocking_promo'):
-                itinerary.images.filter(kind=kind, day__isnull=True).exclude(pk=img.pk).update(kind='gallery')
-            img.kind = kind
-            img.save(update_fields=['kind'])
+        img.kind = kind
+        img.save(update_fields=['kind'])
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_200_OK)
 
