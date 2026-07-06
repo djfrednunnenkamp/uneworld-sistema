@@ -165,6 +165,7 @@ class ContractSerializer(serializers.ModelSerializer):
     contratante_data = serializers.SerializerMethodField()
     passenger_list_data = serializers.SerializerMethodField()
     itinerary_data      = serializers.SerializerMethodField()
+    itinerary_departure_data = serializers.SerializerMethodField()
     clauses_data        = serializers.SerializerMethodField()
     seller_data         = serializers.SerializerMethodField()
 
@@ -194,6 +195,7 @@ class ContractSerializer(serializers.ModelSerializer):
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_data',
                   'passenger_list', 'passenger_list_data', 'itinerary', 'itinerary_data',
+                  'itinerary_flight_departure', 'itinerary_terrestre_departure', 'itinerary_departure_data',
                   'contratante', 'contratante_data',
                   'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
                   'payer_email', 'payer_phone', 'payer_address',
@@ -297,6 +299,18 @@ class ContractSerializer(serializers.ModelSerializer):
         it = obj.itinerary
         return {'id': it.id, 'name': it.name, 'start_date': it.start_date, 'end_date': it.end_date,
                 'base_currency': it.base_currency}
+
+    def get_itinerary_departure_data(self, obj):
+        """Rótulo da partida escolhida (aeroporto ou cidade) para exibir no contrato."""
+        if obj.itinerary_flight_departure_id:
+            ap = obj.itinerary_flight_departure.airport
+            label = ' · '.join(filter(None, [getattr(ap, 'iata_code', None), getattr(ap, 'name', None)])) if ap else 'Aeroporto'
+            return {'mode': 'aereo', 'id': obj.itinerary_flight_departure_id, 'label': label}
+        if obj.itinerary_terrestre_departure_id:
+            c = obj.itinerary_terrestre_departure.city
+            label = ', '.join(filter(None, [getattr(c, 'name', None), getattr(getattr(c, 'state', None), 'name', None)])) if c else 'Cidade'
+            return {'mode': 'terrestre', 'id': obj.itinerary_terrestre_departure_id, 'label': label}
+        return None
 
     def get_signed_file(self, obj):
         return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None

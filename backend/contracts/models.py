@@ -44,6 +44,12 @@ class Contract(models.Model):
     # compatibilidade com contratos antigos).
     itinerary    = models.ForeignKey('itineraries.Itinerary', on_delete=models.SET_NULL, null=True, blank=True,
                                      related_name='contracts', verbose_name='Roteiro')
+    # Ponto de partida escolhido do roteiro (quando ele tem mais de uma saída —
+    # o preço muda conforme a saída). Só um dos dois é preenchido (aéreo XOR terrestre).
+    itinerary_flight_departure    = models.ForeignKey('itineraries.ItineraryDeparture', on_delete=models.SET_NULL,
+                                                       null=True, blank=True, related_name='+', verbose_name='Partida (aéreo)')
+    itinerary_terrestre_departure = models.ForeignKey('itineraries.ItineraryTerrestreDeparture', on_delete=models.SET_NULL,
+                                                       null=True, blank=True, related_name='+', verbose_name='Partida (terrestre)')
     # Contratante pode ser um passageiro já cadastrado OU dados preenchidos à
     # mão (payer_*) quando quem paga não está cadastrado no sistema — inclusive
     # uma empresa (payer_type='juridica'), não necessariamente uma pessoa física.
