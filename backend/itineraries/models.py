@@ -458,6 +458,9 @@ class ItineraryTerrestreDeparture(models.Model):
         verbose_name = 'Cidade de partida (terrestre)'
         verbose_name_plural = 'Cidades de partida (terrestre)'
 
+    def __str__(self):
+        return f'Cidade de partida #{self.pk}'
+
 
 class ItineraryTerrestreLeg(models.Model):
     """Trecho terrestre a partir de uma cidade de partida (coluna direita).
@@ -475,3 +478,6 @@ class ItineraryTerrestreLeg(models.Model):
         ordering = ['order', 'id']
         verbose_name = 'Trecho terrestre do roteiro'
         verbose_name_plural = 'Trechos terrestres do roteiro'
+
+    def __str__(self):
+        return f'Trecho terrestre {self.service_number or self.pk}'

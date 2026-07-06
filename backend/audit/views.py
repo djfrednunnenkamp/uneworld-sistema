@@ -54,7 +54,9 @@ SCOPE_MODELS = {
     'agencies':    ['Agency'],
     'users':       ['User', 'UserPermissions'],
     'contracts':   CONTRACT_MODELS,
-    'itineraries': ['Itinerary', 'ItineraryDocument'],
+    'itineraries': ['Itinerary', 'ItineraryDocument', 'ItineraryImage', 'ItineraryDeparture',
+                    'ItineraryFlight', 'ItineraryHotel', 'ItineraryBoat',
+                    'ItineraryTerrestreDeparture', 'ItineraryTerrestreLeg'],
 }
 
 
@@ -225,16 +227,27 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                     child_q |= Q(model_name=model_name, object_id__in=[str(i) for i in ids])
             qs = qs.filter(child_q)
         if itinerary_id:
-            from itineraries.models import ItineraryDocument
+            from itineraries.models import (
+                ItineraryDocument, ItineraryImage, ItineraryDeparture, ItineraryFlight,
+                ItineraryHotel, ItineraryBoat, ItineraryTerrestreDeparture, ItineraryTerrestreLeg,
+            )
             from django.db.models import Q
-            doc_ids = list(
-                ItineraryDocument.objects.filter(itinerary_id=itinerary_id)
-                .values_list('id', flat=True)
-            )
-            qs = qs.filter(
-                Q(model_name='Itinerary', object_id=str(itinerary_id)) |
-                Q(model_name='ItineraryDocument', object_id__in=[str(i) for i in doc_ids])
-            )
+            iq = Q(model_name='Itinerary', object_id=str(itinerary_id))
+            # Filhos diretos (FK itinerary)
+            for model_cls, name in (
+                (ItineraryDocument, 'ItineraryDocument'), (ItineraryImage, 'ItineraryImage'),
+                (ItineraryDeparture, 'ItineraryDeparture'), (ItineraryHotel, 'ItineraryHotel'),
+                (ItineraryBoat, 'ItineraryBoat'), (ItineraryTerrestreDeparture, 'ItineraryTerrestreDeparture'),
+            ):
+                ids = list(model_cls.objects.filter(itinerary_id=itinerary_id).values_list('id', flat=True))
+                if ids:
+                    iq |= Q(model_name=name, object_id__in=[str(i) for i in ids])
+            # Netos (via departure → itinerary)
+            for model_cls, name in ((ItineraryFlight, 'ItineraryFlight'), (ItineraryTerrestreLeg, 'ItineraryTerrestreLeg')):
+                ids = list(model_cls.objects.filter(departure__itinerary_id=itinerary_id).values_list('id', flat=True))
+                if ids:
+                    iq |= Q(model_name=name, object_id__in=[str(i) for i in ids])
+            qs = qs.filter(iq)
         return qs
 
 

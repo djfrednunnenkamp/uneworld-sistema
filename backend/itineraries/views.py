@@ -38,9 +38,9 @@ def _roteiro_edit_permissions(self):
     return [RequirePermission('roteiros_edit')()]
 
 
-def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro'):
-    """Registra um evento de auditoria de roteiro (publicar, upload, download…).
-    Eventos que os signals automáticos não capturam."""
+def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro', changes=None):
+    """Registra um evento de auditoria de roteiro (publicar, upload, reordenar…).
+    Eventos que os signals automáticos não capturam (ações e bulk updates)."""
     from audit.models import AuditLog
     from audit.tracking import user_display
     from audit.middleware import get_current_ip
@@ -51,7 +51,7 @@ def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro'):
         user_display=user_display(user) if authed else 'Sistema',
         action=action, model_name=model_name, model_label=model_label,
         object_id=str(getattr(obj, 'pk', '') or ''), object_repr=str(obj)[:500],
-        ip_address=get_current_ip(),
+        changes=changes or {}, ip_address=get_current_ip(),
     )
 
 
@@ -91,6 +91,9 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
             for pos, fid in enumerate(ids):
                 if fid in valid:
                     ItineraryFlight.objects.filter(pk=fid).update(order=pos)
+        first = ItineraryFlight.objects.filter(pk__in=ids).select_related('departure__itinerary').first()
+        if first and first.departure and first.departure.itinerary_id:
+            _audit(request, 'update', first.departure.itinerary, changes={'Voos': {'antes': '—', 'depois': 'reordenados'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -129,6 +132,9 @@ class ItineraryTerrestreLegViewSet(viewsets.ModelViewSet):
             for pos, lid in enumerate(ids):
                 if lid in valid:
                     ItineraryTerrestreLeg.objects.filter(pk=lid).update(order=pos)
+        first = ItineraryTerrestreLeg.objects.filter(pk__in=ids).select_related('departure__itinerary').first()
+        if first and first.departure and first.departure.itinerary_id:
+            _audit(request, 'update', first.departure.itinerary, changes={'Trechos terrestres': {'antes': '—', 'depois': 'reordenados'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -245,6 +251,8 @@ def document_callback(request, pk):
                 doc.file.save(doc.file.name.split('/')[-1], ContentFile(content), save=False)
                 doc.edit_key = get_random_string(12)
                 doc.save(update_fields=['file', 'edit_key', 'updated_at'])
+                _audit(request, 'update', doc, model_name='ItineraryDocument', model_label='Documento do roteiro',
+                       changes={'Conteúdo': {'antes': '—', 'depois': 'editado no editor'}})
             except Exception:
                 return Response({'error': 1})
     return Response({'error': 0})
@@ -314,6 +322,19 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         ids = request.data.get('order') or []
         for i, pk in enumerate(ids):
             Itinerary.objects.filter(pk=pk).update(order=i)
+        # Evento único (a ordem da lista alimenta o site) — não é de um roteiro só.
+        from audit.models import AuditLog
+        from audit.tracking import user_display
+        from audit.middleware import get_current_ip
+        u = request.user
+        AuditLog.objects.create(
+            user=u if getattr(u, 'is_authenticated', False) else None,
+            user_display=user_display(u) if getattr(u, 'is_authenticated', False) else 'Sistema',
+            action='update', model_name='Itinerary', model_label='Roteiro',
+            object_id='', object_repr='Ordem da lista de roteiros',
+            changes={'Ordem dos roteiros': {'antes': '—', 'depois': f'{len(ids)} roteiro(s) reordenado(s)'}},
+            ip_address=get_current_ip(),
+        )
         return Response({'ok': True, 'count': len(ids)})
 
     # ── Publicação: tira a FOTO do estado atual (published_data) e liga is_published.
@@ -326,6 +347,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         obj.is_published = True
         obj.has_unpublished_changes = False
         obj.published_at = timezone.now()
+        obj._skip_audit_signal = True   # eu logo 'publish'; evita 'update' duplicado
         obj.save(update_fields=['published_data', 'is_published', 'has_unpublished_changes', 'published_at'])
         _audit(request, 'publish', obj)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
@@ -334,6 +356,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def unpublish(self, request, pk=None):
         obj = self.get_object()
         obj.is_published = False
+        obj._skip_audit_signal = True   # eu logo 'unpublish'; evita 'update' duplicado
         obj.save(update_fields=['is_published'])
         _audit(request, 'unpublish', obj)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
@@ -411,4 +434,5 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             for pos, img_id in enumerate(order):
                 if img_id in valid:
                     itinerary.images.filter(pk=img_id).update(order=pos)
+        _audit(request, 'update', itinerary, changes={'Imagens': {'antes': '—', 'depois': 'reordenadas'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
