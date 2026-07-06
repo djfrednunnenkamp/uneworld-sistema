@@ -240,7 +240,16 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             if area_q.children:
                 qs = qs.filter(area_q)
 
-        if scope in SCOPE_MODELS: qs = qs.filter(model_name__in=SCOPE_MODELS[scope])
+        # Navegação (PageView) + login/logout entram MESMO com um escopo/área ativa
+        # quando o toggle "Ver navegação" está ligado — senão o filtro de escopo
+        # abaixo os removia e o toggle não mostrava nada dentro de Contratos/Roteiros.
+        from django.db.models import Q as _NavQ
+        nav_q = (_NavQ(model_name='PageView') | _NavQ(action__in=['login', 'logout'])) if (show_nav and has_page_view_access) else None
+        if scope in SCOPE_MODELS:
+            sq = _NavQ(model_name__in=SCOPE_MODELS[scope])
+            if nav_q is not None:
+                sq |= nav_q
+            qs = qs.filter(sq)
         if action:    qs = qs.filter(action=action)
         if model:     qs = qs.filter(model_name=model)
         if object_id: qs = qs.filter(object_id=object_id)
@@ -291,6 +300,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 )
                 if ids:
                     child_q |= Q(model_name=model_name, object_id__in=[str(i) for i in ids])
+            if show_nav and has_page_view_access:
+                child_q |= Q(model_name='PageView', object_id=str(contract_id))
             qs = qs.filter(child_q)
         if itinerary_id:
             from itineraries.models import (
@@ -313,6 +324,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 ids = list(model_cls.objects.filter(departure__itinerary_id=itinerary_id).values_list('id', flat=True))
                 if ids:
                     iq |= Q(model_name=name, object_id__in=[str(i) for i in ids])
+            if show_nav and has_page_view_access:
+                iq |= Q(model_name='PageView', object_id=str(itinerary_id))
             qs = qs.filter(iq)
         return qs
 
@@ -365,10 +378,12 @@ def log_page_view(request):
     if not path:
         return Response({'error': 'path é obrigatório.'}, status=400)
     user = request.user
+    # object_id opcional: amarra a navegação/ação a um registro (ex.: roteiro/
+    # contrato) para aparecer no drill "só desse registro" com o toggle ligado.
     AuditLog.objects.create(
         user=user, user_display=user_display(user), action='view',
-        model_name='PageView', model_label='Página',
-        object_id='', object_repr=label or path,
+        model_name='PageView', model_label='Navegação',
+        object_id=str(request.data.get('object_id') or ''), object_repr=label or path,
         changes={'Caminho': path} if label else {},
         ip_address=get_current_ip(),
     )
