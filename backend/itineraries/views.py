@@ -705,20 +705,26 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         from django.http import HttpResponse
 
         p = request.query_params
-        types = {t for t in (p.get('types') or 'image,video,lamina').split(',') if t}
         qs = (ItineraryImage.objects
               .select_related('city', 'country', 'itinerary')
               .filter(day__isnull=True))
-        qs = self._apply_common_filters(qs, p)
-        vq = self._video_q()
-        typeq = Q(pk__in=[])
-        if 'lamina' in types:
-            typeq |= Q(kind='blocking')
-        if 'image' in types:
-            typeq |= (~vq & ~Q(kind='blocking'))
-        if 'video' in types:
-            typeq |= (vq & ~Q(kind='blocking'))
-        qs = qs.filter(typeq).order_by('-created_at', '-id')
+        ids = [int(x) for x in (p.get('ids') or '').split(',') if x.strip().isdigit()]
+        if ids:
+            # Seleção manual: baixa exatamente esses itens (ignora tipos/filtros).
+            qs = qs.filter(pk__in=ids)
+        else:
+            types = {t for t in (p.get('types') or 'image,video,lamina').split(',') if t}
+            qs = self._apply_common_filters(qs, p)
+            vq = self._video_q()
+            typeq = Q(pk__in=[])
+            if 'lamina' in types:
+                typeq |= Q(kind='blocking')
+            if 'image' in types:
+                typeq |= (~vq & ~Q(kind='blocking'))
+            if 'video' in types:
+                typeq |= (vq & ~Q(kind='blocking'))
+            qs = qs.filter(typeq)
+        qs = qs.order_by('-created_at', '-id')
 
         buf = io.BytesIO()
         used = set()
