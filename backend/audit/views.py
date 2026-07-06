@@ -20,8 +20,12 @@ FILE_MODELS = {
     'PassengerDocument': ('passengers.PassengerDocument', 'file'),
     'Airline':           ('config_api.Airline', 'logo'),
     'OperatingCompany':  ('config_api.OperatingCompany', 'ceo_signature'),
+    # Contrato: só serve o arquivo ARMAZENADO (assinado/comprovante, marcados com
+    # _file_field). O "Baixou o PDF" gerado no navegador não fica salvo → devolve
+    # None (404) e o front regenera o PDF na hora.
     'Contract':          ('contracts.Contract',
-                          lambda obj, log: getattr(obj, (log.changes or {}).get('_file_field') or 'signed_file', None)),
+                          lambda obj, log: getattr(obj, (log.changes or {}).get('_file_field'), None)
+                          if (log.changes or {}).get('_file_field') else None),
 }
 
 
