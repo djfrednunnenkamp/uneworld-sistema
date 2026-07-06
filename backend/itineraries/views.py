@@ -344,6 +344,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
                            'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
+                           'update_image_meta',
                            'publish', 'unpublish', 'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
@@ -486,6 +487,51 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'detail': 'Tipo inválido.'}, status=status.HTTP_400_BAD_REQUEST)
         img.kind = kind
         img.save(update_fields=['kind'])
+        out = ItineraryImageSerializer(img, context=self.get_serializer_context())
+        return Response(out.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['patch'], url_path=r'images/(?P<image_id>[0-9]+)/meta')
+    def update_image_meta(self, request, pk=None, image_id=None):
+        """PATCH /api/itineraries/{id}/images/{image_id}/meta/  body: {caption?, city?,
+        country?}. Se `city` vier, o país é DERIVADO dela (cidade→estado→país). Se
+        vier só `country`, a cidade é desvinculada. Continente é sempre derivado."""
+        from config_api.models import ConfigCity, ConfigCountry
+        itinerary = self.get_object()
+        img = itinerary.images.filter(pk=image_id).first()
+        if img is None:
+            return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        data = request.data
+        fields = set()
+        if 'caption' in data:
+            img.caption = (data.get('caption') or '')[:300]
+            fields.add('caption')
+        if 'city' in data:
+            city_id = data.get('city')
+            if city_id:
+                city = ConfigCity.objects.select_related('state__country').filter(pk=city_id).first()
+                if city is None:
+                    return Response({'city': ['Cidade inválida.']}, status=status.HTTP_400_BAD_REQUEST)
+                img.city = city
+                img.country_id = city.state.country_id     # país derivado da cidade
+                fields.update({'city', 'country'})
+            else:
+                img.city = None
+                fields.add('city')
+        # País só é aplicado explicitamente quando não veio uma cidade definindo-o.
+        if 'country' in data and 'city' not in data:
+            country_id = data.get('country')
+            if country_id:
+                country = ConfigCountry.objects.filter(pk=country_id).first()
+                if country is None:
+                    return Response({'country': ['País inválido.']}, status=status.HTTP_400_BAD_REQUEST)
+                img.country = country
+                img.city = None                             # país manual desvincula a cidade
+                fields.update({'country', 'city'})
+            else:
+                img.country = None
+                fields.add('country')
+        if fields:
+            img.save(update_fields=list(fields))
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_200_OK)
 
