@@ -339,6 +339,9 @@ class ConfigCity(models.Model):
     name  = models.CharField('Nome', max_length=150)
     # Nome normalizado (minúsculo, sem acento) — usado na busca insensível a acento.
     name_ascii = models.CharField(max_length=150, blank=True, default='', db_index=True)
+    # Apelidos PT normalizados (ex.: 'cidade do mexico' p/ 'Mexico City') — também
+    # pesquisados, para achar cidades famosas pelo nome em português.
+    aliases    = models.CharField(max_length=255, blank=True, default='', db_index=True)
 
     def save(self, *args, **kwargs):
         from .textsearch import normalize_text

@@ -1504,19 +1504,24 @@ class CityViewSet(viewsets.ModelViewSet):
         prefer_ids = [int(x) for x in (prefer or '').split(',') if x.strip().isdigit()]
 
         if q:
+            from django.db.models import Q
             nq = normalize_text(q)
-            qs = base.filter(name_ascii__icontains=nq)
+            # casa pelo nome normalizado OU por apelido PT (ex.: 'cidade do méxico').
+            qs = base.filter(Q(name_ascii__icontains=nq) | Q(aliases__icontains=nq))
             order = []
             if prefer_ids:   # cidades dos países selecionados vêm primeiro
                 qs = qs.annotate(_pref=Case(
                     When(state__country_id__in=prefer_ids, then=Value(0)),
                     default=Value(1), output_field=IntegerField()))
                 order.append('_pref')
-            # quem COMEÇA com o termo antes de quem só contém; depois alfabético
-            qs = qs.annotate(_rank=Case(
-                When(name_ascii__startswith=nq, then=Value(0)),
-                default=Value(1), output_field=IntegerField()))
-            order += ['_rank', 'name']
+            # cidade famosa reconhecida pelo apelido PT (ex.: 'roma'→Roma/Itália)
+            # aparece antes de homônimas; depois quem COMEÇA com o termo; depois nome.
+            qs = qs.annotate(
+                _alias=Case(When(aliases__icontains=nq, then=Value(0)),
+                            default=Value(1), output_field=IntegerField()),
+                _rank=Case(When(name_ascii__startswith=nq, then=Value(0)),
+                           default=Value(1), output_field=IntegerField()))
+            order += ['_alias', '_rank', 'name']
             return qs.order_by(*order)[:200]
 
         # Sem busca: se há países preferidos, mostra as cidades deles; senão amostra.
