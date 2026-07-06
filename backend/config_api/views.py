@@ -1040,9 +1040,15 @@ class HotelMediaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
+        from audit.tracking import log_event
         ids = request.data.get('ids', [])
         for i, mid in enumerate(ids):
             ConfigHotelMedia.objects.filter(id=mid).update(order=i)
+        hotel_id = ConfigHotelMedia.objects.filter(id__in=ids).values_list('hotel_id', flat=True).first() if ids else None
+        if hotel_id:
+            log_event('update', model_name='ConfigHotel', model_label='Hotel (catálogo)',
+                      object_id=hotel_id, object_repr=f'Hotel #{hotel_id}',
+                      changes={'Mídias': {'antes': '—', 'depois': 'reordenadas'}})
         return Response({'ok': True})
 
 
@@ -1112,9 +1118,15 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
+        from audit.tracking import log_event
         ids = request.data.get('ids', [])
         for i, mid in enumerate(ids):
             ConfigBoatMedia.objects.filter(id=mid).update(order=i)
+        boat_id = ConfigBoatMedia.objects.filter(id__in=ids).values_list('boat_id', flat=True).first() if ids else None
+        if boat_id:
+            log_event('update', model_name='ConfigBoat', model_label='Barco (catálogo)',
+                      object_id=boat_id, object_repr=f'Barco #{boat_id}',
+                      changes={'Mídias': {'antes': '—', 'depois': 'reordenadas'}})
         return Response({'ok': True})
 
 

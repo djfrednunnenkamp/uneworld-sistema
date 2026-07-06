@@ -352,6 +352,46 @@ class ContractSerializer(serializers.ModelSerializer):
         chosen_ids  = set(c.id for c in clauses) if clauses is not None else set()
         contract.clauses.set(default_ids | chosen_ids)
 
+    # ── Auditoria: os filhos do contrato são salvos com bulk_create (não disparam
+    # signal), então mudanças em hóspedes/parcelas/ajustes/acomodações (inclusive
+    # checkboxes) ficariam invisíveis. Tiramos um snapshot antes/depois e logamos
+    # o diff completo — igual ao ItinerarySerializer. ──
+    def _child_dict(self, obj):
+        from audit.tracking import obj_to_dict
+        d = obj_to_dict(obj)
+        d.pop('id', None)
+        return d
+
+    def _audit_snapshot(self, contract):
+        from audit.tracking import obj_to_dict
+        snap = dict(obj_to_dict(contract))
+        for rel, label in (('accommodation_lines', 'Acomodações'), ('guests', 'Hóspedes'),
+                           ('installments', 'Parcelas'), ('adjustments', 'Ajustes')):
+            try:
+                snap[label] = [self._child_dict(o) for o in getattr(contract, rel).all().order_by('order', 'id')]
+            except Exception:
+                pass
+        try:
+            snap['Cláusulas'] = sorted(str(c) for c in contract.clauses.all())
+        except Exception:
+            pass
+        return snap
+
+    def _log_update(self, contract, old, new):
+        changes = {k: {'antes': old.get(k), 'depois': v} for k, v in new.items() if old.get(k) != v}
+        if not changes:
+            return
+        from audit.models import AuditLog
+        from audit.tracking import user_display
+        from audit.middleware import get_current_user, get_current_ip
+        user = get_current_user()
+        AuditLog.objects.create(
+            user=user, user_display=user_display(user), action='update',
+            model_name='Contract', model_label='Contrato',
+            object_id=str(contract.pk), object_repr=str(contract)[:500],
+            changes=changes, ip_address=get_current_ip(),
+        )
+
     def _recalc_totals(self, contract):
         """Soma total (USD) vem das linhas de acomodação; câmbio vem da
         configuração de Câmbio quando o contrato não tem um valor próprio;
@@ -535,12 +575,15 @@ class ContractSerializer(serializers.ModelSerializer):
             instance.payer_birth_date = None
         elif validated_data.get('payer_name'):
             validated_data['contratante'] = None
+        old_snap = self._audit_snapshot(instance)      # antes de mexer (inclui filhos)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         # Toda edição sobe a versão de assinatura: invalida os PDFs baixados antes
         # (o QR deles carrega a versão antiga) — ver contracts/signing.py.
         instance.signing_version = (instance.signing_version or 1) + 1
+        instance._skip_audit_signal = True             # eu logo o diff completo abaixo
         instance.save()
         self._save_children(instance, accommodation_lines, guests, installments, clauses, adjustments)
         self._recalc_totals(instance)
+        self._log_update(instance, old_snap, self._audit_snapshot(instance))
         return instance

@@ -215,6 +215,10 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
             raise Http404
         # Content-Type derivado dos bytes reais (A-10), nunca do mime_type do
         # cliente. Tipo desconhecido → força download (não renderiza inline).
+        from audit.tracking import log_event
+        log_event('download', model_name='PassengerDocument', model_label='Documento',
+                  object_id=doc.id, object_repr=str(doc),
+                  changes={'Visualização': {'antes': '—', 'depois': 'documento aberto/preview'}})
         ctype = _sniff_safe_content_type(file_path)
         if ctype is None:
             response = FileResponse(open(file_path, 'rb'), as_attachment=True,

@@ -243,6 +243,10 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         buf.seek(0)
         zipname = safe(pl.name or f'lista-{pl.id}') + '.zip'
+        from audit.tracking import log_event
+        log_event('download', model_name='PassengerList', model_label='Lista de Passageiros',
+                  object_id=pl.id, object_repr=str(pl),
+                  changes={'Documentos (ZIP)': {'antes': '—', 'depois': f'{count} arquivo(s) baixado(s)'}})
         resp = HttpResponse(buf.getvalue(), content_type='application/zip')
         resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(zipname)}"
         return resp
@@ -524,6 +528,8 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             e.origin_airport_id = request.data['origin_airport'] or None
         if 'selected_passport' in request.data:
             e.selected_passport_id = request.data['selected_passport'] or None
+        _old_add = set(e.additionals.values_list('name', flat=True)) if 'additionals' in request.data else None
+        _old_crew = set(e.crew_roles.values_list('name', flat=True)) if 'crew_roles' in request.data else None
         if 'additionals' in request.data:
             from .models import ListAdditional
             e.additionals.set(ListAdditional.objects.filter(pk__in=request.data['additionals']))
@@ -558,6 +564,20 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 e.passenger = None
                 e.is_block  = True
         e.save()
+        # M2M (adicionais/equipe técnica) não entram no diff do signal — loga à parte.
+        _m2m = {}
+        if _old_add is not None:
+            _new = set(e.additionals.values_list('name', flat=True))
+            if _new != _old_add:
+                _m2m['Adicionais'] = {'antes': sorted(_old_add), 'depois': sorted(_new)}
+        if _old_crew is not None:
+            _new = set(e.crew_roles.values_list('name', flat=True))
+            if _new != _old_crew:
+                _m2m['Equipe técnica'] = {'antes': sorted(_old_crew), 'depois': sorted(_new)}
+        if _m2m:
+            from audit.tracking import log_event
+            log_event('update', model_name='ListEnrollment', model_label='Passageiro na lista',
+                      object_id=e.id, object_repr=str(e), changes=_m2m)
         _cleanup_empty_rooms(pl)
         return Response(ListEnrollmentSerializer(e).data)
 
@@ -603,18 +623,25 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except Room.DoesNotExist:
             return Response({'error': 'Acomodação não encontrada.'}, status=404)
 
+        from audit.tracking import log_event
         if request.method == 'DELETE':
             occupants = pl.list_enrollments.filter(accommodation=room.name)
+            n = occupants.count()
             if occupants.exists():
                 resolution = request.data.get('resolution')
                 if resolution == 'unassign':
                     occupants.update(accommodation='')
+                    effect = f'{n} passageiro(s) desatribuído(s) da acomodação "{room.name}"'
                 elif resolution == 'cancel':
                     occupants.update(enrollment_status='cancelado', accommodation='')
+                    effect = f'{n} passageiro(s) cancelado(s) ao excluir "{room.name}"'
                 elif resolution == 'remove':
                     occupants.delete()
+                    effect = f'{n} passageiro(s) removido(s) da lista ao excluir "{room.name}"'
                 else:
                     return Response({'error': 'Não é possível excluir uma acomodação com passageiros.'}, status=400)
+                log_event('update', model_name='PassengerList', model_label='Lista de Passageiros',
+                          object_id=pl.id, object_repr=str(pl), changes={'Acomodação': {'antes': room.name, 'depois': effect}})
             room.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -634,7 +661,11 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         room.name = new_name
         room.save()
         if old_name != new_name:
-            pl.list_enrollments.filter(accommodation=old_name).update(accommodation=new_name)
+            moved = pl.list_enrollments.filter(accommodation=old_name).update(accommodation=new_name)
+            if moved:
+                log_event('update', model_name='PassengerList', model_label='Lista de Passageiros',
+                          object_id=pl.id, object_repr=str(pl),
+                          changes={'Acomodação renomeada': {'antes': old_name, 'depois': f'{new_name} ({moved} passageiro(s))'}})
         return Response(RoomSerializer(room).data)
 
     # ── Log de download (PDF/HTML gerados no frontend) ───────────────────────

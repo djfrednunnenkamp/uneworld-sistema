@@ -35,8 +35,16 @@ class AuditPagination(PageNumberPagination):
 SETTINGS_MODELS = [
     'ConfigProfession', 'ConfigLanguage', 'ConfigCountry', 'ConfigState', 'ConfigCity',
     'ConfigGender', 'ConfigVaccine', 'ConfigProfCard', 'CustomDocType', 'CustomDocField',
+    'CustomDocFieldOption',
     'ConfigAccommodation', 'ConfigListCategory', 'ListAdditional', 'CrewRole', 'Destination',
-    'Airport', 'Airline', 'BusMap', 'PermissionProfile',
+    'Airport', 'Airline', 'BusMap', 'BusMapRow', 'PermissionProfile',
+    # Catálogos e configurações adicionais
+    'ConfigItineraryCategory', 'ConfigItineraryType', 'ConfigMaritimeCompany', 'ConfigTerrestreCompany',
+    'ConfigCurrency', 'ConfigKeyword', 'ConfigInclusion', 'ConfigHighlight', 'ConfigSpecialDate',
+    'ConfigContinent', 'ConfigPaymentMethod', 'ConfigPaymentPlan', 'ConfigExchangeRate', 'ConfigExchangeSettings',
+    'ConfigHotelCategory', 'ConfigHotel', 'ConfigHotelMedia', 'ConfigBoat', 'ConfigBoatMedia',
+    'OperatingCompany', 'OperatingCompanyContact', 'TermsAndConditions', 'SystemSettings',
+    'ContractClause',
 ]
 
 # Botão "Log" de cada área do sistema: clicar nele tem que mostrar TUDO que é
@@ -49,9 +57,9 @@ CONTRACT_MODELS = [
 
 SCOPE_MODELS = {
     'settings':    SETTINGS_MODELS,
-    'lists':       ['PassengerList', 'ListEnrollment'],
+    'lists':       ['PassengerList', 'ListEnrollment', 'Enrollment', 'Roteiro', 'Room', 'ListTask'],
     'passengers':  ['Passenger', 'PassengerDocument'],
-    'agencies':    ['Agency'],
+    'agencies':    ['Agency', 'AgencyMember'],
     'users':       ['User', 'UserPermissions'],
     'contracts':   CONTRACT_MODELS,
     'itineraries': ['Itinerary', 'ItineraryDocument', 'ItineraryImage', 'ItineraryDeparture',

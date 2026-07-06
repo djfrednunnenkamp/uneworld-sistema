@@ -29,12 +29,43 @@ TRACKED_MODELS = {
     'ConfigProfCard':       'Carteira profissional',
     'ConfigAccommodation':  'Tipo de acomodação',
     'ConfigListCategory':   'Categoria de lista',
+    'ConfigItineraryCategory': 'Categoria de roteiro',
+    'ConfigItineraryType':  'Tipo de roteiro',
+    'ConfigMaritimeCompany':'Companhia marítima',
+    'ConfigTerrestreCompany':'Empresa terrestre',
+    'ConfigCurrency':       'Moeda',
+    'ConfigKeyword':        'Palavra-chave',
+    'ConfigInclusion':      'Item incluso',
+    'ConfigHighlight':      'Destaque',
+    'ConfigSpecialDate':    'Data especial',
+    'ConfigContinent':      'Continente',
+    'ConfigPaymentMethod':  'Forma de pagamento',
+    'ConfigPaymentPlan':    'Plano de pagamento',
+    'ConfigExchangeRate':   'Câmbio',
+    'ConfigExchangeSettings':'Config. de câmbio',
+    'ConfigHotelCategory':  'Categoria de hotel',
+    'ConfigHotel':          'Hotel (catálogo)',
+    'ConfigHotelMedia':     'Mídia de hotel',
+    'ConfigBoat':           'Barco (catálogo)',
+    'ConfigBoatMedia':      'Mídia de barco',
+    'CustomDocFieldOption': 'Opção de campo de documento',
     'CrewRole':             'Equipe técnica',
     'Destination':          'Destino',
     'Airport':              'Aeroporto',
     'Airline':              'Companhia aérea',
     'BusMap':               'Mapa de ônibus',
+    'BusMapRow':            'Linha de mapa de ônibus',
     'PermissionProfile':    'Perfil de permissão',
+    'UserPermissions':      'Permissões de usuário',
+    'OperatingCompany':     'Empresa operadora',
+    'OperatingCompanyContact': 'Contato da operadora',
+    'TermsAndConditions':   'Termos e condições',
+    'SystemSettings':       'Configuração do sistema',
+    'AgencyMember':         'Membro de agência',
+    'Enrollment':           'Inscrição',
+    'Roteiro':              'Roteiro da viagem',
+    'Room':                 'Quarto',
+    'ListTask':             'Tarefa da lista',
     'Itinerary':                'Roteiro',
     'ItineraryImage':           'Imagem do roteiro',
     'ItineraryDeparture':       'Aeroporto de partida',
@@ -48,6 +79,8 @@ TRACKED_MODELS = {
     'ContractGuest':            'Hóspede do contrato',
     'ContractInstallment':      'Parcela do contrato',
     'ContractAdjustment':       'Ajuste do contrato',
+    'ContractClause':           'Cláusula de contrato',
+    'ItineraryFieldTemplate':   'Template de campo (roteiro)',
 }
 
 # Campos a ignorar no diff
@@ -58,6 +91,7 @@ SKIP_FIELDS = {
     'updated_at', 'created_at',  # campos meta — sempre mudam, geram ruído
     # Roteiro: campos internos/derivados que não interessam ao log
     'published_data', 'published_at', 'has_unpublished_changes', 'order', 'edit_key',
+    'signing_version', 'revision',  # versões internas (contrato / lista) — só ruído
 }
 
 # Rótulos amigáveis de campos comuns
@@ -143,6 +177,23 @@ def user_display(user):
         return 'Sistema'
     name = f'{user.first_name} {user.last_name}'.strip()
     return name or user.email or user.username
+
+
+def log_event(action, *, model_name, model_label, object_id='', object_repr='', changes=None, user=None):
+    """Registra um evento de auditoria manual — para mutações que os signals não
+    capturam (bulk update/create, M2M .set(), reorders, downloads, actions).
+    Reutilizável por qualquer app."""
+    from .models import AuditLog
+    if user is None:
+        user = get_current_user()
+    authed = getattr(user, 'is_authenticated', False)
+    AuditLog.objects.create(
+        user=user if authed else None,
+        user_display=user_display(user) if authed else 'Sistema',
+        action=action, model_name=model_name, model_label=model_label,
+        object_id=str(object_id or ''), object_repr=str(object_repr or '')[:500],
+        changes=changes or {}, ip_address=get_current_ip(),
+    )
 
 
 # ── Captura estado antes do save ────────────────────────────────────────────
