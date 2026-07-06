@@ -471,9 +471,55 @@ class ItinerarySerializer(serializers.ModelSerializer):
             self._save_days(itinerary, days)
         return itinerary
 
+    # M2M do roteiro que precisam entrar no log (o diff escalar não os pega).
+    _M2M_AUDIT = {
+        'countries': 'Países', 'cities': 'Cidades', 'continents': 'Continentes',
+        'airports': 'Aeroportos', 'keywords': 'Palavras-chave', 'inclusions': 'Inclusos',
+        'highlights': 'Destaques', 'itinerary_types': 'Tipos de roteiro', 'special_dates': 'Datas especiais',
+    }
+
+    def _audit_snapshot(self, instance):
+        """Estado do roteiro pro diff do log: escalares + M2M + filhos (valores,
+        dia-a-dia). Sem isso, mudar país/cidade/valores não apareceria no log."""
+        from audit.tracking import obj_to_dict
+        snap = dict(obj_to_dict(instance))
+        for field, label in self._M2M_AUDIT.items():
+            try:
+                snap[label] = sorted(str(o) for o in getattr(instance, field).all())
+            except Exception:
+                pass
+        try:
+            snap['Valores das acomodações'] = [
+                [str(l.accommodation_type_id), str(l.value_per_person), str(l.taxes)]
+                for l in instance.accommodation_lines.all()
+            ]
+            snap['Roteiro dia-a-dia'] = [
+                [d.day_number, d.title, str(d.city_id or '')] for d in instance.days.all().order_by('order', 'id')
+            ]
+        except Exception:
+            pass
+        return snap
+
+    def _log_update(self, instance, old, new):
+        changes = {k: {'antes': old.get(k), 'depois': v} for k, v in new.items() if old.get(k) != v}
+        if not changes:
+            return
+        from audit.models import AuditLog
+        from audit.tracking import user_display
+        from audit.middleware import get_current_user, get_current_ip
+        user = get_current_user()
+        AuditLog.objects.create(
+            user=user, user_display=user_display(user), action='update',
+            model_name='Itinerary', model_label='Roteiro',
+            object_id=str(instance.pk), object_repr=str(instance)[:500],
+            changes=changes, ip_address=get_current_ip(),
+        )
+
     def update(self, instance, validated_data):
         accommodation_lines = validated_data.pop('accommodation_lines', None)
         days                = validated_data.pop('days', None)
+        old_snap = self._audit_snapshot(instance)      # antes de mexer
+        instance._skip_audit_signal = True             # eu logo o diff completo abaixo
         instance = super().update(instance, validated_data)
         if accommodation_lines is not None:
             self._save_accommodation_lines(instance, accommodation_lines)
@@ -484,6 +530,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
         if instance.is_published and not instance.has_unpublished_changes:
             instance.has_unpublished_changes = True
             instance.save(update_fields=['has_unpublished_changes'])
+        self._log_update(instance, old_snap, self._audit_snapshot(instance))
         return instance
 
 

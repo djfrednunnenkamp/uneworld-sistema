@@ -82,6 +82,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         passenger_id = self.request.query_params.get('passenger_id')
         agency_id    = self.request.query_params.get('agency_id')
         contract_id  = self.request.query_params.get('contract_id')
+        itinerary_id = self.request.query_params.get('itinerary_id')
         scope        = self.request.query_params.get('scope')
         show_nav     = self.request.query_params.get('show_nav') in ('1', 'true', 'True')
 
@@ -223,6 +224,17 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 if ids:
                     child_q |= Q(model_name=model_name, object_id__in=[str(i) for i in ids])
             qs = qs.filter(child_q)
+        if itinerary_id:
+            from itineraries.models import ItineraryDocument
+            from django.db.models import Q
+            doc_ids = list(
+                ItineraryDocument.objects.filter(itinerary_id=itinerary_id)
+                .values_list('id', flat=True)
+            )
+            qs = qs.filter(
+                Q(model_name='Itinerary', object_id=str(itinerary_id)) |
+                Q(model_name='ItineraryDocument', object_id__in=[str(i) for i in doc_ids])
+            )
         return qs
 
 

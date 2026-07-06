@@ -49,6 +49,8 @@ SKIP_FIELDS = {
     'file_size', 'mime_type', 'preview_url', 'download_url',
     'signed_file',  # arquivo do contrato assinado — a mudança de etapa já registra o evento
     'updated_at', 'created_at',  # campos meta — sempre mudam, geram ruído
+    # Roteiro: campos internos/derivados que não interessam ao log
+    'published_data', 'published_at', 'has_unpublished_changes', 'order', 'edit_key',
 }
 
 # Rótulos amigáveis de campos comuns
@@ -156,6 +158,10 @@ def capture_pre_save(sender, instance, **kwargs):
 @receiver(post_save)
 def log_save(sender, instance, created, **kwargs):
     if sender.__name__ not in TRACKED_MODELS:
+        return
+    # O ItinerarySerializer faz o diff COMPLETO do update (inclui M2M/filhos que
+    # o diff escalar não pega) e loga por conta própria — evita log parcial/duplo.
+    if not created and getattr(instance, '_skip_audit_signal', False):
         return
 
     # Import aqui para evitar import circular
