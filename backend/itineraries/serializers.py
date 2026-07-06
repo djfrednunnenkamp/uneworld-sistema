@@ -389,7 +389,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Itinerary
-        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'nights_override', 'capacity', 'trip_type', 'is_own_product', 'is_featured',
+        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'nights_override', 'capacity', 'trip_type', 'is_own_product', 'is_featured', 'badge_text', 'badge_color',
                   'has_voo', 'has_barco', 'has_terrestre',
                   'clauses', 'custom_clauses', 'clauses_data',
                   'category', 'category_name', 'continent', 'continent_name', 'continents', 'continents_data',
@@ -586,6 +586,7 @@ class ItineraryListSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'base_currency', 'capacity',
+                  'badge_text', 'badge_color',
                   'category_name', 'continent_name',
                   'itinerary_type_name', 'maritime_company_name', 'cover',
                   'status', 'is_published', 'has_unpublished_changes', 'order',

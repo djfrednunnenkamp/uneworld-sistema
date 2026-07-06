@@ -46,6 +46,10 @@ class Itinerary(models.Model):
     is_own_product = models.BooleanField('Produto próprio da UneWorld', default=True)
     # Marca o roteiro como destaque (ex.: aparecer em vitrine/home).
     is_featured    = models.BooleanField('Destaque do roteiro', default=False)
+    # Selo/etiqueta em destaque no canto da capa (ex.: "ÚLTIMAS VAGAS"). Texto +
+    # cor de fundo escolhidos pelo usuário; aparece na vitrine e nos previews.
+    badge_text     = models.CharField('Texto do selo', max_length=40, blank=True, default='')
+    badge_color    = models.CharField('Cor do selo', max_length=7, blank=True, default='')
     # Meios de transporte do roteiro — controlam quais abas aparecem no detalhe
     # (Voo/Barco/Terrestre). Independentes: um roteiro pode ter mais de um.
     has_voo        = models.BooleanField('Transporte aéreo (Voo)', default=False)
