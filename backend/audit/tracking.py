@@ -35,6 +35,7 @@ TRACKED_MODELS = {
     'Airline':              'Companhia aérea',
     'BusMap':               'Mapa de ônibus',
     'PermissionProfile':    'Perfil de permissão',
+    'Itinerary':                'Roteiro',
     'Contract':                 'Contrato',
     'ContractAccommodationLine':'Acomodação do contrato',
     'ContractGuest':            'Hóspede do contrato',

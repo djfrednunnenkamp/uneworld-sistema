@@ -15,6 +15,8 @@ class AuditLog(models.Model):
         ('send', 'Enviado p/ assinatura'),
         ('sign', 'Assinado'),
         ('reopen', 'Voltou p/ edição'),
+        ('publish', 'Publicado'),
+        ('unpublish', 'Despublicado'),
         ('login', 'Login'),
         ('logout', 'Logout'),
         ('view', 'Visitou'),

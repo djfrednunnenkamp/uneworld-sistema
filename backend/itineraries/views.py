@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
+from django.http import FileResponse
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.views.decorators.csrf import csrf_exempt
@@ -35,6 +36,23 @@ def _roteiro_edit_permissions(self):
     if self.action in ('list', 'retrieve'):
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
     return [RequirePermission('roteiros_edit')()]
+
+
+def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro'):
+    """Registra um evento de auditoria de roteiro (publicar, upload, download…).
+    Eventos que os signals automáticos não capturam."""
+    from audit.models import AuditLog
+    from audit.tracking import user_display
+    from audit.middleware import get_current_ip
+    user = getattr(request, 'user', None)
+    authed = getattr(user, 'is_authenticated', False)
+    AuditLog.objects.create(
+        user=user if authed else None,
+        user_display=user_display(user) if authed else 'Sistema',
+        action=action, model_name=model_name, model_label=model_label,
+        object_id=str(getattr(obj, 'pk', '') or ''), object_repr=str(obj)[:500],
+        ip_address=get_current_ip(),
+    )
 
 
 class ItineraryDepartureViewSet(viewsets.ModelViewSet):
@@ -148,7 +166,12 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
     serializer_class = ItineraryDocumentSerializer
     pagination_class = None
     parser_classes   = [MultiPartParser, FormParser, JSONParser]
-    get_permissions  = _roteiro_edit_permissions
+
+    def get_permissions(self):
+        # Ler/abrir/baixar: quem vê roteiros; enviar/excluir: quem edita.
+        if self.action in ('list', 'retrieve', 'config', 'download'):
+            return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+        return [RequirePermission('roteiros_edit')()]
 
     def get_queryset(self):
         qs = ItineraryDocument.objects.all()
@@ -160,7 +183,22 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         itinerary = serializer.validated_data.get('itinerary')
         last = ItineraryDocument.objects.filter(itinerary=itinerary).order_by('-order').first()
-        serializer.save(order=(last.order + 1) if last else 0)
+        doc = serializer.save(order=(last.order + 1) if last else 0)
+        _audit(self.request, 'upload' if doc.file else 'create', doc,
+               model_name='ItineraryDocument', model_label='Documento do roteiro')
+
+    def perform_destroy(self, instance):
+        _audit(self.request, 'delete', instance,
+               model_name='ItineraryDocument', model_label='Documento do roteiro')
+        instance.delete()
+
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        doc = self.get_object()
+        if not doc.file:
+            return Response({'detail': 'Este item é um link, não um arquivo.'}, status=status.HTTP_400_BAD_REQUEST)
+        _audit(request, 'download', doc, model_name='ItineraryDocument', model_label='Documento do roteiro')
+        return FileResponse(doc.file.open('rb'), as_attachment=True, filename=doc.name or doc.file.name.split('/')[-1])
 
     @action(detail=True, methods=['get'], url_path='config')
     def config(self, request, pk=None):
@@ -289,6 +327,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         obj.has_unpublished_changes = False
         obj.published_at = timezone.now()
         obj.save(update_fields=['published_data', 'is_published', 'has_unpublished_changes', 'published_at'])
+        _audit(request, 'publish', obj)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
 
     @action(detail=True, methods=['post'])
@@ -296,6 +335,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         obj = self.get_object()
         obj.is_published = False
         obj.save(update_fields=['is_published'])
+        _audit(request, 'unpublish', obj)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
 
     # ── Galeria de imagens (upload multipart — não cabe no PUT/JSON) ──

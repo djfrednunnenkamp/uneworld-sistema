@@ -90,9 +90,10 @@ class UserPermissions(models.Model):
     contracts_invoice = models.BooleanField(default=False)        # faturar (mover A faturar → Faturado)
 
     # Roteiros
-    roteiros_view   = models.BooleanField(default=False)
-    roteiros_edit   = models.BooleanField(default=False)
-    roteiros_delete = models.BooleanField(default=False)
+    roteiros_view      = models.BooleanField(default=False)
+    roteiros_edit      = models.BooleanField(default=False)
+    roteiros_delete    = models.BooleanField(default=False)
+    roteiros_view_logs = models.BooleanField(default=False)
 
     # Administração
     manage_users     = models.BooleanField(default=False)
