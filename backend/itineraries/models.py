@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
@@ -208,30 +209,43 @@ class Itinerary(models.Model):
     def __str__(self):
         return self.name
 
-    def _base_slug(self):
-        parts = [self.name]
-        if self.start_date and self.end_date:
-            parts.append(f'{self.start_date.strftime("%d-%m-%Y")}-a-{self.end_date.strftime("%d-%m-%Y")}')
+    @staticmethod
+    def _compose_slug(name, start_date, end_date):
+        parts = [name or '']
+        if start_date and end_date:
+            parts.append(f'{start_date.strftime("%d-%m-%Y")}-a-{end_date.strftime("%d-%m-%Y")}')
         return slugify('-'.join(parts))
 
+    def _base_slug(self):
+        return self._compose_slug(self.name, self.start_date, self.end_date)
+
     def save(self, *args, **kwargs):
-        # O slug acompanha SEMPRE o título + as datas: regenera na criação e
-        # sempre que o nome, a data de início ou a de término mudarem.
+        # O slug segue o título + as datas AUTOMATICAMENTE — mas só enquanto não
+        # for personalizado. Regenera quando: (a) não há slug; ou (b) o nome/datas
+        # mudaram, o usuário NÃO enviou um slug diferente, e o slug antigo ainda
+        # era o automático (não um slug próprio que o usuário fixou).
         regenerate = not self.slug
         if not regenerate and self.pk:
-            old = Itinerary.objects.filter(pk=self.pk).only('name', 'start_date', 'end_date').first()
-            if old and (old.name != self.name
-                        or old.start_date != self.start_date
-                        or old.end_date != self.end_date):
-                regenerate = True
-        base = self._base_slug()
-        if regenerate and base:
-            slug = base
-            i = 2
-            while Itinerary.objects.filter(slug=slug).exclude(pk=self.pk).exists():
-                slug = f'{base}-{i}'
-                i += 1
-            self.slug = slug
+            old = Itinerary.objects.filter(pk=self.pk).only('name', 'start_date', 'end_date', 'slug').first()
+            if old:
+                changed = (old.name != self.name
+                           or old.start_date != self.start_date
+                           or old.end_date != self.end_date)
+                user_kept_slug = (self.slug == old.slug)
+                old_base = self._compose_slug(old.name, old.start_date, old.end_date)
+                old_was_auto = bool(old_base) and (
+                    old.slug == old_base or re.fullmatch(rf'{re.escape(old_base)}-\d+', old.slug))
+                if changed and user_kept_slug and old_was_auto:
+                    regenerate = True
+        if regenerate:
+            base = self._base_slug()
+            if base:
+                slug = base
+                i = 2
+                while Itinerary.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                    slug = f'{base}-{i}'
+                    i += 1
+                self.slug = slug
         super().save(*args, **kwargs)
 
 
