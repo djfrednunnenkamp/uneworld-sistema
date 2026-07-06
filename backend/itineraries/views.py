@@ -459,6 +459,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         img = ser.save(itinerary=itinerary, day=day, kind=kind)
+        if not is_video:
+            _apply_dominant_color(img)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
 
@@ -497,51 +499,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         `city` vier, o país é DERIVADO dela (cidade→estado→país); se vier só
         `country`, a cidade é desvinculada. Fora de 'landscape' a geo é limpa.
         Continente é sempre derivado."""
-        from config_api.models import ConfigCity, ConfigCountry
         itinerary = self.get_object()
         img = itinerary.images.filter(pk=image_id).first()
         if img is None:
             return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        data = request.data
-        fields = set()
-        if 'subject_type' in data:
-            st = data.get('subject_type') or ''
-            valid_subjects = {c[0] for c in ItineraryImage.SUBJECT_CHOICES}
-            img.subject_type = st if st in valid_subjects else ''
-            fields.add('subject_type')
-        if 'caption' in data:
-            img.caption = (data.get('caption') or '')[:300]
-            fields.add('caption')
-        if 'city' in data:
-            city_id = data.get('city')
-            if city_id:
-                city = ConfigCity.objects.select_related('state__country').filter(pk=city_id).first()
-                if city is None:
-                    return Response({'city': ['Cidade inválida.']}, status=status.HTTP_400_BAD_REQUEST)
-                img.city = city
-                img.country_id = city.state.country_id     # país derivado da cidade
-                fields.update({'city', 'country'})
-            else:
-                img.city = None
-                fields.add('city')
-        # País só é aplicado explicitamente quando não veio uma cidade definindo-o.
-        if 'country' in data and 'city' not in data:
-            country_id = data.get('country')
-            if country_id:
-                country = ConfigCountry.objects.filter(pk=country_id).first()
-                if country is None:
-                    return Response({'country': ['País inválido.']}, status=status.HTTP_400_BAD_REQUEST)
-                img.country = country
-                img.city = None                             # país manual desvincula a cidade
-                fields.update({'country', 'city'})
-            else:
-                img.country = None
-                fields.add('country')
-        # Só 'paisagem' tem lugar: objeto/lâmina não guardam cidade/país.
-        if img.subject_type in ('object', 'lamina'):
-            img.city = None
-            img.country = None
-            fields.update({'city', 'country'})
+        try:
+            fields = _apply_image_meta(img, request.data)
+        except ValueError as e:
+            key = str(e)
+            return Response({key: ['Cidade inválida.' if key == 'city' else 'País inválido.']},
+                            status=status.HTTP_400_BAD_REQUEST)
         if fields:
             img.save(update_fields=list(fields))
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
@@ -560,3 +527,141 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     itinerary.images.filter(pk=img_id).update(order=pos)
         _audit(request, 'update', itinerary, changes={'Imagens': {'antes': '—', 'depois': 'reordenadas'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _apply_dominant_color(img):
+    """Calcula e grava a cor dominante da imagem (best-effort; ignora falhas)."""
+    from .imagecolor import dominant_color
+    hexc, bucket = '', ''
+    try:
+        img.image.open('rb')
+        hexc, bucket = dominant_color(img.image)
+    except Exception:
+        pass
+    finally:
+        try:
+            img.image.close()
+        except Exception:
+            pass
+    if hexc:
+        img.dominant_color = hexc
+        img.color_bucket = bucket
+        img.save(update_fields=['dominant_color', 'color_bucket'])
+
+
+def _apply_image_meta(img, data):
+    """Aplica subject_type/caption/city/country a uma imagem (mutando-a) e devolve o
+    conjunto de campos alterados. Cidade deriva o país; país manual desvincula a
+    cidade; fora de 'landscape' a geo é limpa. Levanta ValueError('city'|'country')
+    se um id for inválido."""
+    from config_api.models import ConfigCity, ConfigCountry
+    fields = set()
+    if 'subject_type' in data:
+        st = data.get('subject_type') or ''
+        valid = {c[0] for c in ItineraryImage.SUBJECT_CHOICES}
+        img.subject_type = st if st in valid else ''
+        fields.add('subject_type')
+    if 'caption' in data:
+        img.caption = (data.get('caption') or '')[:300]
+        fields.add('caption')
+    if 'city' in data:
+        cid = data.get('city')
+        if cid:
+            city = ConfigCity.objects.select_related('state__country').filter(pk=cid).first()
+            if city is None:
+                raise ValueError('city')
+            img.city = city
+            img.country_id = city.state.country_id
+            fields.update({'city', 'country'})
+        else:
+            img.city = None
+            fields.add('city')
+    if 'country' in data and 'city' not in data:
+        cid = data.get('country')
+        if cid:
+            country = ConfigCountry.objects.filter(pk=cid).first()
+            if country is None:
+                raise ValueError('country')
+            img.country = country
+            img.city = None
+            fields.update({'country', 'city'})
+        else:
+            img.country = None
+            fields.add('country')
+    if img.subject_type in ('object', 'lamina'):
+        img.city = None
+        img.country = None
+        fields.update({'city', 'country'})
+    return fields
+
+
+class GalleryImageViewSet(viewsets.ModelViewSet):
+    """Galeria GLOBAL: todas as imagens dos roteiros + as do banco geral (itinerary
+    nulo). GET lista com filtros (busca por descrição/cidade/país/roteiro, tipo,
+    cor, cidade/país/continente, roteiro; lâminas ocultas por padrão); POST envia
+    ao banco (sem roteiro); PATCH edita metadados; DELETE exclui.
+    Ordem padrão: mais recentes primeiro."""
+    serializer_class = ItineraryImageSerializer
+    pagination_class = StandardResultsPagination
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+        return [RequirePermission('roteiros_edit')()]
+
+    def get_queryset(self):
+        from django.db.models import Q
+        p = self.request.query_params
+        qs = (ItineraryImage.objects
+              .select_related('city__state__country__continent', 'country__continent', 'itinerary')
+              .filter(day__isnull=True))               # só imagens "de topo", não as de um DIA
+        # Lâminas ocultas por padrão.
+        if p.get('include_laminas') not in ('1', 'true', 'True'):
+            qs = qs.exclude(kind='blocking')
+        search = (p.get('search') or '').strip()
+        if search:
+            qs = qs.filter(Q(caption__icontains=search)
+                           | Q(city__name__icontains=search)
+                           | Q(country__name__icontains=search)
+                           | Q(itinerary__name__icontains=search))
+        for field, param in [('subject_type', 'subject_type'), ('color_bucket', 'color'),
+                             ('itinerary_id', 'itinerary'), ('city_id', 'city'),
+                             ('country_id', 'country'), ('country__continent_id', 'continent')]:
+            if p.get(param):
+                qs = qs.filter(**{field: p[param]})
+        return qs.order_by('-created_at', '-id')
+
+    def create(self, request, *args, **kwargs):
+        """Upload de imagem/vídeo para o BANCO (sem roteiro)."""
+        import os as _os
+        from passengers.validators import validate_document_file, validate_video_file, VIDEO_EXTENSIONS
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        ser = ItineraryImageSerializer(data=request.data, context=self.get_serializer_context())
+        ser.is_valid(raise_exception=True)
+        upload = ser.validated_data['image']
+        is_video = _os.path.splitext(upload.name or '')[1].lower() in VIDEO_EXTENSIONS
+        try:
+            if is_video:
+                validate_video_file(upload)
+            else:
+                validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+        img = ser.save(itinerary=None, day=None, kind='gallery')
+        if not is_video:
+            _apply_dominant_color(img)
+        out = ItineraryImageSerializer(img, context=self.get_serializer_context())
+        return Response(out.data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        img = self.get_object()
+        try:
+            fields = _apply_image_meta(img, request.data)
+        except ValueError as e:
+            key = str(e)
+            return Response({key: ['Cidade inválida.' if key == 'city' else 'País inválido.']},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if fields:
+            img.save(update_fields=list(fields))
+        return Response(ItineraryImageSerializer(img, context=self.get_serializer_context()).data)

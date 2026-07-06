@@ -276,15 +276,17 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     """Imagem/vídeo da galeria do roteiro OU de um dia. O arquivo (image) é
     OBRIGATÓRIO. Usada na leitura aninhada e na action de upload (multipart).
     Geo: `city`/`country` graváveis; `*_data` e continente são leitura derivada."""
-    is_video       = serializers.SerializerMethodField()
-    city_data      = CityMiniSerializer(source='city', read_only=True)
-    country_data   = CountryMiniSerializer(source='country', read_only=True)
-    continent_name = serializers.SerializerMethodField()
+    is_video        = serializers.SerializerMethodField()
+    city_data       = CityMiniSerializer(source='city', read_only=True)
+    country_data    = CountryMiniSerializer(source='country', read_only=True)
+    continent_name  = serializers.SerializerMethodField()
+    itinerary_name  = serializers.CharField(source='itinerary.name', read_only=True, default=None)
 
     class Meta:
         model  = ItineraryImage
         fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
-                  'city', 'country', 'city_data', 'country_data', 'continent_name']
+                  'city', 'country', 'city_data', 'country_data', 'continent_name',
+                  'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name']
 
     def get_continent_name(self, obj):
         c = obj.country or (obj.city.state.country if (obj.city_id and obj.city and obj.city.state_id) else None)

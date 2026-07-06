@@ -354,7 +354,9 @@ class ItineraryImage(models.Model):
         # `order`) é a padrão que o sistema usa.
         ('blocking',       'Lâmina do Bloqueio'),
     ]
-    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='images')
+    # itinerary pode ser nulo: imagens do BANCO GERAL (enviadas pela aba Galeria)
+    # não pertencem a nenhum roteiro; ficam soltas e reutilizáveis.
+    itinerary = models.ForeignKey(Itinerary, null=True, blank=True, on_delete=models.CASCADE, related_name='images')
     # Imagem da GALERIA do roteiro (day nulo) OU de um DIA específico do dia-a-dia
     # (day preenchido). Reusa a mesma tabela/upload, sem child table extra.
     day       = models.ForeignKey('ItineraryDay', null=True, blank=True, on_delete=models.CASCADE, related_name='images')
@@ -378,6 +380,10 @@ class ItineraryImage(models.Model):
                                   on_delete=models.SET_NULL, related_name='+', verbose_name='País')
     kind      = models.CharField('Tipo', max_length=20, choices=KIND_CHOICES, default='gallery')
     order     = models.PositiveIntegerField('Ordem', default=0)
+    # Cor dominante (hex) + faixa de cor nomeada, para o filtro por cor na Galeria.
+    dominant_color = models.CharField('Cor dominante', max_length=7, blank=True, default='')
+    color_bucket   = models.CharField('Faixa de cor', max_length=12, blank=True, default='', db_index=True)
+    created_at = models.DateTimeField('Criado em', auto_now_add=True, null=True)
 
     class Meta:
         ordering = ['order']
