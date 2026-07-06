@@ -616,9 +616,19 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         qs = (ItineraryImage.objects
               .select_related('city__state__country__continent', 'country__continent', 'itinerary')
               .filter(day__isnull=True))               # só imagens "de topo", não as de um DIA
-        # Lâminas ocultas por padrão.
-        if p.get('include_laminas') not in ('1', 'true', 'True'):
+        # Abas: kind explícito (ex.: 'blocking' = lâminas) tem prioridade; senão as
+        # lâminas ficam ocultas, a não ser que include_laminas peça o contrário.
+        if p.get('kind'):
+            qs = qs.filter(kind=p['kind'])
+        elif p.get('include_laminas') not in ('1', 'true', 'True'):
             qs = qs.exclude(kind='blocking')
+        # Filtro por mídia (aba Imagens/Vídeos), pela extensão do arquivo.
+        media = p.get('media')
+        if media in ('image', 'video'):
+            vq = Q()
+            for ext in ('.mp4', '.webm', '.mov', '.m4v', '.ogv'):
+                vq |= Q(image__iendswith=ext)
+            qs = qs.filter(vq) if media == 'video' else qs.exclude(vq)
         search = (p.get('search') or '').strip()
         if search:
             qs = qs.filter(Q(caption__icontains=search)
