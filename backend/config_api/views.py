@@ -568,8 +568,9 @@ class CountryViewSet(viewsets.ModelViewSet):
                         names = fetch_cities(state, country)
                         if names:
                             before = state.cities.count()
+                            from .textsearch import normalize_text
                             ConfigCity.objects.bulk_create(
-                                [ConfigCity(state=state, name=n) for n in names], ignore_conflicts=True)
+                                [ConfigCity(state=state, name=n, name_ascii=normalize_text(n)) for n in names], ignore_conflicts=True)
                             new_cities += state.cities.count() - before
                 except Exception:
                     # Um país com falha (ex: banco ocupado por outra importação em
@@ -1489,24 +1490,33 @@ class CityViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
+        from django.db.models import Case, When, Value, IntegerField
+        from .textsearch import normalize_text
         state_id = self.request.query_params.get('state_id')
         country_ids = self.request.query_params.get('country_ids')
         q = self.request.query_params.get('q')
         base = ConfigCity.objects.select_related('state__country', 'state__country__continent')
         if state_id:
             return base.filter(state_id=state_id)
-        # Filtro por país(es): lista as cidades dos países escolhidos no roteiro,
-        # com busca opcional por nome. Limita p/ não trazer milhares de uma vez.
+
+        # Busca insensível a acento/caixa (name_ascii) + ranking: quem COMEÇA com o
+        # termo aparece primeiro, depois quem contém, e por fim em ordem alfabética.
+        def search(qs, term):
+            nq = normalize_text(term)
+            qs = qs.filter(name_ascii__icontains=nq)
+            return qs.annotate(
+                _rank=Case(When(name_ascii__startswith=nq, then=Value(0)),
+                           default=Value(1), output_field=IntegerField())
+            ).order_by('_rank', 'name')[:200]
+
+        # Filtro por país(es): cidades dos países escolhidos, com busca opcional.
         if country_ids:
             ids = [int(x) for x in country_ids.split(',') if x.strip().isdigit()]
             qs = base.filter(state__country_id__in=ids)
-            if q:
-                qs = qs.filter(name__icontains=q)
-            return qs.order_by('name')[:200]
+            return search(qs, q) if q else qs.order_by('name')[:200]
         if q:
-            return base.filter(name__icontains=q).order_by('name')[:200]
-        # Sem país e sem busca: amostra inicial (há dezenas de milhares no total —
-        # o usuário refina digitando).
+            return search(base, q)
+        # Sem país e sem busca: amostra inicial (o usuário refina digitando).
         return base.order_by('name')[:200]
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})
@@ -1542,8 +1552,9 @@ class CityViewSet(viewsets.ModelViewSet):
             CHUNK = 200
             for i in range(0, total, CHUNK):
                 chunk = names[i:i + CHUNK]
+                from .textsearch import normalize_text
                 ConfigCity.objects.bulk_create(
-                    [ConfigCity(state=state, name=n) for n in chunk], ignore_conflicts=True)
+                    [ConfigCity(state=state, name=n, name_ascii=normalize_text(n)) for n in chunk], ignore_conflicts=True)
                 progress(min(i + CHUNK, total), total)
             after = state.cities.count()
             return {'total': after, 'created': after - before}

@@ -337,6 +337,13 @@ class ConfigProfCard(models.Model):
 class ConfigCity(models.Model):
     state = models.ForeignKey(ConfigState, on_delete=models.CASCADE, related_name='cities')
     name  = models.CharField('Nome', max_length=150)
+    # Nome normalizado (minúsculo, sem acento) — usado na busca insensível a acento.
+    name_ascii = models.CharField(max_length=150, blank=True, default='', db_index=True)
+
+    def save(self, *args, **kwargs):
+        from .textsearch import normalize_text
+        self.name_ascii = normalize_text(self.name)
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ['name']
