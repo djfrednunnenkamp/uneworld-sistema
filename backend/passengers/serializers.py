@@ -87,7 +87,7 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
     def validate_photo(self, value):
         # Foto é PII: reprocessa (jpg/png) removendo EXIF/GPS e limitando tamanho.
         if value:
-            return validate_document_file(value, allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
+            return validate_document_file(value, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         return value
 
     def get_agency_names(self, obj):

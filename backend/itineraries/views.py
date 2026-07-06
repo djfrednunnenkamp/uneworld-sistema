@@ -454,7 +454,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                     status=status.HTTP_400_BAD_REQUEST)
                 validate_video_file(upload)
             else:
-                validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
+                validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         img = ser.save(itinerary=itinerary, day=day, kind=kind)

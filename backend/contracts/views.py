@@ -491,7 +491,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if not receipt:
             return Response({'error': 'Anexe o comprovante de pagamento (campo "receipt").'}, status=http_status.HTTP_400_BAD_REQUEST)
         try:
-            receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png'}, allow_images=True)
+            receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
 

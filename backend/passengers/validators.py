@@ -9,7 +9,7 @@ from PIL import Image, UnidentifiedImageError
 
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.pdf'}
 
 # Magic bytes das extensões permitidas
 MAGIC_SIGNATURES = {
@@ -22,10 +22,26 @@ MAX_IMAGE_PIXELS = 50_000_000  # 50 MP — proteção contra image bombs
 
 
 def _detect_type(header: bytes) -> str | None:
+    # WEBP: contêiner RIFF ('RIFF' + 4 bytes de tamanho + 'WEBP').
+    if header[:4] == b'RIFF' and header[8:12] == b'WEBP':
+        return 'image'
     for sig, kind in MAGIC_SIGNATURES.items():
         if header.startswith(sig):
             return kind
     return None
+
+
+def _kinds_label(allowed_exts, allow_images=True):
+    """Rótulo legível com os formatos realmente aceitos (ex.: 'JPEG, PNG, WEBP
+    ou PDF') — deixa as mensagens de erro específicas."""
+    exts = allowed_exts if allow_images else {'.pdf'}
+    names = []
+    if exts & {'.jpg', '.jpeg'}: names.append('JPEG')
+    if '.png' in exts:  names.append('PNG')
+    if '.webp' in exts: names.append('WEBP')
+    if '.pdf' in exts:  names.append('PDF')
+    if not names: return 'arquivo'
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} ou {names[-1]}"
 
 
 def validate_document_file(file, allowed_exts=None, allow_images=True):
@@ -37,8 +53,7 @@ def validate_document_file(file, allowed_exts=None, allow_images=True):
     contrato assinado: allowed_exts={'.pdf'}, allow_images=False).
     """
     allowed_exts = set(allowed_exts) if allowed_exts else set(ALLOWED_EXTENSIONS)
-    only_pdf = allowed_exts == {'.pdf'} or not allow_images
-    kinds_label = 'PDF' if only_pdf else 'JPEG, PNG ou PDF'
+    kinds_label = _kinds_label(allowed_exts, allow_images)
 
     # Camada 1 — tamanho
     if file.size > MAX_FILE_SIZE:
@@ -93,8 +108,9 @@ def validate_document_file(file, allowed_exts=None, allow_images=True):
                 f'Imagem muito grande ({w}×{h} px). Máximo: 50 megapixels.'
             )
 
-        # Converte para RGB/RGBA limpo (remove EXIF, metadados e payloads)
-        clean_format = 'JPEG' if ext in ('.jpg', '.jpeg') else 'PNG'
+        # Converte para RGB/RGBA limpo (remove EXIF, metadados e payloads).
+        # Salva no formato da extensão: JPEG (sem alfa), PNG ou WEBP (com alfa).
+        clean_format = 'JPEG' if ext in ('.jpg', '.jpeg') else 'WEBP' if ext == '.webp' else 'PNG'
         if clean_format == 'JPEG':
             # JPEG não suporta canal alfa — qualquer modo com transparência
             # (RGBA, LA, P-com-transparência) precisa virar RGB antes de salvar,
@@ -105,10 +121,12 @@ def validate_document_file(file, allowed_exts=None, allow_images=True):
             img = img.convert('RGB')
 
         out = io.BytesIO()
-        save_kwargs = {'format': clean_format, 'optimize': True}
         if clean_format == 'JPEG':
-            save_kwargs['quality'] = 90
-        img.save(out, **save_kwargs)
+            img.save(out, format='JPEG', optimize=True, quality=90)
+        elif clean_format == 'WEBP':
+            img.save(out, format='WEBP', quality=90)
+        else:
+            img.save(out, format='PNG', optimize=True)
         out.seek(0)
 
         # Substitui o conteúdo do arquivo pelo limpo
@@ -175,7 +193,7 @@ def validate_media_file(file):
     if ext in VIDEO_EXTENSIONS:
         validate_video_file(file)
         return 'video'
-    validate_document_file(file, allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
+    validate_document_file(file, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
     return 'image'
 
 

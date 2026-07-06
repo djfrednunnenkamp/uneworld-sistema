@@ -1956,7 +1956,7 @@ def operating_company(request):
             from django.core.exceptions import ValidationError as DjangoValidationError
             from passengers.validators import validate_document_file
             try:
-                sig = validate_document_file(sig, allowed_exts={'.png', '.jpg', '.jpeg'}, allow_images=True)
+                sig = validate_document_file(sig, allowed_exts={'.png', '.jpg', '.jpeg', '.webp'}, allow_images=True)
             except DjangoValidationError as e:
                 return Response({'error': 'Assinatura inválida: ' + ' '.join(e.messages)}, status=400)
             obj.ceo_signature = sig
