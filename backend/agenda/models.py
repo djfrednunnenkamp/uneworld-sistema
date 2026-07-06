@@ -32,6 +32,9 @@ class CalendarPreference(models.Model):
     # Moedas que o usuário escolheu ver na faixa de câmbio da Visão Geral
     # (lista de IDs de ConfigExchangeRate). Vazio = usa as favoritas globais.
     dashboard_currencies = models.JSONField('Moedas do câmbio no painel', default=list, blank=True)
+    # Ordem das abas do detalhe do roteiro escolhida pelo usuário (lista de chaves,
+    # ex.: ['destinos','voo','valores',...]). Vazio = ordem padrão do sistema.
+    itinerary_tab_order  = models.JSONField('Ordem das abas do roteiro', default=list, blank=True)
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)

@@ -11,7 +11,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position',
                   'contract_create_layout', 'contract_edit_layout',
-                  'dashboard_currencies']
+                  'dashboard_currencies', 'itinerary_tab_order']
 
     def validate_dashboard_currencies(self, value):
         if not isinstance(value, list):
@@ -20,6 +20,13 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
             return [int(v) for v in value]
         except (TypeError, ValueError):
             raise serializers.ValidationError('IDs de moeda inválidos.')
+
+    def validate_itinerary_tab_order(self, value):
+        # Lista de chaves de aba (strings). Guardamos como veio; o front ignora
+        # chaves desconhecidas e completa com as que faltarem.
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise serializers.ValidationError('Formato inválido.')
+        return value[:40]
 
     def _validate_hour(self, value):
         if not (0 <= value <= 23):
