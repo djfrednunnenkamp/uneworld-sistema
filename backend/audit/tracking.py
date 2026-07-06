@@ -141,7 +141,46 @@ FIELD_LABELS = {
     'departure_date': 'Data de embarque', 'return_date': 'Data de retorno',
     'signature_type': 'Tipo de assinatura', 'total_value': 'Valor total',
     'passenger_list': 'Lista', 'itinerary': 'Roteiro', 'created_by': 'Criado por',
+    'total_usd': 'Total (USD)', 'total_brl': 'Total (BRL)', 'exchange_rate': 'Câmbio',
+    'a_vista_discount_usd': 'Desconto à vista (USD)', 'a_vista_discount_mode': 'Desconto à vista (tipo)',
+    'received_down_payment_brl': 'Entrada recebida (BRL)', 'received_installments_brl': 'Parcelas recebidas (BRL)',
+    'invoice_number': 'Nº da fatura', 'invoice_date': 'Data da fatura', 'observations': 'Observações',
+    'package_name': 'Pacote', 'departure_airport': 'Aeroporto de embarque', 'review_note': 'Nota de revisão',
+    'payment_type': 'Forma de pagamento', 'seller': 'Vendedor', 'clauses': 'Cláusulas',
+    'room_group': 'Grupo (quarto)', 'accommodation_type': 'Tipo de acomodação',
+    'payer_name': 'Pagante', 'payer_document': 'Doc. do pagante',
+    # ── Roteiro (Itinerary) e filhos ──
+    'slug': 'Slug', 'trip_type': 'Tipo', 'is_own_product': 'Produto próprio',
+    'is_featured': 'Destaque', 'has_voo': 'Transporte aéreo', 'has_barco': 'Transporte marítimo',
+    'has_terrestre': 'Transporte terrestre', 'continent': 'Continente',
+    'itinerary_type': 'Tipo de roteiro', 'maritime_company': 'Companhia marítima',
+    'base_currency': 'Moeda base', 'custom_clauses': 'Cláusulas personalizadas',
+    'payment_plan': 'Plano de pagamento', 'payment_plans': 'Planos de pagamento',
+    'a_vista_discount_mode': 'Desconto à vista (tipo)', 'a_vista_discount_value': 'Desconto à vista (valor)',
+    'a_vista_payment_method': 'Forma à vista', 'is_published': 'Publicado',
+    'info_general': 'Informações gerais', 'info_included': 'O que está incluso',
+    'info_not_included': 'O que não está incluso', 'info_optionals': 'Opcionais',
+    'info_tips': 'Dicas', 'info_documents': 'Documentos necessários',
+    'info_promo_rules': 'Regras da promoção', 'info_insurance': 'Seguro',
+    'info_values': 'Valores (texto)', 'info_extras': 'Extras',
+    # Roteiro — hotéis / barcos / voos / imagens / documentos
+    'check_in': 'Check-in', 'check_out': 'Check-out', 'address': 'Endereço', 'phone': 'Telefone',
+    'config_hotel': 'Hotel (catálogo)', 'config_hotel_linked': 'Vínculo com catálogo',
+    'config_boat': 'Barco (catálogo)', 'config_boat_linked': 'Vínculo com catálogo',
+    'airline': 'Companhia aérea', 'flight_number': 'Número do voo',
+    'origin': 'Origem', 'destination': 'Destino', 'departs_at': 'Saída', 'arrives_at': 'Chegada',
+    'service_number': 'Identificação', 'company': 'Empresa', 'departure': 'Partida',
+    'caption': 'Legenda', 'kind': 'Tipo', 'image': 'Imagem', 'day': 'Dia',
+    'value_per_person': 'Valor por pessoa', 'taxes': 'Taxas', 'url': 'Link',
+    'flight_departure': 'Partida (aéreo)', 'terrestre_departure': 'Partida (terrestre)',
 }
+
+# Templates de campo do roteiro (vínculo vivo) — rótulos gerados p/ os 10 campos.
+for _k, _lbl in {'general': 'Informações gerais', 'included': 'Inclusos', 'not_included': 'Não inclusos',
+                 'optionals': 'Opcionais', 'tips': 'Dicas', 'documents': 'Documentos',
+                 'promo_rules': 'Regras da promoção', 'insurance': 'Seguro', 'values': 'Valores', 'extras': 'Extras'}.items():
+    FIELD_LABELS[f'info_{_k}_template'] = f'Template · {_lbl}'
+    FIELD_LABELS[f'info_{_k}_template_linked'] = f'Vínculo do template · {_lbl}'
 
 
 def serialize_value(value):
@@ -154,6 +193,20 @@ def serialize_value(value):
     if isinstance(value, bool):
         return 'Sim' if value else 'Não'
     return str(value)
+
+
+def instance_has_file(instance):
+    """True se o modelo tem um FileField/ImageField preenchido — usado para logar
+    a CRIAÇÃO desses registros como 'upload' (Enviado) em vez de 'create'."""
+    from django.db.models import FileField
+    for f in instance._meta.concrete_fields:
+        if isinstance(f, FileField):
+            try:
+                if getattr(instance, f.name, None):
+                    return True
+            except Exception:
+                pass
+    return False
 
 
 def obj_to_dict(instance):
@@ -228,7 +281,8 @@ def log_save(sender, instance, created, **kwargs):
     user = get_current_user()
 
     if created:
-        action  = 'create'
+        # Registro com arquivo (imagem/documento/mídia) → é um UPLOAD, não "criação".
+        action  = 'upload' if instance_has_file(instance) else 'create'
         changes = obj_to_dict(instance)
     else:
         old = getattr(instance, '_audit_old', None) or {}

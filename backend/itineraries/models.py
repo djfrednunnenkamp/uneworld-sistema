@@ -303,7 +303,11 @@ class ItineraryImage(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.itinerary_id} · img {self.pk}'
+        try:
+            rot = self.itinerary.name
+        except Exception:
+            rot = f'#{self.itinerary_id}'
+        return f'Imagem ({self.get_kind_display()}) — {rot}'
 
 
 class ItineraryFieldTemplate(models.Model):
@@ -371,7 +375,12 @@ class ItineraryDeparture(models.Model):
         verbose_name_plural = 'Aeroportos de saída do roteiro'
 
     def __str__(self):
-        return f'{self.itinerary_id} · saída {self.airport_id}'
+        try:
+            rot = self.itinerary.name
+        except Exception:
+            rot = f'#{self.itinerary_id}'
+        ap = self.airport.iata_code if self.airport_id and self.airport else 'aeroporto'
+        return f'Partida {ap} — {rot}'
 
 
 class ItineraryFlight(models.Model):
@@ -392,7 +401,9 @@ class ItineraryFlight(models.Model):
         verbose_name_plural = 'Voos do roteiro'
 
     def __str__(self):
-        return f'{self.departure_id} · voo {self.flight_number or self.pk}'
+        o = self.origin.iata_code if self.origin_id and self.origin else '?'
+        d = self.destination.iata_code if self.destination_id and self.destination else '?'
+        return f'Voo {self.flight_number or "s/nº"} ({o}→{d})'
 
 
 class ItineraryHotel(models.Model):
