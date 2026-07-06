@@ -215,8 +215,17 @@ class Itinerary(models.Model):
         return slugify('-'.join(parts))
 
     def save(self, *args, **kwargs):
-        if not self.slug:
-            base = self._base_slug()
+        # O slug acompanha SEMPRE o título + as datas: regenera na criação e
+        # sempre que o nome, a data de início ou a de término mudarem.
+        regenerate = not self.slug
+        if not regenerate and self.pk:
+            old = Itinerary.objects.filter(pk=self.pk).only('name', 'start_date', 'end_date').first()
+            if old and (old.name != self.name
+                        or old.start_date != self.start_date
+                        or old.end_date != self.end_date):
+                regenerate = True
+        base = self._base_slug()
+        if regenerate and base:
             slug = base
             i = 2
             while Itinerary.objects.filter(slug=slug).exclude(pk=self.pk).exists():
