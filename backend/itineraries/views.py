@@ -691,6 +691,23 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             img.save(update_fields=list(fields))
         return Response(ItineraryImageSerializer(img, context=self.get_serializer_context()).data)
 
+    def destroy(self, request, *args, **kwargs):
+        """Só imagens do BANCO (sem roteiro) podem ser excluídas pela galeria. Se
+        estiver anexada a um roteiro, bloqueia e explica onde ela está sendo usada."""
+        img = self.get_object()
+        reasons = []
+        if img.itinerary_id:
+            kind_label = dict(ItineraryImage.KIND_CHOICES).get(img.kind, 'imagem')
+            reasons.append(f'{kind_label} do roteiro "{img.itinerary.name}"')
+        if reasons:
+            return Response(
+                {'detail': 'Não pode ser excluída porque está anexada a: ' + '; '.join(reasons)
+                           + '. Remova-a de dentro do roteiro primeiro.',
+                 'reasons': reasons},
+                status=status.HTTP_409_CONFLICT)
+        img.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=False, methods=['get'], url_path='download')
     def download(self, request):
         """GET /api/itineraries/gallery/download/  — baixa um ZIP com os arquivos
