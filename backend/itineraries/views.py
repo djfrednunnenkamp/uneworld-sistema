@@ -344,7 +344,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
                            'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
-                           'publish', 'unpublish', 'reorder'):
+                           'publish', 'unpublish', 'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
 
@@ -402,6 +402,25 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if obj.is_published and obj.published_data:
             return Response(obj.published_data)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
+
+    # ── Rascunho de autosave (por usuário): edições ficam aqui até clicar Salvar. ──
+    @action(detail=True, methods=['get', 'put', 'delete'])
+    def draft(self, request, pk=None):
+        from .models import ItineraryDraft
+        obj = self.get_object()
+        if request.method == 'GET':
+            d = ItineraryDraft.objects.filter(itinerary=obj, user=request.user).first()
+            return Response({'data': d.data if d else None,
+                             'updated_at': d.updated_at if d else None})
+        if request.method == 'PUT':
+            data = request.data.get('data')
+            if not isinstance(data, dict):
+                return Response({'detail': 'Campo "data" inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+            ItineraryDraft.objects.update_or_create(
+                itinerary=obj, user=request.user, defaults={'data': data})
+            return Response({'ok': True})
+        ItineraryDraft.objects.filter(itinerary=obj, user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     # ── Galeria de imagens (upload multipart — não cabe no PUT/JSON) ──
     @action(detail=True, methods=['post'], url_path='images')

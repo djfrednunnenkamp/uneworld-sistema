@@ -1,5 +1,6 @@
 import os
 import uuid
+from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -272,6 +273,22 @@ class ItineraryDocument(models.Model):
 
     def __str__(self):
         return self.name or (self.file.name if self.file else self.url)
+
+
+class ItineraryDraft(models.Model):
+    """Rascunho de AUTOSAVE das edições de um roteiro, POR USUÁRIO. Enquanto o
+    usuário edita, as mudanças ficam aqui (não tocam no roteiro real nem na foto
+    publicada). Só quando ele clica em Salvar é que vão para o registro. Um
+    rascunho por (roteiro, usuário) — dá pra retomar de onde parou ou descartar."""
+    itinerary  = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='drafts')
+    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='itinerary_drafts')
+    data       = models.JSONField('Dados do rascunho', default=dict, blank=True, encoder=DjangoJSONEncoder)
+    updated_at = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        unique_together = [('itinerary', 'user')]
+        verbose_name = 'Rascunho de roteiro'
+        verbose_name_plural = 'Rascunhos de roteiro'
 
 
 class ItineraryDay(models.Model):
