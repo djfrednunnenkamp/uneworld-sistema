@@ -344,7 +344,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
                            'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
-                           'update_image_meta',
+                           'update_image_meta', 'adopt_image',
                            'publish', 'unpublish', 'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
@@ -466,13 +466,52 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete'], url_path=r'images/(?P<image_id>[0-9]+)')
     def delete_image(self, request, pk=None, image_id=None):
-        """DELETE /api/itineraries/{id}/images/{image_id}/"""
+        """DELETE /api/itineraries/{id}/images/{image_id}/?scope=roteiro|system
+        scope=roteiro → só desanexa do roteiro (a imagem fica no banco da galeria).
+        scope=system (padrão) → exclui do sistema (registro + arquivo)."""
         itinerary = self.get_object()
         img = itinerary.images.filter(pk=image_id).first()
         if img is None:
             return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        img.delete()
+        if (request.query_params.get('scope') or 'system') == 'roteiro':
+            img.itinerary = None
+            img.save(update_fields=['itinerary'])
+        else:
+            img.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='images/adopt')
+    def adopt_image(self, request, pk=None):
+        """POST /api/itineraries/{id}/images/adopt/  body: {source_id, kind}.
+        Copia uma imagem/vídeo da galeria (banco ou outro roteiro) para ESTE roteiro
+        — novo arquivo + novo registro, preservando descrição/tipo/cidade/país/cor."""
+        import os as _os
+        from django.core.files.base import ContentFile
+        itinerary = self.get_object()
+        src = ItineraryImage.objects.filter(pk=request.data.get('source_id')).first()
+        if src is None:
+            return Response({'detail': 'Imagem de origem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        kind = request.data.get('kind') or 'gallery'
+        if kind not in {c[0] for c in ItineraryImage.KIND_CHOICES}:
+            kind = 'gallery'
+        try:
+            src.image.open('rb')
+            data = src.image.read()
+        except Exception:
+            return Response({'detail': 'Não foi possível ler o arquivo de origem.'}, status=status.HTTP_400_BAD_REQUEST)
+        finally:
+            try:
+                src.image.close()
+            except Exception:
+                pass
+        ext = _os.path.splitext(src.image.name or '')[1] or '.jpg'
+        new = ItineraryImage(itinerary=itinerary, kind=kind, caption=src.caption,
+                             subject_type=src.subject_type, city_id=src.city_id, country_id=src.country_id,
+                             dominant_color=src.dominant_color, color_bucket=src.color_bucket)
+        new.image.save(f'copy{ext}', ContentFile(data), save=False)
+        new.save()
+        out = ItineraryImageSerializer(new, context=self.get_serializer_context())
+        return Response(out.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path=r'images/(?P<image_id>[0-9]+)/kind')
     def set_image_kind(self, request, pk=None, image_id=None):
