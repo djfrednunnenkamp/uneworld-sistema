@@ -606,12 +606,39 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
+        if self.action in ('list', 'retrieve', 'download'):
             return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
         return [RequirePermission('roteiros_edit')()]
 
-    def get_queryset(self):
+    VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
+
+    @classmethod
+    def _video_q(cls):
         from django.db.models import Q
+        vq = Q()
+        for ext in cls.VIDEO_EXTS:
+            vq |= Q(image__iendswith=ext)
+        return vq
+
+    @staticmethod
+    def _apply_common_filters(qs, p):
+        """Busca (descrição/cidade/país/roteiro) + filtros por tipo/cor/cidade/país/
+        continente/roteiro. Compartilhado pela listagem e pelo download."""
+        from django.db.models import Q
+        search = (p.get('search') or '').strip()
+        if search:
+            qs = qs.filter(Q(caption__icontains=search)
+                           | Q(city__name__icontains=search)
+                           | Q(country__name__icontains=search)
+                           | Q(itinerary__name__icontains=search))
+        for field, param in [('subject_type', 'subject_type'), ('color_bucket', 'color'),
+                             ('itinerary_id', 'itinerary'), ('city_id', 'city'),
+                             ('country_id', 'country'), ('country__continent_id', 'continent')]:
+            if p.get(param):
+                qs = qs.filter(**{field: p[param]})
+        return qs
+
+    def get_queryset(self):
         p = self.request.query_params
         qs = (ItineraryImage.objects
               .select_related('city__state__country__continent', 'country__continent', 'itinerary')
@@ -625,21 +652,9 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         # Filtro por mídia (aba Imagens/Vídeos), pela extensão do arquivo.
         media = p.get('media')
         if media in ('image', 'video'):
-            vq = Q()
-            for ext in ('.mp4', '.webm', '.mov', '.m4v', '.ogv'):
-                vq |= Q(image__iendswith=ext)
+            vq = self._video_q()
             qs = qs.filter(vq) if media == 'video' else qs.exclude(vq)
-        search = (p.get('search') or '').strip()
-        if search:
-            qs = qs.filter(Q(caption__icontains=search)
-                           | Q(city__name__icontains=search)
-                           | Q(country__name__icontains=search)
-                           | Q(itinerary__name__icontains=search))
-        for field, param in [('subject_type', 'subject_type'), ('color_bucket', 'color'),
-                             ('itinerary_id', 'itinerary'), ('city_id', 'city'),
-                             ('country_id', 'country'), ('country__continent_id', 'continent')]:
-            if p.get(param):
-                qs = qs.filter(**{field: p[param]})
+        qs = self._apply_common_filters(qs, p)
         return qs.order_by('-created_at', '-id')
 
     def create(self, request, *args, **kwargs):
@@ -675,3 +690,66 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         if fields:
             img.save(update_fields=list(fields))
         return Response(ItineraryImageSerializer(img, context=self.get_serializer_context()).data)
+
+    @action(detail=False, methods=['get'], url_path='download')
+    def download(self, request):
+        """GET /api/itineraries/gallery/download/  — baixa um ZIP com os arquivos
+        filtrados, organizados em pastas (imagens/, videos/, laminas/).
+        `types`: quais incluir (image,video,lamina — padrão: todos). Os demais
+        params são os mesmos filtros da listagem (search/color/subject_type/…)."""
+        import io
+        import os as _os
+        import zipfile
+        from django.db.models import Q
+        from django.utils.text import slugify
+        from django.http import HttpResponse
+
+        p = request.query_params
+        types = {t for t in (p.get('types') or 'image,video,lamina').split(',') if t}
+        qs = (ItineraryImage.objects
+              .select_related('city', 'country', 'itinerary')
+              .filter(day__isnull=True))
+        qs = self._apply_common_filters(qs, p)
+        vq = self._video_q()
+        typeq = Q(pk__in=[])
+        if 'lamina' in types:
+            typeq |= Q(kind='blocking')
+        if 'image' in types:
+            typeq |= (~vq & ~Q(kind='blocking'))
+        if 'video' in types:
+            typeq |= (vq & ~Q(kind='blocking'))
+        qs = qs.filter(typeq).order_by('-created_at', '-id')
+
+        buf = io.BytesIO()
+        used = set()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for img in qs.iterator():
+                name = img.image.name or ''
+                ext = _os.path.splitext(name)[1].lower()
+                is_vid = ext in self.VIDEO_EXTS
+                folder = 'laminas' if img.kind == 'blocking' else ('videos' if is_vid else 'imagens')
+                label = (img.caption
+                         or (img.city.name if img.city_id else '')
+                         or (img.itinerary.name if img.itinerary_id else '')
+                         or 'arquivo')
+                base = f'{img.id}-{slugify(label)[:60] or "arquivo"}'
+                fname = f'{folder}/{base}{ext}'
+                i = 2
+                while fname in used:
+                    fname = f'{folder}/{base}-{i}{ext}'
+                    i += 1
+                used.add(fname)
+                try:
+                    img.image.open('rb')
+                    zf.writestr(fname, img.image.read())
+                except Exception:
+                    continue
+                finally:
+                    try:
+                        img.image.close()
+                    except Exception:
+                        pass
+
+        resp = HttpResponse(buf.getvalue(), content_type='application/zip')
+        resp['Content-Disposition'] = 'attachment; filename="galeria.zip"'
+        return resp
