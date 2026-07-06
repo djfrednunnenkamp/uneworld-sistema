@@ -492,9 +492,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['patch'], url_path=r'images/(?P<image_id>[0-9]+)/meta')
     def update_image_meta(self, request, pk=None, image_id=None):
-        """PATCH /api/itineraries/{id}/images/{image_id}/meta/  body: {caption?, city?,
-        country?}. Se `city` vier, o país é DERIVADO dela (cidade→estado→país). Se
-        vier só `country`, a cidade é desvinculada. Continente é sempre derivado."""
+        """PATCH /api/itineraries/{id}/images/{image_id}/meta/  body: {subject_type?,
+        caption?, city?, country?}. `subject_type`: landscape|object|lamina. Se
+        `city` vier, o país é DERIVADO dela (cidade→estado→país); se vier só
+        `country`, a cidade é desvinculada. Fora de 'landscape' a geo é limpa.
+        Continente é sempre derivado."""
         from config_api.models import ConfigCity, ConfigCountry
         itinerary = self.get_object()
         img = itinerary.images.filter(pk=image_id).first()
@@ -502,6 +504,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         data = request.data
         fields = set()
+        if 'subject_type' in data:
+            st = data.get('subject_type') or ''
+            valid_subjects = {c[0] for c in ItineraryImage.SUBJECT_CHOICES}
+            img.subject_type = st if st in valid_subjects else ''
+            fields.add('subject_type')
         if 'caption' in data:
             img.caption = (data.get('caption') or '')[:300]
             fields.add('caption')
@@ -530,6 +537,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             else:
                 img.country = None
                 fields.add('country')
+        # Só 'paisagem' tem lugar: objeto/lâmina não guardam cidade/país.
+        if img.subject_type in ('object', 'lamina'):
+            img.city = None
+            img.country = None
+            fields.update({'city', 'country'})
         if fields:
             img.save(update_fields=list(fields))
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())

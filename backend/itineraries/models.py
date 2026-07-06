@@ -362,8 +362,16 @@ class ItineraryImage(models.Model):
     # validado na action de upload (imagem: jpg/png; vídeo: mp4/webm/mov/…).
     image     = models.FileField('Arquivo (imagem/vídeo)', upload_to=secure_itinerary_image_path)
     caption   = models.CharField('Legenda', max_length=300, blank=True)
-    # Geolocalização da imagem: a cidade define país e continente; ou define-se só
-    # o país (continente derivado). Continente NÃO é armazenado — é derivado.
+    # Tipo de conteúdo: paisagem (tem lugar), objeto (texto livre) ou lâmina (nada).
+    SUBJECT_CHOICES = [
+        ('landscape', 'Paisagem'),
+        ('object',    'Objeto'),
+        ('lamina',    'Lâmina'),
+    ]
+    subject_type = models.CharField('Tipo de conteúdo', max_length=12, choices=SUBJECT_CHOICES, blank=True, default='')
+    # Geolocalização (só faz sentido para 'paisagem'): a cidade define país e
+    # continente; ou define-se só o país (continente derivado). Continente NÃO é
+    # armazenado — é derivado.
     city      = models.ForeignKey('config_api.ConfigCity', null=True, blank=True,
                                   on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade')
     country   = models.ForeignKey('config_api.ConfigCountry', null=True, blank=True,

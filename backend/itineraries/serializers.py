@@ -283,7 +283,7 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryImage
-        fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video',
+        fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
                   'city', 'country', 'city_data', 'country_data', 'continent_name']
 
     def get_continent_name(self, obj):
