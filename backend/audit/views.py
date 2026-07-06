@@ -1,13 +1,30 @@
+from django.http import FileResponse
 from rest_framework import serializers, viewsets, filters
+from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import AuditLog
+
+
+# Modelos cujo log de upload/download aponta para um arquivo servível:
+# model_name -> ('app_label.Model', 'campo_do_arquivo')
+FILE_MODELS = {
+    'ItineraryImage':    ('itineraries.ItineraryImage', 'image'),
+    'ItineraryDocument': ('itineraries.ItineraryDocument', 'file'),
+    'ConfigHotelMedia':  ('config_api.ConfigHotelMedia', 'file'),
+    'ConfigBoatMedia':   ('config_api.ConfigBoatMedia', 'file'),
+    'PassengerDocument': ('passengers.PassengerDocument', 'file'),
+    'Airline':           ('config_api.Airline', 'logo'),
+    'OperatingCompany':  ('config_api.OperatingCompany', 'ceo_signature'),
+}
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
     action_label = serializers.CharField(source='get_action_display', read_only=True)
     timestamp_br = serializers.SerializerMethodField()
+    has_file     = serializers.SerializerMethodField()
 
     class Meta:
         model = AuditLog
@@ -15,9 +32,13 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'id', 'timestamp', 'timestamp_br',
             'user_display', 'action', 'action_label',
             'model_name', 'model_label', 'object_id', 'object_repr',
-            'changes', 'ip_address',
+            'changes', 'ip_address', 'has_file',
             'geo_city', 'geo_country', 'latitude', 'longitude', 'geo_precise', 'geo_address',
         ]
+
+    def get_has_file(self, obj):
+        # O log aponta para um registro com arquivo servível (imagem/doc/mídia)?
+        return obj.model_name in FILE_MODELS and bool(obj.object_id)
 
     def get_timestamp_br(self, obj):
         from django.utils import timezone
@@ -78,6 +99,30 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['user_display', 'object_repr', 'model_label']
     ordering = ['-timestamp']
+
+    @action(detail=True, methods=['get'])
+    def file(self, request, pk=None):
+        """Serve o arquivo apontado por um log de upload/download (imagem, vídeo,
+        PDF…). ?download=1 força baixar; senão, inline (visualizar). get_object
+        respeita o escopo/permissão — só serve arquivo de log que a pessoa pode ver."""
+        log = self.get_object()
+        spec = FILE_MODELS.get(log.model_name)
+        if not spec or not log.object_id:
+            return Response({'detail': 'Este registro não tem arquivo.'}, status=404)
+        from django.apps import apps
+        try:
+            Model = apps.get_model(spec[0])
+        except Exception:
+            return Response({'detail': 'Modelo indisponível.'}, status=404)
+        obj = Model.objects.filter(pk=log.object_id).first()
+        f = getattr(obj, spec[1], None) if obj else None
+        if not f:
+            return Response({'detail': 'Arquivo indisponível (o registro pode ter sido removido).'}, status=404)
+        as_attachment = request.query_params.get('download') == '1'
+        try:
+            return FileResponse(f.open('rb'), as_attachment=as_attachment, filename=f.name.split('/')[-1])
+        except FileNotFoundError:
+            return Response({'detail': 'Arquivo não encontrado no servidor.'}, status=404)
 
     def get_queryset(self):
         qs = AuditLog.objects.select_related('user').all()
