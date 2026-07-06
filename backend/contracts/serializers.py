@@ -377,7 +377,7 @@ class ContractSerializer(serializers.ModelSerializer):
             pass
         return snap
 
-    def _log_update(self, contract, old, new):
+    def _log_update(self, contract, old, new, action='update'):
         changes = {k: {'antes': old.get(k), 'depois': v} for k, v in new.items() if old.get(k) != v}
         if not changes:
             return
@@ -386,7 +386,7 @@ class ContractSerializer(serializers.ModelSerializer):
         from audit.middleware import get_current_user, get_current_ip
         user = get_current_user()
         AuditLog.objects.create(
-            user=user, user_display=user_display(user), action='update',
+            user=user, user_display=user_display(user), action=action,
             model_name='Contract', model_label='Contrato',
             object_id=str(contract.pk), object_repr=str(contract)[:500],
             changes=changes, ip_address=get_current_ip(),
@@ -519,10 +519,9 @@ class ContractSerializer(serializers.ModelSerializer):
         if not (user and has_any_perm(user, 'contracts_custom_clauses')):
             validated_data.pop('custom_clauses', None)
 
-        contract = Contract.objects.create(
-            created_by=user,
-            **validated_data,
-        )
+        contract = Contract(created_by=user, **validated_data)
+        contract._skip_audit_signal = True   # eu logo o 'create' completo abaixo
+        contract.save()
         # Reserva nº: sequencial e único — gerado a partir do próprio id, sem
         # precisar de um contador separado nem de digitação manual.
         if not contract.reservation_number:
@@ -531,6 +530,8 @@ class ContractSerializer(serializers.ModelSerializer):
 
         self._save_children(contract, accommodation_lines, guests, installments, clauses, adjustments)
         self._recalc_totals(contract)
+        # Loga o create COM os filhos + cláusulas (o signal escalar sozinho não pega).
+        self._log_update(contract, {}, self._audit_snapshot(contract), action='create')
         return contract
 
     def update(self, instance, validated_data):

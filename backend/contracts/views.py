@@ -101,20 +101,24 @@ def _apply_autentique_state(contract, doc, save=True):
     return became_signed
 
 
-def _log_contract_event(request, contract, action, label):
+def _log_contract_event(request, contract, action, label, file_field=None):
     """Registra no log de auditoria uma ação sobre o contrato que NÃO passa por
     save() — download do arquivo assinado/PDF e upload do contrato assinado.
     (Criação, edição e mudança de etapa já são capturadas automaticamente pelos
-    sinais em audit/tracking.py.) `label` descreve a ação no detalhe do evento."""
+    sinais em audit/tracking.py.) `label` descreve a ação; `file_field` diz qual
+    arquivo do contrato o evento aponta (pro preview no log)."""
     from audit.models import AuditLog
     from audit.middleware import get_current_ip
     from audit.tracking import user_display
     user = request.user
+    changes = {'Ação': label} if label else {}
+    if file_field:
+        changes['_file_field'] = file_field   # chave interna: o front esconde as que começam com '_'
     AuditLog.objects.create(
         user=user, user_display=user_display(user), action=action,
         model_name='Contract', model_label='Contrato',
         object_id=str(contract.pk), object_repr=str(contract)[:500],
-        changes={'Ação': label} if label else {}, ip_address=get_current_ip(),
+        changes=changes, ip_address=get_current_ip(),
     )
 
 
@@ -294,7 +298,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         ext   = os.path.splitext(contract.signed_file.name)[1]
         fname = f'contrato_{contract.reservation_number or contract.id}_assinado{ext}'
         _log_contract_event(request, contract, 'download',
-                            f'Baixou o contrato assinado #{contract.id}')
+                            f'Baixou o contrato assinado #{contract.id}', file_field='signed_file')
         resp = FileResponse(contract.signed_file.open('rb'), as_attachment=False, filename=fname)
         # Permite renderizar no iframe da mesma origem (X_FRAME_OPTIONS é DENY por
         # padrão). O middleware não sobrescreve um header já definido.
@@ -312,7 +316,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         ext   = os.path.splitext(contract.payment_receipt.name)[1]
         fname = f'comprovante_{contract.reservation_number or contract.id}{ext}'
         _log_contract_event(request, contract, 'download',
-                            f'Baixou o comprovante de pagamento do contrato #{contract.id}')
+                            f'Baixou o comprovante de pagamento do contrato #{contract.id}', file_field='payment_receipt')
         resp = FileResponse(contract.payment_receipt.open('rb'), as_attachment=False, filename=fname)
         resp['X-Frame-Options'] = 'SAMEORIGIN'
         resp['X-Content-Type-Options'] = 'nosniff'

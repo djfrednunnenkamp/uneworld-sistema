@@ -270,9 +270,10 @@ def capture_pre_save(sender, instance, **kwargs):
 def log_save(sender, instance, created, **kwargs):
     if sender.__name__ not in TRACKED_MODELS:
         return
-    # O ItinerarySerializer faz o diff COMPLETO do update (inclui M2M/filhos que
-    # o diff escalar não pega) e loga por conta própria — evita log parcial/duplo.
-    if not created and getattr(instance, '_skip_audit_signal', False):
+    # Itinerary/Contract serializers fazem o diff COMPLETO (create e update),
+    # incluindo M2M/filhos que o diff escalar não pega, e logam por conta própria
+    # — o flag suprime o log parcial do signal (vale para create e update).
+    if getattr(instance, '_skip_audit_signal', False):
         return
 
     # Import aqui para evitar import circular
@@ -306,7 +307,9 @@ def log_save(sender, instance, created, **kwargs):
         # explícito quando ele foi ENVIADO para assinatura e quando foi ASSINADO/
         # recebido — vale para física, digital e o retorno da Autentique (webhook).
         elif sender.__name__ == 'Contract' and FIELD_LABELS['stage'] in changes:
-            action = {'enviado': 'send', 'assinado': 'sign', 'em_edicao': 'reopen'}.get(instance.stage, 'update')
+            # 'revisao' só é alcançado ao concluir a assinatura (digital/física) → 'sign'.
+            action = {'enviado': 'send', 'assinado': 'sign', 'revisao': 'sign', 'em_edicao': 'reopen',
+                      'a_faturar': 'approve', 'faturado': 'invoice'}.get(instance.stage, 'update')
 
     try:
         repr_str = str(instance)[:500]

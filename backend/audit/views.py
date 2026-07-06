@@ -10,6 +10,8 @@ from .models import AuditLog
 
 # Modelos cujo log de upload/download aponta para um arquivo servível:
 # model_name -> ('app_label.Model', 'campo_do_arquivo')
+# O 2º item é o nome do campo de arquivo OU um callable(obj, log) -> FieldFile
+# (usado no Contrato, que tem 2 arquivos — o log diz qual em changes['_file_field']).
 FILE_MODELS = {
     'ItineraryImage':    ('itineraries.ItineraryImage', 'image'),
     'ItineraryDocument': ('itineraries.ItineraryDocument', 'file'),
@@ -18,6 +20,8 @@ FILE_MODELS = {
     'PassengerDocument': ('passengers.PassengerDocument', 'file'),
     'Airline':           ('config_api.Airline', 'logo'),
     'OperatingCompany':  ('config_api.OperatingCompany', 'ceo_signature'),
+    'Contract':          ('contracts.Contract',
+                          lambda obj, log: getattr(obj, (log.changes or {}).get('_file_field') or 'signed_file', None)),
 }
 
 
@@ -37,8 +41,15 @@ class AuditLogSerializer(serializers.ModelSerializer):
         ]
 
     def get_has_file(self, obj):
-        # O log aponta para um registro com arquivo servível (imagem/doc/mídia)?
-        return obj.model_name in FILE_MODELS and bool(obj.object_id)
+        # O log aponta para um arquivo servível (imagem/doc/mídia/PDF)?
+        spec = FILE_MODELS.get(obj.model_name)
+        if not spec or not obj.object_id:
+            return False
+        # Campo dinâmico (ex: Contrato tem 2 arquivos) → nos eventos de download
+        # (o resolver escolhe pelo _file_field; sem ele, cai no arquivo padrão).
+        if callable(spec[1]):
+            return obj.action == 'download'
+        return True
 
     def get_timestamp_br(self, obj):
         from django.utils import timezone
@@ -115,7 +126,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception:
             return Response({'detail': 'Modelo indisponível.'}, status=404)
         obj = Model.objects.filter(pk=log.object_id).first()
-        f = getattr(obj, spec[1], None) if obj else None
+        if not obj:
+            return Response({'detail': 'Arquivo indisponível (o registro pode ter sido removido).'}, status=404)
+        f = spec[1](obj, log) if callable(spec[1]) else getattr(obj, spec[1], None)
         if not f:
             return Response({'detail': 'Arquivo indisponível (o registro pode ter sido removido).'}, status=404)
         as_attachment = request.query_params.get('download') == '1'

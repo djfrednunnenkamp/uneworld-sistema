@@ -17,6 +17,8 @@ class AuditLog(models.Model):
         ('reopen', 'Voltou p/ edição'),
         ('publish', 'Publicado'),
         ('unpublish', 'Despublicado'),
+        ('approve', 'Aprovado'),
+        ('invoice', 'Faturado'),
         ('login', 'Login'),
         ('logout', 'Logout'),
         ('view', 'Visitou'),
