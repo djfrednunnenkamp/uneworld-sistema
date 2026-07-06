@@ -34,6 +34,9 @@ class Itinerary(models.Model):
     slug        = models.SlugField('Slug', max_length=350, unique=True, blank=True)
     start_date  = models.DateField('Data de início', null=True, blank=True)
     end_date    = models.DateField('Data de término', null=True, blank=True)
+    # Total de noites: normalmente calculado das datas. Se preenchido aqui (manual),
+    # sobrepõe o cálculo — para casos em que o número de noites difere do intervalo.
+    nights_override = models.PositiveIntegerField('Noites (manual)', null=True, blank=True)
     trip_type   = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='aereo')
     # Produto próprio da UneWorld (operação própria) vs. de terceiro/parceiro.
     is_own_product = models.BooleanField('Produto próprio da UneWorld', default=True)

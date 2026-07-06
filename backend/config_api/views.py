@@ -1033,9 +1033,17 @@ class HotelMediaViewSet(viewsets.ModelViewSet):
         return qs.filter(hotel_id=hotel) if hotel else qs
 
     def perform_create(self, serializer):
+        from passengers.validators import validate_media_file
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError as DRFValidationError
         f = self.request.FILES.get('file')
-        ctype = (getattr(f, 'content_type', '') or '').lower()
-        kind = ConfigHotelMedia.VIDEO if ctype.startswith('video') else ConfigHotelMedia.IMAGE
+        if not f:
+            raise DRFValidationError({'file': ['Envie um arquivo de imagem ou vídeo.']})
+        try:
+            kind_str = validate_media_file(f)   # valida e define o tipo pela extensão real
+        except DjangoValidationError as e:
+            raise DRFValidationError({'file': e.messages})
+        kind = ConfigHotelMedia.VIDEO if kind_str == 'video' else ConfigHotelMedia.IMAGE
         serializer.save(kind=kind)
 
     @action(detail=False, methods=['post'], url_path='reorder')
@@ -1111,9 +1119,17 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
         return qs.filter(boat_id=boat) if boat else qs
 
     def perform_create(self, serializer):
+        from passengers.validators import validate_media_file
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError as DRFValidationError
         f = self.request.FILES.get('file')
-        ctype = (getattr(f, 'content_type', '') or '').lower()
-        kind = ConfigBoatMedia.VIDEO if ctype.startswith('video') else ConfigBoatMedia.IMAGE
+        if not f:
+            raise DRFValidationError({'file': ['Envie um arquivo de imagem ou vídeo.']})
+        try:
+            kind_str = validate_media_file(f)   # valida e define o tipo pela extensão real
+        except DjangoValidationError as e:
+            raise DRFValidationError({'file': e.messages})
+        kind = ConfigBoatMedia.VIDEO if kind_str == 'video' else ConfigBoatMedia.IMAGE
         serializer.save(kind=kind)
 
     @action(detail=False, methods=['post'], url_path='reorder')

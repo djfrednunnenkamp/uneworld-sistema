@@ -70,6 +70,19 @@ class ItineraryDocumentSerializer(serializers.ModelSerializer):
         has_url  = bool(attrs.get('url'))
         if not has_file and not has_url and not self.instance:
             raise serializers.ValidationError('Envie um arquivo ou informe um link.')
+        # SEGURANÇA: valida o anexo (extensão × tamanho × magic bytes) — só Office/PDF.
+        if has_file:
+            from passengers.validators import validate_attachment_file
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            try:
+                validate_attachment_file(attrs['file'])
+            except DjangoValidationError as e:
+                raise serializers.ValidationError({'file': e.messages})
+        # SEGURANÇA: link só pode ser http(s) — bloqueia javascript:, data:, file:, etc.
+        if has_url:
+            u = (attrs.get('url') or '').strip().lower()
+            if not (u.startswith('http://') or u.startswith('https://')):
+                raise serializers.ValidationError({'url': 'O link precisa começar com http:// ou https://.'})
         return attrs
 
     def create(self, validated_data):
@@ -364,7 +377,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Itinerary
-        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'is_own_product', 'is_featured',
+        fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'nights_override', 'trip_type', 'is_own_product', 'is_featured',
                   'has_voo', 'has_barco', 'has_terrestre',
                   'clauses', 'custom_clauses', 'clauses_data',
                   'category', 'category_name', 'continent', 'continent_name', 'continents', 'continents_data',

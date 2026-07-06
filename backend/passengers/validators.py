@@ -127,6 +127,58 @@ VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov', '.m4v', '.ogv'}
 _MP4_ATOMS = {b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide', b'pnot'}
 
 
+# ── Anexos de documento (painel de Observações do roteiro) ───────────────────
+MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024  # 25 MB
+ATTACHMENT_EXTENSIONS = {'.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf'}
+_OOXML_EXT = {'.docx', '.xlsx', '.pptx'}          # Office moderno = pacote ZIP (PK)
+_LEGACY_OFFICE_EXT = {'.doc', '.xls', '.ppt'}     # Office legado = OLE2 (D0 CF 11 E0)
+_OLE2_MAGIC = b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'
+
+
+def validate_attachment_file(file):
+    """Valida um anexo Office/PDF (extensão × tamanho × magic bytes do contêiner).
+    Bloqueia qualquer conteúdo que não seja Word/Excel/PowerPoint/PDF — impede
+    subir executáveis, HTML/SVG (XSS), etc. driblando o front. Não re-processa
+    (docs Office são pacotes ZIP; o OnlyOffice é quem abre)."""
+    ext = os.path.splitext(file.name or '')[1].lower()
+    if ext not in ATTACHMENT_EXTENSIONS:
+        raise ValidationError(
+            f'Extensão "{ext or "?"}" não permitida. Aceitos: Word, Excel, PowerPoint ou PDF.'
+        )
+    if file.size > MAX_ATTACHMENT_SIZE:
+        raise ValidationError(
+            f'Arquivo muito grande ({file.size // 1024 // 1024} MB). Máximo: 25 MB.'
+        )
+    file.seek(0)
+    header = file.read(8)
+    file.seek(0)
+    is_pdf = header.startswith(b'%PDF')
+    is_zip = header.startswith(b'PK\x03\x04')      # OOXML (docx/xlsx/pptx) e também .zip
+    is_ole = header.startswith(_OLE2_MAGIC)         # doc/xls/ppt legado
+    if ext == '.pdf':
+        if not is_pdf:
+            raise ValidationError('O conteúdo não corresponde a um PDF válido. Arquivo rejeitado.')
+    elif ext in _OOXML_EXT:
+        if not is_zip:
+            raise ValidationError('O conteúdo não corresponde a um arquivo Office (.docx/.xlsx/.pptx) válido.')
+    elif ext in _LEGACY_OFFICE_EXT:
+        if not is_ole:
+            raise ValidationError('O conteúdo não corresponde a um arquivo Office válido.')
+    return file
+
+
+def validate_media_file(file):
+    """Valida IMAGEM (jpg/png, reprocessada) OU VÍDEO (mp4/webm/…) para galerias
+    (hotel/barco/roteiro). Determina o tipo pela EXTENSÃO real — nunca confia no
+    content-type enviado pelo cliente. Retorna 'image' ou 'video'."""
+    ext = os.path.splitext(file.name or '')[1].lower()
+    if ext in VIDEO_EXTENSIONS:
+        validate_video_file(file)
+        return 'video'
+    validate_document_file(file, allowed_exts={'.jpg', '.jpeg', '.png'}, allow_images=True)
+    return 'image'
+
+
 def validate_video_file(file):
     """Valida um upload de VÍDEO (extensão, tamanho e magic bytes do contêiner).
     Não re-processa o conteúdo (só imagens são reprocessadas). Levanta
