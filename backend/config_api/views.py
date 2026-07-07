@@ -1913,10 +1913,9 @@ def branding_logos(request):
         except Exception:
             return f.url
     data = {slot: url(getattr(obj, field)) for slot, field in BRANDING_SLOTS.items()}
-    # Título da aba do navegador (valor cru p/ o campo) + fallback (nome da operadora).
-    company_name = (OperatingCompany.objects.values_list('company_name', flat=True).first() or '').strip()
+    # Título da aba do navegador: valor cru p/ o campo + texto padrão quando vazio.
     data['title'] = obj.browser_title or ''
-    data['title_fallback'] = company_name or 'Operadora'
+    data['title_fallback'] = 'Operadora'
     return Response(data)
 
 
