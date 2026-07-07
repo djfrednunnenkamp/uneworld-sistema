@@ -678,11 +678,13 @@ def _apply_image_meta(img, data):
     return fields
 
 
-# Permissões amplas (vêem/editam TODOS os tipos) — atalho de compatibilidade.
-GALLERY_BROAD = ('roteiros_edit', 'roteiros_delete', 'gallery_edit', 'gallery_delete')
+# Permissões amplas (vêem/gerenciam TODOS os tipos) — atalho de compatibilidade.
+# A galeria é controlada por permissões PRÓPRIAS: permissão de roteiro NÃO dá
+# acesso à galeria (só 'roteiros_images_from_gallery', p/ escolher no picker).
+GALLERY_BROAD = ('gallery_edit', 'gallery_delete')
 # Qualquer uma destas dá ACESSO de leitura à galeria.
-GALLERY_VIEW_PERMS = ('roteiros_view', 'gallery_view', 'gallery_view_images',
-                      'gallery_view_videos', 'gallery_view_laminas') + GALLERY_BROAD
+GALLERY_VIEW_PERMS = ('gallery_view', 'gallery_view_images', 'gallery_view_videos',
+                      'gallery_view_laminas', 'roteiros_images_from_gallery') + GALLERY_BROAD
 
 VIDEO_EXTS_TUP = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
 
@@ -704,7 +706,8 @@ def _gallery_allowed_types(user):
     if has_any_perm(user, 'gallery_view_laminas'): types.add('lamina')
     if types:
         return types
-    if has_any_perm(user, 'gallery_view', 'roteiros_view'):
+    # 'ver a galeria' (base) ou o acesso do picker do roteiro → vê todos os tipos.
+    if has_any_perm(user, 'gallery_view', 'roteiros_images_from_gallery'):
         return {'image', 'video', 'lamina'}
     return set()
 
@@ -712,13 +715,13 @@ def _gallery_allowed_types(user):
 def _gallery_can_upload(user, media):   # media: 'image' | 'video' | 'lamina'
     perm = {'image': 'gallery_upload_images', 'video': 'gallery_upload_videos',
             'lamina': 'gallery_upload_laminas'}[media]
-    return getattr(user, 'is_superuser', False) or has_any_perm(user, perm, 'gallery_edit', 'roteiros_edit')
+    return getattr(user, 'is_superuser', False) or has_any_perm(user, perm, 'gallery_edit')
 
 
 def _gallery_can_delete(user, media):
     perm = {'image': 'gallery_delete_images', 'video': 'gallery_delete_videos',
             'lamina': 'gallery_delete_laminas'}[media]
-    return getattr(user, 'is_superuser', False) or has_any_perm(user, perm, 'gallery_delete', 'roteiros_edit', 'roteiros_delete')
+    return getattr(user, 'is_superuser', False) or has_any_perm(user, perm, 'gallery_delete')
 
 
 def _gallery_media_of(img):
@@ -750,13 +753,13 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             return [_GalleryReadPermission()]
         if self.action == 'create':
             # Gate amplo aqui; o tipo específico (imagem/vídeo) é checado no create().
-            return [RequirePermission('gallery_upload_images', 'gallery_upload_videos',
-                                      'gallery_edit', 'roteiros_edit')()]
+            return [RequirePermission('gallery_upload_images', 'gallery_upload_videos', 'gallery_edit')()]
         if self.action == 'destroy':
             return [RequirePermission('gallery_delete_images', 'gallery_delete_videos',
-                                      'gallery_delete_laminas', 'gallery_delete',
-                                      'roteiros_edit', 'roteiros_delete')()]
-        return [RequirePermission('roteiros_edit', 'gallery_edit')()]
+                                      'gallery_delete_laminas', 'gallery_delete')()]
+        # Editar metadados (legenda/cidade) de um item — quem gerencia a galeria.
+        return [RequirePermission('gallery_edit', 'gallery_upload_images',
+                                  'gallery_upload_videos', 'gallery_upload_laminas')()]
 
     def _type_filter(self, qs):
         """Restringe a galeria aos tipos de mídia que o usuário pode ver."""
