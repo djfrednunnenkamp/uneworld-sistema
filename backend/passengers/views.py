@@ -95,9 +95,54 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         if self.action in ('check_cpf', 'active'):
             # Endpoints utilitários de leitura usados durante o fluxo de criação/edição
             return [RequirePermission(*VIEW_PERMS, 'passengers_edit')()]
-        if self.action in ('list', 'retrieve', 'agencies'):
+        if self.action in ('list', 'retrieve', 'agencies', 'guides'):
             return [RequirePermission(*VIEW_PERMS)()]
         return super().get_permissions()
+
+    @action(detail=False, methods=['get'])
+    def guides(self, request):
+        """Guias registrados (passageiros com is_guide) e quantas viagens cada um
+        fez COMO GUIA — no total e por ano. "Como guia" = a inscrição tem a
+        função 'Guia' (Equipe Técnica). Ano = ano de início da viagem."""
+        from collections import defaultdict
+        from trips.models import CrewRole, ListEnrollment
+        from core.search import strip_accents
+        from users_api.permissions import agency_scope_ids
+
+        guia_ids = [r.id for r in CrewRole.objects.all()
+                    if strip_accents(r.name or '').lower() == 'guia']
+        per_pax = defaultdict(lambda: defaultdict(int))   # pax_id -> ano -> nº
+        years = set()
+        if guia_ids:
+            enr = (ListEnrollment.objects
+                   .filter(crew_roles__in=guia_ids, passenger__isnull=False)
+                   .exclude(enrollment_status='cancelado')
+                   .values('passenger_id', 'passenger_list__start_date')
+                   .distinct())
+            for row in enr:
+                d = row['passenger_list__start_date']
+                y = d.year if d else 0
+                per_pax[row['passenger_id']][y] += 1
+                if y:
+                    years.add(y)
+
+        guides_qs = Passenger.objects.filter(is_guide=True, is_deleted=False)
+        scope = agency_scope_ids(request.user)
+        if scope is not None:
+            guides_qs = guides_qs.filter(agencies__in=scope).distinct()
+
+        result = []
+        for p in guides_qs:
+            by_year = per_pax.get(p.id, {})
+            result.append({
+                'id': p.id,
+                'name': p.full_name or f'{p.first_name} {p.last_name}'.strip() or 'Guia',
+                'total': sum(by_year.values()),
+                'by_year': {str(y): c for y, c in by_year.items() if y},
+                'no_date': by_year.get(0, 0),
+            })
+        result.sort(key=lambda g: (-g['total'], g['name'].lower()))
+        return Response({'years': sorted(years, reverse=True), 'guides': result})
 
     @action(detail=False, methods=['get'], url_path='check-cpf')
     def check_cpf(self, request):
