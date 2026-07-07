@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
-from users_api.permissions import RequirePermission, is_operadora_user
+from users_api.permissions import RequirePermission, is_operadora_user, has_any_perm
 
 from . import onlyoffice
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
@@ -634,12 +634,30 @@ def _apply_image_meta(img, data):
     return fields
 
 
-class _GalleryReadPermission(RequirePermission(
-        'roteiros_view', 'roteiros_edit', 'roteiros_delete',
-        'gallery_view', 'gallery_edit', 'gallery_delete')):
-    """Leitura da galeria: quem tem permissão de galeria (ou de roteiros) OU uma
-    conta de operadora — que enxerga só as lâminas padrão dos roteiros públicos e
-    abertos (restrição feita no queryset e no download)."""
+# Permissões que dão a visão COMPLETA da galeria (tudo). Sem nenhuma delas, mas
+# com 'gallery_view_laminas' (ou sendo operadora), a pessoa vê SÓ as lâminas.
+GALLERY_FULL_PERMS = ('roteiros_view', 'roteiros_edit', 'roteiros_delete',
+                      'gallery_view', 'gallery_edit', 'gallery_delete')
+
+
+def _gallery_full_view(user):
+    return bool(user and (getattr(user, 'is_superuser', False) or has_any_perm(user, *GALLERY_FULL_PERMS)))
+
+
+def _gallery_laminas_only(user):
+    """A pessoa vê só as lâminas quando é operadora, OU quando tem só a permissão
+    'ver só as lâminas' sem a visão completa. Operadora sempre é restrita."""
+    if is_operadora_user(user):
+        return True
+    if _gallery_full_view(user):
+        return False
+    return has_any_perm(user, 'gallery_view_laminas')
+
+
+class _GalleryReadPermission(RequirePermission(*GALLERY_FULL_PERMS, 'gallery_view_laminas')):
+    """Leitura da galeria: quem tem permissão de galeria (completa ou só lâminas),
+    de roteiros, OU uma conta de operadora — restrição de conteúdo feita no
+    queryset e no download."""
     def has_permission(self, request, view):
         return super().has_permission(request, view) or is_operadora_user(request.user)
 
@@ -714,9 +732,10 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         qs = (ItineraryImage.objects
               .select_related('city__state__country__continent', 'country__continent', 'itinerary')
               .filter(day__isnull=True))               # só imagens "de topo", não as de um DIA
-        # Operadora: vê SÓ as lâminas padrão dos roteiros públicos e abertos —
-        # ignora as abas/mídia; ainda respeita a busca e os filtros comuns.
-        if is_operadora_user(self.request.user):
+        # Visão "só lâminas" (operadora ou perfil com essa permissão): vê SÓ as
+        # lâminas padrão dos roteiros públicos e abertos — ignora as abas/mídia;
+        # ainda respeita a busca e os filtros comuns.
+        if _gallery_laminas_only(self.request.user):
             qs = self._operadora_restrict(qs)
             return self._apply_common_filters(qs, p).order_by('-created_at', '-id')
         # Abas: kind explícito (ex.: 'blocking' = lâminas) tem prioridade; senão as
@@ -801,15 +820,15 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         qs = (ItineraryImage.objects
               .select_related('city', 'country', 'itinerary')
               .filter(day__isnull=True))
-        operadora = is_operadora_user(request.user)
-        if operadora:
-            # Operadora só baixa as lâminas que ela pode ver (padrão / público / aberto).
+        laminas_only = _gallery_laminas_only(request.user)
+        if laminas_only:
+            # Só baixa as lâminas que a pessoa pode ver (padrão / público / aberto).
             qs = self._apply_common_filters(self._operadora_restrict(qs), p)
-        ids = [] if operadora else [int(x) for x in (p.get('ids') or '').split(',') if x.strip().isdigit()]
+        ids = [] if laminas_only else [int(x) for x in (p.get('ids') or '').split(',') if x.strip().isdigit()]
         if ids:
             # Seleção manual: baixa exatamente esses itens (ignora tipos/filtros).
             qs = qs.filter(pk__in=ids)
-        elif not operadora:
+        elif not laminas_only:
             types = {t for t in (p.get('types') or 'image,video,lamina').split(',') if t}
             qs = self._apply_common_filters(qs, p)
             vq = self._video_q()

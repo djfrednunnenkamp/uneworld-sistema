@@ -47,6 +47,7 @@ PERMISSION_FIELDS = [
     'roteiros_view_logs',
     # Galeria
     'gallery_view',
+    'gallery_view_laminas',
     'gallery_edit',
     'gallery_delete',
     # Listas de Passageiros

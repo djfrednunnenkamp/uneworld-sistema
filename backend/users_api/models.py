@@ -96,9 +96,10 @@ class UserPermissions(models.Model):
     roteiros_view_logs = models.BooleanField(default=False)
 
     # Galeria
-    gallery_view   = models.BooleanField(default=False)   # ver a galeria (e baixar)
-    gallery_edit   = models.BooleanField(default=False)   # adicionar/editar imagens no banco
-    gallery_delete = models.BooleanField(default=False)   # excluir imagens do banco
+    gallery_view          = models.BooleanField(default=False)   # ver a galeria completa (e baixar)
+    gallery_view_laminas  = models.BooleanField(default=False)   # ver SÓ as lâminas (roteiros públicos e abertos) — visão da operadora
+    gallery_edit          = models.BooleanField(default=False)   # adicionar/editar imagens no banco
+    gallery_delete        = models.BooleanField(default=False)   # excluir imagens do banco
 
     # Administração
     manage_users     = models.BooleanField(default=False)
