@@ -95,9 +95,67 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         if self.action in ('check_cpf', 'active'):
             # Endpoints utilitários de leitura usados durante o fluxo de criação/edição
             return [RequirePermission(*VIEW_PERMS, 'passengers_edit')()]
-        if self.action in ('list', 'retrieve', 'agencies', 'guides'):
+        if self.action in ('list', 'retrieve', 'agencies', 'guides', 'guide_trips'):
             return [RequirePermission(*VIEW_PERMS)()]
         return super().get_permissions()
+
+    @action(detail=True, methods=['get'], url_path='guide-trips')
+    def guide_trips(self, request, pk=None):
+        """Detalhe de um guia: as viagens que ele faz COMO GUIA (função "Guia"
+        marcada na inscrição), com total, total do ano, contagem por ano (para o
+        gráfico) e a lista das viagens (clicáveis). Status relativo a hoje."""
+        from collections import defaultdict
+        from django.utils import timezone
+        from trips.models import CrewRole, ListEnrollment
+        from core.search import strip_accents
+
+        p = self.get_object()
+        today = timezone.localdate()
+        guia_ids = {r.id for r in CrewRole.objects.all()
+                    if strip_accents(r.name or '').lower() == 'guia'}
+
+        by_year = defaultdict(int)
+        trips = []
+        enr = (ListEnrollment.objects
+               .filter(passenger_id=p.id)
+               .exclude(enrollment_status='cancelado')
+               .select_related('passenger_list')
+               .prefetch_related('crew_roles'))
+        for e in enr:
+            if not ({r.id for r in e.crew_roles.all()} & guia_ids):
+                continue
+            l = e.passenger_list
+            s, en = l.start_date, l.end_date
+            if not s:
+                status = 'undated'
+            elif s > today:
+                status = 'scheduled'
+            elif en and en < today:
+                status = 'done'
+            else:
+                status = 'ongoing'
+            year = s.year if s else None
+            if year:
+                by_year[year] += 1
+            trips.append({
+                'id': l.id,
+                'name': l.name or f'Lista #{l.id}',
+                'start_date': s.isoformat() if s else None,
+                'end_date': en.isoformat() if en else None,
+                'status': status,
+                'year': year,
+            })
+        trips.sort(key=lambda t: (t['start_date'] or '0000'), reverse=True)
+        return Response({
+            'id': p.id,
+            'name': p.full_name or f'{p.first_name} {p.last_name}'.strip() or 'Guia',
+            'is_guide': p.is_guide,
+            'total': len(trips),
+            'this_year': by_year.get(today.year, 0),
+            'year': today.year,
+            'by_year': {str(y): c for y, c in sorted(by_year.items())},
+            'trips': trips,
+        })
 
     @action(detail=False, methods=['get'])
     def guides(self, request):
