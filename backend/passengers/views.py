@@ -101,30 +101,50 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
 
     @action(detail=False, methods=['get'])
     def guides(self, request):
-        """Guias registrados (passageiros com is_guide) e quantas viagens cada um
-        fez COMO GUIA — no total e por ano. "Como guia" = a inscrição tem a
-        função 'Guia' (Equipe Técnica). Ano = ano de início da viagem."""
+        """Guias registrados (passageiros com is_guide) e as viagens que cada um
+        faz COMO GUIA — por ANO e por STATUS (agendada / em andamento / concluída).
+        "Como guia" = a inscrição tem a função 'Guia' (Equipe Técnica); ir só como
+        passageiro não conta. O ano é o de início da viagem; o status é relativo a
+        hoje: agendada (ainda vai começar), em andamento (começou e não terminou),
+        concluída (já terminou)."""
         from collections import defaultdict
+        from django.utils import timezone
         from trips.models import CrewRole, ListEnrollment
         from core.search import strip_accents
         from users_api.permissions import agency_scope_ids
 
+        today = timezone.localdate()
         guia_ids = [r.id for r in CrewRole.objects.all()
                     if strip_accents(r.name or '').lower() == 'guia']
-        per_pax = defaultdict(lambda: defaultdict(int))   # pax_id -> ano -> nº
+
+        def blank():
+            return {'scheduled': 0, 'ongoing': 0, 'done': 0}
+        per_pax = defaultdict(lambda: defaultdict(blank))   # pax -> ano -> status
+        no_date = defaultdict(int)
         years = set()
         if guia_ids:
             enr = (ListEnrollment.objects
                    .filter(crew_roles__in=guia_ids, passenger__isnull=False)
                    .exclude(enrollment_status='cancelado')
-                   .values('passenger_id', 'passenger_list__start_date')
+                   .values('passenger_id',
+                           'passenger_list__start_date', 'passenger_list__end_date')
                    .distinct())
             for row in enr:
-                d = row['passenger_list__start_date']
-                y = d.year if d else 0
-                per_pax[row['passenger_id']][y] += 1
-                if y:
-                    years.add(y)
+                s = row['passenger_list__start_date']
+                e = row['passenger_list__end_date']
+                pid = row['passenger_id']
+                if not s:
+                    no_date[pid] += 1
+                    continue
+                y = s.year
+                years.add(y)
+                if s > today:
+                    bucket = 'scheduled'
+                elif e and e < today:
+                    bucket = 'done'
+                else:
+                    bucket = 'ongoing'
+                per_pax[pid][y][bucket] += 1
 
         guides_qs = Passenger.objects.filter(is_guide=True, is_deleted=False)
         scope = agency_scope_ids(request.user)
@@ -134,12 +154,13 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         result = []
         for p in guides_qs:
             by_year = per_pax.get(p.id, {})
+            total = sum(sum(v.values()) for v in by_year.values()) + no_date.get(p.id, 0)
             result.append({
                 'id': p.id,
                 'name': p.full_name or f'{p.first_name} {p.last_name}'.strip() or 'Guia',
-                'total': sum(by_year.values()),
-                'by_year': {str(y): c for y, c in by_year.items() if y},
-                'no_date': by_year.get(0, 0),
+                'total': total,
+                'by_year': {str(y): v for y, v in by_year.items()},
+                'no_date': no_date.get(p.id, 0),
             })
         result.sort(key=lambda g: (-g['total'], g['name'].lower()))
         return Response({'years': sorted(years, reverse=True), 'guides': result})
