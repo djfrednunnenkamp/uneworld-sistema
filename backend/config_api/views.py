@@ -1888,7 +1888,10 @@ def system_settings(request):
 
 # ── Logos configuráveis por lugar (branding) ────────────────────────────────
 BRANDING_SLOTS = {
-    'system':   'logo_system',    # tema (sidebar/topbar/login)
+    'system':   'logo_system',    # legado (fallback geral / PDFs de lista)
+    'sidebar':  'logo_sidebar',   # menu lateral
+    'topbar':   'logo_topbar',    # barra branca do topo
+    'login':    'logo_login',     # telas de login/recuperação
     'favicon':  'favicon',        # ícone do navegador
     'site':     'logo_site',      # vitrine pública
     'pdf':      'logo_pdf',       # PDF dos roteiros

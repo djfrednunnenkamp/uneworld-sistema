@@ -580,7 +580,10 @@ class SystemSettings(models.Model):
     a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
 
     # Logos configuráveis por lugar (branding). Vazio = usa o /logo.png padrão.
-    logo_system   = models.ImageField('Logo do tema (sistema)', upload_to='branding/', null=True, blank=True)
+    logo_system   = models.ImageField('Logo do tema (sistema)', upload_to='branding/', null=True, blank=True)  # legado
+    logo_sidebar  = models.ImageField('Logo da sidebar', upload_to='branding/', null=True, blank=True)
+    logo_topbar   = models.ImageField('Logo do topo (barra branca)', upload_to='branding/', null=True, blank=True)
+    logo_login    = models.ImageField('Logo das telas de login', upload_to='branding/', null=True, blank=True)
     favicon       = models.ImageField('Favicon (ícone do navegador)', upload_to='branding/', null=True, blank=True)
     logo_site     = models.ImageField('Logo do site (vitrine)', upload_to='branding/', null=True, blank=True)
     logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to='branding/', null=True, blank=True)
