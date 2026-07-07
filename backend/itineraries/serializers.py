@@ -432,7 +432,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'maritime_company', 'maritime_company_name',
                   'cities', 'cities_data', 'countries', 'countries_data',
                   'airports', 'airports_data', 'keywords', 'keywords_data',
-                  'inclusions', 'inclusions_data',
+                  'inclusions', 'inclusions_data', 'inclusion_counts',
                   'highlights', 'highlights_data',
                   'itinerary_types', 'itinerary_types_data',
                   'special_dates', 'special_dates_data',

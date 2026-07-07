@@ -86,6 +86,8 @@ class Itinerary(models.Model):
                                                related_name='itineraries', verbose_name='Palavras-chave')
     inclusions       = models.ManyToManyField('config_api.ConfigInclusion', blank=True,
                                                related_name='itineraries', verbose_name='Inclusos no pacote')
+    # Quantidade por item incluso: {"<inclusion_id>": <qtde>}. Ausente/1 = uma vez.
+    inclusion_counts = models.JSONField('Quantidades dos inclusos', default=dict, blank=True)
     highlights       = models.ManyToManyField('config_api.ConfigHighlight', blank=True,
                                                related_name='itineraries', verbose_name='Destaques')
     itinerary_types  = models.ManyToManyField('config_api.ConfigItineraryType', blank=True,
