@@ -78,6 +78,37 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
 # ── Lista de Passageiros ─────────────────────────────────────────────────────
 
+def _doc_type_labels():
+    """Mapa doc_type -> rótulo legível (CustomDocType configurável + fallback dos
+    tipos padrão). Usado para nomear os documentos no ZIP e no seletor."""
+    from passengers.models import PassengerDocument
+    labels = dict(PassengerDocument.DOC_TYPE_CHOICES)
+    try:
+        from config_api.models import CustomDocType
+        for k, l in CustomDocType.objects.values_list('key', 'label'):
+            if l:
+                labels[k] = l
+    except Exception:
+        pass
+    return labels
+
+
+def _doc_display_name(d, type_labels):
+    """Nome "humano" do documento, usado no seletor e no nome do arquivo.
+    Ex.: Passaporte · Visto Americano · Vacina Febre Amarela. Quando há um nome
+    personalizado (label) que não repete o tipo, prefixa o tipo — assim um visto
+    com label "Americano" vira "Visto Americano" e uma vacina "Febre Amarela"
+    vira "Vacina Febre Amarela"."""
+    from core.search import strip_accents
+    type_lbl = (type_labels.get(d.doc_type) or d.doc_type or 'Documento').strip()
+    lbl = (d.label or '').strip()
+    if not lbl:
+        return type_lbl
+    if strip_accents(lbl).lower().startswith(strip_accents(type_lbl).lower()):
+        return lbl
+    return f'{type_lbl} {lbl}'
+
+
 def _cleanup_empty_rooms(pl):
     """Apaga acomodações (Room) que não têm nenhuma inscrição ativa."""
     occupied = set(
@@ -191,38 +222,83 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('lists_csv_upload')()]
         if self.action == 'log_download':
             return [RequirePermission('lists_download')()]
-        if self.action == 'documents_zip':
+        if self.action in ('documents_zip', 'document_types'):
             return [RequirePermission('passengers_download_docs')()]
         if self.action in ('tasks', 'manage_task'):
             return [RequirePermission('lists_view')()]
         return super().get_permissions()
 
+    @action(detail=True, methods=['get'], url_path='document-types')
+    def document_types(self, request, pk=None):
+        """Tipos de documento disponíveis entre os passageiros da lista, para o
+        seletor de download. Cada item: {key, label, count} — ex.: Passaporte,
+        Visto Americano, Vacina Febre Amarela — com quantos arquivos existem."""
+        pl = self.get_object()
+        type_labels = _doc_type_labels()
+        counts = {}
+        seen = set()
+        for e in (pl.list_enrollments.select_related('passenger')
+                  .filter(passenger__isnull=False)):
+            p = e.passenger
+            if p.id in seen:
+                continue
+            seen.add(p.id)
+            for d in p.documents.all():
+                if not d.file:
+                    continue
+                name = _doc_display_name(d, type_labels)
+                counts[name] = counts.get(name, 0) + 1
+        items = [{'key': k, 'label': k, 'count': v}
+                 for k, v in sorted(counts.items(), key=lambda kv: kv[0].lower())]
+        return Response(items)
+
     @action(detail=True, methods=['post'], url_path='documents-zip')
     def documents_zip(self, request, pk=None):
-        """Baixa, num ZIP, todos os documentos dos passageiros da lista, organizados
-        em pastas por passageiro e cada arquivo nomeado pelo documento. Aceita
-        `passenger_ids` (lista) para restringir aos selecionados; sem isso, todos."""
+        """ZIP com os documentos dos passageiros, numa ÚNICA pasta nomeada com a
+        lista e as datas da viagem. Cada arquivo: "Nº - Documento Nome completo".
+        Body: `doc_names` (tipos escolhidos; vazio = todos) e `passenger_ids`
+        (opcional; restringe aos selecionados)."""
         import io, os, re, zipfile
         from urllib.parse import quote
         from django.http import HttpResponse
-        from passengers.models import PassengerDocument
 
         pl = self.get_object()
         ids = request.data.get('passenger_ids') or None
+        wanted = request.data.get('doc_names') or None
+        wanted_set = set(wanted) if wanted else None
+        type_labels = _doc_type_labels()
+
+        def safe(s):
+            # Remove caracteres inválidos de nome de arquivo e limita o tamanho
+            # (nomes muito longos estouram o path ao extrair em alguns sistemas).
+            return (re.sub(r'[\\/:*?"<>|]+', '-', (s or '').strip()).strip('. ')[:110]).strip() or 'sem-nome'
+
+        # Numeração dos passageiros = a mesma da tela: ordem padrão da inscrição
+        # (order_in_list, enrolled_at) e os cancelados fora da contagem.
+        seqmap = {}
+        seq = 0
+        for e in pl.list_enrollments.all():
+            if e.enrollment_status == 'cancelado':
+                continue
+            seq += 1
+            seqmap[e.id] = seq
+
         enrolls = (pl.list_enrollments.select_related('passenger')
                    .filter(passenger__isnull=False))
         if ids:
             enrolls = enrolls.filter(passenger_id__in=ids)
 
-        type_labels = dict(PassengerDocument.DOC_TYPE_CHOICES)
-        def safe(s):
-            # Remove caracteres inválidos de nome de arquivo e limita o tamanho
-            # (nomes muito longos estouram o path ao extrair em alguns sistemas).
-            return (re.sub(r'[\\/:*?"<>|]+', '-', (s or '').strip()).strip('. ')[:80]).strip() or 'sem-nome'
+        # Nome da pasta: "Lista  DD-MM-AAAA a DD-MM-AAAA".
+        def br(dt):
+            return dt.strftime('%d-%m-%Y') if dt else ''
+        folder_parts = [pl.name or f'lista-{pl.id}']
+        if pl.start_date or pl.end_date:
+            folder_parts.append(f'{br(pl.start_date) or "?"} a {br(pl.end_date) or "?"}')
+        folder = safe(' '.join(folder_parts))
 
         buf = io.BytesIO()
         count = 0
-        used = {}   # (pasta, arquivo) -> contador, evita sobrescrever nomes iguais
+        used = {}   # nome de arquivo -> contador, evita sobrescrever nomes iguais
         seen = set()
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
             for e in enrolls:
@@ -230,14 +306,18 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 if p.id in seen:
                     continue
                 seen.add(p.id)
-                folder = safe(p.full_name or f'passageiro-{p.id}')
+                num = seqmap.get(e.id)
+                full = (p.full_name or f'passageiro-{p.id}').strip()
                 for d in p.documents.all():
                     if not d.file:
                         continue
-                    label = d.label or type_labels.get(d.doc_type) or d.doc_type or 'documento'
+                    name = _doc_display_name(d, type_labels)
+                    if wanted_set is not None and name not in wanted_set:
+                        continue
                     ext = os.path.splitext(d.file.name)[1] or os.path.splitext(d.original_name or '')[1] or ''
-                    base = safe(label)
-                    key = (folder, base + ext)
+                    prefix = f'{num} - ' if num else ''
+                    base = safe(f'{prefix}{name} {full}')
+                    key = base + ext
                     n = used.get(key, 0)
                     used[key] = n + 1
                     fname = f'{base}{ext}' if n == 0 else f'{base} ({n + 1}){ext}'
@@ -253,7 +333,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'error': 'Nenhum documento encontrado para baixar.'},
                             status=status.HTTP_400_BAD_REQUEST)
         buf.seek(0)
-        zipname = safe(pl.name or f'lista-{pl.id}') + '.zip'
+        zipname = folder + '.zip'
         from audit.tracking import log_event
         log_event('download', model_name='PassengerList', model_label='Lista de Passageiros',
                   object_id=pl.id, object_repr=str(pl),
