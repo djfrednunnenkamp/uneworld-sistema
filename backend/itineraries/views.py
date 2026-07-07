@@ -552,7 +552,12 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
-        img = ser.save(itinerary=itinerary, day=day, kind=kind)
+        save_kwargs = {'itinerary': itinerary, 'day': day, 'kind': kind}
+        # Imagem de lâmina (bloqueio) já é classificada como "lâmina" — não precisa
+        # do pop-up de classificação.
+        if kind == 'blocking':
+            save_kwargs['subject_type'] = 'lamina'
+        img = ser.save(**save_kwargs)
         if not is_video:
             _apply_dominant_color(img)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
