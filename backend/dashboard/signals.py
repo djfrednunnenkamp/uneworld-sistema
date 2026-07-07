@@ -153,3 +153,22 @@ def on_room(sender, **kwargs):
 @receiver([post_save, post_delete], sender='agenda.CalendarPreference')
 def on_calendar_preference(sender, **kwargs):
     _broadcast('calendar')
+
+
+# ── Galeria / Roteiros ────────────────────────────────────────────────────────
+# Qualquer mudança nas imagens (galeria, capas, lâminas) atualiza a Galeria ao
+# vivo para todos que estão com ela aberta.
+
+@receiver([post_save, post_delete], sender='itineraries.ItineraryImage')
+def on_itinerary_image(sender, **kwargs):
+    _broadcast('gallery')
+
+
+# Publicar/despublicar, mudar datas ou excluir um roteiro altera o que a operadora
+# enxerga na Galeria (lâminas dos roteiros públicos e abertos) — e a lista de
+# Roteiros. Avisa os dois. (O save do roteiro não é por tecla; é aceitável.)
+
+@receiver([post_save, post_delete], sender='itineraries.Itinerary')
+def on_itinerary(sender, **kwargs):
+    _broadcast('gallery')
+    _broadcast('itineraries')
