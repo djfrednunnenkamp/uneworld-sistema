@@ -93,31 +93,40 @@ def _doc_type_labels():
     return labels
 
 
-def _doc_display_name(d, type_labels):
-    """Nome "humano" do documento, usado no seletor e no nome do arquivo.
-    Ex.: Passaporte Brasil · Visto Americano · Vacina Febre Amarela.
+def _doc_parts(d, type_labels):
+    """Divide o documento em (grupo, variante, nome_completo):
 
-    - Quando há um nome personalizado (label) que não repete o tipo, prefixa o
-      tipo — visto "Americano" vira "Visto Americano"; vacina "Febre Amarela"
-      vira "Vacina Febre Amarela".
-    - Passaporte: acrescenta a ORIGEM (país emissor, guardado em issued_by) para
-      distinguir vários passaportes do mesmo passageiro — "Passaporte Brasil",
-      "Passaporte Itália". Assim dá pra baixar "todos os passaportes brasileiros"
-      de uma vez pelo seletor."""
+    - grupo    = rótulo do TIPO (Passaporte, Vacina, Visto, RG…).
+    - variante = o que distingue dentro do tipo (Brasil, Covid, Americano…);
+                 vem do nome personalizado (label) e/ou, no passaporte, da ORIGEM
+                 (país emissor, guardado em issued_by).
+    - nome_completo = grupo + variante (ex.: "Passaporte Brasil").
+
+    Assim o seletor pode agrupar por tipo e perguntar "qual?" e o download por
+    nome completo continua batendo."""
     from core.search import strip_accents
-    type_lbl = (type_labels.get(d.doc_type) or d.doc_type or 'Documento').strip()
+    group = (type_labels.get(d.doc_type) or d.doc_type or 'Documento').strip()
+    parts = []
     lbl = (d.label or '').strip()
-    if not lbl:
-        name = type_lbl
-    elif strip_accents(lbl).lower().startswith(strip_accents(type_lbl).lower()):
-        name = lbl
-    else:
-        name = f'{type_lbl} {lbl}'
-    # Origem do passaporte (país emissor) — só quando ainda não está no nome.
+    if lbl:
+        if strip_accents(lbl).lower().startswith(strip_accents(group).lower()):
+            rest = lbl[len(group):].strip(' -–—·').strip()
+            if rest:
+                parts.append(rest)
+        else:
+            parts.append(lbl)
     origin = (d.issued_by or '').strip()
-    if origin and d.doc_type == 'passport' and strip_accents(origin).lower() not in strip_accents(name).lower():
-        name = f'{name} {origin}'
-    return name
+    if origin and d.doc_type == 'passport' \
+            and not any(strip_accents(origin).lower() in strip_accents(p).lower() for p in parts):
+        parts.append(origin)
+    variant = ' '.join(parts).strip()
+    full = f'{group} {variant}'.strip() if variant else group
+    return group, variant, full
+
+
+def _doc_display_name(d, type_labels):
+    """Nome completo do documento (grupo + variante) — usado no nome do arquivo."""
+    return _doc_parts(d, type_labels)[2]
 
 
 def _cleanup_empty_rooms(pl):
@@ -246,7 +255,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         Visto Americano, Vacina Febre Amarela — com quantos arquivos existem."""
         pl = self.get_object()
         type_labels = _doc_type_labels()
-        counts = {}
+        agg = {}
         seen = set()
         for e in (pl.list_enrollments.select_related('passenger')
                   .filter(passenger__isnull=False)):
@@ -257,10 +266,14 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             for d in p.documents.all():
                 if not d.file:
                     continue
-                name = _doc_display_name(d, type_labels)
-                counts[name] = counts.get(name, 0) + 1
-        items = [{'key': k, 'label': k, 'count': v}
-                 for k, v in sorted(counts.items(), key=lambda kv: kv[0].lower())]
+                group, variant, full = _doc_parts(d, type_labels)
+                entry = agg.setdefault(full, {
+                    'group': group, 'variant': variant, 'doc_type': d.doc_type, 'count': 0,
+                })
+                entry['count'] += 1
+        items = [{'key': k, 'label': k, 'group': v['group'], 'variant': v['variant'],
+                  'doc_type': v['doc_type'], 'count': v['count']}
+                 for k, v in sorted(agg.items(), key=lambda kv: kv[0].lower())]
         return Response(items)
 
     @action(detail=True, methods=['post'], url_path='documents-zip')
