@@ -326,6 +326,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     crew_roles               = serializers.PrimaryKeyRelatedField(queryset=CrewRole.objects.all(), many=True, required=False)
 
     agency_name              = serializers.SerializerMethodField()
+    agency_edit_id           = serializers.SerializerMethodField()
     responsible_user_name    = serializers.SerializerMethodField()
     departure_airport_data   = serializers.SerializerMethodField()
     selected_passport_data   = serializers.SerializerMethodField()
@@ -350,6 +351,19 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             names = [_name(a) for a in obj.passenger.agencies.all()]
             return ', '.join(filter(None, names))
         return ''
+
+    def get_agency_edit_id(self, obj):
+        # Agência editável a partir desta inscrição (para abrir o cadastro numa
+        # aba nova): a da própria inscrição ou — se não houver — a ÚNICA agência
+        # do passageiro. Bloqueio com nome livre ou passageiro com várias
+        # agências → None (não há um cadastro único para abrir).
+        if obj.agency_id:
+            return obj.agency_id
+        if obj.passenger_id:
+            ids = list(obj.passenger.agencies.values_list('id', flat=True))
+            if len(ids) == 1:
+                return ids[0]
+        return None
 
     def get_responsible_user_name(self, obj):
         if obj.responsible_user:
@@ -419,7 +433,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ListEnrollment
         fields = [
-            'id', 'passenger', 'agency', 'agency_name',
+            'id', 'passenger', 'agency', 'agency_name', 'agency_edit_id',
             'responsible_user', 'responsible_user_name',
             'is_block', 'block_agency', 'is_provisional',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
