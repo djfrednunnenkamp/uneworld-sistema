@@ -197,6 +197,8 @@ class Itinerary(models.Model):
     published_at            = models.DateTimeField('Publicado em', null=True, blank=True)
     has_unpublished_changes = models.BooleanField('Alterações não publicadas', default=False)
 
+    # Quem criou o roteiro — usado para deixar os RASCUNHOS privados do criador.
+    created_by  = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='itineraries_created')
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at  = models.DateTimeField('Atualizado em', auto_now=True)
 

@@ -356,12 +356,25 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()   # aplica o filtro is_deleted do mixin
+        u = self.request.user
+        is_su = getattr(u, 'is_superuser', False)
         if self.action == 'list':     # só a listagem separa rascunho de ativo
             if self.request.query_params.get('status') == 'rascunho':
+                # Rascunhos são PRIVADOS de quem criou (superusuário vê todos).
                 qs = qs.filter(status='rascunho')
+                if not is_su:
+                    qs = qs.filter(created_by=u)
             else:
                 qs = qs.exclude(status='rascunho')
+        elif not is_su:
+            # Não deixa abrir/editar rascunho de outra pessoa (retrieve/update/…).
+            from django.db.models import Q
+            qs = qs.filter(~Q(status='rascunho') | Q(created_by=u))
         return qs
+
+    def perform_create(self, serializer):
+        u = self.request.user
+        serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
 
     def get_serializer_class(self):
         return ItineraryListSerializer if self.action == 'list' else ItinerarySerializer
