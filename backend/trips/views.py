@@ -129,6 +129,22 @@ def _doc_display_name(d, type_labels):
     return _doc_parts(d, type_labels)[2]
 
 
+def _autocheck_guia(enrollment):
+    """Se o passageiro é guia no CADASTRO (is_guide), já marca a função "Guia" na
+    Equipe Técnica desta inscrição — a caixinha vem checada por padrão (pode ser
+    desmarcada depois). É isso que faz a viagem contar no counter de guias.
+    Passageiros sem is_guide entram sem a caixa (podem ser marcados à mão)."""
+    from core.search import strip_accents
+    from .models import CrewRole
+    p = enrollment.passenger
+    if not p or not p.is_guide:
+        return
+    guia = next((r for r in CrewRole.objects.all()
+                 if strip_accents(r.name or '').lower() == 'guia'), None)
+    if guia:
+        enrollment.crew_roles.add(guia)
+
+
 def _cleanup_empty_rooms(pl):
     """Apaga acomodações (Room) que não têm nenhuma inscrição ativa."""
     occupied = set(
@@ -464,6 +480,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             # Embarque padrão = aeroporto preferido da lista (pré-preenche o EMB).
             departure_airport=pl.default_airport,
         )
+        _autocheck_guia(e)   # guia de cadastro já entra com a função "Guia" marcada
         return Response(ListEnrollmentSerializer(e).data, status=201)
 
     @action(detail=True, methods=['post'], url_path='import-csv',
@@ -582,6 +599,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 # Embarque padrão = aeroporto preferido da lista (pré-preenche o EMB).
                 departure_airport=pl.default_airport,
             )
+            _autocheck_guia(e)   # guia de cadastro já entra com a função "Guia" marcada
             added += 1
             enrollments.append(ListEnrollmentSerializer(e).data)
 
@@ -685,6 +703,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     # aeroporto padrão da lista.
                     if e.departure_airport_id is None:
                         e.departure_airport = pl.default_airport
+                    _autocheck_guia(e)   # guia de cadastro já entra com a função "Guia"
             else:
                 # Desvincular: converte de volta para bloco
                 e.passenger = None
