@@ -387,16 +387,6 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # retrieve/config/demais leituras de UM roteiro = abrir (só leitura) ou mais.
         return [RequirePermission('roteiros_open', 'roteiros_edit', 'roteiros_create', 'roteiros_delete')()]
 
-    def perform_update(self, serializer):
-        # Editar um roteiro JÁ PUBLICADO exige a permissão específica.
-        obj = serializer.instance
-        u = self.request.user
-        if obj and getattr(obj, 'is_published', False) and not (
-                u.is_superuser or has_any_perm(u, 'roteiros_edit_published')):
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('Você não tem permissão para editar roteiros já publicados '
-                                   '(permissão "Editar roteiros já publicados").')
-        serializer.save()
 
     # ── Ordem manual da listagem (arrastar) — alimenta a ordem do site público ──
     @action(detail=False, methods=['post'])
