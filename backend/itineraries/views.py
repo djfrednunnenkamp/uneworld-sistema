@@ -181,9 +181,20 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
         if self.action in ('create', 'create_blank'):
             return [RequirePermission('roteiros_docs_create')()]
         if self.action == 'destroy':
-            return [RequirePermission('roteiros_docs_delete')()]
+            # Excluir todos OU só os próprios (o dono é checado no destroy()).
+            return [RequirePermission('roteiros_docs_delete', 'roteiros_docs_delete_own')()]
         # update/partial_update/reorder e demais escritas.
         return [RequirePermission('roteiros_docs_edit')()]
+
+    def destroy(self, request, *args, **kwargs):
+        doc = self.get_object()
+        u = request.user
+        can_all = getattr(u, 'is_superuser', False) or has_any_perm(u, 'roteiros_docs_delete')
+        can_own = has_any_perm(u, 'roteiros_docs_delete_own') and doc.owner_id == getattr(u, 'id', None)
+        if not (can_all or can_own):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Você só pode excluir os documentos que você mesmo enviou.')
+        return super().destroy(request, *args, **kwargs)
 
     def _docs_scope(self):
         """'all' = vê todos; 'own' = só os próprios; 'none' = nenhum.

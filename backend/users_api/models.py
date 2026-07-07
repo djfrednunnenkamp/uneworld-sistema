@@ -103,7 +103,8 @@ class UserPermissions(models.Model):
     roteiros_docs_view_own  = models.BooleanField(default=False)   # ver só os próprios
     roteiros_docs_create    = models.BooleanField(default=False)   # enviar/criar documentos
     roteiros_docs_edit      = models.BooleanField(default=False)   # editar documentos
-    roteiros_docs_delete    = models.BooleanField(default=False)   # excluir documentos
+    roteiros_docs_delete    = models.BooleanField(default=False)   # excluir TODOS os documentos
+    roteiros_docs_delete_own = models.BooleanField(default=False)  # excluir só os próprios
     # Fonte das imagens no roteiro: pegar da galeria (banco) OU só upload próprio.
     roteiros_images_from_gallery = models.BooleanField(default=False)  # pode puxar imagens da galeria pros roteiros
 

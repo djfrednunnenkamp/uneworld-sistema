@@ -54,6 +54,7 @@ PERMISSION_FIELDS = [
     'roteiros_docs_create',
     'roteiros_docs_edit',
     'roteiros_docs_delete',
+    'roteiros_docs_delete_own',
     'roteiros_images_from_gallery',
     # Galeria
     'gallery_view',
