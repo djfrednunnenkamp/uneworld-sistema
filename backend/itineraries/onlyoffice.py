@@ -102,7 +102,10 @@ def editor_config(document, user):
 
     ext = file_ext(fname)
     key = f'doc{document.id}v{document.edit_key or "0"}'
-    can_edit = is_editable(fname)
+    # Edita só se o formato é editável E o usuário tem permissão de editar docs.
+    from users_api.permissions import has_any_perm
+    user_can_edit = bool(getattr(user, 'is_superuser', False) or has_any_perm(user, 'roteiros_docs_edit'))
+    can_edit = is_editable(fname) and user_can_edit
     config = {
         'document': {
             'fileType': ext,
