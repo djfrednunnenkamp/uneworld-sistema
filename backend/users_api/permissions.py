@@ -207,6 +207,18 @@ def agency_scope_ids(user):
     return ids or None
 
 
+def is_operadora_user(user):
+    """True quando o usuário é uma conta EXTERNA de operadora — membro de ao menos
+    uma agência do tipo 'operadora' e SEM ser equipe interna (não staff nem
+    superusuário). Usado para restringir o que a operadora vê (ex.: galeria só
+    com as lâminas padrão dos roteiros públicos e abertos)."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if user.is_superuser or user.is_staff:
+        return False
+    return user.agency_memberships.filter(agency__agency_type='operadora').exists()
+
+
 def apply_profile(user, profile):
     """Vincula o usuário ao perfil de permissão e copia as permissões dele.
 

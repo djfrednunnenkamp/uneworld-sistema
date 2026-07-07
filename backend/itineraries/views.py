@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
-from users_api.permissions import RequirePermission
+from users_api.permissions import RequirePermission, is_operadora_user
 
 from . import onlyoffice
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
@@ -634,6 +634,14 @@ def _apply_image_meta(img, data):
     return fields
 
 
+class _GalleryReadPermission(RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')):
+    """Leitura da galeria: quem pode ver roteiros OU uma conta de operadora — que
+    enxerga só as lâminas padrão dos roteiros públicos e abertos (restrição feita
+    no queryset e no download)."""
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) or is_operadora_user(request.user)
+
+
 class GalleryImageViewSet(viewsets.ModelViewSet):
     """Galeria GLOBAL: todas as imagens dos roteiros + as do banco geral (itinerary
     nulo). GET lista com filtros (busca por descrição/cidade/país/roteiro, tipo,
@@ -646,8 +654,28 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'download'):
-            return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+            return [_GalleryReadPermission()]
         return [RequirePermission('roteiros_edit')()]
+
+    @staticmethod
+    def _operadora_restrict(qs):
+        """Galeria da OPERADORA: só as lâminas PADRÃO (a de menor `order` de cada
+        roteiro) e só de roteiros públicos (como no site) e ainda ABERTOS (que não
+        terminaram). Roteiros que já passaram não mostram mais lâminas."""
+        from django.db.models import Q, OuterRef, Subquery
+        today = timezone.localdate()
+        qs = qs.filter(
+            kind='blocking',
+            itinerary__isnull=False,
+            itinerary__is_published=True,
+            itinerary__status='ativo',
+            itinerary__is_deleted=False,
+        ).filter(Q(itinerary__end_date__isnull=True) | Q(itinerary__end_date__gte=today))
+        # A lâmina "favorita/publicada" de cada roteiro = a de menor order (a padrão).
+        default_id = (ItineraryImage.objects
+                      .filter(kind='blocking', itinerary=OuterRef('itinerary'))
+                      .order_by('order', 'id').values('id')[:1])
+        return qs.filter(id=Subquery(default_id))
 
     VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
 
@@ -682,6 +710,11 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         qs = (ItineraryImage.objects
               .select_related('city__state__country__continent', 'country__continent', 'itinerary')
               .filter(day__isnull=True))               # só imagens "de topo", não as de um DIA
+        # Operadora: vê SÓ as lâminas padrão dos roteiros públicos e abertos —
+        # ignora as abas/mídia; ainda respeita a busca e os filtros comuns.
+        if is_operadora_user(self.request.user):
+            qs = self._operadora_restrict(qs)
+            return self._apply_common_filters(qs, p).order_by('-created_at', '-id')
         # Abas: kind explícito (ex.: 'blocking' = lâminas) tem prioridade; senão as
         # lâminas ficam ocultas, a não ser que include_laminas peça o contrário.
         if p.get('kind'):
@@ -764,11 +797,15 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         qs = (ItineraryImage.objects
               .select_related('city', 'country', 'itinerary')
               .filter(day__isnull=True))
-        ids = [int(x) for x in (p.get('ids') or '').split(',') if x.strip().isdigit()]
+        operadora = is_operadora_user(request.user)
+        if operadora:
+            # Operadora só baixa as lâminas que ela pode ver (padrão / público / aberto).
+            qs = self._apply_common_filters(self._operadora_restrict(qs), p)
+        ids = [] if operadora else [int(x) for x in (p.get('ids') or '').split(',') if x.strip().isdigit()]
         if ids:
             # Seleção manual: baixa exatamente esses itens (ignora tipos/filtros).
             qs = qs.filter(pk__in=ids)
-        else:
+        elif not operadora:
             types = {t for t in (p.get('types') or 'image,video,lamina').split(',') if t}
             qs = self._apply_common_filters(qs, p)
             vq = self._video_q()

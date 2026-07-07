@@ -11,7 +11,7 @@ from rest_framework import status
 from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, InviteRateThrottle
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
-from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids, agency_admin_ids, can_manage_agency_user, drop_agency_memberships_if_internal
+from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids, agency_admin_ids, is_operadora_user, can_manage_agency_user, drop_agency_memberships_if_internal
 
 
 def _password_error(new_pw, user=None):
@@ -59,6 +59,9 @@ def serialize_user(u, perms=None):
         # Admin de agência: pode gerenciar os usuários da(s) agência(s) dele.
         'agency_admin_ids': agency_admin_ids(u),
         'is_agency_admin':  bool(agency_admin_ids(u)),
+        # Conta de operadora (agência tipo 'operadora'): front mostra a galeria só
+        # com as lâminas; backend também restringe (GalleryImageViewSet).
+        'is_operadora':     is_operadora_user(u),
         'id':           u.id,
         'username':     u.username,
         'email':        u.email,
