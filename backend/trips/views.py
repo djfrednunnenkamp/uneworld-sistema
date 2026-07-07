@@ -95,18 +95,29 @@ def _doc_type_labels():
 
 def _doc_display_name(d, type_labels):
     """Nome "humano" do documento, usado no seletor e no nome do arquivo.
-    Ex.: Passaporte · Visto Americano · Vacina Febre Amarela. Quando há um nome
-    personalizado (label) que não repete o tipo, prefixa o tipo — assim um visto
-    com label "Americano" vira "Visto Americano" e uma vacina "Febre Amarela"
-    vira "Vacina Febre Amarela"."""
+    Ex.: Passaporte Brasil · Visto Americano · Vacina Febre Amarela.
+
+    - Quando há um nome personalizado (label) que não repete o tipo, prefixa o
+      tipo — visto "Americano" vira "Visto Americano"; vacina "Febre Amarela"
+      vira "Vacina Febre Amarela".
+    - Passaporte: acrescenta a ORIGEM (país emissor, guardado em issued_by) para
+      distinguir vários passaportes do mesmo passageiro — "Passaporte Brasil",
+      "Passaporte Itália". Assim dá pra baixar "todos os passaportes brasileiros"
+      de uma vez pelo seletor."""
     from core.search import strip_accents
     type_lbl = (type_labels.get(d.doc_type) or d.doc_type or 'Documento').strip()
     lbl = (d.label or '').strip()
     if not lbl:
-        return type_lbl
-    if strip_accents(lbl).lower().startswith(strip_accents(type_lbl).lower()):
-        return lbl
-    return f'{type_lbl} {lbl}'
+        name = type_lbl
+    elif strip_accents(lbl).lower().startswith(strip_accents(type_lbl).lower()):
+        name = lbl
+    else:
+        name = f'{type_lbl} {lbl}'
+    # Origem do passaporte (país emissor) — só quando ainda não está no nome.
+    origin = (d.issued_by or '').strip()
+    if origin and d.doc_type == 'passport' and strip_accents(origin).lower() not in strip_accents(name).lower():
+        name = f'{name} {origin}'
+    return name
 
 
 def _cleanup_empty_rooms(pl):
