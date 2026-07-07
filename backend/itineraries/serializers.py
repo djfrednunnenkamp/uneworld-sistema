@@ -408,7 +408,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   # Aba "Informações do Roteiro" (textos ricos):
                   'info_general', 'info_included', 'info_not_included', 'info_optionals',
                   'info_tips', 'info_documents', 'info_promo_rules', 'info_insurance',
-                  'info_values', 'info_extras',
+                  'info_values', 'info_extras', 'info_lamina',
                   'notes', 'map_embed_url',
                   # Vínculo vivo com templates (por campo): FK + toggle.
                   'info_general_template', 'info_general_template_linked',
@@ -421,6 +421,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_insurance_template', 'info_insurance_template_linked',
                   'info_values_template', 'info_values_template_linked',
                   'info_extras_template', 'info_extras_template_linked',
+                  'info_lamina_template', 'info_lamina_template_linked',
                   'flight_notes', 'flight_notes_template', 'flight_notes_template_linked',
                   'hotel_notes', 'hotel_notes_template', 'hotel_notes_template_linked',
                   'accommodation_notes', 'accommodation_notes_template', 'accommodation_notes_template_linked',

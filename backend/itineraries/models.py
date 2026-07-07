@@ -131,6 +131,7 @@ class Itinerary(models.Model):
     info_insurance     = models.TextField('Seguros', blank=True, default='')
     info_values        = models.TextField('Informações sobre Valores', blank=True, default='')
     info_extras        = models.TextField('Extras', blank=True, default='')
+    info_lamina        = models.TextField('Texto informativo da lâmina', blank=True, default='')
     # Observações por aba (bagagem, políticas, etc.) — editadas nas próprias abas
     # (Voo/Hotéis/Valores/Terrestre/Barco), com suporte a template (igual aos campos
     # de Informações do Roteiro).
@@ -172,6 +173,8 @@ class Itinerary(models.Model):
     info_values_template_linked     = models.BooleanField(default=False)
     info_extras_template            = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     info_extras_template_linked     = models.BooleanField(default=False)
+    info_lamina_template            = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_lamina_template_linked     = models.BooleanField(default=False)
     flight_notes_template           = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     flight_notes_template_linked    = models.BooleanField(default=False)
     hotel_notes_template            = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
@@ -424,6 +427,7 @@ class ItineraryFieldTemplate(models.Model):
         ('insurance',    'Seguros'),
         ('values',       'Informações sobre Valores'),
         ('extras',       'Extras'),
+        ('lamina',       'Texto informativo da lâmina'),
         ('flights',      'Observações dos Voos'),
         ('hotels',       'Observações dos Hotéis'),
         ('accommodation','Observações dos Valores'),
@@ -442,6 +446,7 @@ class ItineraryFieldTemplate(models.Model):
         'insurance':    ('info_insurance',    'info_insurance_template',    'info_insurance_template_linked'),
         'values':       ('info_values',       'info_values_template',       'info_values_template_linked'),
         'extras':       ('info_extras',       'info_extras_template',       'info_extras_template_linked'),
+        'lamina':       ('info_lamina',       'info_lamina_template',       'info_lamina_template_linked'),
         'flights':      ('flight_notes',        'flight_notes_template',        'flight_notes_template_linked'),
         'hotels':       ('hotel_notes',         'hotel_notes_template',         'hotel_notes_template_linked'),
         'accommodation':('accommodation_notes', 'accommodation_notes_template', 'accommodation_notes_template_linked'),
