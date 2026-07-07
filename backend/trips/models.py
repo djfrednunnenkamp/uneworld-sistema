@@ -139,6 +139,9 @@ class PassengerList(models.Model):
     roteiros             = models.ManyToManyField('itineraries.Itinerary', blank=True, related_name='passenger_lists', verbose_name='Roteiros')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     default_airport      = models.ForeignKey('config_api.Airport',       null=True, blank=True, on_delete=models.SET_NULL, related_name='default_lists', verbose_name='Aeroporto de saída padrão')
+    # Aeroportos base da lista (o grupo pode sair de mais de um). Puxados do roteiro.
+    # O `default_airport` acima segue como o primário (pré-preenche novos passageiros).
+    default_airports     = models.ManyToManyField('config_api.Airport',  blank=True, related_name='base_lists', verbose_name='Aeroportos base')
     departure_country    = models.ForeignKey('config_api.ConfigCountry', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='País de saída')
     departure_state      = models.ForeignKey('config_api.ConfigState',   null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Estado de saída')
     departure_city       = models.ForeignKey('config_api.ConfigCity',    null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade de saída')

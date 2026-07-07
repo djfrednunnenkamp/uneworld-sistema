@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room, ListTask
 from itineraries.models import Itinerary
+from config_api.models import Airport
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -83,10 +84,15 @@ class RoteiroSerializer(serializers.ModelSerializer):
     """Roteiro (itineraries.Itinerary) resumido — usado no seletor da lista.
     Carrega os campos que auto-preenchem a lista ao selecionar o roteiro."""
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+    airports_data = serializers.SerializerMethodField()
 
     class Meta:
         model  = Itinerary
-        fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name']
+        fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data']
+
+    def get_airports_data(self, obj):
+        return [{'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
+                for a in obj.airports.all()]
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -129,6 +135,8 @@ class PassengerListSerializer(serializers.ModelSerializer):
     suppliers           = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
     additionals         = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
     roteiros            = serializers.PrimaryKeyRelatedField(queryset=Itinerary.objects.all(),      many=True, required=False)
+    default_airports    = serializers.PrimaryKeyRelatedField(queryset=Airport.objects.all(),       many=True, required=False)
+    default_airports_data  = serializers.SerializerMethodField()
     enrolled_count      = serializers.IntegerField(read_only=True)
     start_date_br       = serializers.SerializerMethodField()
     end_date_br         = serializers.SerializerMethodField()
@@ -149,6 +157,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'roteiros', 'roteiros_data',
             'required_documents',
             'default_airport', 'default_airport_data',
+            'default_airports', 'default_airports_data',
             'departure_country', 'departure_country_data',
             'departure_state',   'departure_state_data',
             'departure_city',    'departure_city_data',
@@ -163,6 +172,10 @@ class PassengerListSerializer(serializers.ModelSerializer):
             a = obj.default_airport
             return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
         return None
+
+    def get_default_airports_data(self, obj):
+        return [{'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
+                for a in obj.default_airports.all()]
 
     def get_departure_country_data(self, obj):
         if obj.departure_country_id:
