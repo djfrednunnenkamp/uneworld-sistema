@@ -188,12 +188,15 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
         return [RequirePermission('roteiros_docs_edit', 'roteiros_edit')()]
 
     def _docs_scope(self):
-        """'all' = vê todos; 'own' = só os próprios; 'none' = nenhum."""
+        """'all' = vê todos; 'own' = só os próprios; 'none' = nenhum.
+        'Ver só os próprios' restringe mesmo quando 'Ver documentos' está marcado."""
         u = self.request.user
-        if getattr(u, 'is_superuser', False) or has_any_perm(u, *self.DOC_VIEW_ALL):
+        if getattr(u, 'is_superuser', False) or has_any_perm(u, 'roteiros_edit', 'roteiros_delete'):
             return 'all'
         if has_any_perm(u, 'roteiros_docs_view_own'):
             return 'own'
+        if has_any_perm(u, 'roteiros_docs_view'):
+            return 'all'
         return 'none'
 
     def get_queryset(self):
@@ -368,9 +371,13 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_delete')()]
         if self.action in ('publish', 'unpublish'):
             return [RequirePermission('roteiros_publish')()]
+        if self.action == 'adopt_image':
+            # Pegar imagem da galeria (banco) pro roteiro exige permissão própria;
+            # sem ela, a pessoa só consegue fazer upload das próprias imagens.
+            return [RequirePermission('roteiros_images_from_gallery')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
                            'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
-                           'update_image_meta', 'adopt_image',
+                           'update_image_meta',
                            'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
@@ -671,30 +678,59 @@ def _apply_image_meta(img, data):
     return fields
 
 
-# Permissões que dão a visão COMPLETA da galeria (tudo). Sem nenhuma delas, mas
-# com 'gallery_view_laminas' (ou sendo operadora), a pessoa vê SÓ as lâminas.
-GALLERY_FULL_PERMS = ('roteiros_view', 'roteiros_edit', 'roteiros_delete',
-                      'gallery_view', 'gallery_edit', 'gallery_delete')
+# Permissões amplas (vêem/editam TODOS os tipos) — atalho de compatibilidade.
+GALLERY_BROAD = ('roteiros_edit', 'roteiros_delete', 'gallery_edit', 'gallery_delete')
+# Qualquer uma destas dá ACESSO de leitura à galeria.
+GALLERY_VIEW_PERMS = ('roteiros_view', 'gallery_view', 'gallery_view_images',
+                      'gallery_view_videos', 'gallery_view_laminas') + GALLERY_BROAD
 
-
-def _gallery_full_view(user):
-    return bool(user and (getattr(user, 'is_superuser', False) or has_any_perm(user, *GALLERY_FULL_PERMS)))
+VIDEO_EXTS_TUP = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
 
 
 def _gallery_laminas_only(user):
-    """A pessoa vê só as lâminas quando é operadora, OU quando tem só a permissão
-    'ver só as lâminas' sem a visão completa. Operadora sempre é restrita."""
-    if is_operadora_user(user):
-        return True
-    if _gallery_full_view(user):
-        return False
-    return has_any_perm(user, 'gallery_view_laminas')
+    """Visão restrita "só as lâminas padrão dos roteiros públicos e abertos" — é
+    exclusiva das contas de OPERADORA (a restrição fina de conteúdo)."""
+    return is_operadora_user(user)
 
 
-class _GalleryReadPermission(RequirePermission(*GALLERY_FULL_PERMS, 'gallery_view_laminas')):
-    """Leitura da galeria: quem tem permissão de galeria (completa ou só lâminas),
-    de roteiros, OU uma conta de operadora — restrição de conteúdo feita no
-    queryset e no download."""
+def _gallery_allowed_types(user):
+    """Quais tipos de mídia o usuário pode VER: {'image','video','lamina'}.
+    Sem nenhum tipo específico marcado (só 'ver a galeria'/roteiros) → vê todos."""
+    if getattr(user, 'is_superuser', False) or has_any_perm(user, *GALLERY_BROAD):
+        return {'image', 'video', 'lamina'}
+    types = set()
+    if has_any_perm(user, 'gallery_view_images'):  types.add('image')
+    if has_any_perm(user, 'gallery_view_videos'):  types.add('video')
+    if has_any_perm(user, 'gallery_view_laminas'): types.add('lamina')
+    if types:
+        return types
+    if has_any_perm(user, 'gallery_view', 'roteiros_view'):
+        return {'image', 'video', 'lamina'}
+    return set()
+
+
+def _gallery_can_upload(user, media):   # media: 'image' | 'video' | 'lamina'
+    perm = {'image': 'gallery_upload_images', 'video': 'gallery_upload_videos',
+            'lamina': 'gallery_upload_laminas'}[media]
+    return getattr(user, 'is_superuser', False) or has_any_perm(user, perm, 'gallery_edit', 'roteiros_edit')
+
+
+def _gallery_can_delete(user, media):
+    perm = {'image': 'gallery_delete_images', 'video': 'gallery_delete_videos',
+            'lamina': 'gallery_delete_laminas'}[media]
+    return getattr(user, 'is_superuser', False) or has_any_perm(user, perm, 'gallery_delete', 'roteiros_edit', 'roteiros_delete')
+
+
+def _gallery_media_of(img):
+    if img.kind == 'blocking':
+        return 'lamina'
+    import os as _os
+    return 'video' if _os.path.splitext(img.image.name or '')[1].lower() in VIDEO_EXTS_TUP else 'image'
+
+
+class _GalleryReadPermission(RequirePermission(*GALLERY_VIEW_PERMS)):
+    """Leitura da galeria: qualquer permissão de visão (geral ou por tipo), de
+    roteiros, OU conta de operadora. O filtro por tipo é feito no queryset."""
     def has_permission(self, request, view):
         return super().has_permission(request, view) or is_operadora_user(request.user)
 
@@ -712,9 +748,28 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'download'):
             return [_GalleryReadPermission()]
+        if self.action == 'create':
+            # Gate amplo aqui; o tipo específico (imagem/vídeo) é checado no create().
+            return [RequirePermission('gallery_upload_images', 'gallery_upload_videos',
+                                      'gallery_edit', 'roteiros_edit')()]
         if self.action == 'destroy':
-            return [RequirePermission('roteiros_edit', 'gallery_edit', 'gallery_delete')()]
+            return [RequirePermission('gallery_delete_images', 'gallery_delete_videos',
+                                      'gallery_delete_laminas', 'gallery_delete',
+                                      'roteiros_edit', 'roteiros_delete')()]
         return [RequirePermission('roteiros_edit', 'gallery_edit')()]
+
+    def _type_filter(self, qs):
+        """Restringe a galeria aos tipos de mídia que o usuário pode ver."""
+        from django.db.models import Q
+        allowed = _gallery_allowed_types(self.request.user)
+        vq = self._video_q()
+        if 'lamina' not in allowed:
+            qs = qs.exclude(kind='blocking')
+        if 'video' not in allowed:
+            qs = qs.exclude(vq & ~Q(kind='blocking'))
+        if 'image' not in allowed:
+            qs = qs.exclude(~vq & ~Q(kind='blocking'))
+        return qs
 
     @staticmethod
     def _operadora_restrict(qs):
@@ -787,6 +842,7 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             vq = self._video_q()
             qs = qs.filter(vq) if media == 'video' else qs.exclude(vq)
         qs = self._apply_common_filters(qs, p)
+        qs = self._type_filter(qs)   # respeita as permissões de tipo (imagens/vídeos/lâminas)
         return qs.order_by('-created_at', '-id')
 
     def create(self, request, *args, **kwargs):
@@ -798,6 +854,10 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         upload = ser.validated_data['image']
         is_video = _os.path.splitext(upload.name or '')[1].lower() in VIDEO_EXTENSIONS
+        media = 'video' if is_video else 'image'
+        if not _gallery_can_upload(request.user, media):
+            return Response({'detail': f'Você não tem permissão para enviar {"vídeos" if is_video else "imagens"}.'},
+                            status=status.HTTP_403_FORBIDDEN)
         try:
             if is_video:
                 validate_video_file(upload)
@@ -827,6 +887,11 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         """Só imagens do BANCO (sem roteiro) podem ser excluídas pela galeria. Se
         estiver anexada a um roteiro, bloqueia e explica onde ela está sendo usada."""
         img = self.get_object()
+        media = _gallery_media_of(img)
+        if not _gallery_can_delete(request.user, media):
+            label = {'image': 'imagens', 'video': 'vídeos', 'lamina': 'lâminas'}[media]
+            return Response({'detail': f'Você não tem permissão para excluir {label}.'},
+                            status=status.HTTP_403_FORBIDDEN)
         reasons = []
         if img.itinerary_id:
             kind_label = dict(ItineraryImage.KIND_CHOICES).get(img.kind, 'imagem')
@@ -877,6 +942,8 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             if 'video' in types:
                 typeq |= (vq & ~Q(kind='blocking'))
             qs = qs.filter(typeq)
+        if not laminas_only:
+            qs = self._type_filter(qs)   # respeita as permissões de tipo do usuário
         qs = qs.order_by('-created_at', '-id')
 
         buf = io.BytesIO()

@@ -102,12 +102,22 @@ class UserPermissions(models.Model):
     roteiros_docs_create    = models.BooleanField(default=False)   # enviar/criar documentos
     roteiros_docs_edit      = models.BooleanField(default=False)   # editar documentos
     roteiros_docs_delete    = models.BooleanField(default=False)   # excluir documentos
+    # Fonte das imagens no roteiro: pegar da galeria (banco) OU só upload próprio.
+    roteiros_images_from_gallery = models.BooleanField(default=False)  # pode puxar imagens da galeria pros roteiros
 
     # Galeria
-    gallery_view          = models.BooleanField(default=False)   # ver a galeria completa (e baixar)
-    gallery_view_laminas  = models.BooleanField(default=False)   # ver SÓ as lâminas (roteiros públicos e abertos) — visão da operadora
-    gallery_edit          = models.BooleanField(default=False)   # adicionar/editar imagens no banco
-    gallery_delete        = models.BooleanField(default=False)   # excluir imagens do banco
+    gallery_view          = models.BooleanField(default=False)   # ACESSO à galeria (base); os tipos abaixo dizem O QUE vê
+    gallery_view_images   = models.BooleanField(default=False)   # ver imagens
+    gallery_view_videos   = models.BooleanField(default=False)   # ver vídeos
+    gallery_view_laminas  = models.BooleanField(default=False)   # ver lâminas
+    gallery_upload_images = models.BooleanField(default=False)   # enviar imagens
+    gallery_upload_videos = models.BooleanField(default=False)   # enviar vídeos
+    gallery_upload_laminas= models.BooleanField(default=False)   # enviar lâminas
+    gallery_delete_images = models.BooleanField(default=False)   # excluir imagens
+    gallery_delete_videos = models.BooleanField(default=False)   # excluir vídeos
+    gallery_delete_laminas= models.BooleanField(default=False)   # excluir lâminas
+    gallery_edit          = models.BooleanField(default=False)   # (legado) enviar/editar — vale para todos os tipos
+    gallery_delete        = models.BooleanField(default=False)   # (legado) excluir — vale para todos os tipos
 
     # Administração
     manage_users     = models.BooleanField(default=False)

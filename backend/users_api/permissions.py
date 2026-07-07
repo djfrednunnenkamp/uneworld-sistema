@@ -52,9 +52,18 @@ PERMISSION_FIELDS = [
     'roteiros_docs_create',
     'roteiros_docs_edit',
     'roteiros_docs_delete',
+    'roteiros_images_from_gallery',
     # Galeria
     'gallery_view',
+    'gallery_view_images',
+    'gallery_view_videos',
     'gallery_view_laminas',
+    'gallery_upload_images',
+    'gallery_upload_videos',
+    'gallery_upload_laminas',
+    'gallery_delete_images',
+    'gallery_delete_videos',
+    'gallery_delete_laminas',
     'gallery_edit',
     'gallery_delete',
     # Listas de Passageiros
