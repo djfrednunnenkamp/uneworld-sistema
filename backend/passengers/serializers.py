@@ -81,6 +81,30 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
+    # Identidade que "não muda": uma vez o cadastro VERIFICADO (pela equipe
+    # interna), a agência não pode mais alterar estes campos.
+    IDENTITY_LOCK_FIELDS = ('first_name', 'last_name', 'full_name', 'cpf', 'birth_date', 'gender')
+
+    def validate(self, attrs):
+        from users_api.permissions import agency_scope_ids
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        # Usuário de agência (não é equipe interna/superusuário).
+        if agency_scope_ids(user) is not None:
+            # O selo "verificado" é exclusivo da equipe interna — a agência nunca
+            # o define nem o remove (ignora o que vier no payload).
+            attrs.pop('is_verified', None)
+            # Cadastro já verificado → identidade travada para a agência.
+            if self.instance is not None and self.instance.is_verified:
+                blocked = {
+                    f: 'Cadastro verificado: a agência não pode alterar este dado.'
+                    for f in self.IDENTITY_LOCK_FIELDS
+                    if f in attrs and attrs[f] != getattr(self.instance, f)
+                }
+                if blocked:
+                    raise serializers.ValidationError(blocked)
+        return attrs
+
     def validate_email(self, value):
         return value or None
 
