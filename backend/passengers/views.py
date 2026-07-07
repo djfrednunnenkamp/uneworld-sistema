@@ -13,6 +13,7 @@ from core.merge import MergeViewSetMixin
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import Passenger, PassengerDocument
 from .serializers import PassengerSerializer, PassengerListSerializer, PassengerDocumentSerializer
+from core.search import AccentInsensitiveSearchFilter
 
 VIEW_PERMS = ('passengers_view_basic', 'passengers_view_full')
 
@@ -44,7 +45,7 @@ def _sniff_safe_content_type(file_path):
 class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelViewSet):
     queryset = Passenger.objects.prefetch_related('agencies').all()
     pagination_class = StandardResultsPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields = ['full_name', 'email', 'cpf', 'city']
     ordering_fields = ['full_name', 'created_at', 'city']
     MERGE_LABEL = 'Passageiro'

@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import AuditLog
+from core.search import AccentInsensitiveSearchFilter
 
 
 # Modelos cujo log de upload/download aponta para um arquivo servível:
@@ -111,7 +112,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditLogSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = AuditPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields = ['user_display', 'object_repr', 'model_label']
     ordering = ['-timestamp']
 

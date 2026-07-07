@@ -10,6 +10,7 @@ from core.merge import MergeViewSetMixin
 from users_api.permissions import RequirePermission
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
+from core.search import AccentInsensitiveSearchFilter
 
 # Quem pode editar passageiros/listas precisa enxergar/buscar agências
 # (AgencyPicker, autocomplete de agência responsável etc.), então essas
@@ -20,7 +21,7 @@ VIEW_PERMS = ['agencies_view', 'passengers_edit', 'passengers_view_full', 'lists
 class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelViewSet):
     queryset        = Agency.objects.all()
     pagination_class = StandardResultsPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields   = ['name', 'company_name', 'email', 'cnpj', 'responsible']
     ordering_fields = ['name', 'created_at']
     MERGE_LABEL = 'Agência'

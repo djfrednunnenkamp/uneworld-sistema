@@ -29,6 +29,7 @@ from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryHotelSerializer, ItineraryBoatSerializer,
                           ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer,
                           ItineraryDocumentSerializer)
+from core.search import AccentInsensitiveSearchFilter
 
 
 def _roteiro_edit_permissions(self):
@@ -359,7 +360,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         'days__city', 'days__images', 'images',
     )
     pagination_class = StandardResultsPagination
-    filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields    = ['name', 'slug']
     ordering_fields  = ['created_at', 'start_date', 'name']
 

@@ -15,6 +15,7 @@ from users_api.permissions import RequirePermission
 from . import autentique
 from .models import Contract
 from .serializers import ContractListSerializer, ContractSerializer
+from core.search import AccentInsensitiveSearchFilter
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset        = Contract.objects.select_related('agency', 'contratante', 'passenger_list', 'itinerary').prefetch_related(
         'accommodation_lines', 'guests__passenger', 'installments', 'adjustments', 'clauses')
     pagination_class = StandardResultsPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields   = ['reservation_number', 'package_name', 'contratante__full_name',
                        'agency__name', 'agency__company_name']
     ordering_fields = ['created_at', 'contract_date', 'departure_date']

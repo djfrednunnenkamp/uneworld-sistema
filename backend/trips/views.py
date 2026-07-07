@@ -13,6 +13,7 @@ from .serializers import (
     SupplierSerializer, ListAdditionalSerializer, CrewRoleSerializer, RoteiroSerializer, PassengerListSerializer, ListEnrollmentSerializer,
     RoomSerializer, ListTaskSerializer,
 )
+from core.search import AccentInsensitiveSearchFilter
 
 
 def _rbac(view=(), write=(), delete=()):
@@ -38,7 +39,7 @@ def _rbac(view=(), write=(), delete=()):
 class DestinationViewSet(viewsets.ModelViewSet):
     queryset         = Destination.objects.all()
     serializer_class = DestinationSerializer
-    filter_backends  = [filters.SearchFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter]
     search_fields    = ['name', 'country']
     get_permissions  = _rbac(
         view=['settings_destinations_view', 'lists_view', 'manage_settings'],
@@ -50,7 +51,7 @@ class DestinationViewSet(viewsets.ModelViewSet):
 class TripViewSet(viewsets.ModelViewSet):
     queryset        = Trip.objects.select_related('destination').all()
     pagination_class = StandardResultsPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields   = ['title', 'destination__name', 'destination__country']
     ordering_fields = ['departure_date', 'created_at', 'price_per_person']
     get_permissions = _rbac(
@@ -66,7 +67,7 @@ class TripViewSet(viewsets.ModelViewSet):
 class EnrollmentViewSet(viewsets.ModelViewSet):
     queryset         = Enrollment.objects.select_related('trip', 'passenger').all()
     serializer_class = EnrollmentSerializer
-    filter_backends  = [filters.SearchFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter]
     search_fields    = ['passenger__full_name', 'trip__title']
     get_permissions  = _rbac(
         view=['lists_view', 'manage_settings'],
@@ -87,7 +88,7 @@ def _cleanup_empty_rooms(pl):
 class SupplierViewSet(viewsets.ModelViewSet):
     queryset         = Supplier.objects.all()
     serializer_class = SupplierSerializer
-    filter_backends  = [filters.SearchFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter]
     search_fields    = ['name']
     get_permissions  = _rbac(
         view=['lists_view', 'roteiros_view', 'manage_settings'],
@@ -99,7 +100,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
 class ListAdditionalViewSet(viewsets.ModelViewSet):
     queryset         = ListAdditional.objects.all()
     serializer_class = ListAdditionalSerializer
-    filter_backends  = [filters.SearchFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter]
     search_fields    = ['name']
     get_permissions  = _rbac(
         view=['settings_list_additionals_view', 'lists_view', 'manage_settings'],
@@ -111,7 +112,7 @@ class ListAdditionalViewSet(viewsets.ModelViewSet):
 class CrewRoleViewSet(viewsets.ModelViewSet):
     queryset         = CrewRole.objects.all()
     serializer_class = CrewRoleSerializer
-    filter_backends  = [filters.SearchFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter]
     search_fields    = ['name']
     get_permissions  = _rbac(
         view=['settings_crew_roles_view', 'lists_view', 'manage_settings'],
@@ -125,7 +126,7 @@ class RoteiroViewSet(viewsets.ReadOnlyModelViewSet):
     ATIVOS e que ainda não terminaram (prontos/futuros) — os que já passaram não
     aparecem. Fonte: itineraries.Itinerary (a página Roteiros)."""
     serializer_class = RoteiroSerializer
-    filter_backends  = [filters.SearchFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter]
     search_fields    = ['name']
     get_permissions  = _rbac(
         view=['roteiros_view', 'lists_view', 'lists_edit', 'manage_settings'],
@@ -148,7 +149,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     ).prefetch_related('suppliers', 'additionals', 'roteiros').all()
     serializer_class = PassengerListSerializer
     pagination_class = StandardResultsPagination
-    filter_backends  = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends  = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields    = ['name']
     ordering_fields  = ['name', 'start_date', 'created_at']
 
