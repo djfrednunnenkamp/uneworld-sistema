@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 import requests
 from django.db.models import Q
 from django.http import StreamingHttpResponse, HttpResponse
@@ -1916,7 +1917,37 @@ def branding_logos(request):
     # Título da aba do navegador: valor cru p/ o campo + texto padrão quando vazio.
     data['title'] = obj.browser_title or ''
     data['title_fallback'] = 'Operadora'
+    # Cores do tema (vazio = usa o padrão do CSS).
+    data['color_primary'] = obj.color_primary or ''
+    data['color_secondary'] = obj.color_secondary or ''
     return Response(data)
+
+
+_HEX_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+
+@api_view(['POST'])
+def branding_colors_set(request):
+    """Define as cores do tema. body: primary, secondary (hex #rrggbb; vazio = padrão)."""
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings'):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
+    def clean(v):
+        v = (v or '').strip()
+        if v and not _HEX_RE.match(v):
+            return None, False
+        return v, True
+
+    primary, ok1 = clean(request.data.get('primary'))
+    secondary, ok2 = clean(request.data.get('secondary'))
+    if not ok1 or not ok2:
+        return Response({'error': 'Cor inválida. Use o formato #rrggbb.'}, status=status.HTTP_400_BAD_REQUEST)
+    obj = SystemSettings.get()
+    obj.color_primary = primary
+    obj.color_secondary = secondary
+    obj.save(update_fields=['color_primary', 'color_secondary'])
+    return Response({'color_primary': obj.color_primary, 'color_secondary': obj.color_secondary})
 
 
 @api_view(['POST'])

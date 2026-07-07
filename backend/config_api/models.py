@@ -590,6 +590,9 @@ class SystemSettings(models.Model):
     logo_contract = models.ImageField('Logo dos contratos', upload_to='branding/', null=True, blank=True)
     # Título da aba do navegador. Vazio = usa o nome da operadora.
     browser_title = models.CharField('Título da aba do navegador', max_length=120, blank=True, default='')
+    # Cores do tema (hex). Vazio = usa a cor padrão do sistema.
+    color_primary   = models.CharField('Cor principal', max_length=9, blank=True, default='')
+    color_secondary = models.CharField('Cor secundária', max_length=9, blank=True, default='')
 
     class Meta:
         verbose_name = 'Configurações do sistema'
