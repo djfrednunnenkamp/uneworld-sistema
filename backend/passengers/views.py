@@ -101,12 +101,16 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
 
     @action(detail=False, methods=['get'])
     def guides(self, request):
-        """Guias registrados (passageiros com is_guide) e as viagens que cada um
-        faz COMO GUIA — por ANO e por STATUS (agendada / em andamento / concluída).
-        "Como guia" = a inscrição tem a função 'Guia' (Equipe Técnica); ir só como
-        passageiro não conta. O ano é o de início da viagem; o status é relativo a
-        hoje: agendada (ainda vai começar), em andamento (começou e não terminou),
-        concluída (já terminou)."""
+        """Guias e as viagens que cada um faz COMO GUIA — por ANO e por STATUS
+        (agendada / em andamento / concluída).
+
+        É considerado guia quem: (a) está marcado como guia no cadastro
+        (is_guide), OU (b) tem a função "Guia" (Equipe Técnica) em ALGUMA viagem —
+        mesmo sem estar marcado no cadastro. Numa viagem, conta "como guia" quando
+        a inscrição tem a função "Guia"; para quem é guia de cadastro, também
+        conta quando não há função nenhuma (guia por padrão). Ir com OUTRA função
+        (ex.: só motorista) não conta. O ano é o de início da viagem; o status é
+        relativo a hoje."""
         from collections import defaultdict
         from django.utils import timezone
         from trips.models import CrewRole, ListEnrollment
@@ -117,35 +121,51 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         guia_ids = {r.id for r in CrewRole.objects.all()
                     if strip_accents(r.name or '').lower() == 'guia'}
 
-        guides_qs = Passenger.objects.filter(is_guide=True, is_deleted=False)
         scope = agency_scope_ids(request.user)
-        if scope is not None:
-            guides_qs = guides_qs.filter(agencies__in=scope).distinct()
-        guide_ids = list(guides_qs.values_list('id', flat=True))
+
+        def in_scope(qs):
+            return qs.filter(agencies__in=scope).distinct() if scope is not None else qs
+
+        # (a) guias de cadastro
+        is_guide_ids = set(in_scope(
+            Passenger.objects.filter(is_guide=True, is_deleted=False)
+        ).values_list('id', flat=True))
+        # (b) quem teve a função "Guia" em alguma inscrição (não cancelada)
+        role_guide_ids = set()
+        if guia_ids:
+            role_guide_ids = set(in_scope(Passenger.objects.filter(
+                is_deleted=False,
+                list_enrollments__crew_roles__in=guia_ids,
+            ).exclude(list_enrollments__enrollment_status='cancelado')
+            ).values_list('id', flat=True))
+        all_ids = is_guide_ids | role_guide_ids
+        pax_map = {p.id: p for p in Passenger.objects.filter(id__in=all_ids)}
 
         def blank():
             return {'scheduled': 0, 'ongoing': 0, 'done': 0}
         per_pax = defaultdict(lambda: defaultdict(blank))   # pax -> ano -> status
         no_date = defaultdict(int)
         years = set()
-        if guide_ids:
+        if all_ids:
             enr = (ListEnrollment.objects
-                   .filter(passenger_id__in=guide_ids)
+                   .filter(passenger_id__in=all_ids)
                    .exclude(enrollment_status='cancelado')
                    .select_related('passenger_list')
                    .prefetch_related('crew_roles'))
             for e in enr:
+                p = pax_map.get(e.passenger_id)
+                if not p:
+                    continue
                 role_ids = {r.id for r in e.crew_roles.all()}
-                # Conta como "viagem de guia" quando: tem a função "Guia" OU não
-                # tem função nenhuma (guia por padrão). Se foi com OUTRA função
-                # (ex.: só motorista), não conta como guia.
-                if role_ids and not (role_ids & guia_ids):
+                has_guia = bool(role_ids & guia_ids)
+                # Conta se: tem a função "Guia" nesta viagem, OU é guia de cadastro
+                # e não tem função nenhuma (guia por padrão).
+                if not (has_guia or (p.is_guide and not role_ids)):
                     continue
                 s = e.passenger_list.start_date
                 en = e.passenger_list.end_date
-                pid = e.passenger_id
                 if not s:
-                    no_date[pid] += 1
+                    no_date[p.id] += 1
                     continue
                 y = s.year
                 years.add(y)
@@ -155,10 +175,10 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
                     bucket = 'done'
                 else:
                     bucket = 'ongoing'
-                per_pax[pid][y][bucket] += 1
+                per_pax[p.id][y][bucket] += 1
 
         result = []
-        for p in guides_qs:
+        for p in pax_map.values():
             by_year = per_pax.get(p.id, {})
             total = sum(sum(v.values()) for v in by_year.values()) + no_date.get(p.id, 0)
             result.append({

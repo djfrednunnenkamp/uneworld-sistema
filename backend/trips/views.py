@@ -655,16 +655,9 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if 'crew_roles' in request.data:
             from .models import CrewRole
             e.crew_roles.set(CrewRole.objects.filter(pk__in=request.data['crew_roles']))
-            # Atribuir a função "Guia" numa viagem registra a pessoa como guia no
-            # cadastro (aparece na página Guias). Nunca REMOVE o guia — a pessoa
-            # segue guia mesmo que numa viagem específica ela não seja.
-            from core.search import strip_accents
-            if e.passenger_id and not e.passenger.is_guide and any(
-                strip_accents(r.name).lower() == 'guia'
-                for r in e.crew_roles.all()
-            ):
-                e.passenger.is_guide = True
-                e.passenger.save(update_fields=['is_guide'])
+            # A função "Guia" é POR VIAGEM: não marca a pessoa como guia no cadastro
+            # (is_guide). Mesmo sem is_guide, a página Guias já a inclui por ter a
+            # função "Guia" em alguma viagem.
         if 'agency' in request.data:
             from agencies.models import Agency
             ag_id = request.data['agency']
