@@ -94,6 +94,14 @@ class UserPermissions(models.Model):
     roteiros_edit      = models.BooleanField(default=False)
     roteiros_delete    = models.BooleanField(default=False)
     roteiros_view_logs = models.BooleanField(default=False)
+    roteiros_publish        = models.BooleanField(default=False)   # publicar/despublicar no site
+    roteiros_edit_published = models.BooleanField(default=False)   # editar roteiros já publicados
+    # Documentos do roteiro (uploads da aba Observações)
+    roteiros_docs_view      = models.BooleanField(default=False)   # ver TODOS os documentos
+    roteiros_docs_view_own  = models.BooleanField(default=False)   # ver só os próprios
+    roteiros_docs_create    = models.BooleanField(default=False)   # enviar/criar documentos
+    roteiros_docs_edit      = models.BooleanField(default=False)   # editar documentos
+    roteiros_docs_delete    = models.BooleanField(default=False)   # excluir documentos
 
     # Galeria
     gallery_view          = models.BooleanField(default=False)   # ver a galeria completa (e baixar)

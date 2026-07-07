@@ -45,6 +45,13 @@ PERMISSION_FIELDS = [
     'roteiros_edit',
     'roteiros_delete',
     'roteiros_view_logs',
+    'roteiros_publish',
+    'roteiros_edit_published',
+    'roteiros_docs_view',
+    'roteiros_docs_view_own',
+    'roteiros_docs_create',
+    'roteiros_docs_edit',
+    'roteiros_docs_delete',
     # Galeria
     'gallery_view',
     'gallery_view_laminas',

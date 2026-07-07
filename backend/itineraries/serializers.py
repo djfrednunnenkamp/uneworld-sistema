@@ -41,11 +41,19 @@ class ItineraryDocumentSerializer(serializers.ModelSerializer):
     kind     = serializers.SerializerMethodField()   # word|excel|powerpoint|pdf|other|link
     editable = serializers.SerializerMethodField()   # dá pra editar no OnlyOffice?
     is_link  = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
 
     class Meta:
         model  = ItineraryDocument
-        fields = ['id', 'itinerary', 'name', 'file', 'file_url', 'url', 'kind', 'editable', 'is_link', 'created_at']
-        extra_kwargs = {'file': {'write_only': True, 'required': False}, 'name': {'required': False}}
+        fields = ['id', 'itinerary', 'name', 'file', 'file_url', 'url', 'kind', 'editable', 'is_link', 'owner', 'owner_name', 'created_at']
+        extra_kwargs = {'file': {'write_only': True, 'required': False}, 'name': {'required': False},
+                        'owner': {'read_only': True}}
+
+    def get_owner_name(self, obj):
+        u = obj.owner
+        if not u:
+            return None
+        return (f'{u.first_name} {u.last_name}'.strip() or u.username)
 
     def get_file_url(self, obj):
         if not obj.file:

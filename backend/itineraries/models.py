@@ -286,6 +286,8 @@ class ItineraryDocument(models.Model):
     arquivo Office/PDF — editável no navegador via OnlyOffice — ou apenas um
     link externo (abre em nova aba)."""
     itinerary  = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='documents')
+    # Quem enviou/criou o documento — permite "ver/editar só os próprios".
+    owner      = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='itinerary_documents')
     name       = models.CharField('Nome', max_length=255, blank=True)
     file       = models.FileField('Arquivo', upload_to=secure_itinerary_document_path, null=True, blank=True)
     url        = models.URLField('Link externo', max_length=1000, blank=True)

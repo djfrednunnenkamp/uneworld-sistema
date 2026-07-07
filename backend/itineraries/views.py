@@ -173,14 +173,37 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
     pagination_class = None
     parser_classes   = [MultiPartParser, FormParser, JSONParser]
 
+    # Ver todos os documentos: essas permissões dão acesso amplo.
+    DOC_VIEW_ALL = ('roteiros_docs_view', 'roteiros_edit', 'roteiros_delete')
+
     def get_permissions(self):
-        # Ler/abrir/baixar: quem vê roteiros; enviar/excluir: quem edita.
+        # Ler/abrir/baixar: quem vê documentos (todos ou só os próprios).
         if self.action in ('list', 'retrieve', 'config', 'download'):
-            return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
-        return [RequirePermission('roteiros_edit')()]
+            return [RequirePermission(*self.DOC_VIEW_ALL, 'roteiros_docs_view_own')()]
+        if self.action in ('create', 'create_blank'):
+            return [RequirePermission('roteiros_docs_create', 'roteiros_edit')()]
+        if self.action == 'destroy':
+            return [RequirePermission('roteiros_docs_delete', 'roteiros_edit', 'roteiros_delete')()]
+        # update/partial_update/reorder e demais escritas.
+        return [RequirePermission('roteiros_docs_edit', 'roteiros_edit')()]
+
+    def _docs_scope(self):
+        """'all' = vê todos; 'own' = só os próprios; 'none' = nenhum."""
+        u = self.request.user
+        if getattr(u, 'is_superuser', False) or has_any_perm(u, *self.DOC_VIEW_ALL):
+            return 'all'
+        if has_any_perm(u, 'roteiros_docs_view_own'):
+            return 'own'
+        return 'none'
 
     def get_queryset(self):
         qs = ItineraryDocument.objects.all()
+        # Quem só pode ver os PRÓPRIOS documentos fica restrito ao owner=ele.
+        scope = self._docs_scope()
+        if scope == 'own':
+            qs = qs.filter(owner=self.request.user)
+        elif scope == 'none':
+            qs = qs.none()
         if self.action == 'list':
             itinerary = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
@@ -189,7 +212,7 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         itinerary = serializer.validated_data.get('itinerary')
         last = ItineraryDocument.objects.filter(itinerary=itinerary).order_by('-order').first()
-        doc = serializer.save(order=(last.order + 1) if last else 0)
+        doc = serializer.save(order=(last.order + 1) if last else 0, owner=self.request.user)
         _audit(self.request, 'upload' if doc.file else 'create', doc,
                model_name='ItineraryDocument', model_label='Documento do roteiro')
 
@@ -223,7 +246,8 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
         if not name.lower().endswith('.' + ext):
             name = f'{name}.{ext}'
         last = ItineraryDocument.objects.filter(itinerary=itinerary).order_by('-order').first()
-        doc = ItineraryDocument(itinerary=itinerary, name=name, order=(last.order + 1) if last else 0)
+        doc = ItineraryDocument(itinerary=itinerary, name=name, order=(last.order + 1) if last else 0,
+                                owner=request.user if request.user.is_authenticated else None)
         doc.file.save(f'novo.{ext}', ContentFile(blank_office.blank_file(kind)), save=False)
         doc.save()
         _audit(request, 'create', doc, model_name='ItineraryDocument', model_label='Documento do roteiro')
@@ -342,12 +366,25 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('roteiros_delete')()]
+        if self.action in ('publish', 'unpublish'):
+            return [RequirePermission('roteiros_publish')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
                            'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
                            'update_image_meta', 'adopt_image',
-                           'publish', 'unpublish', 'reorder', 'draft'):
+                           'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
         return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+
+    def perform_update(self, serializer):
+        # Editar um roteiro JÁ PUBLICADO exige a permissão específica.
+        obj = serializer.instance
+        u = self.request.user
+        if obj and getattr(obj, 'is_published', False) and not (
+                u.is_superuser or has_any_perm(u, 'roteiros_edit_published')):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Você não tem permissão para editar roteiros já publicados '
+                                   '(permissão "Editar roteiros já publicados").')
+        serializer.save()
 
     # ── Ordem manual da listagem (arrastar) — alimenta a ordem do site público ──
     @action(detail=False, methods=['post'])
