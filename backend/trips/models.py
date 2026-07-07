@@ -134,7 +134,9 @@ class PassengerList(models.Model):
     end_date             = models.DateField('Data de término', null=True, blank=True)
     suppliers            = models.ManyToManyField(Supplier,       blank=True, related_name='passenger_lists', verbose_name='Fornecedores')
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
-    roteiros             = models.ManyToManyField(Roteiro,        blank=True, related_name='passenger_lists', verbose_name='Roteiros')
+    # Roteiros de verdade (os criados na página Roteiros). O antigo trips.Roteiro
+    # era um modelo legado só-nome; agora a lista aponta para itineraries.Itinerary.
+    roteiros             = models.ManyToManyField('itineraries.Itinerary', blank=True, related_name='passenger_lists', verbose_name='Roteiros')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     default_airport      = models.ForeignKey('config_api.Airport',       null=True, blank=True, on_delete=models.SET_NULL, related_name='default_lists', verbose_name='Aeroporto de saída padrão')
     departure_country    = models.ForeignKey('config_api.ConfigCountry', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='País de saída')

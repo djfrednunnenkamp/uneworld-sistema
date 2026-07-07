@@ -120,16 +120,26 @@ class CrewRoleViewSet(viewsets.ModelViewSet):
     )
 
 
-class RoteiroViewSet(viewsets.ModelViewSet):
-    queryset         = Roteiro.objects.all()
+class RoteiroViewSet(viewsets.ReadOnlyModelViewSet):
+    """Roteiros disponíveis para vincular a uma lista de passageiros: só os
+    ATIVOS e que ainda não terminaram (prontos/futuros) — os que já passaram não
+    aparecem. Fonte: itineraries.Itinerary (a página Roteiros)."""
     serializer_class = RoteiroSerializer
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name']
     get_permissions  = _rbac(
-        view=['roteiros_view', 'lists_view', 'manage_settings'],
-        write=['roteiros_edit', 'lists_edit', 'manage_settings'],
-        delete=['roteiros_delete', 'lists_edit', 'manage_settings'],
+        view=['roteiros_view', 'lists_view', 'lists_edit', 'manage_settings'],
     )
+
+    def get_queryset(self):
+        from itineraries.models import Itinerary
+        from django.db.models import Q
+        from django.utils import timezone
+        today = timezone.localdate()
+        return (Itinerary.objects
+                .filter(status='ativo', is_deleted=False)
+                .filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+                .order_by('name'))
 
 
 class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):

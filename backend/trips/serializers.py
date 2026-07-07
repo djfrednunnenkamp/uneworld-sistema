@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room, ListTask
+from itineraries.models import Itinerary
 
 
 class DestinationSerializer(serializers.ModelSerializer):
@@ -79,8 +80,9 @@ class CrewRoleSerializer(serializers.ModelSerializer):
 
 
 class RoteiroSerializer(serializers.ModelSerializer):
+    """Roteiro (itineraries.Itinerary) resumido — usado no seletor da lista."""
     class Meta:
-        model  = Roteiro
+        model  = Itinerary
         fields = ['id', 'name']
 
 
@@ -123,7 +125,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
     roteiros_data       = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
     suppliers           = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
     additionals         = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
-    roteiros            = serializers.PrimaryKeyRelatedField(queryset=Roteiro.objects.all(),        many=True, required=False)
+    roteiros            = serializers.PrimaryKeyRelatedField(queryset=Itinerary.objects.all(),      many=True, required=False)
     enrolled_count      = serializers.IntegerField(read_only=True)
     start_date_br       = serializers.SerializerMethodField()
     end_date_br         = serializers.SerializerMethodField()
