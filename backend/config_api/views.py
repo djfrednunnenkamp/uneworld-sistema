@@ -1886,6 +1886,67 @@ def system_settings(request):
     return Response(SystemSettingsSerializer(obj).data)
 
 
+# ── Logos configuráveis por lugar (branding) ────────────────────────────────
+BRANDING_SLOTS = {
+    'system':   'logo_system',    # tema (sidebar/topbar/login)
+    'favicon':  'favicon',        # ícone do navegador
+    'site':     'logo_site',      # vitrine pública
+    'pdf':      'logo_pdf',       # PDF dos roteiros
+    'contract': 'logo_contract',  # PDF dos contratos
+}
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def branding_logos(request):
+    """URLs dos logos por lugar. PÚBLICO — usado até na tela de login e no favicon."""
+    obj = SystemSettings.get()
+
+    def url(f):
+        if not f:
+            return None
+        try:
+            return request.build_absolute_uri(f.url)
+        except Exception:
+            return f.url
+    return Response({slot: url(getattr(obj, field)) for slot, field in BRANDING_SLOTS.items()})
+
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def branding_logo_set(request, slot):
+    """Define/remove o logo de um lugar. body: image (multipart) OU clear=1."""
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings'):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+    field = BRANDING_SLOTS.get(slot)
+    if not field:
+        return Response({'error': 'Lugar inválido.'}, status=status.HTTP_404_NOT_FOUND)
+    obj = SystemSettings.get()
+    if str(request.data.get('clear', '')).lower() in ('1', 'true'):
+        old = getattr(obj, field)
+        if old:
+            old.delete(save=False)
+        setattr(obj, field, None)
+        obj.save(update_fields=[field])
+        return Response({'url': None})
+    up = request.FILES.get('image') or request.FILES.get('logo')
+    if not up:
+        return Response({'error': 'Envie a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
+    from passengers.validators import validate_document_file
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    try:
+        validate_document_file(up, allowed_exts={'.png', '.jpg', '.jpeg', '.webp'}, allow_images=True)
+    except DjangoValidationError as e:
+        return Response({'error': (e.messages[0] if e.messages else 'Imagem inválida.')}, status=status.HTTP_400_BAD_REQUEST)
+    old = getattr(obj, field)
+    if old:
+        old.delete(save=False)
+    setattr(obj, field, up)
+    obj.save(update_fields=[field])
+    return Response({'url': request.build_absolute_uri(getattr(obj, field).url)})
+
+
 # ── Dados da operadora (UneWorld) — pré-preenche contratos ──────────────────
 
 class OperatingCompanySerializer(serializers.ModelSerializer):

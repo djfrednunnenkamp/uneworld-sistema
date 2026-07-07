@@ -579,6 +579,13 @@ class SystemSettings(models.Model):
     a_vista_discount_value = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, default=0)
     a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
 
+    # Logos configuráveis por lugar (branding). Vazio = usa o /logo.png padrão.
+    logo_system   = models.ImageField('Logo do tema (sistema)', upload_to='branding/', null=True, blank=True)
+    favicon       = models.ImageField('Favicon (ícone do navegador)', upload_to='branding/', null=True, blank=True)
+    logo_site     = models.ImageField('Logo do site (vitrine)', upload_to='branding/', null=True, blank=True)
+    logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to='branding/', null=True, blank=True)
+    logo_contract = models.ImageField('Logo dos contratos', upload_to='branding/', null=True, blank=True)
+
     class Meta:
         verbose_name = 'Configurações do sistema'
         verbose_name_plural = 'Configurações do sistema'
