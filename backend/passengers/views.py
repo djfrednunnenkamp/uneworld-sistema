@@ -114,25 +114,36 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         from users_api.permissions import agency_scope_ids
 
         today = timezone.localdate()
-        guia_ids = [r.id for r in CrewRole.objects.all()
-                    if strip_accents(r.name or '').lower() == 'guia']
+        guia_ids = {r.id for r in CrewRole.objects.all()
+                    if strip_accents(r.name or '').lower() == 'guia'}
+
+        guides_qs = Passenger.objects.filter(is_guide=True, is_deleted=False)
+        scope = agency_scope_ids(request.user)
+        if scope is not None:
+            guides_qs = guides_qs.filter(agencies__in=scope).distinct()
+        guide_ids = list(guides_qs.values_list('id', flat=True))
 
         def blank():
             return {'scheduled': 0, 'ongoing': 0, 'done': 0}
         per_pax = defaultdict(lambda: defaultdict(blank))   # pax -> ano -> status
         no_date = defaultdict(int)
         years = set()
-        if guia_ids:
+        if guide_ids:
             enr = (ListEnrollment.objects
-                   .filter(crew_roles__in=guia_ids, passenger__isnull=False)
+                   .filter(passenger_id__in=guide_ids)
                    .exclude(enrollment_status='cancelado')
-                   .values('passenger_id',
-                           'passenger_list__start_date', 'passenger_list__end_date')
-                   .distinct())
-            for row in enr:
-                s = row['passenger_list__start_date']
-                e = row['passenger_list__end_date']
-                pid = row['passenger_id']
+                   .select_related('passenger_list')
+                   .prefetch_related('crew_roles'))
+            for e in enr:
+                role_ids = {r.id for r in e.crew_roles.all()}
+                # Conta como "viagem de guia" quando: tem a função "Guia" OU não
+                # tem função nenhuma (guia por padrão). Se foi com OUTRA função
+                # (ex.: só motorista), não conta como guia.
+                if role_ids and not (role_ids & guia_ids):
+                    continue
+                s = e.passenger_list.start_date
+                en = e.passenger_list.end_date
+                pid = e.passenger_id
                 if not s:
                     no_date[pid] += 1
                     continue
@@ -140,16 +151,11 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
                 years.add(y)
                 if s > today:
                     bucket = 'scheduled'
-                elif e and e < today:
+                elif en and en < today:
                     bucket = 'done'
                 else:
                     bucket = 'ongoing'
                 per_pax[pid][y][bucket] += 1
-
-        guides_qs = Passenger.objects.filter(is_guide=True, is_deleted=False)
-        scope = agency_scope_ids(request.user)
-        if scope is not None:
-            guides_qs = guides_qs.filter(agencies__in=scope).distinct()
 
         result = []
         for p in guides_qs:
