@@ -356,6 +356,8 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             passenger_list=pl, passenger=p,
             agency=agency_obj, responsible_user=resp_user,
             accommodation=accommodation, enrollment_status=estatus, notes=notes,
+            # Embarque padrão = aeroporto preferido da lista (pré-preenche o EMB).
+            departure_airport=pl.default_airport,
         )
         return Response(ListEnrollmentSerializer(e).data, status=201)
 
@@ -472,6 +474,8 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 accommodation=accommodation,
                 enrollment_status=enrollment_status,
                 notes=notes,
+                # Embarque padrão = aeroporto preferido da lista (pré-preenche o EMB).
+                departure_airport=pl.default_airport,
             )
             added += 1
             enrollments.append(ListEnrollmentSerializer(e).data)
@@ -569,6 +573,10 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     e.passenger    = p
                     e.is_block     = False
                     e.is_provisional = False
+                    # Ao virar passageiro real, se ainda não tem embarque, herda o
+                    # aeroporto padrão da lista.
+                    if e.departure_airport_id is None:
+                        e.departure_airport = pl.default_airport
             else:
                 # Desvincular: converte de volta para bloco
                 e.passenger = None
