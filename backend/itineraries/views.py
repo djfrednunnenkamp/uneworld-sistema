@@ -377,12 +377,27 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         u = self.request.user
         serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
 
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        u = request.user
+        can_delete = getattr(u, 'is_superuser', False) or has_any_perm(u, 'roteiros_delete')
+        is_own_draft = obj.status == 'rascunho' and obj.created_by_id == getattr(u, 'id', None)
+        # Sem 'excluir roteiros', só dá pra excluir o PRÓPRIO rascunho.
+        if not (can_delete or is_own_draft):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Você não tem permissão para excluir roteiros. '
+                                   'Você só pode excluir os seus próprios rascunhos.')
+        return super().destroy(request, *args, **kwargs)
+
     def get_serializer_class(self):
         return ItineraryListSerializer if self.action == 'list' else ItinerarySerializer
 
     def get_permissions(self):
         if self.action == 'destroy':
-            return [RequirePermission('roteiros_delete')()]
+            # Excluir exige 'roteiros_delete' — MAS o dono pode excluir o próprio
+            # rascunho mesmo sem essa permissão (checado no destroy()). Por isso o
+            # gate aqui também aceita quem edita/cria (donos de rascunho).
+            return [RequirePermission('roteiros_delete', 'roteiros_edit', 'roteiros_create')()]
         if self.action in ('publish', 'unpublish'):
             return [RequirePermission('roteiros_publish')()]
         if self.action == 'adopt_image':
