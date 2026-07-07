@@ -80,10 +80,13 @@ class CrewRoleSerializer(serializers.ModelSerializer):
 
 
 class RoteiroSerializer(serializers.ModelSerializer):
-    """Roteiro (itineraries.Itinerary) resumido — usado no seletor da lista."""
+    """Roteiro (itineraries.Itinerary) resumido — usado no seletor da lista.
+    Carrega os campos que auto-preenchem a lista ao selecionar o roteiro."""
+    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+
     class Meta:
         model  = Itinerary
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name']
 
 
 class RoomSerializer(serializers.ModelSerializer):
