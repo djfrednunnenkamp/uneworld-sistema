@@ -49,6 +49,7 @@ urlpatterns = [
     path('geo/action/',       views.geo_import_action,  name='geo-action'),
     path('system-settings/',  views.system_settings,    name='system-settings'),
     path('branding/',            views.branding_logos,      name='branding-logos'),
+    path('branding-title/',      views.branding_title_set,  name='branding-title-set'),
     path('branding/<slug:slot>/', views.branding_logo_set,  name='branding-logo-set'),
     path('terms/',            views.terms_and_conditions, name='terms'),
     path('operating-company/', views.operating_company,  name='operating-company'),

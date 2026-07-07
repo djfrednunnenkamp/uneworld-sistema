@@ -1909,7 +1909,24 @@ def branding_logos(request):
             return request.build_absolute_uri(f.url)
         except Exception:
             return f.url
-    return Response({slot: url(getattr(obj, field)) for slot, field in BRANDING_SLOTS.items()})
+    data = {slot: url(getattr(obj, field)) for slot, field in BRANDING_SLOTS.items()}
+    # Título da aba do navegador (valor cru p/ o campo) + fallback (nome da operadora).
+    company_name = (OperatingCompany.objects.values_list('company_name', flat=True).first() or '').strip()
+    data['title'] = obj.browser_title or ''
+    data['title_fallback'] = company_name or 'Operadora'
+    return Response(data)
+
+
+@api_view(['POST'])
+def branding_title_set(request):
+    """Define o título da aba do navegador. body: title (texto; vazio = limpar)."""
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings'):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+    obj = SystemSettings.get()
+    obj.browser_title = (request.data.get('title') or '').strip()[:120]
+    obj.save(update_fields=['browser_title'])
+    return Response({'title': obj.browser_title})
 
 
 @api_view(['POST'])

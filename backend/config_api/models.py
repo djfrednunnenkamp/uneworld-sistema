@@ -585,6 +585,8 @@ class SystemSettings(models.Model):
     logo_site     = models.ImageField('Logo do site (vitrine)', upload_to='branding/', null=True, blank=True)
     logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to='branding/', null=True, blank=True)
     logo_contract = models.ImageField('Logo dos contratos', upload_to='branding/', null=True, blank=True)
+    # Título da aba do navegador. Vazio = usa o nome da operadora.
+    browser_title = models.CharField('Título da aba do navegador', max_length=120, blank=True, default='')
 
     class Meta:
         verbose_name = 'Configurações do sistema'
