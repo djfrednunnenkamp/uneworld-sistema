@@ -107,6 +107,8 @@ class UserPermissions(models.Model):
     roteiros_docs_delete_own = models.BooleanField(default=False)  # excluir só os próprios
     # Fonte das imagens no roteiro: pegar da galeria (banco) OU só upload próprio.
     roteiros_images_from_gallery = models.BooleanField(default=False)  # pode puxar imagens da galeria pros roteiros
+    # Permissão restrita: SÓ editar/enviar as imagens das LÂMINAS do roteiro (nada mais).
+    roteiros_laminas_edit = models.BooleanField(default=False)
 
     # Galeria
     gallery_view          = models.BooleanField(default=False)   # ACESSO à galeria (base); os tipos abaixo dizem O QUE vê

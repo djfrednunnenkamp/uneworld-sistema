@@ -416,15 +416,27 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_images_from_gallery')()]
         if self.action in ('create', 'create_blank'):
             return [RequirePermission('roteiros_create')()]
-        if self.action in ('update', 'partial_update', 'restore', 'purge',
-                           'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
-                           'update_image_meta',
-                           'reorder', 'draft'):
+        # Ações de imagem: quem edita o roteiro OU tem a permissão restrita de
+        # lâminas. A restrição a kind='blocking' é aplicada dentro de cada ação.
+        if self.action in ('upload_image', 'delete_image', 'reorder_images',
+                           'set_image_kind', 'update_image_meta'):
+            return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
+        if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
         if self.action == 'list':
-            return [RequirePermission('roteiros_view')()]
+            return [RequirePermission('roteiros_view', 'roteiros_laminas_edit')()]
         # retrieve/config/demais leituras de UM roteiro = abrir (só leitura) ou mais.
-        return [RequirePermission('roteiros_open', 'roteiros_edit', 'roteiros_create', 'roteiros_delete')()]
+        return [RequirePermission('roteiros_open', 'roteiros_edit', 'roteiros_create',
+                                  'roteiros_delete', 'roteiros_laminas_edit')()]
+
+    def _laminas_only(self):
+        """True quando o usuário só tem a permissão restrita de lâminas (pode mexer
+        SÓ nas imagens de lâmina — kind='blocking'). Superusuário e quem tem
+        roteiros_edit não são restritos."""
+        u = self.request.user
+        if getattr(u, 'is_superuser', False):
+            return False
+        return has_any_perm(u, 'roteiros_laminas_edit') and not has_any_perm(u, 'roteiros_edit')
 
 
     # ── Ordem manual da listagem (arrastar) — alimenta a ordem do site público ──
@@ -520,6 +532,10 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         kind = ser.validated_data.get('kind') or 'gallery'
         if day is not None:
             kind = 'gallery'
+        # Permissão restrita de lâminas: só pode enviar imagem de LÂMINA (blocking).
+        if self._laminas_only() and kind != 'blocking':
+            return Response({'detail': 'Sem permissão: só é permitido enviar imagens das lâminas.'},
+                            status=status.HTTP_403_FORBIDDEN)
         # Vídeo só é aceito na GALERIA (não em capa/lâminas). Imagem: jpg/png com
         # re-processamento; vídeo: validação de contêiner (mesma base dos passageiros).
         import os as _os
@@ -551,6 +567,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         img = itinerary.images.filter(pk=image_id).first()
         if img is None:
             return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if self._laminas_only() and img.kind != 'blocking':
+            return Response({'detail': 'Sem permissão: só é permitido gerenciar imagens das lâminas.'},
+                            status=status.HTTP_403_FORBIDDEN)
         if (request.query_params.get('scope') or 'system') == 'roteiro':
             img.itinerary = None
             img.save(update_fields=['itinerary'])
@@ -604,6 +623,10 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         valid = {c[0] for c in ItineraryImage.KIND_CHOICES}
         if kind not in valid:
             return Response({'detail': 'Tipo inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Restrito a lâminas: só pode mexer numa lâmina e mantê-la como lâmina.
+        if self._laminas_only() and (kind != 'blocking' or img.kind != 'blocking'):
+            return Response({'detail': 'Sem permissão: só é permitido gerenciar imagens das lâminas.'},
+                            status=status.HTTP_403_FORBIDDEN)
         img.kind = kind
         img.save(update_fields=['kind'])
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
@@ -620,6 +643,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         img = itinerary.images.filter(pk=image_id).first()
         if img is None:
             return Response({'detail': 'Imagem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if self._laminas_only() and img.kind != 'blocking':
+            return Response({'detail': 'Sem permissão: só é permitido gerenciar imagens das lâminas.'},
+                            status=status.HTTP_403_FORBIDDEN)
         try:
             fields = _apply_image_meta(img, request.data)
         except ValueError as e:
@@ -637,7 +663,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         Reordena as imagens da GALERIA (day nulo) na sequência informada."""
         itinerary = self.get_object()
         order = request.data.get('order') or []
-        valid = set(itinerary.images.filter(day__isnull=True).values_list('id', flat=True))
+        imgs = itinerary.images.filter(day__isnull=True)
+        # Restrito a lâminas: só reordena entre lâminas (ignora outros tipos).
+        if self._laminas_only():
+            imgs = imgs.filter(kind='blocking')
+        valid = set(imgs.values_list('id', flat=True))
         with transaction.atomic():
             for pos, img_id in enumerate(order):
                 if img_id in valid:

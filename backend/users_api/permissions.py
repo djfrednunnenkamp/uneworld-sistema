@@ -56,6 +56,7 @@ PERMISSION_FIELDS = [
     'roteiros_docs_delete',
     'roteiros_docs_delete_own',
     'roteiros_images_from_gallery',
+    'roteiros_laminas_edit',
     # Galeria
     'gallery_view',
     'gallery_view_images',
