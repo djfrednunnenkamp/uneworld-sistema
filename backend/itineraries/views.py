@@ -173,25 +173,23 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
     pagination_class = None
     parser_classes   = [MultiPartParser, FormParser, JSONParser]
 
-    # Ver todos os documentos: essas permissões dão acesso amplo.
-    DOC_VIEW_ALL = ('roteiros_docs_view', 'roteiros_edit', 'roteiros_delete')
-
     def get_permissions(self):
-        # Ler/abrir/baixar: quem vê documentos (todos ou só os próprios).
+        # Documentos têm permissões PRÓPRIAS — permissão de roteiro (edit/delete)
+        # NÃO dá acesso aos documentos. Cada ação exige a permissão de documento.
         if self.action in ('list', 'retrieve', 'config', 'download'):
-            return [RequirePermission(*self.DOC_VIEW_ALL, 'roteiros_docs_view_own')()]
+            return [RequirePermission('roteiros_docs_view', 'roteiros_docs_view_own')()]
         if self.action in ('create', 'create_blank'):
-            return [RequirePermission('roteiros_docs_create', 'roteiros_edit')()]
+            return [RequirePermission('roteiros_docs_create')()]
         if self.action == 'destroy':
-            return [RequirePermission('roteiros_docs_delete', 'roteiros_edit', 'roteiros_delete')()]
+            return [RequirePermission('roteiros_docs_delete')()]
         # update/partial_update/reorder e demais escritas.
-        return [RequirePermission('roteiros_docs_edit', 'roteiros_edit')()]
+        return [RequirePermission('roteiros_docs_edit')()]
 
     def _docs_scope(self):
         """'all' = vê todos; 'own' = só os próprios; 'none' = nenhum.
         'Ver só os próprios' restringe mesmo quando 'Ver documentos' está marcado."""
         u = self.request.user
-        if getattr(u, 'is_superuser', False) or has_any_perm(u, 'roteiros_edit', 'roteiros_delete'):
+        if getattr(u, 'is_superuser', False):
             return 'all'
         if has_any_perm(u, 'roteiros_docs_view_own'):
             return 'own'
