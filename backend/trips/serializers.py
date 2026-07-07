@@ -91,8 +91,19 @@ class RoteiroSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data']
 
     def get_airports_data(self, obj):
-        return [{'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
-                for a in obj.airports.all()]
+        # Aeroportos base do roteiro = os aeroportos de saída dos blocos de partida
+        # (ItineraryDeparture), na ordem, sem repetir. É de onde o grupo sai.
+        from itineraries.models import ItineraryDeparture
+        seen, out = set(), []
+        for d in (ItineraryDeparture.objects
+                  .filter(itinerary=obj, airport__isnull=False)
+                  .select_related('airport').order_by('order', 'id')):
+            a = d.airport
+            if a.id in seen:
+                continue
+            seen.add(a.id)
+            out.append({'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country})
+        return out
 
 
 class RoomSerializer(serializers.ModelSerializer):
