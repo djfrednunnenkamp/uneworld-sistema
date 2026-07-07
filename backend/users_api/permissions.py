@@ -84,6 +84,8 @@ PERMISSION_FIELDS = [
     'calendar_view',
     'calendar_view_birthdays',
     'calendar_view_all_deadlines',
+    # Guias
+    'guides_view',
     # Usuários
     'users_view',
     'users_edit',

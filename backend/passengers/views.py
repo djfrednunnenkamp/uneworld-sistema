@@ -95,7 +95,9 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         if self.action in ('check_cpf', 'active'):
             # Endpoints utilitários de leitura usados durante o fluxo de criação/edição
             return [RequirePermission(*VIEW_PERMS, 'passengers_edit')()]
-        if self.action in ('list', 'retrieve', 'agencies', 'guides', 'guide_trips'):
+        if self.action in ('guides', 'guide_trips'):
+            return [RequirePermission('guides_view')()]
+        if self.action in ('list', 'retrieve', 'agencies'):
             return [RequirePermission(*VIEW_PERMS)()]
         return super().get_permissions()
 
