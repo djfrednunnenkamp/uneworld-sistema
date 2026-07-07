@@ -89,9 +89,11 @@ class UserPermissions(models.Model):
     contracts_invoice_view = models.BooleanField(default=False)   # ver as abas "A faturar" e "Faturado"
     contracts_invoice = models.BooleanField(default=False)        # faturar (mover A faturar → Faturado)
 
-    # Roteiros
-    roteiros_view      = models.BooleanField(default=False)
-    roteiros_edit      = models.BooleanField(default=False)
+    # Roteiros — Ver a lista → Abrir (só leitura) → Editar → Criar
+    roteiros_view      = models.BooleanField(default=False)   # ver a LISTA de roteiros
+    roteiros_open      = models.BooleanField(default=False)   # abrir o roteiro (só leitura)
+    roteiros_edit      = models.BooleanField(default=False)   # editar o roteiro
+    roteiros_create    = models.BooleanField(default=False)   # criar novos roteiros
     roteiros_delete    = models.BooleanField(default=False)
     roteiros_view_logs = models.BooleanField(default=False)
     roteiros_publish        = models.BooleanField(default=False)   # publicar/despublicar no site

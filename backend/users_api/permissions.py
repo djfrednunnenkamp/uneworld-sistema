@@ -42,7 +42,9 @@ PERMISSION_FIELDS = [
     'contracts_invoice',
     # Roteiros
     'roteiros_view',
+    'roteiros_open',
     'roteiros_edit',
+    'roteiros_create',
     'roteiros_delete',
     'roteiros_view_logs',
     'roteiros_publish',

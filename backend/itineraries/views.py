@@ -375,12 +375,17 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             # Pegar imagem da galeria (banco) pro roteiro exige permissão própria;
             # sem ela, a pessoa só consegue fazer upload das próprias imagens.
             return [RequirePermission('roteiros_images_from_gallery')()]
-        if self.action in ('create', 'update', 'partial_update', 'restore', 'purge',
+        if self.action in ('create', 'create_blank'):
+            return [RequirePermission('roteiros_create')()]
+        if self.action in ('update', 'partial_update', 'restore', 'purge',
                            'upload_image', 'delete_image', 'reorder_images', 'set_image_kind',
                            'update_image_meta',
                            'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
-        return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
+        if self.action == 'list':
+            return [RequirePermission('roteiros_view')()]
+        # retrieve/config/demais leituras de UM roteiro = abrir (só leitura) ou mais.
+        return [RequirePermission('roteiros_open', 'roteiros_edit', 'roteiros_create', 'roteiros_delete')()]
 
     def perform_update(self, serializer):
         # Editar um roteiro JÁ PUBLICADO exige a permissão específica.
