@@ -106,11 +106,11 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
 
         É considerado guia quem: (a) está marcado como guia no cadastro
         (is_guide), OU (b) tem a função "Guia" (Equipe Técnica) em ALGUMA viagem —
-        mesmo sem estar marcado no cadastro. Numa viagem, conta "como guia" quando
-        a inscrição tem a função "Guia"; para quem é guia de cadastro, também
-        conta quando não há função nenhuma (guia por padrão). Ir com OUTRA função
-        (ex.: só motorista) não conta. O ano é o de início da viagem; o status é
-        relativo a hoje."""
+        mesmo sem estar marcado no cadastro. A CONTAGEM é sempre EXPLÍCITA: só
+        conta a viagem em que a função "Guia" foi marcada naquela inscrição. Ser
+        guia no cadastro NÃO faz as outras viagens contarem — cada viagem só conta
+        se você escolheu que ali a pessoa é guia. O ano é o de início da viagem; o
+        status é relativo a hoje."""
         from collections import defaultdict
         from django.utils import timezone
         from trips.models import CrewRole, ListEnrollment
@@ -157,10 +157,10 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
                 if not p:
                     continue
                 role_ids = {r.id for r in e.crew_roles.all()}
-                has_guia = bool(role_ids & guia_ids)
-                # Conta se: tem a função "Guia" nesta viagem, OU é guia de cadastro
-                # e não tem função nenhuma (guia por padrão).
-                if not (has_guia or (p.is_guide and not role_ids)):
+                # Conta SÓ as viagens onde a função "Guia" foi marcada nesta
+                # inscrição (Equipe Técnica). Ser guia no cadastro (is_guide) NÃO
+                # faz a viagem contar por padrão — só a viagem escolhida conta.
+                if not (role_ids & guia_ids):
                     continue
                 s = e.passenger_list.start_date
                 en = e.passenger_list.end_date
