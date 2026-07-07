@@ -45,6 +45,10 @@ PERMISSION_FIELDS = [
     'roteiros_edit',
     'roteiros_delete',
     'roteiros_view_logs',
+    # Galeria
+    'gallery_view',
+    'gallery_edit',
+    'gallery_delete',
     # Listas de Passageiros
     'lists_view',
     'lists_edit',

@@ -95,6 +95,11 @@ class UserPermissions(models.Model):
     roteiros_delete    = models.BooleanField(default=False)
     roteiros_view_logs = models.BooleanField(default=False)
 
+    # Galeria
+    gallery_view   = models.BooleanField(default=False)   # ver a galeria (e baixar)
+    gallery_edit   = models.BooleanField(default=False)   # adicionar/editar imagens no banco
+    gallery_delete = models.BooleanField(default=False)   # excluir imagens do banco
+
     # Administração
     manage_users     = models.BooleanField(default=False)
     manage_settings  = models.BooleanField(default=False)

@@ -634,10 +634,12 @@ def _apply_image_meta(img, data):
     return fields
 
 
-class _GalleryReadPermission(RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete')):
-    """Leitura da galeria: quem pode ver roteiros OU uma conta de operadora — que
-    enxerga só as lâminas padrão dos roteiros públicos e abertos (restrição feita
-    no queryset e no download)."""
+class _GalleryReadPermission(RequirePermission(
+        'roteiros_view', 'roteiros_edit', 'roteiros_delete',
+        'gallery_view', 'gallery_edit', 'gallery_delete')):
+    """Leitura da galeria: quem tem permissão de galeria (ou de roteiros) OU uma
+    conta de operadora — que enxerga só as lâminas padrão dos roteiros públicos e
+    abertos (restrição feita no queryset e no download)."""
     def has_permission(self, request, view):
         return super().has_permission(request, view) or is_operadora_user(request.user)
 
@@ -655,7 +657,9 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'download'):
             return [_GalleryReadPermission()]
-        return [RequirePermission('roteiros_edit')()]
+        if self.action == 'destroy':
+            return [RequirePermission('roteiros_edit', 'gallery_edit', 'gallery_delete')()]
+        return [RequirePermission('roteiros_edit', 'gallery_edit')()]
 
     @staticmethod
     def _operadora_restrict(qs):
