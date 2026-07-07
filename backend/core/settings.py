@@ -213,8 +213,13 @@ LOGGING = {
     'formatters': {
         'standard': {'format': '[%(asctime)s] %(levelname)s %(name)s: %(message)s'},
     },
+    'filters': {
+        # Silencia o CancelledError de cliente que desconecta no meio da requisição.
+        'skip_client_cancelled': {'()': 'core.logging_filters.SkipClientCancelled'},
+    },
     'handlers': {
-        'console': {'class': 'logging.StreamHandler', 'formatter': 'standard'},
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'standard',
+                    'filters': ['skip_client_cancelled']},
     },
     'root': {'handlers': ['console'], 'level': config('LOG_LEVEL', default='INFO')},
     'loggers': {
