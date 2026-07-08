@@ -39,7 +39,9 @@ class VoucherViewSet(viewsets.ViewSet):
     def get_permissions(self):
         if self.action == 'set_status':
             return [IsAuthenticated(), RequirePermission('voucher_publish')()]
-        if self.action in ('partial_update', 'update', 'flight_confirmation'):
+        if self.action == 'flight_confirmation':
+            return [IsAuthenticated(), RequirePermission('voucher_flight')()]
+        if self.action in ('partial_update', 'update'):
             return [IsAuthenticated(), RequirePermission('voucher_edit')()]
         return [IsAuthenticated(), RequirePermission('voucher_view', 'voucher_agency')()]
 

@@ -78,6 +78,7 @@ class UserPermissions(models.Model):
     voucher_publish  = models.BooleanField(default=False)   # publicar / voltar para edição
     voucher_agency   = models.BooleanField(default=False)   # dedicada a agências: vê só vouchers publicados e só os passageiros da própria agência
     voucher_agency_past = models.BooleanField(default=False)  # agência também vê vouchers de viagens em andamento/realizadas (2ª aba); sem isto, só as futuras
+    voucher_flight   = models.BooleanField(default=False)   # enviar/trocar/remover a confirmação de voo (captura de tela) por passageiro
 
     # Passageiros na Lista
     lists_passengers_add    = models.BooleanField(default=False)
