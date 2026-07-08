@@ -32,6 +32,16 @@ from .serializers import (ItinerarySerializer, ItineraryListSerializer,
 from core.search import AccentInsensitiveSearchFilter
 
 
+def _itinerary_cover_url(it, request):
+    """URL absoluta da capa do roteiro (imagem kind='cover' ou 1ª da galeria)."""
+    imgs = list(it.images.all())
+    cover = next((i for i in imgs if i.kind == 'cover'), None) \
+        or next((i for i in imgs if i.day_id is None), None)
+    if not cover or not cover.image:
+        return None
+    return request.build_absolute_uri(cover.image.url) if request else cover.image.url
+
+
 def _roteiro_edit_permissions(self):
     """Ler: quem vê roteiros; criar/editar/excluir: quem edita roteiros."""
     if self.action in ('list', 'retrieve'):
@@ -387,6 +397,28 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         u = self.request.user
         serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
 
+    @action(detail=False, methods=['get'], url_path='with_documents')
+    def with_documents(self, request):
+        """Roteiros que têm documentos VISÍVEIS ao usuário — alimenta a aba
+        'Roteiros' do Drive (cada roteiro vira uma pasta com a capa dele).
+        Respeita o escopo de documentos: todos vs só os próprios."""
+        from django.db.models import Count
+        u = request.user
+        if getattr(u, 'is_superuser', False) or has_any_perm(u, 'roteiros_docs_view'):
+            docs = ItineraryDocument.objects.all()
+        elif has_any_perm(u, 'roteiros_docs_view_own'):
+            docs = ItineraryDocument.objects.filter(owner=u)
+        else:
+            return Response([])   # sem permissão de ver documentos do roteiro
+        counts = dict(docs.values('itinerary_id').annotate(n=Count('id')).values_list('itinerary_id', 'n'))
+        if not counts:
+            return Response([])
+        qs = self.get_queryset().filter(id__in=list(counts.keys())).prefetch_related('images')
+        out = [{'id': it.id, 'name': it.name, 'cover': _itinerary_cover_url(it, request),
+                'doc_count': counts.get(it.id, 0)} for it in qs]
+        out.sort(key=lambda r: (r['name'] or '').lower())
+        return Response(out)
+
     @action(detail=True, methods=['post'])
     def duplicate(self, request, pk=None):
         """Duplica o roteiro por completo (cópia editável, nasce como RASCUNHO).
@@ -535,6 +567,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_images_from_gallery')()]
         if self.action in ('create', 'create_blank', 'duplicate'):
             return [RequirePermission('roteiros_create')()]
+        if self.action == 'with_documents':
+            # Exige ver roteiros; a permissão de ver DOCUMENTOS é checada na action
+            # (sem ela, devolve lista vazia). Assim a aba só tem conteúdo com as duas.
+            return [RequirePermission('roteiros_view', 'roteiros_open', 'roteiros_edit',
+                                      'roteiros_create', 'roteiros_delete')()]
         # Ações de imagem: quem edita o roteiro OU tem a permissão restrita de
         # lâminas. A restrição a kind='blocking' é aplicada dentro de cada ação.
         if self.action in ('upload_image', 'delete_image', 'reorder_images',
