@@ -13,6 +13,13 @@ def drive_thumb_path(instance, filename):
     return f"drive/thumbs/{instance.owner_id}/{uuid.uuid4().hex}.png"
 
 
+def drive_version_path(instance, filename):
+    node = instance.node
+    ext = os.path.splitext(node.file.name)[1].lower() if (node and node.file) else '.dat'
+    owner = node.owner_id if node else 0
+    return f"drive/versions/{owner}/{uuid.uuid4().hex}{ext}"
+
+
 class DriveNode(models.Model):
     """Um item do "Drive" do usuário: uma PASTA ou um ARQUIVO. Cada nó pertence a
     um dono e pode estar dentro de uma pasta (parent). PRIVADO por padrão — só o
@@ -70,3 +77,22 @@ class DriveNode(models.Model):
             node = node.parent
             seen += 1
         return False
+
+
+class DriveNodeVersion(models.Model):
+    """Snapshot de uma versão de um arquivo do Drive (histórico estilo Google Docs).
+    Guardado a cada salvamento vindo do editor (e na criação/upload), com quem
+    editou e quando. Permite restaurar o arquivo para aquele ponto."""
+    node       = models.ForeignKey(DriveNode, on_delete=models.CASCADE, related_name='versions')
+    file       = models.FileField(upload_to=drive_version_path)
+    file_size  = models.PositiveBigIntegerField(default=0)
+    edited_by  = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='drive_versions')
+    edited_by_name = models.CharField(max_length=255, blank=True)   # nome no momento (caso o usuário suma)
+    note       = models.CharField(max_length=255, blank=True)       # ex.: "Criado", "Restaurado da versão de …"
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'v{self.id} de {self.node_id}'

@@ -14,13 +14,36 @@ from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
 from itineraries import blank_office, onlyoffice
-from .models import DriveNode
-from .serializers import DriveNodeSerializer
+from .models import DriveNode, DriveNodeVersion
+from .serializers import DriveNodeSerializer, _user_label
 
 
 def _safe(name):
     """Nome seguro para entrada de zip: sem barras nem componentes de caminho."""
     return (name or 'arquivo').replace('/', '_').replace('\\', '_').strip() or 'arquivo'
+
+
+def snapshot_version(node, user=None, name='', note='', max_keep=50):
+    """Guarda uma cópia do conteúdo ATUAL do arquivo como uma versão do histórico.
+    Chamar DEPOIS de gravar node.file. Poda mantendo as `max_keep` mais recentes."""
+    if not node.file:
+        return None
+    try:
+        fh = node.file.open('rb'); content = fh.read(); fh.close()
+    except Exception:
+        return None
+    label = name or (_user_label(user) if user else '')
+    v = DriveNodeVersion(
+        node=node,
+        edited_by=user if (user and getattr(user, 'is_authenticated', False)) else None,
+        edited_by_name=label, note=note, file_size=len(content))
+    v.file.save(f'{node.id}.dat', ContentFile(content), save=True)
+    # Poda versões antigas (guarda só as mais recentes).
+    for old in list(node.versions.all()[max_keep:]):
+        try: old.file.delete(save=False)
+        except Exception: pass
+        old.delete()
+    return v
 
 
 def _breadcrumb(folder):
@@ -95,6 +118,8 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                              mime_type=getattr(f, 'content_type', '') or '')
             node.file.save(f.name, f, save=False)
             node.save()
+            if onlyoffice.office_document_type(node.name or ''):
+                snapshot_version(node, user=request.user, note='Enviado')
             created.append(node)
         return Response(DriveNodeSerializer(created, many=True, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
@@ -120,6 +145,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                          name=name, original_name=name, file_size=len(content))
         node.file.save(f'novo.{ext}', ContentFile(content), save=False)
         node.save()
+        snapshot_version(node, user=request.user, note='Criado')
         return Response(DriveNodeSerializer(node, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
 
@@ -182,6 +208,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             if n.thumb:
                 try: n.thumb.delete(save=False)
                 except Exception: pass
+            for v in n.versions.all():
+                if v.file:
+                    try: v.file.delete(save=False)
+                    except Exception: pass
 
     @action(detail=True, methods=['post'])
     def share(self, request, pk=None):
@@ -200,6 +230,77 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def preview(self, request, pk=None):
         return self._serve(pk, request, inline=True)
+
+    # ── Histórico de versões (estilo Google Docs) ──
+    def _versions_payload(self, node, request):
+        from django.utils import timezone
+        out = []
+        for v in node.versions.all():
+            out.append({
+                'id': v.id,
+                'edited_by_name': v.edited_by_name or 'Alguém',
+                'note': v.note,
+                'file_size': v.file_size,
+                'created_at': timezone.localtime(v.created_at).isoformat(),
+                'download_url': f'/api/drive/{node.id}/version_download/?version={v.id}',
+            })
+        return {'versions': out, 'is_owner': node.owner_id == request.user.id}
+
+    @action(detail=True, methods=['get'])
+    def versions(self, request, pk=None):
+        """Lista as versões (histórico) de um arquivo — quem editou e quando."""
+        node = DriveNode.objects.filter(pk=pk, kind='file').first()
+        if node is None:
+            raise Http404
+        if not node.can_access(request.user):
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        return Response(self._versions_payload(node, request))
+
+    @action(detail=True, methods=['get'], url_path='version_download')
+    def version_download(self, request, pk=None):
+        """Baixa/abre o arquivo de uma versão específica."""
+        node = DriveNode.objects.filter(pk=pk, kind='file').first()
+        if node is None:
+            raise Http404
+        if not node.can_access(request.user):
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        v = node.versions.filter(pk=request.query_params.get('version')).first()
+        if not v or not v.file:
+            raise Http404
+        try:
+            fh = v.file.open('rb')
+        except Exception:
+            raise Http404
+        from urllib.parse import quote
+        resp = FileResponse(fh, content_type='application/octet-stream')
+        resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(node.name or 'documento')}"
+        return resp
+
+    @action(detail=True, methods=['post'], url_path='restore_version')
+    def restore_version(self, request, pk=None):
+        """Restaura o arquivo para uma versão do histórico. Só o dono."""
+        node = self.get_object()   # get_queryset = só do dono
+        if node.kind != 'file' or not node.file:
+            return Response({'error': 'Item inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        v = node.versions.filter(pk=request.data.get('version')).first()
+        if not v or not v.file:
+            return Response({'error': 'Versão inválida.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            fh = v.file.open('rb'); content = fh.read(); fh.close()
+        except Exception:
+            return Response({'error': 'Não foi possível ler a versão.'}, status=status.HTTP_400_BAD_REQUEST)
+        node.file.save(node.file.name.split('/')[-1], ContentFile(content), save=False)
+        node.file_size = len(content)
+        node.edit_key = get_random_string(12)   # força o editor a recarregar o conteúdo
+        if node.thumb:
+            try: node.thumb.delete(save=False)
+            except Exception: pass
+            node.thumb = None
+        node.save(update_fields=['file', 'file_size', 'edit_key', 'thumb', 'updated_at'])
+        from django.utils import timezone
+        snapshot_version(node, user=request.user,
+                         note=f'Restaurado da versão de {timezone.localtime(v.created_at):%d/%m/%Y %H:%M}')
+        return Response(self._versions_payload(node, request))
 
     @action(detail=True, methods=['get'], url_path='download_zip')
     def download_zip(self, request, pk=None):
@@ -324,6 +425,17 @@ def drive_document_callback(request, pk):
                     except Exception: pass
                     node.thumb = None
                 node.save(update_fields=['file', 'file_size', 'edit_key', 'thumb', 'updated_at'])
+                # Guarda a versão no histórico, atribuindo a quem editou.
+                from django.contrib.auth.models import User as _User
+                editor, ename = None, ''
+                for uid in reversed(payload.get('users') or []):
+                    if str(uid).isdigit():
+                        editor = _User.objects.filter(pk=int(uid)).first()
+                        if editor: break
+                for ch in reversed((payload.get('history') or {}).get('changes') or []):
+                    nm = (ch.get('user') or {}).get('name')
+                    if nm: ename = nm; break
+                snapshot_version(node, user=editor, name=ename)
             except Exception:
                 return Response({'error': 1})
     return Response({'error': 0})
