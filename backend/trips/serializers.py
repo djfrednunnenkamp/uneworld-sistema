@@ -292,6 +292,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_passport_expiry = serializers.SerializerMethodField()
     passenger_is_guide        = serializers.SerializerMethodField()
     passenger_address         = serializers.SerializerMethodField()
+    date_conflict             = serializers.SerializerMethodField()
 
     def get_passenger_phone2(self, obj):          return obj.passenger.phone2          if obj.passenger else ''
     def get_passenger_mobile(self, obj):           return obj.passenger.mobile          if obj.passenger else ''
@@ -310,6 +311,28 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         sd = obj.selected_passport_id and obj.selected_passport
         if sd and sd.expiry_date: return str(sd.expiry_date)
         return str(p.passport_expiry) if p.passport_expiry else None
+    def get_date_conflict(self, obj):
+        """Outras listas de passageiros (não excluídas) em que o MESMO passageiro
+        está e cujas DATAS se sobrepõem às desta lista — ele não pode estar em duas
+        viagens ao mesmo tempo. Devolve [] (sem conflito) ou a lista dos conflitos."""
+        p_id = obj.passenger_id
+        pl = obj.passenger_list
+        if not p_id or not pl or not pl.start_date or not pl.end_date:
+            return []
+        others = (ListEnrollment.objects
+                  .filter(passenger_id=p_id,
+                          passenger_list__is_deleted=False,
+                          passenger_list__start_date__lte=pl.end_date,
+                          passenger_list__end_date__gte=pl.start_date)
+                  .exclude(passenger_list_id=pl.id)
+                  .select_related('passenger_list'))
+        out = []
+        for e in others:
+            opl = e.passenger_list
+            out.append({'list_id': opl.id, 'list_name': opl.name,
+                        'start_date': str(opl.start_date), 'end_date': str(opl.end_date)})
+        return out
+
     def get_passenger_address(self, obj):
         p = obj.passenger
         if not p: return ''
@@ -443,7 +466,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_phone2', 'passenger_mobile',
             'passenger_seat_preference', 'passenger_diet_type',
             'passenger_passport_issue', 'passenger_passport_expiry',
-            'passenger_is_guide', 'passenger_address',
+            'passenger_is_guide', 'passenger_address', 'date_conflict',
             'additionals', 'additionals_data',
             'crew_roles', 'crew_roles_data',
             'accommodation', 'seat', 'enrollment_status', 'pending_until', 'pending_reason',
