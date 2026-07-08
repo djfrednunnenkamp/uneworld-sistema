@@ -23,57 +23,6 @@ def _safe(name):
     return (name or 'arquivo').replace('/', '_').replace('\\', '_').strip() or 'arquivo'
 
 
-# ── Diff de conteúdo entre versões (estilo GitHub) ──
-_W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-
-
-def docx_text(fileobj):
-    """Extrai o texto de um .docx (um parágrafo por linha). None se não der."""
-    from xml.etree import ElementTree as ET
-    try:
-        with zipfile.ZipFile(fileobj) as z:
-            xml = z.read('word/document.xml')
-        root = ET.fromstring(xml)
-    except Exception:
-        return None
-    lines = []
-    for p in root.iter(f'{_W}p'):
-        buf = []
-        for node in p.iter():
-            if node.tag == f'{_W}t':
-                buf.append(node.text or '')
-            elif node.tag == f'{_W}tab':
-                buf.append('\t')
-            elif node.tag in (f'{_W}br', f'{_W}cr'):
-                buf.append('\n')
-        lines.append(''.join(buf))
-    return '\n'.join(lines)
-
-
-def line_diff(old, new, ctx=3):
-    """Diff linha a linha (add/del/ctx/skip) entre dois textos."""
-    import difflib
-    a, b = old.split('\n'), new.split('\n')
-    out = []
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b).get_opcodes():
-        if tag == 'equal':
-            run = a[i1:i2]
-            if len(run) > ctx * 2 + 1:
-                for l in run[:ctx]: out.append({'type': 'ctx', 'text': l})
-                out.append({'type': 'skip', 'count': len(run) - ctx * 2})
-                for l in run[-ctx:]: out.append({'type': 'ctx', 'text': l})
-            else:
-                for l in run: out.append({'type': 'ctx', 'text': l})
-        elif tag == 'delete':
-            for l in a[i1:i2]: out.append({'type': 'del', 'text': l})
-        elif tag == 'insert':
-            for l in b[j1:j2]: out.append({'type': 'add', 'text': l})
-        elif tag == 'replace':
-            for l in a[i1:i2]: out.append({'type': 'del', 'text': l})
-            for l in b[j1:j2]: out.append({'type': 'add', 'text': l})
-    return out
-
-
 def snapshot_version(node, user=None, name='', note='', max_keep=50):
     """Guarda uma cópia do conteúdo ATUAL do arquivo como uma versão do histórico.
     Chamar DEPOIS de gravar node.file. Poda mantendo as `max_keep` mais recentes."""
@@ -287,51 +236,6 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     def preview(self, request, pk=None):
         return self._serve(pk, request, inline=True)
 
-    # ── Histórico de versões (estilo Google Docs) ──
-    def _versions_payload(self, node, request):
-        from django.utils import timezone
-        out = []
-        for v in node.versions.all():
-            out.append({
-                'id': v.id,
-                'edited_by_name': v.edited_by_name or 'Alguém',
-                'note': v.note,
-                'file_size': v.file_size,
-                'created_at': timezone.localtime(v.created_at).isoformat(),
-                'download_url': f'/api/drive/{node.id}/version_download/?version={v.id}',
-            })
-        return {'versions': out, 'is_owner': node.owner_id == request.user.id}
-
-    @action(detail=True, methods=['get'])
-    def versions(self, request, pk=None):
-        """Lista as versões (histórico) de um arquivo — quem editou e quando."""
-        node = DriveNode.objects.filter(pk=pk, kind='file').first()
-        if node is None:
-            raise Http404
-        if not node.can_access(request.user):
-            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
-        return Response(self._versions_payload(node, request))
-
-    @action(detail=True, methods=['get'], url_path='version_download')
-    def version_download(self, request, pk=None):
-        """Baixa/abre o arquivo de uma versão específica."""
-        node = DriveNode.objects.filter(pk=pk, kind='file').first()
-        if node is None:
-            raise Http404
-        if not node.can_access(request.user):
-            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
-        v = node.versions.filter(pk=request.query_params.get('version')).first()
-        if not v or not v.file:
-            raise Http404
-        try:
-            fh = v.file.open('rb')
-        except Exception:
-            raise Http404
-        from urllib.parse import quote
-        resp = FileResponse(fh, content_type='application/octet-stream')
-        resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(node.name or 'documento')}"
-        return resp
-
     # ── Histórico NATIVO do OnlyOffice (realce das mudanças dentro do documento) ──
     @action(detail=True, methods=['get'], url_path='history')
     def history(self, request, pk=None):
@@ -394,36 +298,6 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             data['token'] = onlyoffice.jwt_encode(data, secret)
         return Response(data)
 
-    @action(detail=True, methods=['get'], url_path='version_diff')
-    def version_diff(self, request, pk=None):
-        """Diff de texto entre uma versão e o documento ATUAL (o que mudou daquela
-        versão até agora). Só para .docx por enquanto."""
-        node = DriveNode.objects.filter(pk=pk, kind='file').first()
-        if node is None:
-            raise Http404
-        if not node.can_access(request.user):
-            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
-        v = node.versions.filter(pk=request.query_params.get('version')).first()
-        if not v or not v.file:
-            return Response({'error': 'Versão inválida.'}, status=status.HTTP_400_BAD_REQUEST)
-        ext = os.path.splitext(node.name or '')[1].lower().lstrip('.')
-        if ext != 'docx':
-            return Response({'supported': False})
-        try:
-            old = docx_text(v.file.open('rb'))
-            new = docx_text(node.file.open('rb'))
-        except Exception:
-            old = new = None
-        if old is None or new is None:
-            return Response({'supported': False})
-        lines = line_diff(old, new)
-        return Response({
-            'supported': True,
-            'lines': lines,
-            'added':   sum(1 for l in lines if l['type'] == 'add'),
-            'removed': sum(1 for l in lines if l['type'] == 'del'),
-        })
-
     @action(detail=True, methods=['post'], url_path='restore_version')
     def restore_version(self, request, pk=None):
         """Restaura o arquivo para uma versão do histórico. Só o dono."""
@@ -448,7 +322,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         snapshot_version(node, user=request.user,
                          note=f'Restaurado da versão de {timezone.localtime(v.created_at):%d/%m/%Y %H:%M}')
-        return Response(self._versions_payload(node, request))
+        return Response({'ok': True})
 
     @action(detail=True, methods=['get'], url_path='download_zip')
     def download_zip(self, request, pk=None):
