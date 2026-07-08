@@ -554,11 +554,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                    'Você só pode excluir os seus próprios rascunhos.')
         # Vínculo 1:1: ao excluir o roteiro, a sua lista de passageiros vai junto
         # para a lixeira (só ela pode ser removida — a lista sozinha não).
+        # delete_passengers=1 (padrão do pop-up) → também apaga os passageiros
+        # (inscrições) da lista vinculada.
+        delete_pax = request.query_params.get('delete_passengers') in ('1', 'true', 'True')
         linked_lists = list(obj.passenger_lists.filter(is_deleted=False))
         resp = super().destroy(request, *args, **kwargs)
         from django.utils import timezone
         now = timezone.now()
         for pl in linked_lists:
+            if delete_pax:
+                pl.list_enrollments.all().delete()
             pl.is_deleted = True
             pl.deleted_at = now
             pl.save(update_fields=['is_deleted', 'deleted_at'])
