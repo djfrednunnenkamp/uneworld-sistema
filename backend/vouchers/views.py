@@ -55,9 +55,12 @@ class VoucherViewSet(viewsets.ViewSet):
         if scope is not None:
             # Agência: só vouchers PUBLICADOS de listas onde ela tem passageiros.
             qs = qs.filter(voucher__status='publicado', list_enrollments__agency_id__in=scope).distinct()
-            # Sem voucher_agency_past, só as viagens FUTURAS (não iniciadas).
-            if not has_any_perm(request.user, 'voucher_agency_past'):
-                qs = qs.exclude(start_date__lte=timezone.localdate())
+            can_past = has_any_perm(request.user, 'voucher_agency_past')
+        else:
+            can_past = has_any_perm(request.user, 'voucher_past')
+        # Sem a permissão de "viagens antigas", só as FUTURAS (não iniciadas).
+        if not can_past:
+            qs = qs.exclude(start_date__lte=timezone.localdate())
         rows = []
         for pl in qs:
             voucher = getattr(pl, 'voucher', None)
@@ -86,9 +89,12 @@ class VoucherViewSet(viewsets.ViewSet):
             # Agência só acessa voucher PUBLICADO e onde tem passageiros.
             if voucher.status != 'publicado' or not pl.list_enrollments.filter(agency_id__in=scope).exists():
                 return Response({'error': 'Voucher não disponível.'}, status=status.HTTP_404_NOT_FOUND)
-            # Sem voucher_agency_past, viagens já iniciadas ficam bloqueadas.
-            if pl.start_date and pl.start_date <= timezone.localdate() and not has_any_perm(request.user, 'voucher_agency_past'):
-                return Response({'error': 'Voucher não disponível.'}, status=status.HTTP_404_NOT_FOUND)
+            can_past = has_any_perm(request.user, 'voucher_agency_past')
+        else:
+            can_past = has_any_perm(request.user, 'voucher_past')
+        # Sem a permissão de "viagens antigas", viagens já iniciadas ficam bloqueadas.
+        if pl.start_date and pl.start_date <= timezone.localdate() and not can_past:
+            return Response({'error': 'Voucher não disponível.'}, status=status.HTTP_404_NOT_FOUND)
         blocks, is_custom = build.resolve_blocks(voucher)
         return Response({
             'id': pl.id,
