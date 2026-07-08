@@ -38,6 +38,10 @@ class CalendarPreference(models.Model):
     # Colunas da lista do Drive (Meus Documentos), com ordem e visibilidade
     # escolhidas pelo usuário: [{"key":"modified","on":true}, ...]. Vazio = padrão.
     drive_columns        = models.JSONField('Colunas da lista do Drive', default=list, blank=True)
+    # Ordem dos itens da barra lateral escolhida pelo usuário (lista de rotas,
+    # ex.: ['/contratos','/roteiros',...]). Só reordena; a visibilidade continua
+    # sendo pela permissão. Vazio = ordem padrão do sistema.
+    nav_order            = models.JSONField('Ordem da barra lateral', default=list, blank=True)
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)
