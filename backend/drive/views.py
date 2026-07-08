@@ -363,6 +363,51 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         return resp
 
     @action(detail=True, methods=['get'])
+    def details(self, request, pk=None):
+        """Informações completas de um item (para o pop-up "Ver detalhes"). Pasta:
+        inclui quantos itens e o tamanho total (recursivo)."""
+        node = DriveNode.objects.filter(pk=pk).first()
+        if node is None:
+            raise Http404
+        if not node.can_access(request.user):
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        # Localização: caminho das pastas-mãe (Início / Pasta / …).
+        crumb, p, seen = [], node.parent, 0
+        while p is not None and seen < 100:
+            crumb.insert(0, p.name); p = p.parent; seen += 1
+        location = ' / '.join(['Início'] + crumb)
+
+        data = {
+            'id': node.id, 'kind': node.kind, 'name': node.name,
+            'ext': (os.path.splitext(node.original_name or node.name or '')[1] or '').lower().lstrip('.'),
+            'mime_type': node.mime_type or '',
+            'created_at': node.created_at.isoformat() if node.created_at else None,
+            'updated_at': node.updated_at.isoformat() if node.updated_at else None,
+            'owner_name': _user_label(node.owner) if node.owner_id else '',
+            'is_owner': node.owner_id == request.user.id,
+            'shared_with': [_user_label(u) for u in node.shared_with.all()],
+            'location': location,
+        }
+        if node.kind == 'file':
+            data['file_size'] = node.file_size or 0
+        else:
+            # Pasta: conta itens e soma tamanhos (recursivo).
+            n_files = n_folders = total = 0
+            stack, seen = [node], 0
+            while stack and seen < 100000:
+                cur = stack.pop(); seen += 1
+                for ch in cur.children.all():
+                    if ch.kind == 'folder':
+                        n_folders += 1; stack.append(ch)
+                    else:
+                        n_files += 1; total += (ch.file_size or 0)
+            data['item_count'] = n_files + n_folders
+            data['file_count'] = n_files
+            data['folder_count'] = n_folders
+            data['total_size'] = total
+        return Response(data)
+
+    @action(detail=True, methods=['get'])
     def thumb(self, request, pk=None):
         """Miniatura (PNG) do conteúdo — Word/Excel/PPT/PDF. Gera sob demanda na
         primeira visualização (via OnlyOffice) e guarda; regenera após edição."""

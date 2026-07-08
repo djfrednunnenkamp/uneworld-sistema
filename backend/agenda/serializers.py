@@ -11,7 +11,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position',
                   'contract_create_layout', 'contract_edit_layout',
-                  'dashboard_currencies', 'itinerary_tab_order']
+                  'dashboard_currencies', 'itinerary_tab_order', 'drive_columns']
 
     def validate_dashboard_currencies(self, value):
         if not isinstance(value, list):
@@ -27,6 +27,16 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
             raise serializers.ValidationError('Formato inválido.')
         return value[:40]
+
+    def validate_drive_columns(self, value):
+        # Lista de {key: str, on: bool}. Guardamos só o essencial.
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Formato inválido.')
+        out = []
+        for item in value[:20]:
+            if isinstance(item, dict) and isinstance(item.get('key'), str):
+                out.append({'key': item['key'], 'on': bool(item.get('on', True))})
+        return out
 
     def _validate_hour(self, value):
         if not (0 <= value <= 23):
