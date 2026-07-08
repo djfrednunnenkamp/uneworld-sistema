@@ -37,6 +37,21 @@ def build_review_data(contract):
     # muda o contrato — então a comparação também tem de ser contra a foto, senão
     # alertamos "diferem do roteiro" à toa. Além disso só comparamos quando as moedas
     # batem: comparar número cru entre moedas diferentes não faz sentido.
+    #
+    # E quando o roteiro tem MAIS DE UMA SAÍDA o preço muda por saída — o mesmo tipo
+    # de acomodação aparece uma vez por saída, com valores diferentes. O contrato guarda
+    # a saída escolhida (itinerary_flight/terrestre_departure); só as linhas dessa saída
+    # formam a baseline (senão a última saída sobrescreve e acusamos divergência falsa).
+    dep_flight = contract.itinerary_flight_departure_id
+    dep_terr = contract.itinerary_terrestre_departure_id
+
+    def _in_scope(fdep, tdep):
+        if dep_flight is not None:
+            return fdep == dep_flight
+        if dep_terr is not None:
+            return tdep == dep_terr
+        return fdep is None and tdep is None
+
     itin_map = {}
     if contract.itinerary_id:
         itin = contract.itinerary
@@ -46,13 +61,13 @@ def build_review_data(contract):
             if (snap.get('base_currency') or 'USD') == contract_cur:
                 for il in (snap.get('accommodation_lines') or []):
                     at = il.get('accommodation_type')
-                    if at is not None:
+                    if at is not None and _in_scope(il.get('flight_departure'), il.get('terrestre_departure')):
                         itin_map[at] = (_d(il.get('value_per_person')), _d(il.get('taxes')))
         elif (itin.base_currency or 'USD') == contract_cur:
             # Roteiro sem foto publicada (não deveria ocorrer num contrato): cai no
             # estado vivo, ainda respeitando a moeda.
             for il in itin.accommodation_lines.all():
-                if il.accommodation_type_id is not None:
+                if il.accommodation_type_id is not None and _in_scope(il.flight_departure_id, il.terrestre_departure_id):
                     itin_map[il.accommodation_type_id] = (_d(il.value_per_person), _d(il.taxes))
 
     flags = []
