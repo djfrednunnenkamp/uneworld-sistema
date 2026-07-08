@@ -75,7 +75,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             need = ('documentos_create',)
         elif a == 'upload':
             need = ('documentos_upload',)
-        elif a == 'share':
+        elif a in ('share', 'shareable_users'):
             need = ('documentos_share',)
         elif a == 'destroy':
             need = ('documentos_delete',)
@@ -211,15 +211,21 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
         if not onlyoffice.is_configured():
             return Response({'detail': 'Editor OnlyOffice não configurado.'}, status=status.HTTP_409_CONFLICT)
-        # Edita quem é dono do arquivo E tem a permissão de editar; compartilhados
-        # (ou sem permissão de edição) abrem em modo leitura.
-        user_can_edit = node.owner_id == request.user.id and has_any_perm(request.user, 'documentos_edit')
+        # Nível de acesso: o DONO edita se tiver documentos_edit; quem recebeu o
+        # compartilhamento usa o NÍVEL concedido (ver / comentar / editar).
+        if node.owner_id == request.user.id:
+            can_edit = has_any_perm(request.user, 'documentos_edit')
+            can_comment = can_edit
+        else:
+            level = node.share_level_for(request.user)
+            can_edit = (level == 'edit')
+            can_comment = (level in ('edit', 'comment'))
         try:
             return Response(onlyoffice.build_editor_config(
                 doc_key=f'drive{node.id}', edit_key=node.edit_key,
                 fname=node.name or node.file.name, file_url=node.file.url,
                 callback_url=f'/api/drive/{node.id}/callback/',
-                user=request.user, user_can_edit=user_can_edit,
+                user=request.user, user_can_edit=can_edit, can_comment=can_comment,
                 allow_download=False))   # Drive: tudo fica virtual, sem baixar
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -306,20 +312,51 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                     try: v.changes_file.delete(save=False)
                     except Exception: pass
 
+    @action(detail=False, methods=['get'], url_path='shareable_users')
+    def shareable_users(self, request):
+        """Usuários que podem RECEBER compartilhamentos (para o seletor). Requer
+        documentos_share (via get_permissions). Traz só quem tem documentos_receive
+        (ou superusuário), exceto o próprio, ativos."""
+        from django.contrib.auth.models import User
+        qs = (User.objects.filter(is_active=True)
+              .filter(Q(is_superuser=True) | Q(permissions__documentos_receive=True))
+              .exclude(id=request.user.id).distinct().order_by('username'))
+        out = [{'id': u.id, 'full_name': (f'{u.first_name} {u.last_name}'.strip() or u.username),
+                'username': u.username, 'email': u.email,
+                'avatar_url': (u.permissions.avatar.url if getattr(u, 'permissions', None) and u.permissions.avatar else None)}
+               for u in qs.select_related('permissions')]
+        return Response(out)
+
     @action(detail=True, methods=['post'])
     def share(self, request, pk=None):
-        """Compartilha o nó com usuários. { user_ids: [...] } — só o dono, e só com
-        quem tem permissão de RECEBER compartilhamentos (documentos_receive)."""
+        """Compartilha o nó. body: { shares: [{user, level}] } (level = view|comment|edit)
+        ou { user_ids: [...] } (compat, level 'view'). Só o dono, e só com quem tem
+        permissão de RECEBER compartilhamentos (documentos_receive)."""
         node = self.get_object()
         from django.contrib.auth.models import User
-        ids = request.data.get('user_ids') or []
-        users = list(User.objects.filter(id__in=ids).exclude(id=node.owner_id))
+        raw = request.data.get('shares')
+        if raw is None:
+            raw = [{'user': uid, 'level': 'view'} for uid in (request.data.get('user_ids') or [])]
+        wanted = {}
+        for s in raw:
+            uid = s.get('user') if isinstance(s, dict) else s
+            lvl = (s.get('level') if isinstance(s, dict) else 'view') or 'view'
+            if lvl not in ('view', 'comment', 'edit'):
+                lvl = 'view'
+            try:
+                wanted[int(uid)] = lvl
+            except (TypeError, ValueError):
+                continue
+        wanted.pop(node.owner_id, None)
+        users = list(User.objects.filter(id__in=list(wanted.keys())))
         blocked = [u for u in users if not has_any_perm(u, 'documentos_receive')]
         if blocked:
             names = ', '.join(_user_label(u) for u in blocked)
             return Response({'error': f'Sem permissão para receber documentos compartilhados: {names}.'},
                             status=status.HTTP_400_BAD_REQUEST)
         node.shared_with.set(users)
+        node.share_levels = {str(u.id): wanted[u.id] for u in users}
+        node.save(update_fields=['share_levels'])
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
     @action(detail=True, methods=['get'])

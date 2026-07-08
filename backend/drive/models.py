@@ -46,6 +46,9 @@ class DriveNode(models.Model):
     thumb         = models.FileField(upload_to=drive_thumb_path, null=True, blank=True)
 
     shared_with = models.ManyToManyField(User, blank=True, related_name='drive_shared_with_me')
+    # Nível de acesso por usuário compartilhado: {"<user_id>": "view"|"comment"|"edit"}.
+    # Ausente/desconhecido = "view". Herdado pelas pastas-filhas (ver share_level_for).
+    share_levels = models.JSONField('Níveis de compartilhamento', default=dict, blank=True)
 
     # Muda a cada salvamento vindo do OnlyOffice → invalida o cache do editor.
     edit_key = models.CharField(max_length=40, blank=True, default='')
@@ -88,6 +91,24 @@ class DriveNode(models.Model):
             node = node.parent
             seen += 1
         return False
+
+    def share_level_for(self, user):
+        """Nível de acesso deste nó via compartilhamento: 'edit' | 'comment' | 'view'.
+        Dono → 'edit'. Sobe pelos pais até achar um nó compartilhado com o usuário
+        (herança de pasta); o nível vem do share_levels do nó onde foi concedido."""
+        if not user or not getattr(user, 'is_authenticated', False):
+            return 'view'
+        if self.owner_id == user.id:
+            return 'edit'
+        node = self
+        seen = 0
+        while node is not None and seen < 100:
+            if node.shared_with.filter(pk=user.id).exists():
+                lvl = (node.share_levels or {}).get(str(user.id))
+                return lvl if lvl in ('view', 'comment', 'edit') else 'view'
+            node = node.parent
+            seen += 1
+        return 'view'
 
 
 class DriveNodeVersion(models.Model):

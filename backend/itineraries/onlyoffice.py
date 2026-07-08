@@ -132,7 +132,7 @@ def render_thumbnail(*, file_url, ext, doc_key, title, width=480, height=360):
         return None
 
 
-def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, user, user_can_edit, allow_download=True):
+def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, user, user_can_edit, can_comment=False, allow_download=True):
     """Monta a configuração assinada do editor OnlyOffice para QUALQUER documento
     (roteiro, Drive, etc.). Assina com JWT se houver segredo. Levanta ValueError
     se o formato não for suportado.
@@ -147,20 +147,25 @@ def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, use
 
     ext = file_ext(fname)
     key = f'{doc_key}v{edit_key or "0"}'
-    can_edit = is_editable(fname) and bool(user_can_edit)
+    editable_file = is_editable(fname)
+    can_edit = editable_file and bool(user_can_edit)
+    # "Comentar" = não edita o conteúdo, mas pode inserir comentários. Editar já
+    # inclui comentar. Só faz sentido em arquivos editáveis.
+    allow_comment = editable_file and bool(user_can_edit or can_comment)
     config = {
         'document': {
             'fileType': ext,
             'key': key,
             'title': fname,
             'url': _backend(file_url),
-            'permissions': {'edit': can_edit, 'download': allow_download, 'print': allow_download,
+            'permissions': {'edit': can_edit, 'comment': allow_comment,
+                            'download': allow_download, 'print': allow_download,
                             'copy': True, 'chat': False},
         },
         'documentType': dtype,
         'editorConfig': {
             'callbackUrl': _backend(callback_url),
-            'mode': 'edit' if can_edit else 'view',
+            'mode': 'edit' if (can_edit or allow_comment) else 'view',
             'lang': 'pt-BR',
             'user': {'id': str(getattr(user, 'id', 'anon')), 'name': getattr(user, 'name', None) or getattr(user, 'email', 'Usuário')},
             'customization': {'forcesave': True} if allow_download else {'forcesave': True, 'download': False},
