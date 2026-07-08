@@ -75,7 +75,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             need = ('documentos_create',)
         elif a == 'upload':
             need = ('documentos_upload',)
-        elif a in ('share', 'shareable_users'):
+        elif a in ('share', 'shareable_users', 'transfer'):
             need = ('documentos_share',)
         elif a == 'destroy':
             need = ('documentos_delete',)
@@ -316,12 +316,14 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='shareable_users')
     def shareable_users(self, request):
-        """Usuários que podem RECEBER compartilhamentos (para o seletor). Requer
-        documentos_share (via get_permissions). Traz só quem tem documentos_receive
-        (ou superusuário), exceto o próprio, ativos."""
+        """Usuários para os seletores de compartilhar/transferir. Requer
+        documentos_share (via get_permissions), exceto o próprio, ativos.
+        ?perm=view → quem pode USAR o Drive (documentos_view) — para TRANSFERIR a
+        propriedade. Padrão → quem pode RECEBER compartilhamentos (documentos_receive)."""
         from django.contrib.auth.models import User
+        need = 'documentos_view' if request.query_params.get('perm') == 'view' else 'documentos_receive'
         qs = (User.objects.filter(is_active=True)
-              .filter(Q(is_superuser=True) | Q(permissions__documentos_receive=True))
+              .filter(Q(is_superuser=True) | Q(**{f'permissions__{need}': True}))
               .exclude(id=request.user.id).distinct().order_by('username'))
         out = [{'id': u.id, 'full_name': (f'{u.first_name} {u.last_name}'.strip() or u.username),
                 'username': u.username, 'email': u.email,
@@ -360,6 +362,40 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         node.share_levels = {str(u.id): wanted[u.id] for u in users}
         node.save(update_fields=['share_levels'])
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def transfer(self, request, pk=None):
+        """Transfere a PROPRIEDADE do nó (e de toda a subárvore) para outro usuário.
+        Só o dono; o alvo precisa poder usar o Drive (documentos_view). O item vai
+        para a RAIZ do novo dono (aparece em "Meus arquivos" dele, não em
+        "Compartilhados"); o dono antigo perde o acesso."""
+        node = self.get_object()   # get_queryset garante que é do dono e fora da lixeira
+        from django.contrib.auth.models import User
+        from . import trash
+        from dashboard.signals import broadcast_drive
+        target = User.objects.filter(id=request.data.get('user_id')).first()
+        if not target or target.id == node.owner_id:
+            return Response({'error': 'Escolha um usuário válido (diferente do dono atual).'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not has_any_perm(target, 'documentos_view'):
+            return Response({'error': f'{_user_label(target)} não tem acesso ao Meus Documentos.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        nodes = trash._subtree(node)
+        for n in nodes:
+            n.owner = target
+        DriveNode.objects.bulk_update(nodes, ['owner'])   # muda o dono da subárvore
+        # O novo dono não fica "compartilhado" consigo mesmo; e o item vai pra raiz dele.
+        node.shared_with.remove(target)
+        if isinstance(node.share_levels, dict):
+            node.share_levels.pop(str(target.id), None)
+        node.parent = None
+        node.save(update_fields=['parent', 'share_levels'])
+        broadcast_drive()   # bulk_update não dispara signal
+        from audit.tracking import log_event
+        log_event('update', model_name='DriveNode',
+                  model_label='Pasta' if node.kind == 'folder' else 'Documento',
+                  object_id=node.id, object_repr=f'{node.name} → {_user_label(target)}', user=request.user)
+        return Response({'ok': True, 'new_owner': _user_label(target)})
 
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
