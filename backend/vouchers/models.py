@@ -28,3 +28,21 @@ class VoucherList(models.Model):
 
     def __str__(self):
         return f'Voucher: {self.passenger_list.name}'
+
+
+class VoucherTemplate(models.Model):
+    """Template REUTILIZÁVEL de voucher (biblioteca em Configurações). Vários, cada
+    um com nome. Um é o PADRÃO (is_default) — listas novas herdam ele (VoucherList
+    com blocks None cai no template padrão). blocks = mesma estrutura de blocos."""
+    name       = models.CharField('Nome do template', max_length=200)
+    blocks     = models.JSONField('Blocos', default=list, blank=True)
+    is_default = models.BooleanField('Template padrão', default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-is_default', 'name']
+        verbose_name = 'Template de voucher'
+        verbose_name_plural = 'Templates de voucher'
+
+    def __str__(self):
+        return self.name

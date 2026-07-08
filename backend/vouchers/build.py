@@ -20,15 +20,20 @@ def _find_accom_type(types, room_name):
     return None
 
 
-def resolve_blocks(voucher, settings_obj):
-    """Blocos efetivos: os da lista, senão o template global, senão o padrão."""
-    from .models import DEFAULT_VOUCHER_BLOCKS
+def default_template_blocks():
+    """Blocos do template PADRÃO (favorito) da biblioteca, senão o padrão de fábrica."""
+    from .models import VoucherTemplate, DEFAULT_VOUCHER_BLOCKS
+    t = VoucherTemplate.objects.filter(is_default=True).first()
+    if t and isinstance(t.blocks, list) and t.blocks:
+        return t.blocks
+    return DEFAULT_VOUCHER_BLOCKS
+
+
+def resolve_blocks(voucher, settings_obj=None):
+    """Blocos efetivos: os PRÓPRIOS da lista, senão o template padrão da biblioteca."""
     if isinstance(voucher.blocks, list) and voucher.blocks:
         return voucher.blocks, True
-    tpl = getattr(settings_obj, 'voucher_template', None)
-    if isinstance(tpl, list) and tpl:
-        return tpl, False
-    return DEFAULT_VOUCHER_BLOCKS, False
+    return default_template_blocks(), False
 
 
 def roteiro_data(passenger_list):
