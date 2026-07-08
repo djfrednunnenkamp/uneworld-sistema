@@ -90,6 +90,8 @@ PERMISSION_FIELDS = [
     # Vouchers
     'voucher_view',
     'voucher_edit',
+    'voucher_publish',
+    'voucher_agency',
     # Passageiros na Lista
     'lists_passengers_add',
     'lists_passengers_edit',

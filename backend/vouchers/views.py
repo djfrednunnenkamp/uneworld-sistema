@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from users_api.permissions import RequirePermission
+from users_api.permissions import RequirePermission, agency_scope_ids
 from trips.models import PassengerList, ListEnrollment
 from .models import VoucherList, VoucherTemplate, VoucherFlightConfirmation, DEFAULT_VOUCHER_BLOCKS
 from . import build
@@ -25,32 +25,46 @@ def _sanitize_blocks(blocks):
 
 class VoucherViewSet(viewsets.ViewSet):
     """Vouchers das listas de passageiros. `pk` = id da Lista de Passageiros
-    (cada lista tem exatamente um voucher). Ver exige voucher_view; editar,
-    voucher_edit."""
+    (cada lista tem exatamente um voucher).
+
+    Permissões:
+      - voucher_view    → ver a aba e os vouchers (equipe interna);
+      - voucher_edit    → editar o layout (template global e por lista);
+      - voucher_publish → publicar / voltar para edição;
+      - voucher_agency  → dedicada a usuários de AGÊNCIA: veem só vouchers
+        PUBLICADOS e só os passageiros da própria agência naquela viagem."""
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ('partial_update', 'update', 'flight_confirmation', 'set_status'):
+        if self.action == 'set_status':
+            return [IsAuthenticated(), RequirePermission('voucher_publish')()]
+        if self.action in ('partial_update', 'update', 'flight_confirmation'):
             return [IsAuthenticated(), RequirePermission('voucher_edit')()]
-        return [IsAuthenticated(), RequirePermission('voucher_view')()]
+        return [IsAuthenticated(), RequirePermission('voucher_view', 'voucher_agency')()]
 
     def _list_qs(self):
         return (PassengerList.objects.filter(is_deleted=False)
                 .prefetch_related('roteiros', 'voucher').order_by('-start_date', 'name'))
 
     def list(self, request):
+        scope = agency_scope_ids(request.user)
+        qs = self._list_qs()
+        if scope is not None:
+            # Agência: só vouchers PUBLICADOS de listas onde ela tem passageiros.
+            qs = qs.filter(voucher__status='publicado', list_enrollments__agency_id__in=scope).distinct()
         rows = []
-        for pl in self._list_qs():
+        for pl in qs:
             voucher = getattr(pl, 'voucher', None)
-            pax = ListEnrollment.objects.filter(passenger_list=pl, passenger__isnull=False).count()
+            pax_qs = ListEnrollment.objects.filter(passenger_list=pl, passenger__isnull=False)
+            if scope is not None:
+                pax_qs = pax_qs.filter(agency_id__in=scope)
             rows.append({
                 'id': pl.id,
                 'name': pl.name,
                 'start_date': pl.start_date,
                 'end_date': pl.end_date,
-                'status': pl.status,
                 'roteiro_name': ', '.join(r.name for r in pl.roteiros.all()) or None,
-                'passenger_count': pax,
+                'passenger_count': pax_qs.count(),
                 'is_custom': bool(voucher and voucher.blocks),
                 'status': (voucher.status if voucher else 'em_edicao'),
             })
@@ -61,18 +75,22 @@ class VoucherViewSet(viewsets.ViewSet):
         if not pl:
             return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
+        scope = agency_scope_ids(request.user)
+        if scope is not None:
+            # Agência só acessa voucher PUBLICADO e onde tem passageiros.
+            if voucher.status != 'publicado' or not pl.list_enrollments.filter(agency_id__in=scope).exists():
+                return Response({'error': 'Voucher não disponível.'}, status=status.HTTP_404_NOT_FOUND)
         blocks, is_custom = build.resolve_blocks(voucher)
         return Response({
             'id': pl.id,
             'name': pl.name,
             'start_date': pl.start_date,
             'end_date': pl.end_date,
-            'status': pl.status,
             'blocks': blocks,
             'is_custom': is_custom,
             'status': voucher.status,
             'roteiro': build.roteiro_data(pl, request=request),
-            'entries': build.build_entries(pl, request=request, voucher=voucher),
+            'entries': build.build_entries(pl, request=request, voucher=voucher, agency_ids=scope),
         })
 
     @action(detail=True, methods=['post'], url_path='set_status')

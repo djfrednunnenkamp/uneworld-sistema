@@ -151,10 +151,13 @@ def _agency_of(passenger, request):
     return (name, url)
 
 
-def build_entries(passenger_list, request=None, voucher=None):
+def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
     """Lista de vouchers (por passageiro/casal) da lista. Cada voucher leva a logo
     da agência do passageiro (do casal, a do 1º) e, se houver, a URL da captura de
-    tela da confirmação do voo (que no PDF vira uma página própria ao final)."""
+    tela da confirmação do voo (que no PDF vira uma página própria ao final).
+
+    `agency_ids` (usuário de agência): restringe aos passageiros registrados sob
+    uma dessas agências NESTA lista — a agência só vê os passageiros dela."""
     from config_api.models import ConfigAccommodation
     from trips.models import ListEnrollment
 
@@ -175,6 +178,8 @@ def build_entries(passenger_list, request=None, voucher=None):
            .select_related('passenger')
            .prefetch_related('passenger__agencies')
            .order_by('order_in_list', 'id'))
+    if agency_ids is not None:
+        ens = ens.filter(agency_id__in=agency_ids)
 
     def is_couple(accom):
         t = _find_accom_type(types, accom)

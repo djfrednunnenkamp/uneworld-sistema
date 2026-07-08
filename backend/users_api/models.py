@@ -74,7 +74,9 @@ class UserPermissions(models.Model):
 
     # Vouchers (documento por passageiro/casal de uma lista) — "ver" é a base.
     voucher_view     = models.BooleanField(default=False)   # ver a aba e baixar os PDFs
-    voucher_edit     = models.BooleanField(default=False)   # editar template (global e por lista)
+    voucher_edit     = models.BooleanField(default=False)   # editar o layout (template global e por lista)
+    voucher_publish  = models.BooleanField(default=False)   # publicar / voltar para edição
+    voucher_agency   = models.BooleanField(default=False)   # dedicada a agências: vê só vouchers publicados e só os passageiros da própria agência
 
     # Passageiros na Lista
     lists_passengers_add    = models.BooleanField(default=False)
