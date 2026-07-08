@@ -477,14 +477,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     list_deleted = True
                 else:
                     pl = it.passenger_lists.filter(is_deleted=False).order_by('id').first()
-                    if pl is None:
-                        if it.passenger_lists.filter(is_deleted=True).exists():
-                            # A lista do roteiro está na lixeira → não recria, avisa.
-                            list_deleted = True
-                        else:
-                            # Nunca teve lista (roteiro antigo) → cria e usa.
-                            from trips.services import sync_passenger_list_for_itinerary
-                            pl = sync_passenger_list_for_itinerary(it, allow_create=True, ignore_published=True)
+                    # Sem lista ativa mas existe uma na lixeira → foi deletada.
+                    # NÃO cria uma nova nem adiciona passageiros — só avisa o front.
+                    if pl is None and it.passenger_lists.filter(is_deleted=True).exists():
+                        list_deleted = True
             if pl:
                 enrolled, _skipped, enrolled_ids = enroll_contract_guests(contract, pl)
                 resp.update({'enrolled_list_id': pl.id, 'enrolled_list_name': pl.name,
