@@ -1,6 +1,22 @@
 """Regras de negócio compartilhadas das listas de passageiros."""
 
 
+def derive_list_type(itinerary):
+    """Tipo (transporte) da LISTA de passageiros a partir do roteiro.
+
+    A lista só tem duas modalidades: 'aereo' ou 'terrestre' (rodoviário). O
+    aspecto marítimo é uma CATEGORIA do roteiro (com a aba Barco), não um tipo
+    de transporte da lista — então numa viagem marítima o que define se a lista
+    é Aérea ou Rodoviária são os toggles de transporte do roteiro (Voo ×
+    Rodoviário), que são mutuamente exclusivos. Sem toggles, cai no trip_type
+    (terrestre → terrestre; qualquer outro, inclusive marítimo → aéreo)."""
+    if getattr(itinerary, 'has_voo', False):
+        return 'aereo'
+    if getattr(itinerary, 'has_terrestre', False):
+        return 'terrestre'
+    return 'terrestre' if getattr(itinerary, 'trip_type', None) == 'terrestre' else 'aereo'
+
+
 def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False, ignore_published=False):
     """Mantém a lista de passageiros 1:1 do roteiro em dia.
 
@@ -30,7 +46,7 @@ def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False, ignore_p
         category = itinerary.category.name if itinerary.category_id else 'Internacional'
         pl = PassengerList.objects.create(
             name=itinerary.name or 'Lista de passageiros',
-            list_type=itinerary.trip_type or 'aereo',
+            list_type=derive_list_type(itinerary),
             category=category,
             start_date=itinerary.start_date,
             end_date=itinerary.end_date,
@@ -50,7 +66,7 @@ def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False, ignore_p
     if itinerary.name and pl.name != itinerary.name:
         pl.name = itinerary.name
         changed.append('name')
-    new_type = itinerary.trip_type or 'aereo'
+    new_type = derive_list_type(itinerary)
     if pl.list_type != new_type:
         pl.list_type = new_type
         changed.append('list_type')
