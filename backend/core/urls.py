@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/agenda/',   include('agenda.urls')),
     path('api/contracts/', include('contracts.urls')),
     path('api/itineraries/', include('itineraries.urls')),
+    path('api/drive/', include('drive.urls')),
 ]
 
 # Servir /media/ pelo Django é APENAS para desenvolvimento local (DEBUG=True). Em

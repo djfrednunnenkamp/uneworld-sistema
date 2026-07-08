@@ -35,8 +35,14 @@ INSTALLED_APPS = [
     'agenda',
     'contracts',
     'itineraries',
+    'drive',
     'channels',
 ]
+
+# Drive (documentos na nuvem): por padrão os arquivos são PRIVADOS (só o dono vê).
+# Se DRIVE_SUPERUSER_ACCESS=True, o superusuário também pode ver/abrir os arquivos
+# de todos os usuários.
+DRIVE_SUPERUSER_ACCESS = config('DRIVE_SUPERUSER_ACCESS', default=False, cast=bool)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
