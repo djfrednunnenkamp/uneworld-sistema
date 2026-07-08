@@ -189,3 +189,23 @@ def broadcast_drive():
     """Aviso manual de mudança no Drive (caminhos que não disparam signal, ex.:
     o bulk_update do soft-delete/lixeira)."""
     _broadcast('drive')
+
+
+# ── Vouchers ──────────────────────────────────────────────────────────────────
+# Salvar blocos, publicar/voltar p/ edição, enviar/remover confirmação de voo e
+# editar templates atualizam ao vivo quem está com o Voucher aberto (scope
+# 'vouchers'). As entries também dependem dos passageiros da lista (scope 'lists').
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherList')
+def on_voucher_list(sender, **kwargs):
+    _broadcast('vouchers')
+
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherTemplate')
+def on_voucher_template(sender, **kwargs):
+    _broadcast('vouchers')
+
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherFlightConfirmation')
+def on_voucher_flight(sender, **kwargs):
+    _broadcast('vouchers')
