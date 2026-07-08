@@ -588,6 +588,10 @@ class SystemSettings(models.Model):
     logo_site     = models.ImageField('Logo do site (vitrine)', upload_to='branding/', null=True, blank=True)
     logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to='branding/', null=True, blank=True)
     logo_contract = models.ImageField('Logo dos contratos', upload_to='branding/', null=True, blank=True)
+    logo_voucher  = models.ImageField('Logo dos vouchers', upload_to='branding/', null=True, blank=True)
+    # Template GLOBAL padrão do voucher (blocos). Vazio = usa o padrão do código
+    # (vouchers.models.DEFAULT_VOUCHER_BLOCKS). Cada lista pode ter o seu próprio.
+    voucher_template = models.JSONField('Template padrão do voucher', default=list, blank=True)
     # Título da aba do navegador. Vazio = usa o nome da operadora.
     browser_title = models.CharField('Título da aba do navegador', max_length=120, blank=True, default='')
     # Cores do tema (hex). Vazio = usa a cor padrão do sistema.

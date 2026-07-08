@@ -1897,6 +1897,7 @@ BRANDING_SLOTS = {
     'site':     'logo_site',      # vitrine pública
     'pdf':      'logo_pdf',       # PDF dos roteiros
     'contract': 'logo_contract',  # PDF dos contratos
+    'voucher':  'logo_voucher',   # PDF dos vouchers
 }
 
 

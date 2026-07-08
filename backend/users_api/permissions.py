@@ -87,6 +87,9 @@ PERMISSION_FIELDS = [
     'lists_view_logs',
     'lists_download',
     'lists_csv_upload',
+    # Vouchers
+    'voucher_view',
+    'voucher_edit',
     # Passageiros na Lista
     'lists_passengers_add',
     'lists_passengers_edit',

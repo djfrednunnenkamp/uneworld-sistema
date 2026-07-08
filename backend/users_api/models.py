@@ -72,6 +72,10 @@ class UserPermissions(models.Model):
     lists_download   = models.BooleanField(default=False)
     lists_csv_upload = models.BooleanField(default=False)
 
+    # Vouchers (documento por passageiro/casal de uma lista) — "ver" é a base.
+    voucher_view     = models.BooleanField(default=False)   # ver a aba e baixar os PDFs
+    voucher_edit     = models.BooleanField(default=False)   # editar template (global e por lista)
+
     # Passageiros na Lista
     lists_passengers_add    = models.BooleanField(default=False)
     lists_passengers_edit   = models.BooleanField(default=False)

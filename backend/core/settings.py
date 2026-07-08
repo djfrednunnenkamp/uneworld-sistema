@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'contracts',
     'itineraries',
     'drive',
+    'vouchers',
     'channels',
 ]
 
