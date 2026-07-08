@@ -30,6 +30,25 @@ class VoucherList(models.Model):
         return f'Voucher: {self.passenger_list.name}'
 
 
+class VoucherFlightConfirmation(models.Model):
+    """Captura de tela da confirmação do voo, por voucher (passageiro/casal) de uma
+    lista. No PDF, vai numa PÁGINA PRÓPRIA ao final do voucher daquele passageiro
+    — só a imagem na página. `entry_key` é a chave do voucher (ex.: 'pax:123' ou
+    'room:Duplo Casal'), a mesma calculada em build.build_entries."""
+    voucher    = models.ForeignKey(VoucherList, on_delete=models.CASCADE, related_name='flight_confirmations')
+    entry_key  = models.CharField('Voucher (passageiro/casal)', max_length=200, db_index=True)
+    image      = models.ImageField('Confirmação do voo', upload_to='vouchers/flight_confirmations/')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('voucher', 'entry_key')]
+        verbose_name = 'Confirmação de voo do voucher'
+        verbose_name_plural = 'Confirmações de voo dos vouchers'
+
+    def __str__(self):
+        return f'Confirmação voo · {self.voucher.passenger_list.name} · {self.entry_key}'
+
+
 class VoucherTemplate(models.Model):
     """Template REUTILIZÁVEL de voucher (biblioteca em Configurações). Vários, cada
     um com nome. Um é o PADRÃO (is_default) — listas novas herdam ele (VoucherList

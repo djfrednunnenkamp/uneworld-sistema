@@ -5,7 +5,7 @@ from rest_framework.response import Response
 
 from users_api.permissions import RequirePermission
 from trips.models import PassengerList, ListEnrollment
-from .models import VoucherList, VoucherTemplate, DEFAULT_VOUCHER_BLOCKS
+from .models import VoucherList, VoucherTemplate, VoucherFlightConfirmation, DEFAULT_VOUCHER_BLOCKS
 from . import build
 
 
@@ -30,7 +30,7 @@ class VoucherViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ('partial_update', 'update'):
+        if self.action in ('partial_update', 'update', 'flight_confirmation'):
             return [IsAuthenticated(), RequirePermission('voucher_edit')()]
         return [IsAuthenticated(), RequirePermission('voucher_view')()]
 
@@ -70,8 +70,32 @@ class VoucherViewSet(viewsets.ViewSet):
             'blocks': blocks,
             'is_custom': is_custom,
             'roteiro': build.roteiro_data(pl, request=request),
-            'entries': build.build_entries(pl, request=request),
+            'entries': build.build_entries(pl, request=request, voucher=voucher),
         })
+
+    @action(detail=True, methods=['post', 'delete'], url_path='flight_confirmation')
+    def flight_confirmation(self, request, pk=None):
+        """Captura de tela da confirmação do voo de UM voucher (passageiro/casal).
+        POST (multipart: entry_key + image) grava/substitui; DELETE (entry_key)
+        remove. A imagem vira uma página própria ao final do voucher no PDF."""
+        pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
+        entry_key = (request.data.get('entry_key') or request.query_params.get('entry_key') or '').strip()
+        if not entry_key:
+            return Response({'error': 'Faltou entry_key.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.method == 'DELETE':
+            VoucherFlightConfirmation.objects.filter(voucher=voucher, entry_key=entry_key).delete()
+            return self.retrieve(request, pk=pk)
+
+        image = request.FILES.get('image')
+        if not image:
+            return Response({'error': 'Faltou a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
+        VoucherFlightConfirmation.objects.update_or_create(
+            voucher=voucher, entry_key=entry_key, defaults={'image': image})
+        return self.retrieve(request, pk=pk)
 
     def partial_update(self, request, pk=None):
         """Salva os blocos PRÓPRIOS da lista. blocks=null → volta ao template padrão."""

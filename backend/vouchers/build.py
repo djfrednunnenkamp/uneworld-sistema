@@ -151,11 +151,23 @@ def _agency_of(passenger, request):
     return (name, url)
 
 
-def build_entries(passenger_list, request=None):
+def build_entries(passenger_list, request=None, voucher=None):
     """Lista de vouchers (por passageiro/casal) da lista. Cada voucher leva a logo
-    da agência do passageiro (do casal, a do 1º)."""
+    da agência do passageiro (do casal, a do 1º) e, se houver, a URL da captura de
+    tela da confirmação do voo (que no PDF vira uma página própria ao final)."""
     from config_api.models import ConfigAccommodation
     from trips.models import ListEnrollment
+
+    # entry_key -> URL da confirmação de voo já enviada (por voucher da lista).
+    fc_map = {}
+    if voucher is not None:
+        for fc in voucher.flight_confirmations.all():
+            if not fc.image:
+                continue
+            try:
+                fc_map[fc.entry_key] = request.build_absolute_uri(fc.image.url) if request else fc.image.url
+            except Exception:
+                fc_map[fc.entry_key] = None
 
     types = list(ConfigAccommodation.objects.all())
     ens = (ListEnrollment.objects
@@ -180,24 +192,28 @@ def build_entries(passenger_list, request=None):
     entries = []
     for accom, group in couple_rooms.items():
         ag_name, ag_logo = _agency_of(group[0].passenger, request)
+        key = f'room:{accom}'
         entries.append({
-            'key': f'room:{accom}',
+            'key': key,
             'is_couple': True,
             'accommodation': accom,
             'passengers': [e.passenger.full_name for e in group],
             'passenger_ids': [e.passenger_id for e in group],
             'agency_name': ag_name,
             'agency_logo': ag_logo,
+            'flight_confirmation': fc_map.get(key),
         })
     for en in singles:
         ag_name, ag_logo = _agency_of(en.passenger, request)
+        key = f'pax:{en.id}'
         entries.append({
-            'key': f'pax:{en.id}',
+            'key': key,
             'is_couple': False,
             'accommodation': en.accommodation or '',
             'passengers': [en.passenger.full_name],
             'passenger_ids': [en.passenger_id],
             'agency_name': ag_name,
             'agency_logo': ag_logo,
+            'flight_confirmation': fc_map.get(key),
         })
     return entries
