@@ -172,6 +172,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('contracts_delete')()]
         if self.action in ('approve', 'review_data'):
             return [RequirePermission('contracts_review')()]
+        if self.action == 'enrollable_lists':
+            return [RequirePermission('lists_view', 'lists_edit')()]
+        if self.action == 'enroll_in_list':
+            return [RequirePermission('lists_edit')()]
         # Recusar pode partir da revisão (quem revisa) OU do faturamento (quem fatura).
         if self.action == 'reject':
             return [RequirePermission('contracts_review', 'contracts_invoice')()]
@@ -377,6 +381,85 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.review_note = ''
         contract.save(update_fields=['stage', 'reviewed_at', 'reviewed_by', 'review_note'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
+
+    @action(detail=True, methods=['get'], url_path='enrollable-lists')
+    def enrollable_lists(self, request, pk=None):
+        """Listas de passageiros para receber os passageiros deste contrato. As
+        listas que TÊM o roteiro do contrato vêm primeiro. Inclui a prévia dos
+        passageiros do contrato + suas acomodações."""
+        from trips.models import PassengerList
+        contract = self.get_object()
+        it_id = contract.itinerary_id
+        lists = []
+        for pl in PassengerList.objects.filter(is_deleted=False).prefetch_related('roteiros'):
+            has = bool(it_id) and any(r.id == it_id for r in pl.roteiros.all())
+            lists.append({
+                'id': pl.id, 'name': pl.name,
+                'start_date': str(pl.start_date) if pl.start_date else None,
+                'end_date': str(pl.end_date) if pl.end_date else None,
+                'has_itinerary': has, 'pax_count': pl.list_enrollments.count(),
+            })
+        lists.sort(key=lambda r: (not r['has_itinerary'], (r['name'] or '').lower()))
+        guests = [{
+            'passenger_id': g.passenger_id,
+            'name': (g.passenger.full_name if g.passenger_id else '') or '—',
+            'accommodation': g.accommodation_type.name if g.accommodation_type_id else None,
+            'capacity': g.accommodation_type.capacity if g.accommodation_type_id else None,
+        } for g in contract.guests.select_related('passenger', 'accommodation_type').all() if g.passenger_id]
+        return Response({
+            'itinerary_id': it_id,
+            'itinerary_name': contract.itinerary.name if it_id else None,
+            'passengers': guests, 'lists': lists,
+        })
+
+    @action(detail=True, methods=['post'], url_path='enroll-in-list')
+    def enroll_in_list(self, request, pk=None):
+        """Inscreve os passageiros do contrato na lista escolhida, criando os
+        quartos conforme as acomodações do contrato (respeitando a capacidade do
+        tipo). Quem já está na lista é ignorado."""
+        from collections import defaultdict
+        from trips.models import PassengerList, ListEnrollment, Room
+        from trips.views import _autocheck_guia
+        contract = self.get_object()
+        pl = PassengerList.objects.filter(pk=request.data.get('list_id'), is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista inválida.'}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        by_type = defaultdict(list)
+        for g in contract.guests.select_related('passenger', 'accommodation_type').all():
+            if g.passenger_id:
+                by_type[g.accommodation_type_id].append(g)
+
+        existing_rooms = set(pl.rooms.values_list('name', flat=True))
+        last = pl.list_enrollments.order_by('-order_in_list').first()
+        order = (last.order_in_list + 1) if last else 0
+        enrolled = skipped = 0
+
+        for _tid, gs in by_type.items():
+            atype = gs[0].accommodation_type
+            cap = max(1, (atype.capacity if atype else 1) or 1)
+            tname = atype.name if atype else 'Acomodação'
+            n_rooms = (len(gs) + cap - 1) // cap
+            for idx in range(n_rooms):
+                rname = tname if n_rooms == 1 else f'{tname} {idx + 1}'
+                if rname not in existing_rooms:
+                    Room.objects.get_or_create(passenger_list=pl, name=rname)
+                    existing_rooms.add(rname)
+                for g in gs[idx * cap:(idx + 1) * cap]:
+                    p = g.passenger
+                    if not p or pl.list_enrollments.filter(passenger=p).exists():
+                        skipped += 1
+                        continue
+                    e = ListEnrollment.objects.create(
+                        passenger_list=pl, passenger=p, accommodation=rname,
+                        order_in_list=order, departure_airport=pl.default_airport,
+                        agency=contract.agency,
+                    )
+                    order += 1
+                    _autocheck_guia(e)
+                    enrolled += 1
+
+        return Response({'enrolled': enrolled, 'skipped': skipped, 'list_id': pl.id, 'list_name': pl.name})
 
     @action(detail=True, methods=['get'], url_path='invoice-data')
     def invoice_data(self, request, pk=None):
