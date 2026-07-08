@@ -117,6 +117,17 @@ class UserPermissions(models.Model):
     # Permissão restrita: SÓ editar/enviar as imagens das LÂMINAS do roteiro (nada mais).
     roteiros_laminas_edit = models.BooleanField(default=False)
 
+    # Meus Documentos (Drive pessoal) — "ver" é a base; as demais dependem dela.
+    documentos_view       = models.BooleanField(default=False)   # ver a aba e navegar os próprios
+    documentos_create     = models.BooleanField(default=False)   # criar documentos Office em branco
+    documentos_upload     = models.BooleanField(default=False)   # enviar arquivos (Word/Excel/PowerPoint)
+    documentos_upload_any = models.BooleanField(default=False)   # enviar arquivos NÃO-Office (imagem, PDF, zip…)
+    documentos_edit       = models.BooleanField(default=False)   # editar/renomear/mover
+    documentos_share      = models.BooleanField(default=False)   # compartilhar com pessoas
+    documentos_receive    = models.BooleanField(default=False)   # receber compartilhamentos (ver "Compartilhados")
+    documentos_delete     = models.BooleanField(default=False)   # excluir (mandar p/ lixeira)
+    documentos_purge      = models.BooleanField(default=False)   # apagar definitivo da lixeira antes dos 30 dias
+
     # Galeria
     gallery_view          = models.BooleanField(default=False)   # ACESSO à galeria (base); os tipos abaixo dizem O QUE vê
     gallery_view_images   = models.BooleanField(default=False)   # ver imagens

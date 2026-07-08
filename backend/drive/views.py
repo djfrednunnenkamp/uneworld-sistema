@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
 from itineraries import blank_office, onlyoffice
+from users_api.permissions import RequirePermission, has_any_perm
 from .models import DriveNode, DriveNodeVersion
 from .serializers import DriveNodeSerializer, _user_label
 
@@ -62,6 +63,30 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     serializer_class   = DriveNodeSerializer
     permission_classes = [IsAuthenticated]
     parser_classes     = [JSONParser, MultiPartParser, FormParser]
+
+    def get_permissions(self):
+        # Cada ação exige a permissão de Documentos correspondente. "Ver" é a base;
+        # criar/enviar/editar/compartilhar/excluir/apagar têm as suas. Superusuário
+        # passa em qualquer uma (has_any_perm/RequirePermission já tratam isso).
+        a = self.action
+        if a == 'create':                     # criar PASTA — quem cria docs OU envia arquivos
+            need = ('documentos_create', 'documentos_upload')
+        elif a == 'create_blank':
+            need = ('documentos_create',)
+        elif a == 'upload':
+            need = ('documentos_upload',)
+        elif a == 'share':
+            need = ('documentos_share',)
+        elif a == 'destroy':
+            need = ('documentos_delete',)
+        elif a == 'purge':
+            need = ('documentos_purge',)
+        elif a in ('update', 'partial_update', 'restore_version'):
+            need = ('documentos_edit',)
+        else:
+            # list/retrieve/config/download/preview/history/details/thumb/restore…
+            need = ('documentos_view',)
+        return [IsAuthenticated(), RequirePermission(*need)()]
 
     def get_queryset(self):
         # Ações que mexem no próprio nó operam só sobre os do dono e FORA da lixeira
@@ -123,6 +148,14 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         files = request.FILES.getlist('file') or ([request.FILES['file']] if 'file' in request.FILES else [])
         if not files:
             return Response({'error': 'Nenhum arquivo enviado.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Sem "enviar não-Office", só Word/Excel/PowerPoint. Qualquer outro tipo
+        # (imagem, PDF, zip…) exige documentos_upload_any.
+        if not has_any_perm(request.user, 'documentos_upload_any'):
+            blocked = [f.name for f in files if onlyoffice.office_document_type(f.name) not in ('word', 'cell', 'slide')]
+            if blocked:
+                return Response({'error': 'Você só pode enviar Word, Excel ou PowerPoint. '
+                                          'Sem permissão para enviar outros tipos (imagem, PDF, zip…).'},
+                                status=status.HTTP_403_FORBIDDEN)
         created = []
         for f in files:
             node = DriveNode(owner=request.user, kind='file', parent=folder or None,
@@ -178,8 +211,9 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
         if not onlyoffice.is_configured():
             return Response({'detail': 'Editor OnlyOffice não configurado.'}, status=status.HTTP_409_CONFLICT)
-        # Edita quem é dono do arquivo; compartilhados abrem em modo leitura.
-        user_can_edit = node.owner_id == request.user.id
+        # Edita quem é dono do arquivo E tem a permissão de editar; compartilhados
+        # (ou sem permissão de edição) abrem em modo leitura.
+        user_can_edit = node.owner_id == request.user.id and has_any_perm(request.user, 'documentos_edit')
         try:
             return Response(onlyoffice.build_editor_config(
                 doc_key=f'drive{node.id}', edit_key=node.edit_key,
@@ -236,6 +270,22 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                   object_id=node.id, object_repr=node.name, user=request.user)
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
+    @action(detail=True, methods=['delete'], url_path='purge')
+    def purge(self, request, pk=None):
+        """Apaga DE VEZ um item da lixeira, antes dos 30 dias. Requer documentos_purge
+        (só o dono, e só o que está na lixeira). Leva arquivos + subárvore junto."""
+        node = DriveNode.objects.filter(owner=request.user, pk=pk, is_deleted=True).first()
+        if not node:
+            return Response({'error': 'Item não encontrado na lixeira.'}, status=status.HTTP_404_NOT_FOUND)
+        from audit.tracking import log_event
+        from . import trash
+        log_event('purge', model_name='DriveNode',
+                  model_label='Pasta' if node.kind == 'folder' else 'Documento',
+                  object_id=node.id, object_repr=node.name, user=request.user)
+        trash.delete_subtree_files(node)
+        node.delete()   # cascata do banco leva os descendentes
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     def _delete_files(self, node):
         """Apaga os arquivos físicos do nó e descendentes (best-effort)."""
         stack = [node]
@@ -258,11 +308,17 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def share(self, request, pk=None):
-        """Compartilha o nó com usuários. { user_ids: [...] } — só o dono."""
+        """Compartilha o nó com usuários. { user_ids: [...] } — só o dono, e só com
+        quem tem permissão de RECEBER compartilhamentos (documentos_receive)."""
         node = self.get_object()
         from django.contrib.auth.models import User
         ids = request.data.get('user_ids') or []
-        users = User.objects.filter(id__in=ids).exclude(id=node.owner_id)
+        users = list(User.objects.filter(id__in=ids).exclude(id=node.owner_id))
+        blocked = [u for u in users if not has_any_perm(u, 'documentos_receive')]
+        if blocked:
+            names = ', '.join(_user_label(u) for u in blocked)
+            return Response({'error': f'Sem permissão para receber documentos compartilhados: {names}.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         node.shared_with.set(users)
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
