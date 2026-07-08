@@ -84,13 +84,17 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         """Upload/remoção da LOGO da agência. SEGURO: valida tamanho, verifica a
         imagem com Pillow e re-encoda como PNG (mantém transparência; descarta
         qualquer payload embutido). Nunca serve o arquivo enviado como veio."""
+        from audit.tracking import log_event
         agency = self.get_object()
         if request.method == 'DELETE':
             if agency.logo:
                 try: agency.logo.delete(save=False)
                 except Exception: pass
                 agency.logo = None
+                agency._skip_audit_signal = True    # logamos como 'delete' de logo, não 'update'
                 agency.save(update_fields=['logo'])
+                log_event('delete', model_name='Agency', model_label='Logo da agência',
+                          object_id=agency.id, object_repr=f'Logo — {agency}', user=request.user)
             return Response(self.get_serializer(agency).data)
 
         f = request.FILES.get('logo') or request.FILES.get('file')
@@ -123,7 +127,10 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             try: agency.logo.delete(save=False)
             except Exception: pass
         agency.logo.save(f'{agency.id}.png', ContentFile(buf.read()), save=False)
+        agency._skip_audit_signal = True        # logamos como 'upload' de logo, não 'update'
         agency.save(update_fields=['logo'])
+        log_event('upload', model_name='Agency', model_label='Logo da agência',
+                  object_id=agency.id, object_repr=f'Logo — {agency}', user=request.user)
         return Response(self.get_serializer(agency).data)
 
     @action(detail=False, methods=['get'], url_path='check-cnpj')

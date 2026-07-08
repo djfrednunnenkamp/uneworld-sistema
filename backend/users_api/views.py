@@ -213,6 +213,7 @@ def me_avatar(request):
     """Upload/remoção da foto de perfil do próprio usuário. SEGURO: valida tamanho,
     abre e VERIFICA a imagem com Pillow, e a re-encoda como JPEG (descarta qualquer
     payload/EXIF embutido). Nunca serve o arquivo enviado como veio."""
+    from audit.tracking import log_event, user_display
     perms = get_user_permissions(request.user)
 
     if request.method == 'DELETE':
@@ -221,6 +222,8 @@ def me_avatar(request):
             except Exception: pass
             perms.avatar = None
             perms.save(update_fields=['avatar'])
+            log_event('delete', model_name='UserPermissions', model_label='Foto de perfil',
+                      object_id=request.user.id, object_repr=f'Foto de perfil — {user_display(request.user)}', user=request.user)
         return Response(serialize_user(request.user))
 
     f = request.FILES.get('avatar') or request.FILES.get('file')
@@ -264,6 +267,8 @@ def me_avatar(request):
         except Exception: pass
     perms.avatar.save(f'{request.user.id}.jpg', ContentFile(buf.read()), save=False)
     perms.save(update_fields=['avatar'])
+    log_event('upload', model_name='UserPermissions', model_label='Foto de perfil',
+              object_id=request.user.id, object_repr=f'Foto de perfil — {user_display(request.user)}', user=request.user)
     return Response(serialize_user(request.user))
 
 

@@ -121,6 +121,9 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             node.save()
             if onlyoffice.office_document_type(node.name or ''):
                 snapshot_version(node, user=request.user, note='Enviado')
+            from audit.tracking import log_event
+            log_event('upload', model_name='DriveNode', model_label='Documento',
+                      object_id=node.id, object_repr=node.name, user=request.user)
             created.append(node)
         return Response(DriveNodeSerializer(created, many=True, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
@@ -147,6 +150,9 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         node.file.save(f'novo.{ext}', ContentFile(content), save=False)
         node.save()
         snapshot_version(node, user=request.user, note='Criado')
+        from audit.tracking import log_event
+        log_event('create', model_name='DriveNode', model_label='Documento',
+                  object_id=node.id, object_repr=node.name, user=request.user)
         return Response(DriveNodeSerializer(node, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
 
@@ -194,6 +200,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         node = self.get_object()
+        from audit.tracking import log_event
+        log_event('delete', model_name='DriveNode',
+                  model_label='Pasta' if node.kind == 'folder' else 'Documento',
+                  object_id=node.id, object_repr=node.name, user=request.user)
         self._delete_files(node)
         node.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
