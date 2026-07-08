@@ -422,9 +422,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             copy.start_date = start_date
             copy.end_date = end_date
             copy.slug = ''                       # regenera slug único no save()
-            # Nasce como roteiro normal (ativo) porém NÃO publicado — abre igual ao
-            # original, com um único botão "Salvar" (sem o fluxo de rascunho).
-            copy.status = 'ativo'
+            # Nasce como RASCUNHO PRÓPRIO de quem duplicou: fica privado, some da
+            # lista pública e só é finalizado quando a pessoa escolher no Salvar.
+            copy.status = 'rascunho'
             copy.is_published = False
             copy.published_data = None
             copy.published_at = None
