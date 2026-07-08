@@ -387,6 +387,123 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         u = self.request.user
         serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
 
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Duplica o roteiro por completo (cópia editável, nasce como RASCUNHO).
+        body: { name?, start_date?, end_date? }. Clona campos, M2M, dias, imagens
+        (com os arquivos), voos/terrestre + preços, hotéis, barcos e documentos."""
+        import os
+        from django.db.models import Q
+        from django.utils.dateparse import parse_date
+        orig = self.get_object()
+        u = request.user
+        name = (request.data.get('name') or f'{orig.name} (cópia)').strip()[:300] or f'{orig.name} (cópia)'
+
+        def as_date(v):
+            if not v: return None
+            return parse_date(v) if isinstance(v, str) else v
+        start_date = as_date(request.data.get('start_date'))
+        end_date   = as_date(request.data.get('end_date'))
+
+        def grab(field):
+            """(basename, bytes) do arquivo de um FileField, ou (None, None)."""
+            if not field or not field.name:
+                return None, None
+            try:
+                field.open('rb'); data = field.read(); field.close()
+                return os.path.basename(field.name), data
+            except Exception:
+                return None, None
+
+        with transaction.atomic():
+            copy = Itinerary.objects.get(pk=orig.pk)
+            copy.pk = None; copy.id = None; copy._state.adding = True
+            copy.name = name
+            copy.start_date = start_date
+            copy.end_date = end_date
+            copy.slug = ''                       # regenera slug único no save()
+            copy.status = 'rascunho'             # nasce como rascunho editável
+            copy.is_published = False
+            copy.published_data = None
+            copy.published_at = None
+            copy.has_unpublished_changes = False
+            copy.is_deleted = False
+            copy.deleted_at = None
+            copy.created_by = u if getattr(u, 'is_authenticated', False) else None
+            last = Itinerary.objects.filter(is_deleted=False).order_by('-order').first()
+            copy.order = (last.order + 1) if last else 0
+            copy.save()
+
+            # Many-to-many (apontam para itens de configuração — seguros de compartilhar)
+            for f in ('continents', 'cities', 'countries', 'airports', 'keywords', 'inclusions',
+                      'highlights', 'itinerary_types', 'special_dates', 'clauses'):
+                getattr(copy, f).set(getattr(orig, f).all())
+
+            # Aéreo: partidas + voos
+            dep_map = {}
+            for dep in list(orig.departures.all()):
+                flights = list(dep.flights.all())
+                old = dep.pk
+                dep.pk = None; dep.id = None; dep._state.adding = True; dep.itinerary = copy; dep.save()
+                dep_map[old] = dep
+                for fl in flights:
+                    fl.pk = None; fl.id = None; fl._state.adding = True; fl.departure = dep; fl.save()
+
+            # Terrestre: partidas + trechos
+            ter_map = {}
+            for t in list(orig.terrestre_departures.all()):
+                legs = list(t.legs.all())
+                old = t.pk
+                t.pk = None; t.id = None; t._state.adding = True; t.itinerary = copy; t.save()
+                ter_map[old] = t
+                for lg in legs:
+                    lg.pk = None; lg.id = None; lg._state.adding = True; lg.departure = t; lg.save()
+
+            # Dias
+            day_map = {}
+            old_day_ids = list(orig.days.values_list('id', flat=True))
+            for d in list(orig.days.all()):
+                old = d.pk
+                d.pk = None; d.id = None; d._state.adding = True; d.itinerary = copy; d.save()
+                day_map[old] = d
+
+            # Imagens (galeria/capa/lâminas + imagens de dia) — copiando os arquivos
+            for img in list(ItineraryImage.objects.filter(Q(itinerary=orig) | Q(day_id__in=old_day_ids)).distinct()):
+                fname, data = grab(img.image)
+                new_day = day_map.get(img.day_id) if img.day_id else None
+                img.pk = None; img.id = None; img._state.adding = True
+                img.itinerary = copy; img.day = new_day
+                if data is not None:
+                    img.image.save(fname, ContentFile(data), save=False)
+                img.save()
+
+            # Linhas de acomodação (preços) — remapear as partidas
+            for al in list(orig.accommodation_lines.all()):
+                al.pk = None; al.id = None; al._state.adding = True; al.itinerary = copy
+                al.flight_departure = dep_map.get(al.flight_departure_id) if al.flight_departure_id else None
+                al.terrestre_departure = ter_map.get(al.terrestre_departure_id) if al.terrestre_departure_id else None
+                al.save()
+
+            # Hotéis e barcos
+            for h in list(orig.hotels.all()):
+                h.pk = None; h.id = None; h._state.adding = True; h.itinerary = copy; h.save()
+            for b in list(orig.boats.all()):
+                b.pk = None; b.id = None; b._state.adding = True; b.itinerary = copy; b.save()
+
+            # Documentos (copiar arquivo; dono = quem duplicou; edit_key zerado)
+            for doc in list(orig.documents.all()):
+                fname, data = grab(doc.file)
+                doc.pk = None; doc.id = None; doc._state.adding = True
+                doc.itinerary = copy
+                doc.owner = u if getattr(u, 'is_authenticated', False) else None
+                doc.edit_key = ''
+                if data is not None:
+                    doc.file.save(fname, ContentFile(data), save=False)
+                doc.save()
+
+        return Response({'id': copy.id, 'name': copy.name, 'status': copy.status},
+                        status=status.HTTP_201_CREATED)
+
     def destroy(self, request, *args, **kwargs):
         obj = self.get_object()
         u = request.user
@@ -414,7 +531,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             # Pegar imagem da galeria (banco) pro roteiro exige permissão própria;
             # sem ela, a pessoa só consegue fazer upload das próprias imagens.
             return [RequirePermission('roteiros_images_from_gallery')()]
-        if self.action in ('create', 'create_blank'):
+        if self.action in ('create', 'create_blank', 'duplicate'):
             return [RequirePermission('roteiros_create')()]
         # Ações de imagem: quem edita o roteiro OU tem a permissão restrita de
         # lâminas. A restrição a kind='blocking' é aplicada dentro de cada ação.
