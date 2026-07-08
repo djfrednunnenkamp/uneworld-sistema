@@ -206,12 +206,13 @@ class PassengerListSerializer(serializers.ModelSerializer):
         return out
 
     def update(self, instance, validated_data):
-        # Lista vinculada a um roteiro ATIVO tem NOME e DATAS travados (vêm do
-        # roteiro). Se o roteiro está na lixeira, a lista fica avulsa e edita.
+        # Lista vinculada a um roteiro ATIVO tem os campos herdados do roteiro
+        # travados (nome, tipo, categoria, datas e aeroportos base). Se o roteiro
+        # está na lixeira, a lista fica avulsa e volta a editar tudo.
         if instance.roteiros.filter(is_deleted=False).exists():
-            validated_data.pop('name', None)
-            validated_data.pop('start_date', None)
-            validated_data.pop('end_date', None)
+            for f in ('name', 'list_type', 'category', 'start_date', 'end_date',
+                      'default_airport', 'default_airports'):
+                validated_data.pop(f, None)
         return super().update(instance, validated_data)
 
     def get_default_airport_data(self, obj):

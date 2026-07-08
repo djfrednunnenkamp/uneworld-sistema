@@ -42,17 +42,35 @@ def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False):
             pl.save(update_fields=['default_airport'])
         return pl
 
-    # Já existe → mantém nome e datas em dia com o roteiro (fonte da verdade).
+    # Já existe → mantém nome, tipo, categoria, datas e aeroportos base em dia
+    # com o roteiro (fonte da verdade — a lista não edita esses campos).
     changed = []
     if itinerary.name and pl.name != itinerary.name:
         pl.name = itinerary.name
         changed.append('name')
+    new_type = itinerary.trip_type or 'aereo'
+    if pl.list_type != new_type:
+        pl.list_type = new_type
+        changed.append('list_type')
+    new_cat = itinerary.category.name if itinerary.category_id else 'Internacional'
+    if pl.category != new_cat:
+        pl.category = new_cat
+        changed.append('category')
     if pl.start_date != itinerary.start_date:
         pl.start_date = itinerary.start_date
         changed.append('start_date')
     if pl.end_date != itinerary.end_date:
         pl.end_date = itinerary.end_date
         changed.append('end_date')
+    # Aeroportos base = aeroportos do roteiro.
+    airport_ids = list(itinerary.airports.values_list('id', flat=True))
+    if set(airport_ids) != set(pl.default_airports.values_list('id', flat=True)):
+        pl.default_airports.set(airport_ids)
+    # Preferido continua válido? Senão, o 1º do conjunto (ou nenhum).
+    new_pref = pl.default_airport_id if pl.default_airport_id in airport_ids else (airport_ids[0] if airport_ids else None)
+    if new_pref != pl.default_airport_id:
+        pl.default_airport_id = new_pref
+        changed.append('default_airport')
     if changed:
         pl.save(update_fields=changed)
     return pl
