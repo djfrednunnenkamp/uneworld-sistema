@@ -18,6 +18,12 @@ def _s(v):
     return str(v) if v is not None else None
 
 
+def _m(v):
+    """Valor monetário para exibição nas mensagens de alerta: sempre 2 casas
+    (o Decimal cru mostrava coisas como US$ 1599.826200 / R$ 9566.9606760000)."""
+    return f'{Decimal(str(v)):.2f}' if v is not None else '—'
+
+
 def build_review_data(contract):
     from .serializers import _default_exchange_rate, avista_discount_usd
 
@@ -124,8 +130,8 @@ def build_review_data(contract):
             flags.append({
                 'level': 'warn', 'code': 'accom_changed',
                 'message': f'"{name}": valor por pessoa/taxas diferem do roteiro '
-                           f'(roteiro: {base_vp}/pessoa + {base_tx} taxas · '
-                           f'contrato: {vp}/pessoa + {tx} taxas).',
+                           f'(roteiro: {_m(base_vp)}/pessoa + {_m(base_tx)} taxas · '
+                           f'contrato: {_m(vp)}/pessoa + {_m(tx)} taxas).',
             })
 
     # ── Ajustes genéricos (extras/descontos) ──
@@ -148,7 +154,7 @@ def build_review_data(contract):
             flags.append({
                 'level': 'warn', 'code': 'discount',
                 'message': f'Desconto aplicado{(" — " + a.description) if a.description else ""}: '
-                           f'US$ {amount}.',
+                           f'US$ {_m(amount)}.',
             })
 
     # ── Comissão da agência (embutida no total) ──
@@ -179,7 +185,7 @@ def build_review_data(contract):
         }
         flags.append({
             'level': 'warn', 'code': 'commission_discount',
-            'message': f'Dedução da comissão da agência: US$ {comm_disc}.',
+            'message': f'Dedução da comissão da agência: US$ {_m(comm_disc)}.',
         })
 
     # ── Câmbio alterado manualmente ──
@@ -206,8 +212,8 @@ def build_review_data(contract):
     if avista_disc > 0:
         flags.append({
             'level': 'good', 'code': 'avista_discount',
-            'message': f'Desconto à vista aplicado: US$ {avista_disc}'
-                       f'{f" (≈ R$ {avista_disc * rate})" if rate is not None else ""}.',
+            'message': f'Desconto à vista aplicado: US$ {_m(avista_disc)}'
+                       f'{f" (≈ R$ {_m(avista_disc * rate)})" if rate is not None else ""}.',
         })
     review_total_usd = accom_total + adj_total - commission + comm_disc - avista_disc
     review_total_brl = (review_total_usd * rate) if rate is not None else _d(contract.total_brl)
@@ -224,8 +230,8 @@ def build_review_data(contract):
             totals_diff = _s(diff)
             flags.append({
                 'level': 'error', 'code': 'totals_mismatch',
-                'message': f'Entrada + parcelas (R$ {paid_total}) não batem com o total do '
-                           f'contrato (R$ {total_brl}). Diferença: R$ {diff}.',
+                'message': f'Entrada + parcelas (R$ {_m(paid_total)}) não batem com o total do '
+                           f'contrato (R$ {_m(total_brl)}). Diferença: R$ {_m(diff)}.',
             })
 
     # ── Sugestão de pagamento (do roteiro) alterada pelo usuário ──
@@ -264,12 +270,12 @@ def build_review_data(contract):
             diff_e = entrada_brl - expected_entrada
             if diff_e > Decimal('0.01'):
                 flags.append({'level': 'good', 'code': 'payment_entrada_up',
-                    'message': f'Entrada MAIOR que a sugerida: R$ {entrada_brl} '
-                               f'(sugerido R$ {expected_entrada}) — favorável.'})
+                    'message': f'Entrada MAIOR que a sugerida: R$ {_m(entrada_brl)} '
+                               f'(sugerido R$ {_m(expected_entrada)}) — favorável.'})
             elif diff_e < Decimal('-0.01'):
                 flags.append({'level': 'warn', 'code': 'payment_entrada_down',
-                    'message': f'Entrada menor que a sugerida: R$ {entrada_brl} '
-                               f'(sugerido R$ {expected_entrada}).'})
+                    'message': f'Entrada menor que a sugerida: R$ {_m(entrada_brl)} '
+                               f'(sugerido R$ {_m(expected_entrada)}).'})
 
         # Parcelas: MENOS que o sugerido = favorável (verde); MAIS = alerta.
         if plan_count is not None and int(parcelas_count) != int(plan_count):
