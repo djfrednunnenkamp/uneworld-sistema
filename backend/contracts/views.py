@@ -123,6 +123,89 @@ def _log_contract_event(request, contract, action, label, file_field=None):
     )
 
 
+def enroll_contract_guests(contract, pl):
+    """Inscreve os passageiros do contrato na lista `pl`, criando/reaproveitando
+    os quartos conforme as acomodações do contrato (respeitando a capacidade do
+    tipo). Quem já está na lista é ignorado. Os passageiros entram com o status
+    padrão 'pendente' (a confirmar — o símbolo amarelo na lista).
+    Retorna (enrolled, skipped, enrolled_ids)."""
+    from collections import defaultdict, Counter
+    from trips.models import ListEnrollment, Room
+    from trips.views import _autocheck_guia
+
+    by_type = defaultdict(list)
+    for g in contract.guests.select_related('passenger', 'accommodation_type').all():
+        if g.passenger_id:
+            by_type[g.accommodation_type_id].append(g)
+
+    existing_rooms = set(pl.rooms.values_list('name', flat=True))
+    # Ocupação atual de cada quarto (por nome), p/ reaproveitar vagas.
+    occ = Counter(pl.list_enrollments.values_list('accommodation', flat=True))
+    last = pl.list_enrollments.order_by('-order_in_list').first()
+    order = (last.order_in_list + 1) if last else 0
+    enrolled = skipped = 0
+    enrolled_ids = []
+
+    def next_room_name(tname):
+        if tname not in existing_rooms:
+            return tname
+        i = 1
+        while f'{tname} {i}' in existing_rooms:
+            i += 1
+        return f'{tname} {i}'
+
+    for _tid, gs in by_type.items():
+        atype = gs[0].accommodation_type
+        cap = max(1, (atype.capacity if atype else 1) or 1)
+        tname = atype.name if atype else 'Acomodação'
+
+        # Só entram quem tem passageiro e ainda não está na lista.
+        pending = []
+        for g in gs:
+            p = g.passenger
+            if not p or pl.list_enrollments.filter(passenger=p).exists():
+                skipped += 1
+                continue
+            pending.append(g)
+        if not pending:
+            continue
+
+        # Um quarto pertence a este tipo se o nome é 'Tipo' ou 'Tipo N'.
+        def is_of_type(name):
+            if name == tname:
+                return True
+            if name.startswith(tname + ' '):
+                return name[len(tname) + 1:].isdigit()
+            return False
+
+        # Vagas livres nos quartos JÁ existentes deste tipo (bare primeiro).
+        type_rooms = sorted((r for r in existing_rooms if is_of_type(r)),
+                            key=lambda n: (len(n), n))
+        slots = []
+        for rname in type_rooms:
+            slots.extend([rname] * max(0, cap - occ.get(rname, 0)))
+
+        for g in pending:
+            if slots:
+                rname = slots.pop(0)                 # reaproveita quarto existente
+            else:
+                rname = next_room_name(tname)        # cria um novo só quando lotou
+                Room.objects.get_or_create(passenger_list=pl, name=rname)
+                existing_rooms.add(rname)
+                slots.extend([rname] * (cap - 1))    # sobram cap-1 vagas nesse novo
+            e = ListEnrollment.objects.create(
+                passenger_list=pl, passenger=g.passenger, accommodation=rname,
+                order_in_list=order, departure_airport=pl.default_airport,
+                agency=contract.agency,
+            )
+            occ[rname] += 1
+            order += 1
+            _autocheck_guia(e)
+            enrolled += 1
+            enrolled_ids.append(e.id)
+    return enrolled, skipped, enrolled_ids
+
+
 class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset        = Contract.objects.select_related('agency', 'contratante', 'passenger_list', 'itinerary').prefetch_related(
         'accommodation_lines', 'guests__passenger', 'installments', 'adjustments', 'clauses')
@@ -380,7 +463,21 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.reviewed_by = request.user
         contract.review_note = ''
         contract.save(update_fields=['stage', 'reviewed_at', 'reviewed_by', 'review_note'])
-        return Response(ContractSerializer(contract, context={'request': request}).data)
+
+        resp = dict(ContractSerializer(contract, context={'request': request}).data)
+        # Ao aprovar, já inscreve os passageiros do contrato na lista 1:1 do
+        # roteiro (entram pendentes/amarelo). O front abre a lista noutra aba.
+        try:
+            pl = None
+            if contract.itinerary_id:
+                pl = contract.itinerary.passenger_lists.filter(is_deleted=False).order_by('id').first()
+            if pl:
+                enrolled, _skipped, enrolled_ids = enroll_contract_guests(contract, pl)
+                resp.update({'enrolled_list_id': pl.id, 'enrolled_list_name': pl.name,
+                             'enrolled': enrolled, 'enrolled_ids': enrolled_ids})
+        except Exception:
+            logger.exception('Falha ao inscrever passageiros do contrato %s ao aprovar', contract.pk)
+        return Response(resp)
 
     @action(detail=True, methods=['get'], url_path='enrollable-lists')
     def enrollable_lists(self, request, pk=None):
@@ -417,88 +514,13 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         """Inscreve os passageiros do contrato na lista escolhida, criando os
         quartos conforme as acomodações do contrato (respeitando a capacidade do
         tipo). Quem já está na lista é ignorado."""
-        from collections import defaultdict
-        from trips.models import PassengerList, ListEnrollment, Room
-        from trips.views import _autocheck_guia
+        from trips.models import PassengerList
         contract = self.get_object()
         pl = PassengerList.objects.filter(pk=request.data.get('list_id'), is_deleted=False).first()
         if not pl:
             return Response({'error': 'Lista inválida.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        by_type = defaultdict(list)
-        for g in contract.guests.select_related('passenger', 'accommodation_type').all():
-            if g.passenger_id:
-                by_type[g.accommodation_type_id].append(g)
-
-        from collections import Counter
-        existing_rooms = set(pl.rooms.values_list('name', flat=True))
-        # Ocupação atual de cada quarto (por nome), p/ reaproveitar vagas.
-        occ = Counter(pl.list_enrollments.values_list('accommodation', flat=True))
-        last = pl.list_enrollments.order_by('-order_in_list').first()
-        order = (last.order_in_list + 1) if last else 0
-        enrolled = skipped = 0
-        enrolled_ids = []
-
-        def next_room_name(tname):
-            """Primeiro nome livre para um novo quarto deste tipo:
-            'Single', depois 'Single 1', 'Single 2'…"""
-            if tname not in existing_rooms:
-                return tname
-            i = 1
-            while f'{tname} {i}' in existing_rooms:
-                i += 1
-            return f'{tname} {i}'
-
-        for _tid, gs in by_type.items():
-            atype = gs[0].accommodation_type
-            cap = max(1, (atype.capacity if atype else 1) or 1)
-            tname = atype.name if atype else 'Acomodação'
-
-            # Só entram quem tem passageiro e ainda não está na lista.
-            pending = []
-            for g in gs:
-                p = g.passenger
-                if not p or pl.list_enrollments.filter(passenger=p).exists():
-                    skipped += 1
-                    continue
-                pending.append(g)
-            if not pending:
-                continue
-
-            # Um quarto pertence a este tipo se o nome é 'Tipo' ou 'Tipo N'.
-            def is_of_type(name):
-                if name == tname:
-                    return True
-                if name.startswith(tname + ' '):
-                    return name[len(tname) + 1:].isdigit()
-                return False
-
-            # Vagas livres nos quartos JÁ existentes deste tipo (bare primeiro).
-            type_rooms = sorted((r for r in existing_rooms if is_of_type(r)),
-                                key=lambda n: (len(n), n))
-            slots = []
-            for rname in type_rooms:
-                slots.extend([rname] * max(0, cap - occ.get(rname, 0)))
-
-            for g in pending:
-                if slots:
-                    rname = slots.pop(0)                 # reaproveita quarto existente
-                else:
-                    rname = next_room_name(tname)        # cria um novo só quando lotou
-                    Room.objects.get_or_create(passenger_list=pl, name=rname)
-                    existing_rooms.add(rname)
-                    slots.extend([rname] * (cap - 1))    # sobram cap-1 vagas nesse novo
-                e = ListEnrollment.objects.create(
-                    passenger_list=pl, passenger=g.passenger, accommodation=rname,
-                    order_in_list=order, departure_airport=pl.default_airport,
-                    agency=contract.agency,
-                )
-                occ[rname] += 1
-                order += 1
-                _autocheck_guia(e)
-                enrolled += 1
-                enrolled_ids.append(e.id)
-
+        enrolled, skipped, enrolled_ids = enroll_contract_guests(contract, pl)
         return Response({'enrolled': enrolled, 'skipped': skipped, 'list_id': pl.id,
                          'list_name': pl.name, 'enrolled_ids': enrolled_ids})
 
