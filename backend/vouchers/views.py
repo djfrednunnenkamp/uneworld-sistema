@@ -1,9 +1,10 @@
+from django.utils import timezone
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from users_api.permissions import RequirePermission, agency_scope_ids
+from users_api.permissions import RequirePermission, agency_scope_ids, has_any_perm
 from trips.models import PassengerList, ListEnrollment
 from .models import VoucherList, VoucherTemplate, VoucherFlightConfirmation, DEFAULT_VOUCHER_BLOCKS
 from . import build
@@ -52,6 +53,9 @@ class VoucherViewSet(viewsets.ViewSet):
         if scope is not None:
             # Agência: só vouchers PUBLICADOS de listas onde ela tem passageiros.
             qs = qs.filter(voucher__status='publicado', list_enrollments__agency_id__in=scope).distinct()
+            # Sem voucher_agency_past, só as viagens FUTURAS (não iniciadas).
+            if not has_any_perm(request.user, 'voucher_agency_past'):
+                qs = qs.exclude(start_date__lte=timezone.localdate())
         rows = []
         for pl in qs:
             voucher = getattr(pl, 'voucher', None)
@@ -79,6 +83,9 @@ class VoucherViewSet(viewsets.ViewSet):
         if scope is not None:
             # Agência só acessa voucher PUBLICADO e onde tem passageiros.
             if voucher.status != 'publicado' or not pl.list_enrollments.filter(agency_id__in=scope).exists():
+                return Response({'error': 'Voucher não disponível.'}, status=status.HTTP_404_NOT_FOUND)
+            # Sem voucher_agency_past, viagens já iniciadas ficam bloqueadas.
+            if pl.start_date and pl.start_date <= timezone.localdate() and not has_any_perm(request.user, 'voucher_agency_past'):
                 return Response({'error': 'Voucher não disponível.'}, status=status.HTTP_404_NOT_FOUND)
         blocks, is_custom = build.resolve_blocks(voucher)
         return Response({
