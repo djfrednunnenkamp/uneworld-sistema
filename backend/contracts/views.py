@@ -469,15 +469,28 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # roteiro (entram pendentes/amarelo). O front abre a lista noutra aba.
         try:
             pl = None
+            list_deleted = False
             if contract.itinerary_id:
-                # Garante a lista 1:1 do roteiro (cria se ainda não existir, ex.:
-                # roteiro criado antes do vínculo automático).
-                from trips.services import sync_passenger_list_for_itinerary
-                pl = sync_passenger_list_for_itinerary(contract.itinerary, allow_create=True, ignore_published=True)
+                it = contract.itinerary
+                if getattr(it, 'is_deleted', False):
+                    # Roteiro (e sua lista) estão na lixeira → não recria, avisa.
+                    list_deleted = True
+                else:
+                    pl = it.passenger_lists.filter(is_deleted=False).order_by('id').first()
+                    if pl is None:
+                        if it.passenger_lists.filter(is_deleted=True).exists():
+                            # A lista do roteiro está na lixeira → não recria, avisa.
+                            list_deleted = True
+                        else:
+                            # Nunca teve lista (roteiro antigo) → cria e usa.
+                            from trips.services import sync_passenger_list_for_itinerary
+                            pl = sync_passenger_list_for_itinerary(it, allow_create=True, ignore_published=True)
             if pl:
                 enrolled, _skipped, enrolled_ids = enroll_contract_guests(contract, pl)
                 resp.update({'enrolled_list_id': pl.id, 'enrolled_list_name': pl.name,
                              'enrolled': enrolled, 'enrolled_ids': enrolled_ids})
+            elif list_deleted:
+                resp['list_deleted'] = True
         except Exception:
             logger.exception('Falha ao inscrever passageiros do contrato %s ao aprovar', contract.pk)
         return Response(resp)
