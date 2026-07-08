@@ -434,6 +434,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         last = pl.list_enrollments.order_by('-order_in_list').first()
         order = (last.order_in_list + 1) if last else 0
         enrolled = skipped = 0
+        enrolled_ids = []
 
         for _tid, gs in by_type.items():
             atype = gs[0].accommodation_type
@@ -458,8 +459,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     order += 1
                     _autocheck_guia(e)
                     enrolled += 1
+                    enrolled_ids.append(e.id)
 
-        return Response({'enrolled': enrolled, 'skipped': skipped, 'list_id': pl.id, 'list_name': pl.name})
+        return Response({'enrolled': enrolled, 'skipped': skipped, 'list_id': pl.id,
+                         'list_name': pl.name, 'enrolled_ids': enrolled_ids})
 
     @action(detail=True, methods=['get'], url_path='invoice-data')
     def invoice_data(self, request, pk=None):
