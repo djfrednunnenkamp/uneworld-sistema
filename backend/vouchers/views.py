@@ -69,7 +69,7 @@ class VoucherViewSet(viewsets.ViewSet):
             'status': pl.status,
             'blocks': blocks,
             'is_custom': is_custom,
-            'roteiro': build.roteiro_data(pl),
+            'roteiro': build.roteiro_data(pl, request=request),
             'entries': build.build_entries(pl, request=request),
         })
 

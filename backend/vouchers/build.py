@@ -36,20 +36,106 @@ def resolve_blocks(voucher, settings_obj=None):
     return default_template_blocks(), False
 
 
-def roteiro_data(passenger_list):
-    """Dia a dia + o que inclui do PRIMEIRO roteiro ligado à lista (se houver)."""
+# Campos de "Informações" do roteiro que podem virar bloco (chave → rótulo).
+INFO_FIELDS = [
+    ('info_general', 'Informações'), ('info_included', 'Incluso no Pacote'),
+    ('info_not_included', 'Não Incluso no Pacote'), ('info_optionals', 'Opcionais'),
+    ('info_tips', 'Dicas de Viagem'), ('info_documents', 'Documentos Necessários'),
+    ('info_promo_rules', 'Regras Promoção'), ('info_insurance', 'Seguros'),
+    ('info_values', 'Informações sobre Valores'), ('info_extras', 'Extras'),
+    ('info_lamina', 'Texto informativo da lâmina'),
+    ('flight_notes', 'Observações dos Voos'), ('hotel_notes', 'Observações dos Hotéis'),
+    ('accommodation_notes', 'Observações dos Valores'),
+    ('terrestre_notes', 'Observações do Terrestre'), ('boat_notes', 'Observações do Barco'),
+]
+
+
+def _dt(v):
+    try: return v.strftime('%d/%m/%Y %H:%M') if v else ''
+    except Exception: return ''
+
+
+def _d(v):
+    try: return v.strftime('%d/%m/%Y') if v else ''
+    except Exception: return ''
+
+
+def _airport(a):
+    if not a: return ''
+    code = getattr(a, 'iata_code', '') or ''
+    return f'{code} · {a.name}'.strip(' ·') if getattr(a, 'name', '') else code
+
+
+def _map_url(raw):
+    """Extrai o src do embed do Google My Maps (ou devolve o próprio link)."""
+    if not raw: return ''
+    import re
+    m = re.search(r'src="([^"]+)"', raw)
+    return m.group(1) if m else raw.strip()
+
+
+def roteiro_data(passenger_list, request=None):
+    """Dados do PRIMEIRO roteiro da lista para alimentar os blocos do voucher:
+    dia a dia, voos, terrestre, hotéis, barco, destinos, campos de informações,
+    mapa e imagens. Tudo se alimenta do roteiro."""
     itin = passenger_list.roteiros.first()
     if not itin:
         return None
+
+    def abs_url(f):
+        try:
+            return (request.build_absolute_uri(f.url) if request else f.url) if f else None
+        except Exception:
+            return None
+
     days = [{'day_number': d.day_number, 'title': d.title, 'description': d.description}
             for d in itin.days.all()]
-    incl = [i.name for i in itin.inclusions.all()] if hasattr(itin, 'inclusions') else []
+    incl = [i.name for i in itin.inclusions.all()]
+
+    flights = []
+    for dep in itin.departures.all():
+        for f in dep.flights.select_related('airline', 'origin', 'destination').all():
+            flights.append({'airline': getattr(f.airline, 'name', '') or '', 'number': f.flight_number or '',
+                            'origin': _airport(f.origin), 'destination': _airport(f.destination),
+                            'departs': _dt(f.departs_at), 'arrives': _dt(f.arrives_at)})
+
+    terrestre = []
+    for dep in itin.terrestre_departures.all():
+        for l in dep.legs.select_related('company', 'origin', 'destination').all():
+            terrestre.append({'company': getattr(l.company, 'name', '') or '', 'number': l.service_number or '',
+                              'origin': getattr(l.origin, 'name', '') or '', 'destination': getattr(l.destination, 'name', '') or '',
+                              'departs': _dt(l.departs_at), 'arrives': _dt(l.arrives_at)})
+
+    hotels = [{'name': h.name or getattr(h.config_hotel, 'name', '') or '', 'city': h.city or '',
+               'check_in': _d(h.check_in), 'check_out': _d(h.check_out), 'notes': h.notes or ''}
+              for h in itin.hotels.select_related('config_hotel').all()]
+    boats = [{'name': b.name or getattr(b.config_boat, 'name', '') or '',
+              'check_in': _d(b.check_in), 'check_out': _d(b.check_out), 'notes': b.notes or ''}
+             for b in itin.boats.select_related('config_boat').all()]
+
+    cities = []
+    for c in itin.cities.select_related('state__country__continent').all():
+        st = getattr(c, 'state', None); co = getattr(st, 'country', None); cont = getattr(co, 'continent', None)
+        cities.append({'name': c.name, 'state': getattr(st, 'name', '') or '',
+                       'country': getattr(co, 'name', '') or '', 'continent': getattr(cont, 'name', '') or ''})
+
+    images = [{'url': abs_url(im.image), 'caption': im.caption or ''}
+              for im in itin.images.filter(day__isnull=True).order_by('order', 'id') if im.image]
+
     return {
         'name': itin.name,
         'days': days,
         'inclusions': incl,
         'info_included': getattr(itin, 'info_included', '') or '',
         'info_not_included': getattr(itin, 'info_not_included', '') or '',
+        'flights': flights,
+        'terrestre': terrestre,
+        'hotels': hotels,
+        'boats': boats,
+        'cities': cities,
+        'info': {k: (getattr(itin, k, '') or '') for k, _ in INFO_FIELDS},
+        'map_url': _map_url(getattr(itin, 'map_embed_url', '') or ''),
+        'images': images,
     }
 
 
