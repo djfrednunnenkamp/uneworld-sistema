@@ -32,11 +32,28 @@ def build_review_data(contract):
     default_rate = _d(default_rate)
 
     # Tabela de preços do roteiro (valor/pessoa + taxas por tipo de acomodação).
+    # IMPORTANTE: o contrato é criado a partir da FOTO PUBLICADA do roteiro
+    # (published_data), NÃO do estado vivo. Editar o roteiro depois de publicar não
+    # muda o contrato — então a comparação também tem de ser contra a foto, senão
+    # alertamos "diferem do roteiro" à toa. Além disso só comparamos quando as moedas
+    # batem: comparar número cru entre moedas diferentes não faz sentido.
     itin_map = {}
     if contract.itinerary_id:
-        for il in contract.itinerary.accommodation_lines.all():
-            if il.accommodation_type_id is not None:
-                itin_map[il.accommodation_type_id] = (_d(il.value_per_person), _d(il.taxes))
+        itin = contract.itinerary
+        contract_cur = contract.base_currency or 'USD'
+        if itin.is_published and isinstance(itin.published_data, dict):
+            snap = itin.published_data
+            if (snap.get('base_currency') or 'USD') == contract_cur:
+                for il in (snap.get('accommodation_lines') or []):
+                    at = il.get('accommodation_type')
+                    if at is not None:
+                        itin_map[at] = (_d(il.get('value_per_person')), _d(il.get('taxes')))
+        elif (itin.base_currency or 'USD') == contract_cur:
+            # Roteiro sem foto publicada (não deveria ocorrer num contrato): cai no
+            # estado vivo, ainda respeitando a moeda.
+            for il in itin.accommodation_lines.all():
+                if il.accommodation_type_id is not None:
+                    itin_map[il.accommodation_type_id] = (_d(il.value_per_person), _d(il.taxes))
 
     flags = []
 
