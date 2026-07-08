@@ -34,12 +34,13 @@ class AuditLogSerializer(serializers.ModelSerializer):
     action_label = serializers.CharField(source='get_action_display', read_only=True)
     timestamp_br = serializers.SerializerMethodField()
     has_file     = serializers.SerializerMethodField()
+    user_avatar  = serializers.SerializerMethodField()
 
     class Meta:
         model = AuditLog
         fields = [
             'id', 'timestamp', 'timestamp_br',
-            'user_display', 'action', 'action_label',
+            'user_display', 'user_avatar', 'action', 'action_label',
             'model_name', 'model_label', 'object_id', 'object_repr',
             'changes', 'ip_address', 'has_file',
             'geo_city', 'geo_country', 'latitude', 'longitude', 'geo_precise', 'geo_address',
@@ -55,6 +56,11 @@ class AuditLogSerializer(serializers.ModelSerializer):
         if callable(spec[1]):
             return obj.action == 'download'
         return True
+
+    def get_user_avatar(self, obj):
+        u = obj.user
+        perms = getattr(u, 'permissions', None) if u else None
+        return perms.avatar.url if (perms and perms.avatar) else None
 
     def get_timestamp_br(self, obj):
         from django.utils import timezone
@@ -143,7 +149,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'detail': 'Arquivo não encontrado no servidor.'}, status=404)
 
     def get_queryset(self):
-        qs = AuditLog.objects.select_related('user').all()
+        qs = AuditLog.objects.select_related('user', 'user__permissions').all()
         action = self.request.query_params.get('action')
         model  = self.request.query_params.get('model')
         user_search = self.request.query_params.get('user')
