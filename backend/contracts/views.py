@@ -473,7 +473,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 # Garante a lista 1:1 do roteiro (cria se ainda não existir, ex.:
                 # roteiro criado antes do vínculo automático).
                 from trips.services import sync_passenger_list_for_itinerary
-                pl = sync_passenger_list_for_itinerary(contract.itinerary, allow_create=True)
+                pl = sync_passenger_list_for_itinerary(contract.itinerary, allow_create=True, ignore_published=True)
             if pl:
                 enrolled, _skipped, enrolled_ids = enroll_contract_guests(contract, pl)
                 resp.update({'enrolled_list_id': pl.id, 'enrolled_list_name': pl.name,

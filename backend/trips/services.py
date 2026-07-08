@@ -1,7 +1,7 @@
 """Regras de negócio compartilhadas das listas de passageiros."""
 
 
-def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False):
+def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False, ignore_published=False):
     """Mantém a lista de passageiros 1:1 do roteiro em dia.
 
     Cada roteiro NÃO PÚBLICO tem exatamente uma lista de passageiros, criada
@@ -22,8 +22,10 @@ def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False):
     pl = itinerary.passenger_lists.filter(is_deleted=False).order_by('id').first()
 
     if pl is None:
-        # Só cria automaticamente na criação de um roteiro não público.
-        if not allow_create or itinerary.is_published:
+        # Só cria automaticamente na criação de um roteiro não público —
+        # salvo quando ignore_published (ex.: ao aprovar um contrato, o roteiro
+        # precisa ter uma lista para receber os passageiros).
+        if not allow_create or (itinerary.is_published and not ignore_published):
             return None
         category = itinerary.category.name if itinerary.category_id else 'Internacional'
         pl = PassengerList.objects.create(
