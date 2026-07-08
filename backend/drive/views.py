@@ -367,8 +367,8 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     def transfer(self, request, pk=None):
         """Transfere a PROPRIEDADE do nó (e de toda a subárvore) para outro usuário.
         Só o dono; o alvo precisa poder usar o Drive (documentos_view). O item vai
-        para a RAIZ do novo dono (aparece em "Meus arquivos" dele, não em
-        "Compartilhados"); o dono antigo perde o acesso."""
+        para a RAIZ do novo dono (aparece em "Meus arquivos" dele). O dono ANTIGO NÃO
+        perde o acesso: vira colaborador com EDIÇÃO (vê em "Compartilhados")."""
         node = self.get_object()   # get_queryset garante que é do dono e fora da lixeira
         from django.contrib.auth.models import User
         from . import trash
@@ -380,14 +380,20 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         if not has_any_perm(target, 'documentos_view'):
             return Response({'error': f'{_user_label(target)} não tem acesso ao Meus Documentos.'},
                             status=status.HTTP_400_BAD_REQUEST)
+        old_owner = request.user
+        old_owner_id = node.owner_id
         nodes = trash._subtree(node)
         for n in nodes:
             n.owner = target
         DriveNode.objects.bulk_update(nodes, ['owner'])   # muda o dono da subárvore
-        # O novo dono não fica "compartilhado" consigo mesmo; e o item vai pra raiz dele.
+        # O novo dono sai dos "compartilhados" (agora é dono) e o item vai pra raiz dele;
+        # o dono ANTIGO entra como colaborador com nível EDITAR.
         node.shared_with.remove(target)
-        if isinstance(node.share_levels, dict):
-            node.share_levels.pop(str(target.id), None)
+        node.shared_with.add(old_owner)
+        levels = node.share_levels if isinstance(node.share_levels, dict) else {}
+        levels.pop(str(target.id), None)
+        levels[str(old_owner_id)] = 'edit'
+        node.share_levels = levels
         node.parent = None
         node.save(update_fields=['parent', 'share_levels'])
         broadcast_drive()   # bulk_update não dispara signal
