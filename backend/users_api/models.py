@@ -5,6 +5,11 @@ from django.utils import timezone
 from datetime import timedelta
 
 
+def avatar_upload_path(instance, filename):
+    # Sempre .jpg (o upload é revalidado e re-encodado como JPEG no backend).
+    return f'avatars/{instance.user_id}/{uuid.uuid4().hex}.jpg'
+
+
 class PasswordResetToken(models.Model):
     user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_tokens')
     token      = models.UUIDField(default=uuid.uuid4, unique=True)
@@ -42,6 +47,8 @@ class UserPermissions(models.Model):
 
     # Dados de perfil
     phone      = models.CharField(max_length=30, blank=True, default='')
+    # Foto de perfil. Sempre revalidada e re-encodada como JPEG no upload (seguro).
+    avatar     = models.ImageField('Foto de perfil', upload_to=avatar_upload_path, null=True, blank=True)
 
     # Visão Geral (Dashboard)
     dashboard_view_passengers  = models.BooleanField(default=False)

@@ -4,7 +4,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.conf import settings
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
@@ -69,6 +70,7 @@ def serialize_user(u, perms=None):
         'last_name':    u.last_name,
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
         'phone':        perms.phone,
+        'avatar_url':   perms.avatar.url if perms.avatar else None,
         'is_staff':     u.is_staff,
         'is_superuser': u.is_superuser,
         'is_active':    u.is_active,
@@ -196,6 +198,73 @@ def me_view(request):
             perms.phone = (data['phone'] or '').strip()
             perms.save(update_fields=['phone'])
     return Response(serialize_user(user))
+
+
+# Formatos de imagem aceitos para a foto de perfil (o conteúdo é revalidado
+# com Pillow e re-encodado como JPEG — não confiamos na extensão/mimetype).
+_AVATAR_MAX_BYTES = 5 * 1024 * 1024          # 5 MB
+_AVATAR_ALLOWED   = {'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'}
+
+
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def me_avatar(request):
+    """Upload/remoção da foto de perfil do próprio usuário. SEGURO: valida tamanho,
+    abre e VERIFICA a imagem com Pillow, e a re-encoda como JPEG (descarta qualquer
+    payload/EXIF embutido). Nunca serve o arquivo enviado como veio."""
+    perms = get_user_permissions(request.user)
+
+    if request.method == 'DELETE':
+        if perms.avatar:
+            try: perms.avatar.delete(save=False)
+            except Exception: pass
+            perms.avatar = None
+            perms.save(update_fields=['avatar'])
+        return Response(serialize_user(request.user))
+
+    f = request.FILES.get('avatar') or request.FILES.get('file')
+    if not f:
+        return Response({'error': 'Nenhuma imagem enviada.'}, status=status.HTTP_400_BAD_REQUEST)
+    if f.size > _AVATAR_MAX_BYTES:
+        return Response({'error': 'Imagem muito grande (máximo 5 MB).'}, status=status.HTTP_400_BAD_REQUEST)
+
+    import io
+    from PIL import Image, ImageOps, UnidentifiedImageError
+    try:
+        # 1) verifica que é uma imagem íntegra do formato esperado.
+        probe = Image.open(f)
+        fmt = (probe.format or '').upper()
+        if fmt not in _AVATAR_ALLOWED:
+            return Response({'error': 'Formato não suportado. Use JPG, PNG, WEBP ou GIF.'}, status=status.HTTP_400_BAD_REQUEST)
+        probe.verify()                       # detecta arquivo corrompido/falsificado
+        # 2) reabre (verify invalida o objeto), normaliza orientação e fundo.
+        f.seek(0)
+        img = Image.open(f)
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGBA')
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[-1])
+            img = bg
+        else:
+            img = img.convert('RGB')
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+        return Response({'error': 'Arquivo de imagem inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 3) redimensiona (avatar não precisa ser grande) e re-encoda como JPEG.
+    img.thumbnail((512, 512))
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=85, optimize=True)
+    buf.seek(0)
+
+    from django.core.files.base import ContentFile
+    if perms.avatar:
+        try: perms.avatar.delete(save=False)
+        except Exception: pass
+    perms.avatar.save(f'{request.user.id}.jpg', ContentFile(buf.read()), save=False)
+    perms.save(update_fields=['avatar'])
+    return Response(serialize_user(request.user))
 
 
 @api_view(['POST'])
