@@ -53,6 +53,12 @@ class DriveNode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Lixeira: excluir manda o nó (e a subárvore) para os "Excluídos". Fica 30 dias
+    # e é apagado de vez pelo expurgo automático. Não some do banco nem dos arquivos
+    # até o expurgo — dá pra restaurar nesse meio-tempo.
+    is_deleted = models.BooleanField('Excluído', default=False, db_index=True)
+    deleted_at = models.DateTimeField('Excluído em', null=True, blank=True)
+
     class Meta:
         # Pastas antes de arquivos ('folder' > 'file' → -kind), depois por nome.
         ordering = ['-kind', 'name']

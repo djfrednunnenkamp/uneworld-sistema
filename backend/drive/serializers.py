@@ -37,9 +37,9 @@ class DriveNodeSerializer(serializers.ModelSerializer):
                   'mime_type', 'is_image', 'ext', 'editable', 'doc_kind',
                   'download_url', 'preview_url', 'thumb_url',
                   'shared_with', 'shared_with_data', 'owner', 'owner_name',
-                  'is_owner', 'created_at', 'updated_at']
+                  'is_owner', 'created_at', 'updated_at', 'deleted_at']
         read_only_fields = ['owner', 'original_name', 'file_size', 'mime_type',
-                            'created_at', 'updated_at']
+                            'created_at', 'updated_at', 'deleted_at']
         extra_kwargs = {'file': {'write_only': True}, 'shared_with': {'required': False}}
 
     def get_download_url(self, obj):

@@ -89,6 +89,19 @@ def run_once():
                 pref.save(update_fields=['last_reminder_sent'])
 
     _send_daily_notifications(today, current_hour)
+    _purge_drive_trash()
+
+
+def _purge_drive_trash():
+    """Apaga de vez os documentos que estão na lixeira do Drive há mais de 30 dias.
+    Idempotente e barato (query filtrada); roda a cada ciclo (de hora em hora)."""
+    try:
+        from drive.trash import purge_expired
+        n = purge_expired(days=30)
+        if n:
+            logger.info('[LIXEIRA DRIVE] %s item(ns) expurgado(s) (>30 dias).', n)
+    except Exception as e:
+        logger.exception('[LIXEIRA DRIVE] erro no expurgo: %s', e)
 
 
 # ── Coletores de dados ────────────────────────────────────────────────────────

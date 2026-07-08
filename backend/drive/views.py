@@ -4,6 +4,7 @@ import urllib.request
 import zipfile
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.utils.crypto import get_random_string
 from django.views.decorators.csrf import csrf_exempt
@@ -63,30 +64,41 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     parser_classes     = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
-        # Ações que mexem no próprio nó operam só sobre os do dono. A leitura de
-        # arquivos compartilhados passa por can_access nas actions de download.
-        return DriveNode.objects.filter(owner=self.request.user)
+        # Ações que mexem no próprio nó operam só sobre os do dono e FORA da lixeira
+        # (item excluído não pode ser aberto/editado/baixado). A leitura de arquivos
+        # compartilhados passa por can_access nas actions de download.
+        return DriveNode.objects.filter(owner=self.request.user, is_deleted=False)
 
     def _accessible_folder(self, parent_id):
         """Devolve a pasta se o usuário pode acessá-la, senão None."""
         if not parent_id:
             return None
-        f = DriveNode.objects.filter(pk=parent_id, kind='folder').first()
+        f = DriveNode.objects.filter(pk=parent_id, kind='folder', is_deleted=False).first()
         if f and f.can_access(self.request.user):
             return f
         return False   # explicit "not allowed / not found"
 
     def list(self, request):
         u = request.user
+        # Lixeira: itens excluídos do dono. Mostra só as RAÍZES (pai não excluído):
+        # excluir uma pasta manda o conteúdo junto, e ele aparece "dentro" dela — não
+        # solto na lista. Ordena pelos excluídos mais recentes.
+        if request.query_params.get('deleted'):
+            qs = (DriveNode.objects.filter(owner=u, is_deleted=True)
+                  .filter(Q(parent__isnull=True) | Q(parent__is_deleted=False))
+                  .order_by('-deleted_at'))
+            return Response({'breadcrumb': [], 'folder': None, 'trash': True,
+                             'nodes': DriveNodeSerializer(qs, many=True, context={'request': request}).data})
         if request.query_params.get('shared'):
-            qs = DriveNode.objects.filter(shared_with=u).distinct()
+            qs = DriveNode.objects.filter(shared_with=u, is_deleted=False).distinct()
             return Response({'breadcrumb': [], 'folder': None, 'shared': True,
                              'nodes': DriveNodeSerializer(qs, many=True, context={'request': request}).data})
         parent_id = request.query_params.get('parent') or None
         folder = self._accessible_folder(parent_id)
         if folder is False:
             return Response({'error': 'Pasta não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        children = folder.children.all() if folder else DriveNode.objects.filter(owner=u, parent__isnull=True)
+        children = (folder.children.filter(is_deleted=False) if folder
+                    else DriveNode.objects.filter(owner=u, parent__isnull=True, is_deleted=False))
         return Response({
             'breadcrumb': _breadcrumb(folder),
             'folder': ({'id': folder.id, 'name': folder.name, 'is_owner': folder.owner_id == u.id} if folder else None),
@@ -199,14 +211,30 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
     def destroy(self, request, *args, **kwargs):
+        # SOFT delete: manda o nó (e a subárvore) para a lixeira. Nada é apagado do
+        # disco agora — o expurgo automático faz isso 30 dias depois. Dá pra restaurar.
         node = self.get_object()
         from audit.tracking import log_event
+        from . import trash
+        trash.soft_delete(node)
         log_event('delete', model_name='DriveNode',
                   model_label='Pasta' if node.kind == 'folder' else 'Documento',
                   object_id=node.id, object_repr=node.name, user=request.user)
-        self._delete_files(node)
-        node.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        """Tira o item (e a subárvore) da lixeira. Só o dono, e só o que está lá."""
+        node = DriveNode.objects.filter(owner=request.user, pk=pk, is_deleted=True).first()
+        if not node:
+            return Response({'error': 'Item não encontrado na lixeira.'}, status=status.HTTP_404_NOT_FOUND)
+        from audit.tracking import log_event
+        from . import trash
+        trash.restore(node)
+        log_event('restore', model_name='DriveNode',
+                  model_label='Pasta' if node.kind == 'folder' else 'Documento',
+                  object_id=node.id, object_repr=node.name, user=request.user)
+        return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
     def _delete_files(self, node):
         """Apaga os arquivos físicos do nó e descendentes (best-effort)."""
