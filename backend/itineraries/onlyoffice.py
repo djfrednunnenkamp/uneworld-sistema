@@ -158,7 +158,9 @@ def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, use
             'key': key,
             'title': fname,
             'url': _backend(file_url),
-            'permissions': {'edit': can_edit, 'comment': allow_comment,
+            # comment/review ligados no nível "revisar" (comentar + controlar
+            # alterações). edit=false + mode=edit + comment/review = modo revisão.
+            'permissions': {'edit': can_edit, 'comment': allow_comment, 'review': allow_comment,
                             'download': allow_download, 'print': allow_download,
                             'copy': True, 'chat': False},
         },
