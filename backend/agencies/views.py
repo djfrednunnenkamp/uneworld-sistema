@@ -2,6 +2,7 @@ import re
 from django.contrib.auth.models import User
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from core.pagination import StandardResultsPagination
@@ -61,7 +62,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('agencies_delete')()]
-        if self.action in ('create', 'update', 'partial_update', 'discard'):
+        if self.action in ('create', 'update', 'partial_update', 'discard', 'logo'):
             return [RequirePermission('agencies_edit')()]
         if self.action == 'merge':
             return [RequirePermission('agencies_edit')(), RequirePermission('agencies_delete')()]
@@ -77,6 +78,53 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         if self.action == 'attachable_users':
             return [RequirePermission('agencies_edit')()]
         return super().get_permissions()
+
+    @action(detail=True, methods=['post', 'delete'], parser_classes=[MultiPartParser, FormParser])
+    def logo(self, request, pk=None):
+        """Upload/remoção da LOGO da agência. SEGURO: valida tamanho, verifica a
+        imagem com Pillow e re-encoda como PNG (mantém transparência; descarta
+        qualquer payload embutido). Nunca serve o arquivo enviado como veio."""
+        agency = self.get_object()
+        if request.method == 'DELETE':
+            if agency.logo:
+                try: agency.logo.delete(save=False)
+                except Exception: pass
+                agency.logo = None
+                agency.save(update_fields=['logo'])
+            return Response(self.get_serializer(agency).data)
+
+        f = request.FILES.get('logo') or request.FILES.get('file')
+        if not f:
+            return Response({'error': 'Nenhuma imagem enviada.'}, status=status.HTTP_400_BAD_REQUEST)
+        if f.size > 5 * 1024 * 1024:
+            return Response({'error': 'Imagem muito grande (máximo 5 MB).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        import io
+        from PIL import Image, ImageOps, UnidentifiedImageError
+        try:
+            probe = Image.open(f)
+            if (probe.format or '').upper() not in {'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'}:
+                return Response({'error': 'Formato não suportado. Use PNG, JPG, WEBP ou GIF.'}, status=status.HTTP_400_BAD_REQUEST)
+            probe.verify()
+            f.seek(0)
+            img = Image.open(f)
+            img = ImageOps.exif_transpose(img)
+            img = img.convert('RGBA')          # mantém transparência do logo
+        except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+            return Response({'error': 'Arquivo de imagem inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        img.thumbnail((512, 512))
+        buf = io.BytesIO()
+        img.save(buf, format='PNG', optimize=True)
+        buf.seek(0)
+
+        from django.core.files.base import ContentFile
+        if agency.logo:
+            try: agency.logo.delete(save=False)
+            except Exception: pass
+        agency.logo.save(f'{agency.id}.png', ContentFile(buf.read()), save=False)
+        agency.save(update_fields=['logo'])
+        return Response(self.get_serializer(agency).data)
 
     @action(detail=False, methods=['get'], url_path='check-cnpj')
     def check_cnpj(self, request):

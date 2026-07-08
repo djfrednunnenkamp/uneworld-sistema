@@ -1,5 +1,11 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
+
+
+def agency_logo_path(instance, filename):
+    # Sempre .png (o upload é revalidado e re-encodado como PNG no backend).
+    return f'agencies/logos/{instance.id or "new"}/{uuid.uuid4().hex}.png'
 
 
 class Agency(models.Model):
@@ -75,6 +81,9 @@ class Agency(models.Model):
 
     # Observações
     notes = models.TextField('Observações', blank=True)
+
+    # Logo da agência. Sempre revalidada e re-encodada como PNG no upload (seguro).
+    logo  = models.ImageField('Logo', upload_to=agency_logo_path, null=True, blank=True)
 
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='agencies_created', verbose_name='Criado por')

@@ -3,6 +3,8 @@ from .models import Agency
 
 
 class AgencySerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model  = Agency
         # Lista explícita (A-13) — sem '__all__'. Campos de auditoria/soft-delete
@@ -13,10 +15,13 @@ class AgencySerializer(serializers.ModelSerializer):
             'municipal_registration', 'responsible', 'phone', 'mobile', 'email',
             'website', 'commission_rate', 'cep', 'street', 'number', 'complement',
             'neighborhood', 'city', 'state', 'country', 'receives_mail',
-            'pix_key_type', 'pix_key', 'use_agency_pix', 'notes',
+            'pix_key_type', 'pix_key', 'use_agency_pix', 'notes', 'logo_url',
             'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+
+    def get_logo_url(self, obj):
+        return obj.logo.url if obj.logo else None
 
 
 class AgencyListSerializer(serializers.ModelSerializer):
