@@ -172,3 +172,20 @@ def on_itinerary_image(sender, **kwargs):
 def on_itinerary(sender, **kwargs):
     _broadcast('gallery')
     _broadcast('itineraries')
+
+
+# ── Meus Documentos (Drive) ───────────────────────────────────────────────────
+# Criar / renomear / mover / compartilhar / restaurar / salvar (callback do
+# OnlyOffice) passam por .save()/.delete() e avisam quem está com o Drive aberto
+# para recarregar sozinho. O soft-delete usa bulk_update (sem signal), então o
+# destroy chama broadcast_drive() na mão.
+
+@receiver([post_save, post_delete], sender='drive.DriveNode')
+def on_drive_node(sender, **kwargs):
+    _broadcast('drive')
+
+
+def broadcast_drive():
+    """Aviso manual de mudança no Drive (caminhos que não disparam signal, ex.:
+    o bulk_update do soft-delete/lixeira)."""
+    _broadcast('drive')

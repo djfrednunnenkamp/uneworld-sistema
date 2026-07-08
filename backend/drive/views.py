@@ -257,6 +257,8 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         from audit.tracking import log_event
         from . import trash
         trash.soft_delete(node)
+        from dashboard.signals import broadcast_drive
+        broadcast_drive()   # soft-delete usa bulk_update → sem signal automático
         log_event('delete', model_name='DriveNode',
                   model_label='Pasta' if node.kind == 'folder' else 'Documento',
                   object_id=node.id, object_repr=node.name, user=request.user)
