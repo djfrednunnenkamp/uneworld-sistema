@@ -430,36 +430,74 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             if g.passenger_id:
                 by_type[g.accommodation_type_id].append(g)
 
+        from collections import Counter
         existing_rooms = set(pl.rooms.values_list('name', flat=True))
+        # Ocupação atual de cada quarto (por nome), p/ reaproveitar vagas.
+        occ = Counter(pl.list_enrollments.values_list('accommodation', flat=True))
         last = pl.list_enrollments.order_by('-order_in_list').first()
         order = (last.order_in_list + 1) if last else 0
         enrolled = skipped = 0
         enrolled_ids = []
 
+        def next_room_name(tname):
+            """Primeiro nome livre para um novo quarto deste tipo:
+            'Single', depois 'Single 1', 'Single 2'…"""
+            if tname not in existing_rooms:
+                return tname
+            i = 1
+            while f'{tname} {i}' in existing_rooms:
+                i += 1
+            return f'{tname} {i}'
+
         for _tid, gs in by_type.items():
             atype = gs[0].accommodation_type
             cap = max(1, (atype.capacity if atype else 1) or 1)
             tname = atype.name if atype else 'Acomodação'
-            n_rooms = (len(gs) + cap - 1) // cap
-            for idx in range(n_rooms):
-                rname = tname if n_rooms == 1 else f'{tname} {idx + 1}'
-                if rname not in existing_rooms:
+
+            # Só entram quem tem passageiro e ainda não está na lista.
+            pending = []
+            for g in gs:
+                p = g.passenger
+                if not p or pl.list_enrollments.filter(passenger=p).exists():
+                    skipped += 1
+                    continue
+                pending.append(g)
+            if not pending:
+                continue
+
+            # Um quarto pertence a este tipo se o nome é 'Tipo' ou 'Tipo N'.
+            def is_of_type(name):
+                if name == tname:
+                    return True
+                if name.startswith(tname + ' '):
+                    return name[len(tname) + 1:].isdigit()
+                return False
+
+            # Vagas livres nos quartos JÁ existentes deste tipo (bare primeiro).
+            type_rooms = sorted((r for r in existing_rooms if is_of_type(r)),
+                                key=lambda n: (len(n), n))
+            slots = []
+            for rname in type_rooms:
+                slots.extend([rname] * max(0, cap - occ.get(rname, 0)))
+
+            for g in pending:
+                if slots:
+                    rname = slots.pop(0)                 # reaproveita quarto existente
+                else:
+                    rname = next_room_name(tname)        # cria um novo só quando lotou
                     Room.objects.get_or_create(passenger_list=pl, name=rname)
                     existing_rooms.add(rname)
-                for g in gs[idx * cap:(idx + 1) * cap]:
-                    p = g.passenger
-                    if not p or pl.list_enrollments.filter(passenger=p).exists():
-                        skipped += 1
-                        continue
-                    e = ListEnrollment.objects.create(
-                        passenger_list=pl, passenger=p, accommodation=rname,
-                        order_in_list=order, departure_airport=pl.default_airport,
-                        agency=contract.agency,
-                    )
-                    order += 1
-                    _autocheck_guia(e)
-                    enrolled += 1
-                    enrolled_ids.append(e.id)
+                    slots.extend([rname] * (cap - 1))    # sobram cap-1 vagas nesse novo
+                e = ListEnrollment.objects.create(
+                    passenger_list=pl, passenger=g.passenger, accommodation=rname,
+                    order_in_list=order, departure_airport=pl.default_airport,
+                    agency=contract.agency,
+                )
+                occ[rname] += 1
+                order += 1
+                _autocheck_guia(e)
+                enrolled += 1
+                enrolled_ids.append(e.id)
 
         return Response({'enrolled': enrolled, 'skipped': skipped, 'list_id': pl.id,
                          'list_name': pl.name, 'enrolled_ids': enrolled_ids})
