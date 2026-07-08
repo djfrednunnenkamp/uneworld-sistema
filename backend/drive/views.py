@@ -1,5 +1,7 @@
+import io
 import os
 import urllib.request
+import zipfile
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.http import FileResponse, Http404
@@ -14,6 +16,11 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from itineraries import blank_office, onlyoffice
 from .models import DriveNode
 from .serializers import DriveNodeSerializer
+
+
+def _safe(name):
+    """Nome seguro para entrada de zip: sem barras nem componentes de caminho."""
+    return (name or 'arquivo').replace('/', '_').replace('\\', '_').strip() or 'arquivo'
 
 
 def _breadcrumb(folder):
@@ -193,6 +200,44 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def preview(self, request, pk=None):
         return self._serve(pk, request, inline=True)
+
+    @action(detail=True, methods=['get'], url_path='download_zip')
+    def download_zip(self, request, pk=None):
+        """Baixa uma PASTA inteira como .zip (recursivo, preservando subpastas).
+        Monta o zip em memória para ter Content-Length e a barra de % funcionar."""
+        folder = DriveNode.objects.filter(pk=pk, kind='folder').first()
+        if folder is None:
+            raise Http404
+        if not folder.can_access(request.user):
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+
+        buf = io.BytesIO()
+        names = set()   # evita nomes duplicados dentro do mesmo caminho
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+            def walk(node, prefix, depth):
+                if depth > 60:
+                    return
+                for child in node.children.all():
+                    if child.kind == 'folder':
+                        walk(child, f'{prefix}{_safe(child.name)}/', depth + 1)
+                    elif child.file:
+                        arc = f'{prefix}{_safe(child.name)}'
+                        n, i = arc, 1
+                        while n in names:      # "arquivo (2).ext" se repetir
+                            base, ext = os.path.splitext(arc)
+                            n = f'{base} ({i}){ext}'; i += 1
+                        names.add(n)
+                        try:
+                            with child.file.open('rb') as fh:
+                                z.writestr(n, fh.read())
+                        except Exception:
+                            pass
+            walk(folder, f'{_safe(folder.name)}/', 0)
+        buf.seek(0)
+        from urllib.parse import quote
+        resp = FileResponse(buf, as_attachment=True, content_type='application/zip')
+        resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(folder.name + '.zip')}"
+        return resp
 
     @action(detail=True, methods=['get'])
     def thumb(self, request, pk=None):
