@@ -514,6 +514,9 @@ class ItinerarySerializer(serializers.ModelSerializer):
         self._save_accommodation_lines(itinerary, accommodation_lines)
         if days is not None:
             self._save_days(itinerary, days)
+        # Roteiro não público nasce já com a sua lista de passageiros 1:1.
+        from trips.services import sync_passenger_list_for_itinerary
+        sync_passenger_list_for_itinerary(itinerary, allow_create=True)
         return itinerary
 
     # M2M do roteiro que precisam entrar no log (o diff escalar não os pega).
@@ -576,6 +579,9 @@ class ItinerarySerializer(serializers.ModelSerializer):
             instance.has_unpublished_changes = True
             instance.save(update_fields=['has_unpublished_changes'])
         self._log_update(instance, old_snap, self._audit_snapshot(instance))
+        # Datas da lista de passageiros vinculada acompanham as do roteiro.
+        from trips.services import sync_passenger_list_for_itinerary
+        sync_passenger_list_for_itinerary(instance)
         return instance
 
 

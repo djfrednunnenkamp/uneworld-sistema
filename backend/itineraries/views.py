@@ -535,6 +535,10 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     doc.file.save(fname, ContentFile(data), save=False)
                 doc.save()
 
+        # A cópia nasce como rascunho não público → cria a sua lista 1:1.
+        from trips.services import sync_passenger_list_for_itinerary
+        sync_passenger_list_for_itinerary(copy, allow_create=True)
+
         return Response({'id': copy.id, 'name': copy.name, 'status': copy.status,
                          'is_published': copy.is_published}, status=status.HTTP_201_CREATED)
 

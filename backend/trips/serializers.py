@@ -145,7 +145,10 @@ class PassengerListSerializer(serializers.ModelSerializer):
     roteiros_data       = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
     suppliers           = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
     additionals         = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
-    roteiros            = serializers.PrimaryKeyRelatedField(queryset=Itinerary.objects.all(),      many=True, required=False)
+    # O vínculo com o roteiro é 1:1 e criado automaticamente (na criação do
+    # roteiro) — não se escolhe/edita o roteiro pela lista. Por isso, read-only.
+    roteiros            = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    roteiro_linked      = serializers.SerializerMethodField()
     default_airports    = serializers.PrimaryKeyRelatedField(queryset=Airport.objects.all(),       many=True, required=False)
     default_airports_data  = serializers.SerializerMethodField()
     enrolled_count      = serializers.IntegerField(read_only=True)
@@ -165,7 +168,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'start_date_br', 'end_date_br',
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
-            'roteiros', 'roteiros_data',
+            'roteiros', 'roteiros_data', 'roteiro_linked',
             'required_documents',
             'default_airport', 'default_airport_data',
             'default_airports', 'default_airports_data',
@@ -177,6 +180,18 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'enrolled_count', 'notification_emails', 'revision', 'created_at', 'updated_at',
             'is_deleted', 'deleted_at',
         ]
+
+    def get_roteiro_linked(self, obj):
+        """True quando a lista é a lista 1:1 de um roteiro. Nesse caso as datas
+        são espelho do roteiro e não podem ser editadas na lista."""
+        return obj.roteiros.exists()
+
+    def update(self, instance, validated_data):
+        # Lista vinculada a um roteiro tem as datas travadas (vêm do roteiro).
+        if instance.roteiros.exists():
+            validated_data.pop('start_date', None)
+            validated_data.pop('end_date', None)
+        return super().update(instance, validated_data)
 
     def get_default_airport_data(self, obj):
         if obj.default_airport_id:
