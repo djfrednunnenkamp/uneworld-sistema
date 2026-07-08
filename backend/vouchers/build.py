@@ -163,6 +163,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
 
     # entry_key -> URL da confirmação de voo já enviada (por voucher da lista).
     fc_map = {}
+    dl_map = {}   # entry_key -> downloaded_at (ISO) — quando a agência baixou
     if voucher is not None:
         for fc in voucher.flight_confirmations.all():
             if not fc.image:
@@ -171,6 +172,8 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
                 fc_map[fc.entry_key] = request.build_absolute_uri(fc.image.url) if request else fc.image.url
             except Exception:
                 fc_map[fc.entry_key] = None
+        for d in voucher.downloads.all():
+            dl_map[d.entry_key] = d.downloaded_at.isoformat() if d.downloaded_at else True
 
     types = list(ConfigAccommodation.objects.all())
     ens = (ListEnrollment.objects
@@ -207,6 +210,8 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'agency_name': ag_name,
             'agency_logo': ag_logo,
             'flight_confirmation': fc_map.get(key),
+            'downloaded': key in dl_map,
+            'downloaded_at': dl_map.get(key),
         })
     for en in singles:
         ag_name, ag_logo = _agency_of(en.passenger, request)
@@ -220,5 +225,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'agency_name': ag_name,
             'agency_logo': ag_logo,
             'flight_confirmation': fc_map.get(key),
+            'downloaded': key in dl_map,
+            'downloaded_at': dl_map.get(key),
         })
     return entries

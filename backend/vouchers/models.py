@@ -56,6 +56,25 @@ class VoucherFlightConfirmation(models.Model):
         return f'Confirmação voo · {self.voucher.passenger_list.name} · {self.entry_key}'
 
 
+class VoucherDownload(models.Model):
+    """Registro de que o voucher de UM passageiro/casal (entry_key) foi BAIXADO —
+    usado para mostrar à operadora o progresso de download por lista (X% baixaram)
+    e um indicador por passageiro. Gravado quando um usuário de AGÊNCIA baixa o
+    PDF. Um registro por (voucher, entry_key); downloaded_at = último download."""
+    voucher       = models.ForeignKey(VoucherList, on_delete=models.CASCADE, related_name='downloads')
+    entry_key     = models.CharField('Voucher (passageiro/casal)', max_length=200, db_index=True)
+    user          = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    downloaded_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('voucher', 'entry_key')]
+        verbose_name = 'Download de voucher'
+        verbose_name_plural = 'Downloads de vouchers'
+
+    def __str__(self):
+        return f'Download · {self.voucher.passenger_list.name} · {self.entry_key}'
+
+
 class VoucherTemplate(models.Model):
     """Template REUTILIZÁVEL de voucher (biblioteca em Configurações). Vários, cada
     um com nome. Um é o PADRÃO (is_default) — listas novas herdam ele (VoucherList

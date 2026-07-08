@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 from users_api.permissions import RequirePermission, agency_scope_ids, has_any_perm
 from trips.models import PassengerList, ListEnrollment
-from .models import VoucherList, VoucherTemplate, VoucherFlightConfirmation, DEFAULT_VOUCHER_BLOCKS
+from .models import VoucherList, VoucherTemplate, VoucherFlightConfirmation, VoucherDownload, DEFAULT_VOUCHER_BLOCKS
 from . import build
 
 
@@ -41,6 +41,8 @@ class VoucherViewSet(viewsets.ViewSet):
             return [IsAuthenticated(), RequirePermission('voucher_publish')()]
         if self.action == 'flight_confirmation':
             return [IsAuthenticated(), RequirePermission('voucher_flight')()]
+        if self.action == 'mark_downloaded':
+            return [IsAuthenticated(), RequirePermission('voucher_view', 'voucher_agency')()]
         if self.action in ('partial_update', 'update'):
             return [IsAuthenticated(), RequirePermission('voucher_edit')()]
         return [IsAuthenticated(), RequirePermission('voucher_view', 'voucher_agency')()]
@@ -67,7 +69,7 @@ class VoucherViewSet(viewsets.ViewSet):
             pax_qs = ListEnrollment.objects.filter(passenger_list=pl, passenger__isnull=False)
             if scope is not None:
                 pax_qs = pax_qs.filter(agency_id__in=scope)
-            rows.append({
+            row = {
                 'id': pl.id,
                 'name': pl.name,
                 'start_date': pl.start_date,
@@ -76,7 +78,14 @@ class VoucherViewSet(viewsets.ViewSet):
                 'passenger_count': pax_qs.count(),
                 'is_custom': bool(voucher and voucher.blocks),
                 'status': (voucher.status if voucher else 'em_edicao'),
-            })
+            }
+            # Só a operadora (interno) vê o progresso de download por lista.
+            if scope is None:
+                total = len(build.build_entries(pl, voucher=voucher))
+                downloaded = voucher.downloads.count() if voucher else 0
+                row['entries_total'] = total
+                row['downloaded_count'] = min(downloaded, total)
+            rows.append(row)
         return Response(rows)
 
     def retrieve(self, request, pk=None):
@@ -121,6 +130,30 @@ class VoucherViewSet(viewsets.ViewSet):
         voucher.status = new_status
         voucher.save(update_fields=['status', 'updated_at'])
         return self.retrieve(request, pk=pk)
+
+    @action(detail=True, methods=['post'], url_path='mark_downloaded')
+    def mark_downloaded(self, request, pk=None):
+        """Marca o(s) voucher(s) baixado(s) — chamado quando um usuário de AGÊNCIA
+        baixa o PDF. Body: entry_key (str) ou entry_keys (lista). Só registra para
+        agência (a operadora consome o progresso); interno é no-op."""
+        pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        scope = agency_scope_ids(request.user)
+        if scope is None:
+            return Response({'ok': True})
+        voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
+        keys = request.data.get('entry_keys')
+        if not isinstance(keys, list):
+            k = request.data.get('entry_key')
+            keys = [k] if k else []
+        # Só as entries da própria agência podem ser marcadas.
+        valid = {e['key'] for e in build.build_entries(pl, voucher=voucher, agency_ids=scope)}
+        for key in keys:
+            key = (key or '').strip()
+            if key and key in valid:
+                VoucherDownload.objects.update_or_create(voucher=voucher, entry_key=key, defaults={'user': request.user})
+        return Response({'ok': True})
 
     @action(detail=True, methods=['post', 'delete'], url_path='flight_confirmation')
     def flight_confirmation(self, request, pk=None):

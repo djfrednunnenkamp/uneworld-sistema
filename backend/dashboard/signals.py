@@ -209,3 +209,8 @@ def on_voucher_template(sender, **kwargs):
 @receiver([post_save, post_delete], sender='vouchers.VoucherFlightConfirmation')
 def on_voucher_flight(sender, **kwargs):
     _broadcast('vouchers')
+
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherDownload')
+def on_voucher_download(sender, **kwargs):
+    _broadcast('vouchers')
