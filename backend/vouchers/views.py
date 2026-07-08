@@ -134,26 +134,34 @@ class VoucherViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='mark_downloaded')
     def mark_downloaded(self, request, pk=None):
-        """Marca o(s) voucher(s) baixado(s) — chamado quando um usuário de AGÊNCIA
-        baixa o PDF. Body: entry_key (str) ou entry_keys (lista). Só registra para
-        agência (a operadora consome o progresso); interno é no-op."""
+        """Registra o download do(s) voucher(s). Body: entry_key ou entry_keys.
+        QUALQUER usuário gera log de auditoria ('download'); só a AGÊNCIA marca o
+        progresso (VoucherDownload) que a operadora acompanha."""
         pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
         if not pl:
             return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        scope = agency_scope_ids(request.user)
-        if scope is None:
-            return Response({'ok': True})
         voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
+        scope = agency_scope_ids(request.user)
         keys = request.data.get('entry_keys')
         if not isinstance(keys, list):
             k = request.data.get('entry_key')
             keys = [k] if k else []
-        # Só as entries da própria agência podem ser marcadas.
-        valid = {e['key'] for e in build.build_entries(pl, voucher=voucher, agency_ids=scope)}
-        for key in keys:
-            key = (key or '').strip()
-            if key and key in valid:
-                VoucherDownload.objects.update_or_create(voucher=voucher, entry_key=key, defaults={'user': request.user})
+        keys = [(k or '').strip() for k in keys if k]
+        by_key = {e['key']: ', '.join(e['passengers']) for e in build.build_entries(pl, voucher=voucher, agency_ids=scope)}
+        valid = [k for k in keys if k in by_key]
+        if not valid:
+            return Response({'ok': True})
+        # Agência: marca o progresso de download que a operadora enxerga.
+        if scope is not None:
+            for k in valid:
+                VoucherDownload.objects.update_or_create(voucher=voucher, entry_key=k, defaults={'user': request.user})
+        # Auditoria — qualquer usuário que baixa aparece no Log.
+        names = [by_key[k] for k in valid]
+        depois = names[0] if len(names) == 1 else f'{len(names)} vouchers — ' + ', '.join(names)
+        from audit.tracking import log_event
+        log_event('download', model_name='VoucherList', model_label='Voucher',
+                  object_id=pl.id, object_repr=pl.name,
+                  changes={'Voucher baixado': {'antes': '—', 'depois': depois[:480]}}, user=request.user)
         return Response({'ok': True})
 
     @action(detail=True, methods=['post', 'delete'], url_path='flight_confirmation')
@@ -169,8 +177,15 @@ class VoucherViewSet(viewsets.ViewSet):
         if not entry_key:
             return Response({'error': 'Faltou entry_key.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Nome do passageiro/casal desta entry (para o log).
+        who = next((', '.join(e['passengers']) for e in build.build_entries(pl, voucher=voucher) if e['key'] == entry_key), entry_key)
+        from audit.tracking import log_event
+
         if request.method == 'DELETE':
             VoucherFlightConfirmation.objects.filter(voucher=voucher, entry_key=entry_key).delete()
+            log_event('delete', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',
+                      object_id=pl.id, object_repr=f'{who} — {pl.name}',
+                      changes={'Comprovante de voo': {'antes': 'imagem', 'depois': '—'}}, user=request.user)
             return self.retrieve(request, pk=pk)
 
         image = request.FILES.get('image')
@@ -178,6 +193,9 @@ class VoucherViewSet(viewsets.ViewSet):
             return Response({'error': 'Faltou a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
         VoucherFlightConfirmation.objects.update_or_create(
             voucher=voucher, entry_key=entry_key, defaults={'image': image})
+        log_event('upload', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',
+                  object_id=pl.id, object_repr=f'{who} — {pl.name}',
+                  changes={'Comprovante de voo': {'antes': '—', 'depois': 'imagem enviada'}}, user=request.user)
         return self.retrieve(request, pk=pk)
 
     def partial_update(self, request, pk=None):

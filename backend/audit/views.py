@@ -100,7 +100,8 @@ CONTRACT_MODELS = [
 
 SCOPE_MODELS = {
     'settings':    SETTINGS_MODELS,
-    'lists':       ['PassengerList', 'ListEnrollment', 'Enrollment', 'Roteiro', 'Room', 'ListTask'],
+    'lists':       ['PassengerList', 'ListEnrollment', 'Enrollment', 'Roteiro', 'Room', 'ListTask',
+                    'VoucherList', 'VoucherFlightConfirmation'],
     'passengers':  ['Passenger', 'PassengerDocument'],
     'agencies':    ['Agency', 'AgencyMember'],
     'users':       ['User', 'UserPermissions'],
