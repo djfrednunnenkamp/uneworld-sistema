@@ -183,9 +183,10 @@ class PassengerListSerializer(serializers.ModelSerializer):
         ]
 
     def get_roteiro_linked(self, obj):
-        """True quando a lista é a lista 1:1 de um roteiro. Nesse caso as datas
-        são espelho do roteiro e não podem ser editadas na lista."""
-        return obj.roteiros.exists()
+        """True quando a lista é a lista 1:1 de um roteiro ATIVO. Se o roteiro
+        foi excluído (está na lixeira), o vínculo deixa de valer — a lista fica
+        avulsa (datas liberadas e pode ser excluída)."""
+        return obj.roteiros.filter(is_deleted=False).exists()
 
     def get_guides(self, obj):
         """Nomes dos guias da lista (passageiros marcados como guia, não
@@ -205,8 +206,9 @@ class PassengerListSerializer(serializers.ModelSerializer):
         return out
 
     def update(self, instance, validated_data):
-        # Lista vinculada a um roteiro tem as datas travadas (vêm do roteiro).
-        if instance.roteiros.exists():
+        # Lista vinculada a um roteiro ATIVO tem as datas travadas (vêm do
+        # roteiro). Se o roteiro está na lixeira, a lista fica avulsa e edita.
+        if instance.roteiros.filter(is_deleted=False).exists():
             validated_data.pop('start_date', None)
             validated_data.pop('end_date', None)
         return super().update(instance, validated_data)

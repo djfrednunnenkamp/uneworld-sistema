@@ -242,10 +242,11 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         return qs
 
     def destroy(self, request, *args, **kwargs):
-        # Lista vinculada 1:1 a um roteiro NÃO pode ser excluída aqui — ela só
-        # sai junto quando o roteiro é excluído. Isso mantém o vínculo íntegro.
+        # Lista vinculada 1:1 a um roteiro ATIVO NÃO pode ser excluída aqui — ela
+        # só sai junto quando o roteiro é excluído. Mas se o roteiro já está na
+        # lixeira, o vínculo não vale mais e a lista (avulsa) pode ser excluída.
         instance = self.get_object()
-        if instance.roteiros.exists():
+        if instance.roteiros.filter(is_deleted=False).exists():
             return Response(
                 {'error': 'Esta lista pertence a um roteiro. Para removê-la, '
                           'exclua o roteiro correspondente.'},
