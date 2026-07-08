@@ -48,8 +48,21 @@ def roteiro_data(passenger_list):
     }
 
 
-def build_entries(passenger_list):
-    """Lista de vouchers (por passageiro/casal) da lista."""
+def _agency_of(passenger, request):
+    """(nome, logo_url) da 1ª agência do passageiro (a logo entra no topo do voucher)."""
+    ag = passenger.agencies.first()
+    if not ag:
+        return (None, None)
+    name = ag.name or ag.company_name or ''
+    url = None
+    if ag.logo:
+        url = request.build_absolute_uri(ag.logo.url) if request else ag.logo.url
+    return (name, url)
+
+
+def build_entries(passenger_list, request=None):
+    """Lista de vouchers (por passageiro/casal) da lista. Cada voucher leva a logo
+    da agência do passageiro (do casal, a do 1º)."""
     from config_api.models import ConfigAccommodation
     from trips.models import ListEnrollment
 
@@ -57,6 +70,7 @@ def build_entries(passenger_list):
     ens = (ListEnrollment.objects
            .filter(passenger_list=passenger_list, passenger__isnull=False)
            .select_related('passenger')
+           .prefetch_related('passenger__agencies')
            .order_by('order_in_list', 'id'))
 
     def is_couple(accom):
@@ -74,19 +88,25 @@ def build_entries(passenger_list):
 
     entries = []
     for accom, group in couple_rooms.items():
+        ag_name, ag_logo = _agency_of(group[0].passenger, request)
         entries.append({
             'key': f'room:{accom}',
             'is_couple': True,
             'accommodation': accom,
             'passengers': [e.passenger.full_name for e in group],
             'passenger_ids': [e.passenger_id for e in group],
+            'agency_name': ag_name,
+            'agency_logo': ag_logo,
         })
     for en in singles:
+        ag_name, ag_logo = _agency_of(en.passenger, request)
         entries.append({
             'key': f'pax:{en.id}',
             'is_couple': False,
             'accommodation': en.accommodation or '',
             'passengers': [en.passenger.full_name],
             'passenger_ids': [en.passenger_id],
+            'agency_name': ag_name,
+            'agency_logo': ag_logo,
         })
     return entries

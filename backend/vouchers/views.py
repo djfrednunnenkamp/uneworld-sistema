@@ -73,7 +73,7 @@ class VoucherViewSet(viewsets.ViewSet):
             'blocks': blocks,
             'is_custom': is_custom,
             'roteiro': build.roteiro_data(pl),
-            'entries': build.build_entries(pl),
+            'entries': build.build_entries(pl, request=request),
         })
 
     def partial_update(self, request, pk=None):
