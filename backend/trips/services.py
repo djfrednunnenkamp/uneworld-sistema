@@ -42,8 +42,11 @@ def sync_passenger_list_for_itinerary(itinerary, *, allow_create=False):
             pl.save(update_fields=['default_airport'])
         return pl
 
-    # Já existe → apenas mantém as datas em dia com o roteiro.
+    # Já existe → mantém nome e datas em dia com o roteiro (fonte da verdade).
     changed = []
+    if itinerary.name and pl.name != itinerary.name:
+        pl.name = itinerary.name
+        changed.append('name')
     if pl.start_date != itinerary.start_date:
         pl.start_date = itinerary.start_date
         changed.append('start_date')

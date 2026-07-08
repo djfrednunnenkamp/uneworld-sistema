@@ -206,9 +206,10 @@ class PassengerListSerializer(serializers.ModelSerializer):
         return out
 
     def update(self, instance, validated_data):
-        # Lista vinculada a um roteiro ATIVO tem as datas travadas (vêm do
+        # Lista vinculada a um roteiro ATIVO tem NOME e DATAS travados (vêm do
         # roteiro). Se o roteiro está na lixeira, a lista fica avulsa e edita.
         if instance.roteiros.filter(is_deleted=False).exists():
+            validated_data.pop('name', None)
             validated_data.pop('start_date', None)
             validated_data.pop('end_date', None)
         return super().update(instance, validated_data)
