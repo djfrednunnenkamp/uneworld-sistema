@@ -42,6 +42,13 @@ class CalendarPreference(models.Model):
     # ex.: ['/contratos','/roteiros',...]). Só reordena; a visibilidade continua
     # sendo pela permissão. Vazio = ordem padrão do sistema.
     nav_order            = models.JSONField('Ordem da barra lateral', default=list, blank=True)
+    # Itens da barra lateral que o usuário escondeu (lista de rotas). A permissão
+    # ainda manda; isto é uma ocultação puramente pessoal e reversível.
+    nav_hidden           = models.JSONField('Itens escondidos da barra lateral', default=list, blank=True)
+    # Colunas das tabelas de lista (ordem + visibilidade) por tabela:
+    # {"contracts":[{"key":"payer","on":true},...], "passengers":[...], ...}.
+    # A 1ª coluna de cada tabela é fixa e não entra aqui. Vazio = padrão.
+    table_columns        = models.JSONField('Colunas das tabelas', default=dict, blank=True)
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)
