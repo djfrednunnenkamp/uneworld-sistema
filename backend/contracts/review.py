@@ -19,9 +19,14 @@ def _s(v):
 
 
 def _m(v):
-    """Valor monetário para exibição nas mensagens de alerta: sempre 2 casas
-    (o Decimal cru mostrava coisas como US$ 1599.826200 / R$ 9566.9606760000)."""
-    return f'{Decimal(str(v)):.2f}' if v is not None else '—'
+    """Valor monetário para exibição nas mensagens de alerta: 2 casas + separador
+    de milhar no padrão pt-BR (ponto no milhar, vírgula nos centavos). O Decimal cru
+    mostrava coisas como US$ 1599.826200; agora sai US$ 1.599,83."""
+    if v is None:
+        return '—'
+    # Formata US (1,599.83) e troca os separadores para pt-BR (1.599,83).
+    s = f'{Decimal(str(v)):,.2f}'
+    return s.replace(',', 'X').replace('.', ',').replace('X', '.')
 
 
 def build_review_data(contract):
