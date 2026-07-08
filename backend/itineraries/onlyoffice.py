@@ -92,6 +92,46 @@ def _backend(path: str) -> str:
     return f'{base}{path}'
 
 
+def render_thumbnail(*, file_url, ext, doc_key, title, width=480, height=360):
+    """Gera uma MINIATURA (PNG) da primeira página do documento usando o serviço
+    de conversão do OnlyOffice (ConvertService.ashx). Devolve os bytes do PNG ou
+    None se não for possível (formato não suportado, DS fora do ar, etc.).
+
+    file_url  URL RELATIVA do arquivo no Django (o DS baixa via ONLYOFFICE_BACKEND_URL).
+    doc_key   chave única/estável do conteúdo (muda quando o arquivo muda)."""
+    import urllib.request
+    if not is_configured() or not office_document_type(title or f'x.{ext}'):
+        return None
+    payload = {
+        'async': False,
+        'key': doc_key,
+        'filetype': ext,
+        'outputtype': 'png',
+        'title': title or f'arquivo.{ext}',
+        'url': _backend(file_url),
+        # first: só a 1ª página; aspect 1 = mantém proporção dentro de width×height.
+        'thumbnail': {'first': True, 'aspect': 1, 'width': width, 'height': height},
+    }
+    secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
+    body = dict(payload)
+    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+    if secret:
+        body['token'] = jwt_encode(payload, secret)
+        headers['Authorization'] = 'Bearer ' + jwt_encode({'payload': payload}, secret)
+    endpoint = f'{settings.ONLYOFFICE_DS_URL.rstrip("/")}/ConvertService.ashx'
+    try:
+        req = urllib.request.Request(endpoint, data=json.dumps(body).encode(), headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode('utf-8', 'replace'))
+        out_url = result.get('fileUrl')
+        if not out_url:
+            return None
+        with urllib.request.urlopen(out_url, timeout=30) as r2:
+            return r2.read()
+    except Exception:
+        return None
+
+
 def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, user, user_can_edit):
     """Monta a configuração assinada do editor OnlyOffice para QUALQUER documento
     (roteiro, Drive, etc.). Assina com JWT se houver segredo. Levanta ValueError

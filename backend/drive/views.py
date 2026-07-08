@@ -172,6 +172,9 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             if n.file:
                 try: n.file.delete(save=False)
                 except Exception: pass
+            if n.thumb:
+                try: n.thumb.delete(save=False)
+                except Exception: pass
 
     @action(detail=True, methods=['post'])
     def share(self, request, pk=None):
@@ -190,6 +193,36 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def preview(self, request, pk=None):
         return self._serve(pk, request, inline=True)
+
+    @action(detail=True, methods=['get'])
+    def thumb(self, request, pk=None):
+        """Miniatura (PNG) do conteúdo — Word/Excel/PPT/PDF. Gera sob demanda na
+        primeira visualização (via OnlyOffice) e guarda; regenera após edição."""
+        node = DriveNode.objects.filter(pk=pk, kind='file').first()
+        if node is None or not node.file:
+            raise Http404
+        if not node.can_access(request.user):
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        if not node.thumb:
+            ext = os.path.splitext(node.name or node.file.name)[1].lower().lstrip('.')
+            png = onlyoffice.render_thumbnail(
+                file_url=node.file.url, ext=ext,
+                doc_key=f'drivethumb{node.id}v{node.edit_key or "0"}', title=node.name or node.file.name)
+            if not png:
+                raise Http404
+            node.thumb.save(f'{node.id}.png', ContentFile(png), save=False)
+            node.save(update_fields=['thumb'])
+        try:
+            fh = node.thumb.open('rb')
+        except Exception:
+            raise Http404
+        return FileResponse(fh, content_type='image/png')
+
+    def _clear_thumb(self, node):
+        if node.thumb:
+            try: node.thumb.delete(save=False)
+            except Exception: pass
+        node.thumb = None
 
     def _serve(self, pk, request, inline):
         node = DriveNode.objects.filter(pk=pk, kind='file').first()
@@ -240,7 +273,12 @@ def drive_document_callback(request, pk):
                 node.file.save(node.file.name.split('/')[-1], ContentFile(content), save=False)
                 node.file_size = len(content)
                 node.edit_key = get_random_string(12)
-                node.save(update_fields=['file', 'file_size', 'edit_key', 'updated_at'])
+                # Conteúdo mudou → miniatura antiga não vale mais; será regerada.
+                if node.thumb:
+                    try: node.thumb.delete(save=False)
+                    except Exception: pass
+                    node.thumb = None
+                node.save(update_fields=['file', 'file_size', 'edit_key', 'thumb', 'updated_at'])
             except Exception:
                 return Response({'error': 1})
     return Response({'error': 0})

@@ -9,6 +9,10 @@ def drive_upload_path(instance, filename):
     return f"drive/{instance.owner_id}/{uuid.uuid4().hex}{ext}"
 
 
+def drive_thumb_path(instance, filename):
+    return f"drive/thumbs/{instance.owner_id}/{uuid.uuid4().hex}.png"
+
+
 class DriveNode(models.Model):
     """Um item do "Drive" do usuário: uma PASTA ou um ARQUIVO. Cada nó pertence a
     um dono e pode estar dentro de uma pasta (parent). PRIVADO por padrão — só o
@@ -25,6 +29,9 @@ class DriveNode(models.Model):
     original_name = models.CharField(max_length=255, blank=True)
     file_size     = models.PositiveBigIntegerField(default=0)
     mime_type     = models.CharField(max_length=150, blank=True)
+    # Miniatura (snapshot da 1ª página) gerada sob demanda pelo OnlyOffice.
+    # Invalidada (apagada) sempre que o conteúdo muda.
+    thumb         = models.FileField(upload_to=drive_thumb_path, null=True, blank=True)
 
     shared_with = models.ManyToManyField(User, blank=True, related_name='drive_shared_with_me')
 
