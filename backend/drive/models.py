@@ -20,6 +20,11 @@ def drive_version_path(instance, filename):
     return f"drive/versions/{owner}/{uuid.uuid4().hex}{ext}"
 
 
+def drive_changes_path(instance, filename):
+    owner = instance.node.owner_id if instance.node else 0
+    return f"drive/changes/{owner}/{uuid.uuid4().hex}.zip"
+
+
 class DriveNode(models.Model):
     """Um item do "Drive" do usuário: uma PASTA ou um ARQUIVO. Cada nó pertence a
     um dono e pode estar dentro de uma pasta (parent). PRIVADO por padrão — só o
@@ -89,6 +94,11 @@ class DriveNodeVersion(models.Model):
     edited_by  = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='drive_versions')
     edited_by_name = models.CharField(max_length=255, blank=True)   # nome no momento (caso o usuário suma)
     note       = models.CharField(max_length=255, blank=True)       # ex.: "Criado", "Restaurado da versão de …"
+    # Suporte ao histórico NATIVO do OnlyOffice (realce das mudanças no documento):
+    doc_key        = models.CharField(max_length=40, blank=True)    # chave única/estável desta versão p/ o DS
+    server_version = models.CharField(max_length=40, blank=True)    # serverVersion informado pelo OnlyOffice
+    changes_file   = models.FileField(upload_to=drive_changes_path, null=True, blank=True)  # zip de mudanças (changesurl)
+    changes_json   = models.JSONField(default=list, blank=True)     # metadados das mudanças (autor/data)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

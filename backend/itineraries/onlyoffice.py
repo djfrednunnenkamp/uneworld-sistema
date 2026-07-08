@@ -132,7 +132,7 @@ def render_thumbnail(*, file_url, ext, doc_key, title, width=480, height=360):
         return None
 
 
-def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, user, user_can_edit):
+def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, user, user_can_edit, allow_download=True):
     """Monta a configuração assinada do editor OnlyOffice para QUALQUER documento
     (roteiro, Drive, etc.). Assina com JWT se houver segredo. Levanta ValueError
     se o formato não for suportado.
@@ -154,7 +154,8 @@ def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, use
             'key': key,
             'title': fname,
             'url': _backend(file_url),
-            'permissions': {'edit': can_edit, 'download': True, 'print': True},
+            'permissions': {'edit': can_edit, 'download': allow_download, 'print': allow_download,
+                            'copy': True, 'chat': False},
         },
         'documentType': dtype,
         'editorConfig': {
@@ -162,6 +163,7 @@ def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, use
             'mode': 'edit' if can_edit else 'view',
             'lang': 'pt-BR',
             'user': {'id': str(getattr(user, 'id', 'anon')), 'name': getattr(user, 'name', None) or getattr(user, 'email', 'Usuário')},
+            'customization': {'forcesave': True} if allow_download else {'forcesave': True, 'download': False},
         },
     }
     secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')

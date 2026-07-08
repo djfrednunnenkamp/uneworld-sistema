@@ -87,7 +87,8 @@ def snapshot_version(node, user=None, name='', note='', max_keep=50):
     v = DriveNodeVersion(
         node=node,
         edited_by=user if (user and getattr(user, 'is_authenticated', False)) else None,
-        edited_by_name=label, note=note, file_size=len(content))
+        edited_by_name=label, note=note, file_size=len(content),
+        doc_key=get_random_string(20))
     v.file.save(f'{node.id}.dat', ContentFile(content), save=True)
     # Poda versões antigas (guarda só as mais recentes).
     for old in list(node.versions.all()[max_keep:]):
@@ -217,7 +218,8 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                 doc_key=f'drive{node.id}', edit_key=node.edit_key,
                 fname=node.name or node.file.name, file_url=node.file.url,
                 callback_url=f'/api/drive/{node.id}/callback/',
-                user=request.user, user_can_edit=user_can_edit))
+                user=request.user, user_can_edit=user_can_edit,
+                allow_download=False))   # Drive: tudo fica virtual, sem baixar
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -262,6 +264,9 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             for v in n.versions.all():
                 if v.file:
                     try: v.file.delete(save=False)
+                    except Exception: pass
+                if v.changes_file:
+                    try: v.changes_file.delete(save=False)
                     except Exception: pass
 
     @action(detail=True, methods=['post'])
@@ -326,6 +331,68 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         resp = FileResponse(fh, content_type='application/octet-stream')
         resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(node.name or 'documento')}"
         return resp
+
+    # ── Histórico NATIVO do OnlyOffice (realce das mudanças dentro do documento) ──
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        """Lista de versões no formato do refreshHistory do OnlyOffice."""
+        node = DriveNode.objects.filter(pk=pk, kind='file').first()
+        if node is None:
+            raise Http404
+        if not node.can_access(request.user):
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        from django.utils import timezone
+        vers = list(node.versions.all().order_by('created_at', 'id'))   # mais antiga → mais nova
+        history = []
+        for idx, v in enumerate(vers, start=1):
+            entry = {
+                'created': timezone.localtime(v.created_at).strftime('%Y-%m-%d %H:%M:%S'),
+                'key': v.doc_key or f'drive{node.id}ver{v.id}',
+                'user': {'id': str(v.edited_by_id or ''), 'name': v.edited_by_name or 'Alguém'},
+                'version': idx,
+                'id': v.id,   # extra (o OnlyOffice ignora) — o front usa p/ restaurar
+            }
+            if v.changes_json:
+                entry['changes'] = v.changes_json
+                entry['serverVersion'] = v.server_version or ''
+            history.append(entry)
+        return Response({'currentVersion': len(vers), 'history': history})
+
+    @action(detail=True, methods=['get'], url_path='history_data')
+    def history_data(self, request, pk=None):
+        """Dados de uma versão (setHistoryData do OnlyOffice): url + changesUrl +
+        previous, tudo assinado com JWT. O DS usa isso para realçar as mudanças."""
+        node = DriveNode.objects.filter(pk=pk, kind='file').first()
+        if node is None:
+            raise Http404
+        if not node.can_access(request.user):
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        vers = list(node.versions.all().order_by('created_at', 'id'))
+        try:
+            n = int(request.query_params.get('version'))
+        except (TypeError, ValueError):
+            n = 0
+        if n < 1 or n > len(vers):
+            return Response({'error': 'Versão inválida.'}, status=status.HTTP_400_BAD_REQUEST)
+        v = vers[n - 1]
+        ext = os.path.splitext(node.name or node.file.name)[1].lower().lstrip('.')
+        data = {
+            'fileType': ext,
+            'version': n,
+            'key': v.doc_key or f'drive{node.id}ver{v.id}',
+            'url': onlyoffice._backend(v.file.url),
+        }
+        if n > 1 and v.changes_file:
+            prev = vers[n - 2]
+            data['changesUrl'] = onlyoffice._backend(v.changes_file.url)
+            data['previous'] = {
+                'key': prev.doc_key or f'drive{node.id}ver{prev.id}',
+                'url': onlyoffice._backend(prev.file.url),
+            }
+        secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
+        if secret:
+            data['token'] = onlyoffice.jwt_encode(data, secret)
+        return Response(data)
 
     @action(detail=True, methods=['get'], url_path='version_diff')
     def version_diff(self, request, pk=None):
@@ -513,10 +580,23 @@ def drive_document_callback(request, pk):
                     if str(uid).isdigit():
                         editor = _User.objects.filter(pk=int(uid)).first()
                         if editor: break
-                for ch in reversed((payload.get('history') or {}).get('changes') or []):
+                history = payload.get('history') or {}
+                for ch in reversed(history.get('changes') or []):
                     nm = (ch.get('user') or {}).get('name')
                     if nm: ename = nm; break
-                snapshot_version(node, user=editor, name=ename)
+                v = snapshot_version(node, user=editor, name=ename)
+                # Guarda os "changes" do OnlyOffice → realce das mudanças no histórico.
+                if v:
+                    v.server_version = str(history.get('serverVersion') or '')
+                    v.changes_json = history.get('changes') or []
+                    changesurl = payload.get('changesurl')
+                    if changesurl:
+                        try:
+                            with urllib.request.urlopen(changesurl, timeout=30) as cr:
+                                v.changes_file.save(f'{node.id}_changes.zip', ContentFile(cr.read()), save=False)
+                        except Exception:
+                            pass
+                    v.save(update_fields=['server_version', 'changes_json', 'changes_file'])
             except Exception:
                 return Response({'error': 1})
     return Response({'error': 0})
