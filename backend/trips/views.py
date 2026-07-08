@@ -213,7 +213,15 @@ class RoteiroViewSet(viewsets.ReadOnlyModelViewSet):
 class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = PassengerList.objects.select_related(
         'default_airport', 'departure_country', 'departure_state', 'departure_city'
-    ).prefetch_related('suppliers', 'additionals', 'roteiros').all()
+    ).prefetch_related(
+        'suppliers', 'additionals', 'roteiros',
+        # Guias da lista (passageiros marcados como guia, não cancelados) — p/ a
+        # coluna "Guia" na listagem, sem N+1.
+        Prefetch('list_enrollments',
+                 queryset=ListEnrollment.objects.filter(passenger__is_guide=True)
+                          .exclude(enrollment_status='cancelado').select_related('passenger'),
+                 to_attr='guide_enrollments'),
+    ).all()
     serializer_class = PassengerListSerializer
     pagination_class = StandardResultsPagination
     filter_backends  = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
@@ -232,6 +240,17 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if status:
             qs = qs.filter(status=status)
         return qs
+
+    def destroy(self, request, *args, **kwargs):
+        # Lista vinculada 1:1 a um roteiro NÃO pode ser excluída aqui — ela só
+        # sai junto quando o roteiro é excluído. Isso mantém o vínculo íntegro.
+        instance = self.get_object()
+        if instance.roteiros.exists():
+            return Response(
+                {'error': 'Esta lista pertence a um roteiro. Para removê-la, '
+                          'exclua o roteiro correspondente.'},
+                status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
 
     def get_permissions(self):
         if self.action == 'destroy':

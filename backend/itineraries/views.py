@@ -552,7 +552,17 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('Você não tem permissão para excluir roteiros. '
                                    'Você só pode excluir os seus próprios rascunhos.')
-        return super().destroy(request, *args, **kwargs)
+        # Vínculo 1:1: ao excluir o roteiro, a sua lista de passageiros vai junto
+        # para a lixeira (só ela pode ser removida — a lista sozinha não).
+        linked_lists = list(obj.passenger_lists.filter(is_deleted=False))
+        resp = super().destroy(request, *args, **kwargs)
+        from django.utils import timezone
+        now = timezone.now()
+        for pl in linked_lists:
+            pl.is_deleted = True
+            pl.deleted_at = now
+            pl.save(update_fields=['is_deleted', 'deleted_at'])
+        return resp
 
     def get_serializer_class(self):
         return ItineraryListSerializer if self.action == 'list' else ItinerarySerializer

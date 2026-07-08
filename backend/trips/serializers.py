@@ -149,6 +149,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
     # roteiro) — não se escolhe/edita o roteiro pela lista. Por isso, read-only.
     roteiros            = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     roteiro_linked      = serializers.SerializerMethodField()
+    guides              = serializers.SerializerMethodField()
     default_airports    = serializers.PrimaryKeyRelatedField(queryset=Airport.objects.all(),       many=True, required=False)
     default_airports_data  = serializers.SerializerMethodField()
     enrolled_count      = serializers.IntegerField(read_only=True)
@@ -168,7 +169,7 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'start_date_br', 'end_date_br',
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
-            'roteiros', 'roteiros_data', 'roteiro_linked',
+            'roteiros', 'roteiros_data', 'roteiro_linked', 'guides',
             'required_documents',
             'default_airport', 'default_airport_data',
             'default_airports', 'default_airports_data',
@@ -185,6 +186,23 @@ class PassengerListSerializer(serializers.ModelSerializer):
         """True quando a lista é a lista 1:1 de um roteiro. Nesse caso as datas
         são espelho do roteiro e não podem ser editadas na lista."""
         return obj.roteiros.exists()
+
+    def get_guides(self, obj):
+        """Nomes dos guias da lista (passageiros marcados como guia, não
+        cancelados). Usa o prefetch `guide_enrollments` quando disponível."""
+        ge = getattr(obj, 'guide_enrollments', None)
+        if ge is None:
+            ge = (obj.list_enrollments
+                  .filter(passenger__is_guide=True)
+                  .exclude(enrollment_status='cancelado')
+                  .select_related('passenger'))
+        seen, out = set(), []
+        for e in ge:
+            p = e.passenger
+            if p and p.full_name not in seen:
+                seen.add(p.full_name)
+                out.append(p.full_name)
+        return out
 
     def update(self, instance, validated_data):
         # Lista vinculada a um roteiro tem as datas travadas (vêm do roteiro).
