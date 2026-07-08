@@ -81,10 +81,11 @@ class VoucherViewSet(viewsets.ViewSet):
             }
             # Só a operadora (interno) vê o progresso de download por lista.
             if scope is None:
-                total = len(build.build_entries(pl, voucher=voucher))
-                downloaded = voucher.downloads.count() if voucher else 0
-                row['entries_total'] = total
-                row['downloaded_count'] = min(downloaded, total)
+                entries = build.build_entries(pl, voucher=voucher)
+                dl = [e for e in entries if e['downloaded']]
+                row['entries_total'] = len(entries)
+                row['downloaded_count'] = len(dl)
+                row['downloaded_names'] = [', '.join(e['passengers']) for e in dl]
             rows.append(row)
         return Response(rows)
 

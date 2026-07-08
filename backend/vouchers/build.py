@@ -172,8 +172,12 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
                 fc_map[fc.entry_key] = request.build_absolute_uri(fc.image.url) if request else fc.image.url
             except Exception:
                 fc_map[fc.entry_key] = None
-        for d in voucher.downloads.all():
-            dl_map[d.entry_key] = d.downloaded_at.isoformat() if d.downloaded_at else True
+        for d in voucher.downloads.select_related('user').all():
+            u = d.user
+            dl_map[d.entry_key] = {
+                'at': d.downloaded_at.isoformat() if d.downloaded_at else None,
+                'by': (u.get_full_name() or u.get_username()) if u else None,
+            }
 
     types = list(ConfigAccommodation.objects.all())
     ens = (ListEnrollment.objects
@@ -211,7 +215,8 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'agency_logo': ag_logo,
             'flight_confirmation': fc_map.get(key),
             'downloaded': key in dl_map,
-            'downloaded_at': dl_map.get(key),
+            'downloaded_at': (dl_map.get(key) or {}).get('at'),
+            'downloaded_by': (dl_map.get(key) or {}).get('by'),
         })
     for en in singles:
         ag_name, ag_logo = _agency_of(en.passenger, request)
@@ -226,6 +231,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'agency_logo': ag_logo,
             'flight_confirmation': fc_map.get(key),
             'downloaded': key in dl_map,
-            'downloaded_at': dl_map.get(key),
+            'downloaded_at': (dl_map.get(key) or {}).get('at'),
+            'downloaded_by': (dl_map.get(key) or {}).get('by'),
         })
     return entries
