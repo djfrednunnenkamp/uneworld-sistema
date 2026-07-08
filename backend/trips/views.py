@@ -416,11 +416,50 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 ConfigCountry.objects.filter(name__in=issued_by_names).values_list('name', 'code')
             )
 
+            contracts_by_passenger = self._contracts_by_passenger(request.user, pl)
+
             return Response(ListEnrollmentSerializer(
-                entries, many=True, context={'country_codes': country_codes}
+                entries, many=True, context={
+                    'country_codes': country_codes,
+                    'contracts_by_passenger': contracts_by_passenger,
+                }
             ).data)
 
         return self._add_passenger(request, pl)
+
+    def _contracts_by_passenger(self, user, pl):
+        """Mapa {passenger_id: {...}} do contrato de cada passageiro relacionado
+        a ESTA lista — o contrato com o mesmo roteiro da lista OU vinculado a
+        ela. Preenchido só para quem pode ver contratos. Prioridade: contrato
+        ligado à própria lista e, dentro disso, o mais recente."""
+        from users_api.permissions import has_any_perm
+        if not has_any_perm(user, 'contracts_view'):
+            return {}
+        from django.db.models import Q
+        from contracts.models import Contract
+        roteiro_ids = list(pl.roteiros.values_list('id', flat=True))
+        q = Q(passenger_list=pl)
+        if roteiro_ids:
+            q |= Q(itinerary_id__in=roteiro_ids)
+        contracts = list(
+            Contract.objects.filter(q, is_deleted=False).prefetch_related('guests')
+        )
+        # ordena por prioridade CRESCENTE — o último a sobrescrever vence:
+        # (não-desta-lista antes de desta-lista; mais antigo antes de mais novo)
+        contracts.sort(key=lambda c: (c.passenger_list_id == pl.id, c.created_at))
+        out = {}
+        for c in contracts:
+            info = {
+                'id': c.id,
+                'status': c.status,
+                'status_label': c.get_status_display(),
+                'stage': c.stage,
+                'stage_label': c.get_stage_display(),
+            }
+            for g in c.guests.all():
+                if g.passenger_id:
+                    out[g.passenger_id] = info
+        return out
 
     def _add_passenger(self, request, pl):
         is_block          = request.data.get('is_block', False)

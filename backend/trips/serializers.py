@@ -234,8 +234,20 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_rg          = serializers.SerializerMethodField()
     passenger_status      = serializers.SerializerMethodField()
     passenger_is_verified = serializers.SerializerMethodField()
+    contract              = serializers.SerializerMethodField()
 
     def _p(self, obj): return obj.passenger  # helper
+
+    def get_contract(self, obj):
+        """Contrato desta pessoa relacionado a esta lista (mesmo roteiro ou
+        vinculado à lista). O mapa passageiro→contrato é montado na view
+        (context['contracts_by_passenger']) para evitar N+1."""
+        if not obj.passenger_id:
+            return None
+        m = self.context.get('contracts_by_passenger')
+        if m is None:
+            return None
+        return m.get(obj.passenger_id)
 
     def get_passenger_name(self, obj):       return obj.passenger.full_name   if obj.passenger else ''
     def get_passenger_cpf(self, obj):        return obj.passenger.cpf         if obj.passenger else ''
@@ -467,6 +479,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_seat_preference', 'passenger_diet_type',
             'passenger_passport_issue', 'passenger_passport_expiry',
             'passenger_is_guide', 'passenger_address', 'date_conflict',
+            'contract',
             'additionals', 'additionals_data',
             'crew_roles', 'crew_roles_data',
             'accommodation', 'seat', 'enrollment_status', 'pending_until', 'pending_reason',
