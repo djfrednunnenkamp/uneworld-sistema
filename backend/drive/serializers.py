@@ -24,6 +24,8 @@ class DriveNodeSerializer(serializers.ModelSerializer):
     download_url  = serializers.SerializerMethodField()
     preview_url   = serializers.SerializerMethodField()
     ext           = serializers.SerializerMethodField()
+    editable      = serializers.SerializerMethodField()
+    doc_kind      = serializers.SerializerMethodField()
     shared_with_data = DriveUserMiniSerializer(source='shared_with', many=True, read_only=True)
     owner_name    = serializers.SerializerMethodField()
     is_owner      = serializers.SerializerMethodField()
@@ -31,7 +33,8 @@ class DriveNodeSerializer(serializers.ModelSerializer):
     class Meta:
         model  = DriveNode
         fields = ['id', 'kind', 'name', 'parent', 'original_name', 'file_size',
-                  'mime_type', 'is_image', 'ext', 'download_url', 'preview_url',
+                  'mime_type', 'is_image', 'ext', 'editable', 'doc_kind',
+                  'download_url', 'preview_url',
                   'shared_with', 'shared_with_data', 'owner', 'owner_name',
                   'is_owner', 'created_at', 'updated_at']
         read_only_fields = ['owner', 'original_name', 'file_size', 'mime_type',
@@ -47,6 +50,16 @@ class DriveNodeSerializer(serializers.ModelSerializer):
     def get_ext(self, obj):
         import os
         return (os.path.splitext(obj.original_name or obj.name or '')[1] or '').lower().lstrip('.')
+
+    def get_editable(self, obj):
+        """True se dá para abrir no editor OnlyOffice (Word/Excel/PPT/PDF/txt…)."""
+        from itineraries import onlyoffice
+        return bool(obj.kind == 'file' and onlyoffice.office_document_type(obj.name or ''))
+
+    def get_doc_kind(self, obj):
+        """Categoria p/ ícone: word|excel|powerpoint|pdf|other (ou None se pasta)."""
+        from itineraries import onlyoffice
+        return onlyoffice.doc_kind(obj.name or '') if obj.kind == 'file' else None
 
     def get_owner_name(self, obj):
         return _user_label(obj.owner) if obj.owner_id else ''

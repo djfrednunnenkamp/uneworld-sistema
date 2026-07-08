@@ -92,31 +92,33 @@ def _backend(path: str) -> str:
     return f'{base}{path}'
 
 
-def editor_config(document, user):
-    """Monta a configuração do editor para um ItineraryDocument. Assina com JWT
-    se houver segredo. Levanta ValueError se o formato não for suportado."""
-    fname = document.name or (document.file.name if document.file else '')
+def build_editor_config(*, doc_key, edit_key, fname, file_url, callback_url, user, user_can_edit):
+    """Monta a configuração assinada do editor OnlyOffice para QUALQUER documento
+    (roteiro, Drive, etc.). Assina com JWT se houver segredo. Levanta ValueError
+    se o formato não for suportado.
+
+    doc_key   prefixo único e estável do documento (ex.: 'doc42', 'drive42') — o
+              OnlyOffice identifica a sessão de edição por ele + edit_key.
+    file_url  URL RELATIVA do arquivo no Django (o DS baixa via ONLYOFFICE_BACKEND_URL).
+    callback_url URL RELATIVA que o DS chama ao salvar."""
     dtype = office_document_type(fname)
     if not dtype:
         raise ValueError('Formato de arquivo não suportado pelo editor.')
 
     ext = file_ext(fname)
-    key = f'doc{document.id}v{document.edit_key or "0"}'
-    # Edita só se o formato é editável E o usuário tem permissão de editar docs.
-    from users_api.permissions import has_any_perm
-    user_can_edit = bool(getattr(user, 'is_superuser', False) or has_any_perm(user, 'roteiros_docs_edit'))
-    can_edit = is_editable(fname) and user_can_edit
+    key = f'{doc_key}v{edit_key or "0"}'
+    can_edit = is_editable(fname) and bool(user_can_edit)
     config = {
         'document': {
             'fileType': ext,
             'key': key,
             'title': fname,
-            'url': _backend(document.file.url),
+            'url': _backend(file_url),
             'permissions': {'edit': can_edit, 'download': True, 'print': True},
         },
         'documentType': dtype,
         'editorConfig': {
-            'callbackUrl': _backend(f'/api/itineraries/documents/{document.id}/callback/'),
+            'callbackUrl': _backend(callback_url),
             'mode': 'edit' if can_edit else 'view',
             'lang': 'pt-BR',
             'user': {'id': str(getattr(user, 'id', 'anon')), 'name': getattr(user, 'name', None) or getattr(user, 'email', 'Usuário')},
@@ -129,3 +131,16 @@ def editor_config(document, user):
         'api_js': f'{settings.ONLYOFFICE_DS_URL.rstrip("/")}/web-apps/apps/api/documents/api.js',
         'config': config,
     }
+
+
+def editor_config(document, user):
+    """Config do editor para um ItineraryDocument (documento anexado a roteiro).
+    Edita só se o formato é editável E o usuário tem a permissão de editar docs."""
+    fname = document.name or (document.file.name if document.file else '')
+    from users_api.permissions import has_any_perm
+    user_can_edit = bool(getattr(user, 'is_superuser', False) or has_any_perm(user, 'roteiros_docs_edit'))
+    return build_editor_config(
+        doc_key=f'doc{document.id}', edit_key=document.edit_key, fname=fname,
+        file_url=document.file.url, callback_url=f'/api/itineraries/documents/{document.id}/callback/',
+        user=user, user_can_edit=user_can_edit,
+    )

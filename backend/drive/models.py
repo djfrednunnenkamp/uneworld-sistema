@@ -28,6 +28,9 @@ class DriveNode(models.Model):
 
     shared_with = models.ManyToManyField(User, blank=True, related_name='drive_shared_with_me')
 
+    # Muda a cada salvamento vindo do OnlyOffice → invalida o cache do editor.
+    edit_key = models.CharField(max_length=40, blank=True, default='')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
