@@ -422,7 +422,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             copy.start_date = start_date
             copy.end_date = end_date
             copy.slug = ''                       # regenera slug único no save()
-            copy.status = 'rascunho'             # nasce como rascunho editável
+            # Nasce como roteiro normal (ativo) porém NÃO publicado — abre igual ao
+            # original, com um único botão "Salvar" (sem o fluxo de rascunho).
+            copy.status = 'ativo'
             copy.is_published = False
             copy.published_data = None
             copy.published_at = None
@@ -501,8 +503,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     doc.file.save(fname, ContentFile(data), save=False)
                 doc.save()
 
-        return Response({'id': copy.id, 'name': copy.name, 'status': copy.status},
-                        status=status.HTTP_201_CREATED)
+        return Response({'id': copy.id, 'name': copy.name, 'status': copy.status,
+                         'is_published': copy.is_published}, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
         obj = self.get_object()
