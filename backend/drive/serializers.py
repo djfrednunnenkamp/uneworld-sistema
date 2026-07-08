@@ -10,13 +10,18 @@ def _user_label(u):
 
 class DriveUserMiniSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'name', 'email']
+        fields = ['id', 'name', 'email', 'avatar_url']
 
     def get_name(self, obj):
         return _user_label(obj)
+
+    def get_avatar_url(self, obj):
+        perms = getattr(obj, 'permissions', None)
+        return perms.avatar.url if (perms and perms.avatar) else None
 
 
 class DriveNodeSerializer(serializers.ModelSerializer):
