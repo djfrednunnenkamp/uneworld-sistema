@@ -30,7 +30,7 @@ class VoucherViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ('partial_update', 'update', 'flight_confirmation'):
+        if self.action in ('partial_update', 'update', 'flight_confirmation', 'set_status'):
             return [IsAuthenticated(), RequirePermission('voucher_edit')()]
         return [IsAuthenticated(), RequirePermission('voucher_view')()]
 
@@ -52,6 +52,7 @@ class VoucherViewSet(viewsets.ViewSet):
                 'roteiro_name': ', '.join(r.name for r in pl.roteiros.all()) or None,
                 'passenger_count': pax,
                 'is_custom': bool(voucher and voucher.blocks),
+                'status': (voucher.status if voucher else 'em_edicao'),
             })
         return Response(rows)
 
@@ -69,9 +70,24 @@ class VoucherViewSet(viewsets.ViewSet):
             'status': pl.status,
             'blocks': blocks,
             'is_custom': is_custom,
+            'status': voucher.status,
             'roteiro': build.roteiro_data(pl, request=request),
             'entries': build.build_entries(pl, request=request, voucher=voucher),
         })
+
+    @action(detail=True, methods=['post'], url_path='set_status')
+    def set_status(self, request, pk=None):
+        """Muda o status do voucher: 'em_edicao' ou 'publicado'."""
+        pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        new_status = (request.data.get('status') or '').strip()
+        if new_status not in dict(VoucherList.STATUS_CHOICES):
+            return Response({'error': 'Status inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
+        voucher.status = new_status
+        voucher.save(update_fields=['status', 'updated_at'])
+        return self.retrieve(request, pk=pk)
 
     @action(detail=True, methods=['post', 'delete'], url_path='flight_confirmation')
     def flight_confirmation(self, request, pk=None):

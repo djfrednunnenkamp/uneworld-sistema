@@ -16,10 +16,17 @@ class VoucherList(models.Model):
     lista (signals). Guarda só os blocos PRÓPRIOS desta lista — quando `blocks` é
     None, o voucher usa o template GLOBAL padrão (Configurações). Os vouchers por
     passageiro/casal são calculados na hora (não são gravados)."""
+    STATUS_CHOICES = [
+        ('em_edicao', 'Em edição'),
+        ('publicado', 'Publicado'),
+    ]
     passenger_list = models.OneToOneField('trips.PassengerList', on_delete=models.CASCADE,
                                           related_name='voucher')
     # None = herda o template global; lista = blocos próprios desta lista.
     blocks     = models.JSONField('Blocos do voucher', null=True, blank=True, default=None)
+    # Começa "em edição"; o usuário publica manualmente quando estiver pronto.
+    status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES,
+                                  default='em_edicao', db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
