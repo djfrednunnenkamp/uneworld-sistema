@@ -57,17 +57,19 @@ class VoucherFlightConfirmation(models.Model):
 
 
 class VoucherDownload(models.Model):
-    """Registro de que o voucher de UM passageiro/casal (entry_key) foi BAIXADO —
-    usado para mostrar à operadora o progresso de download por lista (X% baixaram)
-    e um indicador por passageiro. Gravado quando um usuário de AGÊNCIA baixa o
-    PDF. Um registro por (voucher, entry_key); downloaded_at = último download."""
+    """Registro de download do voucher de UM passageiro/casal (entry_key) por um
+    usuário de AGÊNCIA — para a operadora ver o progresso (X% baixaram), quem
+    baixou e quantas vezes. Um registro por (voucher, entry_key, user); `count`
+    conta as vezes que aquele usuário baixou; downloaded_at = último download."""
     voucher       = models.ForeignKey(VoucherList, on_delete=models.CASCADE, related_name='downloads')
     entry_key     = models.CharField('Voucher (passageiro/casal)', max_length=200, db_index=True)
     user          = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    count         = models.PositiveIntegerField('Vezes baixado', default=1)
     downloaded_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [('voucher', 'entry_key')]
+        unique_together = [('voucher', 'entry_key', 'user')]
+        ordering = ['-downloaded_at']
         verbose_name = 'Download de voucher'
         verbose_name_plural = 'Downloads de vouchers'
 

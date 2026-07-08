@@ -151,10 +151,14 @@ class VoucherViewSet(viewsets.ViewSet):
         valid = [k for k in keys if k in by_key]
         if not valid:
             return Response({'ok': True})
-        # Agência: marca o progresso de download que a operadora enxerga.
+        # Agência: registra o download (quem baixou e quantas vezes).
         if scope is not None:
             for k in valid:
-                VoucherDownload.objects.update_or_create(voucher=voucher, entry_key=k, defaults={'user': request.user})
+                obj, created = VoucherDownload.objects.get_or_create(
+                    voucher=voucher, entry_key=k, user=request.user, defaults={'count': 1})
+                if not created:
+                    obj.count = (obj.count or 0) + 1
+                    obj.save(update_fields=['count', 'downloaded_at'])
         # Auditoria — qualquer usuário que baixa aparece no Log.
         names = [by_key[k] for k in valid]
         depois = names[0] if len(names) == 1 else f'{len(names)} vouchers — ' + ', '.join(names)
