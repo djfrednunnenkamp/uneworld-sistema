@@ -139,9 +139,11 @@ def roteiro_data(passenger_list, request=None):
     }
 
 
-def _agency_of(passenger, request):
-    """(nome, logo_url) da 1ª agência do passageiro (a logo entra no topo do voucher)."""
-    ag = passenger.agencies.first()
+def _agency_of(enrollment, request):
+    """(nome, logo_url) da agência do voucher: a agência sob a qual o passageiro está
+    INSCRITO nesta lista (ListEnrollment.agency) e, se não houver, a 1ª agência do
+    passageiro. A logo entra no topo do voucher."""
+    ag = getattr(enrollment, 'agency', None) or enrollment.passenger.agencies.first()
     if not ag:
         return (None, None)
     name = ag.name or ag.company_name or ''
@@ -197,7 +199,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
     types = list(ConfigAccommodation.objects.all())
     ens = (ListEnrollment.objects
            .filter(passenger_list=passenger_list, passenger__isnull=False)
-           .select_related('passenger')
+           .select_related('passenger', 'agency')
            .prefetch_related('passenger__agencies')
            .order_by('order_in_list', 'id'))
     if agency_ids is not None:
@@ -218,7 +220,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
 
     entries = []
     for accom, group in couple_rooms.items():
-        ag_name, ag_logo = _agency_of(group[0].passenger, request)
+        ag_name, ag_logo = _agency_of(group[0], request)
         key = f'room:{accom}'
         entries.append({
             'key': key,
@@ -239,7 +241,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'downloaded_by': (dl_map.get(key) or [{}])[0].get('name'),
         })
     for en in singles:
-        ag_name, ag_logo = _agency_of(en.passenger, request)
+        ag_name, ag_logo = _agency_of(en, request)
         key = f'pax:{en.id}'
         entries.append({
             'key': key,
