@@ -12,6 +12,7 @@ from users_api.permissions import RequirePermission
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
 from core.search import AccentInsensitiveSearchFilter
+from core.file_cleanup import delete_fieldfile
 
 # Quem pode editar passageiros/listas precisa enxergar/buscar agências
 # (AgencyPicker, autocomplete de agência responsável etc.), então essas
@@ -88,8 +89,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         agency = self.get_object()
         if request.method == 'DELETE':
             if agency.logo:
-                try: agency.logo.delete(save=False)
-                except Exception: pass
+                delete_fieldfile(agency.logo, 'logo da agência')
                 agency.logo = None
                 agency._skip_audit_signal = True    # logamos como 'delete' de logo, não 'update'
                 agency.save(update_fields=['logo'])
@@ -124,8 +124,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
 
         from django.core.files.base import ContentFile
         if agency.logo:
-            try: agency.logo.delete(save=False)
-            except Exception: pass
+            delete_fieldfile(agency.logo, 'logo da agência')
         agency.logo.save(f'{agency.id}.png', ContentFile(buf.read()), save=False)
         agency._skip_audit_signal = True        # logamos como 'upload' de logo, não 'update'
         agency.save(update_fields=['logo'])

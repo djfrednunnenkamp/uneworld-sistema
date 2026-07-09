@@ -13,8 +13,12 @@ modelos que guardam arquivos e resolve isso:
 
 Registrado em dashboard/apps.py ready().
 """
+import logging
+
 from django.db.models.signals import post_delete, pre_save
 from django.apps import apps as django_apps
+
+logger = logging.getLogger(__name__)
 
 # label do modelo -> campos de arquivo
 _FILE_FIELDS = {
@@ -36,7 +40,26 @@ def _delete_file(fieldfile):
         if fieldfile and fieldfile.name:
             fieldfile.storage.delete(fieldfile.name)
     except Exception:
-        pass
+        # Best-effort: a falha não interrompe a operação principal, mas fica um
+        # arquivo órfão no storage — registra para observabilidade/limpeza.
+        logger.warning('Falha ao remover arquivo físico do storage (%s).',
+                       getattr(fieldfile, 'name', '?'), exc_info=True)
+
+
+def delete_fieldfile(fieldfile, context=''):
+    """Best-effort: remove o arquivo físico via FieldFile.delete(save=False).
+
+    Usado nos pontos que trocam/podem arquivos manualmente (avatar, logo, versões
+    do Drive, expurgo). A falha NÃO interrompe a ação principal — só gera um
+    arquivo órfão no storage, então apenas registra em log (antes era engolida
+    com `except: pass`, sem qualquer rastro)."""
+    if not fieldfile:
+        return
+    try:
+        fieldfile.delete(save=False)
+    except Exception:
+        logger.warning('Falha ao remover arquivo físico%s.',
+                       f' ({context})' if context else '', exc_info=True)
 
 
 def _make_post_delete(fields):

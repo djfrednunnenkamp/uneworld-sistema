@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
+from core.file_cleanup import delete_fieldfile
 from itineraries import blank_office, onlyoffice
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import DriveNode, DriveNodeVersion
@@ -43,8 +44,7 @@ def snapshot_version(node, user=None, name='', note='', max_keep=50):
     v.file.save(f'{node.id}.dat', ContentFile(content), save=True)
     # Poda versões antigas (guarda só as mais recentes).
     for old in list(node.versions.all()[max_keep:]):
-        try: old.file.delete(save=False)
-        except Exception: pass
+        delete_fieldfile(old.file, 'versão antiga do Drive (poda)')
         old.delete()
     return v
 
@@ -312,19 +312,11 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         while stack:
             n = stack.pop()
             stack.extend(list(n.children.all()))
-            if n.file:
-                try: n.file.delete(save=False)
-                except Exception: pass
-            if n.thumb:
-                try: n.thumb.delete(save=False)
-                except Exception: pass
+            delete_fieldfile(n.file, 'arquivo do Drive')
+            delete_fieldfile(n.thumb, 'miniatura do Drive')
             for v in n.versions.all():
-                if v.file:
-                    try: v.file.delete(save=False)
-                    except Exception: pass
-                if v.changes_file:
-                    try: v.changes_file.delete(save=False)
-                    except Exception: pass
+                delete_fieldfile(v.file, 'versão do Drive')
+                delete_fieldfile(v.changes_file, 'diff de versão do Drive')
 
     @action(detail=False, methods=['get'], url_path='shareable_users')
     def shareable_users(self, request):
@@ -502,8 +494,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         node.file_size = len(content)
         node.edit_key = get_random_string(12)   # força o editor a recarregar o conteúdo
         if node.thumb:
-            try: node.thumb.delete(save=False)
-            except Exception: pass
+            delete_fieldfile(node.thumb, 'miniatura do Drive')
             node.thumb = None
         node.save(update_fields=['file', 'file_size', 'edit_key', 'thumb', 'updated_at'])
         from django.utils import timezone
@@ -619,9 +610,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         return FileResponse(fh, content_type='image/png')
 
     def _clear_thumb(self, node):
-        if node.thumb:
-            try: node.thumb.delete(save=False)
-            except Exception: pass
+        delete_fieldfile(node.thumb, 'miniatura do Drive')
         node.thumb = None
 
     def _serve(self, pk, request, inline):
@@ -675,8 +664,7 @@ def drive_document_callback(request, pk):
                 node.edit_key = get_random_string(12)
                 # Conteúdo mudou → miniatura antiga não vale mais; será regerada.
                 if node.thumb:
-                    try: node.thumb.delete(save=False)
-                    except Exception: pass
+                    delete_fieldfile(node.thumb, 'miniatura do Drive')
                     node.thumb = None
                 node.save(update_fields=['file', 'file_size', 'edit_key', 'thumb', 'updated_at'])
                 # Guarda a versão no histórico, atribuindo a quem editou.

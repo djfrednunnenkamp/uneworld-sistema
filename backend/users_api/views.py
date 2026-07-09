@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, InviteRateThrottle
+from core.file_cleanup import delete_fieldfile
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
 from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids, agency_admin_ids, is_operadora_user, can_manage_agency_user, drop_agency_memberships_if_internal
@@ -219,8 +220,7 @@ def me_avatar(request):
 
     if request.method == 'DELETE':
         if perms.avatar:
-            try: perms.avatar.delete(save=False)
-            except Exception: pass
+            delete_fieldfile(perms.avatar, 'avatar do usuário')
             perms.avatar = None
             perms.save(update_fields=['avatar'])
             log_event('delete', model_name='UserPermissions', model_label='Foto de perfil',
@@ -264,8 +264,7 @@ def me_avatar(request):
 
     from django.core.files.base import ContentFile
     if perms.avatar:
-        try: perms.avatar.delete(save=False)
-        except Exception: pass
+        delete_fieldfile(perms.avatar, 'avatar do usuário')
     perms.avatar.save(f'{request.user.id}.jpg', ContentFile(buf.read()), save=False)
     perms.save(update_fields=['avatar'])
     log_event('upload', model_name='UserPermissions', model_label='Foto de perfil',

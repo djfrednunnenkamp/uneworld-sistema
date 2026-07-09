@@ -10,6 +10,8 @@ from datetime import timedelta
 from django.db.models import Q
 from django.utils import timezone
 
+from core.file_cleanup import delete_fieldfile
+
 
 def _subtree(node):
     """node + todos os descendentes (pastas e arquivos), incluindo os já excluídos."""
@@ -54,19 +56,11 @@ def delete_subtree_files(node):
     """Best-effort: apaga os arquivos físicos do nó e descendentes (file, thumb,
     versões). Usado só no expurgo definitivo — o soft-delete NÃO toca em arquivos."""
     for n in _subtree(node):
-        if n.file:
-            try: n.file.delete(save=False)
-            except Exception: pass
-        if n.thumb:
-            try: n.thumb.delete(save=False)
-            except Exception: pass
+        delete_fieldfile(n.file, 'arquivo do Drive (expurgo)')
+        delete_fieldfile(n.thumb, 'miniatura do Drive (expurgo)')
         for v in n.versions.all():
-            if v.file:
-                try: v.file.delete(save=False)
-                except Exception: pass
-            if v.changes_file:
-                try: v.changes_file.delete(save=False)
-                except Exception: pass
+            delete_fieldfile(v.file, 'versão do Drive (expurgo)')
+            delete_fieldfile(v.changes_file, 'diff de versão do Drive (expurgo)')
 
 
 def purge_expired(days=30):
