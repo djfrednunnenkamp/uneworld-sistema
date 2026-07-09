@@ -1932,7 +1932,7 @@ _HEX_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 def branding_colors_set(request):
     """Define as cores do tema. body: primary, secondary (hex #rrggbb; vazio = padrão)."""
     from users_api.permissions import has_any_perm
-    if not has_any_perm(request.user, 'manage_settings'):
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_cores_edit'):
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     def clean(v):
@@ -1956,7 +1956,7 @@ def branding_colors_set(request):
 def branding_title_set(request):
     """Define o título da aba do navegador. body: title (texto; vazio = limpar)."""
     from users_api.permissions import has_any_perm
-    if not has_any_perm(request.user, 'manage_settings'):
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_logos_edit'):
         return Response(status=status.HTTP_403_FORBIDDEN)
     obj = SystemSettings.get()
     obj.browser_title = (request.data.get('title') or '').strip()[:120]
@@ -1969,7 +1969,7 @@ def branding_title_set(request):
 def branding_logo_set(request, slot):
     """Define/remove o logo de um lugar. body: image (multipart) OU clear=1."""
     from users_api.permissions import has_any_perm
-    if not has_any_perm(request.user, 'manage_settings'):
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_logos_edit'):
         return Response(status=status.HTTP_403_FORBIDDEN)
     field = BRANDING_SLOTS.get(slot)
     if not field:
@@ -2031,7 +2031,14 @@ class OperatingCompanyContactViewSet(viewsets.ModelViewSet):
     """CRUD dos contatos (equipe) da operadora — aba 'Contatos'."""
     serializer_class = OperatingCompanyContactSerializer
     pagination_class = None
-    get_permissions  = _settings_perm('settings_operating_company')
+
+    def get_permissions(self):
+        # Aba "Contatos" da operadora — view/edit próprios (base como fallback).
+        from users_api.permissions import RequirePermission as RP
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [RP('manage_settings', 'settings_operating_company_edit', 'settings_operating_company_contatos_edit')()]
+        return [RP('manage_settings', 'settings_operating_company_view', 'settings_operating_company_edit',
+                   'settings_operating_company_contatos_view', 'settings_operating_company_contatos_edit')()]
 
     def get_queryset(self):
         qs = OperatingCompanyContact.objects.all()
@@ -2047,8 +2054,16 @@ CEO_SENSITIVE_FIELDS = ['ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_au
 @permission_classes([IsAuthenticated])
 def operating_company(request):
     from users_api.permissions import has_any_perm
-    can_settings = has_any_perm(request.user, 'manage_settings', 'settings_operating_company_view',
-                                'settings_operating_company_edit')
+    # Ver os dados da operadora: base (legado) OU qualquer aba de dados/pix/assinatura.
+    can_settings = has_any_perm(request.user, 'manage_settings',
+                                'settings_operating_company_view', 'settings_operating_company_edit',
+                                'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
+                                'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',
+                                'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit')
+    # Campos sensíveis do CEO ficam SÓ para quem pode ver a aba Assinatura.
+    can_assinatura = has_any_perm(request.user, 'manage_settings',
+                                  'settings_operating_company_view', 'settings_operating_company_edit',
+                                  'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit')
     # Quem cria/vê contratos também precisa dos dados da operadora (cabeçalho do
     # contrato, PIX, forma de assinatura padrão) — mas NÃO dos campos sensíveis do
     # CEO (token Autentique). Sem isso, o form de contrato quebra para usuários de
@@ -2058,7 +2073,9 @@ def operating_company(request):
         return Response(status=403)
     obj = OperatingCompany.get()
     if request.method == 'PATCH':
-        if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_edit'):
+        if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_edit',
+                            'settings_operating_company_dados_edit', 'settings_operating_company_pix_edit',
+                            'settings_operating_company_assinatura_edit'):
             return Response({'error': 'Você não tem permissão para executar esta ação.'}, status=403)
         ser = OperatingCompanySerializer(obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
@@ -2081,7 +2098,7 @@ def operating_company(request):
             obj.save(update_fields=['ceo_signature', 'updated_at'])
         return Response(OperatingCompanySerializer(obj).data)
     data = OperatingCompanySerializer(obj).data
-    if not can_settings:
+    if not can_assinatura:
         for k in CEO_SENSITIVE_FIELDS:
             data.pop(k, None)
     return Response(data)
@@ -2094,7 +2111,8 @@ def operating_company_ceo_signature(request):
     from django.http import FileResponse, Http404
     from users_api.permissions import has_any_perm
     if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_view',
-                        'settings_operating_company_edit', 'contracts_view', 'contracts_edit'):
+                        'settings_operating_company_edit', 'settings_operating_company_assinatura_view',
+                        'settings_operating_company_assinatura_edit', 'contracts_view', 'contracts_edit'):
         return Response(status=403)
     obj = OperatingCompany.get()
     if not obj.ceo_signature:

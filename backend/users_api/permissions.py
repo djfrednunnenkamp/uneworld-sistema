@@ -156,6 +156,13 @@ PERMISSION_FIELDS = [
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete',
+    # Operadora — por aba
+    'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
+    'settings_operating_company_contatos_view', 'settings_operating_company_contatos_edit',
+    'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',
+    'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit',
+    'settings_operating_company_logos_view', 'settings_operating_company_logos_edit',
+    'settings_operating_company_cores_view', 'settings_operating_company_cores_edit',
     # Templates do Roteiro (permissão individual por template)
     'settings_tpl_general_view', 'settings_tpl_general_edit', 'settings_tpl_general_delete', 'settings_tpl_general_bulk_import', 'settings_tpl_general_export',
     'settings_tpl_included_view', 'settings_tpl_included_edit', 'settings_tpl_included_delete', 'settings_tpl_included_bulk_import', 'settings_tpl_included_export',
@@ -223,6 +230,13 @@ STAFF_PERMISSION_FIELDS = [
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete',
+    # Operadora — por aba
+    'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
+    'settings_operating_company_contatos_view', 'settings_operating_company_contatos_edit',
+    'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',
+    'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit',
+    'settings_operating_company_logos_view', 'settings_operating_company_logos_edit',
+    'settings_operating_company_cores_view', 'settings_operating_company_cores_edit',
     # Templates do Roteiro (permissão individual por template)
     'settings_tpl_general_view', 'settings_tpl_general_edit', 'settings_tpl_general_delete', 'settings_tpl_general_bulk_import', 'settings_tpl_general_export',
     'settings_tpl_included_view', 'settings_tpl_included_edit', 'settings_tpl_included_delete', 'settings_tpl_included_bulk_import', 'settings_tpl_included_export',
