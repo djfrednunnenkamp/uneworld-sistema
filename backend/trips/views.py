@@ -289,12 +289,18 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         """Tipos de documento disponíveis entre os passageiros da lista, para o
         seletor de download. Cada item: {key, label, count} — ex.: Passaporte,
         Visto Americano, Vacina Febre Amarela — com quantos arquivos existem."""
+        from users_api.permissions import agency_scope_ids
         pl = self.get_object()
         type_labels = _doc_type_labels()
         agg = {}
         seen = set()
-        for e in (pl.list_enrollments.select_related('passenger')
-                  .filter(passenger__isnull=False)):
+        # Isolamento por agência (A-01): usuário de agência só conta/baixa documentos
+        # dos passageiros da própria agência, mesmo numa lista compartilhada.
+        scope = agency_scope_ids(request.user)
+        enr = pl.list_enrollments.select_related('passenger').filter(passenger__isnull=False)
+        if scope is not None:
+            enr = enr.filter(agency_id__in=scope)
+        for e in enr:
             p = e.passenger
             if p.id in seen:
                 continue
@@ -345,6 +351,12 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
         enrolls = (pl.list_enrollments.select_related('passenger')
                    .filter(passenger__isnull=False))
+        # Isolamento por agência (A-01): não incluir no ZIP documentos de passageiros
+        # de outra agência numa lista compartilhada.
+        from users_api.permissions import agency_scope_ids
+        scope = agency_scope_ids(request.user)
+        if scope is not None:
+            enrolls = enrolls.filter(agency_id__in=scope)
         if ids:
             enrolls = enrolls.filter(passenger_id__in=ids)
 

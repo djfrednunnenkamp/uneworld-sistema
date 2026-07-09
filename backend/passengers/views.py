@@ -328,10 +328,21 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
             return [RequirePermission('passengers_edit')()]
         return super().get_permissions()
 
+    def get_queryset(self):
+        """Isolamento por agência (A-01): usuário de agência só acessa documentos de
+        passageiros ligados à(s) própria(s) agência(s). Sem isso, o download por pk
+        vazaria PII (passaporte/RG) de passageiros de outras agências (IDOR)."""
+        from users_api.permissions import agency_scope_ids
+        qs = PassengerDocument.objects.all()
+        scope = agency_scope_ids(self.request.user)
+        if scope is not None:
+            qs = qs.filter(passenger__agencies__in=scope).distinct()
+        return qs
+
     def partial_update(self, request, pk=None):
         """Atualiza metadados do documento (sem substituir o arquivo)."""
         try:
-            doc = PassengerDocument.objects.get(pk=pk)
+            doc = self.get_queryset().get(pk=pk)
         except PassengerDocument.DoesNotExist:
             raise Http404
         # Remove o campo file do request para não sobrescrever
@@ -344,7 +355,7 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
 
     def destroy(self, request, pk=None):
         try:
-            doc = PassengerDocument.objects.get(pk=pk)
+            doc = self.get_queryset().get(pk=pk)
         except PassengerDocument.DoesNotExist:
             raise Http404
         # Remove o arquivo físico do disco
@@ -357,7 +368,7 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
     def preview(self, request, pk=None):
         """Serve o arquivo inline para exibição no navegador (thumbnail/preview)."""
         try:
-            doc = PassengerDocument.objects.get(pk=pk)
+            doc = self.get_queryset().get(pk=pk)
         except PassengerDocument.DoesNotExist:
             raise Http404
         try:
@@ -388,7 +399,7 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
     def download(self, request, pk=None):
         import re
         try:
-            doc = PassengerDocument.objects.get(pk=pk)
+            doc = self.get_queryset().get(pk=pk)
         except PassengerDocument.DoesNotExist:
             raise Http404
         try:

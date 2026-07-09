@@ -202,6 +202,10 @@ class ItineraryHotelSerializer(serializers.ModelSerializer):
         fields = ['id', 'itinerary', 'config_hotel', 'config_hotel_data', 'config_hotel_linked',
                   'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'notes', 'order']
 
+    def validate_notes(self, v):
+        from core.sanitize import sanitize_html   # HTML rico → anti-XSS (A-12)
+        return sanitize_html(v)
+
 
 class ConfigBoatMiniSerializer(serializers.ModelSerializer):
     """Dados do barco do catálogo exibidos junto do barco reservado."""
@@ -230,6 +234,10 @@ class ItineraryBoatSerializer(serializers.ModelSerializer):
         model  = ItineraryBoat
         fields = ['id', 'itinerary', 'config_boat', 'config_boat_data', 'config_boat_linked',
                   'name', 'check_in', 'check_out', 'notes', 'order']
+
+    def validate_notes(self, v):
+        from core.sanitize import sanitize_html   # HTML rico → anti-XSS (A-12)
+        return sanitize_html(v)
 
 
 class ItineraryFlightSerializer(serializers.ModelSerializer):
@@ -322,6 +330,14 @@ class ItineraryDaySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('O número do dia é obrigatório e deve ser >= 1.')
         return v
 
+    def validate_title(self, v):
+        from core.sanitize import sanitize_html   # título é HTML rico → anti-XSS (A-12)
+        return sanitize_html(v)
+
+    def validate_description(self, v):
+        from core.sanitize import sanitize_html   # descrição é HTML rico → anti-XSS (A-12)
+        return sanitize_html(v)
+
 
 class ItinerarySerializer(serializers.ModelSerializer):
     category_name  = serializers.CharField(source='category.name', read_only=True, default=None)
@@ -386,6 +402,14 @@ class ItinerarySerializer(serializers.ModelSerializer):
         if has_voo and has_ter:
             raise serializers.ValidationError(
                 {'has_terrestre': 'Um roteiro não pode ter transporte Aéreo e Terrestre ao mesmo tempo.'})
+        # ── Sanitiza os campos de HTML rico antes de salvar (A-12, anti-XSS) ──
+        # Os textos das abas Informações do Roteiro são digitados em editor rico e
+        # depois renderizados via dangerouslySetInnerHTML — precisam ser limpos.
+        from core.sanitize import sanitize_html
+        for f in ('notes', 'flight_notes', 'hotel_notes', 'accommodation_notes',
+                  'terrestre_notes', 'boat_notes'):
+            if attrs.get(f):
+                attrs[f] = sanitize_html(attrs[f])
         return attrs
 
     def get_clauses_data(self, obj):

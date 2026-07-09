@@ -1,5 +1,4 @@
 import json
-import urllib.request
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -310,23 +309,26 @@ def document_callback(request, pk):
         return Response({'error': 1})
     payload = request.data or {}
 
-    # Valida o JWT do callback (corpo pode vir assinado dentro de `token`).
+    # Fail-closed: este endpoint é AllowAny (o DS chama sem sessão), então sem o
+    # OnlyOffice configurado E sem o segredo JWT definido um POST forjado por
+    # qualquer anônimo controlaria `url` → SSRF/LFI e sobrescrita de documento.
+    # Exigimos o JWT: sem ele, recusamos em vez de "pular a validação".
     secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
-    if secret:
-        token = payload.get('token') or (request.headers.get('Authorization', '').replace('Bearer ', '') or '')
-        try:
-            decoded = onlyoffice.jwt_decode(token, secret)
-            payload = decoded.get('payload', decoded)
-        except Exception:
-            return Response({'error': 1})
+    if not onlyoffice.is_configured() or not secret:
+        return Response({'error': 1})
+    token = payload.get('token') or (request.headers.get('Authorization', '').replace('Bearer ', '') or '')
+    try:
+        decoded = onlyoffice.jwt_decode(token, secret)
+        payload = decoded.get('payload', decoded)
+    except Exception:
+        return Response({'error': 1})
 
     # status 2 = pronto para salvar; 6 = force save (salvamento manual/intermediário).
     if payload.get('status') in (2, 6):
         file_url = payload.get('url')
         if file_url:
             try:
-                with urllib.request.urlopen(file_url, timeout=30) as resp:
-                    content = resp.read()
+                content = onlyoffice.fetch_saved_file(file_url)
                 doc.file.save(doc.file.name.split('/')[-1], ContentFile(content), save=False)
                 doc.edit_key = get_random_string(12)
                 doc.save(update_fields=['file', 'edit_key', 'updated_at'])

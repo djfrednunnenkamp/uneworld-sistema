@@ -269,6 +269,12 @@ CSRF_TRUSTED_ORIGINS = config(
 # servidor), o Django só sabe que a conexão original era HTTPS através deste
 # cabeçalho — sem isso, cookies "secure" e o redirect de HTTPS funcionam errado.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Nº de proxies confiáveis à frente do Django (nginx=1; Cloudflare→nginx=2). Usado
+# por core.throttling.client_ip para extrair o IP real do X-Forwarded-For a partir
+# da direita, sem confiar no item forjável da esquerda (anti-bypass de rate-limit).
+TRUSTED_PROXY_COUNT = config('TRUSTED_PROXY_COUNT', default=1, cast=int)
+
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 

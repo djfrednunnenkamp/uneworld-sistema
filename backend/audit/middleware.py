@@ -23,8 +23,10 @@ class AuditMiddleware:
         except Exception:
             _local.user = None
 
-        xff = request.META.get('HTTP_X_FORWARDED_FOR')
-        _local.ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+        # IP real do cliente com a MESMA lógica anti-spoof do rate-limit (pega o
+        # IP observado pelo proxy confiável, não o item forjável da esquerda do XFF).
+        from core.throttling import client_ip
+        _local.ip = client_ip(request)
 
         try:
             return self.get_response(request)

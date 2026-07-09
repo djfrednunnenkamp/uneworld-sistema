@@ -87,6 +87,24 @@ def jwt_decode(token: str, secret: str) -> dict:
     return json.loads(_b64d(body_b64))
 
 
+def fetch_saved_file(url: str, timeout: int = 30) -> bytes:
+    """Baixa o arquivo editado que o Document Server informa no callback.
+
+    Defesa em profundidade contra SSRF/LFI: só aceita http/https (bloqueia
+    `file://`, `ftp://`, `gopher://` etc.) e NÃO segue redirects (um 30x poderia
+    escapar para outro destino). Não bloqueamos IPs privados de propósito — o DS
+    roda em rede interna (Docker), então o alvo legítimo É interno; a proteção
+    real contra forja do `url` é a exigência do JWT no callback (fail-closed)."""
+    from urllib.parse import urlparse
+    import requests
+
+    if urlparse(url).scheme not in ('http', 'https'):
+        raise ValueError('Esquema de URL não permitido no callback.')
+    r = requests.get(url, timeout=timeout, allow_redirects=False)
+    r.raise_for_status()
+    return r.content
+
+
 def _backend(path: str) -> str:
     base = settings.ONLYOFFICE_BACKEND_URL.rstrip('/')
     return f'{base}{path}'

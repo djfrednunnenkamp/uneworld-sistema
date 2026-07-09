@@ -137,6 +137,9 @@ def login_view(request):
     try:
         user_obj = User.objects.get(email__iexact=email)
     except User.DoesNotExist:
+        # Anti-enumeração por timing: roda o hasher mesmo sem usuário, para o tempo
+        # de resposta não revelar se o e-mail existe (mesma técnica do ModelBackend).
+        User().set_password(password)
         return Response({'error': 'E-mail ou senha inválidos.'}, status=400)
     except User.MultipleObjectsReturned:
         return Response({'error': 'E-mail ambíguo. Contate o administrador.'}, status=400)
@@ -513,6 +516,9 @@ def forgot_password(request):
         # (soft-delete) também caem aqui e não recebem link.
         return Response({'message': 'Se este e-mail estiver cadastrado, você receberá um link em breve.'})
 
+    # Invalida links anteriores ainda não usados: só o mais recente vale (reduz a
+    # janela de tokens válidos coexistindo).
+    PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
     token = PasswordResetToken.objects.create(user=user)
     url   = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
     send_reset_password(user.email, user.first_name, url)
@@ -533,6 +539,10 @@ def reset_password(request):
         return Response({'error': 'Link inválido ou expirado.'}, status=400)
     if not token.is_valid:
         return Response({'error': 'Link inválido ou expirado.'}, status=400)
+    # Conta desativada (soft-delete) não redefine senha — evita reativar acesso via
+    # um token emitido antes da desativação (ou por admin_send_reset).
+    if not token.user.is_active:
+        return Response({'error': 'Conta desativada. Contate o administrador.'}, status=400)
     pw_err = _password_error(password, token.user)
     if pw_err:
         return Response({'error': pw_err}, status=400)
@@ -782,6 +792,7 @@ def admin_send_reset(request, pk):
         return Response({'error': 'Sem permissão.'}, status=403)
     if not _can_target_user(request.user, user):
         return Response({'error': 'Você não tem permissão para esta ação.'}, status=403)
+    PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
     token = PasswordResetToken.objects.create(user=user)
     url   = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
     send_reset_password(user.email, user.first_name, url)

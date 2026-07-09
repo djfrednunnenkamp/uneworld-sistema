@@ -1,6 +1,5 @@
 import io
 import os
-import urllib.request
 import zipfile
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -17,6 +16,15 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from core.file_cleanup import delete_fieldfile
 from itineraries import blank_office, onlyoffice
 from users_api.permissions import RequirePermission, has_any_perm
+
+# Content-Types que é SEGURO servir inline (o navegador renderiza sem executar
+# script). Qualquer outra coisa é baixada como attachment/octet-stream. A decisão
+# vem dos BYTES reais do arquivo, nunca do mime_type declarado no upload.
+_SAFE_INLINE_TYPES = {
+    b'\xff\xd8\xff':        'image/jpeg',
+    b'\x89PNG\r\n\x1a\n':  'image/png',
+    b'%PDF':                'application/pdf',
+}
 from .models import DriveNode, DriveNodeVersion
 from .serializers import DriveNodeSerializer, _user_label
 
@@ -623,11 +631,25 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             fh = node.file.open('rb')
         except Exception:
             raise Http404
-        resp = FileResponse(fh, content_type=node.mime_type or 'application/octet-stream')
-        disp = 'inline' if inline else 'attachment'
+        # Content-Type derivado dos BYTES reais (allowlist), nunca do mime_type
+        # enviado pelo cliente no upload: um .docx com bytes de HTML e content_type
+        # 'text/html' seria servido inline e executaria na origem da API (stored XSS).
+        head = fh.read(16)
+        try:
+            fh.seek(0)
+        except Exception:
+            fh = node.file.open('rb')
+        ctype = next((ct for sig, ct in _SAFE_INLINE_TYPES.items() if head.startswith(sig)), None)
         fname = node.original_name or node.name or f'arquivo{os.path.splitext(node.file.name)[1]}'
         from urllib.parse import quote
-        resp['Content-Disposition'] = f"{disp}; filename*=UTF-8''{quote(fname)}"
+        if inline and ctype:
+            resp = FileResponse(fh, content_type=ctype)
+            resp['Content-Disposition'] = f"inline; filename*=UTF-8''{quote(fname)}"
+        else:
+            # Tipo não previsível OU download explícito → nunca renderiza inline.
+            resp = FileResponse(fh, content_type='application/octet-stream')
+            resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(fname)}"
+        resp['X-Content-Type-Options'] = 'nosniff'
         return resp
 
 
@@ -643,22 +665,25 @@ def drive_document_callback(request, pk):
         return Response({'error': 1})
     payload = request.data or {}
 
+    # Fail-closed: endpoint AllowAny (o DS chama sem sessão). Sem o OnlyOffice
+    # configurado E sem o segredo JWT, um POST forjado por qualquer anônimo
+    # controlaria `url`/`changesurl` → SSRF/LFI e sobrescrita do nó. Exigimos o JWT.
     secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
-    if secret:
-        token = payload.get('token') or (request.headers.get('Authorization', '').replace('Bearer ', '') or '')
-        try:
-            decoded = onlyoffice.jwt_decode(token, secret)
-            payload = decoded.get('payload', decoded)
-        except Exception:
-            return Response({'error': 1})
+    if not onlyoffice.is_configured() or not secret:
+        return Response({'error': 1})
+    token = payload.get('token') or (request.headers.get('Authorization', '').replace('Bearer ', '') or '')
+    try:
+        decoded = onlyoffice.jwt_decode(token, secret)
+        payload = decoded.get('payload', decoded)
+    except Exception:
+        return Response({'error': 1})
 
     # status 2 = pronto para salvar; 6 = force save (salvamento manual/intermediário).
     if payload.get('status') in (2, 6):
         file_url = payload.get('url')
         if file_url:
             try:
-                with urllib.request.urlopen(file_url, timeout=30) as resp:
-                    content = resp.read()
+                content = onlyoffice.fetch_saved_file(file_url)
                 node.file.save(node.file.name.split('/')[-1], ContentFile(content), save=False)
                 node.file_size = len(content)
                 node.edit_key = get_random_string(12)
@@ -686,8 +711,8 @@ def drive_document_callback(request, pk):
                     changesurl = payload.get('changesurl')
                     if changesurl:
                         try:
-                            with urllib.request.urlopen(changesurl, timeout=30) as cr:
-                                v.changes_file.save(f'{node.id}_changes.zip', ContentFile(cr.read()), save=False)
+                            v.changes_file.save(f'{node.id}_changes.zip',
+                                                ContentFile(onlyoffice.fetch_saved_file(changesurl)), save=False)
                         except Exception:
                             pass
                     v.save(update_fields=['server_version', 'changes_json', 'changes_file'])
