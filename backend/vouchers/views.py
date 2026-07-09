@@ -39,7 +39,7 @@ class VoucherViewSet(viewsets.ViewSet):
     def get_permissions(self):
         if self.action == 'set_status':
             return [IsAuthenticated(), RequirePermission('voucher_publish')()]
-        if self.action == 'flight_confirmation':
+        if self.action in ('flight_confirmation', 'flight_confirmation_reorder'):
             return [IsAuthenticated(), RequirePermission('voucher_flight')()]
         if self.action == 'mark_downloaded':
             return [IsAuthenticated(), RequirePermission('voucher_view', 'voucher_agency')()]
@@ -168,48 +168,102 @@ class VoucherViewSet(viewsets.ViewSet):
                   changes={'Voucher baixado': {'antes': '—', 'depois': depois[:480]}}, user=request.user)
         return Response({'ok': True})
 
-    @action(detail=True, methods=['post', 'delete'], url_path='flight_confirmation')
+    @action(detail=True, methods=['post', 'delete', 'patch'], url_path='flight_confirmation')
     def flight_confirmation(self, request, pk=None):
-        """Captura de tela da confirmação do voo de UM voucher (passageiro/casal).
-        POST (multipart: entry_key + image) grava/substitui; DELETE (entry_key)
-        remove. A imagem vira uma página própria ao final do voucher no PDF."""
+        """Confirmações de voo (capturas de tela) de UM voucher (passageiro/casal).
+        Cada passageiro pode ter VÁRIAS — cada uma vira uma página no PDF, na ordem
+        definida, com o título (se houver) como cabeçalho.
+
+          POST   (multipart: entry_key + image [+ title]) → ANEXA uma nova imagem;
+          DELETE (?id=<fc_id>)        → remove UMA imagem;
+          DELETE (?entry_key=<key>)   → remove TODAS as imagens do voucher;
+          PATCH  ({id, title})        → renomeia UMA imagem (título vazio = sem título)."""
         pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
         if not pl:
             return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
-        entry_key = (request.data.get('entry_key') or request.query_params.get('entry_key') or '').strip()
-        if not entry_key:
-            return Response({'error': 'Faltou entry_key.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Nome do passageiro/casal desta entry (para o log).
-        who = next((', '.join(e['passengers']) for e in build.build_entries(pl, voucher=voucher) if e['key'] == entry_key), entry_key)
         from audit.tracking import log_event
 
+        # PATCH: renomear uma imagem específica (por id).
+        if request.method == 'PATCH':
+            fc = VoucherFlightConfirmation.objects.filter(voucher=voucher, id=request.data.get('id')).first()
+            if not fc:
+                return Response({'error': 'Comprovante não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+            fc.title = (request.data.get('title') or '').strip()[:200]
+            fc.save(update_fields=['title', 'updated_at'])
+            return self.retrieve(request, pk=pk)
+
+        # DELETE: por id (uma) OU por entry_key (todas do voucher).
         if request.method == 'DELETE':
+            fc_id = request.query_params.get('id') or request.data.get('id')
+            if fc_id:
+                fc = VoucherFlightConfirmation.objects.filter(voucher=voucher, id=fc_id).first()
+                who = next((', '.join(e['passengers']) for e in build.build_entries(pl, voucher=voucher)
+                            if e['key'] == (fc.entry_key if fc else None)), (fc.entry_key if fc else ''))
+                if fc:
+                    fc.delete()
+                    log_event('delete', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',
+                              object_id=pl.id, object_repr=f'{who} — {pl.name}',
+                              changes={'Comprovante de voo': {'antes': 'imagem', 'depois': '—'}}, user=request.user)
+                return self.retrieve(request, pk=pk)
+            entry_key = (request.query_params.get('entry_key') or request.data.get('entry_key') or '').strip()
+            if not entry_key:
+                return Response({'error': 'Faltou id ou entry_key.'}, status=status.HTTP_400_BAD_REQUEST)
+            who = next((', '.join(e['passengers']) for e in build.build_entries(pl, voucher=voucher) if e['key'] == entry_key), entry_key)
             VoucherFlightConfirmation.objects.filter(voucher=voucher, entry_key=entry_key).delete()
             log_event('delete', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',
                       object_id=pl.id, object_repr=f'{who} — {pl.name}',
                       changes={'Comprovante de voo': {'antes': 'imagem', 'depois': '—'}}, user=request.user)
             return self.retrieve(request, pk=pk)
 
+        # POST: anexa uma nova imagem ao final da lista deste voucher.
+        entry_key = (request.data.get('entry_key') or '').strip()
+        if not entry_key:
+            return Response({'error': 'Faltou entry_key.'}, status=status.HTTP_400_BAD_REQUEST)
+        who = next((', '.join(e['passengers']) for e in build.build_entries(pl, voucher=voucher) if e['key'] == entry_key), entry_key)
         image = request.FILES.get('image')
         if not image:
             return Response({'error': 'Faltou a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
         # Valida e re-encoda a imagem (magic bytes + tamanho + remove payload/EXIF),
-        # como todos os outros uploads. update_or_create não passa por full_clean, então
-        # sem isto um SVG/HTML/arquivo gigante seria salvo cru (XSS no MEDIA / DoS).
+        # como todos os outros uploads. Sem isto um SVG/HTML/arquivo gigante seria
+        # salvo cru (XSS no MEDIA / DoS).
         from passengers.validators import validate_document_file
         from django.core.exceptions import ValidationError as DjangoValidationError
+        from django.db.models import Max
         try:
             image = validate_document_file(image, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'error': (e.messages[0] if getattr(e, 'messages', None) else 'Imagem inválida.')},
                             status=status.HTTP_400_BAD_REQUEST)
-        VoucherFlightConfirmation.objects.update_or_create(
-            voucher=voucher, entry_key=entry_key, defaults={'image': image})
+        next_order = (VoucherFlightConfirmation.objects.filter(voucher=voucher, entry_key=entry_key)
+                      .aggregate(m=Max('order'))['m'])
+        next_order = 0 if next_order is None else next_order + 1
+        VoucherFlightConfirmation.objects.create(
+            voucher=voucher, entry_key=entry_key, image=image,
+            title=(request.data.get('title') or '').strip()[:200], order=next_order)
         log_event('upload', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',
                   object_id=pl.id, object_repr=f'{who} — {pl.name}',
                   changes={'Comprovante de voo': {'antes': '—', 'depois': 'imagem enviada'}}, user=request.user)
+        return self.retrieve(request, pk=pk)
+
+    @action(detail=True, methods=['post'], url_path='flight_confirmation_reorder')
+    def flight_confirmation_reorder(self, request, pk=None):
+        """Reordena as confirmações de voo de um voucher. Body: {entry_key, order:[ids]}."""
+        pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
+        entry_key = (request.data.get('entry_key') or '').strip()
+        order = request.data.get('order')
+        if not entry_key or not isinstance(order, list):
+            return Response({'error': 'Faltou entry_key ou order.'}, status=status.HTTP_400_BAD_REQUEST)
+        from django.db import transaction
+        valid = set(VoucherFlightConfirmation.objects
+                    .filter(voucher=voucher, entry_key=entry_key).values_list('id', flat=True))
+        with transaction.atomic():
+            for pos, fc_id in enumerate(order):
+                if fc_id in valid:
+                    VoucherFlightConfirmation.objects.filter(id=fc_id).update(order=pos)
         return self.retrieve(request, pk=pk)
 
     def partial_update(self, request, pk=None):

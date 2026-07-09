@@ -161,17 +161,19 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
     from config_api.models import ConfigAccommodation
     from trips.models import ListEnrollment
 
-    # entry_key -> URL da confirmação de voo já enviada (por voucher da lista).
+    # entry_key -> [ {id, url, title}, ... ] das confirmações de voo (ordenadas).
+    # Vários comprovantes por voucher; cada um vira uma página própria no PDF.
     fc_map = {}
     dl_map = {}   # entry_key -> downloaded_at (ISO) — quando a agência baixou
     if voucher is not None:
-        for fc in voucher.flight_confirmations.all():
+        for fc in voucher.flight_confirmations.all().order_by('order', 'id'):
             if not fc.image:
                 continue
             try:
-                fc_map[fc.entry_key] = request.build_absolute_uri(fc.image.url) if request else fc.image.url
+                url = request.build_absolute_uri(fc.image.url) if request else fc.image.url
             except Exception:
-                fc_map[fc.entry_key] = None
+                url = None
+            fc_map.setdefault(fc.entry_key, []).append({'id': fc.id, 'url': url, 'title': fc.title or ''})
         def _user_card(u):
             if not u:
                 return {'name': 'Usuário', 'email': '', 'avatar': None}
@@ -226,7 +228,9 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'passenger_ids': [e.passenger_id for e in group],
             'agency_name': ag_name,
             'agency_logo': ag_logo,
-            'flight_confirmation': fc_map.get(key),
+            'flight_confirmations': fc_map.get(key, []),
+            # Compat: 1ª imagem (badge "tem voo" / visualização simples em outras telas).
+            'flight_confirmation': (fc_map.get(key) or [{}])[0].get('url'),
             'downloaded': bool(dl_map.get(key)),
             'downloads': dl_map.get(key, []),
             'download_count': sum(d['count'] for d in dl_map.get(key, [])),
@@ -244,7 +248,9 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'passenger_ids': [en.passenger_id],
             'agency_name': ag_name,
             'agency_logo': ag_logo,
-            'flight_confirmation': fc_map.get(key),
+            'flight_confirmations': fc_map.get(key, []),
+            # Compat: 1ª imagem (badge "tem voo" / visualização simples em outras telas).
+            'flight_confirmation': (fc_map.get(key) or [{}])[0].get('url'),
             'downloaded': bool(dl_map.get(key)),
             'downloads': dl_map.get(key, []),
             'download_count': sum(d['count'] for d in dl_map.get(key, [])),

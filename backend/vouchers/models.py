@@ -39,16 +39,20 @@ class VoucherList(models.Model):
 
 class VoucherFlightConfirmation(models.Model):
     """Captura de tela da confirmação do voo, por voucher (passageiro/casal) de uma
-    lista. No PDF, vai numa PÁGINA PRÓPRIA ao final do voucher daquele passageiro
-    — só a imagem na página. `entry_key` é a chave do voucher (ex.: 'pax:123' ou
-    'room:Duplo Casal'), a mesma calculada em build.build_entries."""
+    lista. Cada passageiro/casal pode ter VÁRIAS — cada uma vira uma PÁGINA PRÓPRIA
+    ao final do voucher daquele passageiro (na ordem `order`). Se `title` estiver
+    preenchido, ele entra como cabeçalho no topo da página; senão, só a imagem.
+    `entry_key` é a chave do voucher (ex.: 'pax:123' ou 'room:Duplo Casal'), a mesma
+    calculada em build.build_entries."""
     voucher    = models.ForeignKey(VoucherList, on_delete=models.CASCADE, related_name='flight_confirmations')
     entry_key  = models.CharField('Voucher (passageiro/casal)', max_length=200, db_index=True)
     image      = models.ImageField('Confirmação do voo', upload_to='vouchers/flight_confirmations/')
+    title      = models.CharField('Título', max_length=200, blank=True, default='')
+    order      = models.PositiveIntegerField('Ordem', default=0, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [('voucher', 'entry_key')]
+        ordering = ['order', 'id']
         verbose_name = 'Confirmação de voo do voucher'
         verbose_name_plural = 'Confirmações de voo dos vouchers'
 
