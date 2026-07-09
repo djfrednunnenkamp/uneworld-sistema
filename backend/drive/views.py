@@ -156,6 +156,13 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Você só pode enviar Word, Excel ou PowerPoint. '
                                           'Sem permissão para enviar outros tipos (imagem, PDF, zip…).'},
                                 status=status.HTTP_403_FORBIDDEN)
+        # Limite de armazenamento: não deixa passar do teto definido para o usuário.
+        from .usage import would_exceed
+        incoming = sum(getattr(f, 'size', 0) or 0 for f in files)
+        if would_exceed(request.user, incoming):
+            return Response({'error': 'Limite de armazenamento atingido. Libere espaço ou peça '
+                                      'um limite maior ao administrador.'},
+                            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
         created = []
         for f in files:
             node = DriveNode(owner=request.user, kind='file', parent=folder or None,
@@ -190,6 +197,11 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         if not name.lower().endswith('.' + ext):
             name = f'{name}.{ext}'
         content = blank_office.blank_file(kind)
+        from .usage import would_exceed
+        if would_exceed(request.user, len(content)):
+            return Response({'error': 'Limite de armazenamento atingido. Libere espaço ou peça '
+                                      'um limite maior ao administrador.'},
+                            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
         node = DriveNode(owner=request.user, kind='file', parent=folder or None,
                          name=name, original_name=name, file_size=len(content))
         node.file.save(f'novo.{ext}', ContentFile(content), save=False)

@@ -113,6 +113,8 @@ PERMISSION_FIELDS = [
     'users_manage_permissions',
     'users_set_password',
     'users_view_logs',
+    'users_storage_view',
+    'users_storage_limit',
     'log_page_views',
     # Configurações — acesso global
     'settings_view',
@@ -194,6 +196,7 @@ STAFF_PERMISSION_FIELDS = [
     'manage_users', 'manage_settings',
     # Usuários
     'users_view', 'users_edit', 'users_block', 'users_delete', 'users_manage_permissions', 'users_set_password',
+    'users_storage_view', 'users_storage_limit',
     # Configurações
     'settings_view', 'settings_csv_import', 'settings_csv_export',
     'settings_professions', 'settings_languages', 'settings_countries',

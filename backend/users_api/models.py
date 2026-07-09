@@ -177,6 +177,11 @@ class UserPermissions(models.Model):
     users_manage_permissions = models.BooleanField(default=False)
     users_set_password       = models.BooleanField(default=False)
     users_view_logs          = models.BooleanField(default=False)
+    users_storage_view       = models.BooleanField(default=False)   # ver o uso de armazenamento (Meus Documentos) de um usuário
+    users_storage_limit      = models.BooleanField(default=False)   # definir/limpar o limite de armazenamento de um usuário
+
+    # Limite de armazenamento do Drive (Meus Documentos), em bytes. null = ilimitado.
+    storage_limit_bytes      = models.PositiveBigIntegerField('Limite de armazenamento (bytes)', null=True, blank=True)
 
     # Configurações — acesso global
     settings_view             = models.BooleanField(default=False)

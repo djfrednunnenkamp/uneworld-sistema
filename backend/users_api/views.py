@@ -71,6 +71,7 @@ def serialize_user(u, perms=None):
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
         'phone':        perms.phone,
         'avatar_url':   perms.avatar.url if perms.avatar else None,
+        'storage_limit_bytes': perms.storage_limit_bytes,
         'is_staff':     u.is_staff,
         'is_superuser': u.is_superuser,
         'is_active':    u.is_active,
@@ -810,3 +811,58 @@ def admin_set_password(request, pk):
     user.set_password(password)
     user.save()
     return Response({'message': 'Senha definida com sucesso.'})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me_storage(request):
+    """Uso de armazenamento do PRÓPRIO usuário (Meus Documentos)."""
+    from drive.usage import storage_usage
+    data = storage_usage(request.user)
+    data['user_id'] = request.user.id
+    return Response(data)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def user_storage(request, pk):
+    """GET: uso de armazenamento de um usuário (perm users_storage_view / próprio /
+    admin da agência). PATCH {limit_gb: number|null}: define ou limpa o limite de
+    armazenamento (perm users_storage_limit)."""
+    from drive.usage import storage_usage
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+
+    is_self  = user.id == request.user.id
+    can_view = (is_self or request.user.is_superuser
+                or has_any_perm(request.user, 'manage_users', 'users_storage_view')
+                or can_manage_agency_user(request.user, user))
+    if not can_view:
+        return Response({'error': 'Sem permissão.'}, status=403)
+
+    if request.method == 'PATCH' and 'limit_gb' in request.data:
+        can_limit = (request.user.is_superuser
+                     or has_any_perm(request.user, 'manage_users', 'users_storage_limit')
+                     or can_manage_agency_user(request.user, user))
+        if not can_limit:
+            return Response({'error': 'Sem permissão para definir limite.'}, status=403)
+        perms = get_user_permissions(user)
+        raw = request.data.get('limit_gb')
+        if raw in (None, '', 'null'):
+            perms.storage_limit_bytes = None
+        else:
+            try:
+                gb = float(raw)
+            except (TypeError, ValueError):
+                return Response({'error': 'Limite inválido.'}, status=400)
+            perms.storage_limit_bytes = int(round(gb * 1024 ** 3)) if gb > 0 else None
+        perms.save(update_fields=['storage_limit_bytes'])
+        from audit.tracking import log_event, user_display
+        log_event('update', model_name='UserPermissions', model_label='Limite de armazenamento',
+                  object_id=user.id, object_repr=f'Limite de armazenamento — {user_display(user)}', user=request.user)
+
+    data = storage_usage(user)
+    data['user_id'] = user.id
+    return Response(data)
