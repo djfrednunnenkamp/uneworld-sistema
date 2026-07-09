@@ -1,3 +1,5 @@
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -39,8 +41,12 @@ class LaminaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def roteiros(self, request):
-        """Cards de TODOS os roteiros (para escolher e renderizar na lâmina)."""
-        qs = (Itinerary.objects.filter(is_deleted=False)
+        """Cards dos roteiros disponíveis para a lâmina: PÚBLICOS (publicados na
+        vitrine — os exclusivos/privados ficam de fora) e que ainda NÃO começaram
+        (start_date no futuro ou sem data). Ordena pelos que começam mais cedo."""
+        today = timezone.localdate()
+        qs = (Itinerary.objects.filter(is_deleted=False, is_published=True)
+              .filter(Q(start_date__isnull=True) | Q(start_date__gte=today))
               .prefetch_related('images', 'cities')
-              .order_by('-start_date', 'name'))
+              .order_by('start_date', 'name'))
         return Response([_card(it, request) for it in qs])

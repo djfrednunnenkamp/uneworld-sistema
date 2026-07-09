@@ -18,8 +18,9 @@ class Lamina(models.Model):
     name        = models.CharField('Título', max_length=200, blank=True, default='')
     headline    = models.CharField('Chamada', max_length=300, blank=True, default='')
     theme       = models.CharField('Tema', max_length=20, default='ocean')
+    pattern     = models.CharField('Estampa do fundo', max_length=20, default='none')
     columns     = models.PositiveSmallIntegerField('Colunas', default=3)
-    rows        = models.PositiveSmallIntegerField('Linhas', default=2)
+    rows        = models.PositiveSmallIntegerField('Linhas', default=2)   # derivado (auto) no front
     # Ordem dos roteiros na lâmina (lista de ids de Itinerary).
     roteiro_ids = models.JSONField('Roteiros (ordem)', default=list, blank=True)
     created_by  = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')

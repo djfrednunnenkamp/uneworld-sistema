@@ -5,7 +5,7 @@ from .models import Lamina
 class LaminaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lamina
-        fields = ['id', 'name', 'headline', 'theme', 'columns', 'rows',
+        fields = ['id', 'name', 'headline', 'theme', 'pattern', 'columns', 'rows',
                   'roteiro_ids', 'created_by', 'created_at', 'updated_at']
         read_only_fields = ['created_by', 'created_at', 'updated_at']
 
