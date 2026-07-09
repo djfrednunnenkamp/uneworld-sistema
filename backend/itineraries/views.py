@@ -348,16 +348,35 @@ class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return [RequirePermission('manage_settings', 'roteiros_view', 'roteiros_edit', 'roteiros_delete')()]
-        return [RequirePermission('manage_settings')()]
+        # create/update/destroy: a permissão é POR TEMPLATE (field) — validada nos
+        # perform_*; aqui só exige estar autenticado.
+        from rest_framework.permissions import IsAuthenticated
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         qs = ItineraryFieldTemplate.objects.all()
         field = self.request.query_params.get('field')
         return qs.filter(field=field) if field else qs
 
+    def _require_template(self, field, action):
+        """Permissão individual do template `field` (settings_tpl_<field>_<action>),
+        com manage_settings como atalho geral."""
+        if not has_any_perm(self.request.user, 'manage_settings', f'settings_tpl_{field}_{action}'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Você não tem permissão para este template.')
+
+    def perform_create(self, serializer):
+        self._require_template(serializer.validated_data.get('field'), 'edit')
+        serializer.save()
+
     def perform_update(self, serializer):
+        self._require_template(serializer.instance.field, 'edit')
         template = serializer.save()
         template.apply_to_linked()   # propaga o novo conteúdo aos roteiros vinculados
+
+    def perform_destroy(self, instance):
+        self._require_template(instance.field, 'delete')
+        instance.delete()
 
 
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):

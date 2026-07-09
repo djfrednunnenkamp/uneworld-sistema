@@ -156,6 +156,23 @@ PERMISSION_FIELDS = [
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete',
+    # Templates do Roteiro (permissão individual por template)
+    'settings_tpl_general_view', 'settings_tpl_general_edit', 'settings_tpl_general_delete', 'settings_tpl_general_bulk_import', 'settings_tpl_general_export',
+    'settings_tpl_included_view', 'settings_tpl_included_edit', 'settings_tpl_included_delete', 'settings_tpl_included_bulk_import', 'settings_tpl_included_export',
+    'settings_tpl_not_included_view', 'settings_tpl_not_included_edit', 'settings_tpl_not_included_delete', 'settings_tpl_not_included_bulk_import', 'settings_tpl_not_included_export',
+    'settings_tpl_optionals_view', 'settings_tpl_optionals_edit', 'settings_tpl_optionals_delete', 'settings_tpl_optionals_bulk_import', 'settings_tpl_optionals_export',
+    'settings_tpl_tips_view', 'settings_tpl_tips_edit', 'settings_tpl_tips_delete', 'settings_tpl_tips_bulk_import', 'settings_tpl_tips_export',
+    'settings_tpl_documents_view', 'settings_tpl_documents_edit', 'settings_tpl_documents_delete', 'settings_tpl_documents_bulk_import', 'settings_tpl_documents_export',
+    'settings_tpl_promo_rules_view', 'settings_tpl_promo_rules_edit', 'settings_tpl_promo_rules_delete', 'settings_tpl_promo_rules_bulk_import', 'settings_tpl_promo_rules_export',
+    'settings_tpl_insurance_view', 'settings_tpl_insurance_edit', 'settings_tpl_insurance_delete', 'settings_tpl_insurance_bulk_import', 'settings_tpl_insurance_export',
+    'settings_tpl_values_view', 'settings_tpl_values_edit', 'settings_tpl_values_delete', 'settings_tpl_values_bulk_import', 'settings_tpl_values_export',
+    'settings_tpl_extras_view', 'settings_tpl_extras_edit', 'settings_tpl_extras_delete', 'settings_tpl_extras_bulk_import', 'settings_tpl_extras_export',
+    'settings_tpl_lamina_view', 'settings_tpl_lamina_edit', 'settings_tpl_lamina_delete', 'settings_tpl_lamina_bulk_import', 'settings_tpl_lamina_export',
+    'settings_tpl_flights_view', 'settings_tpl_flights_edit', 'settings_tpl_flights_delete', 'settings_tpl_flights_bulk_import', 'settings_tpl_flights_export',
+    'settings_tpl_hotels_view', 'settings_tpl_hotels_edit', 'settings_tpl_hotels_delete', 'settings_tpl_hotels_bulk_import', 'settings_tpl_hotels_export',
+    'settings_tpl_accommodation_view', 'settings_tpl_accommodation_edit', 'settings_tpl_accommodation_delete', 'settings_tpl_accommodation_bulk_import', 'settings_tpl_accommodation_export',
+    'settings_tpl_terrestre_view', 'settings_tpl_terrestre_edit', 'settings_tpl_terrestre_delete', 'settings_tpl_terrestre_bulk_import', 'settings_tpl_terrestre_export',
+    'settings_tpl_boat_view', 'settings_tpl_boat_edit', 'settings_tpl_boat_delete', 'settings_tpl_boat_bulk_import', 'settings_tpl_boat_export',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -206,6 +223,23 @@ STAFF_PERMISSION_FIELDS = [
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete',
+    # Templates do Roteiro (permissão individual por template)
+    'settings_tpl_general_view', 'settings_tpl_general_edit', 'settings_tpl_general_delete', 'settings_tpl_general_bulk_import', 'settings_tpl_general_export',
+    'settings_tpl_included_view', 'settings_tpl_included_edit', 'settings_tpl_included_delete', 'settings_tpl_included_bulk_import', 'settings_tpl_included_export',
+    'settings_tpl_not_included_view', 'settings_tpl_not_included_edit', 'settings_tpl_not_included_delete', 'settings_tpl_not_included_bulk_import', 'settings_tpl_not_included_export',
+    'settings_tpl_optionals_view', 'settings_tpl_optionals_edit', 'settings_tpl_optionals_delete', 'settings_tpl_optionals_bulk_import', 'settings_tpl_optionals_export',
+    'settings_tpl_tips_view', 'settings_tpl_tips_edit', 'settings_tpl_tips_delete', 'settings_tpl_tips_bulk_import', 'settings_tpl_tips_export',
+    'settings_tpl_documents_view', 'settings_tpl_documents_edit', 'settings_tpl_documents_delete', 'settings_tpl_documents_bulk_import', 'settings_tpl_documents_export',
+    'settings_tpl_promo_rules_view', 'settings_tpl_promo_rules_edit', 'settings_tpl_promo_rules_delete', 'settings_tpl_promo_rules_bulk_import', 'settings_tpl_promo_rules_export',
+    'settings_tpl_insurance_view', 'settings_tpl_insurance_edit', 'settings_tpl_insurance_delete', 'settings_tpl_insurance_bulk_import', 'settings_tpl_insurance_export',
+    'settings_tpl_values_view', 'settings_tpl_values_edit', 'settings_tpl_values_delete', 'settings_tpl_values_bulk_import', 'settings_tpl_values_export',
+    'settings_tpl_extras_view', 'settings_tpl_extras_edit', 'settings_tpl_extras_delete', 'settings_tpl_extras_bulk_import', 'settings_tpl_extras_export',
+    'settings_tpl_lamina_view', 'settings_tpl_lamina_edit', 'settings_tpl_lamina_delete', 'settings_tpl_lamina_bulk_import', 'settings_tpl_lamina_export',
+    'settings_tpl_flights_view', 'settings_tpl_flights_edit', 'settings_tpl_flights_delete', 'settings_tpl_flights_bulk_import', 'settings_tpl_flights_export',
+    'settings_tpl_hotels_view', 'settings_tpl_hotels_edit', 'settings_tpl_hotels_delete', 'settings_tpl_hotels_bulk_import', 'settings_tpl_hotels_export',
+    'settings_tpl_accommodation_view', 'settings_tpl_accommodation_edit', 'settings_tpl_accommodation_delete', 'settings_tpl_accommodation_bulk_import', 'settings_tpl_accommodation_export',
+    'settings_tpl_terrestre_view', 'settings_tpl_terrestre_edit', 'settings_tpl_terrestre_delete', 'settings_tpl_terrestre_bulk_import', 'settings_tpl_terrestre_export',
+    'settings_tpl_boat_view', 'settings_tpl_boat_edit', 'settings_tpl_boat_delete', 'settings_tpl_boat_bulk_import', 'settings_tpl_boat_export',
     # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
     # ninguém Administrador. log_page_views continua porque é uma permissão
     # ativa e concedida de propósito.
