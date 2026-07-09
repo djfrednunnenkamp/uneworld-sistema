@@ -361,7 +361,11 @@ def user_create(request):
             prof = PermissionProfile.objects.filter(pk=data['profile_id'], is_deleted=False).first()
         if prof:
             # Vínculo VIVO: editar o perfil depois re-aplica a este usuário.
-            apply_profile(user, prof)
+            # O perfil PADRÃO da agência é um template confiável (aplica pleno, dá o
+            # baseline mesmo que o admin da agência não tenha). Já um perfil ESCOLHIDO
+            # por gestor interno passa pelo filtro do ator — não-super não escala
+            # atribuindo um perfil forte (A-01).
+            apply_profile(user, prof, actor=None if want_agency_profile else request.user)
         elif not want_agency_profile:
             perm_data = dict(data)
             if not can_perms:
@@ -481,7 +485,7 @@ def user_update(request, pk):
             # Vincula a um perfil (link vivo). Editar o perfil depois re-aplica aqui.
             prof = PermissionProfile.objects.filter(pk=perm_data['profile_id'], is_deleted=False).first()
             if prof:
-                apply_profile(user, prof)
+                apply_profile(user, prof, actor=request.user)
             else:
                 _apply_permissions(user, perm_data, actor=request.user)
         else:

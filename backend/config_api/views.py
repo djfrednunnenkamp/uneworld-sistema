@@ -2208,9 +2208,12 @@ class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def _reapply_to_linked_users(self, profile):
         # Link VIVO: ao editar o perfil, re-aplica as permissões a todos os usuários
         # vinculados a ele (inclui os usuários de agência ligados ao perfil padrão).
+        # actor = quem editou o perfil: não-super só propaga o que ele mesmo tem
+        # (não escala os vinculados via edição de perfil).
         from users_api.permissions import apply_profile
+        actor = getattr(self.request, 'user', None)
         for perms in profile.linked_permissions.select_related('user').all():
-            apply_profile(perms.user, profile)
+            apply_profile(perms.user, profile, actor=actor)
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

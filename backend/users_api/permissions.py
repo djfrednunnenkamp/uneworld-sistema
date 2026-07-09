@@ -316,14 +316,19 @@ def is_operadora_user(user):
     return user.agency_memberships.filter(agency__agency_type='operadora').exists()
 
 
-def apply_profile(user, profile):
+def apply_profile(user, profile, actor=None):
     """Vincula o usuário ao perfil de permissão e copia as permissões dele.
 
     O vínculo é VIVO: ao editar o perfil nas Configurações, chamamos isto de novo
     para cada usuário vinculado, mantendo tudo sincronizado (ver
-    PermissionProfileViewSet._reapply_to_linked_users). Perfil é um template
-    confiável — aplica sem o filtro de "permissões concedíveis" do ator.
-    Superusuário é ignorado (tem acesso total de qualquer forma)."""
+    PermissionProfileViewSet._reapply_to_linked_users).
+
+    SEGURANÇA (A-01): quem NÃO é superusuário só concede as permissões que ele
+    mesmo tem — inclusive via perfil. Sem esse filtro, um usuário com
+    users_manage_permissions podia se autoatribuir (ou dar a outro) o perfil
+    "Administrador" e escalar privilégios, contornando _filter_grantable_permissions.
+    Passe `actor` (usuário da requisição) para aplicar esse limite. actor=None ou
+    superusuário → aplicação plena (template completo; seeds/superadmin)."""
     if user.is_superuser:
         return
     perms = get_user_permissions(user)
@@ -332,8 +337,17 @@ def apply_profile(user, profile):
     # Um perfil define o conjunto COMPLETO de permissões: chave AUSENTE no perfil
     # vale False (não mantém o valor antigo). Sem isso, permissões antigas do
     # usuário (ex.: um superadmin rebaixado) sobreviviam e ele seguia como staff.
-    for key in PERMISSION_FIELDS:
-        setattr(perms, key, bool(src.get(key)))
+    if actor is not None and not actor.is_superuser:
+        # Não-super: só toca nas chaves que o ator pode conceder. As demais ficam
+        # com o valor atual do alvo — nem escala (não dá o que não tem) nem rebaixa
+        # o que ele não gerencia.
+        actor_perms = get_user_permissions(actor)
+        for key in PERMISSION_FIELDS:
+            if getattr(actor_perms, key, False):
+                setattr(perms, key, bool(src.get(key)))
+    else:
+        for key in PERMISSION_FIELDS:
+            setattr(perms, key, bool(src.get(key)))
     perms.save()
     sync_is_staff(user)
 
