@@ -589,6 +589,7 @@ class SystemSettings(models.Model):
     logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to='branding/', null=True, blank=True)
     logo_contract = models.ImageField('Logo dos contratos', upload_to='branding/', null=True, blank=True)
     logo_voucher  = models.ImageField('Logo dos vouchers', upload_to='branding/', null=True, blank=True)
+    logo_list     = models.ImageField('Logo do PDF da lista de passageiros', upload_to='branding/', null=True, blank=True)
     # Template GLOBAL padrão do voucher (blocos). Vazio = usa o padrão do código
     # (vouchers.models.DEFAULT_VOUCHER_BLOCKS). Cada lista pode ter o seu próprio.
     voucher_template = models.JSONField('Template padrão do voucher', default=list, blank=True)

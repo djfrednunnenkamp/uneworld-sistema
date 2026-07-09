@@ -1898,6 +1898,7 @@ BRANDING_SLOTS = {
     'pdf':      'logo_pdf',       # PDF dos roteiros
     'contract': 'logo_contract',  # PDF dos contratos
     'voucher':  'logo_voucher',   # PDF dos vouchers
+    'list':     'logo_list',      # PDF da lista de passageiros
 }
 
 
