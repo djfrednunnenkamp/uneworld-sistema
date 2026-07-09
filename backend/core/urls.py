@@ -4,7 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import FileResponse
 
-from .views import validate_email
+from .views import validate_email, healthz
 
 
 def _serve_email_logo(request):
@@ -16,6 +16,7 @@ def _serve_email_logo(request):
 
 urlpatterns = [
     path('assets/logo.png', _serve_email_logo, name='email-logo'),
+    path('healthz', healthz, name='healthz'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('django.contrib.auth.urls')),
     path('api/validate-email/', validate_email, name='validate-email'),

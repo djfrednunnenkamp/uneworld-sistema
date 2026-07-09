@@ -294,3 +294,21 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000          # 1 ano
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+# ── Monitoramento de erros (Sentry) — OPCIONAL ────────────────────────────────
+# Ativa só quando SENTRY_DSN está definido (e fora de DEBUG). O import é protegido:
+# se a lib não estiver instalada, não quebra o boot — apenas não reporta.
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN and not DEBUG:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.0, cast=float),
+            send_default_pii=False,          # não envia dados de usuário/PII ao Sentry
+            environment=config('SENTRY_ENVIRONMENT', default='production'),
+        )
+    except Exception:
+        pass

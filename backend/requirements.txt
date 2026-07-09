@@ -33,3 +33,6 @@ requests==2.34.2
 RestrictedPython==8.3
 # Verificação de e-mail no cadastro: consulta de registros MX do domínio.
 dnspython==2.8.0
+# Monitoramento de erros em produção (OPCIONAL — só ativa se SENTRY_DSN estiver
+# definido no .env; a init em core/settings.py é protegida com try/except).
+sentry-sdk>=2,<3

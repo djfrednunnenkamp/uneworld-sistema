@@ -25,6 +25,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   backend:
     image: ghcr.io/djfrednunnenkamp/uneworld-sistema-backend:${TAG:-latest}
@@ -43,15 +48,24 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     expose:
       - "8000"
+    # Health check: bate no /healthz (verifica banco + cache). start_period cobre
+    # o boot (migrate + collectstatic) para não marcar unhealthy cedo demais.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5).status==200 else 1)\""]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 60s
 
   frontend:
     image: ghcr.io/djfrednunnenkamp/uneworld-sistema-frontend:${TAG:-latest}
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       # Host 80 → container 8080 (nginx roda não-root, escuta 8080). A-15
       - "${HTTP_PORT:-80}:8080"
