@@ -152,6 +152,15 @@ def _cleanup_empty_rooms(pl):
     )
     Room.objects.filter(passenger_list=pl).exclude(name__in=occupied).delete()
 
+
+def _as_int(value):
+    """Converte para int com segurança; None se não for numérico. Evita que um
+    id malformado (ex.: "abc") em filter(pk=...)/get(pk=...) estoure ValueError → 500."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
 class SupplierViewSet(viewsets.ModelViewSet):
     queryset         = Supplier.objects.all()
     serializer_class = SupplierSerializer
@@ -212,9 +221,9 @@ class RoteiroViewSet(viewsets.ReadOnlyModelViewSet):
 
 class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = PassengerList.objects.select_related(
-        'default_airport', 'departure_country', 'departure_state', 'departure_city'
+        'default_airport', 'departure_country', 'departure_state', 'departure_city', 'bus_map'
     ).prefetch_related(
-        'suppliers', 'additionals', 'roteiros',
+        'suppliers', 'additionals', 'roteiros', 'default_airports',
         # Guias da lista (passageiros marcados como guia, não cancelados) — p/ a
         # coluna "Guia" na listagem, sem N+1.
         Prefetch('list_enrollments',
@@ -297,7 +306,8 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # Isolamento por agência (A-01): usuário de agência só conta/baixa documentos
         # dos passageiros da própria agência, mesmo numa lista compartilhada.
         scope = agency_scope_ids(request.user)
-        enr = pl.list_enrollments.select_related('passenger').filter(passenger__isnull=False)
+        enr = (pl.list_enrollments.select_related('passenger')
+               .prefetch_related('passenger__documents').filter(passenger__isnull=False))
         if scope is not None:
             enr = enr.filter(agency_id__in=scope)
         for e in enr:
@@ -350,7 +360,7 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             seqmap[e.id] = seq
 
         enrolls = (pl.list_enrollments.select_related('passenger')
-                   .filter(passenger__isnull=False))
+                   .prefetch_related('passenger__documents').filter(passenger__isnull=False))
         # Isolamento por agência (A-01): não incluir no ZIP documentos de passageiros
         # de outra agência numa lista compartilhada.
         from users_api.permissions import agency_scope_ids
@@ -523,16 +533,16 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if is_block:
             # Bloqueio de agência ou passageiro provisório — cria N vagas sem passageiro
             agency_name = request.data.get('block_agency', '').strip()
-            quantity    = int(request.data.get('block_quantity', 1))
+            quantity    = _as_int(request.data.get('block_quantity', 1))
             if not agency_name:
                 return Response({'error': 'Nome da agência é obrigatório.'}, status=400)
-            if quantity < 1 or quantity > 100:
+            if quantity is None or quantity < 1 or quantity > 100:
                 return Response({'error': 'Quantidade inválida (1–100).'}, status=400)
             created = []
             from django.contrib.auth.models import User as DjUser
-            resp_user = DjUser.objects.filter(pk=responsible_uid).first() if responsible_uid else None
+            resp_user = DjUser.objects.filter(pk=_as_int(responsible_uid)).first() if responsible_uid else None
             from agencies.models import Agency as AgencyModel
-            agency_obj = AgencyModel.objects.filter(pk=agency_id).first() if agency_id else None
+            agency_obj = AgencyModel.objects.filter(pk=_as_int(agency_id)).first() if agency_id else None
             for _ in range(quantity):
                 e = ListEnrollment.objects.create(
                     passenger_list=pl, passenger=None,
@@ -551,15 +561,15 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'error': 'passenger é obrigatório.'}, status=400)
         from passengers.models import Passenger as PassengerModel
         try:
-            p = PassengerModel.objects.get(pk=passenger_id)
+            p = PassengerModel.objects.get(pk=_as_int(passenger_id))
         except PassengerModel.DoesNotExist:
             return Response({'error': 'Passageiro não encontrado.'}, status=404)
         if pl.list_enrollments.filter(passenger=p).exists():
             return Response({'error': 'Passageiro já está nesta lista.'}, status=400)
         from django.contrib.auth.models import User as DjUser
-        resp_user = DjUser.objects.filter(pk=responsible_uid).first() if responsible_uid else None
+        resp_user = DjUser.objects.filter(pk=_as_int(responsible_uid)).first() if responsible_uid else None
         from agencies.models import Agency as AgencyModel
-        agency_obj = AgencyModel.objects.filter(pk=agency_id).first() if agency_id else None
+        agency_obj = AgencyModel.objects.filter(pk=_as_int(agency_id)).first() if agency_id else None
         e = ListEnrollment.objects.create(
             passenger_list=pl, passenger=p,
             agency=agency_obj, responsible_user=resp_user,
@@ -731,11 +741,19 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         # PATCH
+        _valid_status = {c[0] for c in ListEnrollment.STATUS_CHOICES}
         for field in ('accommodation', 'seat', 'enrollment_status', 'order_in_list', 'notes',
                       'pending_until', 'pending_reason',
                       'ticket_status', 'connection_ticket_status', 'origin_mode'):
             if field in request.data:
                 val = request.data[field]
+                if field == 'enrollment_status' and val not in _valid_status:
+                    return Response({'error': 'Status de inscrição inválido.'}, status=400)
+                if field == 'order_in_list':
+                    # PositiveIntegerField: valor não-numérico estouraria no save() → 500.
+                    val = _as_int(val)
+                    if val is None or val < 0:
+                        return Response({'error': 'order_in_list inválido.'}, status=400)
                 if field == 'pending_until':
                     val = val or None
                     e.pending_until_created_by = request.user if val else None
@@ -766,17 +784,17 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if 'agency' in request.data:
             from agencies.models import Agency
             ag_id = request.data['agency']
-            e.agency = Agency.objects.filter(pk=ag_id).first() if ag_id else None
+            e.agency = Agency.objects.filter(pk=_as_int(ag_id)).first() if ag_id else None
         if 'responsible_user' in request.data:
             from django.contrib.auth.models import User
             ru_id = request.data['responsible_user']
-            e.responsible_user = User.objects.filter(pk=ru_id).first() if ru_id else None
+            e.responsible_user = User.objects.filter(pk=_as_int(ru_id)).first() if ru_id else None
         # Vincular / trocar / desvincular passageiro
         if 'passenger' in request.data:
             from passengers.models import Passenger as PassengerModel
             pid = request.data['passenger']
             if pid:
-                p = PassengerModel.objects.filter(pk=pid).first()
+                p = PassengerModel.objects.filter(pk=_as_int(pid)).first()
                 if p:
                     # unique_together(passenger_list, passenger): impedir duplicar o mesmo
                     # passageiro na lista (senão e.save() estoura IntegrityError → 500).

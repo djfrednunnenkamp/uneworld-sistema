@@ -534,13 +534,17 @@ class ItinerarySerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         accommodation_lines = validated_data.pop('accommodation_lines', [])
         days                = validated_data.pop('days', None)
-        itinerary = super().create(validated_data)   # trata cities (M2M), itinerary_type, maritime_company
-        self._save_accommodation_lines(itinerary, accommodation_lines)
-        if days is not None:
-            self._save_days(itinerary, days)
-        # Roteiro não público nasce já com a sua lista de passageiros 1:1.
-        from trips.services import sync_passenger_list_for_itinerary
-        sync_passenger_list_for_itinerary(itinerary, allow_create=True)
+        # Atômico: o roteiro, suas linhas de acomodação, o dia-a-dia e a lista de
+        # passageiros 1:1 (que o resto do sistema assume existir) formam uma unidade.
+        # Uma falha no meio deixaria um roteiro pela metade, sem lista/acomodações.
+        with transaction.atomic():
+            itinerary = super().create(validated_data)   # trata cities (M2M), itinerary_type, maritime_company
+            self._save_accommodation_lines(itinerary, accommodation_lines)
+            if days is not None:
+                self._save_days(itinerary, days)
+            # Roteiro não público nasce já com a sua lista de passageiros 1:1.
+            from trips.services import sync_passenger_list_for_itinerary
+            sync_passenger_list_for_itinerary(itinerary, allow_create=True)
         return itinerary
 
     # M2M do roteiro que precisam entrar no log (o diff escalar não os pega).

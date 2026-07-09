@@ -2,7 +2,7 @@ import csv
 import io
 import re
 import requests
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.http import StreamingHttpResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
@@ -359,7 +359,8 @@ class StateSerializer(serializers.ModelSerializer):
         model  = ConfigState
         fields = ['id', 'name', 'code', 'city_count', 'country_name']
     def get_city_count(self, obj):
-        return obj.cities.count()
+        c = getattr(obj, 'city_count_a', None)   # annotate no viewset evita N+1
+        return c if c is not None else obj.cities.count()
 
 class CountrySerializer(serializers.ModelSerializer):
     state_count    = serializers.SerializerMethodField()
@@ -368,7 +369,8 @@ class CountrySerializer(serializers.ModelSerializer):
         model = ConfigCountry
         fields = ['id', 'name', 'code', 'continent', 'continent_name', 'state_count']
     def get_state_count(self, obj):
-        return obj.states.count()
+        c = getattr(obj, 'state_count_a', None)   # annotate no viewset evita N+1
+        return c if c is not None else obj.states.count()
 
 
 class ProfessionViewSet(viewsets.ModelViewSet):
@@ -461,7 +463,7 @@ class LanguageViewSet(viewsets.ModelViewSet):
 
 
 class CountryViewSet(viewsets.ModelViewSet):
-    queryset = ConfigCountry.objects.all()
+    queryset = ConfigCountry.objects.annotate(state_count_a=Count('states'))
     serializer_class = CountrySerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_countries', action_perms={
@@ -1391,7 +1393,16 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
         obj = ConfigExchangeSettings.get()
         if request.method == 'POST':
             t = request.data.get('default_update_time')
-            obj.default_update_time = t or None
+            if t:
+                # Valida o horário (HH:MM[:SS]) — um valor arbitrário estouraria no
+                # save() do TimeField (ValueError) → 500. Rejeita com 400.
+                from django.utils.dateparse import parse_time
+                parsed = parse_time(t) if isinstance(t, str) else None
+                if parsed is None:
+                    return Response({'error': 'Horário inválido (use HH:MM).'}, status=400)
+                obj.default_update_time = parsed
+            else:
+                obj.default_update_time = None
             obj.save(update_fields=['default_update_time', 'updated_at'])
         return Response({'default_update_time': obj.default_update_time})
 
@@ -1594,9 +1605,11 @@ class StateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         country_id = self.request.query_params.get('country_id')
         if country_id:
-            return ConfigState.objects.filter(country_id=country_id).select_related('country')
+            return (ConfigState.objects.filter(country_id=country_id)
+                    .select_related('country').annotate(city_count_a=Count('cities')))
         if self.request.query_params.get('all'):
-            return ConfigState.objects.all().select_related('country').order_by('country__name', 'name')
+            return (ConfigState.objects.all().select_related('country')
+                    .annotate(city_count_a=Count('cities')).order_by('country__name', 'name'))
         return ConfigState.objects.none()
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_country': 'import_web'})

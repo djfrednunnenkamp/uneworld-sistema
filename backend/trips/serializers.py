@@ -186,7 +186,9 @@ class PassengerListSerializer(serializers.ModelSerializer):
         """True quando a lista é a lista 1:1 de um roteiro ATIVO. Se o roteiro
         foi excluído (está na lixeira), o vínculo deixa de valer — a lista fica
         avulsa (datas liberadas e pode ser excluída)."""
-        return obj.roteiros.filter(is_deleted=False).exists()
+        # Itera sobre o prefetch de `roteiros` (não usa .filter(), que dispararia
+        # uma query nova por lista, furando o prefetch → N+1 na listagem).
+        return any(not r.is_deleted for r in obj.roteiros.all())
 
     def get_guides(self, obj):
         """Nomes dos guias da lista (passageiros marcados como guia, não

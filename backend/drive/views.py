@@ -119,11 +119,13 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         if request.query_params.get('deleted'):
             qs = (DriveNode.objects.filter(owner=u, is_deleted=True)
                   .filter(Q(parent__isnull=True) | Q(parent__is_deleted=False))
+                  .select_related('owner').prefetch_related('shared_with__permissions')
                   .order_by('-deleted_at'))
             return Response({'breadcrumb': [], 'folder': None, 'trash': True,
                              'nodes': DriveNodeSerializer(qs, many=True, context={'request': request}).data})
         if request.query_params.get('shared'):
-            qs = DriveNode.objects.filter(shared_with=u, is_deleted=False).distinct()
+            qs = (DriveNode.objects.filter(shared_with=u, is_deleted=False)
+                  .select_related('owner').prefetch_related('shared_with__permissions').distinct())
             return Response({'breadcrumb': [], 'folder': None, 'shared': True,
                              'nodes': DriveNodeSerializer(qs, many=True, context={'request': request}).data})
         parent_id = request.query_params.get('parent') or None
@@ -132,6 +134,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Pasta não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         children = (folder.children.filter(is_deleted=False) if folder
                     else DriveNode.objects.filter(owner=u, parent__isnull=True, is_deleted=False))
+        children = children.select_related('owner').prefetch_related('shared_with__permissions')
         return Response({
             'breadcrumb': _breadcrumb(folder),
             'folder': ({'id': folder.id, 'name': folder.name, 'is_owner': folder.owner_id == u.id} if folder else None),

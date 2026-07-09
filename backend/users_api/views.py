@@ -187,10 +187,12 @@ def me_view(request):
     if request.method == 'PATCH':
         data = request.data
         if 'first_name' in data:
-            user.first_name = data['first_name'].strip()
+            user.first_name = (data['first_name'] or '').strip() if isinstance(data['first_name'], str) else ''
         if 'last_name' in data:
-            user.last_name = data['last_name'].strip()
+            user.last_name = (data['last_name'] or '').strip() if isinstance(data['last_name'], str) else ''
         if 'email' in data:
+            if not isinstance(data['email'], str):
+                return Response({'error': 'E-mail inválido.'}, status=400)
             new_email = data['email'].strip().lower()
             if new_email != user.email:
                 if User.objects.filter(email__iexact=new_email).exclude(pk=user.pk).exists():

@@ -639,8 +639,13 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def reorder(self, request):
         ids = request.data.get('order') or []
-        for i, pk in enumerate(ids):
-            Itinerary.objects.filter(pk=pk).update(order=i)
+        # Ignora ids não-inteiros (payload malformado não deve derrubar em 500 no filter).
+        ids = [pk for pk in ids if isinstance(pk, int) or (isinstance(pk, str) and pk.isdigit())]
+        # Atômico (como os demais reorders de voo/trecho/imagem): uma falha no meio
+        # não pode deixar a lista meio-reordenada (alimenta a ordem do site público).
+        with transaction.atomic():
+            for i, pk in enumerate(ids):
+                Itinerary.objects.filter(pk=pk).update(order=i)
         # Evento único (a ordem da lista alimenta o site) — não é de um roteiro só.
         from audit.models import AuditLog
         from audit.tracking import user_display

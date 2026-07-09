@@ -1,5 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -533,19 +534,23 @@ class ContractSerializer(serializers.ModelSerializer):
         if not (user and has_any_perm(user, 'contracts_custom_clauses')):
             validated_data.pop('custom_clauses', None)
 
-        contract = Contract(created_by=user, **validated_data)
-        contract._skip_audit_signal = True   # eu logo o 'create' completo abaixo
-        contract.save()
-        # Reserva nº: sequencial e único — gerado a partir do próprio id, sem
-        # precisar de um contador separado nem de digitação manual.
-        if not contract.reservation_number:
-            contract.reservation_number = f'{contract.id:06d}'
-            contract.save(update_fields=['reservation_number'])
+        # Atômico: contrato + filhos (hóspedes/parcelas/acomodações/ajustes) +
+        # totais formam UM documento financeiro. Sem isso (ATOMIC_REQUESTS=False),
+        # uma falha no meio deixaria um contrato sem filhos ou com totais errados.
+        with transaction.atomic():
+            contract = Contract(created_by=user, **validated_data)
+            contract._skip_audit_signal = True   # eu logo o 'create' completo abaixo
+            contract.save()
+            # Reserva nº: sequencial e único — gerado a partir do próprio id, sem
+            # precisar de um contador separado nem de digitação manual.
+            if not contract.reservation_number:
+                contract.reservation_number = f'{contract.id:06d}'
+                contract.save(update_fields=['reservation_number'])
 
-        self._save_children(contract, accommodation_lines, guests, installments, clauses, adjustments)
-        self._recalc_totals(contract)
-        # Loga o create COM os filhos + cláusulas (o signal escalar sozinho não pega).
-        self._log_update(contract, {}, self._audit_snapshot(contract), action='create')
+            self._save_children(contract, accommodation_lines, guests, installments, clauses, adjustments)
+            self._recalc_totals(contract)
+            # Loga o create COM os filhos + cláusulas (o signal escalar sozinho não pega).
+            self._log_update(contract, {}, self._audit_snapshot(contract), action='create')
         return contract
 
     def update(self, instance, validated_data):
@@ -597,8 +602,11 @@ class ContractSerializer(serializers.ModelSerializer):
         # (o QR deles carrega a versão antiga) — ver contracts/signing.py.
         instance.signing_version = (instance.signing_version or 1) + 1
         instance._skip_audit_signal = True             # eu logo o diff completo abaixo
-        instance.save()
-        self._save_children(instance, accommodation_lines, guests, installments, clauses, adjustments)
-        self._recalc_totals(instance)
-        self._log_update(instance, old_snap, self._audit_snapshot(instance))
+        # Atômico: _save_children apaga e recria os filhos — uma falha no meio, sem
+        # transação, perderia hóspedes/parcelas e deixaria signing_version inconsistente.
+        with transaction.atomic():
+            instance.save()
+            self._save_children(instance, accommodation_lines, guests, installments, clauses, adjustments)
+            self._recalc_totals(instance)
+            self._log_update(instance, old_snap, self._audit_snapshot(instance))
         return instance
