@@ -9,6 +9,13 @@ def airline_logo_path(instance, filename):
     return f'airlines/{uuid.uuid4().hex}.png'
 
 
+def branding_logo_path(instance, filename):
+    """Nome único (uuid) para cada logo do branding — evita reusar o mesmo nome
+    (o front envia sempre 'logo.png'), o que fazia o navegador mostrar a logo
+    ANTIGA em cache após deletar e reenviar."""
+    return f'branding/{uuid.uuid4().hex}.png'
+
+
 class ConfigProfession(models.Model):
     name = models.CharField('Nome', max_length=200, unique=True)
 
@@ -580,16 +587,16 @@ class SystemSettings(models.Model):
     a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
 
     # Logos configuráveis por lugar (branding). Vazio = usa o /logo.png padrão.
-    logo_system   = models.ImageField('Logo do tema (sistema)', upload_to='branding/', null=True, blank=True)  # legado
-    logo_sidebar  = models.ImageField('Logo da sidebar', upload_to='branding/', null=True, blank=True)
-    logo_topbar   = models.ImageField('Logo do topo (barra branca)', upload_to='branding/', null=True, blank=True)
-    logo_login    = models.ImageField('Logo das telas de login', upload_to='branding/', null=True, blank=True)
-    favicon       = models.ImageField('Favicon (ícone do navegador)', upload_to='branding/', null=True, blank=True)
-    logo_site     = models.ImageField('Logo do site (vitrine)', upload_to='branding/', null=True, blank=True)
-    logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to='branding/', null=True, blank=True)
-    logo_contract = models.ImageField('Logo dos contratos', upload_to='branding/', null=True, blank=True)
-    logo_voucher  = models.ImageField('Logo dos vouchers', upload_to='branding/', null=True, blank=True)
-    logo_list     = models.ImageField('Logo do PDF da lista de passageiros', upload_to='branding/', null=True, blank=True)
+    logo_system   = models.ImageField('Logo do tema (sistema)', upload_to=branding_logo_path, null=True, blank=True)  # legado
+    logo_sidebar  = models.ImageField('Logo da sidebar', upload_to=branding_logo_path, null=True, blank=True)
+    logo_topbar   = models.ImageField('Logo do topo (barra branca)', upload_to=branding_logo_path, null=True, blank=True)
+    logo_login    = models.ImageField('Logo das telas de login', upload_to=branding_logo_path, null=True, blank=True)
+    favicon       = models.ImageField('Favicon (ícone do navegador)', upload_to=branding_logo_path, null=True, blank=True)
+    logo_site     = models.ImageField('Logo do site (vitrine)', upload_to=branding_logo_path, null=True, blank=True)
+    logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to=branding_logo_path, null=True, blank=True)
+    logo_contract = models.ImageField('Logo dos contratos', upload_to=branding_logo_path, null=True, blank=True)
+    logo_voucher  = models.ImageField('Logo dos vouchers', upload_to=branding_logo_path, null=True, blank=True)
+    logo_list     = models.ImageField('Logo do PDF da lista de passageiros', upload_to=branding_logo_path, null=True, blank=True)
     # Template GLOBAL padrão do voucher (blocos). Vazio = usa o padrão do código
     # (vouchers.models.DEFAULT_VOUCHER_BLOCKS). Cada lista pode ter o seu próprio.
     voucher_template = models.JSONField('Template padrão do voucher', default=list, blank=True)
