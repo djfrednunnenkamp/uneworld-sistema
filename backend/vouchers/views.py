@@ -195,6 +195,16 @@ class VoucherViewSet(viewsets.ViewSet):
         image = request.FILES.get('image')
         if not image:
             return Response({'error': 'Faltou a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Valida e re-encoda a imagem (magic bytes + tamanho + remove payload/EXIF),
+        # como todos os outros uploads. update_or_create não passa por full_clean, então
+        # sem isto um SVG/HTML/arquivo gigante seria salvo cru (XSS no MEDIA / DoS).
+        from passengers.validators import validate_document_file
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            image = validate_document_file(image, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'error': (e.messages[0] if getattr(e, 'messages', None) else 'Imagem inválida.')},
+                            status=status.HTTP_400_BAD_REQUEST)
         VoucherFlightConfirmation.objects.update_or_create(
             voucher=voucher, entry_key=entry_key, defaults={'image': image})
         log_event('upload', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',

@@ -124,6 +124,24 @@ class ContractAdjustmentSerializer(serializers.ModelSerializer):
         model  = ContractAdjustment
         fields = ['id', 'description', 'kind', 'mode', 'value_usd', 'value_brl', 'percent', 'order']
 
+    # Valores de ajuste não podem ser negativos (o sinal vem do kind: acréscimo x
+    # desconto). Sem isto, um "desconto" negativo viraria acréscimo disfarçado e um
+    # valor absurdo zeraria/negativaria o total do contrato (fraude financeira).
+    def validate_value_usd(self, v):
+        if v is not None and v < 0:
+            raise serializers.ValidationError('O valor não pode ser negativo.')
+        return v
+
+    def validate_value_brl(self, v):
+        if v is not None and v < 0:
+            raise serializers.ValidationError('O valor não pode ser negativo.')
+        return v
+
+    def validate_percent(self, v):
+        if v is not None and (v < 0 or v > 100):
+            raise serializers.ValidationError('O percentual deve estar entre 0 e 100.')
+        return v
+
 
 class ContractListSerializer(serializers.ModelSerializer):
     agency_name      = serializers.SerializerMethodField()
@@ -221,6 +239,13 @@ class ContractSerializer(serializers.ModelSerializer):
         # Sanitiza o HTML das cláusulas personalizadas antes de salvar (A-12).
         from core.sanitize import sanitize_custom_clauses
         return sanitize_custom_clauses(value)
+
+    def validate_exchange_rate(self, v):
+        # Câmbio é gravável pelo cliente e multiplica o total. Um valor <= 0 (negativo
+        # é *truthy*, não cai no fallback) geraria total_brl negativo/zerado — fraude.
+        if v is not None and v <= 0:
+            raise serializers.ValidationError('O câmbio deve ser maior que zero.')
+        return v
 
     def validate(self, attrs):
         # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado
@@ -453,6 +478,10 @@ class ContractSerializer(serializers.ModelSerializer):
         # Guarda um snapshot (valor + modo + %) para exibir a linha no PDF e na tela.
         avista_disc = avista_discount_usd(contract.payment_type, total_usd, exchange_rate, contract.itinerary)
         total_usd = total_usd - avista_disc
+        # Rede de segurança: o total nunca fica negativo (um desconto grande não vira
+        # "a operadora deve ao cliente"). Piso em zero.
+        if total_usd < 0:
+            total_usd = Decimal('0')
         contract.a_vista_discount_usd = avista_disc
         if avista_disc > 0:
             mode, value = avista_discount_source(contract.itinerary)

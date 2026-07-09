@@ -257,9 +257,17 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         if not cpf:
             return Response({'error': 'CPF não informado.'}, status=400)
         digits = re.sub(r'\D', '', cpf)
-        passenger = Passenger.objects.filter(
+        qs = Passenger.objects.filter(
             Q(cpf=cpf) | Q(cpf=digits), is_deleted=False
-        ).exclude(cpf='').exclude(status='rascunho').first()
+        ).exclude(cpf='').exclude(status='rascunho')
+        # Isolamento por agência (A-01): usuário de agência não pode usar o check-cpf
+        # como oráculo para descobrir existência + nome de passageiros de OUTRAS
+        # agências (vazamento de PII cross-tenant / enumeração de CPF).
+        from users_api.permissions import agency_scope_ids
+        scope = agency_scope_ids(request.user)
+        if scope is not None:
+            qs = qs.filter(agencies__in=scope)
+        passenger = qs.first()
         if passenger:
             name = (passenger.full_name or
                     f"{passenger.first_name} {passenger.last_name}".strip() or

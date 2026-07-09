@@ -167,7 +167,17 @@ def email_resend_action(request, pk):
     except User.MultipleObjectsReturned:
         user = User.objects.filter(email__iexact=log.to.strip()).first()
 
+    # Fronteira de privilégio (A-01): não-super não pode disparar reset/convite para
+    # uma conta superusuária (mesma regra de admin_send_reset/send_user_invite). Sem
+    # isso, com email_log_preview + este reenvio, um não-super forjaria um novo token
+    # de reset do superusuário e o leria no preview → takeover.
+    from users_api.views import _can_target_user
+    if not _can_target_user(request.user, user):
+        return Response({'detail': 'Você não tem permissão para esta ação.'}, status=403)
+
     if log.email_type == 'reset_password':
+        # Invalida links de reset anteriores ainda não usados (só o novo vale).
+        PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
         token = PasswordResetToken.objects.create(user=user)
         url = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
         send_reset_password(user.email, user.first_name, url)

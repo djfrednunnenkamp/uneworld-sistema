@@ -389,6 +389,22 @@ class ItinerarySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Há dias com o mesmo número — o número do dia deve ser único no roteiro.')
         return value
 
+    def validate_map_embed_url(self, v):
+        # O usuário cola o <iframe> do Google My Maps; o front/PDF extraem o `src` e
+        # o embutem num iframe. Exige que o src seja do Google Maps — senão um editor
+        # poderia apontar para uma página arbitrária (phishing/conteúdo hostil) vista
+        # por um revisor de maior privilégio e servida na futura vitrine pública.
+        if not v or not v.strip():
+            return v
+        import re as _re
+        from urllib.parse import urlparse
+        m = _re.search(r'src=["\']([^"\']+)["\']', v)
+        url = (m.group(1) if m else v).strip()
+        host = (urlparse(url).hostname or '').lower()
+        if urlparse(url).scheme not in ('http', 'https') or not (host == 'google.com' or host.endswith('.google.com')):
+            raise serializers.ValidationError('Cole o código de incorporação de um mapa do Google.')
+        return v
+
     def validate(self, attrs):
         # ── Datas consistentes: término não pode ser anterior ao início ──
         start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
@@ -407,7 +423,13 @@ class ItinerarySerializer(serializers.ModelSerializer):
         # depois renderizados via dangerouslySetInnerHTML — precisam ser limpos.
         from core.sanitize import sanitize_html
         for f in ('notes', 'flight_notes', 'hotel_notes', 'accommodation_notes',
-                  'terrestre_notes', 'boat_notes'):
+                  'terrestre_notes', 'boat_notes',
+                  # Campos rich das "Informações do Roteiro" — renderizados CRUS via
+                  # innerHTML no PDF do roteiro (generateItineraryHTML) e entram no
+                  # published_data da vitrine. Sem sanitizar aqui = stored XSS (A-12).
+                  'info_general', 'info_optionals', 'info_tips', 'info_documents',
+                  'info_insurance', 'info_promo_rules', 'info_extras', 'info_values',
+                  'info_lamina', 'info_included', 'info_not_included'):
             if attrs.get(f):
                 attrs[f] = sanitize_html(attrs[f])
         return attrs

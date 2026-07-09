@@ -278,6 +278,13 @@ TRUSTED_PROXY_COUNT = config('TRUSTED_PROXY_COUNT', default=1, cast=int)
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
+# Expiração de sessão. O default do Django é 2 SEMANAS fixas — demais para um ERP
+# com PII (CPF/RG/passaporte): um cookie roubado ou navegador esquecido fica válido
+# por 14 dias. Aqui: timeout de INATIVIDADE (o prazo renova a cada request enquanto
+# a pessoa usa, mas expira após SESSION_COOKIE_AGE parado). Ajustável por env.
+SESSION_COOKIE_AGE = config('SESSION_COOKIE_AGE', default=60 * 60 * 12, cast=int)  # 12h
+SESSION_SAVE_EVERY_REQUEST = True
+
 # ── Hardening HTTP (auditoria IDS — A-06) ──────────────────────────────────────
 # Proteções que valem para QUALQUER ambiente (não dependem de HTTPS):
 SECURE_CONTENT_TYPE_NOSNIFF = True          # impede sniffing de MIME type

@@ -1,6 +1,7 @@
 """Serviço de envio de e-mail via Resend."""
 import html
 import logging
+import re
 
 import resend
 from django.conf import settings
@@ -18,9 +19,20 @@ def _html_for_preview(html: str) -> str:
     )
 
 
+def _redact_sensitive(html: str) -> str:
+    """Redige tokens de ação (reset de senha / convite) no corpo GUARDADO no log.
+
+    SEGURANÇA (A-01): o preview do Log de E-mails é liberado por email_log_preview,
+    uma permissão concedível a NÃO-super. Guardar o link com o token vivo permitiria
+    a esse usuário abrir o reset de senha de QUALQUER conta (inclusive superusuário)
+    e assumi-la — takeover. Só a cópia do log é redigida; o e-mail enviado ao
+    destinatário mantém o token real."""
+    return re.sub(r'(?i)(token=)[^"\'&\s<>]+', r'\1[REDIGIDO]', html)
+
+
 def _send(to: str, subject: str, html: str, email_type: str = 'other') -> bool:
     from agenda.models import EmailLog
-    html_preview = _html_for_preview(html)
+    html_preview = _redact_sensitive(_html_for_preview(html))
 
     resend.api_key = settings.RESEND_API_KEY
     simulated = not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave')

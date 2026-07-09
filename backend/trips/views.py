@@ -735,6 +735,14 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except ListEnrollment.DoesNotExist:
             return Response({'error': 'Inscrição não encontrada.'}, status=404)
 
+        # Isolamento por agência (A-01): numa lista COMPARTILHADA, um usuário de
+        # agência não pode editar/remover/reatribuir a inscrição de OUTRA agência
+        # (senão "captura" o passageiro alheio mudando a agency da inscrição).
+        from users_api.permissions import agency_scope_ids
+        scope = agency_scope_ids(request.user)
+        if scope is not None and e.agency_id is not None and e.agency_id not in scope:
+            return Response({'error': 'Esta inscrição é de outra agência.'}, status=403)
+
         if request.method == 'DELETE':
             e.delete()
             _cleanup_empty_rooms(pl)
@@ -784,6 +792,9 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if 'agency' in request.data:
             from agencies.models import Agency
             ag_id = request.data['agency']
+            # Usuário de agência só atribui a inscrição a uma agência do próprio escopo.
+            if scope is not None and ag_id and _as_int(ag_id) not in scope:
+                return Response({'error': 'Agência fora do seu escopo.'}, status=403)
             e.agency = Agency.objects.filter(pk=_as_int(ag_id)).first() if ag_id else None
         if 'responsible_user' in request.data:
             from django.contrib.auth.models import User

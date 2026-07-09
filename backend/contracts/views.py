@@ -247,6 +247,21 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         return ContractListSerializer if self.action == 'list' else ContractSerializer
 
+    def update(self, request, *args, **kwargs):
+        # A1 (integridade do documento assinado): o contrato só é editável livremente
+        # em 'em_edicao'. Uma vez ENVIADO para assinatura — e mais ainda ASSINADO /
+        # em revisão / faturado — um PATCH recalcularia os totais divergindo do PDF
+        # já assinado (fraude: adulterar valor após a assinatura/faturamento). Para
+        # alterar, o usuário deve REABRIR (reopen/reject), que invalida a assinatura
+        # e volta para edição. Bloqueia PUT e PATCH (partial_update chama update()).
+        contract = self.get_object()
+        if contract.stage != 'em_edicao':
+            return Response(
+                {'error': 'Este contrato não está em edição. Reabra-o para alterar — '
+                          'isso invalida a assinatura e exige nova revisão.'},
+                status=http_status.HTTP_409_CONFLICT)
+        return super().update(request, *args, **kwargs)
+
     @action(detail=True, methods=['delete'], url_path='discard')
     def discard(self, request, pk=None):
         """Descarta um RASCUNHO (cancelar contrato novo). Apaga de vez — nunca
