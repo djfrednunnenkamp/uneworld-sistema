@@ -72,6 +72,8 @@ def serialize_user(u, perms=None):
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
         'phone':        perms.phone,
         'avatar_url':   perms.avatar.url if perms.avatar else None,
+        'avatar_original_url': perms.avatar_original.url if perms.avatar_original else None,
+        'avatar_crop':  perms.avatar_crop or {},
         'storage_limit_bytes': perms.storage_limit_bytes,
         'is_staff':     u.is_staff,
         'is_superuser': u.is_superuser,
@@ -224,10 +226,13 @@ def me_avatar(request):
     perms = get_user_permissions(request.user)
 
     if request.method == 'DELETE':
-        if perms.avatar:
-            delete_fieldfile(perms.avatar, 'avatar do usuário')
-            perms.avatar = None
-            perms.save(update_fields=['avatar'])
+        if perms.avatar or perms.avatar_original:
+            if perms.avatar:
+                delete_fieldfile(perms.avatar, 'avatar do usuário')
+            if perms.avatar_original:
+                delete_fieldfile(perms.avatar_original, 'avatar original do usuário')
+            perms.avatar = None; perms.avatar_original = None; perms.avatar_crop = {}
+            perms.save(update_fields=['avatar', 'avatar_original', 'avatar_crop'])
             log_event('delete', model_name='UserPermissions', model_label='Foto de perfil',
                       object_id=request.user.id, object_repr=f'Foto de perfil — {user_display(request.user)}', user=request.user)
         return Response(serialize_user(request.user))
@@ -271,7 +276,28 @@ def me_avatar(request):
     if perms.avatar:
         delete_fieldfile(perms.avatar, 'avatar do usuário')
     perms.avatar.save(f'{request.user.id}.jpg', ContentFile(buf.read()), save=False)
-    perms.save(update_fields=['avatar'])
+    update_fields = ['avatar']
+
+    # Não-destrutivo: guarda a imagem ORIGINAL (para reabrir/desfazer) + o recorte.
+    from passengers.validators import sanitize_image, parse_crop
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    orig = request.FILES.get('original')
+    if orig:
+        try:
+            cf = sanitize_image(orig, fmt='JPEG', max_dim=1600, bg=(255, 255, 255), max_bytes=_AVATAR_MAX_BYTES)
+        except DjangoValidationError:
+            cf = None
+        if cf is not None:
+            if perms.avatar_original:
+                delete_fieldfile(perms.avatar_original, 'avatar original do usuário')
+            perms.avatar_original.save(f'{request.user.id}_orig.jpg', cf, save=False)
+            update_fields.append('avatar_original')
+    crop = parse_crop(request.data.get('crop'))
+    if crop:
+        perms.avatar_crop = crop
+        update_fields.append('avatar_crop')
+
+    perms.save(update_fields=update_fields)
     log_event('upload', model_name='UserPermissions', model_label='Foto de perfil',
               object_id=request.user.id, object_repr=f'Foto de perfil — {user_display(request.user)}', user=request.user)
     return Response(serialize_user(request.user))

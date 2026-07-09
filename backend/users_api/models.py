@@ -48,7 +48,11 @@ class UserPermissions(models.Model):
     # Dados de perfil
     phone      = models.CharField(max_length=30, blank=True, default='')
     # Foto de perfil. Sempre revalidada e re-encodada como JPEG no upload (seguro).
-    avatar     = models.ImageField('Foto de perfil', upload_to=avatar_upload_path, null=True, blank=True)
+    # `avatar` = recorte exibido; `avatar_original` = imagem completa enviada;
+    # `avatar_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.
+    avatar          = models.ImageField('Foto de perfil', upload_to=avatar_upload_path, null=True, blank=True)
+    avatar_original = models.ImageField('Foto de perfil (original)', upload_to=avatar_upload_path, null=True, blank=True)
+    avatar_crop     = models.JSONField('Recorte da foto', default=dict, blank=True)
 
     # Visão Geral (Dashboard)
     dashboard_view_passengers  = models.BooleanField(default=False)

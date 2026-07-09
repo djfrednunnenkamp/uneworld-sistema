@@ -83,7 +83,11 @@ class Agency(models.Model):
     notes = models.TextField('Observações', blank=True)
 
     # Logo da agência. Sempre revalidada e re-encodada como PNG no upload (seguro).
+    # Não-destrutivo: `logo` = recorte exibido; `logo_original` = imagem completa;
+    # `logo_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.
     logo  = models.ImageField('Logo', upload_to=agency_logo_path, null=True, blank=True)
+    logo_original = models.ImageField('Logo (original)', upload_to=agency_logo_path, null=True, blank=True)
+    logo_crop     = models.JSONField('Recorte da logo', default=dict, blank=True)
 
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='agencies_created', verbose_name='Criado por')

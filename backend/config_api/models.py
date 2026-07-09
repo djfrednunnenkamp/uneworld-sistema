@@ -610,6 +610,19 @@ class SystemSettings(models.Model):
     logo_contract = models.ImageField('Logo dos contratos', upload_to=branding_logo_path, null=True, blank=True)
     logo_voucher  = models.ImageField('Logo dos vouchers', upload_to=branding_logo_path, null=True, blank=True)
     logo_list     = models.ImageField('Logo do PDF da lista de passageiros', upload_to=branding_logo_path, null=True, blank=True)
+    # Não-destrutivo: a imagem ORIGINAL de cada logo (para reabrir/desfazer o
+    # enquadramento). Os dados do recorte ficam em `branding_crops` (slot → {u,v,du,dv,fw,fh}).
+    logo_system_original   = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_sidebar_original  = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_topbar_original   = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_login_original    = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    favicon_original       = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_site_original     = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_pdf_original      = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_contract_original = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_voucher_original  = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_list_original     = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    branding_crops = models.JSONField('Recortes das logos', default=dict, blank=True)
     # Template GLOBAL padrão do voucher (blocos). Vazio = usa o padrão do código
     # (vouchers.models.DEFAULT_VOUCHER_BLOCKS). Cada lista pode ter o seu próprio.
     voucher_template = models.JSONField('Template padrão do voucher', default=list, blank=True)

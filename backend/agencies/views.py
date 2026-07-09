@@ -88,11 +88,14 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         from audit.tracking import log_event
         agency = self.get_object()
         if request.method == 'DELETE':
-            if agency.logo:
-                delete_fieldfile(agency.logo, 'logo da agência')
-                agency.logo = None
+            if agency.logo or agency.logo_original:
+                if agency.logo:
+                    delete_fieldfile(agency.logo, 'logo da agência')
+                if agency.logo_original:
+                    delete_fieldfile(agency.logo_original, 'logo original da agência')
+                agency.logo = None; agency.logo_original = None; agency.logo_crop = {}
                 agency._skip_audit_signal = True    # logamos como 'delete' de logo, não 'update'
-                agency.save(update_fields=['logo'])
+                agency.save(update_fields=['logo', 'logo_original', 'logo_crop'])
                 log_event('delete', model_name='Agency', model_label='Logo da agência',
                           object_id=agency.id, object_repr=f'Logo — {agency}', user=request.user)
             return Response(self.get_serializer(agency).data)
@@ -126,8 +129,29 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         if agency.logo:
             delete_fieldfile(agency.logo, 'logo da agência')
         agency.logo.save(f'{agency.id}.png', ContentFile(buf.read()), save=False)
+        update_fields = ['logo']
+
+        # Não-destrutivo: guarda a logo ORIGINAL (para reabrir/desfazer) + o recorte.
+        from passengers.validators import sanitize_image, parse_crop
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        orig = request.FILES.get('original')
+        if orig:
+            try:
+                cf = sanitize_image(orig, fmt='PNG', max_dim=1600, max_bytes=5 * 1024 * 1024)
+            except DjangoValidationError:
+                cf = None
+            if cf is not None:
+                if agency.logo_original:
+                    delete_fieldfile(agency.logo_original, 'logo original da agência')
+                agency.logo_original.save(f'{agency.id}_orig.png', cf, save=False)
+                update_fields.append('logo_original')
+        crop = parse_crop(request.data.get('crop'))
+        if crop:
+            agency.logo_crop = crop
+            update_fields.append('logo_crop')
+
         agency._skip_audit_signal = True        # logamos como 'upload' de logo, não 'update'
-        agency.save(update_fields=['logo'])
+        agency.save(update_fields=update_fields)
         log_event('upload', model_name='Agency', model_label='Logo da agência',
                   object_id=agency.id, object_repr=f'Logo — {agency}', user=request.user)
         return Response(self.get_serializer(agency).data)

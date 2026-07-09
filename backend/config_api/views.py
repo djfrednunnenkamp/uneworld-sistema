@@ -1926,6 +1926,8 @@ BRANDING_SLOTS = {
     'voucher':  'logo_voucher',   # PDF dos vouchers
     'list':     'logo_list',      # PDF da lista de passageiros
 }
+# Campo da imagem ORIGINAL (não-destrutivo) de cada slot.
+BRANDING_ORIGINAL_SLOTS = {slot: f'{field}_original' for slot, field in BRANDING_SLOTS.items()}
 
 
 @api_view(['GET'])
@@ -1942,6 +1944,10 @@ def branding_logos(request):
         except Exception:
             return f.url
     data = {slot: url(getattr(obj, field)) for slot, field in BRANDING_SLOTS.items()}
+    # Não-destrutivo: URL da imagem original de cada slot + os dados de enquadramento.
+    for slot, ofield in BRANDING_ORIGINAL_SLOTS.items():
+        data[f'{slot}_original'] = url(getattr(obj, ofield, None))
+    data['crops'] = obj.branding_crops or {}
     # Título da aba do navegador: valor cru p/ o campo + texto padrão quando vazio.
     data['title'] = obj.browser_title or ''
     data['title_fallback'] = 'Operadora'
@@ -2000,18 +2006,21 @@ def branding_logo_set(request, slot):
     field = BRANDING_SLOTS.get(slot)
     if not field:
         return Response({'error': 'Lugar inválido.'}, status=status.HTTP_404_NOT_FOUND)
+    ofield = BRANDING_ORIGINAL_SLOTS.get(slot)
     obj = SystemSettings.get()
     if str(request.data.get('clear', '')).lower() in ('1', 'true'):
-        old = getattr(obj, field)
-        if old:
-            old.delete(save=False)
-        setattr(obj, field, None)
-        obj.save(update_fields=[field])
+        for fld in (field, ofield):
+            old = getattr(obj, fld, None)
+            if old:
+                old.delete(save=False)
+            setattr(obj, fld, None)
+        crops = dict(obj.branding_crops or {}); crops.pop(slot, None); obj.branding_crops = crops
+        obj.save(update_fields=[field, ofield, 'branding_crops'])
         return Response({'url': None})
     up = request.FILES.get('image') or request.FILES.get('logo')
     if not up:
         return Response({'error': 'Envie a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
-    from passengers.validators import validate_document_file
+    from passengers.validators import validate_document_file, sanitize_image, parse_crop
     from django.core.exceptions import ValidationError as DjangoValidationError
     try:
         validate_document_file(up, allowed_exts={'.png', '.jpg', '.jpeg', '.webp'}, allow_images=True)
@@ -2021,7 +2030,27 @@ def branding_logo_set(request, slot):
     if old:
         old.delete(save=False)
     setattr(obj, field, up)
-    obj.save(update_fields=[field])
+    update_fields = [field]
+
+    # Não-destrutivo: guarda a ORIGINAL (para reabrir/desfazer) + o recorte.
+    orig = request.FILES.get('original')
+    if orig:
+        try:
+            cf = sanitize_image(orig, fmt='PNG', max_dim=1600)
+        except DjangoValidationError:
+            cf = None
+        if cf is not None:
+            oldo = getattr(obj, ofield, None)
+            if oldo:
+                oldo.delete(save=False)
+            getattr(obj, ofield).save('logo_orig.png', cf, save=False)
+            update_fields.append(ofield)
+    crop = parse_crop(request.data.get('crop'))
+    if crop:
+        crops = dict(obj.branding_crops or {}); crops[slot] = crop; obj.branding_crops = crops
+        update_fields.append('branding_crops')
+
+    obj.save(update_fields=update_fields)
     return Response({'url': request.build_absolute_uri(getattr(obj, field).url)})
 
 

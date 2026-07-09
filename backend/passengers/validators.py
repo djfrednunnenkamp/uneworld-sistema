@@ -219,3 +219,64 @@ def validate_video_file(file):
     if not (is_mp4 or is_webm or is_ogg):
         raise ValidationError('Arquivo rejeitado: o conteúdo não parece um vídeo válido.')
     return file
+
+
+# ── Recorte não-destrutivo (logos/avatar) ──────────────────────────────────────
+# Guardamos SEMPRE a imagem original + os dados de enquadramento (crop). Estas
+# helpers abrem/verificam/re-encodam a imagem enviada, descartando payload/EXIF.
+
+def sanitize_image(f, *, fmt='PNG', max_dim=2000, bg=(255, 255, 255), max_bytes=8 * 1024 * 1024):
+    """Abre, VERIFICA e re-encoda uma imagem (descarta qualquer payload/EXIF),
+    limitando a maior dimensão a `max_dim`. fmt='PNG' preserva transparência;
+    'JPEG' achata sobre `bg`. Devolve um ContentFile pronto para .save().
+    Levanta ValidationError se o arquivo não for uma imagem válida."""
+    from PIL import ImageOps
+    from django.core.files.base import ContentFile
+    if getattr(f, 'size', 0) and f.size > max_bytes:
+        raise ValidationError('Imagem muito grande.')
+    try:
+        probe = Image.open(f)
+        probe.verify()                       # detecta arquivo corrompido/falsificado
+        f.seek(0)
+        img = ImageOps.exif_transpose(Image.open(f))
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+        raise ValidationError('Arquivo de imagem inválido.')
+    if fmt == 'JPEG':
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGBA')
+            base = Image.new('RGB', img.size, tuple(bg))
+            base.paste(img, mask=img.split()[-1])
+            img = base
+        else:
+            img = img.convert('RGB')
+    else:
+        img = img.convert('RGBA')
+    if max(img.size) > max_dim:
+        img.thumbnail((max_dim, max_dim))
+    buf = io.BytesIO()
+    if fmt == 'JPEG':
+        img.save(buf, format='JPEG', quality=90, optimize=True)
+    else:
+        img.save(buf, format='PNG', optimize=True)
+    buf.seek(0)
+    return ContentFile(buf.read())
+
+
+def parse_crop(raw):
+    """Lê o JSON de enquadramento {u,v,du,dv,fw,fh} enviado pelo cliente. Devolve um
+    dict só com números válidos, ou {} se inválido/ausente."""
+    import json
+    if not raw:
+        return {}
+    try:
+        d = json.loads(raw) if isinstance(raw, str) else raw
+        if not isinstance(d, dict):
+            return {}
+    except (ValueError, TypeError):
+        return {}
+    out = {}
+    for k in ('u', 'v', 'du', 'dv', 'fw', 'fh'):
+        v = d.get(k)
+        if isinstance(v, (int, float)):
+            out[k] = float(v)
+    return out
