@@ -68,7 +68,7 @@ def dashboard_stats(request):
                 'end_date': l.end_date,
                 'status': l.status,
                 # Para usuário de agência, mostra só a contagem de passageiros DELE na lista.
-                'enrolled_count': (l.list_enrollments.filter(agency_id__in=scope).count()
+                'enrolled_count': (l.list_enrollments.filter(agency_id__in=scope).exclude(passenger__is_deleted=True).count()
                                    if scope is not None else l.enrolled_count),
                 'block_capacity': l.block_capacity,
                 'is_ongoing': _ongoing(l),

@@ -166,7 +166,8 @@ class PassengerList(models.Model):
 
     @property
     def enrolled_count(self):
-        return self.list_enrollments.count()
+        # Passageiros na lixeira (soft-delete) não contam; bloqueios (passenger nulo) permanecem.
+        return self.list_enrollments.exclude(passenger__is_deleted=True).count()
 
 
 class ListEnrollment(models.Model):
