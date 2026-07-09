@@ -273,6 +273,8 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             m.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         if 'role' in request.data:
+            if request.data['role'] not in {c[0] for c in AgencyMember.ROLE_CHOICES}:
+                return Response({'error': 'Função inválida.'}, status=400)
             m.role = request.data['role']
-            m.save()
+            m.save(update_fields=['role'])
         return Response({'id': m.id, 'role': m.role})

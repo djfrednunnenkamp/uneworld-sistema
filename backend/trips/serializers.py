@@ -449,7 +449,9 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         if obj.agency_id:
             return obj.agency_id
         if obj.passenger_id:
-            ids = list(obj.passenger.agencies.values_list('id', flat=True))
+            # Itera o prefetch de passenger__agencies (já feito na view). Usar
+            # .values_list() dispararia uma query nova por inscrição → N+1.
+            ids = [a.id for a in obj.passenger.agencies.all()]
             if len(ids) == 1:
                 return ids[0]
         return None
