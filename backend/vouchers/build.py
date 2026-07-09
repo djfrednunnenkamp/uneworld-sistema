@@ -211,12 +211,19 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
 
     couple_rooms = {}   # accom_name -> [enrollment,...]
     singles = []
+    accom_members = {}  # accom_name -> [(passenger_id, full_name),...] p/ "A compartilhar com"
     for en in ens:
         accom = (en.accommodation or '').strip()
+        if accom:
+            accom_members.setdefault(accom, []).append((en.passenger_id, en.passenger.full_name))
         if accom and is_couple(accom):
             couple_rooms.setdefault(accom, []).append(en)
         else:
             singles.append(en)
+
+    # Outros passageiros do MESMO quarto (mesma acomodação), fora os do próprio voucher.
+    def roommates_of(accom, own_ids):
+        return [name for pid, name in accom_members.get((accom or '').strip(), []) if pid not in own_ids]
 
     entries = []
     for accom, group in couple_rooms.items():
@@ -229,6 +236,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'passengers': [e.passenger.full_name for e in group],
             'passenger_ids': [e.passenger_id for e in group],
             'passenger_genders': [getattr(e.passenger, 'gender', '') or '' for e in group],
+            'roommates': roommates_of(accom, {e.passenger_id for e in group}),
             'agency_name': ag_name,
             'agency_logo': ag_logo,
             'flight_confirmations': fc_map.get(key, []),
@@ -250,6 +258,7 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             'passengers': [en.passenger.full_name],
             'passenger_ids': [en.passenger_id],
             'passenger_genders': [getattr(en.passenger, 'gender', '') or ''],
+            'roommates': roommates_of(en.accommodation, {en.passenger_id}),
             'agency_name': ag_name,
             'agency_logo': ag_logo,
             'flight_confirmations': fc_map.get(key, []),
