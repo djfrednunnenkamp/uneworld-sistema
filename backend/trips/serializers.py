@@ -272,6 +272,17 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_status      = serializers.SerializerMethodField()
     passenger_is_verified = serializers.SerializerMethodField()
     contract              = serializers.SerializerMethodField()
+    # Voucher: chave da entry e URL da confirmação de voo (mapa montado na view).
+    voucher_entry_key     = serializers.SerializerMethodField()
+    flight_confirmation   = serializers.SerializerMethodField()
+
+    def get_voucher_entry_key(self, obj):
+        m = self.context.get('voucher_by_passenger') or {}
+        return m.get(obj.passenger_id, {}).get('entry_key') if obj.passenger_id else None
+
+    def get_flight_confirmation(self, obj):
+        m = self.context.get('voucher_by_passenger') or {}
+        return m.get(obj.passenger_id, {}).get('flight_confirmation') if obj.passenger_id else None
 
     def _p(self, obj): return obj.passenger  # helper
 
@@ -528,6 +539,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'origin_airport', 'origin_airport_data',
             'ticket_status', 'connection_ticket_status',
             'selected_passport', 'selected_passport_data',
+            'voucher_entry_key', 'flight_confirmation',
             'order_in_list', 'enrolled_at', 'notes',
         ]
         read_only_fields = ['enrolled_at']

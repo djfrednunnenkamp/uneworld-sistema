@@ -438,10 +438,26 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
             contracts_by_passenger = self._contracts_by_passenger(request.user, pl)
 
+            # Confirmação de voo do voucher, por passageiro (entry_key + URL).
+            voucher_by_passenger = {}
+            try:
+                from vouchers import build as voucher_build
+                from vouchers.models import VoucherList
+                voucher = VoucherList.objects.filter(passenger_list=pl).first()
+                for en in voucher_build.build_entries(pl, request=request, voucher=voucher):
+                    for pid in en.get('passenger_ids', []):
+                        voucher_by_passenger[pid] = {
+                            'entry_key': en['key'],
+                            'flight_confirmation': en.get('flight_confirmation'),
+                        }
+            except Exception:
+                voucher_by_passenger = {}
+
             return Response(ListEnrollmentSerializer(
                 entries, many=True, context={
                     'country_codes': country_codes,
                     'contracts_by_passenger': contracts_by_passenger,
+                    'voucher_by_passenger': voucher_by_passenger,
                 }
             ).data)
 
