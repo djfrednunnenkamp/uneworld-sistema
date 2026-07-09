@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'agenda',
     'contracts',
     'itineraries',
+    'laminas',
     'drive',
     'vouchers',
     'channels',

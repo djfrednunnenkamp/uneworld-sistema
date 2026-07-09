@@ -131,6 +131,10 @@ class UserPermissions(models.Model):
     # Permissão restrita: SÓ editar/enviar as imagens das LÂMINAS do roteiro (nada mais).
     roteiros_laminas_edit = models.BooleanField(default=False)
 
+    # Lâminas (gerador de cartazes de roteiros) — ver é a base.
+    laminas_view = models.BooleanField(default=False)   # ver o gerador de lâminas
+    laminas_edit = models.BooleanField(default=False)   # criar/editar/excluir/exportar lâminas
+
     # Meus Documentos (Drive pessoal) — "ver" é a base; as demais dependem dela.
     documentos_view       = models.BooleanField(default=False)   # ver a aba e navegar os próprios
     documentos_create     = models.BooleanField(default=False)   # criar documentos Office em branco

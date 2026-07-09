@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/agenda/',   include('agenda.urls')),
     path('api/contracts/', include('contracts.urls')),
     path('api/itineraries/', include('itineraries.urls')),
+    path('api/laminas/', include('laminas.urls')),
     path('api/drive/', include('drive.urls')),
     path('api/vouchers/', include('vouchers.urls')),
 ]

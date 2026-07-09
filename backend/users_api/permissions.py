@@ -57,6 +57,9 @@ PERMISSION_FIELDS = [
     'roteiros_docs_delete_own',
     'roteiros_images_from_gallery',
     'roteiros_laminas_edit',
+    # Lâminas
+    'laminas_view',
+    'laminas_edit',
     # Meus Documentos (Drive pessoal)
     'documentos_view',
     'documentos_create',
