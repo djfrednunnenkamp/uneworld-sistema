@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -10,6 +11,8 @@ from users_api.permissions import RequirePermission
 from .models import CalendarPreference
 from .serializers import CalendarPreferenceSerializer
 from .services import collect_events, send_digest_email
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['GET'])
@@ -218,6 +221,10 @@ def _verify_resend_signature(request) -> bool:
         Webhook(secret).verify(request.body, headers)
         return True
     except WebhookVerificationError:
+        # Assinatura inválida: pode ser configuração errada do secret ou tentativa de
+        # forjar eventos de entrega. Registra para observabilidade (sem alterar a resposta).
+        logger.warning('Webhook Resend rejeitado: assinatura inválida (svix-id=%s).',
+                       request.headers.get('svix-id', ''))
         return False
 
 
