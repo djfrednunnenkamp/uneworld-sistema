@@ -6,7 +6,8 @@ class LaminaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lamina
         fields = ['id', 'name', 'headline', 'theme', 'pattern', 'columns', 'rows',
-                  'roteiro_ids', 'created_by', 'created_at', 'updated_at']
+                  'roteiro_ids', 'footer', 'source', 'agency',
+                  'created_by', 'created_at', 'updated_at']
         read_only_fields = ['created_by', 'created_at', 'updated_at']
 
     def validate_columns(self, v):

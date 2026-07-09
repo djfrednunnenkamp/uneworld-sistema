@@ -532,6 +532,7 @@ class OperatingCompany(models.Model):
     phone          = models.CharField('Telefone fixo', max_length=20, blank=True)
     mobile         = models.CharField('Celular', max_length=20, blank=True)
     email          = models.EmailField('E-mail', blank=True)
+    website        = models.CharField('Site', max_length=300, blank=True)
     address        = models.CharField('Endereço', max_length=300, blank=True)
     # PIX da UneWorld — usado no contrato quando a agência marca "usar PIX da UneWorld".
     pix_key_type   = models.CharField('Tipo de chave PIX', max_length=20, blank=True)

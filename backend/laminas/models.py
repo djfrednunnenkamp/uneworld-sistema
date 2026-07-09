@@ -23,6 +23,10 @@ class Lamina(models.Model):
     rows        = models.PositiveSmallIntegerField('Linhas', default=2)   # derivado (auto) no front
     # Ordem dos roteiros na lâmina (lista de ids de Itinerary).
     roteiro_ids = models.JSONField('Roteiros (ordem)', default=list, blank=True)
+    # Rodapé com contato: mostra ou não; de quem (operadora ou uma agência).
+    footer      = models.BooleanField('Rodapé com contato', default=False)
+    source      = models.CharField('Marca/contato', max_length=12, default='operadora')  # operadora | agency
+    agency      = models.ForeignKey('agencies.Agency', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     created_by  = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
@@ -34,3 +38,4 @@ class Lamina(models.Model):
 
     def __str__(self):
         return self.name or f'Lâmina #{self.pk}'
+

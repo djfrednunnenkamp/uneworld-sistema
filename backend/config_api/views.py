@@ -2063,7 +2063,7 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = OperatingCompany
-        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address',
+        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'website', 'address',
                   'pix_key_type', 'pix_key',
                   'default_signature_type',
                   'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign', 'ceo_signature',
