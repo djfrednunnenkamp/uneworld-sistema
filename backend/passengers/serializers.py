@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from agencies.models import Agency
+from config_api.models import ConfigSpecialNeed
 from users_api.permissions import has_any_perm
 from .models import Passenger, PassengerDocument
 from .validators import validate_document_file
@@ -58,6 +59,10 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         many=True, queryset=Agency.objects.all(), required=False
     )
     agency_names = serializers.SerializerMethodField()
+    special_needs = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=ConfigSpecialNeed.objects.all(), required=False
+    )
+    special_needs_data = serializers.SerializerMethodField()
     # E-mail opcional (rascunho pode não ter). Guardamos '' como None para não
     # colidir no unique (vários NULL são permitidos; vários '' não seriam).
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
@@ -77,6 +82,7 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
             'seat_position', 'diet_type', 'diet_notes', 'receives_mail', 'cep',
             'street', 'number', 'complement', 'neighborhood', 'city', 'state',
             'country', 'status', 'notes', 'photo', 'agencies', 'agency_names',
+            'special_needs', 'special_needs_data',
             'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
@@ -121,10 +127,15 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
             return a.name or a.company_name or str(a)
         return [{'id': a.id, 'name': _name(a)} for a in obj.agencies.all()]
 
+    def get_special_needs_data(self, obj):
+        return [{'id': n.id, 'name': n.name} for n in obj.special_needs.all()]
+
     def create(self, validated_data):
         agencies = validated_data.pop('agencies', [])
+        special_needs = validated_data.pop('special_needs', [])
         passenger = super().create(validated_data)
         passenger.agencies.set(agencies)
+        passenger.special_needs.set(special_needs)
         # Usuário de agência: garante que o passageiro criado fique ligado à(s)
         # agência(s) dele — senão ele não conseguiria nem ver o que acabou de criar.
         from users_api.permissions import agency_scope_ids
@@ -137,9 +148,12 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         agencies = validated_data.pop('agencies', None)
+        special_needs = validated_data.pop('special_needs', None)
         passenger = super().update(instance, validated_data)
         if agencies is not None:
             passenger.agencies.set(agencies)
+        if special_needs is not None:
+            passenger.special_needs.set(special_needs)
         return passenger
 
 

@@ -195,8 +195,15 @@ class UserPermissions(models.Model):
     settings_user_profiles    = models.BooleanField(default=False)
     settings_list_additionals = models.BooleanField(default=False)
     settings_crew_roles       = models.BooleanField(default=False)
+    settings_special_needs    = models.BooleanField(default=False)
 
     # Configurações — granular por seção
+    settings_special_needs_view        = models.BooleanField(default=False)
+    settings_special_needs_edit        = models.BooleanField(default=False)
+    settings_special_needs_delete      = models.BooleanField(default=False)
+    settings_special_needs_bulk_delete = models.BooleanField(default=False)
+    settings_special_needs_bulk_import = models.BooleanField(default=False)
+    settings_special_needs_export      = models.BooleanField(default=False)
     settings_professions_view        = models.BooleanField(default=False)
     settings_professions_edit        = models.BooleanField(default=False)
     settings_professions_delete      = models.BooleanField(default=False)

@@ -123,8 +123,9 @@ PERMISSION_FIELDS = [
     'settings_professions', 'settings_languages', 'settings_countries',
     'settings_genders', 'settings_vaccines', 'settings_doc_types',
     'settings_prof_cards', 'settings_user_profiles',
-    'settings_list_additionals', 'settings_crew_roles',
+    'settings_list_additionals', 'settings_crew_roles', 'settings_special_needs',
     # Configurações — granular
+    'settings_special_needs_view', 'settings_special_needs_edit', 'settings_special_needs_delete', 'settings_special_needs_bulk_delete', 'settings_special_needs_bulk_import', 'settings_special_needs_export',
     'settings_professions_view', 'settings_professions_edit', 'settings_professions_delete', 'settings_professions_bulk_delete', 'settings_professions_bulk_import', 'settings_professions_import_web', 'settings_professions_export',
     'settings_languages_view', 'settings_languages_edit', 'settings_languages_delete', 'settings_languages_bulk_delete', 'settings_languages_bulk_import', 'settings_languages_import_web', 'settings_languages_export',
     'settings_countries_view', 'settings_countries_edit', 'settings_countries_delete', 'settings_countries_bulk_delete', 'settings_countries_bulk_import', 'settings_countries_import_web', 'settings_countries_export',

@@ -52,6 +52,11 @@ class Passenger(models.Model):
         'agencies.Agency',
         blank=True, verbose_name='Agências', related_name='passengers'
     )
+    # Necessidades especiais (catálogo em Configurações). Multi-seleção.
+    special_needs = models.ManyToManyField(
+        'config_api.ConfigSpecialNeed',
+        blank=True, verbose_name='Necessidades especiais', related_name='passengers'
+    )
 
     # ── Documentos ─────────────────────────────────────────────────
     cpf              = models.CharField('CPF', max_length=20, blank=True, db_index=True)

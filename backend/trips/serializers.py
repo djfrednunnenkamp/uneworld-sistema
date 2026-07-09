@@ -297,6 +297,10 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             return None
         return m.get(obj.passenger_id)
 
+    passenger_special_needs = serializers.SerializerMethodField()
+    def get_passenger_special_needs(self, obj):
+        return [n.name for n in obj.passenger.special_needs.all()] if obj.passenger else []
+
     def get_passenger_name(self, obj):       return obj.passenger.full_name   if obj.passenger else ''
     def get_passenger_cpf(self, obj):        return obj.passenger.cpf         if obj.passenger else ''
     def get_passenger_email(self, obj):      return obj.passenger.email       if obj.passenger else ''
@@ -540,6 +544,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'ticket_status', 'connection_ticket_status',
             'selected_passport', 'selected_passport_data',
             'voucher_entry_key', 'flight_confirmation',
+            'passenger_special_needs',
             'order_in_list', 'enrolled_at', 'notes',
         ]
         read_only_fields = ['enrolled_at']

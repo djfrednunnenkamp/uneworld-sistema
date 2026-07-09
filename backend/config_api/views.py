@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny, B
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
+from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigListCategory, Airport, Airline,
@@ -791,6 +791,19 @@ class GenderViewSet(viewsets.ModelViewSet):
     serializer_class = GenderSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_genders')
+
+
+class SpecialNeedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigSpecialNeed
+        fields = ['id', 'name']
+
+
+class SpecialNeedViewSet(viewsets.ModelViewSet):
+    queryset = ConfigSpecialNeed.objects.all()
+    serializer_class = SpecialNeedSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_special_needs')
 
 
 class ItineraryCategorySerializer(serializers.ModelSerializer):

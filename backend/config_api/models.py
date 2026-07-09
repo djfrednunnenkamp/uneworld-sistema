@@ -27,6 +27,19 @@ class ConfigProfession(models.Model):
         return self.name
 
 
+class ConfigSpecialNeed(models.Model):
+    """Catálogo de necessidades especiais dos passageiros (ex.: Cadeirante, Cego,
+    Autista). O passageiro referencia N destes (M2M)."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Necessidade especial'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigLanguage(models.Model):
     name = models.CharField('Nome', max_length=100, unique=True)
 
