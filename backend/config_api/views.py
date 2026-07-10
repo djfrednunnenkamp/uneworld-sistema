@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes, parser_classes
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny, BasePermission
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -1896,21 +1896,25 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
         fields = ['deadline_notification_emails',
                   'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method']
 
-class _IsStaffOrSuper(BasePermission):
-    def has_permission(self, request, view):
-        u = request.user
-        return bool(u and u.is_authenticated and (u.is_staff or u.is_superuser))
-
 @api_view(['GET', 'PATCH'])
-@permission_classes([_IsStaffOrSuper])
+@permission_classes([IsAuthenticated])
 def system_settings(request):
+    u = request.user
+    is_admin = bool(u and (u.is_staff or u.is_superuser))
     obj = SystemSettings.get()
     if request.method == 'PATCH':
+        if not is_admin:
+            return Response({'detail': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
         ser = SystemSettingsSerializer(obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(ser.data)
-    return Response(SystemSettingsSerializer(obj).data)
+    # GET: admin vê tudo; os demais (ex.: agência montando um contrato) recebem só os
+    # padrões de desconto à vista, que o formulário de contrato precisa ler.
+    data = SystemSettingsSerializer(obj).data
+    if not is_admin:
+        data = {k: data.get(k) for k in ('a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method')}
+    return Response(data)
 
 
 # ── Logos configuráveis por lugar (branding) ────────────────────────────────
