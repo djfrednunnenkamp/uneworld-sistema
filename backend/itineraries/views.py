@@ -48,6 +48,29 @@ def _roteiro_edit_permissions(self):
     return [RequirePermission('roteiros_edit')()]
 
 
+def _roteiro_read_or_contract_permissions(self):
+    """Igual ao de cima, MAS a leitura também é liberada p/ quem faz contratos — o
+    seletor de roteiro do contrato precisa ler as saídas do roteiro. O que cada um
+    ENXERGA continua limitado pelo get_queryset (agência só vê público/compartilhado)."""
+    if self.action in ('list', 'retrieve'):
+        return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete',
+                                  'contracts_view', 'contracts_edit')()]
+    return [RequirePermission('roteiros_edit')()]
+
+
+def _scope_child_to_visible(qs, request):
+    """Restringe child tables (saídas) do roteiro ao que o usuário de agência pode
+    ver: roteiro público OU exclusivo compartilhado com a agência dele. Interno = tudo."""
+    from users_api.permissions import agency_scope_ids
+    from django.db.models import Q
+    scope = agency_scope_ids(request.user)
+    if scope is None:
+        return qs
+    return qs.exclude(itinerary__status='rascunho').filter(
+        Q(itinerary__visibility='public') | Q(itinerary__visibility='agencies', itinerary__shared_agencies__in=scope)
+    ).distinct()
+
+
 def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro', changes=None):
     """Registra um evento de auditoria de roteiro (publicar, upload, reordenar…).
     Eventos que os signals automáticos não capturam (ações e bulk updates)."""
@@ -69,14 +92,14 @@ class ItineraryDepartureViewSet(viewsets.ModelViewSet):
     """Aeroportos de saída de um roteiro (aba Voo). Filtra por ?itinerary=<id>."""
     serializer_class = ItineraryDepartureSerializer
     pagination_class = None
-    get_permissions  = _roteiro_edit_permissions
+    get_permissions  = _roteiro_read_or_contract_permissions
 
     def get_queryset(self):
         qs = ItineraryDeparture.objects.select_related('airport')
         if self.action == 'list':   # o filtro só vale na listagem; detalhe (get/put/delete) usa tudo
             itinerary = self.request.query_params.get('itinerary')
-            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
-        return qs
+            qs = qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return _scope_child_to_visible(qs, self.request)
 
 
 class ItineraryFlightViewSet(viewsets.ModelViewSet):
@@ -111,14 +134,14 @@ class ItineraryTerrestreDepartureViewSet(viewsets.ModelViewSet):
     """Cidades de partida de um roteiro (aba Terrestre). Filtra por ?itinerary=<id>."""
     serializer_class = ItineraryTerrestreDepartureSerializer
     pagination_class = None
-    get_permissions  = _roteiro_edit_permissions
+    get_permissions  = _roteiro_read_or_contract_permissions
 
     def get_queryset(self):
         qs = ItineraryTerrestreDeparture.objects.select_related('city__state__country')
         if self.action == 'list':
             itinerary = self.request.query_params.get('itinerary')
-            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
-        return qs
+            qs = qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return _scope_child_to_visible(qs, self.request)
 
 
 class ItineraryTerrestreLegViewSet(viewsets.ModelViewSet):
@@ -630,10 +653,15 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft'):
             return [RequirePermission('roteiros_edit')()]
         if self.action == 'list':
-            return [RequirePermission('roteiros_view', 'roteiros_laminas_edit')()]
-        # retrieve/config/demais leituras de UM roteiro = abrir (só leitura) ou mais.
+            # Também quem faz contratos: o seletor de roteiro do contrato lista os
+            # roteiros. O get_queryset limita a agência a público/compartilhado.
+            return [RequirePermission('roteiros_view', 'roteiros_laminas_edit',
+                                      'contracts_view', 'contracts_edit')()]
+        # retrieve/config/published/demais leituras de UM roteiro = abrir (só leitura),
+        # ou quem faz contratos (precisa ler a foto pública p/ travar os valores).
         return [RequirePermission('roteiros_open', 'roteiros_edit', 'roteiros_create',
-                                  'roteiros_delete', 'roteiros_laminas_edit')()]
+                                  'roteiros_delete', 'roteiros_laminas_edit',
+                                  'contracts_view', 'contracts_edit')()]
 
     def _laminas_only(self):
         """True quando o usuário só tem a permissão restrita de lâminas (pode mexer
