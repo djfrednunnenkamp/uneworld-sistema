@@ -149,6 +149,7 @@ class ContractListSerializer(serializers.ModelSerializer):
     guest_names      = serializers.SerializerMethodField()
     signed_file      = serializers.SerializerMethodField()
     signed_verification = serializers.JSONField(read_only=True)
+    last_due_date    = serializers.SerializerMethodField()   # última parcela (p/ Em pagamento/Pagos)
 
     class Meta:
         model  = Contract
@@ -157,8 +158,12 @@ class ContractListSerializer(serializers.ModelSerializer):
                   'total_brl', 'total_usd', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
                   'autentique_document_id',
                   'created_at', 'updated_at', 'sent_at', 'signed_at', 'reviewed_at', 'review_note',
-                  'invoice_number', 'invoice_date', 'invoiced_at',
+                  'invoice_number', 'invoice_date', 'invoiced_at', 'last_due_date',
                   'is_deleted', 'deleted_at']
+
+    def get_last_due_date(self, obj):
+        dates = [i.due_date for i in obj.installments.all() if i.due_date]
+        return max(dates).isoformat() if dates else None
 
     def get_agency_name(self, obj):
         return _agency_brief(obj.agency)['name'] if obj.agency_id else ''

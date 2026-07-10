@@ -214,6 +214,22 @@ def enroll_contract_guests(contract, pl):
     return enrolled, skipped, enrolled_ids
 
 
+def _promote_paid_contracts():
+    """Move os contratos 'Em pagamento' para 'Pagos' (faturado) DEPOIS que a última
+    parcela venceu — ou seja, quando a maior due_date das parcelas já passou.
+    Rodado ao listar contratos e pelo comando de management (cron)."""
+    from django.db.models import Max
+    from django.utils import timezone
+    today = timezone.localdate()
+    ids = list(Contract.objects.filter(stage='em_pagamento', is_deleted=False)
+               .annotate(_last_due=Max('installments__due_date'))
+               .filter(_last_due__isnull=False, _last_due__lt=today)
+               .values_list('id', flat=True))
+    if ids:
+        Contract.objects.filter(id__in=ids).update(stage='faturado')
+    return ids
+
+
 class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset        = Contract.objects.select_related('agency', 'contratante', 'passenger_list', 'itinerary').prefetch_related(
         'accommodation_lines', 'guests__passenger', 'installments', 'adjustments', 'clauses')
@@ -238,6 +254,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # Na listagem, rascunhos ficam fora por padrão; ?status=rascunho traz só
         # eles (já restritos ao dono pelo filtro acima).
         if self.action == 'list':
+            _promote_paid_contracts()   # 'Em pagamento' → 'Pagos' após vencer a última parcela
             if self.request.query_params.get('status') == 'rascunho':
                 qs = qs.filter(status='rascunho')
             else:
@@ -574,29 +591,18 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='invoice')
     def invoice(self, request, pk=None):
-        """A faturar → Faturado. Registra número e data da fatura."""
+        """Verificação do financeiro → Em pagamento. O financeiro confere que está
+        tudo certo e libera; a passagem para 'Pagos' (faturado) é AUTOMÁTICA depois
+        que a última parcela vence (ver _promote_paid_contracts)."""
         from django.utils import timezone
-        from datetime import date as _date
         contract = self.get_object()
-        if contract.stage not in ('a_faturar', 'faturado'):
-            return Response({'error': 'Só é possível faturar um contrato que está "A faturar".'},
+        if contract.stage != 'a_faturar':
+            return Response({'error': 'Só é possível verificar um contrato na Verificação do financeiro.'},
                             status=http_status.HTTP_400_BAD_REQUEST)
-        number = (request.data.get('invoice_number') or '').strip()
-        if not number:
-            return Response({'error': 'Informe o número da fatura.'}, status=http_status.HTTP_400_BAD_REQUEST)
-        raw_date = (request.data.get('invoice_date') or '').strip()
-        inv_date = None
-        if raw_date:
-            try:
-                inv_date = _date.fromisoformat(raw_date)
-            except ValueError:
-                return Response({'error': 'Data da fatura inválida.'}, status=http_status.HTTP_400_BAD_REQUEST)
-        contract.invoice_number = number
-        contract.invoice_date = inv_date
-        contract.invoiced_at = timezone.now()
+        contract.stage = 'em_pagamento'
+        contract.invoiced_at = timezone.now()   # verificado/liberado para pagamento em
         contract.invoiced_by = request.user
-        contract.stage = 'faturado'
-        contract.save(update_fields=['invoice_number', 'invoice_date', 'invoiced_at', 'invoiced_by', 'stage'])
+        contract.save(update_fields=['invoiced_at', 'invoiced_by', 'stage'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='reject')

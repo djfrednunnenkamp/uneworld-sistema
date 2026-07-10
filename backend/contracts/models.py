@@ -118,14 +118,19 @@ class Contract(models.Model):
     # Etapa do ciclo de vida: em edição → enviado para assinatura → (assinado) →
     # em revisão (operadora confere) → aprovado. 'assinado' fica como estado
     # legado; ao completar a assinatura o contrato vai direto para 'revisao'.
+    # Fluxo: em edição → enviado → (assinado) → revisão → aprovar → verificação do
+    # financeiro (a_faturar) → em pagamento → pagos (faturado). A passagem de
+    # 'em_pagamento' para 'faturado' (Pagos) é AUTOMÁTICA: acontece depois que a
+    # última parcela (maior due_date) vence.
     STAGE_CHOICES = [
         ('em_edicao', 'Em edição'),
         ('enviado', 'Enviado para assinatura'),
         ('assinado', 'Assinado'),
         ('revisao', 'Em revisão'),
         ('aprovado', 'Aprovado'),        # legado — hoje aprovar já manda para 'a_faturar'
-        ('a_faturar', 'A faturar'),
-        ('faturado', 'Faturado'),
+        ('a_faturar', 'Verificação do financeiro'),
+        ('em_pagamento', 'Em pagamento'),
+        ('faturado', 'Pagos'),
     ]
     stage       = models.CharField('Etapa', max_length=12, choices=STAGE_CHOICES, default='em_edicao', db_index=True)
     # Revisão da operadora (após a assinatura completa).
