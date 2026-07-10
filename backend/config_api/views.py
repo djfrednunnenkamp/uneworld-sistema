@@ -1157,8 +1157,8 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
             ConfigBoatMedia.objects.filter(id=mid).update(order=i)
         boat_id = ConfigBoatMedia.objects.filter(id__in=ids).values_list('boat_id', flat=True).first() if ids else None
         if boat_id:
-            log_event('update', model_name='ConfigBoat', model_label='Barco (catálogo)',
-                      object_id=boat_id, object_repr=f'Barco #{boat_id}',
+            log_event('update', model_name='ConfigBoat', model_label='Navio (catálogo)',
+                      object_id=boat_id, object_repr=f'Navio #{boat_id}',
                       changes={'Mídias': {'antes': '—', 'depois': 'reordenadas'}})
         return Response({'ok': True})
 
