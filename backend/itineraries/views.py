@@ -388,7 +388,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         'accommodation_lines__accommodation_type',
         'cities__state__country', 'countries', 'airports', 'keywords', 'inclusions', 'highlights',
         'itinerary_types', 'special_dates', 'continents',
-        'days__city', 'days__images', 'images',
+        'days__city', 'days__images', 'images', 'shared_agencies',
     )
     pagination_class = StandardResultsPagination
     filter_backends  = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
@@ -397,8 +397,17 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         from django.db.models import Q
+        from users_api.permissions import agency_scope_ids
         qs = super().get_queryset()   # aplica o filtro is_deleted do mixin
         u = self.request.user
+        # Usuário de agência: só enxerga roteiros PÚBLICOS (visibility='public', que
+        # toda agência pode contratar) OU EXCLUSIVOS compartilhados com a agência dele.
+        # Nunca vê rascunho nem "não listado" (interno da operadora).
+        scope = agency_scope_ids(u)
+        if scope is not None:
+            return qs.exclude(status='rascunho').filter(
+                Q(visibility='public') | Q(visibility='agencies', shared_agencies__in=scope)
+            ).distinct()
         # Rascunho é PRIVADO do criador — NEM o superusuário vê o de outra pessoa.
         # (Rascunhos legados sem dono ficam só p/ o superusuário, para limpeza.)
         own_draft = Q(created_by=u)
@@ -479,6 +488,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             # lista pública e só é finalizado quando a pessoa escolher no Salvar.
             copy.status = 'rascunho'
             copy.is_published = False
+            copy.visibility = 'unlisted'   # cópia nasce não listada (sem herdar agências)
             copy.published_data = None
             copy.published_at = None
             copy.has_unpublished_changes = False
@@ -669,10 +679,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         snapshot = ItinerarySerializer(obj, context=self.get_serializer_context()).data
         obj.published_data = json.loads(json.dumps(snapshot, cls=DjangoJSONEncoder))
         obj.is_published = True
+        obj.visibility = 'public'   # publicar = tornar público (todas as agências)
         obj.has_unpublished_changes = False
         obj.published_at = timezone.now()
         obj._skip_audit_signal = True   # eu logo 'publish'; evita 'update' duplicado
-        obj.save(update_fields=['published_data', 'is_published', 'has_unpublished_changes', 'published_at'])
+        obj.save(update_fields=['published_data', 'is_published', 'visibility', 'has_unpublished_changes', 'published_at'])
         _audit(request, 'publish', obj)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
 
@@ -680,8 +691,10 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def unpublish(self, request, pk=None):
         obj = self.get_object()
         obj.is_published = False
+        # Ao despublicar, cai para "exclusivo" se já tinha agências, senão "não listado".
+        obj.visibility = 'agencies' if obj.shared_agencies.exists() else 'unlisted'
         obj._skip_audit_signal = True   # eu logo 'unpublish'; evita 'update' duplicado
-        obj.save(update_fields=['is_published'])
+        obj.save(update_fields=['is_published', 'visibility'])
         _audit(request, 'unpublish', obj)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
 

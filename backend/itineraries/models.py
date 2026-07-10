@@ -202,6 +202,15 @@ class Itinerary(models.Model):
     published_at            = models.DateTimeField('Publicado em', null=True, blank=True)
     has_unpublished_changes = models.BooleanField('Alterações não publicadas', default=False)
 
+    # Visibilidade em 3 estados exclusivos (fonte da verdade do acesso):
+    #   public   → visível ao público E a TODAS as agências (podem contratar). ⇔ is_published=True
+    #   unlisted → só a operadora (interno). ⇔ is_published=False, sem agências
+    #   agencies → EXCLUSIVO: só as agências em shared_agencies veem/contratam (não editam).
+    # is_published é mantido em sincronia (public ⇔ is_published) p/ os leitores existentes.
+    VISIBILITY_CHOICES = [('public', 'Público'), ('unlisted', 'Não listado'), ('agencies', 'Exclusivo para agências')]
+    visibility = models.CharField('Visibilidade', max_length=12, choices=VISIBILITY_CHOICES, default='unlisted', db_index=True)
+    shared_agencies = models.ManyToManyField('agencies.Agency', blank=True, related_name='shared_itineraries', verbose_name='Agências com acesso (exclusivo)')
+
     # Quem criou o roteiro — usado para deixar os RASCUNHOS privados do criador.
     created_by  = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='itineraries_created')
     created_at  = models.DateTimeField('Criado em', auto_now_add=True)

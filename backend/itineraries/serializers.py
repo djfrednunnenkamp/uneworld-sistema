@@ -344,6 +344,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
     continent_name = serializers.CharField(source='continent.name', read_only=True, default=None)
     accommodation_lines = ItineraryAccommodationLineSerializer(many=True, required=False)
     clauses_data        = serializers.SerializerMethodField()
+    shared_agencies_data = serializers.SerializerMethodField()
 
     # ── Novos campos (WordPress) — todos ADITIVOS e opcionais ──
     itinerary_type_name   = serializers.CharField(source='itinerary_type.name', read_only=True, default=None)
@@ -484,6 +485,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'special_dates', 'special_dates_data',
                   'days', 'images',
                   'status', 'is_published', 'has_unpublished_changes', 'published_at',
+                  'visibility', 'shared_agencies', 'shared_agencies_data',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         # slug agora é GRAVÁVEL (o ItineraryDetail já tinha o input): ModelSerializer
         # aplica o UniqueValidator automático (unique=True no model), que exclui o
@@ -553,6 +555,23 @@ class ItinerarySerializer(serializers.ModelSerializer):
                 obj.day_number = real
                 obj.save(update_fields=['day_number'])
 
+    def get_shared_agencies_data(self, obj):
+        try:
+            return [{'id': a.id, 'name': a.name or a.company_name or f'Agência #{a.id}'}
+                    for a in obj.shared_agencies.all()]
+        except Exception:
+            return []
+
+    def _sync_publish_from_visibility(self, instance, validated_data):
+        """visibility é a fonte da verdade do acesso; mantém is_published em sincronia
+        (public ⇔ is_published) p/ os leitores existentes continuarem funcionando."""
+        if 'visibility' not in validated_data:
+            return
+        want = instance.visibility == 'public'
+        if instance.is_published != want:
+            instance.is_published = want
+            instance.save(update_fields=['is_published'])
+
     def create(self, validated_data):
         accommodation_lines = validated_data.pop('accommodation_lines', [])
         days                = validated_data.pop('days', None)
@@ -561,6 +580,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
         # Uma falha no meio deixaria um roteiro pela metade, sem lista/acomodações.
         with transaction.atomic():
             itinerary = super().create(validated_data)   # trata cities (M2M), itinerary_type, maritime_company
+            self._sync_publish_from_visibility(itinerary, validated_data)
             self._save_accommodation_lines(itinerary, accommodation_lines)
             if days is not None:
                 self._save_days(itinerary, days)
@@ -574,6 +594,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
         'countries': 'Países', 'cities': 'Cidades', 'continents': 'Continentes',
         'airports': 'Aeroportos', 'keywords': 'Palavras-chave', 'inclusions': 'Inclusos',
         'highlights': 'Destaques', 'itinerary_types': 'Tipos de roteiro', 'special_dates': 'Datas especiais',
+        'shared_agencies': 'Agências com acesso',
     }
 
     def _audit_snapshot(self, instance):
@@ -619,6 +640,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
         old_snap = self._audit_snapshot(instance)      # antes de mexer
         instance._skip_audit_signal = True             # eu logo o diff completo abaixo
         instance = super().update(instance, validated_data)
+        self._sync_publish_from_visibility(instance, validated_data)
         if accommodation_lines is not None:
             self._save_accommodation_lines(instance, accommodation_lines)
         if days is not None:
@@ -655,9 +677,15 @@ class ItineraryListSerializer(serializers.ModelSerializer):
                   'category_name', 'continent_name',
                   'itinerary_type_name', 'maritime_company_name', 'cover',
                   'status', 'is_published', 'has_unpublished_changes', 'order',
+                  'visibility', 'shared_agencies_count',
                   'pub_name', 'pub_start_date', 'pub_end_date',
                   'created_at', 'updated_at',
                   'is_deleted', 'deleted_at']
+
+    shared_agencies_count = serializers.SerializerMethodField()
+
+    def get_shared_agencies_count(self, obj):
+        return len(obj.shared_agencies.all())   # usa o prefetch (sem query extra)
 
     def _pub(self, obj, key):
         d = obj.published_data if (obj.is_published and obj.published_data) else None

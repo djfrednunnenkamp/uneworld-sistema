@@ -248,6 +248,20 @@ class ContractSerializer(serializers.ModelSerializer):
         return v
 
     def validate(self, attrs):
+        # Segurança: usuário de agência não pode vincular um roteiro que ele não
+        # enxerga (público ou exclusivo compartilhado com a agência dele).
+        itinerary = attrs.get('itinerary', getattr(self.instance, 'itinerary', None))
+        if itinerary is not None:
+            from users_api.permissions import agency_scope_ids
+            req = self.context.get('request')
+            scope = agency_scope_ids(req.user) if req else None
+            if scope is not None:
+                ok = itinerary.visibility == 'public' or (
+                    itinerary.visibility == 'agencies'
+                    and itinerary.shared_agencies.filter(id__in=scope).exists())
+                if not ok:
+                    raise serializers.ValidationError(
+                        {'itinerary': 'Este roteiro não está disponível para a sua agência.'})
         # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado
         # (status='ativo' vindo no payload). Autosave/rascunho/prévia — que não
         # mandam status='ativo' — podem ser salvos incompletos.
