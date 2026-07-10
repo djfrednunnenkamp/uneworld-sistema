@@ -67,12 +67,17 @@ class LaminaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def roteiros(self, request):
-        """Cards dos roteiros disponíveis para a lâmina: PÚBLICOS (publicados na
-        vitrine — os exclusivos/privados ficam de fora) e que ainda NÃO começaram
-        (start_date no futuro ou sem data). Ordena pelos que começam mais cedo."""
+        """Cards dos roteiros disponíveis para a lâmina: PÚBLICOS + PRIVADOS (os "não
+        listados" ficam de fora) e que ainda NÃO começaram (start_date no futuro ou
+        sem data). Usuário de agência vê os públicos + os privados compartilhados com
+        a agência dele. Ordena pelos que começam mais cedo."""
         today = timezone.localdate()
-        qs = (Itinerary.objects.filter(is_deleted=False, is_published=True)
-              .filter(Q(start_date__isnull=True) | Q(start_date__gte=today))
-              .prefetch_related('images', 'cities')
-              .order_by('start_date', 'name'))
+        qs = (Itinerary.objects.filter(is_deleted=False).exclude(status='rascunho')
+              .filter(Q(start_date__isnull=True) | Q(start_date__gte=today)))
+        scope = agency_scope_ids(request.user)
+        if scope is not None:
+            qs = qs.filter(Q(visibility='public') | Q(visibility='agencies', shared_agencies__in=scope))
+        else:
+            qs = qs.filter(visibility__in=['public', 'agencies'])
+        qs = qs.prefetch_related('images', 'cities').order_by('start_date', 'name').distinct()
         return Response([_card(it, request) for it in qs])
