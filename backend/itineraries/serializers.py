@@ -677,15 +677,20 @@ class ItineraryListSerializer(serializers.ModelSerializer):
                   'category_name', 'continent_name',
                   'itinerary_type_name', 'maritime_company_name', 'cover',
                   'status', 'is_published', 'has_unpublished_changes', 'order',
-                  'visibility', 'shared_agencies_count',
+                  'visibility', 'shared_agencies_count', 'shared_agencies_data',
                   'pub_name', 'pub_start_date', 'pub_end_date',
                   'created_at', 'updated_at',
                   'is_deleted', 'deleted_at']
 
     shared_agencies_count = serializers.SerializerMethodField()
+    shared_agencies_data  = serializers.SerializerMethodField()
 
     def get_shared_agencies_count(self, obj):
         return len(obj.shared_agencies.all())   # usa o prefetch (sem query extra)
+
+    def get_shared_agencies_data(self, obj):
+        return [{'id': a.id, 'name': a.name or a.company_name or f'Agência #{a.id}'}
+                for a in obj.shared_agencies.all()]
 
     def _pub(self, obj, key):
         d = obj.published_data if (obj.is_published and obj.published_data) else None
