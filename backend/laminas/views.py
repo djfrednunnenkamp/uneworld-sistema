@@ -32,12 +32,28 @@ class LaminaViewSet(viewsets.ModelViewSet):
     queryset = Lamina.objects.all()
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve', 'roteiros'):
+        if self.action == 'mine' and self.request.method in ('PATCH', 'PUT'):
+            return [IsAuthenticated(), RequirePermission('laminas_edit')()]
+        if self.action in ('list', 'retrieve', 'roteiros', 'mine'):
             return [IsAuthenticated(), RequirePermission('laminas_view', 'laminas_edit')()]
         return [IsAuthenticated(), RequirePermission('laminas_edit')()]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @action(detail=False, methods=['get', 'patch'])
+    def mine(self, request):
+        """A ÚNICA lâmina do usuário (get-or-create). A página é um editor só: GET
+        devolve a config salva; PATCH salva automaticamente as alterações."""
+        obj = Lamina.objects.filter(created_by=request.user).order_by('id').first()
+        if obj is None:
+            obj = Lamina.objects.create(created_by=request.user)
+        if request.method == 'PATCH':
+            ser = self.get_serializer(obj, data=request.data, partial=True)
+            ser.is_valid(raise_exception=True)
+            ser.save()
+            return Response(ser.data)
+        return Response(self.get_serializer(obj).data)
 
     @action(detail=False, methods=['get'])
     def roteiros(self, request):
