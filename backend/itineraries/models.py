@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+from decimal import Decimal
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.validators import MinValueValidator
@@ -492,6 +493,7 @@ class ItineraryDeparture(models.Model):
     Configurações."""
     itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='departures')
     airport   = models.ForeignKey('config_api.Airport', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Aeroporto de saída')
+    expected_pax = models.PositiveIntegerField('Passageiros previstos', null=True, blank=True)  # p/ o cálculo de Valores
     order     = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:
@@ -587,6 +589,7 @@ class ItineraryTerrestreDeparture(models.Model):
     Espelha o aeroporto de saída da aba Voo, mas com Cidade."""
     itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='terrestre_departures')
     city      = models.ForeignKey('config_api.ConfigCity', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade de partida')
+    expected_pax = models.PositiveIntegerField('Passageiros previstos', null=True, blank=True)
     order     = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:
@@ -617,3 +620,133 @@ class ItineraryTerrestreLeg(models.Model):
 
     def __str__(self):
         return f'Trecho terrestre {self.service_number or self.pk}'
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  MÓDULO DE PRECIFICAÇÃO (aba "Valores") — composição de custos, conversão de
+#  moeda, rateio de grupo, margem/markup, preço de venda e simulação.
+#  Tudo em Decimal; o cálculo consolidado é feito no backend (pricing.py).
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ItineraryPricingConfig(models.Model):
+    """Configuração do cálculo de preços do roteiro (1:1). A moeda base fica em
+    Itinerary.base_currency; aqui ficam quantidade-base, gratuidades, margem e
+    arredondamento."""
+    ROUNDING_CHOICES = [
+        ('none', 'Sem arredondamento'), ('int', 'Inteiro'),
+        ('m5', 'Múltiplo de 5'), ('m10', 'Múltiplo de 10'),
+        ('m50', 'Múltiplo de 50'), ('m100', 'Múltiplo de 100'), ('custom', 'Personalizado'),
+    ]
+    FREE_MODE_CHOICES = [
+        ('absorbed', 'Absorvido pelos pagantes'),
+        ('excluded', 'Fora do rateio'),
+        ('individual', 'Tratado individualmente'),
+    ]
+    MARGIN_MODE_CHOICES = [('markup', 'Markup sobre o custo'), ('margin', 'Margem sobre a venda')]
+
+    itinerary   = models.OneToOneField(Itinerary, on_delete=models.CASCADE, related_name='pricing')
+    base_pax    = models.PositiveIntegerField('Quantidade-base de passageiros', default=15)
+    min_pax     = models.PositiveIntegerField('Quantidade mínima', null=True, blank=True)
+    max_pax     = models.PositiveIntegerField('Quantidade máxima estimada', null=True, blank=True)
+    free_pax    = models.PositiveIntegerField('Passageiros gratuitos', default=0)
+    free_mode   = models.CharField('Tratamento dos gratuitos', max_length=12, choices=FREE_MODE_CHOICES, default='absorbed')
+    rounding_mode  = models.CharField('Arredondamento', max_length=8, choices=ROUNDING_CHOICES, default='none')
+    rounding_value = models.DecimalField('Arredondar para múltiplo de', max_digits=18, decimal_places=6, null=True, blank=True)
+    margin_mode    = models.CharField('Estratégia de preço', max_length=8, choices=MARGIN_MODE_CHOICES, default='markup')
+    margin_percent = models.DecimalField('Margem/Markup (%)', max_digits=9, decimal_places=4, default=Decimal('20'))
+    min_margin_percent = models.DecimalField('Margem mínima (%)', max_digits=9, decimal_places=4, null=True, blank=True)
+    notes       = models.TextField('Observações', blank=True, default='')
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Precificação do roteiro {self.itinerary_id}'
+
+
+class ItineraryCurrencyRate(models.Model):
+    """Cotação TRAVADA de uma moeda no roteiro: 1 unidade da moeda = `rate` na
+    moeda base. Guardar aqui evita que mudanças no câmbio global alterem roteiros
+    antigos silenciosamente."""
+    itinerary = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='currency_rates')
+    currency  = models.CharField('Moeda', max_length=3)
+    rate      = models.DecimalField('1 moeda = X na base', max_digits=18, decimal_places=6, default=Decimal('1'))
+    rate_date = models.DateField('Data da cotação', null=True, blank=True)
+    source    = models.CharField('Fonte', max_length=120, blank=True, default='')
+    locked    = models.BooleanField('Cotação travada', default=True)
+    notes     = models.CharField('Observação', max_length=200, blank=True, default='')
+
+    class Meta:
+        unique_together = [('itinerary', 'currency')]
+
+    def __str__(self):
+        return f'{self.currency} = {self.rate} (roteiro {self.itinerary_id})'
+
+
+class ItineraryCostItem(models.Model):
+    """Item de custo do roteiro. `cost_type` define o rateio: 'per_person' já é por
+    passageiro; 'group' é custo fixo do grupo, dividido pela quantidade do rateio."""
+    CATEGORY_CHOICES = [
+        ('aereo', 'Aéreo'), ('hospedagem', 'Hospedagem'), ('terrestre', 'Transporte terrestre'),
+        ('maritimo', 'Transporte marítimo'), ('guia', 'Guia'), ('receptivo', 'Receptivo'),
+        ('alimentacao', 'Alimentação'), ('passeios', 'Passeios'), ('ingressos', 'Ingressos'),
+        ('seguro', 'Seguro'), ('documentacao', 'Documentação'), ('vistos', 'Vistos'),
+        ('taxas', 'Taxas'), ('marketing', 'Marketing'), ('brindes', 'Brindes'),
+        ('operacao', 'Operação'), ('comissao', 'Comissão'), ('financeiro', 'Custo financeiro'),
+        ('contingencia', 'Contingência'), ('outros', 'Outros'),
+    ]
+    COST_TYPE_CHOICES = [('per_person', 'Por pessoa'), ('group', 'Do grupo')]
+    RATEIO_CHOICES = [
+        ('base', 'Quantidade-base'), ('custom', 'Quantidade específica'),
+        ('departure', 'Passageiros da saída'), ('accommodation', 'Passageiros da acomodação'),
+        ('none', 'Sem divisão (informativo)'),
+    ]
+    # Como o fornecedor apresentou o preço (usado principalmente na hospedagem).
+    BASIS_CHOICES = [
+        ('per_person', 'Por pessoa (período)'), ('per_person_night', 'Por pessoa/noite'),
+        ('per_room', 'Por quarto (período)'), ('per_room_night', 'Por quarto/noite'),
+        ('block_total', 'Total do bloqueio'),
+    ]
+    IOF_BASE_CHOICES = [('original', 'Sobre o valor original'), ('with_fees', 'Sobre o valor com taxas'), ('none', 'Não aplicável')]
+
+    itinerary    = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='cost_items')
+    description  = models.CharField('Descrição', max_length=200)
+    category     = models.CharField('Categoria', max_length=16, choices=CATEGORY_CHOICES, default='outros')
+    supplier     = models.CharField('Fornecedor', max_length=160, blank=True, default='')
+    cost_type    = models.CharField('Tipo de custo', max_length=12, choices=COST_TYPE_CHOICES, default='per_person')
+
+    currency     = models.CharField('Moeda do item', max_length=3, blank=True, default='')  # ''/None = moeda base
+    unit_value   = models.DecimalField('Valor unitário', max_digits=18, decimal_places=6, default=0)
+    quantity     = models.DecimalField('Quantidade', max_digits=12, decimal_places=4, default=Decimal('1'))
+    basis        = models.CharField('Base do preço', max_length=16, choices=BASIS_CHOICES, default='per_person')
+    occupancy    = models.PositiveSmallIntegerField('Ocupação (divisor)', default=1)
+    nights       = models.PositiveSmallIntegerField('Noites', default=1)
+
+    # Rateio (para custo do grupo)
+    rateio_rule  = models.CharField('Regra de rateio', max_length=14, choices=RATEIO_CHOICES, default='base')
+    rateio_qty   = models.PositiveIntegerField('Quantidade do rateio', null=True, blank=True)
+
+    # Escopo
+    flight_departure    = models.ForeignKey('ItineraryDeparture', null=True, blank=True, on_delete=models.CASCADE, related_name='cost_items')
+    terrestre_departure = models.ForeignKey('ItineraryTerrestreDeparture', null=True, blank=True, on_delete=models.CASCADE, related_name='cost_items')
+    accommodation_type  = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+
+    # Taxas
+    tax_percent  = models.DecimalField('Taxa (%)', max_digits=9, decimal_places=4, default=0)
+    card_fee_percent = models.DecimalField('Taxa de cartão (%)', max_digits=9, decimal_places=4, default=0)
+    iof_percent  = models.DecimalField('IOF (%)', max_digits=9, decimal_places=4, default=0)
+    iof_base     = models.CharField('Base do IOF', max_length=10, choices=IOF_BASE_CHOICES, default='with_fees')
+    fixed_fee    = models.DecimalField('Taxa fixa', max_digits=18, decimal_places=6, default=0)
+
+    payment_method = models.CharField('Forma de pagamento', max_length=100, blank=True, default='')
+    due_date     = models.DateField('Vencimento', null=True, blank=True)
+
+    included_in_price = models.BooleanField('Incluir no preço de venda', default=True)
+    is_active    = models.BooleanField('Ativo', default=True)
+    order        = models.PositiveIntegerField('Ordem', default=0)
+    notes        = models.TextField('Observações', blank=True, default='')
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f'{self.description} ({self.get_cost_type_display()})'

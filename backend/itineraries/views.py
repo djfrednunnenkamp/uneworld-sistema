@@ -21,13 +21,16 @@ from users_api.permissions import RequirePermission, is_operadora_user, has_any_
 from . import onlyoffice
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
                      ItineraryFlight, ItineraryHotel, ItineraryBoat,
-                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument)
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument,
+                     ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
                           ItineraryHotelSerializer, ItineraryBoatSerializer,
                           ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer,
-                          ItineraryDocumentSerializer)
+                          ItineraryDocumentSerializer,
+                          ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
+                          ItineraryCurrencyRateSerializer)
 from core.search import AccentInsensitiveSearchFilter
 
 
@@ -650,7 +653,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action in ('upload_image', 'delete_image', 'reorder_images',
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
-        if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft'):
+        if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft', 'pricing_config'):
             return [RequirePermission('roteiros_edit')()]
         if self.action == 'list':
             # Também quem faz contratos: o seletor de roteiro do contrato lista os
@@ -735,6 +738,44 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if obj.is_published and obj.published_data:
             return Response(obj.published_data)
         return Response(ItinerarySerializer(obj, context=self.get_serializer_context()).data)
+
+    # ── Precificação (aba Valores) ──
+    @action(detail=True, methods=['get', 'patch'], url_path='pricing-config')
+    def pricing_config(self, request, pk=None):
+        """Config do cálculo (get-or-create). PATCH atualiza a quantidade-base, margem etc."""
+        obj = self.get_object()
+        cfg, _ = ItineraryPricingConfig.objects.get_or_create(itinerary=obj)
+        if request.method == 'PATCH':
+            ser = ItineraryPricingConfigSerializer(cfg, data=request.data, partial=True)
+            ser.is_valid(raise_exception=True)
+            ser.save()
+            _audit(request, 'update', obj, changes={'Precificação': {'antes': '—', 'depois': 'config atualizada'}})
+            return Response(ser.data)
+        return Response(ItineraryPricingConfigSerializer(cfg).data)
+
+    @action(detail=True, methods=['get'], url_path='pricing')
+    def pricing(self, request, pk=None):
+        """Cálculo consolidado (fonte da verdade). ?pax= sobrescreve a quantidade-base."""
+        from . import pricing as pricing_engine
+        obj = self.get_object()
+        pax = request.query_params.get('pax')
+        return Response(pricing_engine.compute(obj, pax=int(pax) if pax else None))
+
+    @action(detail=True, methods=['get'], url_path='pricing-simulate')
+    def pricing_simulate(self, request, pk=None):
+        """Simulador por quantidade (?pax=10,15,20) + ponto de equilíbrio."""
+        from . import pricing as pricing_engine
+        obj = self.get_object()
+        raw = request.query_params.get('pax', '')
+        pax_list = [p for p in (raw.split(',') if raw else []) if p.strip()]
+        if not pax_list:
+            cfg, _ = ItineraryPricingConfig.objects.get_or_create(itinerary=obj)
+            b = cfg.base_pax or 15
+            pax_list = sorted({max(1, b - 5), b, b + 5, b + 10})
+        return Response({
+            'scenarios': pricing_engine.simulate(obj, pax_list),
+            'break_even': pricing_engine.break_even(obj),
+        })
 
     # ── Rascunho de autosave (por usuário): edições ficam aqui até clicar Salvar. ──
     @action(detail=True, methods=['get', 'put', 'delete'])
@@ -1293,3 +1334,48 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         resp = HttpResponse(buf.getvalue(), content_type='application/zip')
         resp['Content-Disposition'] = 'attachment; filename="galeria.zip"'
         return resp
+
+
+# ═══════════ Precificação (aba Valores) ═══════════
+class ItineraryCostItemViewSet(viewsets.ModelViewSet):
+    """Itens de custo do roteiro (aba Valores). Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryCostItemSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryCostItem.objects.select_related('accommodation_type')
+        if self.action == 'list':
+            it = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=it) if it else qs.none()
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        ids = request.data.get('order') or []
+        with transaction.atomic():
+            for pos, cid in enumerate(ids):
+                ItineraryCostItem.objects.filter(pk=cid).update(order=pos)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='duplicate')
+    def duplicate(self, request, pk=None):
+        obj = self.get_object()
+        obj.pk = None
+        obj.description = f'{obj.description} (cópia)'
+        obj.save()
+        return Response(self.get_serializer(obj).data, status=status.HTTP_201_CREATED)
+
+
+class ItineraryCurrencyRateViewSet(viewsets.ModelViewSet):
+    """Cotações travadas do roteiro. Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryCurrencyRateSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryCurrencyRate.objects.all()
+        if self.action == 'list':
+            it = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=it) if it else qs.none()
+        return qs

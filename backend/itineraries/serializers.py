@@ -4,7 +4,8 @@ from rest_framework import serializers
 from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat, ConfigTerrestreCompany
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
-                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument)
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument,
+                     ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate)
 from . import onlyoffice
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -141,7 +142,7 @@ class ItineraryDepartureSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryDeparture
-        fields = ['id', 'itinerary', 'airport', 'airport_data', 'order']
+        fields = ['id', 'itinerary', 'airport', 'airport_data', 'expected_pax', 'order']
 
 
 class TerrestreCompanyMiniSerializer(serializers.ModelSerializer):
@@ -155,7 +156,7 @@ class ItineraryTerrestreDepartureSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryTerrestreDeparture
-        fields = ['id', 'itinerary', 'city', 'city_data', 'order']
+        fields = ['id', 'itinerary', 'city', 'city_data', 'expected_pax', 'order']
 
 
 class ItineraryTerrestreLegSerializer(serializers.ModelSerializer):
@@ -708,3 +709,31 @@ class ItineraryListSerializer(serializers.ModelSerializer):
             return None
         request = self.context.get('request')
         return request.build_absolute_uri(cover.image.url) if request else cover.image.url
+
+
+# ═══════ Precificação (aba Valores) ═══════
+class ItineraryPricingConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ItineraryPricingConfig
+        fields = ['base_pax', 'min_pax', 'max_pax', 'free_pax', 'free_mode',
+                  'rounding_mode', 'rounding_value', 'margin_mode', 'margin_percent',
+                  'min_margin_percent', 'notes']
+
+
+class ItineraryCurrencyRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ItineraryCurrencyRate
+        fields = ['id', 'itinerary', 'currency', 'rate', 'rate_date', 'source', 'locked', 'notes']
+
+
+class ItineraryCostItemSerializer(serializers.ModelSerializer):
+    accommodation_type_name = serializers.CharField(source='accommodation_type.name', read_only=True, default=None)
+
+    class Meta:
+        model = ItineraryCostItem
+        fields = ['id', 'itinerary', 'description', 'category', 'supplier', 'cost_type',
+                  'currency', 'unit_value', 'quantity', 'basis', 'occupancy', 'nights',
+                  'rateio_rule', 'rateio_qty', 'flight_departure', 'terrestre_departure',
+                  'accommodation_type', 'accommodation_type_name',
+                  'tax_percent', 'card_fee_percent', 'iof_percent', 'iof_base', 'fixed_fee',
+                  'payment_method', 'due_date', 'included_in_price', 'is_active', 'order', 'notes']
