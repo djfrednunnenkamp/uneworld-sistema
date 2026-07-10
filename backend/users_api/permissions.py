@@ -59,7 +59,8 @@ PERMISSION_FIELDS = [
     'roteiros_laminas_edit',
     # Lâminas
     'laminas_view',
-    'laminas_edit',
+    'laminas_agency_logo',
+    'laminas_agency',
     # Meus Documentos (Drive pessoal)
     'documentos_view',
     'documentos_create',

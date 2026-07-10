@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from users_api.permissions import RequirePermission
+from users_api.permissions import RequirePermission, agency_scope_ids, has_any_perm
 from itineraries.models import Itinerary
 from itineraries.views import _itinerary_cover_url
 from .models import Lamina
@@ -32,24 +32,34 @@ class LaminaViewSet(viewsets.ModelViewSet):
     queryset = Lamina.objects.all()
 
     def get_permissions(self):
-        if self.action == 'mine' and self.request.method in ('PATCH', 'PUT'):
-            return [IsAuthenticated(), RequirePermission('laminas_edit')()]
+        # laminas_view = interno (ver e fazer); laminas_agency = usuário de agência.
         if self.action in ('list', 'retrieve', 'roteiros', 'mine'):
-            return [IsAuthenticated(), RequirePermission('laminas_view', 'laminas_edit')()]
-        return [IsAuthenticated(), RequirePermission('laminas_edit')()]
+            return [IsAuthenticated(), RequirePermission('laminas_view', 'laminas_agency')()]
+        return [IsAuthenticated(), RequirePermission('laminas_view')()]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
     @action(detail=False, methods=['get', 'patch'])
     def mine(self, request):
-        """A ÚNICA lâmina do usuário (get-or-create). A página é um editor só: GET
-        devolve a config salva; PATCH salva automaticamente as alterações."""
+        """A ÚNICA lâmina do usuário (get-or-create). GET devolve a config salva;
+        PATCH salva automaticamente. Usuário de AGÊNCIA só pode usar a própria
+        agência; interno só usa logo de agência se tiver laminas_agency_logo."""
         obj = Lamina.objects.filter(created_by=request.user).order_by('id').first()
         if obj is None:
             obj = Lamina.objects.create(created_by=request.user)
         if request.method == 'PATCH':
-            ser = self.get_serializer(obj, data=request.data, partial=True)
+            data = dict(request.data)
+            scope = agency_scope_ids(request.user)
+            if scope is not None:
+                # Agência: força a própria agência (só os dados dela).
+                data['source'] = 'agency'
+                data['agency'] = scope[0] if scope else None
+            elif data.get('source') == 'agency' and not has_any_perm(request.user, 'laminas_agency_logo'):
+                # Interno sem a permissão de logo de agência → cai para operadora.
+                data['source'] = 'operadora'
+                data['agency'] = None
+            ser = self.get_serializer(obj, data=data, partial=True)
             ser.is_valid(raise_exception=True)
             ser.save()
             return Response(ser.data)
