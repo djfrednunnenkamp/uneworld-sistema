@@ -28,7 +28,7 @@ def dashboard_birthdays(request):
     """Próximos aniversários de passageiros (hoje primeiro, depois amanhã…).
     Janela padrão de 30 dias. Respeita o escopo de agência."""
     user = request.user
-    if not has_any_perm(user, 'dashboard_view_passengers'):
+    if not has_any_perm(user, 'dashboard_view_birthdays'):
         return Response({'birthdays': []})
     today = date.today()
     window = 30

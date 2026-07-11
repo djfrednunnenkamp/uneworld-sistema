@@ -58,6 +58,7 @@ class UserPermissions(models.Model):
     dashboard_view_passengers  = models.BooleanField(default=False)
     dashboard_view_lists       = models.BooleanField(default=False)
     dashboard_view_enrollments = models.BooleanField(default=False)
+    dashboard_view_birthdays   = models.BooleanField(default=False)
 
     # Passageiros
     passengers_view_basic    = models.BooleanField(default=False)

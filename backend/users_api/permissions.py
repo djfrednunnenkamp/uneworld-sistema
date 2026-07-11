@@ -11,6 +11,7 @@ PERMISSION_FIELDS = [
     'dashboard_view_passengers',
     'dashboard_view_lists',
     'dashboard_view_enrollments',
+    'dashboard_view_birthdays',
     # Log de e-mails
     'email_log_view',
     'email_log_preview',
