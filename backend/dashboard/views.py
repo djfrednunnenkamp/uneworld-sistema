@@ -9,6 +9,56 @@ from config_api.models import ConfigExchangeRate
 from users_api.permissions import has_any_perm, agency_scope_ids
 
 
+def _days_until_birthday(bd, today):
+    """Dias até o próximo aniversário (0 = hoje). 29/02 cai em 28/02 fora de bissexto."""
+    def _this_year(year):
+        try:
+            return bd.replace(year=year)
+        except ValueError:      # 29/02 em ano não-bissexto
+            return bd.replace(year=year, day=28)
+    nxt = _this_year(today.year)
+    if nxt < today:
+        nxt = _this_year(today.year + 1)
+    return (nxt - today).days, nxt
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_birthdays(request):
+    """Próximos aniversários de passageiros (hoje primeiro, depois amanhã…).
+    Janela padrão de 30 dias. Respeita o escopo de agência."""
+    user = request.user
+    if not has_any_perm(user, 'dashboard_view_passengers'):
+        return Response({'birthdays': []})
+    today = date.today()
+    window = 30
+    scope = agency_scope_ids(user)
+
+    pq = Passenger.objects.filter(status='active', is_deleted=False, birth_date__isnull=False)
+    if scope is not None:
+        pq = pq.filter(agencies__in=scope).distinct()
+    pq = pq.only('id', 'full_name', 'first_name', 'last_name', 'birth_date')
+
+    rows = []
+    for p in pq:
+        bd = p.birth_date
+        days, nxt = _days_until_birthday(bd, today)
+        if days > window:
+            continue
+        name = (p.full_name or f'{p.first_name} {p.last_name}').strip()
+        rows.append({
+            'id': p.id,
+            'name': name or 'Sem nome',
+            'birth_date': bd,
+            'day': bd.day,
+            'month': bd.month,
+            'days_until': days,
+            'turning_age': nxt.year - bd.year,
+        })
+    rows.sort(key=lambda r: (r['days_until'], r['name']))
+    return Response({'birthdays': rows})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_stats(request):
