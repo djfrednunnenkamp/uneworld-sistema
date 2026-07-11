@@ -1,4 +1,7 @@
-"""Testes do motor de precificação (itineraries/pricing.py)."""
+"""Testes do motor de precificação (itineraries/pricing.py).
+
+Markup por DIVISÃO: venda = net / fator. Percentual 80 = fator 0,80 = decimal 0,80.
+"""
 from decimal import Decimal
 
 from django.test import TestCase
@@ -8,7 +11,7 @@ from . import pricing
 
 
 class PricingEngineTest(TestCase):
-    def _scenario(self, margin_mode='margin', margin=Decimal('20')):
+    def _scenario(self, margin_mode='percent', margin=Decimal('80')):
         it = Itinerary.objects.create(name='Cenário', base_currency='USD', has_voo=True)
         ItineraryPricingConfig.objects.create(itinerary=it, base_pax=15, free_pax=1,
                                               margin_mode=margin_mode, margin_percent=margin)
@@ -25,8 +28,9 @@ class PricingEngineTest(TestCase):
         mk(description='Aéreo CWB', category='aereo', cost_type='per_person', unit_value=950, flight_departure=cwb)
         return it, cgh, cwb
 
-    def test_secao25_margem(self):
-        it, cgh, cwb = self._scenario('margin', Decimal('20'))
+    def test_secao25_percentual(self):
+        # net CGH 2814,80 / fator 0,80 (80%) = 3518,50
+        it, cgh, cwb = self._scenario('percent', Decimal('80'))
         res = pricing.compute(it)
         self.assertEqual(str(res['summary']['common_per_person']), '2014.80')
         rows = {r['departure_id']: r for r in res['table']}
@@ -35,31 +39,32 @@ class PricingEngineTest(TestCase):
         self.assertEqual(str(rows[cwb.id]['cost_per_person']), '2964.80')
         self.assertEqual(str(rows[cwb.id]['sale_price']), '3706.00')
 
-    def test_markup(self):
-        it, cgh, cwb = self._scenario('markup', Decimal('20'))
+    def test_decimal_igual_percentual(self):
+        # fator decimal 0,80 dá o mesmo que percentual 80
+        it, cgh, cwb = self._scenario('decimal', Decimal('0.80'))
         res = pricing.compute(it)
         r = next(x for x in res['table'] if x['departure_id'] == cgh.id)
-        self.assertEqual(str(r['sale_price']), '3377.76')   # 2814.80 × 1.2
+        self.assertEqual(str(r['sale_price']), '3518.50')
 
     def test_hotel_por_quarto_ocupacao(self):
         it = Itinerary.objects.create(name='Hotel quarto', base_currency='USD')
-        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=2, margin_mode='markup', margin_percent=0)
-        # Quarto duplo USD 200/noite × 5 noites = 1000; ocupação 2 → 500/pax
+        # fator 1,00 (100%) = sem markup: venda = net
+        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=2, margin_mode='percent', margin_percent=100)
         ItineraryCostItem.objects.create(itinerary=it, description='Hotel', category='hospedagem',
                                          cost_type='per_person', basis='per_room_night',
                                          unit_value=200, nights=5, occupancy=2)
         res = pricing.compute(it)
         self.assertEqual(str(res['summary']['common_per_person']), '500.00')
+        self.assertEqual(str(res['table'][0]['sale_price']), '500.00')
 
     def test_grupo_rateia_por_pax_no_simulador(self):
-        it, cgh, cwb = self._scenario('markup', Decimal('0'))
+        it, cgh, cwb = self._scenario('percent', Decimal('100'))
         sim = {s['pax']: s for s in pricing.simulate(it, [10, 15, 20])}
-        # custo de grupo (guia+ônibus = 7500) cai por pax: 750, 500, 375
         self.assertGreater(sim[10]['cost_per_person'], sim[20]['cost_per_person'])
 
     def test_conversao_moeda(self):
         it = Itinerary.objects.create(name='Câmbio', base_currency='BRL')
-        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=1, margin_mode='markup', margin_percent=0)
+        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=1, margin_mode='percent', margin_percent=100)
         from .models import ItineraryCurrencyRate
         ItineraryCurrencyRate.objects.create(itinerary=it, currency='USD', rate=Decimal('5'))
         ItineraryCostItem.objects.create(itinerary=it, description='Item', category='outros',
@@ -67,10 +72,10 @@ class PricingEngineTest(TestCase):
         res = pricing.compute(it)   # 100 USD × 5 = 500 BRL
         self.assertEqual(str(res['summary']['common_per_person']), '500.00')
 
-    def test_divisor_zero_nao_quebra(self):
-        it = Itinerary.objects.create(name='Div zero', base_currency='USD')
-        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=0, margin_mode='markup', margin_percent=0)
-        ItineraryCostItem.objects.create(itinerary=it, description='Grupo', category='guia',
-                                         cost_type='group', unit_value=1000)
-        res = pricing.compute(it)   # não pode levantar / dar NaN
-        self.assertIsNotNone(res['summary']['common_per_person'])
+    def test_fator_zero_nao_quebra(self):
+        it = Itinerary.objects.create(name='Fator zero', base_currency='USD')
+        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=1, margin_mode='percent', margin_percent=0)
+        ItineraryCostItem.objects.create(itinerary=it, description='Item', category='outros',
+                                         cost_type='per_person', unit_value=1000)
+        res = pricing.compute(it)   # fator 0 → venda = net (sem divisão por zero)
+        self.assertEqual(str(res['table'][0]['sale_price']), '1000.00')

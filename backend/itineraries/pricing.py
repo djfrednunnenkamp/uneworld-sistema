@@ -236,14 +236,13 @@ def compute(itinerary, pax=None):
     # ── Monta o preço por (saída × acomodação) ──
     cfg_mode = cfg.margin_mode
     m = D(cfg.margin_percent)
+    # Markup por DIVISÃO: venda = net / fator. Percentual → valor/100 (80 → 0,80);
+    # decimal → o próprio valor (0,80).
+    factor = m if cfg_mode == 'decimal' else (m / Decimal('100'))
 
     def sale_from_cost(cost):
         cost = D(cost)
-        if cfg_mode == 'margin':
-            denom = (Decimal('100') - m) / Decimal('100')
-            price = cost / denom if denom > 0 else cost
-        else:  # markup
-            price = cost * (Decimal('1') + m / Decimal('100'))
+        price = (cost / factor) if factor > 0 else cost
         return _apply_rounding(price, cfg.rounding_mode, cfg.rounding_value)
 
     # tipos de acomodação presentes (das linhas + dos itens escopados)

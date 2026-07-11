@@ -642,7 +642,10 @@ class ItineraryPricingConfig(models.Model):
         ('excluded', 'Fora do rateio'),
         ('individual', 'Tratado individualmente'),
     ]
-    MARGIN_MODE_CHOICES = [('markup', 'Markup sobre o custo'), ('margin', 'Margem sobre a venda')]
+    # Markup por DIVISÃO: venda = net / fator. O fator é digitado como percentual
+    # (80 = fator 0,80) ou como decimal direto (0,80). margin_percent guarda o valor
+    # digitado; margin_mode diz se é 'percent' ou 'decimal'.
+    MARGIN_MODE_CHOICES = [('percent', 'Percentual'), ('decimal', 'Fator decimal')]
 
     itinerary   = models.OneToOneField(Itinerary, on_delete=models.CASCADE, related_name='pricing')
     base_pax    = models.PositiveIntegerField('Quantidade-base de passageiros', default=15)
@@ -652,8 +655,8 @@ class ItineraryPricingConfig(models.Model):
     free_mode   = models.CharField('Tratamento dos gratuitos', max_length=12, choices=FREE_MODE_CHOICES, default='absorbed')
     rounding_mode  = models.CharField('Arredondamento', max_length=8, choices=ROUNDING_CHOICES, default='none')
     rounding_value = models.DecimalField('Arredondar para múltiplo de', max_digits=18, decimal_places=6, null=True, blank=True)
-    margin_mode    = models.CharField('Estratégia de preço', max_length=8, choices=MARGIN_MODE_CHOICES, default='markup')
-    margin_percent = models.DecimalField('Margem/Markup (%)', max_digits=9, decimal_places=4, default=Decimal('20'))
+    margin_mode    = models.CharField('Tipo do markup', max_length=8, choices=MARGIN_MODE_CHOICES, default='percent')
+    margin_percent = models.DecimalField('Markup (valor)', max_digits=9, decimal_places=4, default=Decimal('80'))
     min_margin_percent = models.DecimalField('Margem mínima (%)', max_digits=9, decimal_places=4, null=True, blank=True)
     notes       = models.TextField('Observações', blank=True, default='')
     created_at  = models.DateTimeField(auto_now_add=True)
