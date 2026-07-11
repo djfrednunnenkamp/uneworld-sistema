@@ -712,6 +712,20 @@ class ConfigKeyword(models.Model):
         return self.name
 
 
+class ConfigCostCategory(models.Model):
+    """Categoria de custo do roteiro (aba Valores). Cadastrada nas Configurações e
+    escolhida em cada item de custo."""
+    name = models.CharField('Nome', max_length=80, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Categoria de custo'
+        verbose_name_plural = 'Categorias de custo'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigInclusion(models.Model):
     """Item que pode estar INCLUSO num pacote/roteiro (ex.: Café da manhã, Traslados,
     Seguro viagem). Cadastrado em Configurações e escolhido nos roteiros."""

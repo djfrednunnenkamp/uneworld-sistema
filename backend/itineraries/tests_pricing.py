@@ -20,8 +20,8 @@ class PricingEngineTest(TestCase):
         mk = lambda **k: ItineraryCostItem.objects.create(itinerary=it, **k)
         mk(description='Guia', category='guia', cost_type='group', unit_value=3000)
         mk(description='Ônibus', category='terrestre', cost_type='group', unit_value=4500)
-        mk(description='Hotel', category='hospedagem', cost_type='per_person', unit_value=1000,
-           tax_percent=12, iof_percent=4, iof_base='with_fees')
+        mk(description='Hotel', category='Hospedagem', cost_type='per_person', unit_value=1000,
+           tax_kind='percent', tax_value=12)   # 1000 × 1,12 = 1120
         mk(description='Seguro', category='seguro', cost_type='per_person', unit_value=100)
         mk(description='Passeios', category='passeios', cost_type='per_person', unit_value=250)
         mk(description='Aéreo CGH', category='aereo', cost_type='per_person', unit_value=800, flight_departure=cgh)
@@ -29,22 +29,23 @@ class PricingEngineTest(TestCase):
         return it, cgh, cwb
 
     def test_secao25_percentual(self):
-        # net CGH 2814,80 / fator 0,80 (80%) = 3518,50
+        # comum = Guia200+Ônibus300+Hotel1120+Seguro100+Passeios250 = 1970
+        # CGH = 1970+800 = 2770 / 0,80 = 3462,50 ; CWB = 2920 / 0,80 = 3650,00
         it, cgh, cwb = self._scenario('percent', Decimal('80'))
         res = pricing.compute(it)
-        self.assertEqual(str(res['summary']['common_per_person']), '2014.80')
+        self.assertEqual(str(res['summary']['common_per_person']), '1970.00')
         rows = {r['departure_id']: r for r in res['table']}
-        self.assertEqual(str(rows[cgh.id]['cost_per_person']), '2814.80')
-        self.assertEqual(str(rows[cgh.id]['sale_price']), '3518.50')
-        self.assertEqual(str(rows[cwb.id]['cost_per_person']), '2964.80')
-        self.assertEqual(str(rows[cwb.id]['sale_price']), '3706.00')
+        self.assertEqual(str(rows[cgh.id]['cost_per_person']), '2770.00')
+        self.assertEqual(str(rows[cgh.id]['sale_price']), '3462.50')
+        self.assertEqual(str(rows[cwb.id]['cost_per_person']), '2920.00')
+        self.assertEqual(str(rows[cwb.id]['sale_price']), '3650.00')
 
     def test_decimal_igual_percentual(self):
         # fator decimal 0,80 dá o mesmo que percentual 80
         it, cgh, cwb = self._scenario('decimal', Decimal('0.80'))
         res = pricing.compute(it)
         r = next(x for x in res['table'] if x['departure_id'] == cgh.id)
-        self.assertEqual(str(r['sale_price']), '3518.50')
+        self.assertEqual(str(r['sale_price']), '3462.50')
 
     def test_hotel_por_quarto_ocupacao(self):
         it = Itinerary.objects.create(name='Hotel quarto', base_currency='USD')

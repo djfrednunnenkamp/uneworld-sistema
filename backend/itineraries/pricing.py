@@ -91,21 +91,13 @@ def _item_calc(item, base_cur, rates):
     else:  # per_person, per_room, block_total
         supplier = unit * qty
 
-    tax_pct = D(item.tax_percent)
-    card_pct = D(item.card_fee_percent)
-    iof_pct = D(item.iof_percent)
-    fixed = D(item.fixed_fee)
-
-    pct_fees = supplier * (tax_pct + card_pct) / Decimal('100')
-    after_fees = supplier + pct_fees + fixed
-
-    if item.iof_base == 'original':
-        iof = supplier * iof_pct / Decimal('100')
-    elif item.iof_base == 'with_fees':
-        iof = after_fees * iof_pct / Decimal('100')
+    # Taxa única: percentual (sobre o valor do item) ou valor fixo (na moeda do item).
+    tax_val = D(item.tax_value)
+    if item.tax_kind == 'fixed':
+        tax = tax_val
     else:
-        iof = ZERO
-    final_item = after_fees + iof
+        tax = supplier * tax_val / Decimal('100')
+    final_item = supplier + tax
 
     rate, has_rate = _rate_of(cur, base_cur, rates)
     final_base = final_item * rate
@@ -126,12 +118,9 @@ def _item_calc(item, base_cur, rates):
     memory = []
     sign = f'{cur} ' if cur != base_cur else ''
     memory.append(f'Valor bruto: {sign}{q2(supplier)}')
-    if tax_pct or card_pct:
-        memory.append(f'Taxas ({q2(tax_pct + card_pct)}%): {sign}{q2(pct_fees)}')
-    if fixed:
-        memory.append(f'Taxa fixa: {sign}{q2(fixed)}')
-    if iof:
-        memory.append(f'IOF ({q2(iof_pct)}%): {sign}{q2(iof)}')
+    if tax:
+        label = f'Taxa fixa: {sign}{q2(tax)}' if item.tax_kind == 'fixed' else f'Taxa ({q2(tax_val)}%): {sign}{q2(tax)}'
+        memory.append(label)
     memory.append(f'Custo final: {sign}{q2(final_item)}')
     if cur != base_cur:
         memory.append(f'Convertido ({cur}→{base_cur} × {q2(rate)}): {base_cur} {q2(final_base)}')
@@ -290,10 +279,9 @@ def compute(itinerary, pax=None):
     total_pp = sum((D(r['cost_per_person']) for r in table), ZERO) / (len(table) or 1)
     cat_summary = []
     grand = sum(cat_totals.values(), ZERO) or Decimal('1')
-    CAT_LABELS = dict(_category_labels())
     for cat, val in sorted(cat_totals.items(), key=lambda kv: -kv[1]):
         cat_summary.append({
-            'category': cat, 'label': CAT_LABELS.get(cat, cat),
+            'category': cat, 'label': cat or 'Outros',   # category já é o nome
             'per_person': q2(val), 'share': q2(val / grand * Decimal('100')),
         })
 
@@ -378,8 +366,3 @@ def _dep_label(d):
     except Exception:
         pass
     return f'Saída #{d.id}'
-
-
-def _category_labels():
-    from .models import ItineraryCostItem
-    return ItineraryCostItem.CATEGORY_CHOICES

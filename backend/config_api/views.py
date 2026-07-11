@@ -19,7 +19,7 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, OperatingCompanyContact, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
-                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword,
+                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword, ConfigCostCategory,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
                      ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
                      ConfigTerrestreCompany)
@@ -890,6 +890,23 @@ class KeywordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ConfigKeyword.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class CostCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigCostCategory
+        fields = ['id', 'name']
+
+
+class CostCategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = CostCategorySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_cost_categories')
+
+    def get_queryset(self):
+        qs = ConfigCostCategory.objects.all()
         q = self.request.query_params.get('q', '').strip()
         return qs.filter(name__icontains=q) if q else qs
 

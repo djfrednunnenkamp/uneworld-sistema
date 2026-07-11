@@ -688,16 +688,8 @@ class ItineraryCurrencyRate(models.Model):
 class ItineraryCostItem(models.Model):
     """Item de custo do roteiro. `cost_type` define o rateio: 'per_person' já é por
     passageiro; 'group' é custo fixo do grupo, dividido pela quantidade do rateio."""
-    CATEGORY_CHOICES = [
-        ('aereo', 'Aéreo'), ('hospedagem', 'Hospedagem'), ('terrestre', 'Transporte terrestre'),
-        ('maritimo', 'Transporte marítimo'), ('guia', 'Guia'), ('receptivo', 'Receptivo'),
-        ('alimentacao', 'Alimentação'), ('passeios', 'Passeios'), ('ingressos', 'Ingressos'),
-        ('seguro', 'Seguro'), ('documentacao', 'Documentação'), ('vistos', 'Vistos'),
-        ('taxas', 'Taxas'), ('marketing', 'Marketing'), ('brindes', 'Brindes'),
-        ('operacao', 'Operação'), ('comissao', 'Comissão'), ('financeiro', 'Custo financeiro'),
-        ('contingencia', 'Contingência'), ('outros', 'Outros'),
-    ]
     COST_TYPE_CHOICES = [('per_person', 'Por pessoa'), ('group', 'Do grupo')]
+    TAX_KIND_CHOICES = [('percent', 'Percentual'), ('fixed', 'Valor fixo')]
     RATEIO_CHOICES = [
         ('base', 'Quantidade-base'), ('custom', 'Quantidade específica'),
         ('departure', 'Passageiros da saída'), ('accommodation', 'Passageiros da acomodação'),
@@ -709,11 +701,10 @@ class ItineraryCostItem(models.Model):
         ('per_room', 'Por quarto (período)'), ('per_room_night', 'Por quarto/noite'),
         ('block_total', 'Total do bloqueio'),
     ]
-    IOF_BASE_CHOICES = [('original', 'Sobre o valor original'), ('with_fees', 'Sobre o valor com taxas'), ('none', 'Não aplicável')]
-
     itinerary    = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='cost_items')
     description  = models.CharField('Descrição', max_length=200)
-    category     = models.CharField('Categoria', max_length=16, choices=CATEGORY_CHOICES, default='outros')
+    # Nome da categoria — vem da lista de "Categorias de custo" das Configurações.
+    category     = models.CharField('Categoria', max_length=60, blank=True, default='Outros')
     supplier     = models.CharField('Fornecedor', max_length=160, blank=True, default='')
     cost_type    = models.CharField('Tipo de custo', max_length=12, choices=COST_TYPE_CHOICES, default='per_person')
 
@@ -733,12 +724,9 @@ class ItineraryCostItem(models.Model):
     terrestre_departure = models.ForeignKey('ItineraryTerrestreDeparture', null=True, blank=True, on_delete=models.CASCADE, related_name='cost_items')
     accommodation_type  = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
 
-    # Taxas
-    tax_percent  = models.DecimalField('Taxa (%)', max_digits=9, decimal_places=4, default=0)
-    card_fee_percent = models.DecimalField('Taxa de cartão (%)', max_digits=9, decimal_places=4, default=0)
-    iof_percent  = models.DecimalField('IOF (%)', max_digits=9, decimal_places=4, default=0)
-    iof_base     = models.CharField('Base do IOF', max_length=10, choices=IOF_BASE_CHOICES, default='with_fees')
-    fixed_fee    = models.DecimalField('Taxa fixa', max_digits=18, decimal_places=6, default=0)
+    # Taxa única: percentual (sobre o valor do item) OU valor fixo (na moeda do item).
+    tax_kind     = models.CharField('Tipo da taxa', max_length=8, choices=TAX_KIND_CHOICES, default='percent')
+    tax_value    = models.DecimalField('Taxa (valor)', max_digits=18, decimal_places=6, default=0)
 
     payment_method = models.CharField('Forma de pagamento', max_length=100, blank=True, default='')
     due_date     = models.DateField('Vencimento', null=True, blank=True)

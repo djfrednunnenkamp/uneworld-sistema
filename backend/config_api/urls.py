@@ -30,6 +30,7 @@ router.register('itinerary-types',      views.ItineraryTypeViewSet,      basenam
 router.register('maritime-companies',   views.MaritimeCompanyViewSet,    basename='maritime-company')
 router.register('currencies',           views.CurrencyViewSet,           basename='currency')
 router.register('keywords',              views.KeywordViewSet,            basename='keyword')
+router.register('cost-categories',       views.CostCategoryViewSet,       basename='cost-category')
 router.register('inclusions',            views.InclusionViewSet,          basename='inclusion')
 router.register('highlights',            views.HighlightViewSet,          basename='highlight')
 router.register('special-dates',         views.SpecialDateViewSet,        basename='special-date')
