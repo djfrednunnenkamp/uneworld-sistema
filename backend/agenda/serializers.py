@@ -11,7 +11,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position',
                   'contract_create_layout', 'contract_edit_layout',
-                  'dashboard_currencies', 'itinerary_tab_order', 'drive_columns',
+                  'dashboard_currencies', 'dashboard_chart_range', 'itinerary_tab_order', 'drive_columns',
                   'nav_order', 'nav_hidden', 'table_columns']
 
     def validate_dashboard_currencies(self, value):

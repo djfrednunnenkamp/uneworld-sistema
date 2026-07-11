@@ -128,18 +128,34 @@ def dashboard_stats(request):
         ]
 
     exchange_rates = None
+    pref = getattr(user, 'calendar_preference', None)
+    # Intervalo do gráfico de câmbio escolhido pelo usuário (semana/mês/6m/ano).
+    RANGE_DAYS = {'week': 7, 'month': 31, '6months': 186, 'year': 366}
+    chart_range = (getattr(pref, 'dashboard_chart_range', None) or 'week')
+    if chart_range not in RANGE_DAYS:
+        chart_range = 'week'
     if has_any_perm(user, 'settings_exchange_rates_view'):
+        from datetime import timedelta
+        cutoff = (today - timedelta(days=RANGE_DAYS[chart_range] - 1)).isoformat()
         # Cada usuário pode escolher quais moedas ver (configurações pessoais).
         # Sem escolha, mostra as favoritas globais.
-        chosen_ids = []
-        pref = getattr(user, 'calendar_preference', None)
-        if pref and pref.dashboard_currencies:
-            chosen_ids = list(pref.dashboard_currencies)
+        chosen_ids = list(pref.dashboard_currencies) if (pref and pref.dashboard_currencies) else []
         if chosen_ids:
             rows = {r.id: r for r in ConfigExchangeRate.objects.filter(id__in=chosen_ids)}
             favs = [rows[i] for i in chosen_ids if i in rows]   # preserva a ordem escolhida
         else:
             favs = list(ConfigExchangeRate.objects.filter(is_favorite=True).order_by('from_currency', 'to_currency'))
+
+        def _history(r):
+            # Pontos dentro do intervalo, com valor e horário de captura (t; cai
+            # pra data d nos pontos antigos sem horário).
+            out = []
+            for p in (r.rate_history or []):
+                if p.get('r') is None or (p.get('d') or '') < cutoff:
+                    continue
+                out.append({'r': p['r'], 't': p.get('t') or p.get('d')})
+            return out
+
         exchange_rates = [
             {
                 'id': r.id,
@@ -149,7 +165,7 @@ def dashboard_stats(request):
                 # Mostra QUANDO a taxa de fato mudou (não o auto_now, que muda a
                 # cada save). Cai pro updated_at só nas linhas antigas sem registro.
                 'updated_at': r.rate_updated_at or r.updated_at,
-                'history': [p.get('r') for p in (r.rate_history or []) if p.get('r') is not None],
+                'history': _history(r),
             }
             for r in favs
         ]
@@ -158,4 +174,5 @@ def dashboard_stats(request):
         'stats': stats,
         'recent_lists': recent_lists,
         'exchange_rates': exchange_rates,
+        'chart_range': chart_range,
     })
