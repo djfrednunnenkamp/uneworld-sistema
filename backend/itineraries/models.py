@@ -723,6 +723,7 @@ class ItineraryCostItem(models.Model):
     flight_departure    = models.ForeignKey('ItineraryDeparture', null=True, blank=True, on_delete=models.CASCADE, related_name='cost_items')
     terrestre_departure = models.ForeignKey('ItineraryTerrestreDeparture', null=True, blank=True, on_delete=models.CASCADE, related_name='cost_items')
     accommodation_type  = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    ship_cabin          = models.ForeignKey('config_api.ConfigShipCabin', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
 
     # Taxa única: percentual (sobre o valor do item) OU valor fixo (na moeda do item).
     tax_kind     = models.CharField('Tipo da taxa', max_length=8, choices=TAX_KIND_CHOICES, default='percent')

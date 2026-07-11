@@ -172,14 +172,17 @@ def compute(itinerary, pax=None):
     # também os accommodation_lines (hospedagem por acomodação) já existentes
     accom_lines = list(itinerary.accommodation_lines.select_related('accommodation_type').all())
 
-    items = [i for i in itinerary.cost_items.select_related('accommodation_type').all()
+    items = [i for i in itinerary.cost_items.select_related('accommodation_type', 'ship_cabin').all()
              if i.is_active and i.included_in_price]
 
     warnings = []
     items_out = []
-    common_pp = ZERO           # custo comum por pessoa (itens sem saída/acomodação)
+    common_pp = ZERO           # custo comum por pessoa (itens sem saída/acomodação/cabine)
     dep_extra = {}             # id da saída -> custo por pessoa extra
-    accom_extra = {}           # id do tipo de acomodação -> custo por pessoa extra
+    accom_extra = {}           # id do tipo de acomodação (hotel) -> custo por pessoa extra
+    cabin_extra = {}           # id do tipo de cabine (navio) -> custo por pessoa extra
+    accom_name = {}            # id do tipo de acomodação -> nome
+    cabin_name = {}            # id do tipo de cabine -> nome
     cat_totals = {}            # categoria -> total base (por pessoa × base_pax aprox p/ resumo)
 
     for it in items:
@@ -201,10 +204,15 @@ def compute(itinerary, pax=None):
 
         scope_dep = it.flight_departure_id or it.terrestre_departure_id
         scope_accom = it.accommodation_type_id
-        if scope_dep:
+        scope_cabin = it.ship_cabin_id
+        if scope_cabin:
+            cabin_extra[scope_cabin] = cabin_extra.get(scope_cabin, ZERO) + pp
+            cabin_name[scope_cabin] = it.ship_cabin.name if it.ship_cabin else None
+        elif scope_dep:
             dep_extra[scope_dep] = dep_extra.get(scope_dep, ZERO) + pp
         elif scope_accom:
             accom_extra[scope_accom] = accom_extra.get(scope_accom, ZERO) + pp
+            accom_name[scope_accom] = it.accommodation_type.name if it.accommodation_type else None
         else:
             common_pp += pp
 
@@ -234,14 +242,20 @@ def compute(itinerary, pax=None):
         price = (cost / factor) if factor > 0 else cost
         return _apply_rounding(price, cfg.rounding_mode, cfg.rounding_value)
 
-    # tipos de acomodação presentes (das linhas + dos itens escopados)
+    # Eixo de acomodação da tabela: quartos de hotel (aéreo/terrestre) e/ou cabines
+    # de navio (marítimo). Cada entrada guarda o tipo (accom/cabin) e o nome.
     accom_types = {}
     for l in accom_lines:
         if l.accommodation_type_id:
             accom_types[l.accommodation_type_id] = l.accommodation_type.name if l.accommodation_type else f'#{l.accommodation_type_id}'
     for aid in accom_extra:
         if aid not in accom_types:
-            accom_types[aid] = None
+            accom_types[aid] = accom_name.get(aid)
+
+    axis = [{'id': aid, 'kind': 'accom', 'name': aname} for aid, aname in accom_types.items()]
+    axis += [{'id': cid, 'kind': 'cabin', 'name': cabin_name.get(cid)} for cid in cabin_extra]
+    if not axis:
+        axis = [{'id': None, 'kind': None, 'name': None}]
 
     dep_list = [{'id': d.id, 'kind': 'aereo' if hasattr(d, 'airport') else 'terrestre',
                  'label': _dep_label(d), 'expected_pax': d.expected_pax} for d in departures]
@@ -252,20 +266,26 @@ def compute(itinerary, pax=None):
     for dep in dep_list:
         depid = dep['id']
         dep_cost = common_pp + dep_extra.get(depid, ZERO)
-        accoms = accom_types or {None: None}
-        for aid, aname in accoms.items():
-            accom_cost = accom_extra.get(aid, ZERO)
-            # hospedagem legada por acomodação (preferindo a linha da própria saída)
-            byd = accom_pp_by_type.get(aid)
-            if byd:
-                accom_cost += byd.get(depid, byd.get(None, next(iter(byd.values()))))
+        for a in axis:
+            aid, akind, aname = a['id'], a['kind'], a['name']
+            if akind == 'cabin':
+                accom_cost = cabin_extra.get(aid, ZERO)
+            elif akind == 'accom':
+                accom_cost = accom_extra.get(aid, ZERO)
+                # hospedagem legada por acomodação (preferindo a linha da própria saída)
+                byd = accom_pp_by_type.get(aid)
+                if byd:
+                    accom_cost += byd.get(depid, byd.get(None, next(iter(byd.values()))))
+            else:
+                accom_cost = ZERO
             cost = dep_cost + accom_cost
             price = sale_from_cost(cost)
             profit = D(price) - cost
             margin_real = (profit / D(price) * Decimal('100')) if D(price) > 0 else ZERO
             row = {
                 'departure_id': depid, 'departure': dep['label'],
-                'accommodation_id': aid, 'accommodation': aname or ('—' if aid is None else f'#{aid}'),
+                'accommodation_id': aid, 'accommodation_kind': akind,
+                'accommodation': aname or ('—' if aid is None else f'#{aid}'),
                 'cost_per_person': q2(cost), 'sale_price': q2(price),
                 'profit': q2(profit), 'margin_real': q2(margin_real),
             }

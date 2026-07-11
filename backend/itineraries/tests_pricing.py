@@ -58,6 +58,25 @@ class PricingEngineTest(TestCase):
         self.assertEqual(str(res['summary']['common_per_person']), '500.00')
         self.assertEqual(str(res['table'][0]['sale_price']), '500.00')
 
+    def test_navio_por_cabine(self):
+        # roteiro marítimo: eixo da tabela = cabines. Cada cabine soma seu custo
+        # ao custo comum. Fator 100% (sem markup): venda = net.
+        from config_api.models import ConfigShipCabin
+        it = Itinerary.objects.create(name='Cruzeiro', base_currency='USD', has_barco=True)
+        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=2, margin_mode='percent', margin_percent=100)
+        interior, _ = ConfigShipCabin.objects.get_or_create(name='Interior Casal', defaults={'capacity': 2, 'is_couple': True})
+        varanda, _ = ConfigShipCabin.objects.get_or_create(name='Varanda Casal', defaults={'capacity': 2, 'is_couple': True})
+        mk = lambda **k: ItineraryCostItem.objects.create(itinerary=it, **k)
+        mk(description='Seguro', category='seguro', cost_type='per_person', unit_value=100)          # comum
+        mk(description='Cabine interior', category='Transporte marítimo', cost_type='per_person', unit_value=900, ship_cabin=interior)
+        mk(description='Cabine varanda', category='Transporte marítimo', cost_type='per_person', unit_value=1500, ship_cabin=varanda)
+        res = pricing.compute(it)
+        rows = {r['accommodation']: r for r in res['table']}
+        self.assertEqual(str(res['summary']['common_per_person']), '100.00')
+        self.assertEqual(rows['Interior Casal']['accommodation_kind'], 'cabin')
+        self.assertEqual(str(rows['Interior Casal']['cost_per_person']), '1000.00')   # 100 + 900
+        self.assertEqual(str(rows['Varanda Casal']['sale_price']), '1600.00')          # 100 + 1500
+
     def test_grupo_rateia_por_pax_no_simulador(self):
         it, cgh, cwb = self._scenario('percent', Decimal('100'))
         sim = {s['pax']: s for s in pricing.simulate(it, [10, 15, 20])}

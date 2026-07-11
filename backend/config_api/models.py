@@ -391,6 +391,22 @@ class ConfigAccommodation(models.Model):
         return self.name
 
 
+class ConfigShipCabin(models.Model):
+    """Tipo de cabine de navio (aba Valores › Navio). Igual ao tipo de acomodação:
+    nome + capacidade + se é para casal. Cadastrado nas Configurações."""
+    name      = models.CharField('Nome', max_length=200, unique=True)
+    capacity  = models.PositiveIntegerField('Capacidade (pessoas)', default=1)
+    is_couple = models.BooleanField('É para casal', default=False)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Tipo de cabine'
+        verbose_name_plural = 'Tipos de cabine'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigListCategory(models.Model):
     name = models.CharField('Nome', max_length=100, unique=True)
 

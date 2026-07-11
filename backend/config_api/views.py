@@ -15,7 +15,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
-                     ConfigAccommodation, ConfigListCategory, Airport, Airline,
+                     ConfigAccommodation, ConfigShipCabin, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
                      OperatingCompany, OperatingCompanyContact, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
@@ -1679,6 +1679,20 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     queryset         = ConfigAccommodation.objects.all()
     serializer_class = AccommodationSerializer
     get_permissions  = _settings_perm('settings_accommodations')
+
+
+# ── Tipos de Cabine (navio) ────────────────────────────────────────────────
+
+class ShipCabinSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigShipCabin
+        fields = ['id', 'name', 'capacity', 'is_couple']
+
+
+class ShipCabinViewSet(viewsets.ModelViewSet):
+    queryset         = ConfigShipCabin.objects.all()
+    serializer_class = ShipCabinSerializer
+    get_permissions  = _settings_perm('settings_ship_cabins')
 
 
 # ── Cláusulas de contrato ───────────────────────────────────────────────────

@@ -19,6 +19,7 @@ router.register('doc-types',      views.DocTypeViewSet,          basename='docty
 router.register('doc-fields',     views.DocFieldViewSet,         basename='docfield')
 router.register('doc-options',    views.DocFieldOptionViewSet,   basename='docoption')
 router.register('accommodations', views.AccommodationViewSet,    basename='accommodation')
+router.register('ship-cabins',     views.ShipCabinViewSet,        basename='ship-cabin')
 router.register('list-categories', views.ListCategoryViewSet,    basename='listcategory')
 router.register('airports',       views.AirportViewSet,          basename='airport')
 router.register('airlines',       views.AirlineViewSet,          basename='airline')
