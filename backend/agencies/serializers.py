@@ -30,7 +30,12 @@ class AgencySerializer(serializers.ModelSerializer):
 
 
 class AgencyListSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model  = Agency
         fields = ['id', 'name', 'last_name', 'company_name', 'email', 'cnpj', 'cpf', 'person_type',
-                  'phone', 'mobile', 'city', 'status', 'commission_rate', 'is_deleted', 'deleted_at']
+                  'phone', 'mobile', 'city', 'status', 'commission_rate', 'logo_url', 'is_deleted', 'deleted_at']
+
+    def get_logo_url(self, obj):
+        return obj.logo.url if obj.logo else None
