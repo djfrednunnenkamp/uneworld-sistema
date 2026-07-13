@@ -1269,7 +1269,27 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'a_vista', 'a_vista_discount_mode', 'a_vista_discount_value',
                   'has_down_payment', 'down_payment_mode', 'down_payment_value',
                   'down_payment_method', 'down_payment_rounding', 'installments_count', 'payment_method',
-                  'installment_rounding', 'first_due_days', 'interval_days']
+                  'installment_rounding', 'interest_tiers', 'first_due_days', 'interval_days']
+
+    def validate_interest_tiers(self, v):
+        """Higieniza a lista de faixas de juros: {up_to:int|None, rate:0..100}."""
+        if not isinstance(v, list):
+            return []
+        out = []
+        for t in v[:20]:
+            if not isinstance(t, dict):
+                continue
+            up = t.get('up_to')
+            try:
+                up = None if up in (None, '', 'null') else max(1, int(up))
+            except (TypeError, ValueError):
+                up = None
+            try:
+                rate = max(0.0, min(float(t.get('rate') or 0), 1000.0))
+            except (TypeError, ValueError):
+                rate = 0.0
+            out.append({'up_to': up, 'rate': round(rate, 4)})
+        return out
 
 
 class PaymentPlanViewSet(viewsets.ModelViewSet):

@@ -127,6 +127,10 @@ class ConfigPaymentPlan(models.Model):
     payment_method       = models.CharField('Forma de pagamento', max_length=100, blank=True)
     # Passo de arredondamento (em R$) aplicado ao valor de CADA parcela.
     installment_rounding = models.DecimalField('Arredondamento das parcelas (R$)', max_digits=8, decimal_places=2, default=Decimal('0.01'))
+    # Juros por FAIXA de nº de parcelas. Lista de {up_to, rate}: aplica `rate`% ao
+    # valor financiado (parcelas) quando o nº de parcelas ≤ up_to (up_to nulo = "acima").
+    # Ex.: [{up_to:6, rate:0}, {up_to:8, rate:1}, {up_to:null, rate:10}].
+    interest_tiers       = models.JSONField('Juros por faixa de parcelas', default=list, blank=True)
     first_due_days       = models.PositiveSmallIntegerField('1º vencimento (dias após aplicar)', default=30)
     interval_days        = models.PositiveSmallIntegerField('Intervalo entre parcelas (dias)', default=30)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
