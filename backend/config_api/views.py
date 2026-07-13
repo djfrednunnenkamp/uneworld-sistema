@@ -20,6 +20,7 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      OperatingCompany, OperatingCompanyContact, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword, ConfigCostCategory,
+                     ConfigFlightSegment, ConfigFlightClass,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
                      ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
                      ConfigTerrestreCompany)
@@ -907,6 +908,40 @@ class CostCategoryViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = ConfigCostCategory.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class FlightSegmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigFlightSegment
+        fields = ['id', 'name']
+
+
+class FlightSegmentViewSet(viewsets.ModelViewSet):
+    serializer_class = FlightSegmentSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_flight_segments')
+
+    def get_queryset(self):
+        qs = ConfigFlightSegment.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class FlightClassSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigFlightClass
+        fields = ['id', 'name']
+
+
+class FlightClassViewSet(viewsets.ModelViewSet):
+    serializer_class = FlightClassSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_flight_classes')
+
+    def get_queryset(self):
+        qs = ConfigFlightClass.objects.all()
         q = self.request.query_params.get('q', '').strip()
         return qs.filter(name__icontains=q) if q else qs
 

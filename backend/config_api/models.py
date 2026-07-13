@@ -744,6 +744,34 @@ class ConfigCostCategory(models.Model):
         return self.name
 
 
+class ConfigFlightSegment(models.Model):
+    """Trecho/tipo de voo do custo aéreo (aba Valores › Aéreo): ex. Voo total,
+    Voo do guia, Ida, Volta. Cadastrado nas Configurações."""
+    name = models.CharField('Nome', max_length=80, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Trecho aéreo'
+        verbose_name_plural = 'Trechos aéreos'
+
+    def __str__(self):
+        return self.name
+
+
+class ConfigFlightClass(models.Model):
+    """Classe da passagem aérea (aba Valores › Aéreo): ex. Econômica, Premium
+    Economy, Executiva, Primeira Classe. Cadastrada nas Configurações."""
+    name = models.CharField('Nome', max_length=80, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Classe aérea'
+        verbose_name_plural = 'Classes aéreas'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigInclusion(models.Model):
     """Item que pode estar INCLUSO num pacote/roteiro (ex.: Café da manhã, Traslados,
     Seguro viagem). Cadastrado em Configurações e escolhido nos roteiros."""

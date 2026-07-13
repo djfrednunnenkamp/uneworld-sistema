@@ -729,6 +729,8 @@ class ItineraryCurrencyRateSerializer(serializers.ModelSerializer):
 class ItineraryCostItemSerializer(serializers.ModelSerializer):
     accommodation_type_name = serializers.CharField(source='accommodation_type.name', read_only=True, default=None)
     ship_cabin_name = serializers.CharField(source='ship_cabin.name', read_only=True, default=None)
+    flight_segment_name = serializers.CharField(source='flight_segment.name', read_only=True, default=None)
+    flight_class_name = serializers.CharField(source='flight_class.name', read_only=True, default=None)
 
     class Meta:
         model = ItineraryCostItem
@@ -737,5 +739,6 @@ class ItineraryCostItemSerializer(serializers.ModelSerializer):
                   'rateio_rule', 'rateio_qty', 'flight_departure', 'terrestre_departure',
                   'accommodation_type', 'accommodation_type_name',
                   'ship_cabin', 'ship_cabin_name',
+                  'flight_segment', 'flight_segment_name', 'flight_class', 'flight_class_name',
                   'tax_kind', 'tax_value',
                   'payment_method', 'due_date', 'included_in_price', 'is_active', 'order', 'notes']
