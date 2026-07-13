@@ -105,6 +105,27 @@ class PricingEngineTest(TestCase):
         res = pricing.compute(it)
         self.assertEqual(str(res['summary']['common_per_person']), '100.00')
 
+    def test_custo_por_capacidade_aplica_a_todas_daquela_capacidade(self):
+        # Duplo Casal e Duplo Twin (cap. 2) recebem o mesmo custo lançado por capacidade;
+        # Single (cap. 1) não recebe. Eixo vem das accommodation_lines.
+        from config_api.models import ConfigAccommodation
+        from .models import ItineraryAccommodationLine
+        it = Itinerary.objects.create(name='Cap', base_currency='USD')
+        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=1, margin_mode='percent', margin_percent=100)
+        casal, _ = ConfigAccommodation.objects.get_or_create(name='Duplo Casal', defaults={'capacity': 2})
+        twin, _ = ConfigAccommodation.objects.get_or_create(name='Duplo Twin', defaults={'capacity': 2})
+        single, _ = ConfigAccommodation.objects.get_or_create(name='Single', defaults={'capacity': 1})
+        for a in (casal, twin, single):
+            ItineraryAccommodationLine.objects.create(itinerary=it, accommodation_type=a)
+        # custo por pessoa lançado para capacidade 2 (todos os duplos)
+        ItineraryCostItem.objects.create(itinerary=it, description='Hotel duplo', category='Hospedagem',
+                                         cost_type='per_person', accommodation_capacity=2, unit_value=1000)
+        res = pricing.compute(it)
+        rows = {r['accommodation']: r for r in res['table']}
+        self.assertEqual(str(rows['Duplo Casal']['cost_per_person']), '1000.00')
+        self.assertEqual(str(rows['Duplo Twin']['cost_per_person']), '1000.00')
+        self.assertEqual(str(rows['Single']['cost_per_person']), '0.00')
+
     def test_fator_zero_nao_quebra(self):
         it = Itinerary.objects.create(name='Fator zero', base_currency='USD')
         ItineraryPricingConfig.objects.create(itinerary=it, base_pax=1, margin_mode='percent', margin_percent=0)

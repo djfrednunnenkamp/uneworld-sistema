@@ -728,6 +728,10 @@ class ItineraryCostItem(models.Model):
     flight_departure    = models.ForeignKey('ItineraryDeparture', null=True, blank=True, on_delete=models.CASCADE, related_name='cost_items')
     terrestre_departure = models.ForeignKey('ItineraryTerrestreDeparture', null=True, blank=True, on_delete=models.CASCADE, related_name='cost_items')
     accommodation_type  = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    # Escopo por CAPACIDADE da acomodação (nº de pessoas): aplica o custo a todas
+    # as acomodações com essa capacidade (ex.: capacidade 2 = duplo casal e duplo
+    # twin, que têm o mesmo preço). None = não usa escopo por capacidade.
+    accommodation_capacity = models.PositiveSmallIntegerField('Capacidade da acomodação', null=True, blank=True)
     ship_cabin          = models.ForeignKey('config_api.ConfigShipCabin', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     # Aéreo: trecho/tipo de voo (voo total, voo do guia…) e classe (econômica, executiva…).
     flight_segment      = models.ForeignKey('config_api.ConfigFlightSegment', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')

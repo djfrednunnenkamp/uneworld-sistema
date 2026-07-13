@@ -184,9 +184,11 @@ def compute(itinerary, pax=None):
     common_pp = ZERO           # custo comum por pessoa (itens sem saída/acomodação/cabine)
     dep_extra = {}             # id da saída -> custo por pessoa extra
     accom_extra = {}           # id do tipo de acomodação (hotel) -> custo por pessoa extra
+    capacity_extra = {}        # capacidade (nº pessoas) -> custo por pessoa extra (todas as acomodações dessa capacidade)
     cabin_extra = {}           # id do tipo de cabine (navio) -> custo por pessoa extra
     accom_name = {}            # id do tipo de acomodação -> nome
     cabin_name = {}            # id do tipo de cabine -> nome
+    accom_capacity = {}        # id do tipo de acomodação -> capacidade (nº pessoas)
     cat_totals = {}            # categoria -> total base (por pessoa × base_pax aprox p/ resumo)
 
     for it in items:
@@ -208,6 +210,7 @@ def compute(itinerary, pax=None):
 
         scope_dep = it.flight_departure_id or it.terrestre_departure_id
         scope_accom = it.accommodation_type_id
+        scope_capacity = it.accommodation_capacity
         scope_cabin = it.ship_cabin_id
         if scope_cabin:
             cabin_extra[scope_cabin] = cabin_extra.get(scope_cabin, ZERO) + pp
@@ -217,6 +220,10 @@ def compute(itinerary, pax=None):
         elif scope_accom:
             accom_extra[scope_accom] = accom_extra.get(scope_accom, ZERO) + pp
             accom_name[scope_accom] = it.accommodation_type.name if it.accommodation_type else None
+            if it.accommodation_type:
+                accom_capacity[scope_accom] = it.accommodation_type.capacity
+        elif scope_capacity:
+            capacity_extra[scope_capacity] = capacity_extra.get(scope_capacity, ZERO) + pp
         else:
             common_pp += pp
 
@@ -252,6 +259,8 @@ def compute(itinerary, pax=None):
     for l in accom_lines:
         if l.accommodation_type_id:
             accom_types[l.accommodation_type_id] = l.accommodation_type.name if l.accommodation_type else f'#{l.accommodation_type_id}'
+            if l.accommodation_type:
+                accom_capacity.setdefault(l.accommodation_type_id, l.accommodation_type.capacity)
     for aid in accom_extra:
         if aid not in accom_types:
             accom_types[aid] = accom_name.get(aid)
@@ -276,6 +285,8 @@ def compute(itinerary, pax=None):
                 accom_cost = cabin_extra.get(aid, ZERO)
             elif akind == 'accom':
                 accom_cost = accom_extra.get(aid, ZERO)
+                # custos lançados por CAPACIDADE (ex.: todos os duplos) aplicam a esta acomodação
+                accom_cost += capacity_extra.get(accom_capacity.get(aid), ZERO)
                 # hospedagem legada por acomodação (preferindo a linha da própria saída)
                 byd = accom_pp_by_type.get(aid)
                 if byd:
