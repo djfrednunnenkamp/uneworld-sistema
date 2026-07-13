@@ -12,6 +12,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'send_hour', 'side_panel_enabled', 'side_panel_position',
                   'contract_create_layout', 'contract_edit_layout',
                   'dashboard_currencies', 'dashboard_chart_range', 'lamina_recent_colors',
+                  'lamina_favorite_patterns', 'lamina_recent_patterns', 'lamina_favorite_recommended',
                   'itinerary_tab_order', 'drive_columns',
                   'nav_order', 'nav_hidden', 'table_columns']
 
@@ -31,6 +32,25 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
             if len(out) >= 16:
                 break
         return out
+
+    def _clean_keys(self, value, cap=80):
+        # Lista de chaves curtas (estampa/paleta), sem repetição, mantendo a ordem.
+        out, seen = [], set()
+        for k in (value if isinstance(value, list) else []):
+            if isinstance(k, str) and k.strip() and k not in seen and len(k) <= 40:
+                seen.add(k); out.append(k[:40])
+            if len(out) >= cap:
+                break
+        return out
+
+    def validate_lamina_favorite_patterns(self, value):
+        return None if value is None else self._clean_keys(value)
+
+    def validate_lamina_recent_patterns(self, value):
+        return self._clean_keys(value, cap=16)
+
+    def validate_lamina_favorite_recommended(self, value):
+        return None if value is None else self._clean_keys(value)
 
     def validate_dashboard_currencies(self, value):
         if not isinstance(value, list):

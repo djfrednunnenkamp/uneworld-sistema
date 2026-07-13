@@ -35,6 +35,12 @@ class CalendarPreference(models.Model):
     # Cores personalizadas usadas recentemente na aba Lâminas (lista de '#RRGGBB',
     # a mais recente primeiro). Persistidas no perfil (não só no navegador).
     lamina_recent_colors = models.JSONField('Cores recentes das lâminas', default=list, blank=True)
+    # Favoritos da aba Lâminas. `null` = nunca inicializado (o front semeia os
+    # padrões no primeiro uso); uma lista (mesmo vazia) = escolha do usuário
+    # (respeitada — um item removido não volta sozinho).
+    lamina_favorite_patterns     = models.JSONField('Estampas favoritas', null=True, blank=True, default=None)
+    lamina_recent_patterns       = models.JSONField('Estampas recentes', default=list, blank=True)
+    lamina_favorite_recommended  = models.JSONField('Paletas recomendadas favoritas', null=True, blank=True, default=None)
     # Intervalo do gráfico de câmbio da Visão Geral.
     DASHBOARD_RANGE_CHOICES = [('week', '1 semana'), ('month', '1 mês'), ('6months', '6 meses'), ('year', '1 ano')]
     dashboard_chart_range = models.CharField('Intervalo do gráfico de câmbio', max_length=8,
