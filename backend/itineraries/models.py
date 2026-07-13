@@ -710,6 +710,11 @@ class ItineraryCostItem(models.Model):
 
     currency     = models.CharField('Moeda do item', max_length=3, blank=True, default='')  # ''/None = moeda base
     unit_value   = models.DecimalField('Valor unitário', max_digits=18, decimal_places=6, default=0)
+    # Câmbio manual do item: 1 unidade da moeda do item = `exchange_rate` na moeda
+    # base (mesma convenção de ItineraryCurrencyRate). None → usa a cotação travada
+    # do roteiro (currency_rates). Preenchido quando o operador informa o câmbio
+    # que ele mesmo usou na conversão daquele custo.
+    exchange_rate = models.DecimalField('Câmbio do item (1 moeda = X base)', max_digits=18, decimal_places=6, null=True, blank=True)
     quantity     = models.DecimalField('Quantidade', max_digits=12, decimal_places=4, default=Decimal('1'))
     basis        = models.CharField('Base do preço', max_length=16, choices=BASIS_CHOICES, default='per_person')
     occupancy    = models.PositiveSmallIntegerField('Ocupação (divisor)', default=1)

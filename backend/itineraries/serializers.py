@@ -733,7 +733,7 @@ class ItineraryCostItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ItineraryCostItem
         fields = ['id', 'itinerary', 'description', 'category', 'supplier', 'cost_type',
-                  'currency', 'unit_value', 'quantity', 'basis', 'occupancy', 'nights',
+                  'currency', 'unit_value', 'exchange_rate', 'quantity', 'basis', 'occupancy', 'nights',
                   'rateio_rule', 'rateio_qty', 'flight_departure', 'terrestre_departure',
                   'accommodation_type', 'accommodation_type_name',
                   'ship_cabin', 'ship_cabin_name',

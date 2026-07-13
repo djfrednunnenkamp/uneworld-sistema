@@ -92,6 +92,19 @@ class PricingEngineTest(TestCase):
         res = pricing.compute(it)   # 100 USD × 5 = 500 BRL
         self.assertEqual(str(res['summary']['common_per_person']), '500.00')
 
+    def test_cambio_manual_do_item_tem_prioridade(self):
+        # base USD; item em BRL com câmbio manual (1 BRL = 0,20 USD). 500 BRL × 0,20 = 100 USD.
+        it = Itinerary.objects.create(name='Câmbio manual', base_currency='USD')
+        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=1, margin_mode='percent', margin_percent=100)
+        from .models import ItineraryCurrencyRate
+        # cotação travada do roteiro (deve ser IGNORADA quando há câmbio no item)
+        ItineraryCurrencyRate.objects.create(itinerary=it, currency='BRL', rate=Decimal('0.99'))
+        ItineraryCostItem.objects.create(itinerary=it, description='Item BRL', category='outros',
+                                         cost_type='per_person', currency='BRL', unit_value=500,
+                                         exchange_rate=Decimal('0.20'))
+        res = pricing.compute(it)
+        self.assertEqual(str(res['summary']['common_per_person']), '100.00')
+
     def test_fator_zero_nao_quebra(self):
         it = Itinerary.objects.create(name='Fator zero', base_currency='USD')
         ItineraryPricingConfig.objects.create(itinerary=it, base_pax=1, margin_mode='percent', margin_percent=0)

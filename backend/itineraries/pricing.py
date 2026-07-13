@@ -99,7 +99,11 @@ def _item_calc(item, base_cur, rates):
         tax = supplier * tax_val / Decimal('100')
     final_item = supplier + tax
 
-    rate, has_rate = _rate_of(cur, base_cur, rates)
+    # Câmbio manual do item tem prioridade sobre a cotação travada do roteiro.
+    if cur != base_cur and item.exchange_rate and D(item.exchange_rate) > 0:
+        rate, has_rate = D(item.exchange_rate), True
+    else:
+        rate, has_rate = _rate_of(cur, base_cur, rates)
     final_base = final_item * rate
 
     # Total do item na base vira "por pessoa" conforme a base do preço.
