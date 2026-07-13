@@ -1,6 +1,6 @@
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework import viewsets
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -8,8 +8,8 @@ from rest_framework.response import Response
 from users_api.permissions import RequirePermission, agency_scope_ids, has_any_perm
 from itineraries.models import Itinerary
 from itineraries.views import _itinerary_cover_url
-from .models import Lamina
-from .serializers import LaminaSerializer
+from .models import Lamina, UserColorPalette
+from .serializers import LaminaSerializer, UserColorPaletteSerializer
 
 
 def _card(it, request):
@@ -23,6 +23,48 @@ def _card(it, request):
         'end_date': it.end_date,
         'nights_override': it.nights_override,
     }
+
+
+class ColorPaletteViewSet(viewsets.ModelViewSet):
+    """Paletas de cores PESSOAIS do usuário (aba Lâminas). Cada usuário só enxerga,
+    edita e exclui as próprias paletas — o escopo é sempre `request.user`, então não
+    há como ver/alterar paleta de outro usuário (mesmo passando id na URL: 404)."""
+    serializer_class = UserColorPaletteSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['name', 'updated_at', 'created_at', 'is_favorite', 'sort_order']
+    ordering = ['-is_favorite', 'sort_order', 'name']
+
+    def get_permissions(self):
+        # Reusa as permissões de lâminas: quem pode ver/fazer lâminas gerencia as
+        # próprias paletas. (Não há administração de paleta de terceiros.)
+        return [IsAuthenticated(), RequirePermission('laminas_view', 'laminas_agency')()]
+
+    def get_queryset(self):
+        return UserColorPalette.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save()  # o serializer define user = request.user
+
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Duplica a paleta (própria OU uma recomendada enviada no corpo) para o
+        usuário. A cópia sempre pertence ao usuário autenticado."""
+        src = self.get_object()
+        if UserColorPalette.objects.filter(user=request.user).count() >= UserColorPalette.MAX_PER_USER:
+            return Response({'error': f'Limite de {UserColorPalette.MAX_PER_USER} paletas atingido.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        copy = UserColorPalette.objects.create(
+            user=request.user, name=f'{src.name} (cópia)'[:60], colors=list(src.colors or []))
+        return Response(self.get_serializer(copy).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def favorite(self, request, pk=None):
+        """Alterna o favorito da paleta."""
+        obj = self.get_object()
+        obj.is_favorite = not obj.is_favorite
+        obj.save(update_fields=['is_favorite', 'updated_at'])
+        return Response(self.get_serializer(obj).data)
 
 
 class LaminaViewSet(viewsets.ModelViewSet):

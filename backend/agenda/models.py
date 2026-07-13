@@ -32,6 +32,9 @@ class CalendarPreference(models.Model):
     # Moedas que o usuário escolheu ver na faixa de câmbio da Visão Geral
     # (lista de IDs de ConfigExchangeRate). Vazio = usa as favoritas globais.
     dashboard_currencies = models.JSONField('Moedas do câmbio no painel', default=list, blank=True)
+    # Cores personalizadas usadas recentemente na aba Lâminas (lista de '#RRGGBB',
+    # a mais recente primeiro). Persistidas no perfil (não só no navegador).
+    lamina_recent_colors = models.JSONField('Cores recentes das lâminas', default=list, blank=True)
     # Intervalo do gráfico de câmbio da Visão Geral.
     DASHBOARD_RANGE_CHOICES = [('week', '1 semana'), ('month', '1 mês'), ('6months', '6 meses'), ('year', '1 ano')]
     dashboard_chart_range = models.CharField('Intervalo do gráfico de câmbio', max_length=8,

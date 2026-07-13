@@ -11,8 +11,26 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position',
                   'contract_create_layout', 'contract_edit_layout',
-                  'dashboard_currencies', 'dashboard_chart_range', 'itinerary_tab_order', 'drive_columns',
+                  'dashboard_currencies', 'dashboard_chart_range', 'lamina_recent_colors',
+                  'itinerary_tab_order', 'drive_columns',
                   'nav_order', 'nav_hidden', 'table_columns']
+
+    def validate_lamina_recent_colors(self, value):
+        # Lista de '#RRGGBB' (máx. 16, sem repetição, mais recente primeiro).
+        import re
+        hexre = re.compile(r'^#?([0-9a-fA-F]{6})$')
+        out, seen = [], set()
+        for c in (value if isinstance(value, list) else []):
+            if not isinstance(c, str) or not hexre.match(c.strip()):
+                continue
+            v = '#' + c.strip().lstrip('#').upper()
+            if v in seen:
+                continue
+            seen.add(v)
+            out.append(v)
+            if len(out) >= 16:
+                break
+        return out
 
     def validate_dashboard_currencies(self, value):
         if not isinstance(value, list):
