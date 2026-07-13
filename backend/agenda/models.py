@@ -41,6 +41,9 @@ class CalendarPreference(models.Model):
     lamina_favorite_patterns     = models.JSONField('Estampas favoritas', null=True, blank=True, default=None)
     lamina_recent_patterns       = models.JSONField('Estampas recentes', default=list, blank=True)
     lamina_favorite_recommended  = models.JSONField('Paletas recomendadas favoritas', null=True, blank=True, default=None)
+    # Templates de tema favoritos — referências unificadas ('builtin:<key>',
+    # 'rec:<key>', 'mine:<id>'). null = nunca inicializado (semeia os padrões).
+    lamina_favorite_themes       = models.JSONField('Templates de tema favoritos', null=True, blank=True, default=None)
     # Intervalo do gráfico de câmbio da Visão Geral.
     DASHBOARD_RANGE_CHOICES = [('week', '1 semana'), ('month', '1 mês'), ('6months', '6 meses'), ('year', '1 ano')]
     dashboard_chart_range = models.CharField('Intervalo do gráfico de câmbio', max_length=8,
