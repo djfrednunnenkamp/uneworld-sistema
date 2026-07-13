@@ -24,7 +24,7 @@ class LaminaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lamina
         fields = ['id', 'name', 'headline', 'theme', 'pattern', 'columns', 'rows',
-                  'roteiro_ids', 'footer', 'source', 'agency', 'style',
+                  'roteiro_ids', 'roteiro_order_manual', 'footer', 'source', 'agency', 'style',
                   'created_by', 'created_at', 'updated_at']
         read_only_fields = ['created_by', 'created_at', 'updated_at']
 

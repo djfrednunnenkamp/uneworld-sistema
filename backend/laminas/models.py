@@ -49,6 +49,9 @@ class Lamina(models.Model):
     rows        = models.PositiveSmallIntegerField('Linhas', default=2)   # derivado (auto) no front
     # Ordem dos roteiros na lâmina (lista de ids de Itinerary).
     roteiro_ids = models.JSONField('Roteiros (ordem)', default=list, blank=True)
+    # Ordem manual (arraste) x automática por data de início. False = ordena por
+    # data no front; True = respeita a ordem salva em roteiro_ids.
+    roteiro_order_manual = models.BooleanField('Ordem manual dos roteiros', default=False)
     # Rodapé com contato: mostra ou não; de quem (operadora ou uma agência).
     footer      = models.BooleanField('Rodapé com contato', default=False)
     source      = models.CharField('Marca/contato', max_length=12, default='operadora')  # operadora | agency
