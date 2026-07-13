@@ -1272,23 +1272,30 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
                   'installment_rounding', 'interest_tiers', 'first_due_days', 'interval_days']
 
     def validate_interest_tiers(self, v):
-        """Higieniza a lista de faixas de juros: {up_to:int|None, rate:0..100}."""
+        """Higieniza as faixas de juros por nº de parcelas: {from:int, to:int|None, rate:0..1000}.
+        `from` = mín. de parcelas; `to` = máx. (None/'' = sem limite); fora das faixas = sem juros."""
         if not isinstance(v, list):
             return []
+
+        def _int_or_none(x):
+            if x in (None, '', 'null'):
+                return None
+            try:
+                return max(0, int(x))
+            except (TypeError, ValueError):
+                return None
+
         out = []
         for t in v[:20]:
             if not isinstance(t, dict):
                 continue
-            up = t.get('up_to')
-            try:
-                up = None if up in (None, '', 'null') else max(1, int(up))
-            except (TypeError, ValueError):
-                up = None
+            frm = _int_or_none(t.get('from'))
+            to = _int_or_none(t.get('to'))
             try:
                 rate = max(0.0, min(float(t.get('rate') or 0), 1000.0))
             except (TypeError, ValueError):
                 rate = 0.0
-            out.append({'up_to': up, 'rate': round(rate, 4)})
+            out.append({'from': frm if frm is not None else 0, 'to': to, 'rate': round(rate, 4)})
         return out
 
 
