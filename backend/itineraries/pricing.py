@@ -33,6 +33,23 @@ def q2(v):
     return D(v).quantize(Q2, rounding=ROUND_HALF_UP)
 
 
+_CAP_NAMES = {1: 'Single', 2: 'Duplo', 3: 'Triplo', 4: 'Quádruplo', 5: 'Quíntuplo'}
+
+
+def _cap_name(n):
+    return _CAP_NAMES.get(n, f'{n} pessoas') if n else '—'
+
+
+def _cabin_group_label(cabin):
+    """Rótulo unificado da cabine no eixo de preços: cabines da mesma categoria
+    e capacidade (ex.: Duplo Casal e Duplo Twin) aparecem como uma linha só —
+    "Categoria — Duplo". Sem categoria, cai no nome da cabine."""
+    if not cabin:
+        return None
+    cat = (cabin.category or '').strip()
+    return f'{cat} — {_cap_name(cabin.capacity)}' if cat else cabin.name
+
+
 def _apply_rounding(value, mode, custom):
     """Arredondamento do PREÇO FINAL conforme a config."""
     v = D(value)
@@ -214,7 +231,7 @@ def compute(itinerary, pax=None):
         scope_cabin = it.ship_cabin_id
         if scope_cabin:
             cabin_extra[scope_cabin] = cabin_extra.get(scope_cabin, ZERO) + pp
-            cabin_name[scope_cabin] = it.ship_cabin.name if it.ship_cabin else None
+            cabin_name[scope_cabin] = _cabin_group_label(it.ship_cabin) if it.ship_cabin else None
         elif scope_dep:
             dep_extra[scope_dep] = dep_extra.get(scope_dep, ZERO) + pp
         elif scope_accom:
