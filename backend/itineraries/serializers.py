@@ -771,6 +771,7 @@ class ItineraryCostItemSerializer(serializers.ModelSerializer):
                   'currency', 'unit_value', 'exchange_rate', 'quantity', 'basis', 'occupancy', 'nights',
                   'rateio_rule', 'rateio_qty', 'flight_departure', 'terrestre_departure',
                   'accommodation_type', 'accommodation_type_name', 'accommodation_capacity',
+                  'is_fee', 'fee_capacities',
                   'ship_cabin', 'ship_cabin_name',
                   'flight_segment', 'flight_segment_name', 'flight_class', 'flight_class_name',
                   'tax_kind', 'tax_value',

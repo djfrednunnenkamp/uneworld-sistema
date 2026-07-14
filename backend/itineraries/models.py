@@ -759,6 +759,11 @@ class ItineraryCostItem(models.Model):
     # as acomodações com essa capacidade (ex.: capacidade 2 = duplo casal e duplo
     # twin, que têm o mesmo preço). None = não usa escopo por capacidade.
     accommodation_capacity = models.PositiveSmallIntegerField('Capacidade da acomodação', null=True, blank=True)
+    # "Taxa" (Aplica a › Taxa): NÃO entra no preço net; vira valor separado que
+    # alimenta a coluna de Taxas da acomodação. fee_capacities lista as capacidades
+    # a que a taxa se aplica (ex.: [1] single, [2] duplo, [1,2] ambos, com o MESMO valor).
+    is_fee          = models.BooleanField('É taxa (valor separado)', default=False)
+    fee_capacities  = models.JSONField('Capacidades da taxa', default=list, blank=True)
     ship_cabin          = models.ForeignKey('config_api.ConfigShipCabin', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     # Aéreo: trecho/tipo de voo (voo total, voo do guia…) e classe (econômica, executiva…).
     flight_segment      = models.ForeignKey('config_api.ConfigFlightSegment', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')

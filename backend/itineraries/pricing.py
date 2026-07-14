@@ -177,7 +177,7 @@ def compute(itinerary, pax=None):
     accom_lines = list(itinerary.accommodation_lines.select_related('accommodation_type').all())
 
     items = [i for i in itinerary.cost_items.select_related('accommodation_type', 'ship_cabin').all()
-             if i.is_active and i.included_in_price]
+             if i.is_active and i.included_in_price and not i.is_fee]   # taxas (is_fee) não entram no net
 
     warnings = []
     items_out = []
