@@ -399,18 +399,24 @@ class ConfigAccommodation(models.Model):
 
 class ConfigShipCabin(models.Model):
     """Tipo de cabine de navio (aba Valores › Navio). Igual ao tipo de acomodação:
-    nome + capacidade + se é para casal. Cadastrado nas Configurações."""
-    name      = models.CharField('Nome', max_length=200, unique=True)
+    nome + capacidade + se é para casal. Opcionalmente agrupado em uma categoria/
+    setor (ex.: "Balcão Juliet Inferior") para organizar os tipos (Duplo/Twin/
+    Single) do mesmo setor. Cadastrado nas Configurações."""
+    category  = models.CharField('Categoria / setor', max_length=200, blank=True, default='', db_index=True)
+    name      = models.CharField('Nome', max_length=200)
     capacity  = models.PositiveIntegerField('Capacidade (pessoas)', default=1)
     is_couple = models.BooleanField('É para casal', default=False)
 
     class Meta:
-        ordering = ['name']
+        ordering = ['category', 'name']
+        # O nome é único DENTRO de cada categoria — assim "Single" pode existir em
+        # setores diferentes (o vínculo dos custos é por id, não por nome).
+        unique_together = [('category', 'name')]
         verbose_name = 'Tipo de cabine'
         verbose_name_plural = 'Tipos de cabine'
 
     def __str__(self):
-        return self.name
+        return f'{self.category} - {self.name}' if self.category else self.name
 
 
 class ConfigListCategory(models.Model):

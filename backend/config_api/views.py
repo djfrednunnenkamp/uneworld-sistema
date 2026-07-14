@@ -1748,7 +1748,7 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 class ShipCabinSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigShipCabin
-        fields = ['id', 'name', 'capacity', 'is_couple']
+        fields = ['id', 'category', 'name', 'capacity', 'is_couple']
 
 
 class ShipCabinViewSet(viewsets.ModelViewSet):
