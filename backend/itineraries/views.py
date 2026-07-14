@@ -493,6 +493,46 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             logging.getLogger('django.request').warning('Itinerary save 400 detail: %s', exc.detail)
         return super().handle_exception(exc)
 
+    def update(self, request, *args, **kwargs):
+        # Descarta linhas de acomodação que apontam para uma SAÍDA já excluída
+        # (flight/terrestre_departure de outro id ou removida). Sem isso, a FK
+        # inexistente derruba o Salvar inteiro do roteiro com 400.
+        self._drop_orphan_accommodation_lines(request)
+        return super().update(request, *args, **kwargs)
+
+    def _drop_orphan_accommodation_lines(self, request):
+        lines = request.data.get('accommodation_lines') if hasattr(request, 'data') else None
+        if not isinstance(lines, list) or not lines:
+            return
+        itin_id = self.kwargs.get('pk')
+        valid_f = set(ItineraryDeparture.objects.filter(itinerary_id=itin_id).values_list('id', flat=True))
+        valid_t = set(ItineraryTerrestreDeparture.objects.filter(itinerary_id=itin_id).values_list('id', flat=True))
+
+        def ok(l):
+            fd, td = l.get('flight_departure'), l.get('terrestre_departure')
+            if fd is not None:
+                try:
+                    if int(fd) not in valid_f:
+                        return False
+                except (TypeError, ValueError):
+                    return False
+            if td is not None:
+                try:
+                    if int(td) not in valid_t:
+                        return False
+                except (TypeError, ValueError):
+                    return False
+            return True
+
+        cleaned = [l for l in lines if ok(l)]
+        if len(cleaned) != len(lines):
+            try:
+                if hasattr(request.data, '_mutable'):
+                    request.data._mutable = True
+                request.data['accommodation_lines'] = cleaned
+            except Exception:
+                pass
+
     def get_queryset(self):
         from django.db.models import Q
         from users_api.permissions import agency_scope_ids
