@@ -85,14 +85,31 @@ def _seller_brief(u):
     return {'id': u.id, 'name': name, 'email': u.email or '', 'phone': phone}
 
 
+def _accom_display_name(obj):
+    """Nome exibido da acomodação: tipo de hotel → rótulo denormalizado (cabine)
+    → nome do grupo da cabine → '—'. Nunca estoura com FK null."""
+    if getattr(obj, 'accommodation_type_id', None):
+        return obj.accommodation_type.name
+    if getattr(obj, 'accommodation_label', ''):
+        return obj.accommodation_label
+    if getattr(obj, 'ship_cabin_id', None):
+        c = obj.ship_cabin
+        return f'{c.category} — {c.name}' if c.category else c.name
+    return None
+
+
 class ContractAccommodationLineSerializer(serializers.ModelSerializer):
-    accommodation_type_name = serializers.CharField(source='accommodation_type.name', read_only=True)
+    accommodation_type_name = serializers.SerializerMethodField()
     total_usd = serializers.SerializerMethodField()
 
     class Meta:
         model  = ContractAccommodationLine
         fields = ['id', 'accommodation_type', 'accommodation_type_name',
+                  'ship_cabin', 'accommodation_label', 'capacity',
                   'value_per_person_usd', 'taxes_usd', 'quantity', 'order', 'total_usd']
+
+    def get_accommodation_type_name(self, obj):
+        return _accom_display_name(obj)
 
     def get_total_usd(self, obj):
         return (obj.value_per_person_usd + obj.taxes_usd) * obj.quantity
@@ -104,13 +121,14 @@ class ContractGuestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ContractGuest
-        fields = ['id', 'passenger', 'passenger_data', 'accommodation_type', 'accommodation_type_name', 'room_group', 'order']
+        fields = ['id', 'passenger', 'passenger_data', 'accommodation_type', 'accommodation_type_name',
+                  'ship_cabin', 'accommodation_label', 'capacity', 'room_group', 'order']
 
     def get_passenger_data(self, obj):
         return _passenger_brief(obj.passenger)
 
     def get_accommodation_type_name(self, obj):
-        return obj.accommodation_type.name if obj.accommodation_type_id else None
+        return _accom_display_name(obj)
 
 
 class ContractInstallmentSerializer(serializers.ModelSerializer):

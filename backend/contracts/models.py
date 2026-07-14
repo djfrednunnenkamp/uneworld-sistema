@@ -187,9 +187,16 @@ class Contract(models.Model):
 
 
 class ContractAccommodationLine(models.Model):
-    """Linha da tabela 'Tipos de Acomodação / Valores por Pessoa' da capa."""
+    """Linha da tabela 'Tipos de Acomodação / Valores por Pessoa' da capa.
+    Uma linha é OU hotel (accommodation_type) OU cabine de navio (ship_cabin);
+    accommodation_label/capacity ficam denormalizados p/ rótulo e snapshot."""
     contract            = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='accommodation_lines')
-    accommodation_type  = models.ForeignKey('config_api.ConfigAccommodation', on_delete=models.PROTECT, related_name='+')
+    accommodation_type  = models.ForeignKey('config_api.ConfigAccommodation', on_delete=models.PROTECT,
+                                             null=True, blank=True, related_name='+')
+    ship_cabin          = models.ForeignKey('config_api.ConfigShipCabin', on_delete=models.SET_NULL,
+                                             null=True, blank=True, related_name='+')
+    accommodation_label  = models.CharField('Rótulo da acomodação', max_length=200, blank=True, default='')
+    capacity             = models.PositiveIntegerField('Capacidade', null=True, blank=True)
     value_per_person_usd = models.DecimalField('Valor por pessoa (USD)', max_digits=10, decimal_places=2, default=0)
     taxes_usd            = models.DecimalField('Taxas (USD)', max_digits=10, decimal_places=2, default=0)
     quantity              = models.PositiveIntegerField('Quantidade', default=1)
@@ -206,6 +213,10 @@ class ContractGuest(models.Model):
                                            related_name='contract_guest_entries')
     accommodation_type = models.ForeignKey('config_api.ConfigAccommodation', on_delete=models.SET_NULL,
                                            null=True, blank=True, related_name='+')
+    ship_cabin         = models.ForeignKey('config_api.ConfigShipCabin', on_delete=models.SET_NULL,
+                                           null=True, blank=True, related_name='+')
+    accommodation_label = models.CharField('Rótulo da acomodação', max_length=200, blank=True, default='')
+    capacity            = models.PositiveIntegerField('Capacidade', null=True, blank=True)
     # Agrupamento de quarto: hóspedes com o mesmo room_group dividem a mesma
     # acomodação (quem fica com quem). Null = ainda sem quarto.
     room_group         = models.PositiveIntegerField('Quarto', null=True, blank=True)

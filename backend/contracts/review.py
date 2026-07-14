@@ -32,7 +32,7 @@ def _m(v):
 def build_review_data(contract):
     from .serializers import _default_exchange_rate, avista_discount_usd
 
-    lines = list(contract.accommodation_lines.select_related('accommodation_type').all())
+    lines = list(contract.accommodation_lines.select_related('accommodation_type', 'ship_cabin').all())
     adjustments = list(contract.adjustments.all())
     installments = list(contract.installments.all())
 
@@ -63,6 +63,23 @@ def build_review_data(contract):
             return tdep == dep_terr
         return fdep is None and tdep is None
 
+    # Chave unificada de acomodação: hotel por tipo, cabine por (capacidade, rótulo).
+    def _snap_key(il):
+        at = il.get('accommodation_type')
+        if at is not None:
+            return ('acc', at)
+        lbl = il.get('accommodation_label') or ''
+        if il.get('ship_cabin') is not None or lbl:
+            return ('cab', il.get('capacity'), lbl)
+        return None
+
+    def _line_key(l):
+        if l.accommodation_type_id:
+            return ('acc', l.accommodation_type_id)
+        if l.ship_cabin_id or l.accommodation_label:
+            return ('cab', l.capacity, l.accommodation_label or '')
+        return None
+
     itin_map = {}
     if contract.itinerary_id:
         itin = contract.itinerary
@@ -71,15 +88,16 @@ def build_review_data(contract):
             snap = itin.published_data
             if (snap.get('base_currency') or 'USD') == contract_cur:
                 for il in (snap.get('accommodation_lines') or []):
-                    at = il.get('accommodation_type')
-                    if at is not None and _in_scope(il.get('flight_departure'), il.get('terrestre_departure')):
-                        itin_map[at] = (_d(il.get('value_per_person')), _d(il.get('taxes')))
+                    k = _snap_key(il)
+                    if k is not None and _in_scope(il.get('flight_departure'), il.get('terrestre_departure')):
+                        itin_map[k] = (_d(il.get('value_per_person')), _d(il.get('taxes')))
         elif (itin.base_currency or 'USD') == contract_cur:
             # Roteiro sem foto publicada (não deveria ocorrer num contrato): cai no
             # estado vivo, ainda respeitando a moeda.
             for il in itin.accommodation_lines.all():
-                if il.accommodation_type_id is not None and _in_scope(il.flight_departure_id, il.terrestre_departure_id):
-                    itin_map[il.accommodation_type_id] = (_d(il.value_per_person), _d(il.taxes))
+                k = _line_key(il)
+                if k is not None and _in_scope(il.flight_departure_id, il.terrestre_departure_id):
+                    itin_map[k] = (_d(il.value_per_person), _d(il.taxes))
 
     flags = []
 
@@ -114,8 +132,9 @@ def build_review_data(contract):
         subtotal = (vp_comm + tx) * qty
         accom_total += subtotal
         value_subtotal += vp * qty          # base (sem comissão) — gera a comissão
-        name = l.accommodation_type.name if l.accommodation_type_id else '—'
-        base = itin_map.get(l.accommodation_type_id)
+        name = (l.accommodation_type.name if l.accommodation_type_id
+                else l.accommodation_label or '—')
+        base = itin_map.get(_line_key(l))
         changed = False
         base_vp = base_tx = None
         if base is not None:
