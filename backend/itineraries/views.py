@@ -104,6 +104,20 @@ class ItineraryDepartureViewSet(viewsets.ModelViewSet):
             qs = qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
         return _scope_child_to_visible(qs, self.request)
 
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        """Reordena os aeroportos de saída: body {"order": [id1, id2, ...]}."""
+        ids = request.data.get('order') or []
+        valid = set(ItineraryDeparture.objects.filter(pk__in=ids).values_list('id', flat=True))
+        with transaction.atomic():
+            for pos, did in enumerate(ids):
+                if did in valid:
+                    ItineraryDeparture.objects.filter(pk=did).update(order=pos)
+        first = ItineraryDeparture.objects.filter(pk__in=ids).select_related('itinerary').first()
+        if first and first.itinerary_id:
+            _audit(request, 'update', first.itinerary, changes={'Aeroportos de saída': {'antes': '—', 'depois': 'reordenados'}})
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class ItineraryFlightViewSet(viewsets.ModelViewSet):
     """Voos de um aeroporto de saída (aba Voo). Filtra por ?departure=<id>."""
