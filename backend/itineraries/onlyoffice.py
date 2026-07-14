@@ -26,6 +26,9 @@ _WORD  = {'doc', 'docx', 'docm', 'dot', 'dotx', 'dotm', 'odt', 'ott', 'rtf', 'tx
 _CELL  = {'xls', 'xlsx', 'xlsm', 'xlt', 'xltx', 'xltm', 'ods', 'ots', 'csv', 'fods'}
 _SLIDE = {'ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'ppsm', 'pot', 'potx', 'potm', 'odp', 'otp', 'fodp'}
 _PDF   = {'pdf'}
+_IMAGE = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff', 'heic', 'heif', 'avif'}
+_EMAIL = {'eml', 'msg'}
+_ARCHIVE = {'zip', 'rar', '7z', 'gz', 'tar'}
 # Formatos com edição nativa completa no OnlyOffice (os legados abrem só p/ leitura).
 _EDITABLE = {'docx', 'xlsx', 'pptx', 'pdf', 'csv', 'txt', 'odt', 'ods', 'odp', 'rtf'}
 
@@ -41,6 +44,9 @@ def doc_kind(name):
     if ext in _CELL:  return 'excel'
     if ext in _SLIDE: return 'powerpoint'
     if ext in _PDF:   return 'pdf'
+    if ext in _IMAGE: return 'image'
+    if ext in _EMAIL: return 'email'
+    if ext in _ARCHIVE: return 'archive'
     return 'other'
 
 

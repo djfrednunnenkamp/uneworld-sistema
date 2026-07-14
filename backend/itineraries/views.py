@@ -21,14 +21,14 @@ from users_api.permissions import RequirePermission, is_operadora_user, has_any_
 from . import onlyoffice
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
                      ItineraryFlight, ItineraryHotel, ItineraryBoat,
-                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument,
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
                           ItineraryHotelSerializer, ItineraryBoatSerializer,
                           ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer,
-                          ItineraryDocumentSerializer,
+                          ItineraryDocumentSerializer, ItineraryDocumentFolderSerializer,
                           ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
                           ItineraryCurrencyRateSerializer)
 from core.search import AccentInsensitiveSearchFilter
@@ -202,6 +202,49 @@ class ItineraryBoatViewSet(viewsets.ModelViewSet):
         return qs
 
 
+class ItineraryDocumentFolderViewSet(viewsets.ModelViewSet):
+    """Pastas (aninháveis) para organizar os documentos do roteiro. Mesmas
+    permissões dos documentos (roteiros_docs_*). Filtra por ?itinerary=<id>.
+    Excluir uma pasta remove suas subpastas e documentos (CASCADE no modelo)."""
+    serializer_class = ItineraryDocumentFolderSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [RequirePermission('roteiros_docs_view', 'roteiros_docs_view_own')()]
+        if self.action == 'create':
+            return [RequirePermission('roteiros_docs_create')()]
+        if self.action == 'destroy':
+            # Excluir pasta remove tudo dentro (subpastas + documentos, inclusive de
+            # outros donos) → exige a permissão de excluir COMPLETA.
+            return [RequirePermission('roteiros_docs_delete')()]
+        return [RequirePermission('roteiros_docs_edit')()]
+
+    def get_queryset(self):
+        qs = ItineraryDocumentFolder.objects.all()
+        if self.action == 'list':
+            itinerary = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
+        return qs
+
+    def perform_create(self, serializer):
+        itinerary = serializer.validated_data.get('itinerary')
+        last = ItineraryDocumentFolder.objects.filter(itinerary=itinerary).order_by('-order').first()
+        folder = serializer.save(order=(last.order + 1) if last else 0, owner=self.request.user)
+        _audit(self.request, 'create', folder,
+               model_name='ItineraryDocumentFolder', model_label='Pasta de documentos do roteiro')
+
+    def perform_update(self, serializer):
+        folder = serializer.save()
+        _audit(self.request, 'update', folder,
+               model_name='ItineraryDocumentFolder', model_label='Pasta de documentos do roteiro')
+
+    def perform_destroy(self, instance):
+        _audit(self.request, 'delete', instance,
+               model_name='ItineraryDocumentFolder', model_label='Pasta de documentos do roteiro')
+        instance.delete()
+
+
 class ItineraryDocumentViewSet(viewsets.ModelViewSet):
     """Documentos anexados ao roteiro (painel da aba Observações). Filtra por
     ?itinerary=<id>. Aceita upload de arquivo (multipart) ou link (JSON)."""
@@ -293,8 +336,15 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
         name = (request.data.get('name') or '').strip() or default
         if not name.lower().endswith('.' + ext):
             name = f'{name}.{ext}'
+        # Pasta opcional (tem que ser do mesmo roteiro).
+        folder = None
+        folder_id = request.data.get('folder')
+        if folder_id not in (None, '', 'null'):
+            folder = ItineraryDocumentFolder.objects.filter(pk=folder_id, itinerary=itinerary).first()
+            if folder is None:
+                return Response({'detail': 'Pasta inválida.'}, status=status.HTTP_400_BAD_REQUEST)
         last = ItineraryDocument.objects.filter(itinerary=itinerary).order_by('-order').first()
-        doc = ItineraryDocument(itinerary=itinerary, name=name, order=(last.order + 1) if last else 0,
+        doc = ItineraryDocument(itinerary=itinerary, folder=folder, name=name, order=(last.order + 1) if last else 0,
                                 owner=request.user if request.user.is_authenticated else None)
         doc.file.save(f'novo.{ext}', ContentFile(blank_office.blank_file(kind)), save=False)
         doc.save()

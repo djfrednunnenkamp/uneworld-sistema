@@ -4,7 +4,7 @@ from rest_framework import serializers
 from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat, ConfigTerrestreCompany
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
-                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument,
+                     ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate)
 from . import onlyoffice
 
@@ -46,7 +46,7 @@ class ItineraryDocumentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryDocument
-        fields = ['id', 'itinerary', 'name', 'file', 'file_url', 'url', 'kind', 'editable', 'is_link', 'owner', 'owner_name', 'created_at']
+        fields = ['id', 'itinerary', 'folder', 'name', 'file', 'file_url', 'url', 'kind', 'editable', 'is_link', 'owner', 'owner_name', 'created_at']
         extra_kwargs = {'file': {'write_only': True, 'required': False}, 'name': {'required': False},
                         'owner': {'read_only': True}}
 
@@ -79,12 +79,13 @@ class ItineraryDocumentSerializer(serializers.ModelSerializer):
         has_url  = bool(attrs.get('url'))
         if not has_file and not has_url and not self.instance:
             raise serializers.ValidationError('Envie um arquivo ou informe um link.')
-        # SEGURANÇA: valida o anexo (extensão × tamanho × magic bytes) — só Office/PDF.
+        # SEGURANÇA: aceita qualquer arquivo (fotos, e-mails, Office, PDF, ZIP…),
+        # bloqueando só tipos perigosos (executáveis/scripts/HTML/SVG) e o tamanho.
         if has_file:
-            from passengers.validators import validate_attachment_file
+            from passengers.validators import validate_any_upload_file
             from django.core.exceptions import ValidationError as DjangoValidationError
             try:
-                validate_attachment_file(attrs['file'])
+                validate_any_upload_file(attrs['file'])
             except DjangoValidationError as e:
                 raise serializers.ValidationError({'file': e.messages})
         # SEGURANÇA: link só pode ser http(s) — bloqueia javascript:, data:, file:, etc.
@@ -92,6 +93,11 @@ class ItineraryDocumentSerializer(serializers.ModelSerializer):
             u = (attrs.get('url') or '').strip().lower()
             if not (u.startswith('http://') or u.startswith('https://')):
                 raise serializers.ValidationError({'url': 'O link precisa começar com http:// ou https://.'})
+        # A pasta (se informada) tem que ser do MESMO roteiro.
+        folder = attrs.get('folder')
+        itin = attrs.get('itinerary') or getattr(self.instance, 'itinerary', None)
+        if folder and itin and folder.itinerary_id != itin.id:
+            raise serializers.ValidationError({'folder': 'A pasta é de outro roteiro.'})
         return attrs
 
     def create(self, validated_data):
@@ -101,6 +107,33 @@ class ItineraryDocumentSerializer(serializers.ModelSerializer):
         elif not validated_data.get('name') and validated_data.get('url'):
             validated_data['name'] = validated_data['url']
         return super().create(validated_data)
+
+
+class ItineraryDocumentFolderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ItineraryDocumentFolder
+        fields = ['id', 'itinerary', 'parent', 'name', 'owner', 'order', 'created_at']
+        extra_kwargs = {'owner': {'read_only': True}, 'name': {'required': True}}
+
+    def validate_name(self, v):
+        v = (v or '').strip()
+        if not v:
+            raise serializers.ValidationError('Informe o nome da pasta.')
+        return v
+
+    def validate(self, attrs):
+        parent = attrs.get('parent')
+        itin = attrs.get('itinerary') or getattr(self.instance, 'itinerary', None)
+        if parent and itin and parent.itinerary_id != itin.id:
+            raise serializers.ValidationError({'parent': 'A pasta pai é de outro roteiro.'})
+        # Impede ciclos: a pasta não pode virar filha dela mesma nem de uma descendente.
+        if self.instance and parent:
+            p = parent
+            while p is not None:
+                if p.id == self.instance.id:
+                    raise serializers.ValidationError({'parent': 'Não dá para mover uma pasta para dentro dela mesma.'})
+                p = p.parent
+        return attrs
 
 
 class CityMiniSerializer(serializers.ModelSerializer):

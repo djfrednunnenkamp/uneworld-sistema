@@ -185,6 +185,36 @@ def validate_attachment_file(file):
     return file
 
 
+# ── Anexo livre (documentos do roteiro): aceita QUALQUER arquivo, exceto os
+#    perigosos (executáveis, scripts, HTML/SVG que abririam brecha de XSS ao serem
+#    servidos inline). Denylist por extensão + limite de tamanho. ──
+MAX_ANY_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+_DANGEROUS_EXTENSIONS = {
+    '.html', '.htm', '.xhtml', '.shtml', '.svg', '.xml', '.js', '.mjs', '.jsx',
+    '.php', '.phtml', '.php3', '.php4', '.php5', '.pht', '.asp', '.aspx', '.jsp',
+    '.exe', '.msi', '.bat', '.cmd', '.com', '.scr', '.pif', '.sh', '.bash', '.ps1',
+    '.vbs', '.vbe', '.wsf', '.wsh', '.hta', '.jar', '.dll', '.so', '.dylib',
+    '.app', '.deb', '.rpm', '.apk', '.reg',
+}
+
+
+def validate_any_upload_file(file):
+    """Valida um anexo LIVRE (documentos do roteiro): aceita qualquer arquivo
+    (fotos, e-mails, Office, PDF, ZIP…) desde que não seja de um tipo perigoso
+    (executável/script/HTML/SVG) e respeite o limite de tamanho."""
+    ext = os.path.splitext(file.name or '')[1].lower()
+    if ext in _DANGEROUS_EXTENSIONS:
+        raise ValidationError(
+            f'Arquivos "{ext}" não são permitidos por segurança. '
+            'Envie fotos, e-mails, PDF, Office, ZIP ou similares.'
+        )
+    if file.size > MAX_ANY_FILE_SIZE:
+        raise ValidationError(
+            f'Arquivo muito grande ({file.size // 1024 // 1024} MB). Máximo: 50 MB.'
+        )
+    return file
+
+
 def validate_media_file(file):
     """Valida IMAGEM (jpg/png, reprocessada) OU VÍDEO (mp4/webm/…) para galerias
     (hotel/barco/roteiro). Determina o tipo pela EXTENSÃO real — nunca confia no

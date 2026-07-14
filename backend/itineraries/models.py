@@ -298,11 +298,32 @@ class ItineraryAccommodationLine(models.Model):
         return f'{self.accommodation_type} ({self.value_per_person})'
 
 
+class ItineraryDocumentFolder(models.Model):
+    """Pasta para organizar os documentos do roteiro (aba Observações). Pastas
+    podem ser aninhadas (parent aponta para outra pasta do mesmo roteiro).
+    Excluir uma pasta remove suas subpastas e documentos (CASCADE)."""
+    itinerary  = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='document_folders')
+    parent     = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='children')
+    name       = models.CharField('Nome', max_length=200)
+    owner      = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='itinerary_document_folders')
+    order      = models.PositiveIntegerField('Ordem', default=0)
+    created_at = models.DateTimeField('Criado em', auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'name', 'id']
+        verbose_name = 'Pasta de documentos do roteiro'
+        verbose_name_plural = 'Pastas de documentos do roteiro'
+
+    def __str__(self):
+        return self.name
+
+
 class ItineraryDocument(models.Model):
     """Documento anexado a um roteiro (painel lateral da aba Observações): um
-    arquivo Office/PDF — editável no navegador via OnlyOffice — ou apenas um
-    link externo (abre em nova aba)."""
+    arquivo (Office/PDF editável no navegador, foto, e-mail, ou qualquer arquivo)
+    ou apenas um link externo (abre em nova aba). Pode ficar dentro de uma pasta."""
     itinerary  = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='documents')
+    folder     = models.ForeignKey(ItineraryDocumentFolder, null=True, blank=True, on_delete=models.CASCADE, related_name='documents')
     # Quem enviou/criou o documento — permite "ver/editar só os próprios".
     owner      = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='itinerary_documents')
     name       = models.CharField('Nome', max_length=255, blank=True)
