@@ -485,6 +485,14 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     search_fields    = ['name', 'slug']
     ordering_fields  = ['created_at', 'start_date', 'name']
 
+    def handle_exception(self, exc):
+        # Loga o detalhe de validação (qual campo falhou) ao salvar — diagnóstico do 400.
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        if isinstance(exc, DRFValidationError):
+            import logging
+            logging.getLogger('django.request').warning('Itinerary save 400 detail: %s', exc.detail)
+        return super().handle_exception(exc)
+
     def get_queryset(self):
         from django.db.models import Q
         from users_api.permissions import agency_scope_ids
