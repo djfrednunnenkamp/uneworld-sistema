@@ -166,7 +166,7 @@ PERMISSION_FIELDS = [
     'settings_inclusions_view', 'settings_inclusions_edit', 'settings_inclusions_delete', 'settings_inclusions_bulk_import', 'settings_inclusions_export',
     'settings_highlights_view', 'settings_highlights_edit', 'settings_highlights_delete', 'settings_highlights_bulk_import', 'settings_highlights_export',
     'settings_special_dates_view', 'settings_special_dates_edit', 'settings_special_dates_delete', 'settings_special_dates_bulk_import', 'settings_special_dates_export',
-    'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
+    'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete', 'settings_hotels_bulk_import', 'settings_hotels_export',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete', 'settings_terrestre_companies_bulk_import', 'settings_terrestre_companies_export',
     # Operadora — por aba
@@ -245,7 +245,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_inclusions_view', 'settings_inclusions_edit', 'settings_inclusions_delete', 'settings_inclusions_bulk_import', 'settings_inclusions_export',
     'settings_highlights_view', 'settings_highlights_edit', 'settings_highlights_delete', 'settings_highlights_bulk_import', 'settings_highlights_export',
     'settings_special_dates_view', 'settings_special_dates_edit', 'settings_special_dates_delete', 'settings_special_dates_bulk_import', 'settings_special_dates_export',
-    'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete',
+    'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete', 'settings_hotels_bulk_import', 'settings_hotels_export',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete', 'settings_terrestre_companies_bulk_import', 'settings_terrestre_companies_export',
     # Operadora — por aba

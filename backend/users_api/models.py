@@ -382,6 +382,8 @@ class UserPermissions(models.Model):
     settings_hotels_view                 = models.BooleanField(default=False)
     settings_hotels_edit                 = models.BooleanField(default=False)
     settings_hotels_delete               = models.BooleanField(default=False)
+    settings_hotels_bulk_import          = models.BooleanField(default=False)
+    settings_hotels_export               = models.BooleanField(default=False)
     settings_boats_view                  = models.BooleanField(default=False)
     settings_boats_edit                  = models.BooleanField(default=False)
     settings_boats_delete                = models.BooleanField(default=False)
