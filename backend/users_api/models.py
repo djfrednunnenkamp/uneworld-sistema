@@ -360,6 +360,8 @@ class UserPermissions(models.Model):
     settings_flight_classes_view         = models.BooleanField(default=False)
     settings_flight_classes_edit         = models.BooleanField(default=False)
     settings_flight_classes_delete       = models.BooleanField(default=False)
+    settings_flight_classes_bulk_import  = models.BooleanField(default=False)
+    settings_flight_classes_export       = models.BooleanField(default=False)
     settings_inclusions_view             = models.BooleanField(default=False)
     settings_inclusions_edit             = models.BooleanField(default=False)
     settings_inclusions_delete           = models.BooleanField(default=False)
