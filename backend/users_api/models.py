@@ -296,6 +296,8 @@ class UserPermissions(models.Model):
     settings_ship_cabins_view            = models.BooleanField(default=False)
     settings_ship_cabins_edit            = models.BooleanField(default=False)
     settings_ship_cabins_delete          = models.BooleanField(default=False)
+    settings_ship_cabins_bulk_import     = models.BooleanField(default=False)
+    settings_ship_cabins_export          = models.BooleanField(default=False)
     settings_list_categories_view         = models.BooleanField(default=False)
     settings_list_categories_edit         = models.BooleanField(default=False)
     settings_list_categories_delete       = models.BooleanField(default=False)
@@ -388,6 +390,8 @@ class UserPermissions(models.Model):
     settings_terrestre_companies_view    = models.BooleanField(default=False)
     settings_terrestre_companies_edit    = models.BooleanField(default=False)
     settings_terrestre_companies_delete  = models.BooleanField(default=False)
+    settings_terrestre_companies_bulk_import = models.BooleanField(default=False)
+    settings_terrestre_companies_export  = models.BooleanField(default=False)
     # ── Operadora: permissão por aba (ver/editar) ──
     settings_operating_company_dados_view        = models.BooleanField(default=False)
     settings_operating_company_dados_edit        = models.BooleanField(default=False)
