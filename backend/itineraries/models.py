@@ -680,6 +680,10 @@ class ItineraryPricingConfig(models.Model):
     margin_percent = models.DecimalField('Markup (valor)', max_digits=9, decimal_places=4, default=Decimal('80'))
     min_margin_percent = models.DecimalField('Margem mínima (%)', max_digits=9, decimal_places=4, null=True, blank=True)
     notes       = models.TextField('Observações', blank=True, default='')
+    # Valores finais sobrescritos manualmente por combinação (acomodação × saída):
+    # { "<chave da combinação>": <valor por pessoa>, ... }. Substitui o valor
+    # calculado pelo sistema na aba "Preços finais".
+    price_overrides = models.JSONField('Valores finais sobrescritos', default=dict, blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
