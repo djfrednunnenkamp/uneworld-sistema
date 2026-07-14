@@ -750,7 +750,7 @@ class ItineraryPricingConfigSerializer(serializers.ModelSerializer):
         model = ItineraryPricingConfig
         fields = ['base_pax', 'min_pax', 'max_pax', 'free_pax', 'free_mode',
                   'rounding_mode', 'rounding_value', 'margin_mode', 'margin_percent',
-                  'min_margin_percent', 'notes', 'price_overrides']
+                  'final_fee_percent', 'min_margin_percent', 'notes', 'price_overrides']
 
 
 class ItineraryCurrencyRateSerializer(serializers.ModelSerializer):

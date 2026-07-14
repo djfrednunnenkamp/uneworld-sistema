@@ -678,6 +678,8 @@ class ItineraryPricingConfig(models.Model):
     rounding_value = models.DecimalField('Arredondar para múltiplo de', max_digits=18, decimal_places=6, null=True, blank=True)
     margin_mode    = models.CharField('Tipo do markup', max_length=8, choices=MARGIN_MODE_CHOICES, default='percent')
     margin_percent = models.DecimalField('Markup (valor)', max_digits=9, decimal_places=4, default=Decimal('80'))
+    # Taxa percentual aplicada DEPOIS do markup na aba "Preços finais" (ex.: 1%).
+    final_fee_percent = models.DecimalField('Taxa final (%)', max_digits=9, decimal_places=4, default=Decimal('0'))
     min_margin_percent = models.DecimalField('Margem mínima (%)', max_digits=9, decimal_places=4, null=True, blank=True)
     notes       = models.TextField('Observações', blank=True, default='')
     # Valores finais sobrescritos manualmente por combinação (acomodação × saída):
