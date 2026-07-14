@@ -277,6 +277,13 @@ class ItineraryAccommodationLine(models.Model):
     itinerary          = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='accommodation_lines')
     accommodation_type = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True,
                                             on_delete=models.SET_NULL, related_name='+', verbose_name='Tipo de acomodação')
+    # Cabine de navio (representante do grupo categoria+capacidade). Uma linha é OU
+    # hotel (accommodation_type) OU cabine (ship_cabin). O rótulo/capacidade ficam
+    # denormalizados para sobreviver a renome/exclusão e alimentar contrato/PDF.
+    ship_cabin          = models.ForeignKey('config_api.ConfigShipCabin', null=True, blank=True,
+                                             on_delete=models.SET_NULL, related_name='+', verbose_name='Cabine (grupo)')
+    accommodation_label = models.CharField('Rótulo da acomodação', max_length=200, blank=True, default='')
+    capacity            = models.PositiveIntegerField('Capacidade', null=True, blank=True)
     # Ponto de partida ao qual este preço pertence (o valor muda conforme a saída).
     # Um dos dois, ou nenhum (lista "geral" quando o roteiro não tem Voo/Terrestre).
     flight_departure    = models.ForeignKey('ItineraryDeparture', null=True, blank=True,

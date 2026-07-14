@@ -22,7 +22,9 @@ class ItineraryAccommodationLineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryAccommodationLine
-        fields = ['id', 'accommodation_type', 'accommodation_type_name', 'value_per_person', 'taxes', 'order',
+        fields = ['id', 'accommodation_type', 'accommodation_type_name',
+                  'ship_cabin', 'accommodation_label', 'capacity',
+                  'value_per_person', 'taxes', 'order',
                   'flight_departure', 'terrestre_departure']
 
     # ── Validação de valores monetários (não podem ser negativos) ──
@@ -555,7 +557,15 @@ class ItinerarySerializer(serializers.ModelSerializer):
             if td is not None and td.itinerary_id != itinerary.id:
                 line = {**line, 'terrestre_departure': None}; td = None
             at = line.get('accommodation_type')
-            key = (at.id, getattr(fd, 'id', None), getattr(td, 'id', None)) if at is not None else None
+            sc = line.get('ship_cabin')
+            # Identidade: hotel por tipo; cabine por (capacidade, rótulo) do grupo.
+            if at is not None:
+                ident = ('acc', at.id)
+            elif sc is not None or line.get('accommodation_label'):
+                ident = ('cab', line.get('capacity'), line.get('accommodation_label') or '')
+            else:
+                ident = None
+            key = (ident, getattr(fd, 'id', None), getattr(td, 'id', None)) if ident is not None else None
             if key is not None and key in seen:
                 cleaned[seen[key]] = line          # mesma categoria/partida → sobrescreve
             else:
