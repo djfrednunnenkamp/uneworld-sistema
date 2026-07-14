@@ -88,7 +88,8 @@ class RoteiroSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Itinerary
-        fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data']
+        fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data',
+                  'has_barco', 'has_voo', 'has_terrestre']
 
     def get_airports_data(self, obj):
         # Aeroportos base do roteiro = os aeroportos de saída dos blocos de partida
