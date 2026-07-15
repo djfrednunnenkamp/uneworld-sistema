@@ -1,9 +1,13 @@
 """Loop em background que envia os e-mails de resumo/lembrete agendados pelos usuários."""
+import logging
 import threading
 import time
 from datetime import timedelta
 
+logger = logging.getLogger(__name__)
+
 CHECK_INTERVAL = 3600  # 1 hora
+EXCHANGE_INTERVAL = 60  # 1 minuto — câmbio precisa de precisão de minutos
 
 _started = False
 
@@ -14,15 +18,45 @@ def start():
         return
     _started = True
     threading.Thread(target=_loop, daemon=True).start()
+    threading.Thread(target=_exchange_loop, daemon=True).start()
 
 
 def _loop():
+    from django.db import connections
     while True:
         try:
             run_once()
         except Exception as e:
-            print(f'[AGENDA SCHEDULER] erro: {e}')
+            logger.exception('[AGENDA SCHEDULER] erro no ciclo: %s', e)
+        finally:
+            # Threads de background não passam pelo ciclo de request do Django,
+            # então a conexão fica aberta entre as iterações. Com SQLite isso
+            # pode segurar um lock e causar "database is locked" nas requisições.
+            connections.close_all()
         time.sleep(CHECK_INTERVAL)
+
+
+def _exchange_loop():
+    """Verifica de minuto em minuto os câmbios com atualização automática, para
+    honrar o horário (HH:MM) configurado em cada um.
+
+    Este é o ÚNICO caminho não-superusuário em que scripts customizados de câmbio
+    executam (include_scripts=True, padrão). É intencional e seguro: o campo
+    `script` só pode ser escrito por superusuário (ExchangeRateSerializer) e roda
+    no sandbox (RestrictedPython + subprocesso isolado + anti-SSRF). Ou seja, o
+    agendador só executa código previamente aprovado por um superusuário — nunca
+    conteúdo injetado por um usuário comum. O disparo MANUAL de scripts continua
+    restrito a superusuário (run_now/update_one em config_api/views.py)."""
+    from django.db import connections
+    while True:
+        try:
+            from config_api.exchange_service import update_due
+            update_due()
+        except Exception as e:
+            logger.exception('[CÂMBIO SCHEDULER] erro no ciclo: %s', e)
+        finally:
+            connections.close_all()
+        time.sleep(EXCHANGE_INTERVAL)
 
 
 def run_once():
@@ -55,6 +89,19 @@ def run_once():
                 pref.save(update_fields=['last_reminder_sent'])
 
     _send_daily_notifications(today, current_hour)
+    _purge_drive_trash()
+
+
+def _purge_drive_trash():
+    """Apaga de vez os documentos que estão na lixeira do Drive há mais de 30 dias.
+    Idempotente e barato (query filtrada); roda a cada ciclo (de hora em hora)."""
+    try:
+        from drive.trash import purge_expired
+        n = purge_expired(days=30)
+        if n:
+            logger.info('[LIXEIRA DRIVE] %s item(ns) expurgado(s) (>30 dias).', n)
+    except Exception as e:
+        logger.exception('[LIXEIRA DRIVE] erro no expurgo: %s', e)
 
 
 # ── Coletores de dados ────────────────────────────────────────────────────────

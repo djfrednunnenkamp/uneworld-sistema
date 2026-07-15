@@ -134,9 +134,14 @@ class PassengerList(models.Model):
     end_date             = models.DateField('Data de término', null=True, blank=True)
     suppliers            = models.ManyToManyField(Supplier,       blank=True, related_name='passenger_lists', verbose_name='Fornecedores')
     additionals          = models.ManyToManyField(ListAdditional, blank=True, related_name='passenger_lists', verbose_name='Adicionais')
-    roteiros             = models.ManyToManyField(Roteiro,        blank=True, related_name='passenger_lists', verbose_name='Roteiros')
+    # Roteiros de verdade (os criados na página Roteiros). O antigo trips.Roteiro
+    # era um modelo legado só-nome; agora a lista aponta para itineraries.Itinerary.
+    roteiros             = models.ManyToManyField('itineraries.Itinerary', blank=True, related_name='passenger_lists', verbose_name='Roteiros')
     required_documents   = models.JSONField('Documentos requeridos', default=list, blank=True)
     default_airport      = models.ForeignKey('config_api.Airport',       null=True, blank=True, on_delete=models.SET_NULL, related_name='default_lists', verbose_name='Aeroporto de saída padrão')
+    # Aeroportos base da lista (o grupo pode sair de mais de um). Puxados do roteiro.
+    # O `default_airport` acima segue como o primário (pré-preenche novos passageiros).
+    default_airports     = models.ManyToManyField('config_api.Airport',  blank=True, related_name='base_lists', verbose_name='Aeroportos base')
     departure_country    = models.ForeignKey('config_api.ConfigCountry', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='País de saída')
     departure_state      = models.ForeignKey('config_api.ConfigState',   null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Estado de saída')
     departure_city       = models.ForeignKey('config_api.ConfigCity',    null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade de saída')
@@ -161,7 +166,8 @@ class PassengerList(models.Model):
 
     @property
     def enrolled_count(self):
-        return self.list_enrollments.count()
+        # Passageiros na lixeira (soft-delete) não contam; bloqueios (passenger nulo) permanecem.
+        return self.list_enrollments.exclude(passenger__is_deleted=True).count()
 
 
 class ListEnrollment(models.Model):

@@ -25,6 +25,46 @@ class CalendarPreference(models.Model):
     side_panel_position  = models.CharField('Posição do painel lateral', max_length=5, choices=SIDE_PANEL_POSITION_CHOICES, default='right')
     TIME_FORMAT_CHOICES = [('24h', '24 horas'), ('12h', '12 horas (AM/PM)')]
     time_format          = models.CharField('Formato de horário', max_length=3, choices=TIME_FORMAT_CHOICES, default='24h')
+    # Layout preferido do formulário de contrato — separado para criar e editar.
+    CONTRACT_LAYOUT_CHOICES = [('steps', 'Passo a passo'), ('full', 'Completo')]
+    contract_create_layout = models.CharField('Layout ao criar contrato', max_length=6, choices=CONTRACT_LAYOUT_CHOICES, default='steps')
+    contract_edit_layout   = models.CharField('Layout ao editar contrato', max_length=6, choices=CONTRACT_LAYOUT_CHOICES, default='full')
+    # Moedas que o usuário escolheu ver na faixa de câmbio da Visão Geral
+    # (lista de IDs de ConfigExchangeRate). Vazio = usa as favoritas globais.
+    dashboard_currencies = models.JSONField('Moedas do câmbio no painel', default=list, blank=True)
+    # Cores personalizadas usadas recentemente na aba Lâminas (lista de '#RRGGBB',
+    # a mais recente primeiro). Persistidas no perfil (não só no navegador).
+    lamina_recent_colors = models.JSONField('Cores recentes das lâminas', default=list, blank=True)
+    # Favoritos da aba Lâminas. `null` = nunca inicializado (o front semeia os
+    # padrões no primeiro uso); uma lista (mesmo vazia) = escolha do usuário
+    # (respeitada — um item removido não volta sozinho).
+    lamina_favorite_patterns     = models.JSONField('Estampas favoritas', null=True, blank=True, default=None)
+    lamina_recent_patterns       = models.JSONField('Estampas recentes', default=list, blank=True)
+    lamina_favorite_recommended  = models.JSONField('Paletas recomendadas favoritas', null=True, blank=True, default=None)
+    # Templates de tema favoritos — referências unificadas ('builtin:<key>',
+    # 'rec:<key>', 'mine:<id>'). null = nunca inicializado (semeia os padrões).
+    lamina_favorite_themes       = models.JSONField('Templates de tema favoritos', null=True, blank=True, default=None)
+    # Intervalo do gráfico de câmbio da Visão Geral.
+    DASHBOARD_RANGE_CHOICES = [('week', '1 semana'), ('month', '1 mês'), ('6months', '6 meses'), ('year', '1 ano')]
+    dashboard_chart_range = models.CharField('Intervalo do gráfico de câmbio', max_length=8,
+                                             choices=DASHBOARD_RANGE_CHOICES, default='week')
+    # Ordem das abas do detalhe do roteiro escolhida pelo usuário (lista de chaves,
+    # ex.: ['destinos','voo','valores',...]). Vazio = ordem padrão do sistema.
+    itinerary_tab_order  = models.JSONField('Ordem das abas do roteiro', default=list, blank=True)
+    # Colunas da lista do Drive (Meus Documentos), com ordem e visibilidade
+    # escolhidas pelo usuário: [{"key":"modified","on":true}, ...]. Vazio = padrão.
+    drive_columns        = models.JSONField('Colunas da lista do Drive', default=list, blank=True)
+    # Ordem dos itens da barra lateral escolhida pelo usuário (lista de rotas,
+    # ex.: ['/contratos','/roteiros',...]). Só reordena; a visibilidade continua
+    # sendo pela permissão. Vazio = ordem padrão do sistema.
+    nav_order            = models.JSONField('Ordem da barra lateral', default=list, blank=True)
+    # Itens da barra lateral que o usuário escondeu (lista de rotas). A permissão
+    # ainda manda; isto é uma ocultação puramente pessoal e reversível.
+    nav_hidden           = models.JSONField('Itens escondidos da barra lateral', default=list, blank=True)
+    # Colunas das tabelas de lista (ordem + visibilidade) por tabela:
+    # {"contracts":[{"key":"payer","on":true},...], "passengers":[...], ...}.
+    # A 1ª coluna de cada tabela é fixa e não entra aqui. Vazio = padrão.
+    table_columns        = models.JSONField('Colunas das tabelas', default=dict, blank=True)
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)

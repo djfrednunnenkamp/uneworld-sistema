@@ -1,3 +1,170 @@
+"""A-13 — serializers com lista explícita de campos e auditoria/soft-delete só
+leitura. Alterar is_deleted/created_at direto pelo payload deve ser ignorado.
+A-08 — cadastro de membro de agência não anexa conta privilegiada por user_id."""
+from django.contrib.auth.models import User
 from django.test import TestCase
+from rest_framework.test import APITestCase
 
-# Create your tests here.
+from agencies.models import Agency
+from agencies.serializers import AgencySerializer
+from trips.models import Destination, Trip
+from trips.serializers import TripSerializer
+from users_api.models import UserPermissions
+
+
+def _make_user(username, superuser=False, staff=False, **perms):
+    u = User.objects.create_user(username=username, email=f'{username}@x.com', password='pw12345678')
+    if superuser:
+        u.is_superuser = True; u.is_staff = True; u.save()
+    elif staff:
+        u.is_staff = True; u.save()
+    p, _ = UserPermissions.objects.get_or_create(user=u)
+    for k, v in perms.items():
+        setattr(p, k, v)
+    p.save()
+    return u
+
+
+class AgencyMemberAddTest(APITestCase):
+    """A-08 — quem tem só agencies_edit não pode anexar conta staff/superuser."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.editor = _make_user('editor', agencies_edit=True)
+        self.regular = _make_user('regular')
+        self.privileged = _make_user('adminacct', staff=True)
+
+    def _post(self, target):
+        return self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                                {'user_id': target.id, 'role': 'operator'}, format='json')
+
+    def test_editor_cannot_attach_staff_account(self):
+        self.client.force_authenticate(self.editor)
+        self.assertEqual(self._post(self.privileged).status_code, 403)
+        self.assertFalse(self.agency.members.filter(user=self.privileged).exists())
+
+    def test_editor_can_attach_regular_user(self):
+        self.client.force_authenticate(self.editor)
+        self.assertEqual(self._post(self.regular).status_code, 201)
+
+    def test_superuser_can_attach_staff_account(self):
+        self.client.force_authenticate(_make_user('root', superuser=True))
+        self.assertEqual(self._post(self.privileged).status_code, 201)
+
+
+class SerializerReadOnlyFieldsTest(TestCase):
+    def test_agency_no_wildcard_and_audit_read_only(self):
+        # Não usa '__all__'.
+        self.assertNotEqual(AgencySerializer.Meta.fields, '__all__')
+        self.assertIn('is_deleted', AgencySerializer.Meta.read_only_fields)
+
+        a = Agency.objects.create(name='Ag', person_type='juridica')
+        ser = AgencySerializer(a, data={'name': 'Novo', 'is_deleted': True}, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        a.refresh_from_db()
+        self.assertEqual(a.name, 'Novo')       # campo editável mudou
+        self.assertFalse(a.is_deleted)          # campo read_only foi ignorado
+
+    def test_trip_created_at_read_only(self):
+        self.assertNotEqual(TripSerializer.Meta.fields, '__all__')
+        dest = Destination.objects.create(name='Paris', country='França')
+        trip = Trip.objects.create(
+            title='T1', destination=dest, departure_date='2027-01-01',
+            return_date='2027-01-10', price_per_person='1000.00', max_passengers=30)
+        original = trip.created_at
+        ser = TripSerializer(trip, data={'created_at': '2000-01-01T00:00:00Z'}, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        trip.refresh_from_db()
+        self.assertEqual(trip.created_at, original)  # read_only: não muda
+
+
+class AttachAppliesAgencyProfileTest(APITestCase):
+    """Anexar usuário existente com apply_agency_profile assume o perfil padrão de agência."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.editor = _make_user('editor2', agencies_edit=True)
+        self.target = _make_user('target2')   # usuário comum, sem permissões
+        from config_api.models import PermissionProfile
+        PermissionProfile.objects.create(name='Agência', is_agency_default=True,
+                                         permissions={'passengers_view_basic': True})
+
+    def test_apply_agency_profile_on_attach(self):
+        self.client.force_authenticate(self.editor)
+        r = self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                             {'user_id': self.target.id, 'role': 'operator', 'apply_agency_profile': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.target.permissions.refresh_from_db()
+        self.assertTrue(self.target.permissions.passengers_view_basic)   # assumiu o perfil de agência
+
+
+class AttachableUsersEndpointTest(APITestCase):
+    """O picker de anexar usa /attachable-users/ (liberado por agencies_edit),
+    sem exigir permissão de gerência de usuários."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.editor = _make_user('ed3', agencies_edit=True)   # NÃO tem users_view
+        self.regular = _make_user('reg3')
+        self.superu = _make_user('root3', superuser=True)
+        from agencies.models import AgencyMember
+        AgencyMember.objects.create(agency=self.agency, user=_make_user('memberx'))
+
+    def test_agencies_edit_can_list_without_user_mgmt_perm(self):
+        self.client.force_authenticate(self.editor)
+        r = self.client.get(f'/api/agencies/{self.agency.id}/attachable-users/')
+        self.assertEqual(r.status_code, 200, r.data)
+        emails = [u['email'] for u in r.data]
+        self.assertIn(self.regular.email, emails)
+        self.assertNotIn(self.superu.email, emails)          # superadmin nunca aparece
+        self.assertNotIn('memberx@x.com', emails)            # já é membro → fora
+
+
+class AttachDemotesInternalTest(APITestCase):
+    """Anexar (com apply_agency_profile) uma conta interna/super REBAIXA para usuário
+    de agência e aplica o perfil padrão. Só um superusuário consegue (A-08)."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.root = _make_user('root8', superuser=True)
+        self.leo = _make_user('leo8', superuser=True)   # o "Léo" superadmin
+        from config_api.models import PermissionProfile
+        PermissionProfile.objects.create(name='Ag', is_agency_default=True,
+                                         permissions={'passengers_view_basic': True})
+
+    def test_super_is_demoted_and_gets_agency_profile(self):
+        self.client.force_authenticate(self.root)
+        r = self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                             {'user_id': self.leo.id, 'role': 'operator', 'apply_agency_profile': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.leo.refresh_from_db(); self.leo.permissions.refresh_from_db()
+        self.assertFalse(self.leo.is_superuser)   # rebaixado
+        self.assertFalse(self.leo.is_staff)
+        self.assertTrue(self.leo.permissions.passengers_view_basic)  # assumiu o perfil de agência
+        self.assertTrue(self.agency.members.filter(user=self.leo).exists())
+
+    def test_does_not_demote_self(self):
+        # o próprio superusuário não é rebaixado ao se anexar (evita se trancar fora)
+        self.client.force_authenticate(self.root)
+        r = self.client.post(f'/api/agencies/{self.agency.id}/members/',
+                             {'user_id': self.root.id, 'role': 'operator', 'apply_agency_profile': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.root.refresh_from_db()
+        self.assertTrue(self.root.is_superuser)   # continua superusuário
+
+
+class MembersExcludeSoftDeletedTest(APITestCase):
+    """Membro excluído (soft-delete) some da lista de membros da agência."""
+    def setUp(self):
+        self.agency = Agency.objects.create(name='Ag', person_type='juridica')
+        self.viewer = _make_user('viewer4', agencies_view=True)
+        self.member = _make_user('member4')
+        from agencies.models import AgencyMember
+        AgencyMember.objects.create(agency=self.agency, user=self.member, role='operator')
+
+    def test_soft_deleted_member_hidden(self):
+        self.client.force_authenticate(self.viewer)
+        emails = [m['email'] for m in self.client.get(f'/api/agencies/{self.agency.id}/members/').data]
+        self.assertIn(self.member.email, emails)
+        # soft-delete o usuário
+        self.member.permissions.is_deleted = True; self.member.permissions.save()
+        emails2 = [m['email'] for m in self.client.get(f'/api/agencies/{self.agency.id}/members/').data]
+        self.assertNotIn(self.member.email, emails2)

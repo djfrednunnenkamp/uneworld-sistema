@@ -1,12 +1,14 @@
 asgiref==3.11.1
-Django==6.0.5
+Django==6.0.6
 django-cors-headers==4.9.0
 djangorestframework==3.17.1
 pillow==12.2.0
 python-decouple==3.8
 sqlparse==0.5.5
-resend
-pycountry
+resend==2.30.1
+pycountry==26.2.16
+# Sanitização de HTML rico (cláusulas/roteiros/termos) — anti-XSS (A-12).
+bleach==6.4.0
 channels==4.3.2
 channels-redis==4.3.0
 daphne==4.2.2
@@ -15,3 +17,22 @@ maxminddb==3.1.1
 psycopg2-binary==2.9.10
 whitenoise==6.11.0
 svix==1.62.0
+# Conferência do contrato assinado: leitura de PDF + OCR (precisa do binário
+# do sistema "tesseract-ocr" e "tesseract-ocr-por" para fotos/scans).
+pypdf==6.14.2
+pytesseract==0.3.13
+pdf2image==1.17.0
+pymupdf==1.27.2.3
+# Segurança do PDF de assinatura física: lê os QR de cada página do assinado
+# escaneado (PyMuPDF rasteriza + OpenCV decodifica). opencv-headless não precisa
+# de libs gráficas (pode exigir libgomp1 no sistema). qrcode gera os QR nos testes.
+opencv-python-headless==5.0.0.93
+numpy==2.5.0
+qrcode==8.2
+requests==2.34.2
+RestrictedPython==8.3
+# Verificação de e-mail no cadastro: consulta de registros MX do domínio.
+dnspython==2.8.0
+# Monitoramento de erros em produção (OPCIONAL — só ativa se SENTRY_DSN estiver
+# definido no .env; a init em core/settings.py é protegida com try/except).
+sentry-sdk>=2,<3

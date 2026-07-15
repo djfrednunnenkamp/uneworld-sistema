@@ -1,6 +1,7 @@
 import uuid
 import os
 from django.db import models
+from django.contrib.auth.models import User
 
 
 def secure_upload_path(instance, filename):
@@ -13,6 +14,7 @@ class Passenger(models.Model):
     STATUS_CHOICES = [
         ('active',   'Ativo'),
         ('inactive', 'Inativo'),
+        ('rascunho', 'Rascunho'),
     ]
     SEAT_CHOICES = [
         ('corredor', 'Corredor'),
@@ -31,7 +33,8 @@ class Passenger(models.Model):
     first_name  = models.CharField('Primeiro nome', max_length=100, blank=True)
     last_name   = models.CharField('Sobrenome', max_length=100, blank=True)
     full_name   = models.CharField('Nome completo', max_length=200, blank=True, db_index=True)
-    email             = models.EmailField('E-mail', unique=True)
+    # null=True para permitir rascunho sem e-mail (vários NULL não colidem no unique).
+    email             = models.EmailField('E-mail', unique=True, null=True, blank=True)
     email_emergency1  = models.EmailField('E-mail contato de emergência 1', blank=True)
     email_emergency2  = models.EmailField('E-mail contato de emergência 2', blank=True)
     native_language   = models.CharField('Língua materna', max_length=100, blank=True)
@@ -48,6 +51,11 @@ class Passenger(models.Model):
     agencies    = models.ManyToManyField(
         'agencies.Agency',
         blank=True, verbose_name='Agências', related_name='passengers'
+    )
+    # Necessidades especiais (catálogo em Configurações). Multi-seleção.
+    special_needs = models.ManyToManyField(
+        'config_api.ConfigSpecialNeed',
+        blank=True, verbose_name='Necessidades especiais', related_name='passengers'
     )
 
     # ── Documentos ─────────────────────────────────────────────────
@@ -99,6 +107,8 @@ class Passenger(models.Model):
     status     = models.CharField('Status', max_length=10, choices=STATUS_CHOICES, default='active')
     notes      = models.TextField('Observações', blank=True)
     photo      = models.ImageField('Foto', upload_to='passengers/', null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='passengers_created', verbose_name='Criado por')
     created_at = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at = models.DateTimeField('Atualizado em', auto_now=True)
 

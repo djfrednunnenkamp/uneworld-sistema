@@ -1,24 +1,29 @@
 import csv
 import io
+import re
 import requests
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.http import StreamingHttpResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, parser_classes
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny, BasePermission
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
 from rest_framework import serializers
-from rest_framework.parsers import MultiPartParser
-from .models import (ConfigProfession, ConfigLanguage, ConfigCountry, ConfigState,
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, ConfigCountry, ConfigState,
                      ConfigCity, ConfigVaccine, ConfigGender, ConfigProfCard,
                      CustomDocType, CustomDocField, CustomDocFieldOption,
-                     ConfigAccommodation, ConfigListCategory, Airport, Airline,
+                     ConfigAccommodation, ConfigShipCabin, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
-                     OperatingCompany, ConfigPaymentMethod, ConfigExchangeRate,
-                     ConfigItineraryCategory, ConfigContinent, ConfigDestination, ConfigHoliday, ConfigService,
-                     ConfigItineraryTemplate)
+                     OperatingCompany, OperatingCompanyContact, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
+                     ConfigItineraryCategory, ConfigContinent,
+                     ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword, ConfigCostCategory,
+                     ConfigFlightSegment, ConfigFlightClass,
+                     ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
+                     ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
+                     ConfigTerrestreCompany)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -214,7 +219,7 @@ def geo_import_action(request):
 
 
 @api_view(['GET'])
-@permission_classes([RequirePermission('manage_settings', 'settings_csv_export', 'settings_countries', 'settings_countries_view')])
+@permission_classes([RequirePermission('manage_settings', 'settings_csv_export', 'settings_countries_export')])
 def geo_export(request):
     """
     Exporta todos os continentes, países, estados e cidades em um único CSV:
@@ -355,7 +360,8 @@ class StateSerializer(serializers.ModelSerializer):
         model  = ConfigState
         fields = ['id', 'name', 'code', 'city_count', 'country_name']
     def get_city_count(self, obj):
-        return obj.cities.count()
+        c = getattr(obj, 'city_count_a', None)   # annotate no viewset evita N+1
+        return c if c is not None else obj.cities.count()
 
 class CountrySerializer(serializers.ModelSerializer):
     state_count    = serializers.SerializerMethodField()
@@ -364,7 +370,8 @@ class CountrySerializer(serializers.ModelSerializer):
         model = ConfigCountry
         fields = ['id', 'name', 'code', 'continent', 'continent_name', 'state_count']
     def get_state_count(self, obj):
-        return obj.states.count()
+        c = getattr(obj, 'state_count_a', None)   # annotate no viewset evita N+1
+        return c if c is not None else obj.states.count()
 
 
 class ProfessionViewSet(viewsets.ModelViewSet):
@@ -457,7 +464,7 @@ class LanguageViewSet(viewsets.ModelViewSet):
 
 
 class CountryViewSet(viewsets.ModelViewSet):
-    queryset = ConfigCountry.objects.all()
+    queryset = ConfigCountry.objects.annotate(state_count_a=Count('states'))
     serializer_class = CountrySerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_countries', action_perms={
@@ -565,8 +572,9 @@ class CountryViewSet(viewsets.ModelViewSet):
                         names = fetch_cities(state, country)
                         if names:
                             before = state.cities.count()
+                            from .textsearch import normalize_text
                             ConfigCity.objects.bulk_create(
-                                [ConfigCity(state=state, name=n) for n in names], ignore_conflicts=True)
+                                [ConfigCity(state=state, name=n, name_ascii=normalize_text(n)) for n in names], ignore_conflicts=True)
                             new_cities += state.cities.count() - before
                 except Exception:
                     # Um país com falha (ex: banco ocupado por outra importação em
@@ -788,6 +796,19 @@ class GenderViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm('settings_genders')
 
 
+class SpecialNeedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigSpecialNeed
+        fields = ['id', 'name']
+
+
+class SpecialNeedViewSet(viewsets.ModelViewSet):
+    queryset = ConfigSpecialNeed.objects.all()
+    serializer_class = SpecialNeedSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_special_needs')
+
+
 class ItineraryCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigItineraryCategory
@@ -799,6 +820,419 @@ class ItineraryCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = ItineraryCategorySerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_itinerary_categories')
+
+
+# ── Listas do Roteiro: Tipos de Roteiro, Companhias Marítimas, Moedas ──
+
+class ItineraryTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigItineraryType
+        fields = ['id', 'name']
+
+
+class ItineraryTypeViewSet(viewsets.ModelViewSet):
+    queryset = ConfigItineraryType.objects.all()
+    serializer_class = ItineraryTypeSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_itinerary_types')
+
+
+class MaritimeCompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigMaritimeCompany
+        fields = ['id', 'name', 'website']
+
+
+class MaritimeCompanyViewSet(viewsets.ModelViewSet):
+    queryset = ConfigMaritimeCompany.objects.all()
+    serializer_class = MaritimeCompanySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_maritime_companies')
+
+
+class CurrencySerializer(serializers.ModelSerializer):
+    # Declarado explícito para NÃO herdar o RegexValidator do model (que roda antes
+    # de validate_code e barraria minúsculas) — aqui normalizo p/ maiúsculas primeiro.
+    code = serializers.CharField(max_length=3)
+
+    class Meta:
+        model = ConfigCurrency
+        fields = ['id', 'code', 'name', 'symbol']
+
+    def validate_code(self, v):
+        v = (v or '').strip().upper()
+        if len(v) != 3 or not v.isalpha():
+            raise serializers.ValidationError('Use o código ISO-4217 com 3 letras (ex.: USD).')
+        qs = ConfigCurrency.objects.filter(code=v)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('Já existe uma moeda com este código.')
+        return v
+
+
+class CurrencyViewSet(viewsets.ModelViewSet):
+    queryset = ConfigCurrency.objects.all()
+    serializer_class = CurrencySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_currencies')
+
+
+class KeywordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigKeyword
+        fields = ['id', 'name']
+
+
+class KeywordViewSet(viewsets.ModelViewSet):
+    serializer_class = KeywordSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_keywords')
+
+    def get_queryset(self):
+        qs = ConfigKeyword.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class CostCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigCostCategory
+        fields = ['id', 'name']
+
+
+class CostCategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = CostCategorySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_cost_categories')
+
+    def get_queryset(self):
+        qs = ConfigCostCategory.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class FlightSegmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigFlightSegment
+        fields = ['id', 'name']
+
+
+class FlightSegmentViewSet(viewsets.ModelViewSet):
+    serializer_class = FlightSegmentSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_flight_segments')
+
+    def get_queryset(self):
+        qs = ConfigFlightSegment.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class FlightClassSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigFlightClass
+        fields = ['id', 'name']
+
+
+class FlightClassViewSet(viewsets.ModelViewSet):
+    serializer_class = FlightClassSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_flight_classes')
+
+    def get_queryset(self):
+        qs = ConfigFlightClass.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class InclusionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigInclusion
+        fields = ['id', 'name']
+
+
+class InclusionViewSet(viewsets.ModelViewSet):
+    serializer_class = InclusionSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_inclusions')
+
+    def get_queryset(self):
+        qs = ConfigInclusion.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class HighlightSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigHighlight
+        fields = ['id', 'name']
+
+
+class HighlightViewSet(viewsets.ModelViewSet):
+    serializer_class = HighlightSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_highlights')
+
+    def get_queryset(self):
+        qs = ConfigHighlight.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class SpecialDateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigSpecialDate
+        fields = ['id', 'name']
+
+
+class SpecialDateViewSet(viewsets.ModelViewSet):
+    serializer_class = SpecialDateSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_special_dates')
+
+    def get_queryset(self):
+        qs = ConfigSpecialDate.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class HotelCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigHotelCategory
+        fields = ['id', 'name']
+
+
+class HotelCategoryViewSet(viewsets.ModelViewSet):
+    """Categorias de hotel — geridas no próprio pop-up de hotéis."""
+    serializer_class = HotelCategorySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_hotels')
+
+    def get_queryset(self):
+        qs = ConfigHotelCategory.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+class HotelCitySerializer(serializers.ModelSerializer):
+    """Cidade enxuta para exibir junto do hotel (nome, estado, país)."""
+    state_name   = serializers.CharField(source='state.name', read_only=True, default=None)
+    country_name = serializers.CharField(source='state.country.name', read_only=True, default=None)
+
+    class Meta:
+        model = ConfigCity
+        fields = ['id', 'name', 'state_name', 'country_name']
+
+
+class HotelMediaSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ConfigHotelMedia
+        fields = ['id', 'hotel', 'file', 'url', 'kind', 'order']
+        extra_kwargs = {'file': {'write_only': True}}
+        read_only_fields = ['kind']
+
+    def get_url(self, obj):
+        try:
+            return obj.file.url
+        except ValueError:
+            return None
+
+
+class HotelSerializer(serializers.ModelSerializer):
+    city_data       = HotelCitySerializer(source='city', read_only=True)
+    categories_data = HotelCategorySerializer(source='categories', many=True, read_only=True)
+    media           = HotelMediaSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ConfigHotel
+        fields = ['id', 'name', 'city', 'city_data',
+                  'categories', 'categories_data',
+                  'website', 'phone', 'description', 'is_global', 'media']
+
+
+class HotelViewSet(viewsets.ModelViewSet):
+    """Catálogo global de hotéis (Configurações)."""
+    serializer_class = HotelSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_hotels')
+
+    def get_queryset(self):
+        qs = (ConfigHotel.objects
+              .select_related('city__state__country')
+              .prefetch_related('categories', 'media'))
+        if self.action != 'list':
+            return qs
+        qs = qs.filter(is_global=True)   # catálogo/busca: só hotéis globais
+        q = self.request.query_params.get('q', '').strip()
+        if q:
+            qs = qs.filter(name__icontains=q)
+        cities = self.request.query_params.get('cities', '').strip()
+        if cities:
+            ids = [int(c) for c in cities.split(',') if c.strip().isdigit()]
+            if ids:
+                qs = qs.filter(city_id__in=ids)
+        return qs
+
+    def perform_update(self, serializer):
+        """Ao salvar o hotel no catálogo, reaplica nome/cidade/telefone aos
+        hotéis de roteiro vinculados (vínculo vivo ligado)."""
+        hotel = serializer.save()
+        c = hotel.city
+        label = ', '.join([p for p in [c.name if c else None,
+                                       c.state.name if c and c.state else None,
+                                       c.state.country.name if c and c.state and c.state.country else None] if p])
+        from itineraries.models import ItineraryHotel
+        ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True).update(
+            name=hotel.name, city=label, phone=hotel.phone)
+
+
+class HotelMediaViewSet(viewsets.ModelViewSet):
+    """Imagens/vídeos de um hotel (upload multipart)."""
+    serializer_class = HotelMediaSerializer
+    pagination_class = None
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    get_permissions = _settings_perm('settings_hotels', extra_write=['reorder'])
+
+    def get_queryset(self):
+        qs = ConfigHotelMedia.objects.all()
+        hotel = self.request.query_params.get('hotel')
+        return qs.filter(hotel_id=hotel) if hotel else qs
+
+    def perform_create(self, serializer):
+        from passengers.validators import validate_media_file
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        f = self.request.FILES.get('file')
+        if not f:
+            raise DRFValidationError({'file': ['Envie um arquivo de imagem ou vídeo.']})
+        try:
+            kind_str = validate_media_file(f)   # valida e define o tipo pela extensão real
+        except DjangoValidationError as e:
+            raise DRFValidationError({'file': e.messages})
+        kind = ConfigHotelMedia.VIDEO if kind_str == 'video' else ConfigHotelMedia.IMAGE
+        serializer.save(kind=kind)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        from audit.tracking import log_event
+        ids = request.data.get('ids', [])
+        for i, mid in enumerate(ids):
+            ConfigHotelMedia.objects.filter(id=mid).update(order=i)
+        hotel_id = ConfigHotelMedia.objects.filter(id__in=ids).values_list('hotel_id', flat=True).first() if ids else None
+        if hotel_id:
+            log_event('update', model_name='ConfigHotel', model_label='Hotel (catálogo)',
+                      object_id=hotel_id, object_repr=f'Hotel #{hotel_id}',
+                      changes={'Mídias': {'antes': '—', 'depois': 'reordenadas'}})
+        return Response({'ok': True})
+
+
+class BoatMediaSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ConfigBoatMedia
+        fields = ['id', 'boat', 'file', 'url', 'kind', 'order']
+        extra_kwargs = {'file': {'write_only': True}}
+        read_only_fields = ['kind']
+
+    def get_url(self, obj):
+        try:
+            return obj.file.url
+        except ValueError:
+            return None
+
+
+class BoatSerializer(serializers.ModelSerializer):
+    media = BoatMediaSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ConfigBoat
+        fields = ['id', 'name', 'website', 'description', 'is_global', 'media']
+
+
+class BoatViewSet(viewsets.ModelViewSet):
+    """Catálogo de barcos (Configurações)."""
+    serializer_class = BoatSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_boats')
+
+    def get_queryset(self):
+        qs = ConfigBoat.objects.prefetch_related('media')
+        if self.action != 'list':
+            return qs
+        qs = qs.filter(is_global=True)   # catálogo/busca: só barcos globais
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+    def perform_update(self, serializer):
+        """Ao salvar o barco no catálogo, reaplica o nome aos barcos de roteiro
+        vinculados (vínculo vivo ligado)."""
+        boat = serializer.save()
+        from itineraries.models import ItineraryBoat
+        ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True).update(name=boat.name)
+
+
+class BoatMediaViewSet(viewsets.ModelViewSet):
+    """Imagens/vídeos de um barco (upload multipart)."""
+    serializer_class = BoatMediaSerializer
+    pagination_class = None
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    get_permissions = _settings_perm('settings_boats', extra_write=['reorder'])
+
+    def get_queryset(self):
+        qs = ConfigBoatMedia.objects.all()
+        boat = self.request.query_params.get('boat')
+        return qs.filter(boat_id=boat) if boat else qs
+
+    def perform_create(self, serializer):
+        from passengers.validators import validate_media_file
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        f = self.request.FILES.get('file')
+        if not f:
+            raise DRFValidationError({'file': ['Envie um arquivo de imagem ou vídeo.']})
+        try:
+            kind_str = validate_media_file(f)   # valida e define o tipo pela extensão real
+        except DjangoValidationError as e:
+            raise DRFValidationError({'file': e.messages})
+        kind = ConfigBoatMedia.VIDEO if kind_str == 'video' else ConfigBoatMedia.IMAGE
+        serializer.save(kind=kind)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        from audit.tracking import log_event
+        ids = request.data.get('ids', [])
+        for i, mid in enumerate(ids):
+            ConfigBoatMedia.objects.filter(id=mid).update(order=i)
+        boat_id = ConfigBoatMedia.objects.filter(id__in=ids).values_list('boat_id', flat=True).first() if ids else None
+        if boat_id:
+            log_event('update', model_name='ConfigBoat', model_label='Navio (catálogo)',
+                      object_id=boat_id, object_repr=f'Navio #{boat_id}',
+                      changes={'Mídias': {'antes': '—', 'depois': 'reordenadas'}})
+        return Response({'ok': True})
+
+
+class TerrestreCompanySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigTerrestreCompany
+        fields = ['id', 'name', 'is_favorite']
+
+
+class TerrestreCompanyViewSet(viewsets.ModelViewSet):
+    """Empresas terrestres (Configurações) — usadas nos trechos da aba Terrestre."""
+    serializer_class = TerrestreCompanySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_terrestre_companies')
+
+    def get_queryset(self):
+        qs = ConfigTerrestreCompany.objects.all()
+        if self.action != 'list':
+            return qs
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
 
 
 class ContinentSerializer(serializers.ModelSerializer):
@@ -816,66 +1250,6 @@ class ContinentViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm('settings_countries')
 
 
-class DestinationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ConfigDestination
-        fields = ['id', 'name']
-
-
-class DestinationViewSet(viewsets.ModelViewSet):
-    queryset = ConfigDestination.objects.all()
-    serializer_class = DestinationSerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_destinations')
-
-
-class HolidaySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ConfigHoliday
-        fields = ['id', 'name']
-
-
-class HolidayViewSet(viewsets.ModelViewSet):
-    queryset = ConfigHoliday.objects.all()
-    serializer_class = HolidaySerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_holidays')
-
-
-class ServiceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ConfigService
-        fields = ['id', 'name']
-
-
-class ServiceViewSet(viewsets.ModelViewSet):
-    queryset = ConfigService.objects.all()
-    serializer_class = ServiceSerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_services')
-
-
-class ItineraryTemplateSerializer(serializers.ModelSerializer):
-    kind_display = serializers.CharField(source='get_kind_display', read_only=True)
-
-    class Meta:
-        model = ConfigItineraryTemplate
-        fields = ['id', 'kind', 'kind_display', 'name', 'content']
-
-
-class ItineraryTemplateViewSet(viewsets.ModelViewSet):
-    serializer_class = ItineraryTemplateSerializer
-    pagination_class = None
-    get_permissions = _settings_perm('settings_itinerary_templates')
-
-    def get_queryset(self):
-        qs = ConfigItineraryTemplate.objects.all()
-        kind = self.request.query_params.get('kind')
-        if kind:
-            qs = qs.filter(kind=kind)
-        return qs
-
-
 class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigPaymentMethod
@@ -889,17 +1263,227 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
     get_permissions = _settings_perm('settings_payment_methods')
 
 
+class PaymentPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigPaymentPlan
+        fields = ['id', 'name', 'a_vista', 'a_vista_discount_mode', 'a_vista_discount_value',
+                  'has_down_payment', 'down_payment_mode', 'down_payment_value',
+                  'down_payment_method', 'down_payment_rounding', 'installments_count', 'payment_method',
+                  'installment_rounding', 'interest_tiers', 'first_due_days', 'interval_days']
+
+    def validate_interest_tiers(self, v):
+        """Higieniza as faixas de juros por nº de parcelas: {from:int, to:int|None, rate:0..1000}.
+        `from` = mín. de parcelas; `to` = máx. (None/'' = sem limite); fora das faixas = sem juros."""
+        if not isinstance(v, list):
+            return []
+
+        def _int_or_none(x):
+            if x in (None, '', 'null'):
+                return None
+            try:
+                return max(0, int(x))
+            except (TypeError, ValueError):
+                return None
+
+        out = []
+        for t in v[:20]:
+            if not isinstance(t, dict):
+                continue
+            frm = _int_or_none(t.get('from'))
+            to = _int_or_none(t.get('to'))
+            try:
+                rate = max(0.0, min(float(t.get('rate') or 0), 1000.0))
+            except (TypeError, ValueError):
+                rate = 0.0
+            out.append({'from': frm if frm is not None else 0, 'to': to, 'rate': round(rate, 4)})
+        return out
+
+
+class PaymentPlanViewSet(viewsets.ModelViewSet):
+    queryset = ConfigPaymentPlan.objects.all()
+    serializer_class = PaymentPlanSerializer
+    pagination_class = None
+    # Mesma área/permissão das formas de pagamento (settings_payment_methods_*).
+    get_permissions = _settings_perm('settings_payment_methods')
+
+
 class ExchangeRateSerializer(serializers.ModelSerializer):
+    base_rate = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, allow_null=True)
+
     class Meta:
         model = ConfigExchangeRate
-        fields = ['id', 'from_currency', 'to_currency', 'rate', 'updated_at']
+        fields = ['id', 'from_currency', 'to_currency', 'base_rate', 'markup_percent',
+                  'markup_percent_installment', 'rate', 'rate_installment',
+                  'auto_update', 'is_favorite', 'source_url', 'script', 'update_time',
+                  'last_auto_update', 'rounding_decimals', 'rounding_mode',
+                  'rate_updated_at', 'updated_at']
+        read_only_fields = ['rate', 'rate_installment', 'last_auto_update', 'rate_updated_at', 'updated_at']
+
+    def validate(self, attrs):
+        # Enforce server-side as permissões granulares do câmbio — não basta o
+        # frontend desabilitar os campos. Quem não tem a permissão tem os campos
+        # correspondentes descartados do payload, preservando o valor já salvo.
+        from users_api.permissions import has_any_perm
+        req = self.context.get('request')
+        user = getattr(req, 'user', None)
+        is_su = bool(user and user.is_superuser)
+        has_advanced = is_su or bool(user and has_any_perm(
+            user, 'manage_settings', 'settings_exchange_rates_advanced'))
+        has_rounding = is_su or bool(user and has_any_perm(
+            user, 'manage_settings', 'settings_exchange_rates_rounding'))
+
+        # Script (execução de código no servidor) é exclusivo de superusuário.
+        if 'script' in attrs and not is_su:
+            attrs.pop('script')
+        # Opções avançadas: auto-atualização e fonte externa (link/script/horário).
+        if not has_advanced:
+            for f in ('auto_update', 'source_url', 'script', 'update_time'):
+                attrs.pop(f, None)
+        # Arredondamento da taxa final.
+        if not has_rounding:
+            attrs.pop('rounding_decimals', None)
+            attrs.pop('rounding_mode', None)
+        return attrs
+
+    def to_representation(self, instance):
+        # A leitura da lista de câmbio é liberada para qualquer autenticado (a taxa
+        # é usada em vários lugares), mas `script` (código Python do servidor) e
+        # `source_url` (endpoints internos) não devem vazar para quem não administra
+        # o câmbio. `script` só para superusuário; `source_url` só para quem tem
+        # acesso de câmbio (view/edit) ou manage_settings.
+        from users_api.permissions import has_any_perm
+        data = super().to_representation(instance)
+        req = self.context.get('request')
+        user = getattr(req, 'user', None)
+        if not (user and user.is_superuser):
+            data.pop('script', None)
+        if not (user and has_any_perm(user, 'manage_settings',
+                                      'settings_exchange_rates_view', 'settings_exchange_rates_edit')):
+            data.pop('source_url', None)
+        return data
+
+    def to_internal_value(self, data):
+        # Compatibilidade: payloads que mandam só `rate` (importação/antigos) usam
+        # esse valor como taxa de mercado (base_rate); a taxa efetiva é recalculada.
+        if hasattr(data, 'get') and (data.get('base_rate') in (None, '')) and (data.get('rate') not in (None, '')):
+            try:
+                data = dict(data)
+                data['base_rate'] = data['rate']
+            except Exception:
+                pass
+        return super().to_internal_value(data)
 
 
 class ExchangeRateViewSet(viewsets.ModelViewSet):
     queryset = ConfigExchangeRate.objects.all()
     serializer_class = ExchangeRateSerializer
     pagination_class = None
-    get_permissions = _settings_perm('settings_exchange_rates')
+    # 'pull_internet' e 'default_time' (horário geral) fazem parte das opções
+    # avançadas → exigem settings_exchange_rates_advanced, não o _edit básico.
+    get_permissions = _settings_perm(
+        'settings_exchange_rates',
+        extra_write=['test_script'],
+        action_perms={'pull_internet': 'advanced', 'default_time': 'advanced', 'run_now': 'update_now', 'update_one': 'update_now'},
+    )
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get('favorites') in ('1', 'true', 'True'):
+            qs = qs.filter(is_favorite=True)
+        return qs.order_by('-is_favorite', 'from_currency', 'to_currency')
+
+    @action(detail=False, methods=['post'], url_path='pull-internet')
+    def pull_internet(self, request):
+        """Puxa as taxas de TODAS as moedas → BRL da internet, criando/atualizando
+        os câmbios. Mantém o acréscimo (%) já configurado em cada um."""
+        from .exchange_service import pull_all_from_internet
+        try:
+            created, updated = pull_all_from_internet()
+        except Exception as e:
+            return Response({'error': f'Não foi possível puxar da internet: {e}'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'created': created, 'updated': updated})
+
+    @action(detail=False, methods=['post'], url_path='run-now')
+    def run_now(self, request):
+        """Força a atualização automática AGORA — atualiza todas as moedas com
+        auto-atualização ligada (script/link/API), sem esperar o horário.
+
+        Script customizado = execução de código no servidor (privilégio sensível):
+        só superusuário dispara scripts. Um não-superusuário atualiza apenas as
+        moedas de fonte simples (link/API); as com script são puladas."""
+        from .exchange_service import update_due
+        try:
+            n = update_due(force=True, include_scripts=request.user.is_superuser)
+        except Exception as e:
+            return Response({'error': f'Não foi possível atualizar agora: {e}'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'updated': n})
+
+    @action(detail=True, methods=['post'], url_path='update-now')
+    def update_one(self, request, pk=None):
+        """Atualiza UMA moeda agora, pela fonte configurada nela (script, link
+        próprio ou API global). Não mexe no acréscimo definido pelo usuário."""
+        row = self.get_object()
+        from .exchange_service import _rates_for, _apply_rates, fetch_brl_rates, _has_script
+        # Script customizado roda código no servidor — só superusuário dispara.
+        if _has_script(row) and not request.user.is_superuser:
+            return Response({'error': 'Apenas superusuário pode atualizar uma moeda com script customizado.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        try:
+            need_global = not (row.script or '').strip() and not row.source_url
+            global_rates = fetch_brl_rates() if need_global else {}
+            data = _rates_for(row, global_rates)
+            if not data:
+                return Response({'error': 'Não foi possível obter a taxa desta moeda agora.'},
+                                status=status.HTTP_502_BAD_GATEWAY)
+            _apply_rates(row, data)
+            row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'updated_at'])
+        except Exception as e:
+            return Response({'error': f'Não foi possível atualizar: {e}'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        return Response(self.get_serializer(row).data)
+
+    @action(detail=False, methods=['post'], url_path='test-script')
+    def test_script(self, request):
+        """Roda o script no sandbox e devolve a taxa calculada (ou o erro). Só
+        superusuário — é execução de código no servidor."""
+        if not request.user.is_superuser:
+            return Response({'error': 'Apenas superusuário pode testar scripts.'}, status=403)
+        from .exchange_runner import run_script
+        ok, data, out = run_script(request.data.get('script') or '')
+        if ok:
+            market = data.get('market'); a = data.get('a_vista'); p = data.get('parcelado')
+            primary = market if market is not None else a
+            resp = {'rate': str(primary) if primary is not None else None, 'output': out}
+            if market is not None:
+                resp['rate_market'] = str(market)
+            if a is not None:
+                resp['rate_a_vista'] = str(a)
+            if p is not None:
+                resp['rate_parcelado'] = str(p)
+            return Response(resp)
+        return Response({'error': data, 'output': out})
+
+    @action(detail=False, methods=['get', 'post'], url_path='default-time')
+    def default_time(self, request):
+        """Horário GERAL de atualização — usado pelas moedas sem horário próprio."""
+        from .models import ConfigExchangeSettings
+        obj = ConfigExchangeSettings.get()
+        if request.method == 'POST':
+            t = request.data.get('default_update_time')
+            if t:
+                # Valida o horário (HH:MM[:SS]) — um valor arbitrário estouraria no
+                # save() do TimeField (ValueError) → 500. Rejeita com 400.
+                from django.utils.dateparse import parse_time
+                parsed = parse_time(t) if isinstance(t, str) else None
+                if parsed is None:
+                    return Response({'error': 'Horário inválido (use HH:MM).'}, status=400)
+                obj.default_update_time = parsed
+            else:
+                obj.default_update_time = None
+            obj.save(update_fields=['default_update_time', 'updated_at'])
+        return Response({'default_update_time': obj.default_update_time})
 
 
 class ListCategorySerializer(serializers.ModelSerializer):
@@ -994,12 +1578,15 @@ class VaccineViewSet(viewsets.ModelViewSet):
 
 
 class CitySerializer(serializers.ModelSerializer):
-    state_name   = serializers.CharField(source='state.name', read_only=True, default=None)
-    country_name = serializers.CharField(source='state.country.name', read_only=True, default=None)
+    state_name     = serializers.CharField(source='state.name', read_only=True, default=None)
+    country_name   = serializers.CharField(source='state.country.name', read_only=True, default=None)
+    continent_name = serializers.CharField(source='state.country.continent.name', read_only=True, default=None)
+    country        = serializers.IntegerField(source='state.country_id', read_only=True)
+    continent      = serializers.IntegerField(source='state.country.continent_id', read_only=True)
 
     class Meta:
         model = ConfigCity
-        fields = ['id', 'name', 'state_name', 'country_name']
+        fields = ['id', 'name', 'state_name', 'country_name', 'continent_name', 'country', 'continent']
 
 
 class CityViewSet(viewsets.ModelViewSet):
@@ -1007,13 +1594,44 @@ class CityViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
+        from django.db.models import Case, When, Value, IntegerField
+        from .textsearch import normalize_text
         state_id = self.request.query_params.get('state_id')
+        # `prefer`/`country_ids`: países a PRIORIZAR no ranking (não filtram — cidades
+        # deles aparecem primeiro, mas outras cidades continuam pesquisáveis). Sem
+        # busca, mostramos só as cidades dos países preferidos (contexto do roteiro).
+        prefer = self.request.query_params.get('prefer') or self.request.query_params.get('country_ids')
         q = self.request.query_params.get('q')
+        base = ConfigCity.objects.select_related('state__country', 'state__country__continent')
         if state_id:
-            return ConfigCity.objects.filter(state_id=state_id).select_related('state__country')
+            return base.filter(state_id=state_id)
+        prefer_ids = [int(x) for x in (prefer or '').split(',') if x.strip().isdigit()]
+
         if q:
-            return ConfigCity.objects.filter(name__icontains=q).select_related('state__country')[:50]
-        return ConfigCity.objects.none()
+            from django.db.models import Q
+            nq = normalize_text(q)
+            # casa pelo nome normalizado OU por apelido PT (ex.: 'cidade do méxico').
+            qs = base.filter(Q(name_ascii__icontains=nq) | Q(aliases__icontains=nq))
+            order = []
+            if prefer_ids:   # cidades dos países selecionados vêm primeiro
+                qs = qs.annotate(_pref=Case(
+                    When(state__country_id__in=prefer_ids, then=Value(0)),
+                    default=Value(1), output_field=IntegerField()))
+                order.append('_pref')
+            # cidade famosa reconhecida pelo apelido PT (ex.: 'roma'→Roma/Itália)
+            # aparece antes de homônimas; depois quem COMEÇA com o termo; depois nome.
+            qs = qs.annotate(
+                _alias=Case(When(aliases__icontains=nq, then=Value(0)),
+                            default=Value(1), output_field=IntegerField()),
+                _rank=Case(When(name_ascii__startswith=nq, then=Value(0)),
+                           default=Value(1), output_field=IntegerField()))
+            order += ['_alias', '_rank', 'name']
+            return qs.order_by(*order)[:200]
+
+        # Sem busca: se há países preferidos, mostra as cidades deles; senão amostra.
+        if prefer_ids:
+            return base.filter(state__country_id__in=prefer_ids).order_by('name')[:200]
+        return base.order_by('name')[:200]
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_state': 'import_web'})
 
@@ -1048,8 +1666,9 @@ class CityViewSet(viewsets.ModelViewSet):
             CHUNK = 200
             for i in range(0, total, CHUNK):
                 chunk = names[i:i + CHUNK]
+                from .textsearch import normalize_text
                 ConfigCity.objects.bulk_create(
-                    [ConfigCity(state=state, name=n) for n in chunk], ignore_conflicts=True)
+                    [ConfigCity(state=state, name=n, name_ascii=normalize_text(n)) for n in chunk], ignore_conflicts=True)
                 progress(min(i + CHUNK, total), total)
             after = state.cities.count()
             return {'total': after, 'created': after - before}
@@ -1065,9 +1684,11 @@ class StateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         country_id = self.request.query_params.get('country_id')
         if country_id:
-            return ConfigState.objects.filter(country_id=country_id).select_related('country')
+            return (ConfigState.objects.filter(country_id=country_id)
+                    .select_related('country').annotate(city_count_a=Count('cities')))
         if self.request.query_params.get('all'):
-            return ConfigState.objects.all().select_related('country').order_by('country__name', 'name')
+            return (ConfigState.objects.all().select_related('country')
+                    .annotate(city_count_a=Count('cities')).order_by('country__name', 'name'))
         return ConfigState.objects.none()
 
     get_permissions = _settings_perm('settings_countries', action_perms={'import_for_country': 'import_web'})
@@ -1122,12 +1743,31 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     get_permissions  = _settings_perm('settings_accommodations')
 
 
+# ── Tipos de Cabine (navio) ────────────────────────────────────────────────
+
+class ShipCabinSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigShipCabin
+        fields = ['id', 'category', 'name', 'capacity', 'is_couple']
+
+
+class ShipCabinViewSet(viewsets.ModelViewSet):
+    queryset         = ConfigShipCabin.objects.all()
+    serializer_class = ShipCabinSerializer
+    get_permissions  = _settings_perm('settings_ship_cabins')
+
+
 # ── Cláusulas de contrato ───────────────────────────────────────────────────
 
 class ContractClauseSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ContractClause
         fields = ['id', 'name', 'content', 'is_default', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+    def validate_content(self, value):
+        from core.sanitize import sanitize_html
+        return sanitize_html(value)
 
 
 class ContractClauseViewSet(viewsets.ModelViewSet):
@@ -1220,17 +1860,26 @@ class AirportViewSet(viewsets.ModelViewSet):
 
 # ── Companhias Aéreas ────────────────────────────────────────────────────────
 
+from .airline_logos import normalize_logo_bytes, normalized_kiwi_logo, save_airline_logo
+
+
 class AirlineSerializer(serializers.ModelSerializer):
+    logo = serializers.SerializerMethodField()
+
     class Meta:
         model  = Airline
-        fields = ['id', 'name', 'iata_code', 'country', 'is_favorite']
+        fields = ['id', 'name', 'iata_code', 'country', 'is_favorite', 'logo']
+
+    def get_logo(self, obj):
+        return obj.logo.url if obj.logo else None
 
 
 class AirlineViewSet(viewsets.ModelViewSet):
     queryset         = Airline.objects.all()
     serializer_class = AirlineSerializer
     pagination_class = ConfigListPagination
-    get_permissions  = _settings_perm('settings_airlines', action_perms={'seed': 'import_web'})
+    get_permissions  = _settings_perm('settings_airlines',
+                                      action_perms={'seed': 'import_web', 'fetch_logo': 'import_web'})
 
     def get_queryset(self):
         qs = Airline.objects.all()
@@ -1240,6 +1889,36 @@ class AirlineViewSet(viewsets.ModelViewSet):
         if self.request.query_params.get('favorites') in ('1', 'true', 'True'):
             qs = qs.filter(is_favorite=True)
         return qs.order_by('-is_favorite', 'name')
+
+    @action(detail=True, methods=['post'], url_path='logo', parser_classes=[MultiPartParser, FormParser])
+    def set_logo(self, request, pk=None):
+        """Define/remove a logo (upload manual, já recortada no front). Normaliza para 320×160."""
+        airline = self.get_object()
+        if str(request.data.get('clear', '')).lower() in ('1', 'true'):
+            if airline.logo:
+                airline.logo.delete(save=True)
+            return Response(AirlineSerializer(airline, context=self.get_serializer_context()).data)
+        f = request.FILES.get('logo')
+        if not f:
+            return Response({'error': 'Envie a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            cf = normalize_logo_bytes(f.read())
+        except ValueError:
+            return Response({'error': 'Imagem inválida.'}, status=status.HTTP_400_BAD_REQUEST)
+        save_airline_logo(airline, cf)
+        return Response(AirlineSerializer(airline, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='fetch-logo')
+    def fetch_logo(self, request, pk=None):
+        """Baixa a logo da internet (Kiwi) pelo código IATA e normaliza para 320×160."""
+        airline = self.get_object()
+        if not (airline.iata_code or '').strip():
+            return Response({'error': 'A companhia não tem código IATA.'}, status=status.HTTP_400_BAD_REQUEST)
+        cf = normalized_kiwi_logo(airline.iata_code)
+        if cf is None:
+            return Response({'error': 'Logo não encontrada na internet para este código IATA.'}, status=status.HTTP_404_NOT_FOUND)
+        save_airline_logo(airline, cf)
+        return Response(AirlineSerializer(airline, context=self.get_serializer_context()).data)
 
     @action(detail=False, methods=['post'])
     def seed(self, request):
@@ -1307,49 +1986,292 @@ class BusMapViewSet(viewsets.ModelViewSet):
 class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model  = SystemSettings
-        fields = ['deadline_notification_emails']
-
-class _IsStaffOrSuper(BasePermission):
-    def has_permission(self, request, view):
-        u = request.user
-        return bool(u and u.is_authenticated and (u.is_staff or u.is_superuser))
+        fields = ['deadline_notification_emails',
+                  'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method']
 
 @api_view(['GET', 'PATCH'])
-@permission_classes([_IsStaffOrSuper])
+@permission_classes([IsAuthenticated])
 def system_settings(request):
+    u = request.user
+    is_admin = bool(u and (u.is_staff or u.is_superuser))
     obj = SystemSettings.get()
     if request.method == 'PATCH':
+        if not is_admin:
+            return Response({'detail': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
         ser = SystemSettingsSerializer(obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(ser.data)
-    return Response(SystemSettingsSerializer(obj).data)
+    # GET: admin vê tudo; os demais (ex.: agência montando um contrato) recebem só os
+    # padrões de desconto à vista, que o formulário de contrato precisa ler.
+    data = SystemSettingsSerializer(obj).data
+    if not is_admin:
+        data = {k: data.get(k) for k in ('a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method')}
+    return Response(data)
+
+
+# ── Logos configuráveis por lugar (branding) ────────────────────────────────
+BRANDING_SLOTS = {
+    'system':   'logo_system',    # legado (fallback geral / PDFs de lista)
+    'sidebar':  'logo_sidebar',   # menu lateral
+    'topbar':   'logo_topbar',    # barra branca do topo
+    'login':    'logo_login',     # telas de login/recuperação
+    'favicon':  'favicon',        # ícone do navegador
+    'site':     'logo_site',      # vitrine pública
+    'pdf':      'logo_pdf',       # PDF dos roteiros
+    'contract': 'logo_contract',  # PDF dos contratos
+    'voucher':  'logo_voucher',   # PDF dos vouchers
+    'list':     'logo_list',      # PDF da lista de passageiros
+}
+# Campo da imagem ORIGINAL (não-destrutivo) de cada slot.
+BRANDING_ORIGINAL_SLOTS = {slot: f'{field}_original' for slot, field in BRANDING_SLOTS.items()}
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def branding_logos(request):
+    """URLs dos logos por lugar. PÚBLICO — usado até na tela de login e no favicon."""
+    obj = SystemSettings.get()
+
+    def url(f):
+        if not f:
+            return None
+        try:
+            return request.build_absolute_uri(f.url)
+        except Exception:
+            return f.url
+    data = {slot: url(getattr(obj, field)) for slot, field in BRANDING_SLOTS.items()}
+    # Não-destrutivo: URL da imagem original de cada slot + os dados de enquadramento.
+    for slot, ofield in BRANDING_ORIGINAL_SLOTS.items():
+        data[f'{slot}_original'] = url(getattr(obj, ofield, None))
+    data['crops'] = obj.branding_crops or {}
+    # Título da aba do navegador: valor cru p/ o campo + texto padrão quando vazio.
+    data['title'] = obj.browser_title or ''
+    data['title_fallback'] = 'Operadora'
+    # Cores do tema (vazio = usa o padrão do CSS).
+    data['color_primary'] = obj.color_primary or ''
+    data['color_secondary'] = obj.color_secondary or ''
+    return Response(data)
+
+
+_HEX_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+
+@api_view(['POST'])
+def branding_colors_set(request):
+    """Define as cores do tema. body: primary, secondary (hex #rrggbb; vazio = padrão)."""
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_cores_edit'):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
+    def clean(v):
+        v = (v or '').strip()
+        if v and not _HEX_RE.match(v):
+            return None, False
+        return v, True
+
+    primary, ok1 = clean(request.data.get('primary'))
+    secondary, ok2 = clean(request.data.get('secondary'))
+    if not ok1 or not ok2:
+        return Response({'error': 'Cor inválida. Use o formato #rrggbb.'}, status=status.HTTP_400_BAD_REQUEST)
+    obj = SystemSettings.get()
+    obj.color_primary = primary
+    obj.color_secondary = secondary
+    obj.save(update_fields=['color_primary', 'color_secondary'])
+    return Response({'color_primary': obj.color_primary, 'color_secondary': obj.color_secondary})
+
+
+@api_view(['POST'])
+def branding_title_set(request):
+    """Define o título da aba do navegador. body: title (texto; vazio = limpar)."""
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_logos_edit'):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+    obj = SystemSettings.get()
+    obj.browser_title = (request.data.get('title') or '').strip()[:120]
+    obj.save(update_fields=['browser_title'])
+    return Response({'title': obj.browser_title})
+
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def branding_logo_set(request, slot):
+    """Define/remove o logo de um lugar. body: image (multipart) OU clear=1."""
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_logos_edit'):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+    field = BRANDING_SLOTS.get(slot)
+    if not field:
+        return Response({'error': 'Lugar inválido.'}, status=status.HTTP_404_NOT_FOUND)
+    ofield = BRANDING_ORIGINAL_SLOTS.get(slot)
+    obj = SystemSettings.get()
+    if str(request.data.get('clear', '')).lower() in ('1', 'true'):
+        for fld in (field, ofield):
+            old = getattr(obj, fld, None)
+            if old:
+                old.delete(save=False)
+            setattr(obj, fld, None)
+        crops = dict(obj.branding_crops or {}); crops.pop(slot, None); obj.branding_crops = crops
+        obj.save(update_fields=[field, ofield, 'branding_crops'])
+        return Response({'url': None})
+    up = request.FILES.get('image') or request.FILES.get('logo')
+    if not up:
+        return Response({'error': 'Envie a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
+    from passengers.validators import validate_document_file, sanitize_image, parse_crop
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    try:
+        validate_document_file(up, allowed_exts={'.png', '.jpg', '.jpeg', '.webp'}, allow_images=True)
+    except DjangoValidationError as e:
+        return Response({'error': (e.messages[0] if e.messages else 'Imagem inválida.')}, status=status.HTTP_400_BAD_REQUEST)
+    old = getattr(obj, field)
+    if old:
+        old.delete(save=False)
+    setattr(obj, field, up)
+    update_fields = [field]
+
+    # Não-destrutivo: guarda a ORIGINAL (para reabrir/desfazer) + o recorte.
+    orig = request.FILES.get('original')
+    if orig:
+        try:
+            cf = sanitize_image(orig, fmt='PNG', max_dim=1600)
+        except DjangoValidationError:
+            cf = None
+        if cf is not None:
+            oldo = getattr(obj, ofield, None)
+            if oldo:
+                oldo.delete(save=False)
+            getattr(obj, ofield).save('logo_orig.png', cf, save=False)
+            update_fields.append(ofield)
+    crop = parse_crop(request.data.get('crop'))
+    if crop:
+        crops = dict(obj.branding_crops or {}); crops[slot] = crop; obj.branding_crops = crops
+        update_fields.append('branding_crops')
+
+    obj.save(update_fields=update_fields)
+    return Response({'url': request.build_absolute_uri(getattr(obj, field).url)})
 
 
 # ── Dados da operadora (UneWorld) — pré-preenche contratos ──────────────────
 
 class OperatingCompanySerializer(serializers.ModelSerializer):
+    # URL do endpoint que serve a imagem (com cache-bust por updated_at); o
+    # arquivo em si é gravado na view (não pelo serializer).
+    ceo_signature = serializers.SerializerMethodField()
+
     class Meta:
         model  = OperatingCompany
-        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'address', 'updated_at']
+        fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'website', 'address',
+                  'pix_key_type', 'pix_key',
+                  'default_signature_type',
+                  'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign', 'ceo_signature',
+                  'updated_at']
+
+    def get_ceo_signature(self, obj):
+        if not obj.ceo_signature:
+            return None
+        ts = int(obj.updated_at.timestamp()) if obj.updated_at else 0
+        return f'/api/config/operating-company/ceo-signature/?v={ts}'
+
+
+class OperatingCompanyContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = OperatingCompanyContact
+        fields = ['id', 'name', 'role', 'email', 'phone', 'order']
+
+
+class OperatingCompanyContactViewSet(viewsets.ModelViewSet):
+    """CRUD dos contatos (equipe) da operadora — aba 'Contatos'."""
+    serializer_class = OperatingCompanyContactSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        # Aba "Contatos" da operadora — view/edit próprios (base como fallback).
+        from users_api.permissions import RequirePermission as RP
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [RP('manage_settings', 'settings_operating_company_edit', 'settings_operating_company_contatos_edit')()]
+        return [RP('manage_settings', 'settings_operating_company_view', 'settings_operating_company_edit',
+                   'settings_operating_company_contatos_view', 'settings_operating_company_contatos_edit')()]
+
+    def get_queryset(self):
+        qs = OperatingCompanyContact.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
+
+
+CEO_SENSITIVE_FIELDS = ['ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign']
 
 
 @api_view(['GET', 'PATCH'])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 @permission_classes([IsAuthenticated])
 def operating_company(request):
     from users_api.permissions import has_any_perm
-    if not has_any_perm(request.user, 'manage_settings', 'settings_contract_clauses_view',
-                         'settings_contract_clauses_edit'):
+    # Ver os dados da operadora: base (legado) OU qualquer aba de dados/pix/assinatura.
+    can_settings = has_any_perm(request.user, 'manage_settings',
+                                'settings_operating_company_view', 'settings_operating_company_edit',
+                                'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
+                                'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',
+                                'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit')
+    # Campos sensíveis do CEO ficam SÓ para quem pode ver a aba Assinatura.
+    can_assinatura = has_any_perm(request.user, 'manage_settings',
+                                  'settings_operating_company_view', 'settings_operating_company_edit',
+                                  'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit')
+    # Quem cria/vê contratos também precisa dos dados da operadora (cabeçalho do
+    # contrato, PIX, forma de assinatura padrão) — mas NÃO dos campos sensíveis do
+    # CEO (token Autentique). Sem isso, o form de contrato quebra para usuários de
+    # agência, que podem criar contrato mas não têm acesso às Configurações.
+    can_contract = has_any_perm(request.user, 'contracts_view', 'contracts_edit')
+    if not (can_settings or can_contract):
         return Response(status=403)
     obj = OperatingCompany.get()
     if request.method == 'PATCH':
-        if not has_any_perm(request.user, 'manage_settings', 'settings_contract_clauses_edit'):
+        if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_edit',
+                            'settings_operating_company_dados_edit', 'settings_operating_company_pix_edit',
+                            'settings_operating_company_assinatura_edit'):
             return Response({'error': 'Você não tem permissão para executar esta ação.'}, status=403)
         ser = OperatingCompanySerializer(obj, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(ser.data)
-    return Response(OperatingCompanySerializer(obj).data)
+        # Imagem da assinatura do CEO (multipart) — tratada fora do serializer.
+        sig = request.FILES.get('ceo_signature')
+        if sig is not None:
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            from passengers.validators import validate_document_file
+            try:
+                sig = validate_document_file(sig, allowed_exts={'.png', '.jpg', '.jpeg', '.webp'}, allow_images=True)
+            except DjangoValidationError as e:
+                return Response({'error': 'Assinatura inválida: ' + ' '.join(e.messages)}, status=400)
+            obj.ceo_signature = sig
+            obj.save(update_fields=['ceo_signature', 'updated_at'])
+        elif str(request.data.get('ceo_signature_clear', '')).lower() in ('1', 'true', 'yes', 'on'):
+            if obj.ceo_signature:
+                obj.ceo_signature.delete(save=False)
+            obj.ceo_signature = None
+            obj.save(update_fields=['ceo_signature', 'updated_at'])
+        return Response(OperatingCompanySerializer(obj).data)
+    data = OperatingCompanySerializer(obj).data
+    if not can_assinatura:
+        for k in CEO_SENSITIVE_FIELDS:
+            data.pop(k, None)
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def operating_company_ceo_signature(request):
+    """Serve a imagem da assinatura do CEO (para embutir no PDF físico)."""
+    from django.http import FileResponse, Http404
+    from users_api.permissions import has_any_perm
+    if not has_any_perm(request.user, 'manage_settings', 'settings_operating_company_view',
+                        'settings_operating_company_edit', 'settings_operating_company_assinatura_view',
+                        'settings_operating_company_assinatura_edit', 'contracts_view', 'contracts_edit'):
+        return Response(status=403)
+    obj = OperatingCompany.get()
+    if not obj.ceo_signature:
+        raise Http404
+    resp = FileResponse(obj.ceo_signature.open('rb'), as_attachment=False)
+    resp['X-Frame-Options'] = 'SAMEORIGIN'
+    return resp
 
 
 # ── Termos e condições ───────────────────────────────────────────────────────
@@ -1358,6 +2280,11 @@ class TermsAndConditionsSerializer(serializers.ModelSerializer):
     class Meta:
         model  = TermsAndConditions
         fields = ['content', 'updated_at']
+        read_only_fields = ['updated_at']
+
+    def validate_content(self, value):
+        from core.sanitize import sanitize_html
+        return sanitize_html(value)
 
 
 @api_view(['GET', 'PATCH'])
@@ -1382,13 +2309,37 @@ def terms_and_conditions(request):
 class PermissionProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model  = PermissionProfile
-        fields = ['id', 'name', 'permissions', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+        fields = ['id', 'name', 'permissions', 'is_agency_default', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
 
 
 class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = PermissionProfile.objects.all()
     serializer_class = PermissionProfileSerializer
     pagination_class = None
+
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        self._ensure_single_agency_default(obj)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        self._ensure_single_agency_default(obj)
+        self._reapply_to_linked_users(obj)
+
+    def _ensure_single_agency_default(self, obj):
+        # Só UM perfil pode ser o padrão de agência — ao marcar um, desmarca os demais.
+        if obj.is_agency_default:
+            PermissionProfile.objects.exclude(pk=obj.pk).filter(is_agency_default=True).update(is_agency_default=False)
+
+    def _reapply_to_linked_users(self, profile):
+        # Link VIVO: ao editar o perfil, re-aplica as permissões a todos os usuários
+        # vinculados a ele (inclui os usuários de agência ligados ao perfil padrão).
+        # actor = quem editou o perfil: não-super só propaga o que ele mesmo tem
+        # (não escala os vinculados via edição de perfil).
+        from users_api.permissions import apply_profile
+        actor = getattr(self.request, 'user', None)
+        for perms in profile.linked_permissions.select_related('user').all():
+            apply_profile(perms.user, profile, actor=actor)
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

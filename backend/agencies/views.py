@@ -2,6 +2,7 @@ import re
 from django.contrib.auth.models import User
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from core.pagination import StandardResultsPagination
@@ -10,6 +11,8 @@ from core.merge import MergeViewSetMixin
 from users_api.permissions import RequirePermission
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
+from core.search import AccentInsensitiveSearchFilter
+from core.file_cleanup import delete_fieldfile
 
 # Quem pode editar passageiros/listas precisa enxergar/buscar agências
 # (AgencyPicker, autocomplete de agência responsável etc.), então essas
@@ -20,7 +23,7 @@ VIEW_PERMS = ['agencies_view', 'passengers_edit', 'passengers_view_full', 'lists
 class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelViewSet):
     queryset        = Agency.objects.all()
     pagination_class = StandardResultsPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
     search_fields   = ['name', 'company_name', 'email', 'cnpj', 'responsible']
     ordering_fields = ['name', 'created_at']
     MERGE_LABEL = 'Agência'
@@ -36,10 +39,31 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
     def get_serializer_class(self):
         return AgencyListSerializer if self.action == 'list' else AgencySerializer
 
+    def get_queryset(self):
+        from django.db.models import Q
+        from users_api.permissions import agency_scope_ids
+        qs = super().get_queryset()   # aplica o filtro de soft-delete (is_deleted)
+        # Usuário de agência só enxerga a(s) própria(s) agência(s).
+        scope = agency_scope_ids(self.request.user)
+        if scope is not None:
+            qs = qs.filter(id__in=scope)
+        # Rascunhos são PRIVADOS de quem criou (listar/abrir/editar/descartar).
+        qs = qs.filter(~Q(status='rascunho') | Q(created_by=self.request.user))
+        # Na listagem, rascunhos ficam fora por padrão; ?status=rascunho traz só eles.
+        if self.action == 'list':
+            if self.request.query_params.get('status') == 'rascunho':
+                qs = qs.filter(status='rascunho')
+            else:
+                qs = qs.exclude(status='rascunho')
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('agencies_delete')()]
-        if self.action in ('create', 'update', 'partial_update'):
+        if self.action in ('create', 'update', 'partial_update', 'discard', 'logo'):
             return [RequirePermission('agencies_edit')()]
         if self.action == 'merge':
             return [RequirePermission('agencies_edit')(), RequirePermission('agencies_delete')()]
@@ -52,7 +76,85 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             if self.request.method == 'POST':
                 return [RequirePermission('agencies_edit')()]
             return [RequirePermission(*VIEW_PERMS)()]
+        if self.action == 'attachable_users':
+            return [RequirePermission('agencies_edit')()]
         return super().get_permissions()
+
+    @action(detail=True, methods=['post', 'delete'], parser_classes=[MultiPartParser, FormParser])
+    def logo(self, request, pk=None):
+        """Upload/remoção da LOGO da agência. SEGURO: valida tamanho, verifica a
+        imagem com Pillow e re-encoda como PNG (mantém transparência; descarta
+        qualquer payload embutido). Nunca serve o arquivo enviado como veio."""
+        from audit.tracking import log_event
+        agency = self.get_object()
+        if request.method == 'DELETE':
+            if agency.logo or agency.logo_original:
+                if agency.logo:
+                    delete_fieldfile(agency.logo, 'logo da agência')
+                if agency.logo_original:
+                    delete_fieldfile(agency.logo_original, 'logo original da agência')
+                agency.logo = None; agency.logo_original = None; agency.logo_crop = {}
+                agency._skip_audit_signal = True    # logamos como 'delete' de logo, não 'update'
+                agency.save(update_fields=['logo', 'logo_original', 'logo_crop'])
+                log_event('delete', model_name='Agency', model_label='Logo da agência',
+                          object_id=agency.id, object_repr=f'Logo — {agency}', user=request.user)
+            return Response(self.get_serializer(agency).data)
+
+        f = request.FILES.get('logo') or request.FILES.get('file')
+        if not f:
+            return Response({'error': 'Nenhuma imagem enviada.'}, status=status.HTTP_400_BAD_REQUEST)
+        if f.size > 5 * 1024 * 1024:
+            return Response({'error': 'Imagem muito grande (máximo 5 MB).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        import io
+        from PIL import Image, ImageOps, UnidentifiedImageError
+        try:
+            probe = Image.open(f)
+            if (probe.format or '').upper() not in {'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'}:
+                return Response({'error': 'Formato não suportado. Use PNG, JPG, WEBP ou GIF.'}, status=status.HTTP_400_BAD_REQUEST)
+            probe.verify()
+            f.seek(0)
+            img = Image.open(f)
+            img = ImageOps.exif_transpose(img)
+            img = img.convert('RGBA')          # mantém transparência do logo
+        except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+            return Response({'error': 'Arquivo de imagem inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        img.thumbnail((512, 512))
+        buf = io.BytesIO()
+        img.save(buf, format='PNG', optimize=True)
+        buf.seek(0)
+
+        from django.core.files.base import ContentFile
+        if agency.logo:
+            delete_fieldfile(agency.logo, 'logo da agência')
+        agency.logo.save(f'{agency.id}.png', ContentFile(buf.read()), save=False)
+        update_fields = ['logo']
+
+        # Não-destrutivo: guarda a logo ORIGINAL (para reabrir/desfazer) + o recorte.
+        from passengers.validators import sanitize_image, parse_crop
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        orig = request.FILES.get('original')
+        if orig:
+            try:
+                cf = sanitize_image(orig, fmt='PNG', max_dim=1600, max_bytes=5 * 1024 * 1024)
+            except DjangoValidationError:
+                cf = None
+            if cf is not None:
+                if agency.logo_original:
+                    delete_fieldfile(agency.logo_original, 'logo original da agência')
+                agency.logo_original.save(f'{agency.id}_orig.png', cf, save=False)
+                update_fields.append('logo_original')
+        crop = parse_crop(request.data.get('crop'))
+        if crop:
+            agency.logo_crop = crop
+            update_fields.append('logo_crop')
+
+        agency._skip_audit_signal = True        # logamos como 'upload' de logo, não 'update'
+        agency.save(update_fields=update_fields)
+        log_event('upload', model_name='Agency', model_label='Logo da agência',
+                  object_id=agency.id, object_repr=f'Logo — {agency}', user=request.user)
+        return Response(self.get_serializer(agency).data)
 
     @action(detail=False, methods=['get'], url_path='check-cnpj')
     def check_cnpj(self, request):
@@ -61,13 +163,53 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             return Response({'error': 'CNPJ não informado.'}, status=400)
         digits = re.sub(r'\D', '', cnpj)
         from django.db.models import Q
-        agency = Agency.objects.filter(Q(cnpj=cnpj) | Q(cnpj=digits), is_deleted=False).exclude(cnpj='').first()
+        agency = (Agency.objects.filter(Q(cnpj=cnpj) | Q(cnpj=digits), is_deleted=False)
+                  .exclude(cnpj='').exclude(status='rascunho').first())
         if agency:
             name = agency.company_name or agency.name or f'Agência #{agency.pk}'
             return Response({'exists': True, 'id': agency.id, 'name': name})
         return Response({'exists': False})
 
+    @action(detail=True, methods=['delete'], url_path='discard')
+    def discard(self, request, pk=None):
+        """Descarta um RASCUNHO de agência — apaga de vez (nunca foi real)."""
+        obj = self.get_object()
+        if obj.status != 'rascunho':
+            return Response({'error': 'Apenas rascunhos podem ser descartados.'}, status=400)
+        obj.delete()
+        return Response(status=204)
+
     # ── Membros ──────────────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['get'], url_path='attachable-users')
+    def attachable_users(self, request, pk=None):
+        """Usuários que podem ser ANEXADOS a esta agência (para o popup "Adicionar").
+        Dados mínimos (id/nome/e-mail/flags) — liberado por `agencies_edit`, sem
+        precisar da permissão de gerência de usuários. Exclui: já-membros, inativos,
+        superusuários e (para quem não é superusuário) contas staff (regra A-08)."""
+        from users_api.permissions import agency_scope_ids
+        agency = self.get_object()
+        member_ids = set(agency.members.values_list('user_id', flat=True))
+        is_super_actor = request.user.is_superuser
+        out = []
+        for u in User.objects.filter(is_active=True).order_by('first_name', 'username'):
+            if u.id in member_ids:
+                continue
+            # Contas privilegiadas (staff/superusuário) só entram na lista para um
+            # superusuário — só ele pode anexá-las (regra A-08). O front esconde os
+            # superadmins por padrão, com um filtro para incluí-los.
+            if (u.is_staff or u.is_superuser) and not is_super_actor:
+                continue
+            out.append({
+                'id': u.id,
+                'full_name': f'{u.first_name} {u.last_name}'.strip() or u.username,
+                'email': u.email,
+                'username': u.username,
+                'is_staff': u.is_staff,
+                'is_superuser': u.is_superuser,
+                'is_agency_user': agency_scope_ids(u) is not None,
+            })
+        return Response(out)
 
     @action(detail=True, methods=['get', 'post'], url_path='members')
     def members(self, request, pk=None):
@@ -75,7 +217,12 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         agency = self.get_object()
 
         if request.method == 'GET':
-            members = agency.members.select_related('user').all()
+            # Só lista usuários DE agência: exclui excluídos (soft-delete → aba
+            # "Excluídos") e contas internas (staff/superusuário) — se um membro
+            # virou interno, ele deixa de ser da agência e some daqui.
+            members = agency.members.select_related('user', 'user__permissions').exclude(
+                user__permissions__is_deleted=True).exclude(
+                user__is_staff=True).exclude(user__is_superuser=True).all()
             return Response([{
                 'id':         m.id,
                 'user_id':    m.user.id,
@@ -106,32 +253,52 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
 
         if not user:
             return Response({'error': 'Usuário não encontrado.'}, status=404)
+        # A-08: o cadastro de membros exige só `agencies_edit` e aceita user_id/
+        # email arbitrários. Membro de agência é informativo (não concede acesso),
+        # mas mesmo assim NÃO deixamos anexar contas privilegiadas (staff/super)
+        # por ID arbitrário — só um superusuário pode fazer isso. Evita usar a rota
+        # para referenciar/vincular contas admin sem uma permissão forte.
+        if (user.is_staff or user.is_superuser) and not request.user.is_superuser:
+            return Response({'error': 'Você não tem permissão para adicionar este usuário.'}, status=403)
         if agency.members.filter(user=user).exists():
             return Response({'error': 'Usuário já pertence a esta agência.'}, status=400)
         m = AgencyMember.objects.create(agency=agency, user=user, role=role)
+        # Anexar um usuário EXISTENTE faz ele ASSUMIR as permissões de agência:
+        # se era conta interna (staff/superusuário), rebaixa para usuário comum e
+        # aplica o perfil "padrão de agência". Só um superusuário chega aqui com uma
+        # conta interna (A-08); e nunca rebaixa a si mesmo (evita se trancar fora).
+        if request.data.get('apply_agency_profile'):
+            from config_api.models import PermissionProfile
+            from users_api.permissions import apply_profile
+            if (user.is_superuser or user.is_staff) and user.pk != request.user.pk:
+                user.is_superuser = False
+                user.is_staff = False
+                user.save(update_fields=['is_superuser', 'is_staff'])
+            prof = PermissionProfile.objects.filter(is_agency_default=True, is_deleted=False).first()
+            if prof and not user.is_superuser:
+                apply_profile(user, prof)   # agora aplica (não é mais superusuário)
         return Response({'id': m.id, 'email': user.email,
                          'full_name': f'{user.first_name} {user.last_name}'.strip() or user.email,
                          'role': m.role, 'is_active': user.is_active}, status=201)
 
-    @action(detail=True, methods=['patch'], url_path=r'members/(?P<member_id>\d+)',
+    # PATCH (alterar papel, ex.: tornar admin da agência) e DELETE (remover da
+    # agência) na MESMA rota members/<id>. Precisam ficar numa única @action —
+    # dois @action com o mesmo url_path geram padrões duplicados e um dos métodos
+    # cai em 405 (o router usa o primeiro que casa a URL).
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'members/(?P<member_id>\d+)',
             permission_classes=[IsAdminUser])
-    def update_member(self, request, pk=None, member_id=None):
+    def member_detail(self, request, pk=None, member_id=None):
         agency = self.get_object()
         try:
             m = agency.members.get(id=member_id)
-            if 'role' in request.data:
-                m.role = request.data['role']
-                m.save()
-            return Response({'id': m.id, 'role': m.role})
         except AgencyMember.DoesNotExist:
             return Response({'error': 'Membro não encontrado.'}, status=404)
-
-    @action(detail=True, methods=['delete'], url_path=r'members/(?P<member_id>\d+)',
-            permission_classes=[IsAdminUser])
-    def remove_member(self, request, pk=None, member_id=None):
-        agency = self.get_object()
-        try:
-            agency.members.get(id=member_id).delete()
+        if request.method == 'DELETE':
+            m.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except AgencyMember.DoesNotExist:
-            return Response({'error': 'Membro não encontrado.'}, status=404)
+        if 'role' in request.data:
+            if request.data['role'] not in {c[0] for c in AgencyMember.ROLE_CHOICES}:
+                return Response({'error': 'Função inválida.'}, status=400)
+            m.role = request.data['role']
+            m.save(update_fields=['role'])
+        return Response({'id': m.id, 'role': m.role})

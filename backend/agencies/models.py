@@ -1,5 +1,11 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
+
+
+def agency_logo_path(instance, filename):
+    # Sempre .png (o upload é revalidado e re-encodado como PNG no backend).
+    return f'agencies/logos/{instance.id or "new"}/{uuid.uuid4().hex}.png'
 
 
 class Agency(models.Model):
@@ -7,6 +13,7 @@ class Agency(models.Model):
         ('active',   'Ativa'),
         ('pending',  'Pendente'),
         ('inactive', 'Inativa'),
+        ('rascunho', 'Rascunho'),
     ]
     AGENCY_TYPE_CHOICES = [
         ('agencia',       'Agência'),
@@ -64,15 +71,26 @@ class Agency(models.Model):
 
     # Preferências
     receives_mail      = models.BooleanField('Receber mala direta impressa', default=False)
-    use_andes_banking  = models.BooleanField('Utilizar dados bancários da Andes', default=False)
 
     # PIX
     pix_key_type = models.CharField('Tipo de chave PIX', max_length=20, choices=PIX_TYPE_CHOICES, blank=True)
     pix_key      = models.CharField('Chave PIX', max_length=200, blank=True)
+    # No CONTRATO desta agência, qual PIX aparece: o da UneWorld/Operadora (False,
+    # padrão) ou o desta agência (True). Só faz sentido ligar se a agência tem PIX.
+    use_agency_pix = models.BooleanField('No contrato, usar o PIX desta agência (senão, o da UneWorld)', default=False)
 
     # Observações
     notes = models.TextField('Observações', blank=True)
 
+    # Logo da agência. Sempre revalidada e re-encodada como PNG no upload (seguro).
+    # Não-destrutivo: `logo` = recorte exibido; `logo_original` = imagem completa;
+    # `logo_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.
+    logo  = models.ImageField('Logo', upload_to=agency_logo_path, null=True, blank=True)
+    logo_original = models.ImageField('Logo (original)', upload_to=agency_logo_path, null=True, blank=True)
+    logo_crop     = models.JSONField('Recorte da logo', default=dict, blank=True)
+
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='agencies_created', verbose_name='Criado por')
     created_at = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at = models.DateTimeField('Atualizado em', auto_now=True)
 
@@ -84,6 +102,16 @@ class Agency(models.Model):
         verbose_name        = 'Agência'
         verbose_name_plural = 'Agências'
         ordering            = ['name']
+
+    def save(self, *args, **kwargs):
+        # Guarda só o documento do tipo de pessoa atual: ao trocar jurídica ↔ física,
+        # o documento antigo (CNPJ/CPF) some — senão ele fica "órfão" ocupando o
+        # valor e bloqueia cadastrar outra agência com o mesmo número.
+        if self.person_type == 'fisica':
+            self.cnpj = ''
+        elif self.person_type == 'juridica':
+            self.cpf = ''
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.company_name or self.name or f'Agência #{self.pk}'

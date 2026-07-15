@@ -3,13 +3,39 @@ from .models import Agency
 
 
 class AgencySerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+    logo_original_url = serializers.SerializerMethodField()
+
     class Meta:
         model  = Agency
-        fields = '__all__'
+        # Lista explícita (A-13) — sem '__all__'. Campos de auditoria/soft-delete
+        # são só-leitura (o backend os gerencia); os demais são editáveis pela tela.
+        fields = [
+            'id', 'agency_type', 'person_type', 'status', 'cnpj', 'cpf',
+            'company_name', 'name', 'last_name', 'state_registration',
+            'municipal_registration', 'responsible', 'phone', 'mobile', 'email',
+            'website', 'commission_rate', 'cep', 'street', 'number', 'complement',
+            'neighborhood', 'city', 'state', 'country', 'receives_mail',
+            'pix_key_type', 'pix_key', 'use_agency_pix', 'notes', 'logo_url',
+            'logo_original_url', 'logo_crop',
+            'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'logo_crop']
+
+    def get_logo_url(self, obj):
+        return obj.logo.url if obj.logo else None
+
+    def get_logo_original_url(self, obj):
+        return obj.logo_original.url if obj.logo_original else None
 
 
 class AgencyListSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model  = Agency
         fields = ['id', 'name', 'last_name', 'company_name', 'email', 'cnpj', 'cpf', 'person_type',
-                  'phone', 'mobile', 'city', 'status', 'commission_rate', 'is_deleted', 'deleted_at']
+                  'phone', 'mobile', 'city', 'status', 'commission_rate', 'logo_url', 'is_deleted', 'deleted_at']
+
+    def get_logo_url(self, obj):
+        return obj.logo.url if obj.logo else None

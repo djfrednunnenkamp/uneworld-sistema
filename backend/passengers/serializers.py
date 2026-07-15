@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from agencies.models import Agency
+from config_api.models import ConfigSpecialNeed
 from users_api.permissions import has_any_perm
 from .models import Passenger, PassengerDocument
 from .validators import validate_document_file
@@ -58,10 +59,66 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         many=True, queryset=Agency.objects.all(), required=False
     )
     agency_names = serializers.SerializerMethodField()
+    special_needs = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=ConfigSpecialNeed.objects.all(), required=False
+    )
+    special_needs_data = serializers.SerializerMethodField()
+    # E-mail opcional (rascunho pode não ter). Guardamos '' como None para não
+    # colidir no unique (vários NULL são permitidos; vários '' não seriam).
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model  = Passenger
-        fields = '__all__'
+        # Lista explícita (A-13) — sem '__all__'. Auditoria/soft-delete só-leitura.
+        fields = [
+            'id', 'first_name', 'last_name', 'full_name', 'email',
+            'email_emergency1', 'email_emergency2', 'native_language',
+            'other_languages', 'birth_date', 'birth_place', 'nationality',
+            'other_nationalities', 'gender', 'profession', 'is_foreign',
+            'is_verified', 'is_guide', 'cpf', 'rg', 'rg_issue_date', 'rg_issuer',
+            'passport', 'passport_country', 'passport_issue', 'passport_expiry',
+            'passport2', 'passport2_country', 'rne', 'rne_expiry', 'rne_issue',
+            'phone1', 'phone2', 'mobile', 'flight_class', 'seat_preference',
+            'seat_position', 'diet_type', 'diet_notes', 'receives_mail', 'cep',
+            'street', 'number', 'complement', 'neighborhood', 'city', 'state',
+            'country', 'status', 'notes', 'photo', 'agencies', 'agency_names',
+            'special_needs', 'special_needs_data',
+            'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+
+    # Identidade que "não muda": uma vez o cadastro VERIFICADO (pela equipe
+    # interna), a agência não pode mais alterar estes campos.
+    IDENTITY_LOCK_FIELDS = ('first_name', 'last_name', 'full_name', 'cpf', 'birth_date', 'gender')
+
+    def validate(self, attrs):
+        from users_api.permissions import agency_scope_ids
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        # Usuário de agência (não é equipe interna/superusuário).
+        if agency_scope_ids(user) is not None:
+            # O selo "verificado" é exclusivo da equipe interna — a agência nunca
+            # o define nem o remove (ignora o que vier no payload).
+            attrs.pop('is_verified', None)
+            # Cadastro já verificado → identidade travada para a agência.
+            if self.instance is not None and self.instance.is_verified:
+                blocked = {
+                    f: 'Cadastro verificado: a agência não pode alterar este dado.'
+                    for f in self.IDENTITY_LOCK_FIELDS
+                    if f in attrs and attrs[f] != getattr(self.instance, f)
+                }
+                if blocked:
+                    raise serializers.ValidationError(blocked)
+        return attrs
+
+    def validate_email(self, value):
+        return value or None
+
+    def validate_photo(self, value):
+        # Foto é PII: reprocessa (jpg/png) removendo EXIF/GPS e limitando tamanho.
+        if value:
+            return validate_document_file(value, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+        return value
 
     def get_agency_names(self, obj):
         def _name(a):
@@ -70,17 +127,33 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
             return a.name or a.company_name or str(a)
         return [{'id': a.id, 'name': _name(a)} for a in obj.agencies.all()]
 
+    def get_special_needs_data(self, obj):
+        return [{'id': n.id, 'name': n.name} for n in obj.special_needs.all()]
+
     def create(self, validated_data):
         agencies = validated_data.pop('agencies', [])
+        special_needs = validated_data.pop('special_needs', [])
         passenger = super().create(validated_data)
         passenger.agencies.set(agencies)
+        passenger.special_needs.set(special_needs)
+        # Usuário de agência: garante que o passageiro criado fique ligado à(s)
+        # agência(s) dele — senão ele não conseguiria nem ver o que acabou de criar.
+        from users_api.permissions import agency_scope_ids
+        req = self.context.get('request')
+        scope = agency_scope_ids(getattr(req, 'user', None) if req else None)
+        if scope:
+            from agencies.models import Agency
+            passenger.agencies.add(*Agency.objects.filter(id__in=scope))
         return passenger
 
     def update(self, instance, validated_data):
         agencies = validated_data.pop('agencies', None)
+        special_needs = validated_data.pop('special_needs', None)
         passenger = super().update(instance, validated_data)
         if agencies is not None:
             passenger.agencies.set(agencies)
+        if special_needs is not None:
+            passenger.special_needs.set(special_needs)
         return passenger
 
 

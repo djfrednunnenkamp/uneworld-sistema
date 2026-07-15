@@ -31,6 +31,16 @@ def on_enrollment(sender, **kwargs):
     _broadcast('stats')
 
 
+# ── Contratos ─────────────────────────────────────────────────────────────────
+# Qualquer alteração no contrato (edição, autosave, exclusão E o webhook do
+# Autentique, que também salva o Contract) avisa todos os usuários na tela de
+# Contratos para recarregarem sozinhos (silentReload no scope 'contracts').
+
+@receiver([post_save, post_delete], sender='contracts.Contract')
+def on_contract(sender, **kwargs):
+    _broadcast('contracts')
+
+
 @receiver(post_save, sender='agenda.EmailLog')
 def on_email_log(sender, **kwargs):
     _broadcast('emails')
@@ -143,3 +153,64 @@ def on_room(sender, **kwargs):
 @receiver([post_save, post_delete], sender='agenda.CalendarPreference')
 def on_calendar_preference(sender, **kwargs):
     _broadcast('calendar')
+
+
+# ── Galeria / Roteiros ────────────────────────────────────────────────────────
+# Qualquer mudança nas imagens (galeria, capas, lâminas) atualiza a Galeria ao
+# vivo para todos que estão com ela aberta.
+
+@receiver([post_save, post_delete], sender='itineraries.ItineraryImage')
+def on_itinerary_image(sender, **kwargs):
+    _broadcast('gallery')
+
+
+# Publicar/despublicar, mudar datas ou excluir um roteiro altera o que a operadora
+# enxerga na Galeria (lâminas dos roteiros públicos e abertos) — e a lista de
+# Roteiros. Avisa os dois. (O save do roteiro não é por tecla; é aceitável.)
+
+@receiver([post_save, post_delete], sender='itineraries.Itinerary')
+def on_itinerary(sender, **kwargs):
+    _broadcast('gallery')
+    _broadcast('itineraries')
+
+
+# ── Meus Documentos (Drive) ───────────────────────────────────────────────────
+# Criar / renomear / mover / compartilhar / restaurar / salvar (callback do
+# OnlyOffice) passam por .save()/.delete() e avisam quem está com o Drive aberto
+# para recarregar sozinho. O soft-delete usa bulk_update (sem signal), então o
+# destroy chama broadcast_drive() na mão.
+
+@receiver([post_save, post_delete], sender='drive.DriveNode')
+def on_drive_node(sender, **kwargs):
+    _broadcast('drive')
+
+
+def broadcast_drive():
+    """Aviso manual de mudança no Drive (caminhos que não disparam signal, ex.:
+    o bulk_update do soft-delete/lixeira)."""
+    _broadcast('drive')
+
+
+# ── Vouchers ──────────────────────────────────────────────────────────────────
+# Salvar blocos, publicar/voltar p/ edição, enviar/remover confirmação de voo e
+# editar templates atualizam ao vivo quem está com o Voucher aberto (scope
+# 'vouchers'). As entries também dependem dos passageiros da lista (scope 'lists').
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherList')
+def on_voucher_list(sender, **kwargs):
+    _broadcast('vouchers')
+
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherTemplate')
+def on_voucher_template(sender, **kwargs):
+    _broadcast('vouchers')
+
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherFlightConfirmation')
+def on_voucher_flight(sender, **kwargs):
+    _broadcast('vouchers')
+
+
+@receiver([post_save, post_delete], sender='vouchers.VoucherDownload')
+def on_voucher_download(sender, **kwargs):
+    _broadcast('vouchers')

@@ -1,11 +1,25 @@
 from rest_framework import serializers
 from .models import Destination, Trip, Enrollment, Supplier, ListAdditional, CrewRole, Roteiro, PassengerList, ListEnrollment, Room, ListTask
+from itineraries.models import Itinerary
+from config_api.models import Airport
 
 
 class DestinationSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Destination
-        fields = '__all__'
+        fields = ['id', 'name', 'country', 'description', 'image']
+
+    def validate_image(self, value):
+        # Mesma validação segura dos demais uploads (tamanho, magic bytes,
+        # anti image-bomb, re-processamento que remove metadados/payloads).
+        if value:
+            from passengers.validators import validate_document_file
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            try:
+                validate_document_file(value, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+            except DjangoValidationError as e:
+                raise serializers.ValidationError(e.messages)
+        return value
 
 
 class TripListSerializer(serializers.ModelSerializer):
@@ -28,7 +42,11 @@ class TripSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Trip
-        fields = '__all__'
+        fields = ['id', 'title', 'destination', 'destination_id', 'description',
+                  'departure_date', 'return_date', 'max_passengers', 'price_per_person',
+                  'status', 'itinerary', 'includes', 'excludes', 'enrolled_count',
+                  'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class EnrollmentSerializer(serializers.ModelSerializer):
@@ -37,7 +55,9 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Enrollment
-        fields = '__all__'
+        fields = ['id', 'trip', 'passenger', 'status', 'enrolled_at', 'notes',
+                  'passenger_name', 'trip_title']
+        read_only_fields = ['enrolled_at']
 
 
 # ── Lista de Passageiros ─────────────────────────────────────────────────────
@@ -61,9 +81,47 @@ class CrewRoleSerializer(serializers.ModelSerializer):
 
 
 class RoteiroSerializer(serializers.ModelSerializer):
+    """Roteiro (itineraries.Itinerary) resumido — usado no seletor da lista.
+    Carrega os campos que auto-preenchem a lista ao selecionar o roteiro."""
+    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+    airports_data = serializers.SerializerMethodField()
+    cabin_groups  = serializers.SerializerMethodField()
+
     class Meta:
-        model  = Roteiro
-        fields = ['id', 'name']
+        model  = Itinerary
+        fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data',
+                  'has_barco', 'has_voo', 'has_terrestre', 'cabin_groups']
+
+    def get_cabin_groups(self, obj):
+        # Grupos de cabine (categoria + capacidade) que TÊM preço definido no
+        # roteiro (linhas de acomodação de navio) — para a lista só oferecer esses.
+        out, seen = [], set()
+        for l in obj.accommodation_lines.select_related('ship_cabin').all():
+            if not (l.ship_cabin_id or l.accommodation_label):
+                continue   # é hotel, não cabine
+            cat = (l.ship_cabin.category if l.ship_cabin_id else
+                   ((l.accommodation_label or '').split(' — ')[0]))
+            key = ((cat or '').strip(), l.capacity)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({'category': key[0], 'capacity': l.capacity})
+        return out
+
+    def get_airports_data(self, obj):
+        # Aeroportos base do roteiro = os aeroportos de saída dos blocos de partida
+        # (ItineraryDeparture), na ordem, sem repetir. É de onde o grupo sai.
+        from itineraries.models import ItineraryDeparture
+        seen, out = set(), []
+        for d in (ItineraryDeparture.objects
+                  .filter(itinerary=obj, airport__isnull=False)
+                  .select_related('airport').order_by('order', 'id')):
+            a = d.airport
+            if a.id in seen:
+                continue
+            seen.add(a.id)
+            out.append({'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country})
+        return out
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -105,7 +163,13 @@ class PassengerListSerializer(serializers.ModelSerializer):
     roteiros_data       = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
     suppliers           = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(),       many=True, required=False)
     additionals         = serializers.PrimaryKeyRelatedField(queryset=ListAdditional.objects.all(), many=True, required=False)
-    roteiros            = serializers.PrimaryKeyRelatedField(queryset=Roteiro.objects.all(),        many=True, required=False)
+    # O vínculo com o roteiro é 1:1 e criado automaticamente (na criação do
+    # roteiro) — não se escolhe/edita o roteiro pela lista. Por isso, read-only.
+    roteiros            = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    roteiro_linked      = serializers.SerializerMethodField()
+    guides              = serializers.SerializerMethodField()
+    default_airports    = serializers.PrimaryKeyRelatedField(queryset=Airport.objects.all(),       many=True, required=False)
+    default_airports_data  = serializers.SerializerMethodField()
     enrolled_count      = serializers.IntegerField(read_only=True)
     start_date_br       = serializers.SerializerMethodField()
     end_date_br         = serializers.SerializerMethodField()
@@ -123,9 +187,10 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'start_date_br', 'end_date_br',
             'suppliers', 'suppliers_data',
             'additionals', 'additionals_data',
-            'roteiros', 'roteiros_data',
+            'roteiros', 'roteiros_data', 'roteiro_linked', 'guides',
             'required_documents',
             'default_airport', 'default_airport_data',
+            'default_airports', 'default_airports_data',
             'departure_country', 'departure_country_data',
             'departure_state',   'departure_state_data',
             'departure_city',    'departure_city_data',
@@ -135,11 +200,50 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'is_deleted', 'deleted_at',
         ]
 
+    def get_roteiro_linked(self, obj):
+        """True quando a lista é a lista 1:1 de um roteiro ATIVO. Se o roteiro
+        foi excluído (está na lixeira), o vínculo deixa de valer — a lista fica
+        avulsa (datas liberadas e pode ser excluída)."""
+        # Itera sobre o prefetch de `roteiros` (não usa .filter(), que dispararia
+        # uma query nova por lista, furando o prefetch → N+1 na listagem).
+        return any(not r.is_deleted for r in obj.roteiros.all())
+
+    def get_guides(self, obj):
+        """Nomes dos guias da lista (passageiros marcados como guia, não
+        cancelados). Usa o prefetch `guide_enrollments` quando disponível."""
+        ge = getattr(obj, 'guide_enrollments', None)
+        if ge is None:
+            ge = (obj.list_enrollments
+                  .filter(passenger__is_guide=True)
+                  .exclude(enrollment_status='cancelado')
+                  .select_related('passenger'))
+        seen, out = set(), []
+        for e in ge:
+            p = e.passenger
+            if p and p.full_name not in seen:
+                seen.add(p.full_name)
+                out.append(p.full_name)
+        return out
+
+    def update(self, instance, validated_data):
+        # Lista vinculada a um roteiro ATIVO tem os campos herdados do roteiro
+        # travados (nome, tipo, categoria, datas e aeroportos base). Se o roteiro
+        # está na lixeira, a lista fica avulsa e volta a editar tudo.
+        if instance.roteiros.filter(is_deleted=False).exists():
+            for f in ('name', 'list_type', 'category', 'start_date', 'end_date',
+                      'default_airport', 'default_airports'):
+                validated_data.pop(f, None)
+        return super().update(instance, validated_data)
+
     def get_default_airport_data(self, obj):
         if obj.default_airport_id:
             a = obj.default_airport
             return {'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
         return None
+
+    def get_default_airports_data(self, obj):
+        return [{'id': a.id, 'name': a.name, 'iata_code': a.iata_code, 'city': a.city, 'country': a.country}
+                for a in obj.default_airports.all()]
 
     def get_departure_country_data(self, obj):
         if obj.departure_country_id:
@@ -187,8 +291,35 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_rg          = serializers.SerializerMethodField()
     passenger_status      = serializers.SerializerMethodField()
     passenger_is_verified = serializers.SerializerMethodField()
+    contract              = serializers.SerializerMethodField()
+    # Voucher: chave da entry e URL da confirmação de voo (mapa montado na view).
+    voucher_entry_key     = serializers.SerializerMethodField()
+    flight_confirmation   = serializers.SerializerMethodField()
+
+    def get_voucher_entry_key(self, obj):
+        m = self.context.get('voucher_by_passenger') or {}
+        return m.get(obj.passenger_id, {}).get('entry_key') if obj.passenger_id else None
+
+    def get_flight_confirmation(self, obj):
+        m = self.context.get('voucher_by_passenger') or {}
+        return m.get(obj.passenger_id, {}).get('flight_confirmation') if obj.passenger_id else None
 
     def _p(self, obj): return obj.passenger  # helper
+
+    def get_contract(self, obj):
+        """Contrato desta pessoa relacionado a esta lista (mesmo roteiro ou
+        vinculado à lista). O mapa passageiro→contrato é montado na view
+        (context['contracts_by_passenger']) para evitar N+1."""
+        if not obj.passenger_id:
+            return None
+        m = self.context.get('contracts_by_passenger')
+        if m is None:
+            return None
+        return m.get(obj.passenger_id)
+
+    passenger_special_needs = serializers.SerializerMethodField()
+    def get_passenger_special_needs(self, obj):
+        return [n.name for n in obj.passenger.special_needs.all()] if obj.passenger else []
 
     def get_passenger_name(self, obj):       return obj.passenger.full_name   if obj.passenger else ''
     def get_passenger_cpf(self, obj):        return obj.passenger.cpf         if obj.passenger else ''
@@ -245,6 +376,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_passport_expiry = serializers.SerializerMethodField()
     passenger_is_guide        = serializers.SerializerMethodField()
     passenger_address         = serializers.SerializerMethodField()
+    date_conflict             = serializers.SerializerMethodField()
 
     def get_passenger_phone2(self, obj):          return obj.passenger.phone2          if obj.passenger else ''
     def get_passenger_mobile(self, obj):           return obj.passenger.mobile          if obj.passenger else ''
@@ -263,6 +395,28 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         sd = obj.selected_passport_id and obj.selected_passport
         if sd and sd.expiry_date: return str(sd.expiry_date)
         return str(p.passport_expiry) if p.passport_expiry else None
+    def get_date_conflict(self, obj):
+        """Outras listas de passageiros (não excluídas) em que o MESMO passageiro
+        está e cujas DATAS se sobrepõem às desta lista — ele não pode estar em duas
+        viagens ao mesmo tempo. Devolve [] (sem conflito) ou a lista dos conflitos."""
+        p_id = obj.passenger_id
+        pl = obj.passenger_list
+        if not p_id or not pl or not pl.start_date or not pl.end_date:
+            return []
+        others = (ListEnrollment.objects
+                  .filter(passenger_id=p_id,
+                          passenger_list__is_deleted=False,
+                          passenger_list__start_date__lte=pl.end_date,
+                          passenger_list__end_date__gte=pl.start_date)
+                  .exclude(passenger_list_id=pl.id)
+                  .select_related('passenger_list'))
+        out = []
+        for e in others:
+            opl = e.passenger_list
+            out.append({'list_id': opl.id, 'list_name': opl.name,
+                        'start_date': str(opl.start_date), 'end_date': str(opl.end_date)})
+        return out
+
     def get_passenger_address(self, obj):
         p = obj.passenger
         if not p: return ''
@@ -279,6 +433,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     crew_roles               = serializers.PrimaryKeyRelatedField(queryset=CrewRole.objects.all(), many=True, required=False)
 
     agency_name              = serializers.SerializerMethodField()
+    agency_edit_id           = serializers.SerializerMethodField()
     responsible_user_name    = serializers.SerializerMethodField()
     departure_airport_data   = serializers.SerializerMethodField()
     selected_passport_data   = serializers.SerializerMethodField()
@@ -303,6 +458,21 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             names = [_name(a) for a in obj.passenger.agencies.all()]
             return ', '.join(filter(None, names))
         return ''
+
+    def get_agency_edit_id(self, obj):
+        # Agência editável a partir desta inscrição (para abrir o cadastro numa
+        # aba nova): a da própria inscrição ou — se não houver — a ÚNICA agência
+        # do passageiro. Bloqueio com nome livre ou passageiro com várias
+        # agências → None (não há um cadastro único para abrir).
+        if obj.agency_id:
+            return obj.agency_id
+        if obj.passenger_id:
+            # Itera o prefetch de passenger__agencies (já feito na view). Usar
+            # .values_list() dispararia uma query nova por inscrição → N+1.
+            ids = [a.id for a in obj.passenger.agencies.all()]
+            if len(ids) == 1:
+                return ids[0]
+        return None
 
     def get_responsible_user_name(self, obj):
         if obj.responsible_user:
@@ -372,7 +542,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ListEnrollment
         fields = [
-            'id', 'passenger', 'agency', 'agency_name',
+            'id', 'passenger', 'agency', 'agency_name', 'agency_edit_id',
             'responsible_user', 'responsible_user_name',
             'is_block', 'block_agency', 'is_provisional',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
@@ -382,7 +552,8 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_phone2', 'passenger_mobile',
             'passenger_seat_preference', 'passenger_diet_type',
             'passenger_passport_issue', 'passenger_passport_expiry',
-            'passenger_is_guide', 'passenger_address',
+            'passenger_is_guide', 'passenger_address', 'date_conflict',
+            'contract',
             'additionals', 'additionals_data',
             'crew_roles', 'crew_roles_data',
             'accommodation', 'seat', 'enrollment_status', 'pending_until', 'pending_reason',
@@ -394,6 +565,8 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'origin_airport', 'origin_airport_data',
             'ticket_status', 'connection_ticket_status',
             'selected_passport', 'selected_passport_data',
+            'voucher_entry_key', 'flight_confirmation',
+            'passenger_special_needs',
             'order_in_list', 'enrolled_at', 'notes',
         ]
         read_only_fields = ['enrolled_at']

@@ -1,5 +1,6 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -8,12 +9,46 @@ from config_api.models import ConfigAccommodation, ConfigExchangeRate, ContractC
 from passengers.models import Passenger
 from trips.models import PassengerList
 
-from .models import Contract, ContractAccommodationLine, ContractGuest, ContractInstallment
+from users_api.permissions import has_any_perm
+
+from .models import (Contract, ContractAccommodationLine, ContractGuest,
+                     ContractInstallment, ContractAdjustment)
 
 
-def _default_exchange_rate(from_currency='USD', to_currency='BRL'):
+def _default_exchange_rate(from_currency='USD', to_currency='BRL', payment_type='parcelado'):
+    """Taxa padrão das Configurações: à vista usa `rate`, parcelado usa
+    `rate_installment` (cada moeda tem os dois valores)."""
     row = ConfigExchangeRate.objects.filter(from_currency=from_currency, to_currency=to_currency).first()
-    return row.rate if row else None
+    if not row:
+        return None
+    return row.rate if payment_type == 'a_vista' else (row.rate_installment or row.rate)
+
+
+def avista_discount_source(itinerary=None):
+    """Fonte efetiva do desconto à vista: o OVERRIDE do roteiro (se configurado —
+    a_vista_discount_value não nulo) tem prioridade; senão o padrão do sistema
+    (Configurações → Opções de pagamento à vista, em SystemSettings). Retorna (mode, value)."""
+    if itinerary is not None and getattr(itinerary, 'a_vista_discount_value', None) is not None:
+        return (itinerary.a_vista_discount_mode or 'percent', Decimal(itinerary.a_vista_discount_value or 0))
+    from config_api.models import SystemSettings
+    ss = SystemSettings.get()
+    return (ss.a_vista_discount_mode or 'percent', Decimal(ss.a_vista_discount_value or 0))
+
+
+def avista_discount_usd(payment_type, base_total_usd, exchange_rate, itinerary=None):
+    """Desconto à vista em USD, da fonte efetiva (override do roteiro senão sistema).
+    Só quando payment_type='a_vista'. percent → % do total; valor → R$ pelo câmbio;
+    limitado ao total."""
+    if (payment_type or '') != 'a_vista':
+        return Decimal('0')
+    mode, dv = avista_discount_source(itinerary)
+    if dv <= 0:
+        return Decimal('0')
+    if mode == 'valor':
+        disc = (dv / exchange_rate) if exchange_rate else Decimal('0')
+    else:
+        disc = Decimal(base_total_usd) * dv / Decimal('100')
+    return max(Decimal('0'), min(Decimal(base_total_usd), disc))
 
 
 def _passenger_brief(p):
@@ -30,17 +65,51 @@ def _agency_brief(a):
         'id': a.id, 'name': name or str(a), 'cnpj': a.cnpj, 'phone': a.phone,
         'mobile': a.mobile, 'email': a.email, 'responsible': a.responsible,
         'address': ', '.join(filter(None, [a.street, a.number, a.neighborhood, a.city, a.state])),
+        'commission_rate': a.commission_rate,
+        # PIX que vai no contrato: o da UneWorld (padrão) ou o da agência
+        # (use_agency_pix=True, só se a agência tiver PIX).
+        'pix_key_type': a.pix_key_type, 'pix_key': a.pix_key, 'use_agency_pix': a.use_agency_pix,
     }
 
 
+def _seller_brief(u):
+    """Dados do vendedor que aparecem no contrato (nome, e-mail, telefone).
+    Telefone vem do perfil (UserPermissions.phone)."""
+    if not u:
+        return None
+    name = (f'{u.first_name} {u.last_name}'.strip()) or u.username or u.email
+    phone = ''
+    perms = getattr(u, 'permissions', None)
+    if perms is not None:
+        phone = perms.phone or ''
+    return {'id': u.id, 'name': name, 'email': u.email or '', 'phone': phone}
+
+
+def _accom_display_name(obj):
+    """Nome exibido da acomodação: tipo de hotel → rótulo denormalizado (cabine)
+    → nome do grupo da cabine → '—'. Nunca estoura com FK null."""
+    if getattr(obj, 'accommodation_type_id', None):
+        return obj.accommodation_type.name
+    if getattr(obj, 'accommodation_label', ''):
+        return obj.accommodation_label
+    if getattr(obj, 'ship_cabin_id', None):
+        c = obj.ship_cabin
+        return f'{c.category} — {c.name}' if c.category else c.name
+    return None
+
+
 class ContractAccommodationLineSerializer(serializers.ModelSerializer):
-    accommodation_type_name = serializers.CharField(source='accommodation_type.name', read_only=True)
+    accommodation_type_name = serializers.SerializerMethodField()
     total_usd = serializers.SerializerMethodField()
 
     class Meta:
         model  = ContractAccommodationLine
         fields = ['id', 'accommodation_type', 'accommodation_type_name',
+                  'ship_cabin', 'accommodation_label', 'capacity',
                   'value_per_person_usd', 'taxes_usd', 'quantity', 'order', 'total_usd']
+
+    def get_accommodation_type_name(self, obj):
+        return _accom_display_name(obj)
 
     def get_total_usd(self, obj):
         return (obj.value_per_person_usd + obj.taxes_usd) * obj.quantity
@@ -52,13 +121,14 @@ class ContractGuestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ContractGuest
-        fields = ['id', 'passenger', 'passenger_data', 'accommodation_type', 'accommodation_type_name', 'order']
+        fields = ['id', 'passenger', 'passenger_data', 'accommodation_type', 'accommodation_type_name',
+                  'ship_cabin', 'accommodation_label', 'capacity', 'room_group', 'order']
 
     def get_passenger_data(self, obj):
         return _passenger_brief(obj.passenger)
 
     def get_accommodation_type_name(self, obj):
-        return obj.accommodation_type.name if obj.accommodation_type_id else None
+        return _accom_display_name(obj)
 
 
 class ContractInstallmentSerializer(serializers.ModelSerializer):
@@ -67,15 +137,51 @@ class ContractInstallmentSerializer(serializers.ModelSerializer):
         fields = ['id', 'kind', 'installment_number', 'detail', 'due_date', 'value_brl', 'payment_method', 'order']
 
 
+class ContractAdjustmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ContractAdjustment
+        fields = ['id', 'description', 'kind', 'mode', 'value_usd', 'value_brl', 'percent', 'order']
+
+    # Valores de ajuste não podem ser negativos (o sinal vem do kind: acréscimo x
+    # desconto). Sem isto, um "desconto" negativo viraria acréscimo disfarçado e um
+    # valor absurdo zeraria/negativaria o total do contrato (fraude financeira).
+    def validate_value_usd(self, v):
+        if v is not None and v < 0:
+            raise serializers.ValidationError('O valor não pode ser negativo.')
+        return v
+
+    def validate_value_brl(self, v):
+        if v is not None and v < 0:
+            raise serializers.ValidationError('O valor não pode ser negativo.')
+        return v
+
+    def validate_percent(self, v):
+        if v is not None and (v < 0 or v > 100):
+            raise serializers.ValidationError('O percentual deve estar entre 0 e 100.')
+        return v
+
+
 class ContractListSerializer(serializers.ModelSerializer):
     agency_name      = serializers.SerializerMethodField()
     contratante_name = serializers.SerializerMethodField()
+    guest_names      = serializers.SerializerMethodField()
+    signed_file      = serializers.SerializerMethodField()
+    signed_verification = serializers.JSONField(read_only=True)
+    last_due_date    = serializers.SerializerMethodField()   # última parcela (p/ Em pagamento/Pagos)
 
     class Meta:
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_name',
-                  'contratante', 'contratante_name', 'package_name', 'departure_date',
-                  'total_brl', 'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+                  'contratante', 'contratante_name', 'guest_names', 'package_name', 'departure_date',
+                  'total_brl', 'total_usd', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
+                  'autentique_document_id',
+                  'created_at', 'updated_at', 'sent_at', 'signed_at', 'reviewed_at', 'review_note',
+                  'invoice_number', 'invoice_date', 'invoiced_at', 'last_due_date',
+                  'is_deleted', 'deleted_at']
+
+    def get_last_due_date(self, obj):
+        dates = [i.due_date for i in obj.installments.all() if i.due_date]
+        return max(dates).isoformat() if dates else None
 
     def get_agency_name(self, obj):
         return _agency_brief(obj.agency)['name'] if obj.agency_id else ''
@@ -83,21 +189,46 @@ class ContractListSerializer(serializers.ModelSerializer):
     def get_contratante_name(self, obj):
         return obj.contratante.full_name if obj.contratante_id else obj.payer_name
 
+    def get_guest_names(self, obj):
+        return [g.passenger.full_name for g in obj.guests.all() if g.passenger_id and g.passenger.full_name]
+
+    def get_signed_file(self, obj):
+        return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None
+
 
 class ContractSerializer(serializers.ModelSerializer):
     accommodation_lines = ContractAccommodationLineSerializer(many=True, required=False)
     guests              = ContractGuestSerializer(many=True, required=False)
     installments        = ContractInstallmentSerializer(many=True, required=False)
+    adjustments         = ContractAdjustmentSerializer(many=True, required=False)
     clauses             = serializers.PrimaryKeyRelatedField(many=True, queryset=ContractClause.objects.all(), required=False)
 
     agency_data      = serializers.SerializerMethodField()
     contratante_data = serializers.SerializerMethodField()
     passenger_list_data = serializers.SerializerMethodField()
+    itinerary_data      = serializers.SerializerMethodField()
+    itinerary_departure_data = serializers.SerializerMethodField()
     clauses_data        = serializers.SerializerMethodField()
+    seller_data         = serializers.SerializerMethodField()
 
+    # Etapa e arquivo assinado mudam só pelas ações (send-for-signature/upload-signed).
+    stage         = serializers.CharField(read_only=True)
+    # URL autenticada (não a pública de /media) — null quando não há arquivo.
+    signed_file   = serializers.SerializerMethodField()
+    # Comprovante de pagamento (anexado junto do assinado) + quem pagou a UneWorld,
+    # derivado da config da agência (PIX da agência → agência paga a Une; senão o
+    # cliente paga direto na conta da Une).
+    payment_receipt = serializers.SerializerMethodField()
+    receipt_payer   = serializers.SerializerMethodField()
+    # Conferência automática do assinado (só leitura; gravada no upload-signed).
+    signed_verification = serializers.JSONField(read_only=True)
     # Calculados pelo backend — nunca digitados (ver _recalc_totals).
     total_usd     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_brl     = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    # Comissão BRUTA da agência (o mesmo % embutido nos valores) — % + valor em US$/BRL.
+    commission_pct = serializers.SerializerMethodField()
+    commission_usd = serializers.SerializerMethodField()
+    commission_brl = serializers.SerializerMethodField()
     # Imutáveis após a criação (ver create()).
     reservation_number = serializers.CharField(read_only=True)
     contract_date       = serializers.DateField(read_only=True)
@@ -105,16 +236,64 @@ class ContractSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Contract
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_data',
-                  'passenger_list', 'passenger_list_data', 'contratante', 'contratante_data',
+                  'passenger_list', 'passenger_list_data', 'itinerary', 'itinerary_data',
+                  'itinerary_flight_departure', 'itinerary_terrestre_departure', 'itinerary_departure_data',
+                  'contratante', 'contratante_data',
                   'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
                   'payer_email', 'payer_phone', 'payer_address',
+                  'seller', 'seller_data',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
-                  'total_usd', 'total_brl', 'exchange_rate',
+                  'base_currency', 'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
+                  'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value',
+                  'commission_pct', 'commission_usd', 'commission_brl',
+                  'round_step', 'round_mode', 'round_currency', 'signature_type',
                   'received_down_payment_brl', 'received_installments_brl',
-                  'accommodation_lines', 'guests', 'installments', 'clauses', 'clauses_data',
+                  'payment_plan_applied',
+                  'stage', 'signed_file', 'payment_receipt', 'receipt_payer', 'signed_verification',
+                  'reviewed_at', 'review_note', 'invoice_number', 'invoice_date', 'invoiced_at',
+                  'autentique_document_id', 'autentique_data',
+                  'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data', 'custom_clauses',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+        read_only_fields = ['autentique_document_id', 'autentique_data', 'reviewed_at', 'review_note',
+                            'invoice_number', 'invoice_date', 'invoiced_at',
+                            'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value']
+
+    def validate_custom_clauses(self, value):
+        # Sanitiza o HTML das cláusulas personalizadas antes de salvar (A-12).
+        from core.sanitize import sanitize_custom_clauses
+        return sanitize_custom_clauses(value)
+
+    def validate_exchange_rate(self, v):
+        # Câmbio é gravável pelo cliente e multiplica o total. Um valor <= 0 (negativo
+        # é *truthy*, não cai no fallback) geraria total_brl negativo/zerado — fraude.
+        if v is not None and v <= 0:
+            raise serializers.ValidationError('O câmbio deve ser maior que zero.')
+        return v
 
     def validate(self, attrs):
+        # Segurança: usuário de agência não pode vincular um roteiro que ele não
+        # enxerga (público ou exclusivo compartilhado com a agência dele).
+        itinerary = attrs.get('itinerary', getattr(self.instance, 'itinerary', None))
+        if itinerary is not None:
+            from users_api.permissions import agency_scope_ids
+            req = self.context.get('request')
+            scope = agency_scope_ids(req.user) if req else None
+            if scope is not None:
+                ok = itinerary.visibility == 'public' or (
+                    itinerary.visibility == 'agencies'
+                    and itinerary.shared_agencies.filter(id__in=scope).exists())
+                if not ok:
+                    raise serializers.ValidationError(
+                        {'itinerary': 'Este roteiro não está disponível para a sua agência.'})
+        # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado
+        # (status='ativo' vindo no payload). Autosave/rascunho/prévia — que não
+        # mandam status='ativo' — podem ser salvos incompletos.
+        if attrs.get('status') != 'ativo':
+            return attrs
+        # Finalizado: exige agência e contratante (ou dados manuais do pagante).
+        agency = attrs.get('agency', getattr(self.instance, 'agency', None))
+        if not agency:
+            raise serializers.ValidationError({'agency': 'Selecione a agência.'})
         contratante = attrs.get('contratante', getattr(self.instance, 'contratante', None))
         payer_name  = attrs.get('payer_name', getattr(self.instance, 'payer_name', ''))
         if not contratante and not payer_name:
@@ -125,8 +304,45 @@ class ContractSerializer(serializers.ModelSerializer):
     def get_agency_data(self, obj):
         return _agency_brief(obj.agency) if obj.agency_id else None
 
+    def _commission_usd(self, obj):
+        """Comissão BRUTA da agência: % cadastrado na agência sobre o subtotal por
+        pessoa (sem taxas) — o mesmo valor embutido no total (ver _recalc_totals)."""
+        rate = obj.agency.commission_rate if obj.agency_id else None
+        if not rate:
+            return None
+        value_subtotal = sum(
+            (line.value_per_person_usd or Decimal('0')) * line.quantity
+            for line in obj.accommodation_lines.all()
+        )
+        comm = Decimal(value_subtotal) * (rate / Decimal('100'))
+        return comm.quantize(Decimal('0.01')) if comm else None
+
+    def get_commission_pct(self, obj):
+        rate = obj.agency.commission_rate if obj.agency_id else None
+        return rate or None
+
+    def get_commission_usd(self, obj):
+        return self._commission_usd(obj)
+
+    def get_commission_brl(self, obj):
+        comm = self._commission_usd(obj)
+        if not comm or not obj.exchange_rate:
+            return None
+        return (comm * obj.exchange_rate).quantize(Decimal('0.01'))
+
+    def get_seller_data(self, obj):
+        # Vendedor que aparece no contrato: o escolhido ou, na falta, o criador.
+        return _seller_brief(obj.seller or obj.created_by)
+
     def get_clauses_data(self, obj):
-        return [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
+        # Cláusulas cadastradas (M2M) + as personalizadas deste contrato. O PDF e a
+        # revisão consomem essa lista única, então as personalizadas aparecem sem
+        # nenhuma mudança extra de renderização.
+        data = [{'id': c.id, 'name': c.name, 'content': c.content} for c in obj.clauses.all()]
+        for cc in (obj.custom_clauses or []):
+            if isinstance(cc, dict) and (cc.get('name') or cc.get('content')):
+                data.append({'id': None, 'name': cc.get('name') or '', 'content': cc.get('content') or '', 'custom': True})
+        return data
 
     def get_contratante_data(self, obj):
         if obj.contratante_id:
@@ -140,6 +356,39 @@ class ContractSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def get_itinerary_data(self, obj):
+        if not obj.itinerary_id:
+            return None
+        it = obj.itinerary
+        return {'id': it.id, 'name': it.name, 'start_date': it.start_date, 'end_date': it.end_date,
+                'base_currency': it.base_currency}
+
+    def get_itinerary_departure_data(self, obj):
+        """Rótulo da partida escolhida (aeroporto ou cidade) para exibir no contrato."""
+        if obj.itinerary_flight_departure_id:
+            ap = obj.itinerary_flight_departure.airport
+            label = ' · '.join(filter(None, [getattr(ap, 'iata_code', None), getattr(ap, 'name', None)])) if ap else 'Aeroporto'
+            return {'mode': 'aereo', 'id': obj.itinerary_flight_departure_id, 'label': label}
+        if obj.itinerary_terrestre_departure_id:
+            c = obj.itinerary_terrestre_departure.city
+            label = ', '.join(filter(None, [getattr(c, 'name', None), getattr(getattr(c, 'state', None), 'name', None)])) if c else 'Cidade'
+            return {'mode': 'terrestre', 'id': obj.itinerary_terrestre_departure_id, 'label': label}
+        return None
+
+    def get_signed_file(self, obj):
+        return f'/api/contracts/{obj.id}/signed-file/' if obj.signed_file else None
+
+    def get_payment_receipt(self, obj):
+        return f'/api/contracts/{obj.id}/receipt/' if obj.payment_receipt else None
+
+    def get_receipt_payer(self, obj):
+        # Quem paga a UneWorld, pela config da agência: PIX da agência no contrato
+        # → a agência recebe do cliente e repassa (agência → Une); senão o cliente
+        # paga direto na conta da UneWorld (cliente → Une). Sem agência: cliente.
+        if obj.agency_id and getattr(obj.agency, 'use_agency_pix', False):
+            return 'agencia'
+        return 'cliente'
+
     def get_passenger_list_data(self, obj):
         if not obj.passenger_list_id:
             return None
@@ -147,7 +396,13 @@ class ContractSerializer(serializers.ModelSerializer):
         return {'id': pl.id, 'name': pl.name, 'start_date': pl.start_date, 'end_date': pl.end_date,
                 'airport_name': pl.default_airport.name if pl.default_airport_id else ''}
 
-    def _save_children(self, contract, accommodation_lines, guests, installments, clauses):
+    def _save_children(self, contract, accommodation_lines, guests, installments, clauses, adjustments=None):
+        if adjustments is not None:
+            contract.adjustments.all().delete()
+            ContractAdjustment.objects.bulk_create([
+                ContractAdjustment(contract=contract, order=i, **row)
+                for i, row in enumerate(adjustments)
+            ])
         if accommodation_lines is not None:
             contract.accommodation_lines.all().delete()
             ContractAccommodationLine.objects.bulk_create([
@@ -174,30 +429,144 @@ class ContractSerializer(serializers.ModelSerializer):
         chosen_ids  = set(c.id for c in clauses) if clauses is not None else set()
         contract.clauses.set(default_ids | chosen_ids)
 
+    # ── Auditoria: os filhos do contrato são salvos com bulk_create (não disparam
+    # signal), então mudanças em hóspedes/parcelas/ajustes/acomodações (inclusive
+    # checkboxes) ficariam invisíveis. Tiramos um snapshot antes/depois e logamos
+    # o diff completo — igual ao ItinerarySerializer. ──
+    def _child_dict(self, obj):
+        from audit.tracking import obj_to_dict
+        d = obj_to_dict(obj)
+        d.pop('id', None)
+        return d
+
+    def _audit_snapshot(self, contract):
+        from audit.tracking import obj_to_dict
+        snap = dict(obj_to_dict(contract))
+        for rel, label in (('accommodation_lines', 'Acomodações'), ('guests', 'Hóspedes'),
+                           ('installments', 'Parcelas'), ('adjustments', 'Ajustes')):
+            try:
+                snap[label] = [self._child_dict(o) for o in getattr(contract, rel).all().order_by('order', 'id')]
+            except Exception:
+                pass
+        try:
+            snap['Cláusulas'] = sorted(str(c) for c in contract.clauses.all())
+        except Exception:
+            pass
+        return snap
+
+    def _log_update(self, contract, old, new, action='update'):
+        changes = {k: {'antes': old.get(k), 'depois': v} for k, v in new.items() if old.get(k) != v}
+        if not changes:
+            return
+        from audit.models import AuditLog
+        from audit.tracking import user_display
+        from audit.middleware import get_current_user, get_current_ip
+        user = get_current_user()
+        AuditLog.objects.create(
+            user=user, user_display=user_display(user), action=action,
+            model_name='Contract', model_label='Contrato',
+            object_id=str(contract.pk), object_repr=str(contract)[:500],
+            changes=changes, ip_address=get_current_ip(),
+        )
+
     def _recalc_totals(self, contract):
         """Soma total (USD) vem das linhas de acomodação; câmbio vem da
         configuração de Câmbio quando o contrato não tem um valor próprio;
         total em BRL é derivado dos dois — nada disso é digitado manualmente."""
-        total_usd = sum(
+        accom_total = sum(
             (line.value_per_person_usd + line.taxes_usd) * line.quantity
             for line in contract.accommodation_lines.all()
         )
-        exchange_rate = contract.exchange_rate or _default_exchange_rate()
+        exchange_rate = contract.exchange_rate or _default_exchange_rate(
+            from_currency=contract.base_currency or 'USD', payment_type=contract.payment_type or 'parcelado')
+        adjustments = list(contract.adjustments.all())
+        # Acréscimo soma; desconto subtrai. Percentual incide sobre o subtotal das
+        # acomodações; ajustes em BRL convertem pelo câmbio. A comissão tem
+        # tratamento próprio abaixo (não entra aqui).
+        adj_total = Decimal('0')
+        for a in adjustments:
+            if a.kind == 'comissao':
+                continue
+            amount = a.amount_usd(accom_total, exchange_rate)
+            adj_total += amount if a.kind == 'acrescimo' else -amount
+        # Comissão da agência: % cadastrado na agência, incide só sobre o
+        # valor/pessoa (não sobre as taxas) e fica embutida no total.
+        commission = Decimal('0')
+        if contract.agency_id and contract.agency.commission_rate:
+            value_subtotal = sum(
+                line.value_per_person_usd * line.quantity
+                for line in contract.accommodation_lines.all()
+            )
+            commission = Decimal(value_subtotal) * (contract.agency.commission_rate / Decimal('100'))
+        # Desconto de comissão: abate da comissão, NUNCA maior que ela. O % é
+        # sobre a comissão (100% = comissão inteira); R$/US$ limitados à comissão.
+        comm_disc = Decimal('0')
+        ca = next((a for a in adjustments if a.kind == 'comissao'), None)
+        if ca and commission:
+            if ca.mode == 'percentual':
+                d = commission * ca.percent / 100
+            elif ca.mode == 'valor_brl':
+                d = (ca.value_brl / exchange_rate) if exchange_rate else Decimal('0')
+            else:
+                d = ca.value_usd
+            comm_disc = max(Decimal('0'), min(Decimal(d), commission))
+        total_usd = accom_total + adj_total + commission - comm_disc
+        # Desconto à vista (global) abate do total quando o pagamento é à vista.
+        # Guarda um snapshot (valor + modo + %) para exibir a linha no PDF e na tela.
+        avista_disc = avista_discount_usd(contract.payment_type, total_usd, exchange_rate, contract.itinerary)
+        total_usd = total_usd - avista_disc
+        # Rede de segurança: o total nunca fica negativo (um desconto grande não vira
+        # "a operadora deve ao cliente"). Piso em zero.
+        if total_usd < 0:
+            total_usd = Decimal('0')
+        contract.a_vista_discount_usd = avista_disc
+        if avista_disc > 0:
+            mode, value = avista_discount_source(contract.itinerary)
+            contract.a_vista_discount_mode  = mode or ''
+            contract.a_vista_discount_value = value or Decimal('0')
+        else:
+            contract.a_vista_discount_mode  = ''
+            contract.a_vista_discount_value = Decimal('0')
         total_brl = total_usd * exchange_rate if exchange_rate else None
+
+        # Arredondamento opcional: arredonda a moeda escolhida pro múltiplo de
+        # round_step e deriva a outra pelo câmbio (mantém total_usd*câmbio = total_brl).
+        step = contract.round_step or 0
+        if step > 0:
+            def _round(v):
+                q = Decimal(v) / step
+                if contract.round_mode == 'up':     q = q.to_integral_value(rounding=ROUND_CEILING)
+                elif contract.round_mode == 'down': q = q.to_integral_value(rounding=ROUND_FLOOR)
+                else:                               q = q.to_integral_value(rounding=ROUND_HALF_UP)
+                return q * step
+            if contract.round_currency == 'usd':
+                total_usd = _round(total_usd)
+                total_brl = total_usd * exchange_rate if exchange_rate else None
+            elif total_brl is not None:
+                total_brl = _round(total_brl)
+                if exchange_rate:
+                    total_usd = (total_brl / exchange_rate).quantize(Decimal('0.01'))
+
         contract.total_usd     = total_usd
         contract.exchange_rate = exchange_rate
         contract.total_brl     = total_brl
-        contract.save(update_fields=['total_usd', 'exchange_rate', 'total_brl'])
+        contract.save(update_fields=['total_usd', 'exchange_rate', 'total_brl',
+                                     'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value'])
 
     def create(self, validated_data):
         accommodation_lines = validated_data.pop('accommodation_lines', [])
         guests              = validated_data.pop('guests', [])
         installments        = validated_data.pop('installments', [])
+        adjustments         = validated_data.pop('adjustments', [])
         clauses              = validated_data.pop('clauses', [])
         request = self.context.get('request')
 
         # Data da contratação é sempre hoje — não é um campo preenchido pelo usuário.
         validated_data['contract_date'] = timezone.now().date()
+        # Sem forma de assinatura informada, herda o padrão global da Operadora.
+        if not validated_data.get('signature_type'):
+            from config_api.models import OperatingCompany
+            validated_data['signature_type'] = OperatingCompany.get().default_signature_type
         # Totais (USD/BRL) são sempre calculados — nunca aceitos do payload.
         validated_data.pop('total_usd', None)
         validated_data.pop('total_brl', None)
@@ -208,30 +577,81 @@ class ContractSerializer(serializers.ModelSerializer):
                       'payer_gender', 'payer_email', 'payer_phone', 'payer_address'):
                 validated_data.pop(f, None)
 
-        contract = Contract.objects.create(
-            created_by=getattr(request, 'user', None) if request else None,
-            **validated_data,
-        )
-        # Reserva nº: sequencial e único — gerado a partir do próprio id, sem
-        # precisar de um contador separado nem de digitação manual.
-        if not contract.reservation_number:
-            contract.reservation_number = f'{contract.id:06d}'
-            contract.save(update_fields=['reservation_number'])
+        user = getattr(request, 'user', None) if request else None
+        # Usuário de agência: o contrato é SEMPRE de uma agência dele. Se não
+        # escolheu (ou escolheu uma fora do escopo), força para a agência dele.
+        from users_api.permissions import agency_scope_ids
+        scope = agency_scope_ids(user)
+        if scope is not None:
+            ag = validated_data.get('agency')
+            if not (ag and ag.id in scope):
+                from agencies.models import Agency
+                validated_data['agency'] = Agency.objects.filter(id__in=scope).first()
+        # Vendedor: por padrão é o próprio criador. Só pode ser outro usuário se
+        # quem cria tiver a permissão contracts_change_seller — senão é forçado
+        # ao criador, mesmo que o payload tente mandar outro.
+        requested_seller = validated_data.pop('seller', None)
+        if requested_seller and user and has_any_perm(user, 'contracts_change_seller'):
+            validated_data['seller'] = requested_seller
+        else:
+            validated_data['seller'] = user
 
-        self._save_children(contract, accommodation_lines, guests, installments, clauses)
-        self._recalc_totals(contract)
+        # Cláusulas personalizadas só são aceitas de quem tem a permissão.
+        if not (user and has_any_perm(user, 'contracts_custom_clauses')):
+            validated_data.pop('custom_clauses', None)
+
+        # Atômico: contrato + filhos (hóspedes/parcelas/acomodações/ajustes) +
+        # totais formam UM documento financeiro. Sem isso (ATOMIC_REQUESTS=False),
+        # uma falha no meio deixaria um contrato sem filhos ou com totais errados.
+        with transaction.atomic():
+            contract = Contract(created_by=user, **validated_data)
+            contract._skip_audit_signal = True   # eu logo o 'create' completo abaixo
+            contract.save()
+            # Reserva nº: sequencial e único — gerado a partir do próprio id, sem
+            # precisar de um contador separado nem de digitação manual.
+            if not contract.reservation_number:
+                contract.reservation_number = f'{contract.id:06d}'
+                contract.save(update_fields=['reservation_number'])
+
+            self._save_children(contract, accommodation_lines, guests, installments, clauses, adjustments)
+            self._recalc_totals(contract)
+            # Loga o create COM os filhos + cláusulas (o signal escalar sozinho não pega).
+            self._log_update(contract, {}, self._audit_snapshot(contract), action='create')
         return contract
 
     def update(self, instance, validated_data):
         accommodation_lines = validated_data.pop('accommodation_lines', None)
         guests              = validated_data.pop('guests', None)
         installments        = validated_data.pop('installments', None)
+        adjustments         = validated_data.pop('adjustments', None)
         clauses              = validated_data.pop('clauses', None)
+        # Usuário de agência não pode mover o contrato para uma agência fora do
+        # escopo dele — mantém a agência atual nesse caso.
+        from users_api.permissions import agency_scope_ids
+        _req = self.context.get('request')
+        _scope = agency_scope_ids(getattr(_req, 'user', None) if _req else None)
+        if _scope is not None and 'agency' in validated_data:
+            ag = validated_data.get('agency')
+            if not (ag and ag.id in _scope):
+                validated_data.pop('agency', None)
+        # Cláusulas personalizadas só podem ser alteradas por quem tem a permissão.
+        if 'custom_clauses' in validated_data:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None) if request else None
+            if not (user and has_any_perm(user, 'contracts_custom_clauses')):
+                validated_data.pop('custom_clauses', None)
         # Data da contratação e reserva nº são imutáveis após a criação.
         validated_data.pop('contract_date', None)
         validated_data.pop('reservation_number', None)
         validated_data.pop('total_usd', None)
         validated_data.pop('total_brl', None)
+        # Vendedor só pode ser alterado por quem tem contracts_change_seller —
+        # caso contrário a mudança é ignorada (mantém o que já está no contrato).
+        if 'seller' in validated_data:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None) if request else None
+            if not (user and has_any_perm(user, 'contracts_change_seller')):
+                validated_data.pop('seller', None)
         if validated_data.get('contratante'):
             for f in ('payer_type', 'payer_name', 'payer_document', 'payer_birth_date',
                       'payer_gender', 'payer_email', 'payer_phone', 'payer_address'):
@@ -241,9 +661,18 @@ class ContractSerializer(serializers.ModelSerializer):
             instance.payer_birth_date = None
         elif validated_data.get('payer_name'):
             validated_data['contratante'] = None
+        old_snap = self._audit_snapshot(instance)      # antes de mexer (inclui filhos)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.save()
-        self._save_children(instance, accommodation_lines, guests, installments, clauses)
-        self._recalc_totals(instance)
+        # Toda edição sobe a versão de assinatura: invalida os PDFs baixados antes
+        # (o QR deles carrega a versão antiga) — ver contracts/signing.py.
+        instance.signing_version = (instance.signing_version or 1) + 1
+        instance._skip_audit_signal = True             # eu logo o diff completo abaixo
+        # Atômico: _save_children apaga e recria os filhos — uma falha no meio, sem
+        # transação, perderia hóspedes/parcelas e deixaria signing_version inconsistente.
+        with transaction.atomic():
+            instance.save()
+            self._save_children(instance, accommodation_lines, guests, installments, clauses, adjustments)
+            self._recalc_totals(instance)
+            self._log_update(instance, old_snap, self._audit_snapshot(instance))
         return instance

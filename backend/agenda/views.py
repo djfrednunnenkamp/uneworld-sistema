@@ -1,6 +1,7 @@
+import logging
 from datetime import datetime
 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,6 +11,8 @@ from users_api.permissions import RequirePermission
 from .models import CalendarPreference
 from .serializers import CalendarPreferenceSerializer
 from .services import collect_events, send_digest_email
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['GET'])
@@ -164,7 +167,17 @@ def email_resend_action(request, pk):
     except User.MultipleObjectsReturned:
         user = User.objects.filter(email__iexact=log.to.strip()).first()
 
+    # Fronteira de privilégio (A-01): não-super não pode disparar reset/convite para
+    # uma conta superusuária (mesma regra de admin_send_reset/send_user_invite). Sem
+    # isso, com email_log_preview + este reenvio, um não-super forjaria um novo token
+    # de reset do superusuário e o leria no preview → takeover.
+    from users_api.views import _can_target_user
+    if not _can_target_user(request.user, user):
+        return Response({'detail': 'Você não tem permissão para esta ação.'}, status=403)
+
     if log.email_type == 'reset_password':
+        # Invalida links de reset anteriores ainda não usados (só o novo vale).
+        PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
         token = PasswordResetToken.objects.create(user=user)
         url = f"{settings.FRONTEND_URL}/redefinir-senha?token={token.token}"
         send_reset_password(user.email, user.first_name, url)
@@ -189,19 +202,26 @@ def email_resend_action(request, pk):
 
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import throttle_classes
 from rest_framework.permissions import AllowAny
+
+from core.throttling import WebhookRateThrottle
 
 
 def _verify_resend_signature(request) -> bool:
-    """Verifica a assinatura Svix usada pela Resend. Sem secret configurado,
-    aceita sem verificar (só deve acontecer em desenvolvimento local)."""
+    """Verifica a assinatura Svix usada pela Resend.
+
+    FAIL-CLOSED em produção (A-07): sem secret configurado (ou sem a lib svix), a
+    requisição é REJEITADA quando DEBUG=False — nunca aceitar webhook sem verificar
+    a assinatura em produção. Em DEBUG=True aceita sem verificar, só para facilitar
+    o desenvolvimento local (nenhum segredo configurado)."""
     secret = settings.RESEND_WEBHOOK_SECRET
     if not secret:
-        return True
+        return bool(settings.DEBUG)  # prod sem segredo → rejeita; dev → permite
     try:
         from svix.webhooks import Webhook, WebhookVerificationError
     except ImportError:
-        return True
+        return bool(settings.DEBUG)  # sem a lib não dá pra verificar → só permite em dev
     headers = {
         'svix-id':        request.headers.get('svix-id', ''),
         'svix-timestamp': request.headers.get('svix-timestamp', ''),
@@ -211,12 +231,18 @@ def _verify_resend_signature(request) -> bool:
         Webhook(secret).verify(request.body, headers)
         return True
     except WebhookVerificationError:
+        # Assinatura inválida: pode ser configuração errada do secret ou tentativa de
+        # forjar eventos de entrega. Registra para observabilidade (sem alterar a resposta).
+        logger.warning('Webhook Resend rejeitado: assinatura inválida (svix-id=%s).',
+                       request.headers.get('svix-id', ''))
         return False
 
 
 @csrf_exempt
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([WebhookRateThrottle])
 def resend_webhook_view(request):
     """Recebe eventos de entrega/abertura da Resend e atualiza o EmailLog correspondente."""
     if not _verify_resend_signature(request):

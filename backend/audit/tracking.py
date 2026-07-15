@@ -29,19 +29,69 @@ TRACKED_MODELS = {
     'ConfigProfCard':       'Carteira profissional',
     'ConfigAccommodation':  'Tipo de acomodação',
     'ConfigListCategory':   'Categoria de lista',
+    'ConfigItineraryCategory': 'Categoria de roteiro',
+    'ConfigItineraryType':  'Tipo de roteiro',
+    'ConfigMaritimeCompany':'Companhia marítima',
+    'ConfigTerrestreCompany':'Empresa terrestre',
+    'ConfigCurrency':       'Moeda',
+    'ConfigKeyword':        'Palavra-chave',
+    'ConfigInclusion':      'Item incluso',
+    'ConfigHighlight':      'Destaque',
+    'ConfigSpecialDate':    'Data especial',
+    'ConfigContinent':      'Continente',
+    'ConfigPaymentMethod':  'Forma de pagamento',
+    'ConfigPaymentPlan':    'Plano de pagamento',
+    'ConfigExchangeRate':   'Câmbio',
+    'ConfigExchangeSettings':'Config. de câmbio',
+    'ConfigHotelCategory':  'Categoria de hotel',
+    'ConfigHotel':          'Hotel (catálogo)',
+    'ConfigHotelMedia':     'Mídia de hotel',
+    'ConfigBoat':           'Barco (catálogo)',
+    'ConfigBoatMedia':      'Mídia de barco',
+    'CustomDocFieldOption': 'Opção de campo de documento',
     'CrewRole':             'Equipe técnica',
     'Destination':          'Destino',
     'Airport':              'Aeroporto',
     'Airline':              'Companhia aérea',
     'BusMap':               'Mapa de ônibus',
+    'BusMapRow':            'Linha de mapa de ônibus',
     'PermissionProfile':    'Perfil de permissão',
+    'UserPermissions':      'Permissões de usuário',
+    'OperatingCompany':     'Empresa operadora',
+    'OperatingCompanyContact': 'Contato da operadora',
+    'TermsAndConditions':   'Termos e condições',
+    'SystemSettings':       'Configuração do sistema',
+    'AgencyMember':         'Membro de agência',
+    'Enrollment':           'Inscrição',
+    'Roteiro':              'Roteiro da viagem',
+    'Room':                 'Quarto',
+    'ListTask':             'Tarefa da lista',
+    'Itinerary':                'Roteiro',
+    'ItineraryImage':           'Imagem do roteiro',
+    'ItineraryDeparture':       'Aeroporto de partida',
+    'ItineraryFlight':          'Voo',
+    'ItineraryHotel':           'Hotel do roteiro',
+    'ItineraryBoat':            'Barco do roteiro',
+    'ItineraryTerrestreDeparture': 'Cidade de partida (terrestre)',
+    'ItineraryTerrestreLeg':    'Trecho terrestre',
+    'Contract':                 'Contrato',
+    'ContractAccommodationLine':'Acomodação do contrato',
+    'ContractGuest':            'Hóspede do contrato',
+    'ContractInstallment':      'Parcela do contrato',
+    'ContractAdjustment':       'Ajuste do contrato',
+    'ContractClause':           'Cláusula de contrato',
+    'ItineraryFieldTemplate':   'Template de campo (roteiro)',
 }
 
 # Campos a ignorar no diff
 SKIP_FIELDS = {
     'password', 'last_login', 'file', 'original_name',
     'file_size', 'mime_type', 'preview_url', 'download_url',
+    'signed_file',  # arquivo do contrato assinado — a mudança de etapa já registra o evento
     'updated_at', 'created_at',  # campos meta — sempre mudam, geram ruído
+    # Roteiro: campos internos/derivados que não interessam ao log
+    'published_data', 'published_at', 'has_unpublished_changes', 'order', 'edit_key',
+    'signing_version', 'revision',  # versões internas (contrato / lista) — só ruído
 }
 
 # Rótulos amigáveis de campos comuns
@@ -84,7 +134,53 @@ FIELD_LABELS = {
     'total_accommodations': 'Total de acomodações',
     'start_date': 'Data de início', 'end_date': 'Data de término',
     'required_documents': 'Documentos requeridos',
+    # Contrato
+    'stage': 'Etapa', 'sent_at': 'Enviado em', 'signed_at': 'Assinado em',
+    'reservation_number': 'Nº da reserva', 'package_name': 'Pacote',
+    'contratante': 'Contratante', 'contract_date': 'Data do contrato',
+    'departure_date': 'Data de embarque', 'return_date': 'Data de retorno',
+    'signature_type': 'Tipo de assinatura', 'total_value': 'Valor total',
+    'passenger_list': 'Lista', 'itinerary': 'Roteiro', 'created_by': 'Criado por',
+    'total_usd': 'Total (USD)', 'total_brl': 'Total (BRL)', 'exchange_rate': 'Câmbio',
+    'a_vista_discount_usd': 'Desconto à vista (USD)', 'a_vista_discount_mode': 'Desconto à vista (tipo)',
+    'received_down_payment_brl': 'Entrada recebida (BRL)', 'received_installments_brl': 'Parcelas recebidas (BRL)',
+    'invoice_number': 'Nº da fatura', 'invoice_date': 'Data da fatura', 'observations': 'Observações',
+    'package_name': 'Pacote', 'departure_airport': 'Aeroporto de embarque', 'review_note': 'Nota de revisão',
+    'payment_type': 'Forma de pagamento', 'seller': 'Vendedor', 'clauses': 'Cláusulas',
+    'room_group': 'Grupo (quarto)', 'accommodation_type': 'Tipo de acomodação',
+    'payer_name': 'Pagante', 'payer_document': 'Doc. do pagante',
+    # ── Roteiro (Itinerary) e filhos ──
+    'slug': 'Slug', 'trip_type': 'Tipo', 'is_own_product': 'Produto próprio',
+    'is_featured': 'Destaque', 'has_voo': 'Transporte aéreo', 'has_barco': 'Transporte marítimo',
+    'has_terrestre': 'Transporte terrestre', 'continent': 'Continente',
+    'itinerary_type': 'Tipo de roteiro', 'maritime_company': 'Companhia marítima',
+    'base_currency': 'Moeda base', 'custom_clauses': 'Cláusulas personalizadas',
+    'payment_plan': 'Plano de pagamento', 'payment_plans': 'Planos de pagamento',
+    'a_vista_discount_mode': 'Desconto à vista (tipo)', 'a_vista_discount_value': 'Desconto à vista (valor)',
+    'a_vista_payment_method': 'Forma à vista', 'is_published': 'Publicado',
+    'info_general': 'Informações gerais', 'info_included': 'O que está incluso',
+    'info_not_included': 'O que não está incluso', 'info_optionals': 'Opcionais',
+    'info_tips': 'Dicas', 'info_documents': 'Documentos necessários',
+    'info_promo_rules': 'Regras da promoção', 'info_insurance': 'Seguro',
+    'info_values': 'Valores (texto)', 'info_extras': 'Extras',
+    # Roteiro — hotéis / barcos / voos / imagens / documentos
+    'check_in': 'Check-in', 'check_out': 'Check-out', 'address': 'Endereço', 'phone': 'Telefone',
+    'config_hotel': 'Hotel (catálogo)', 'config_hotel_linked': 'Vínculo com catálogo',
+    'config_boat': 'Barco (catálogo)', 'config_boat_linked': 'Vínculo com catálogo',
+    'airline': 'Companhia aérea', 'flight_number': 'Número do voo',
+    'origin': 'Origem', 'destination': 'Destino', 'departs_at': 'Saída', 'arrives_at': 'Chegada',
+    'service_number': 'Identificação', 'company': 'Empresa', 'departure': 'Partida',
+    'caption': 'Legenda', 'kind': 'Tipo', 'image': 'Imagem', 'day': 'Dia',
+    'value_per_person': 'Valor por pessoa', 'taxes': 'Taxas', 'url': 'Link',
+    'flight_departure': 'Partida (aéreo)', 'terrestre_departure': 'Partida (terrestre)',
 }
+
+# Templates de campo do roteiro (vínculo vivo) — rótulos gerados p/ os 10 campos.
+for _k, _lbl in {'general': 'Informações gerais', 'included': 'Inclusos', 'not_included': 'Não inclusos',
+                 'optionals': 'Opcionais', 'tips': 'Dicas', 'documents': 'Documentos',
+                 'promo_rules': 'Regras da promoção', 'insurance': 'Seguro', 'values': 'Valores', 'extras': 'Extras'}.items():
+    FIELD_LABELS[f'info_{_k}_template'] = f'Template · {_lbl}'
+    FIELD_LABELS[f'info_{_k}_template_linked'] = f'Vínculo do template · {_lbl}'
 
 
 def serialize_value(value):
@@ -97,6 +193,20 @@ def serialize_value(value):
     if isinstance(value, bool):
         return 'Sim' if value else 'Não'
     return str(value)
+
+
+def instance_has_file(instance):
+    """True se o modelo tem um FileField/ImageField preenchido — usado para logar
+    a CRIAÇÃO desses registros como 'upload' (Enviado) em vez de 'create'."""
+    from django.db.models import FileField
+    for f in instance._meta.concrete_fields:
+        if isinstance(f, FileField):
+            try:
+                if getattr(instance, f.name, None):
+                    return True
+            except Exception:
+                pass
+    return False
 
 
 def obj_to_dict(instance):
@@ -122,6 +232,23 @@ def user_display(user):
     return name or user.email or user.username
 
 
+def log_event(action, *, model_name, model_label, object_id='', object_repr='', changes=None, user=None):
+    """Registra um evento de auditoria manual — para mutações que os signals não
+    capturam (bulk update/create, M2M .set(), reorders, downloads, actions).
+    Reutilizável por qualquer app."""
+    from .models import AuditLog
+    if user is None:
+        user = get_current_user()
+    authed = getattr(user, 'is_authenticated', False)
+    AuditLog.objects.create(
+        user=user if authed else None,
+        user_display=user_display(user) if authed else 'Sistema',
+        action=action, model_name=model_name, model_label=model_label,
+        object_id=str(object_id or ''), object_repr=str(object_repr or '')[:500],
+        changes=changes or {}, ip_address=get_current_ip(),
+    )
+
+
 # ── Captura estado antes do save ────────────────────────────────────────────
 
 @receiver(pre_save)
@@ -143,6 +270,11 @@ def capture_pre_save(sender, instance, **kwargs):
 def log_save(sender, instance, created, **kwargs):
     if sender.__name__ not in TRACKED_MODELS:
         return
+    # Itinerary/Contract serializers fazem o diff COMPLETO (create e update),
+    # incluindo M2M/filhos que o diff escalar não pega, e logam por conta própria
+    # — o flag suprime o log parcial do signal (vale para create e update).
+    if getattr(instance, '_skip_audit_signal', False):
+        return
 
     # Import aqui para evitar import circular
     from .models import AuditLog
@@ -150,7 +282,8 @@ def log_save(sender, instance, created, **kwargs):
     user = get_current_user()
 
     if created:
-        action  = 'create'
+        # Registro com arquivo (imagem/documento/mídia) → é um UPLOAD, não "criação".
+        action  = 'upload' if instance_has_file(instance) else 'create'
         changes = obj_to_dict(instance)
     else:
         old = getattr(instance, '_audit_old', None) or {}
@@ -170,6 +303,13 @@ def log_save(sender, instance, created, **kwargs):
             # changes já vem serializado ('Sim'/'Não'), por isso lemos o valor
             # bruto direto da instância em vez do dict de changes.
             action = 'delete' if instance.is_deleted else 'restore'
+        # Transições de etapa do contrato ganham ação própria no log, para deixar
+        # explícito quando ele foi ENVIADO para assinatura e quando foi ASSINADO/
+        # recebido — vale para física, digital e o retorno da Autentique (webhook).
+        elif sender.__name__ == 'Contract' and FIELD_LABELS['stage'] in changes:
+            # 'revisao' só é alcançado ao concluir a assinatura (digital/física) → 'sign'.
+            action = {'enviado': 'send', 'assinado': 'sign', 'revisao': 'sign', 'em_edicao': 'reopen',
+                      'a_faturar': 'approve', 'faturado': 'invoice'}.get(instance.stage, 'update')
 
     try:
         repr_str = str(instance)[:500]

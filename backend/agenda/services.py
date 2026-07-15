@@ -5,7 +5,7 @@ from django.db.models import Q
 
 from passengers.models import Passenger
 from trips.models import ListEnrollment, PassengerList, ListTask
-from users_api.permissions import has_any_perm
+from users_api.permissions import has_any_perm, agency_scope_ids
 
 from . import email_service
 
@@ -20,12 +20,17 @@ def collect_events(start: date, end: date, user=None, list_id=None):
     prazos de confirmação que eles mesmos definiram.
     """
     events = []
+    # Usuário de agência só vê eventos ligados à(s) agência(s) dele. scope=None →
+    # interno, vê tudo. (ver project_agency_users_scope)
+    scope = agency_scope_ids(user)
 
     # ── Viagens (período de cada Lista de Passageiros) ──
     lists_qs = PassengerList.objects.filter(
         start_date__isnull=False, end_date__isnull=False,
         start_date__lte=end, end_date__gte=start, is_deleted=False,
     )
+    if scope is not None:
+        lists_qs = lists_qs.filter(list_enrollments__agency_id__in=scope).distinct()
     if list_id:
         lists_qs = lists_qs.filter(pk=list_id)
     for pl in lists_qs:
@@ -49,6 +54,8 @@ def collect_events(start: date, end: date, user=None, list_id=None):
                 passenger_list__is_deleted=False)
         .select_related('passenger', 'passenger_list', 'pending_until_created_by')
     )
+    if scope is not None:
+        enrollments = enrollments.filter(agency_id__in=scope)
     if list_id:
         enrollments = enrollments.filter(passenger_list_id=list_id)
     if user is not None and not has_any_perm(user, 'calendar_view_all_deadlines'):
@@ -77,6 +84,8 @@ def collect_events(start: date, end: date, user=None, list_id=None):
         due_date__lte=end,
         passenger_list__is_deleted=False,
     ).select_related('passenger_list')
+    if scope is not None:
+        tasks_qs = tasks_qs.filter(passenger_list__list_enrollments__agency_id__in=scope).distinct()
     if list_id:
         tasks_qs = tasks_qs.filter(passenger_list_id=list_id)
     for task in tasks_qs:
@@ -97,6 +106,8 @@ def collect_events(start: date, end: date, user=None, list_id=None):
                       .filter(is_deleted=False)
                       .exclude(birth_date__isnull=True)
                       .only('id', 'full_name', 'birth_date'))
+        if scope is not None:
+            passengers = passengers.filter(agencies__in=scope).distinct()
         days = (end - start).days + 1
         for i in range(days):
             d = start + timedelta(days=i)

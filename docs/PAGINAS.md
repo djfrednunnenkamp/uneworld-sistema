@@ -209,7 +209,9 @@ tudo dentro de `/` passa por `ProtectedRoute` (exige login) e
   (`settings_itinerary_templates`), Carteiras, Adicionais de Lista, Equipe
   técnica, Tipos/Categorias de Acomodação, **Países & Estados** (hierarquia
   Continente→País→Estado→Cidade), Aeroportos, Companhias Aéreas, Mapas de Ônibus,
-  Cláusulas de Contrato, Termos e Condições, Formas de Pagamento, Câmbio.
+  Cláusulas de Contrato, **Operadora** (`settings_operating_company` — dados da
+  UneWorld que pré-preenchem os contratos), Termos e Condições, Formas de
+  Pagamento, Câmbio.
 - **Esperado:** busca + filtro por área; CRUD por modal; "Exportar/Importar tudo";
   "Importar da internet" assíncrono (progresso na sidebar); tempo real (WebSocket
   `config`).
@@ -244,8 +246,6 @@ tudo dentro de `/` passa por `ProtectedRoute` (exige login) e
   `log_page_views` para ver navegação. Sem permissão, vê só as próprias ações.
 - **API:** `auditApi.list`, `usersApi.list`, `listsApi/passengersApi/agenciesApi.list`.
 
-### Destinations.jsx — Destinos *(placeholder, não roteado)*
-- **Rota:** **não registrada** em `App.jsx`.
-- **Status:** componente existe (cards com busca), mas os botões
-  Adicionar/Editar/Remover **não têm handler** e usa Tailwind (fora do padrão).
-  A gestão real de Destinos hoje vive em Configurações (`settings_destinations`).
+> **Nota:** a antiga `Destinations.jsx` (placeholder não roteado, com botões sem
+> ação) foi **removida**. A gestão de Destinos vive em Configurações
+> (`settings_destinations`).

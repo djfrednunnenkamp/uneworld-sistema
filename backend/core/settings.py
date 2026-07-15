@@ -9,6 +9,11 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
+# Libera a EXCLUSÃO DEFINITIVA (purge) de itens da lixeira — destrutiva e
+# irreversível. Mesmo habilitada, só superusuário pode usar. Manter False em
+# produção; ligar só quando precisar limpar de vez (ex.: fase de teste).
+ALLOW_HARD_DELETE = config('ALLOW_HARD_DELETE', default=False, cast=bool)
+
 INSTALLED_APPS = [
     'daphne',               # deve vir antes de staticfiles para substituir runserver
     'django.contrib.admin',
@@ -30,8 +35,16 @@ INSTALLED_APPS = [
     'agenda',
     'contracts',
     'itineraries',
+    'laminas',
+    'drive',
+    'vouchers',
     'channels',
 ]
+
+# Drive (documentos na nuvem): por padrão os arquivos são PRIVADOS (só o dono vê).
+# Se DRIVE_SUPERUSER_ACCESS=True, o superusuário também pode ver/abrir os arquivos
+# de todos os usuários.
+DRIVE_SUPERUSER_ACCESS = config('DRIVE_SUPERUSER_ACCESS', default=False, cast=bool)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -146,7 +159,31 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# ── OnlyOffice Document Server (edição de Office na aba Observações do roteiro) ──
+# Vazio = integração desligada (o front mostra baixar/visualizar em vez de editar).
+ONLYOFFICE_DS_URL      = config('ONLYOFFICE_DS_URL', default='')       # URL pública do DS (ex.: http://localhost:8080)
+ONLYOFFICE_JWT_SECRET  = config('ONLYOFFICE_JWT_SECRET', default='')   # segredo compartilhado com o DS
+ONLYOFFICE_BACKEND_URL = config('ONLYOFFICE_BACKEND_URL', default='')  # URL do Django alcançável PELO container do DS
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Cache — usado pelo rate limiting (A-04). Com Redis (produção/multi-worker) o
+# limite é compartilhado entre processos/réplicas; sem Redis (dev) cai no cache
+# em memória do processo, que já basta localmente.
+if REDIS_HOST:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': f"redis://{REDIS_HOST}:{config('REDIS_PORT', default=6379, cast=int)}/1",
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'uneworld-throttle',
+        }
+    }
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -157,10 +194,46 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    # ScopedRateThrottle nativo fica como default global mas é INOFENSIVO: só
+    # limita views que definem throttle_scope (nenhuma view interna define), então
+    # os endpoints normais não são afetados. Os endpoints públicos sensíveis usam
+    # throttles próprios por IP (core.throttling) via @throttle_classes.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '5/min',
+        'password_reset': '5/hour',
+        'invite': '10/hour',
+        'webhook': '60/min',
+    },
 }
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 MB
+
+# Logging por módulo (A-15) — substitui os print() espalhados. Handler de console
+# no nível INFO: erros/avisos aparecem; o "e-mail simulado" fica em DEBUG (não
+# vaza destinatário em produção). Ajuste o nível por LOG_LEVEL no .env se precisar.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {'format': '[%(asctime)s] %(levelname)s %(name)s: %(message)s'},
+    },
+    'filters': {
+        # Silencia o CancelledError de cliente que desconecta no meio da requisição.
+        'skip_client_cancelled': {'()': 'core.logging_filters.SkipClientCancelled'},
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'standard',
+                    'filters': ['skip_client_cancelled']},
+    },
+    'root': {'handlers': ['console'], 'level': config('LOG_LEVEL', default='INFO')},
+    'loggers': {
+        'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+    },
+}
 
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
@@ -177,6 +250,14 @@ BACKEND_URL          = config('BACKEND_URL',          default='')
 EMAIL_PREVIEW_ENABLED = config('EMAIL_PREVIEW_ENABLED', default='True') == 'True'
 MAXMIND_ACCOUNT_ID  = config('MAXMIND_ACCOUNT_ID', default='')
 MAXMIND_LICENSE_KEY = config('MAXMIND_LICENSE_KEY', default='')
+
+# Autentique — assinatura digital. SANDBOX cria documentos de teste (sem valor
+# jurídico, sem consumir créditos). DELIVERY: email (padrão) | whatsapp | sms.
+# WEBHOOK_SECRET protege o endpoint público que a Autentique chama ao concluir.
+AUTENTIQUE_API_TOKEN      = config('AUTENTIQUE_API_TOKEN', default='')
+AUTENTIQUE_SANDBOX        = config('AUTENTIQUE_SANDBOX', default=True, cast=bool)
+AUTENTIQUE_DELIVERY       = config('AUTENTIQUE_DELIVERY', default='email')
+AUTENTIQUE_WEBHOOK_SECRET = config('AUTENTIQUE_WEBHOOK_SECRET', default='')
 GEOIP_DB_PATH = BASE_DIR / 'geoip_db' / 'GeoLite2-City.mmdb'
 CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
@@ -189,5 +270,53 @@ CSRF_TRUSTED_ORIGINS = config(
 # servidor), o Django só sabe que a conexão original era HTTPS através deste
 # cabeçalho — sem isso, cookies "secure" e o redirect de HTTPS funcionam errado.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Nº de proxies confiáveis à frente do Django (nginx=1; Cloudflare→nginx=2). Usado
+# por core.throttling.client_ip para extrair o IP real do X-Forwarded-For a partir
+# da direita, sem confiar no item forjável da esquerda (anti-bypass de rate-limit).
+TRUSTED_PROXY_COUNT = config('TRUSTED_PROXY_COUNT', default=1, cast=int)
+
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+
+# Expiração de sessão. O default do Django é 2 SEMANAS fixas — demais para um ERP
+# com PII (CPF/RG/passaporte): um cookie roubado ou navegador esquecido fica válido
+# por 14 dias. Aqui: timeout de INATIVIDADE (o prazo renova a cada request enquanto
+# a pessoa usa, mas expira após SESSION_COOKIE_AGE parado). Ajustável por env.
+SESSION_COOKIE_AGE = config('SESSION_COOKIE_AGE', default=60 * 60 * 12, cast=int)  # 12h
+SESSION_SAVE_EVERY_REQUEST = True
+
+# ── Hardening HTTP (auditoria IDS — A-06) ──────────────────────────────────────
+# Proteções que valem para QUALQUER ambiente (não dependem de HTTPS):
+SECURE_CONTENT_TYPE_NOSNIFF = True          # impede sniffing de MIME type
+SESSION_COOKIE_HTTPONLY = True              # cookie de sessão inacessível via JS
+SESSION_COOKIE_SAMESITE = 'Lax'             # mitiga CSRF cross-site
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# HSTS e redirect forçado para HTTPS só em PRODUÇÃO (DEBUG=False). Em dev local
+# (HTTP puro) ligar isso quebraria o acesso — o browser passaria a exigir HTTPS.
+# O redirect respeita o SECURE_PROXY_SSL_HEADER acima (Cloudflare/nginx), então
+# não entra em loop quando o TLS termina no proxy.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000          # 1 ano
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+# ── Monitoramento de erros (Sentry) — OPCIONAL ────────────────────────────────
+# Ativa só quando SENTRY_DSN está definido (e fora de DEBUG). O import é protegido:
+# se a lib não estiver instalada, não quebra o boot — apenas não reporta.
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN and not DEBUG:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.0, cast=float),
+            send_default_pii=False,          # não envia dados de usuário/PII ao Sentry
+            environment=config('SENTRY_ENVIRONMENT', default='production'),
+        )
+    except Exception:
+        pass

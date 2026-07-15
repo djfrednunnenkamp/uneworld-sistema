@@ -5,6 +5,11 @@ from django.utils import timezone
 from datetime import timedelta
 
 
+def avatar_upload_path(instance, filename):
+    # Sempre .jpg (o upload é revalidado e re-encodado como JPEG no backend).
+    return f'avatars/{instance.user_id}/{uuid.uuid4().hex}.jpg'
+
+
 class PasswordResetToken(models.Model):
     user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_tokens')
     token      = models.UUIDField(default=uuid.uuid4, unique=True)
@@ -29,10 +34,31 @@ class UserPermissions(models.Model):
     user       = models.OneToOneField(User, on_delete=models.CASCADE, related_name='permissions')
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Perfil de permissão vinculado (link VIVO): quando o usuário é criado/atualizado
+    # com um perfil, ele fica "amarrado" a ele. Editar o perfil nas Configurações
+    # re-aplica as permissões a todos os vinculados (ver PermissionProfileViewSet).
+    # Toggle manual de permissão desvincula (vira personalizado). SET_NULL para não
+    # perder o usuário se o perfil for excluído.
+    profile    = models.ForeignKey(
+        'config_api.PermissionProfile', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='linked_permissions',
+        verbose_name='Perfil de permissão vinculado',
+    )
+
+    # Dados de perfil
+    phone      = models.CharField(max_length=30, blank=True, default='')
+    # Foto de perfil. Sempre revalidada e re-encodada como JPEG no upload (seguro).
+    # `avatar` = recorte exibido; `avatar_original` = imagem completa enviada;
+    # `avatar_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.
+    avatar          = models.ImageField('Foto de perfil', upload_to=avatar_upload_path, null=True, blank=True)
+    avatar_original = models.ImageField('Foto de perfil (original)', upload_to=avatar_upload_path, null=True, blank=True)
+    avatar_crop     = models.JSONField('Recorte da foto', default=dict, blank=True)
+
     # Visão Geral (Dashboard)
     dashboard_view_passengers  = models.BooleanField(default=False)
     dashboard_view_lists       = models.BooleanField(default=False)
     dashboard_view_enrollments = models.BooleanField(default=False)
+    dashboard_view_birthdays   = models.BooleanField(default=False)
 
     # Passageiros
     passengers_view_basic    = models.BooleanField(default=False)
@@ -51,6 +77,16 @@ class UserPermissions(models.Model):
     lists_download   = models.BooleanField(default=False)
     lists_csv_upload = models.BooleanField(default=False)
 
+    # Vouchers (documento por passageiro/casal de uma lista) — "ver" é a base.
+    voucher_view     = models.BooleanField(default=False)   # ver a aba e baixar os PDFs
+    voucher_edit     = models.BooleanField(default=False)   # editar o layout (template global e por lista)
+    voucher_publish  = models.BooleanField(default=False)   # publicar / voltar para edição
+    voucher_agency   = models.BooleanField(default=False)   # dedicada a agências: vê só vouchers publicados e só os passageiros da própria agência
+    voucher_agency_past = models.BooleanField(default=False)  # agência também vê vouchers de viagens em andamento/realizadas (2ª aba); sem isto, só as futuras
+    voucher_flight   = models.BooleanField(default=False)   # enviar/trocar/remover a confirmação de voo (captura de tela) por passageiro
+    voucher_labels   = models.BooleanField(default=False)   # gerar/imprimir as etiquetas dos passageiros (folha adesiva Pimaco)
+    voucher_past     = models.BooleanField(default=False)   # interno: ver a 2ª aba (viagens em andamento/realizadas); sem isto, só as futuras
+
     # Passageiros na Lista
     lists_passengers_add    = models.BooleanField(default=False)
     lists_passengers_edit   = models.BooleanField(default=False)
@@ -66,11 +102,65 @@ class UserPermissions(models.Model):
     contracts_view   = models.BooleanField(default=False)
     contracts_edit   = models.BooleanField(default=False)
     contracts_delete = models.BooleanField(default=False)
+    contracts_view_logs = models.BooleanField(default=False)
+    contracts_change_seller = models.BooleanField(default=False)
+    contracts_edit_exchange_rate = models.BooleanField(default=False)
+    contracts_custom_clauses = models.BooleanField(default=False)
+    contracts_clauses_edit = models.BooleanField(default=False)   # editar/criar cláusulas no contrato (sem roteiro)
+    contracts_review = models.BooleanField(default=False)         # revisar (aprovar/reprovar) contratos assinados — operadora
+    contracts_invoice_view = models.BooleanField(default=False)   # ver as abas "A faturar" e "Faturado"
+    contracts_invoice = models.BooleanField(default=False)        # faturar (mover A faturar → Faturado)
 
-    # Roteiros
-    roteiros_view   = models.BooleanField(default=False)
-    roteiros_edit   = models.BooleanField(default=False)
-    roteiros_delete = models.BooleanField(default=False)
+    # Roteiros — Ver a lista → Abrir (só leitura) → Editar → Criar
+    roteiros_view      = models.BooleanField(default=False)   # ver a LISTA de roteiros
+    roteiros_open      = models.BooleanField(default=False)   # abrir o roteiro (só leitura)
+    roteiros_edit      = models.BooleanField(default=False)   # editar o roteiro
+    roteiros_create    = models.BooleanField(default=False)   # criar novos roteiros
+    roteiros_delete    = models.BooleanField(default=False)
+    roteiros_view_logs = models.BooleanField(default=False)
+    roteiros_publish        = models.BooleanField(default=False)   # publicar/despublicar no site
+    roteiros_edit_published = models.BooleanField(default=False)   # editar roteiros já publicados
+    # Documentos do roteiro (uploads da aba Observações)
+    roteiros_docs_view      = models.BooleanField(default=False)   # ver TODOS os documentos
+    roteiros_docs_view_own  = models.BooleanField(default=False)   # ver só os próprios
+    roteiros_docs_create    = models.BooleanField(default=False)   # enviar/criar documentos
+    roteiros_docs_edit      = models.BooleanField(default=False)   # editar documentos
+    roteiros_docs_delete    = models.BooleanField(default=False)   # excluir TODOS os documentos
+    roteiros_docs_delete_own = models.BooleanField(default=False)  # excluir só os próprios
+    # Fonte das imagens no roteiro: pegar da galeria (banco) OU só upload próprio.
+    roteiros_images_from_gallery = models.BooleanField(default=False)  # pode puxar imagens da galeria pros roteiros
+    # Permissão restrita: SÓ editar/enviar as imagens das LÂMINAS do roteiro (nada mais).
+    roteiros_laminas_edit = models.BooleanField(default=False)
+
+    # Lâminas (gerador de cartazes de roteiros).
+    laminas_view        = models.BooleanField(default=False)   # ver e fazer lâminas (base)
+    laminas_agency_logo = models.BooleanField(default=False)   # fazer lâmina com a logo/dados das agências
+    laminas_agency      = models.BooleanField(default=False)   # agências: fazer a própria lâmina (só os dados dela)
+
+    # Meus Documentos (Drive pessoal) — "ver" é a base; as demais dependem dela.
+    documentos_view       = models.BooleanField(default=False)   # ver a aba e navegar os próprios
+    documentos_create     = models.BooleanField(default=False)   # criar documentos Office em branco
+    documentos_upload     = models.BooleanField(default=False)   # enviar arquivos (Word/Excel/PowerPoint)
+    documentos_upload_any = models.BooleanField(default=False)   # enviar arquivos NÃO-Office (imagem, PDF, zip…)
+    documentos_edit       = models.BooleanField(default=False)   # editar/renomear/mover
+    documentos_share      = models.BooleanField(default=False)   # compartilhar com pessoas
+    documentos_receive    = models.BooleanField(default=False)   # receber compartilhamentos (ver "Compartilhados")
+    documentos_delete     = models.BooleanField(default=False)   # excluir (mandar p/ lixeira)
+    documentos_purge      = models.BooleanField(default=False)   # apagar definitivo da lixeira antes dos 30 dias
+
+    # Galeria
+    gallery_view          = models.BooleanField(default=False)   # ACESSO à galeria (base); os tipos abaixo dizem O QUE vê
+    gallery_view_images   = models.BooleanField(default=False)   # ver imagens
+    gallery_view_videos   = models.BooleanField(default=False)   # ver vídeos
+    gallery_view_laminas  = models.BooleanField(default=False)   # ver lâminas
+    gallery_upload_images = models.BooleanField(default=False)   # enviar imagens
+    gallery_upload_videos = models.BooleanField(default=False)   # enviar vídeos
+    gallery_upload_laminas= models.BooleanField(default=False)   # enviar lâminas
+    gallery_delete_images = models.BooleanField(default=False)   # excluir imagens
+    gallery_delete_videos = models.BooleanField(default=False)   # excluir vídeos
+    gallery_delete_laminas= models.BooleanField(default=False)   # excluir lâminas
+    gallery_edit          = models.BooleanField(default=False)   # (legado) enviar/editar — vale para todos os tipos
+    gallery_delete        = models.BooleanField(default=False)   # (legado) excluir — vale para todos os tipos
 
     # Administração
     manage_users     = models.BooleanField(default=False)
@@ -81,6 +171,9 @@ class UserPermissions(models.Model):
     calendar_view              = models.BooleanField(default=False)
     calendar_view_birthdays    = models.BooleanField(default=False)
     calendar_view_all_deadlines = models.BooleanField(default=False)
+
+    # Guias
+    guides_view = models.BooleanField(default=False)
 
     # Log de e-mails
     email_log_view       = models.BooleanField(default=False)
@@ -95,6 +188,11 @@ class UserPermissions(models.Model):
     users_manage_permissions = models.BooleanField(default=False)
     users_set_password       = models.BooleanField(default=False)
     users_view_logs          = models.BooleanField(default=False)
+    users_storage_view       = models.BooleanField(default=False)   # ver o uso de armazenamento (Meus Documentos) de um usuário
+    users_storage_limit      = models.BooleanField(default=False)   # definir/limpar o limite de armazenamento de um usuário
+
+    # Limite de armazenamento do Drive (Meus Documentos), em bytes. null = ilimitado.
+    storage_limit_bytes      = models.PositiveBigIntegerField('Limite de armazenamento (bytes)', null=True, blank=True)
 
     # Configurações — acesso global
     settings_view             = models.BooleanField(default=False)
@@ -111,11 +209,17 @@ class UserPermissions(models.Model):
     settings_doc_types        = models.BooleanField(default=False)
     settings_prof_cards       = models.BooleanField(default=False)
     settings_user_profiles    = models.BooleanField(default=False)
-    settings_destinations     = models.BooleanField(default=False)
     settings_list_additionals = models.BooleanField(default=False)
     settings_crew_roles       = models.BooleanField(default=False)
+    settings_special_needs    = models.BooleanField(default=False)
 
     # Configurações — granular por seção
+    settings_special_needs_view        = models.BooleanField(default=False)
+    settings_special_needs_edit        = models.BooleanField(default=False)
+    settings_special_needs_delete      = models.BooleanField(default=False)
+    settings_special_needs_bulk_delete = models.BooleanField(default=False)
+    settings_special_needs_bulk_import = models.BooleanField(default=False)
+    settings_special_needs_export      = models.BooleanField(default=False)
     settings_professions_view        = models.BooleanField(default=False)
     settings_professions_edit        = models.BooleanField(default=False)
     settings_professions_delete      = models.BooleanField(default=False)
@@ -142,9 +246,17 @@ class UserPermissions(models.Model):
     settings_payment_methods_view    = models.BooleanField(default=False)
     settings_payment_methods_edit    = models.BooleanField(default=False)
     settings_payment_methods_delete  = models.BooleanField(default=False)
+    settings_payment_methods_bulk_import = models.BooleanField(default=False)
     settings_exchange_rates_view     = models.BooleanField(default=False)
     settings_exchange_rates_edit     = models.BooleanField(default=False)
     settings_exchange_rates_delete   = models.BooleanField(default=False)
+    settings_exchange_rates_bulk_import = models.BooleanField(default=False)
+    # Câmbio: opções avançadas (auto-atualização / fonte externa) e arredondamento
+    # são capacidades extras, controladas à parte do edit básico (taxa + acréscimo).
+    settings_exchange_rates_advanced = models.BooleanField(default=False)
+    settings_exchange_rates_rounding = models.BooleanField(default=False)
+    # Forçar a atualização automática agora (botão "Atualizar câmbio agora").
+    settings_exchange_rates_update_now = models.BooleanField(default=False)
     settings_vaccines_view           = models.BooleanField(default=False)
     settings_vaccines_edit           = models.BooleanField(default=False)
     settings_vaccines_delete         = models.BooleanField(default=False)
@@ -165,6 +277,7 @@ class UserPermissions(models.Model):
     settings_user_profiles_view      = models.BooleanField(default=False)
     settings_user_profiles_edit      = models.BooleanField(default=False)
     settings_user_profiles_delete    = models.BooleanField(default=False)
+    settings_user_profiles_bulk_import = models.BooleanField(default=False)
     settings_list_additionals_view         = models.BooleanField(default=False)
     settings_list_additionals_edit         = models.BooleanField(default=False)
     settings_list_additionals_delete       = models.BooleanField(default=False)
@@ -180,6 +293,11 @@ class UserPermissions(models.Model):
     settings_accommodations_delete       = models.BooleanField(default=False)
     settings_accommodations_bulk_delete  = models.BooleanField(default=False)
     settings_accommodations_bulk_import  = models.BooleanField(default=False)
+    settings_ship_cabins_view            = models.BooleanField(default=False)
+    settings_ship_cabins_edit            = models.BooleanField(default=False)
+    settings_ship_cabins_delete          = models.BooleanField(default=False)
+    settings_ship_cabins_bulk_import     = models.BooleanField(default=False)
+    settings_ship_cabins_export          = models.BooleanField(default=False)
     settings_list_categories_view         = models.BooleanField(default=False)
     settings_list_categories_edit         = models.BooleanField(default=False)
     settings_list_categories_delete       = models.BooleanField(default=False)
@@ -200,30 +318,202 @@ class UserPermissions(models.Model):
     settings_bus_maps_view           = models.BooleanField(default=False)
     settings_bus_maps_edit           = models.BooleanField(default=False)
     settings_bus_maps_delete         = models.BooleanField(default=False)
+    settings_bus_maps_bulk_import    = models.BooleanField(default=False)
     settings_contract_clauses_view   = models.BooleanField(default=False)
     settings_contract_clauses_edit   = models.BooleanField(default=False)
     settings_contract_clauses_delete = models.BooleanField(default=False)
+    settings_contract_clauses_bulk_import = models.BooleanField(default=False)
     settings_terms_view              = models.BooleanField(default=False)
     settings_terms_edit              = models.BooleanField(default=False)
+    settings_terms_bulk_import       = models.BooleanField(default=False)
+    settings_operating_company_view  = models.BooleanField(default=False)
+    settings_operating_company_edit  = models.BooleanField(default=False)
+    settings_operating_company_bulk_import = models.BooleanField(default=False)
     settings_itinerary_categories_view        = models.BooleanField(default=False)
     settings_itinerary_categories_edit        = models.BooleanField(default=False)
     settings_itinerary_categories_delete      = models.BooleanField(default=False)
     settings_itinerary_categories_bulk_import = models.BooleanField(default=False)
-    settings_destinations_view                = models.BooleanField(default=False)
-    settings_destinations_edit                = models.BooleanField(default=False)
-    settings_destinations_delete              = models.BooleanField(default=False)
-    settings_destinations_bulk_import         = models.BooleanField(default=False)
-    settings_holidays_view                    = models.BooleanField(default=False)
-    settings_holidays_edit                    = models.BooleanField(default=False)
-    settings_holidays_delete                  = models.BooleanField(default=False)
-    settings_holidays_bulk_import             = models.BooleanField(default=False)
-    settings_services_view                    = models.BooleanField(default=False)
-    settings_services_edit                    = models.BooleanField(default=False)
-    settings_services_delete                  = models.BooleanField(default=False)
-    settings_services_bulk_import             = models.BooleanField(default=False)
-    settings_itinerary_templates_view         = models.BooleanField(default=False)
-    settings_itinerary_templates_edit         = models.BooleanField(default=False)
-    settings_itinerary_templates_delete       = models.BooleanField(default=False)
+
+    # Listas do Roteiro (Tipos de Roteiro · Companhias Marítimas · Moedas)
+    settings_itinerary_types_view        = models.BooleanField(default=False)
+    settings_itinerary_types_edit        = models.BooleanField(default=False)
+    settings_itinerary_types_delete      = models.BooleanField(default=False)
+    settings_itinerary_types_bulk_import = models.BooleanField(default=False)
+    settings_itinerary_types_export      = models.BooleanField(default=False)
+    settings_maritime_companies_view     = models.BooleanField(default=False)
+    settings_maritime_companies_edit     = models.BooleanField(default=False)
+    settings_maritime_companies_delete   = models.BooleanField(default=False)
+    settings_currencies_view             = models.BooleanField(default=False)
+    settings_currencies_edit             = models.BooleanField(default=False)
+    settings_currencies_delete           = models.BooleanField(default=False)
+    settings_keywords_view               = models.BooleanField(default=False)
+    settings_keywords_edit               = models.BooleanField(default=False)
+    settings_keywords_delete             = models.BooleanField(default=False)
+    settings_keywords_bulk_import        = models.BooleanField(default=False)
+    settings_keywords_export             = models.BooleanField(default=False)
+    settings_cost_categories_view        = models.BooleanField(default=False)
+    settings_cost_categories_edit        = models.BooleanField(default=False)
+    settings_cost_categories_delete      = models.BooleanField(default=False)
+    settings_cost_categories_bulk_import = models.BooleanField(default=False)
+    settings_cost_categories_export      = models.BooleanField(default=False)
+    settings_flight_segments_view        = models.BooleanField(default=False)
+    settings_flight_segments_edit        = models.BooleanField(default=False)
+    settings_flight_segments_delete      = models.BooleanField(default=False)
+    settings_flight_classes_view         = models.BooleanField(default=False)
+    settings_flight_classes_edit         = models.BooleanField(default=False)
+    settings_flight_classes_delete       = models.BooleanField(default=False)
+    settings_flight_classes_bulk_import  = models.BooleanField(default=False)
+    settings_flight_classes_export       = models.BooleanField(default=False)
+    settings_inclusions_view             = models.BooleanField(default=False)
+    settings_inclusions_edit             = models.BooleanField(default=False)
+    settings_inclusions_delete           = models.BooleanField(default=False)
+    settings_inclusions_bulk_import      = models.BooleanField(default=False)
+    settings_inclusions_export           = models.BooleanField(default=False)
+    settings_highlights_view             = models.BooleanField(default=False)
+    settings_highlights_edit             = models.BooleanField(default=False)
+    settings_highlights_delete           = models.BooleanField(default=False)
+    settings_highlights_bulk_import      = models.BooleanField(default=False)
+    settings_highlights_export           = models.BooleanField(default=False)
+    settings_special_dates_view          = models.BooleanField(default=False)
+    settings_special_dates_edit          = models.BooleanField(default=False)
+    settings_special_dates_delete        = models.BooleanField(default=False)
+    settings_special_dates_bulk_import   = models.BooleanField(default=False)
+    settings_special_dates_export        = models.BooleanField(default=False)
+    settings_hotels_view                 = models.BooleanField(default=False)
+    settings_hotels_edit                 = models.BooleanField(default=False)
+    settings_hotels_delete               = models.BooleanField(default=False)
+    settings_hotels_bulk_import          = models.BooleanField(default=False)
+    settings_hotels_export               = models.BooleanField(default=False)
+    settings_boats_view                  = models.BooleanField(default=False)
+    settings_boats_edit                  = models.BooleanField(default=False)
+    settings_boats_delete                = models.BooleanField(default=False)
+    settings_boats_bulk_import           = models.BooleanField(default=False)
+    settings_boats_export                = models.BooleanField(default=False)
+    settings_terrestre_companies_view    = models.BooleanField(default=False)
+    settings_terrestre_companies_edit    = models.BooleanField(default=False)
+    settings_terrestre_companies_delete  = models.BooleanField(default=False)
+    settings_terrestre_companies_bulk_import = models.BooleanField(default=False)
+    settings_terrestre_companies_export  = models.BooleanField(default=False)
+    # ── Operadora: permissão por aba (ver/editar) ──
+    settings_operating_company_dados_view        = models.BooleanField(default=False)
+    settings_operating_company_dados_edit        = models.BooleanField(default=False)
+    settings_operating_company_contatos_view     = models.BooleanField(default=False)
+    settings_operating_company_contatos_edit     = models.BooleanField(default=False)
+    settings_operating_company_pix_view          = models.BooleanField(default=False)
+    settings_operating_company_pix_edit          = models.BooleanField(default=False)
+    settings_operating_company_assinatura_view   = models.BooleanField(default=False)
+    settings_operating_company_assinatura_edit   = models.BooleanField(default=False)
+    settings_operating_company_logos_view        = models.BooleanField(default=False)
+    settings_operating_company_logos_edit        = models.BooleanField(default=False)
+    settings_operating_company_cores_view        = models.BooleanField(default=False)
+    settings_operating_company_cores_edit        = models.BooleanField(default=False)
+    # ── Templates do Roteiro (permissão individual por template) ──
+    settings_tpl_general_view          = models.BooleanField(default=False)
+    settings_tpl_general_edit          = models.BooleanField(default=False)
+    settings_tpl_general_delete        = models.BooleanField(default=False)
+    settings_tpl_general_bulk_import   = models.BooleanField(default=False)
+    settings_tpl_general_export        = models.BooleanField(default=False)
+    settings_tpl_included_view         = models.BooleanField(default=False)
+    settings_tpl_included_edit         = models.BooleanField(default=False)
+    settings_tpl_included_delete       = models.BooleanField(default=False)
+    settings_tpl_included_bulk_import  = models.BooleanField(default=False)
+    settings_tpl_included_export       = models.BooleanField(default=False)
+    settings_tpl_not_included_view     = models.BooleanField(default=False)
+    settings_tpl_not_included_edit     = models.BooleanField(default=False)
+    settings_tpl_not_included_delete   = models.BooleanField(default=False)
+    settings_tpl_not_included_bulk_import = models.BooleanField(default=False)
+    settings_tpl_not_included_export   = models.BooleanField(default=False)
+    settings_tpl_optionals_view        = models.BooleanField(default=False)
+    settings_tpl_optionals_edit        = models.BooleanField(default=False)
+    settings_tpl_optionals_delete      = models.BooleanField(default=False)
+    settings_tpl_optionals_bulk_import = models.BooleanField(default=False)
+    settings_tpl_optionals_export      = models.BooleanField(default=False)
+    settings_tpl_tips_view             = models.BooleanField(default=False)
+    settings_tpl_tips_edit             = models.BooleanField(default=False)
+    settings_tpl_tips_delete           = models.BooleanField(default=False)
+    settings_tpl_tips_bulk_import      = models.BooleanField(default=False)
+    settings_tpl_tips_export           = models.BooleanField(default=False)
+    settings_tpl_documents_view        = models.BooleanField(default=False)
+    settings_tpl_documents_edit        = models.BooleanField(default=False)
+    settings_tpl_documents_delete      = models.BooleanField(default=False)
+    settings_tpl_documents_bulk_import = models.BooleanField(default=False)
+    settings_tpl_documents_export      = models.BooleanField(default=False)
+    settings_tpl_promo_rules_view      = models.BooleanField(default=False)
+    settings_tpl_promo_rules_edit      = models.BooleanField(default=False)
+    settings_tpl_promo_rules_delete    = models.BooleanField(default=False)
+    settings_tpl_promo_rules_bulk_import = models.BooleanField(default=False)
+    settings_tpl_promo_rules_export    = models.BooleanField(default=False)
+    settings_tpl_insurance_view        = models.BooleanField(default=False)
+    settings_tpl_insurance_edit        = models.BooleanField(default=False)
+    settings_tpl_insurance_delete      = models.BooleanField(default=False)
+    settings_tpl_insurance_bulk_import = models.BooleanField(default=False)
+    settings_tpl_insurance_export      = models.BooleanField(default=False)
+    settings_tpl_values_view           = models.BooleanField(default=False)
+    settings_tpl_values_edit           = models.BooleanField(default=False)
+    settings_tpl_values_delete         = models.BooleanField(default=False)
+    settings_tpl_values_bulk_import    = models.BooleanField(default=False)
+    settings_tpl_values_export         = models.BooleanField(default=False)
+    settings_tpl_extras_view           = models.BooleanField(default=False)
+    settings_tpl_extras_edit           = models.BooleanField(default=False)
+    settings_tpl_extras_delete         = models.BooleanField(default=False)
+    settings_tpl_extras_bulk_import    = models.BooleanField(default=False)
+    settings_tpl_extras_export         = models.BooleanField(default=False)
+    settings_tpl_lamina_view           = models.BooleanField(default=False)
+    settings_tpl_lamina_edit           = models.BooleanField(default=False)
+    settings_tpl_lamina_delete         = models.BooleanField(default=False)
+    settings_tpl_lamina_bulk_import    = models.BooleanField(default=False)
+    settings_tpl_lamina_export         = models.BooleanField(default=False)
+    settings_tpl_flights_view          = models.BooleanField(default=False)
+    settings_tpl_flights_edit          = models.BooleanField(default=False)
+    settings_tpl_flights_delete        = models.BooleanField(default=False)
+    settings_tpl_flights_bulk_import   = models.BooleanField(default=False)
+    settings_tpl_flights_export        = models.BooleanField(default=False)
+    settings_tpl_hotels_view           = models.BooleanField(default=False)
+    settings_tpl_hotels_edit           = models.BooleanField(default=False)
+    settings_tpl_hotels_delete         = models.BooleanField(default=False)
+    settings_tpl_hotels_bulk_import    = models.BooleanField(default=False)
+    settings_tpl_hotels_export         = models.BooleanField(default=False)
+    settings_tpl_accommodation_view    = models.BooleanField(default=False)
+    settings_tpl_accommodation_edit    = models.BooleanField(default=False)
+    settings_tpl_accommodation_delete  = models.BooleanField(default=False)
+    settings_tpl_accommodation_bulk_import = models.BooleanField(default=False)
+    settings_tpl_accommodation_export  = models.BooleanField(default=False)
+    settings_tpl_terrestre_view        = models.BooleanField(default=False)
+    settings_tpl_terrestre_edit        = models.BooleanField(default=False)
+    settings_tpl_terrestre_delete      = models.BooleanField(default=False)
+    settings_tpl_terrestre_bulk_import = models.BooleanField(default=False)
+    settings_tpl_terrestre_export      = models.BooleanField(default=False)
+    settings_tpl_boat_view             = models.BooleanField(default=False)
+    settings_tpl_boat_edit             = models.BooleanField(default=False)
+    settings_tpl_boat_delete           = models.BooleanField(default=False)
+    settings_tpl_boat_bulk_import      = models.BooleanField(default=False)
+    settings_tpl_boat_export           = models.BooleanField(default=False)
+
+    # Exportar CSV (download) — granular por área. Antes o download dependia só
+    # de "_view"; agora cada área tem permissão própria de download.
+    settings_professions_export          = models.BooleanField(default=False)
+    settings_languages_export            = models.BooleanField(default=False)
+    settings_countries_export            = models.BooleanField(default=False)
+    settings_genders_export              = models.BooleanField(default=False)
+    settings_vaccines_export             = models.BooleanField(default=False)
+    settings_doc_types_export            = models.BooleanField(default=False)
+    settings_prof_cards_export           = models.BooleanField(default=False)
+    settings_user_profiles_export        = models.BooleanField(default=False)
+    settings_list_additionals_export     = models.BooleanField(default=False)
+    settings_crew_roles_export           = models.BooleanField(default=False)
+    settings_accommodations_export       = models.BooleanField(default=False)
+    settings_list_categories_export      = models.BooleanField(default=False)
+    settings_airports_export             = models.BooleanField(default=False)
+    settings_airlines_export             = models.BooleanField(default=False)
+    settings_bus_maps_export             = models.BooleanField(default=False)
+    settings_contract_clauses_export     = models.BooleanField(default=False)
+    settings_payment_methods_export      = models.BooleanField(default=False)
+    settings_exchange_rates_export       = models.BooleanField(default=False)
+    settings_terms_export                = models.BooleanField(default=False)
+    settings_operating_company_export    = models.BooleanField(default=False)
+    settings_itinerary_categories_export = models.BooleanField(default=False)
+    # Granularidade de massa completada nos campos de Roteiro (antes só item a item)
+    settings_itinerary_categories_bulk_delete = models.BooleanField(default=False)
 
     # Log do sistema — por área usa a mesma permissão "_view_logs" de cada
     # área (passengers_view_logs, lists_view_logs, agencies_view_logs,
