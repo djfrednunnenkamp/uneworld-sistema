@@ -384,12 +384,21 @@ class ConfigCity(models.Model):
 
 
 class ConfigAccommodation(models.Model):
-    name      = models.CharField('Nome', max_length=200, unique=True)
+    name      = models.CharField('Nome', max_length=200)
     capacity  = models.PositiveIntegerField('Capacidade (pessoas)', default=1)
     is_couple = models.BooleanField('É para casal', default=False)
+    # Vínculo OPCIONAL com um roteiro: null = tipo GLOBAL (catálogo padrão);
+    # setado = tipo EXCLUSIVO daquele roteiro (personalização por-roteiro). Os
+    # custos/blocos/linhas continuam apontando por FK (id) — sem refatoração.
+    itinerary = models.ForeignKey('itineraries.Itinerary', null=True, blank=True, on_delete=models.CASCADE, related_name='+')
 
     class Meta:
         ordering = ['name']
+        constraints = [
+            # Nome único entre os GLOBAIS; e único dentro de cada roteiro.
+            models.UniqueConstraint(fields=['name'], condition=models.Q(itinerary__isnull=True), name='uniq_global_accom_name'),
+            models.UniqueConstraint(fields=['itinerary', 'name'], name='uniq_roteiro_accom_name'),
+        ]
         verbose_name = 'Tipo de acomodação'
         verbose_name_plural = 'Tipos de acomodação'
 
@@ -406,12 +415,17 @@ class ConfigShipCabin(models.Model):
     name      = models.CharField('Nome', max_length=200)
     capacity  = models.PositiveIntegerField('Capacidade (pessoas)', default=1)
     is_couple = models.BooleanField('É para casal', default=False)
+    # Vínculo OPCIONAL com um roteiro (igual à acomodação): null = global; setado
+    # = exclusivo do roteiro.
+    itinerary = models.ForeignKey('itineraries.Itinerary', null=True, blank=True, on_delete=models.CASCADE, related_name='+')
 
     class Meta:
         ordering = ['category', 'name']
-        # O nome é único DENTRO de cada categoria — assim "Single" pode existir em
-        # setores diferentes (o vínculo dos custos é por id, não por nome).
-        unique_together = [('category', 'name')]
+        # Nome único DENTRO de cada categoria — nos globais e dentro de cada roteiro.
+        constraints = [
+            models.UniqueConstraint(fields=['category', 'name'], condition=models.Q(itinerary__isnull=True), name='uniq_global_cabin'),
+            models.UniqueConstraint(fields=['itinerary', 'category', 'name'], name='uniq_roteiro_cabin'),
+        ]
         verbose_name = 'Tipo de cabine'
         verbose_name_plural = 'Tipos de cabine'
 

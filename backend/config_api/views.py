@@ -1772,16 +1772,37 @@ class StateViewSet(viewsets.ModelViewSet):
 
 # ── Tipos de Acomodação ────────────────────────────────────────────────────
 
+# Filtro de escopo (por-roteiro) na LISTAGEM de tipos de acomodação/cabine:
+#   ?itinerary=<id> → SÓ os tipos exclusivos daquele roteiro (pop-up de gestão);
+#   ?for=<id>       → tipos RESOLVIDOS do roteiro: os próprios se existirem, senão
+#                     os globais (usado pelos seletores do roteiro — regra "substituir");
+#   sem parâmetro   → só os GLOBAIS (Settings/vouchers).
+# Só afeta a listagem — detalhe/edição/exclusão acessam qualquer linha por id.
+def _scoped_config_qs(qs, view):
+    if view.action != 'list':
+        return qs
+    it = view.request.query_params.get('itinerary')
+    if it:
+        return qs.filter(itinerary_id=it)
+    forr = view.request.query_params.get('for')
+    if forr:
+        scoped = qs.filter(itinerary_id=forr)
+        return scoped if scoped.exists() else qs.filter(itinerary__isnull=True)
+    return qs.filter(itinerary__isnull=True)
+
+
 class AccommodationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigAccommodation
-        fields = ['id', 'name', 'capacity', 'is_couple']
+        fields = ['id', 'name', 'capacity', 'is_couple', 'itinerary']
 
 
 class AccommodationViewSet(viewsets.ModelViewSet):
-    queryset         = ConfigAccommodation.objects.all()
     serializer_class = AccommodationSerializer
     get_permissions  = _settings_perm('settings_accommodations')
+
+    def get_queryset(self):
+        return _scoped_config_qs(ConfigAccommodation.objects.all(), self)
 
 
 # ── Tipos de Cabine (navio) ────────────────────────────────────────────────
@@ -1789,13 +1810,15 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 class ShipCabinSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigShipCabin
-        fields = ['id', 'category', 'name', 'capacity', 'is_couple']
+        fields = ['id', 'category', 'name', 'capacity', 'is_couple', 'itinerary']
 
 
 class ShipCabinViewSet(viewsets.ModelViewSet):
-    queryset         = ConfigShipCabin.objects.all()
     serializer_class = ShipCabinSerializer
     get_permissions  = _settings_perm('settings_ship_cabins')
+
+    def get_queryset(self):
+        return _scoped_config_qs(ConfigShipCabin.objects.all(), self)
 
 
 # ── Cláusulas de contrato ───────────────────────────────────────────────────

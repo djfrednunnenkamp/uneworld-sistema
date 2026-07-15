@@ -196,7 +196,12 @@ def build_entries(passenger_list, request=None, voucher=None, agency_ids=None):
             })
         # Mais recente primeiro (a query já ordena por -downloaded_at).
 
-    types = list(ConfigAccommodation.objects.all())
+    # Tipos de acomodação RESOLVIDOS do roteiro da lista: os exclusivos do roteiro
+    # se existirem, senão os globais (mesma regra "substituir" dos seletores) —
+    # assim o casal/single é detectado com os tipos que o roteiro realmente usa.
+    _rot_ids = list(passenger_list.roteiros.values_list('id', flat=True))
+    _scoped = ConfigAccommodation.objects.filter(itinerary_id__in=_rot_ids) if _rot_ids else ConfigAccommodation.objects.none()
+    types = list(_scoped) if _scoped.exists() else list(ConfigAccommodation.objects.filter(itinerary__isnull=True))
     ens = (ListEnrollment.objects
            .filter(passenger_list=passenger_list, passenger__isnull=False)
            .select_related('passenger', 'agency')
