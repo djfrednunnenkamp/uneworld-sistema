@@ -22,12 +22,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v0.1.10
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: 22
+          # Porta configurável. Se o sshd não estiver na 22, defina a Variable/Secret
+          # SSH_PORT. IMPORTANTE: DEPLOY_HOST deve ser o IP direto do servidor
+          # (147.93.13.64), NÃO um domínio atrás de Cloudflare/NPM — senão a porta
+          # SSH não chega no sshd real e o handshake falha ("overflow reading
+          # version string").
+          port: ${{ vars.SSH_PORT || secrets.SSH_PORT || 22 }}
           script: |
             set -euo pipefail
 
