@@ -2,6 +2,7 @@ import csv
 import io
 import re
 import requests
+from django.db import transaction
 from django.db.models import Q, Count
 from django.http import StreamingHttpResponse, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -109,6 +110,175 @@ def geo_analyze(request):
     return Response({'rows': result})
 
 
+def _bulk_delete_ids(model, ids, chunk=1000):
+    """Apaga por id em lotes (evita IN gigante) e soma só os do próprio model
+    (ignora contagem de cascatas, que já são tratadas na ordem de exclusão)."""
+    total = 0
+    label = model._meta.label
+    for i in range(0, len(ids), chunk):
+        _, per_model = model.objects.filter(pk__in=ids[i:i + chunk]).delete()
+        total += per_model.get(label, 0)
+    return total
+
+
+def _bulk_upsert_geo(rows, mode='merge'):
+    """Importa continentes→países→estados→cidades em POUCOS queries.
+
+    Substitui o get_or_create linha-a-linha (2 queries/linha) por bulk_create/
+    bulk_update em lote dentro de UMA transação — não trava o event-loop do Daphne.
+
+    rows: iterável de dicts com chaves continente/pais/estado/cidade.
+    mode: 'merge'   → adiciona os que faltam, mantém os existentes
+          'replace' → adiciona os que faltam + apaga do banco o que NÃO está no CSV
+          'delete'  → apaga do banco o que está no CSV
+    Retorna (counts, deleted). ATENÇÃO: bulk_create pula o save(), então name_ascii
+    da cidade é computado aqui à mão.
+    """
+    from .textsearch import normalize_text
+
+    counts  = {'countries': 0, 'states': 0, 'cities': 0, 'rows': 0}
+    deleted = {'countries': 0, 'states': 0, 'cities': 0}
+
+    csv_countries = set()          # {pais}
+    csv_states    = set()          # {(pais, estado)}
+    csv_cities    = set()          # {(pais, estado, cidade)}
+    country_continent = {}         # pais -> primeiro continente não-vazio visto
+
+    for row in rows:
+        counts['rows'] += 1
+        continente = (row.get('continente') or '').strip()
+        pais   = (row.get('pais')   or '').strip()
+        estado = (row.get('estado') or '').strip()
+        cidade = (row.get('cidade') or '').strip()
+        if not pais:
+            continue
+        csv_countries.add(pais)
+        if continente and pais not in country_continent:
+            country_continent[pais] = continente
+        if estado:
+            csv_states.add((pais, estado))
+        if estado and cidade:
+            csv_cities.add((pais, estado, cidade))
+
+    with transaction.atomic():
+        if mode == 'delete':
+            _geo_delete_from_csv(csv_states, csv_cities, deleted)
+            return counts, deleted
+
+        # ── Continentes ─────────────────────────────────────────
+        continent_names = {c for c in country_continent.values() if c}
+        continent_map = {c.name: c for c in ConfigContinent.objects.filter(name__in=continent_names)}
+        missing = continent_names - set(continent_map)
+        if missing:
+            ConfigContinent.objects.bulk_create([ConfigContinent(name=n) for n in missing])
+            continent_map = {c.name: c for c in ConfigContinent.objects.filter(name__in=continent_names)}
+
+        # ── Países (name é unique) ──────────────────────────────
+        country_map = {c.name: c for c in ConfigCountry.objects.filter(name__in=csv_countries)}
+        missing_countries = csv_countries - set(country_map)
+        if missing_countries:
+            ConfigCountry.objects.bulk_create([
+                ConfigCountry(name=name, continent=continent_map.get(country_continent.get(name, '')))
+                for name in missing_countries
+            ])
+            counts['countries'] = len(missing_countries)
+            for c in ConfigCountry.objects.filter(name__in=missing_countries):
+                country_map[c.name] = c
+        # Preenche continente em países que já existiam mas estavam sem
+        to_update = []
+        for name, obj in country_map.items():
+            cont = continent_map.get(country_continent.get(name, ''))
+            if cont and not obj.continent_id:
+                obj.continent = cont
+                to_update.append(obj)
+        if to_update:
+            ConfigCountry.objects.bulk_update(to_update, ['continent'])
+
+        # ── Estados (unique_together country+name) ──────────────
+        country_ids = {country_map[p].id for (p, _s) in csv_states if p in country_map}
+        existing_states = {(st.country_id, st.name)
+                           for st in ConfigState.objects.filter(country_id__in=country_ids)}
+        to_create, seen = [], set()
+        for (pais, estado) in csv_states:
+            country = country_map.get(pais)
+            if not country:
+                continue
+            key = (country.id, estado)
+            if key in existing_states or key in seen:
+                continue
+            seen.add(key)
+            to_create.append(ConfigState(country=country, name=estado))
+        if to_create:
+            ConfigState.objects.bulk_create(to_create)
+            counts['states'] = len(to_create)
+        state_map = {(st.country_id, st.name): st
+                     for st in ConfigState.objects.filter(country_id__in=country_ids)}
+
+        # ── Cidades (unique_together state+name; name_ascii à mão) ──
+        state_ids = set()
+        for (pais, estado, _c) in csv_cities:
+            country = country_map.get(pais)
+            st = state_map.get((country.id, estado)) if country else None
+            if st:
+                state_ids.add(st.id)
+        existing_cities = set(
+            ConfigCity.objects.filter(state_id__in=state_ids).values_list('state_id', 'name'))
+        to_create, seen = [], set()
+        for (pais, estado, cidade) in csv_cities:
+            country = country_map.get(pais)
+            st = state_map.get((country.id, estado)) if country else None
+            if not st:
+                continue
+            key = (st.id, cidade)
+            if key in existing_cities or key in seen:
+                continue
+            seen.add(key)
+            to_create.append(ConfigCity(state=st, name=cidade, name_ascii=normalize_text(cidade)))
+        if to_create:
+            ConfigCity.objects.bulk_create(to_create)
+            counts['cities'] = len(to_create)
+
+        if mode == 'replace':
+            _geo_prune_replace(csv_countries, csv_states, csv_cities, deleted)
+
+    return counts, deleted
+
+
+def _geo_delete_from_csv(csv_states, csv_cities, deleted):
+    """mode=delete: apaga do banco só o que está no CSV (cidades e estados sem cidade)."""
+    city_ids = list(
+        ConfigCity.objects
+        .filter(state__country__name__in={p for p, _s, _c in csv_cities})
+        .values_list('id', 'state__country__name', 'state__name', 'name'))
+    del_ids = [cid for (cid, cn, sn, ciname) in city_ids if (cn, sn, ciname) in csv_cities]
+    deleted['cities'] += _bulk_delete_ids(ConfigCity, del_ids)
+
+    only_states = csv_states - {(p, s) for p, s, _ in csv_cities}
+    st_rows = ConfigState.objects.filter(
+        country__name__in={p for p, _s in only_states}).values_list('id', 'country__name', 'name')
+    del_st = [sid for (sid, cn, sn) in st_rows if (cn, sn) in only_states]
+    deleted['states'] += _bulk_delete_ids(ConfigState, del_st)
+
+
+def _geo_prune_replace(csv_countries, csv_states, csv_cities, deleted):
+    """mode=replace: apaga o que NÃO está no CSV, em lote (cidades → estados → países).
+    A ordem garante que cascatas não recontem (uma cidade fora do CSV já foi apagada
+    antes do estado/país que a continha)."""
+    del_city = [cid for (cid, cn, sn, ciname) in
+                ConfigCity.objects.values_list('id', 'state__country__name', 'state__name', 'name')
+                if (cn, sn, ciname) not in csv_cities]
+    deleted['cities'] += _bulk_delete_ids(ConfigCity, del_city)
+
+    del_state = [sid for (sid, cn, sn) in
+                 ConfigState.objects.values_list('id', 'country__name', 'name')
+                 if (cn, sn) not in csv_states]
+    deleted['states'] += _bulk_delete_ids(ConfigState, del_state)
+
+    del_country = [cid for (cid, name) in ConfigCountry.objects.values_list('id', 'name')
+                   if name not in csv_countries]
+    deleted['countries'] += _bulk_delete_ids(ConfigCountry, del_country)
+
+
 @api_view(['POST'])
 @permission_classes([RequirePermission('manage_settings', 'settings_countries', 'settings_countries_edit')])
 def geo_import_action(request):
@@ -121,100 +291,7 @@ def geo_import_action(request):
     """
     mode = request.data.get('mode', 'merge')
     rows = request.data.get('rows', [])
-
-    counts  = {'countries': 0, 'states': 0, 'cities': 0}
-    deleted = {'countries': 0, 'states': 0, 'cities': 0}
-
-    country_cache = {}
-    state_cache   = {}
-
-    # Conjuntos das linhas do CSV (para mode=replace)
-    csv_countries = set()
-    csv_states    = set()
-    csv_cities    = set()
-
-    for row in rows:
-        continente = (row.get('continente') or '').strip()
-        pais   = (row.get('pais')   or '').strip()
-        estado = (row.get('estado') or '').strip()
-        cidade = (row.get('cidade') or '').strip()
-        if not pais:
-            continue
-
-        csv_countries.add(pais)
-        if estado:
-            csv_states.add((pais, estado))
-        if estado and cidade:
-            csv_cities.add((pais, estado, cidade))
-
-        if mode == 'delete':
-            continue  # só mapeia, apaga depois
-
-        # País
-        if pais not in country_cache:
-            continent_obj = _get_continent(continente)
-            obj, created = ConfigCountry.objects.get_or_create(name=pais, defaults={'continent': continent_obj})
-            if created:
-                counts['countries'] += 1
-            elif continent_obj and not obj.continent_id:
-                obj.continent = continent_obj
-                obj.save(update_fields=['continent'])
-            country_cache[pais] = obj
-
-        if not estado:
-            continue
-
-        country = country_cache[pais]
-        state_key = (pais, estado)
-        if state_key not in state_cache:
-            obj, created = ConfigState.objects.get_or_create(country=country, name=estado)
-            if created:
-                counts['states'] += 1
-            state_cache[state_key] = obj
-
-        if not cidade:
-            continue
-
-        state = state_cache[state_key]
-        _, created = ConfigCity.objects.get_or_create(state=state, name=cidade)
-        if created:
-            counts['cities'] += 1
-
-    # ── Apagar ──────────────────────────────────────────
-    if mode == 'delete':
-        for (pais, estado, cidade) in csv_cities:
-            try:
-                country = ConfigCountry.objects.get(name=pais)
-                state   = ConfigState.objects.get(country=country, name=estado)
-                deleted['cities'] += ConfigCity.objects.filter(state=state, name=cidade).delete()[0]
-            except Exception:
-                pass
-        for (pais, estado) in csv_states - {(p, s) for p, s, _ in csv_cities}:
-            try:
-                country = ConfigCountry.objects.get(name=pais)
-                deleted['states'] += ConfigState.objects.filter(country=country, name=estado).delete()[0]
-            except Exception:
-                pass
-
-    elif mode == 'replace':
-        # Apaga cidades não presentes no CSV
-        for city in ConfigCity.objects.select_related('state__country').all():
-            key = (city.state.country.name, city.state.name, city.name)
-            if key not in csv_cities:
-                city.delete()
-                deleted['cities'] += 1
-        # Apaga estados não presentes no CSV
-        for state in ConfigState.objects.select_related('country').all():
-            key = (state.country.name, state.name)
-            if key not in csv_states:
-                state.delete()
-                deleted['states'] += 1
-        # Apaga países não presentes no CSV
-        for country in ConfigCountry.objects.all():
-            if country.name not in csv_countries:
-                country.delete()
-                deleted['countries'] += 1
-
+    counts, deleted = _bulk_upsert_geo(rows, mode=mode)
     return Response({'created': counts, 'deleted': deleted})
 
 
@@ -289,51 +366,15 @@ def geo_import(request):
     if not col_country:
         return Response({'error': 'Coluna "pais" não encontrada.'}, status=400)
 
-    counts = {'countries': 0, 'states': 0, 'cities': 0, 'rows': 0}
-    country_cache = {}
-    state_cache   = {}
-
-    for row in reader:
-        counts['rows'] += 1
-        ct_name = (row.get(col_continent) or '').strip() if col_continent else ''
-        c_name = (row.get(col_country) or '').strip()
-        s_name = (row.get(col_state)   or '').strip() if col_state else ''
-        ci_name= (row.get(col_city)    or '').strip() if col_city  else ''
-
-        if not c_name:
-            continue
-
-        # País
-        if c_name not in country_cache:
-            continent_obj = _get_continent(ct_name)
-            obj, created = ConfigCountry.objects.get_or_create(name=c_name, defaults={'continent': continent_obj})
-            if created:
-                counts['countries'] += 1
-            elif continent_obj and not obj.continent_id:
-                obj.continent = continent_obj
-                obj.save(update_fields=['continent'])
-            country_cache[c_name] = obj
-        country = country_cache[c_name]
-
-        if not s_name:
-            continue
-
-        # Estado
-        state_key = (c_name, s_name)
-        if state_key not in state_cache:
-            obj, created = ConfigState.objects.get_or_create(country=country, name=s_name)
-            if created:
-                counts['states'] += 1
-            state_cache[state_key] = obj
-        state = state_cache[state_key]
-
-        if not ci_name:
-            continue
-
-        # Cidade
-        _, created = ConfigCity.objects.get_or_create(state=state, name=ci_name)
-        if created:
-            counts['cities'] += 1
+    # Normaliza para as chaves do helper (continente/pais/estado/cidade) e delega
+    # ao bulk-upsert em lote — nada de get_or_create por linha (travava o Daphne).
+    rows = ({
+        'continente': (row.get(col_continent) or '') if col_continent else '',
+        'pais':       (row.get(col_country)   or ''),
+        'estado':     (row.get(col_state)     or '') if col_state else '',
+        'cidade':     (row.get(col_city)      or '') if col_city  else '',
+    } for row in reader)
+    counts, _deleted = _bulk_upsert_geo(rows, mode='merge')
 
     return Response({
         'rows':      counts['rows'],
