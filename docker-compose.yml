@@ -1,56 +1,53 @@
-name: uneworld
+name: uneworld-intranet-api
+
+# Compose da API (backend Django/Daphne) da intranet UneWorld.
+# O Postgres NÃO roda aqui: conecta-se a um banco EXTERNO (ver DB_HOST/DB_PORT no .env).
+# Só sobem o backend e o Redis (channels + cache/rate-limit).
+#
+# Subir:   docker compose up -d --build
+# Logs:    docker compose logs -f backend
+# Parar:   docker compose down
 
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME:-uneworld}
-      POSTGRES_USER: ${DB_USER:-uneworld}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-uneworld}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   backend:
     build: ./backend
     restart: unless-stopped
     env_file: .env
     environment:
+      # Banco: usa o Postgres EXTERNO. DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD vêm do .env.
       DB_ENGINE: postgresql
-      DB_HOST: db
-      DB_PORT: 5432
+      # Redis é o container acima (rede interna do compose).
       REDIS_HOST: redis
       REDIS_PORT: 6379
     volumes:
       - media_data:/app/media
       - geoip_data:/app/geoip_db
     depends_on:
-      db:
-        condition: service_healthy
       redis:
-        condition: service_started
-    expose:
-      - "8000"
-
-  frontend:
-    build: ./frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
+        condition: service_healthy
+    # Publica a porta do Daphne no host. O Nginx Proxy Manager (roteador público
+    # do servidor) aponta backend-uneworld-intranet.personalizeit.com.br para esta
+    # porta. 5800 escolhida por estar livre no servidor (8000 já é do flowbot-bot).
     ports:
-      # Host 80 → container 8080 (nginx roda não-root, escuta 8080). A-15
-      - "${HTTP_PORT:-80}:8080"
+      - "${BACKEND_PORT:-5800}:8000"
+    # Bate no /healthz (verifica banco + cache). start_period cobre o boot
+    # (migrate + collectstatic) para não marcar unhealthy cedo demais.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5).status==200 else 1)\""]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 60s
 
 volumes:
-  db_data:
   media_data:
   geoip_data:
