@@ -84,7 +84,11 @@ REDIS_HOST = config('REDIS_HOST', default='')
 if REDIS_HOST:
     CHANNEL_LAYERS = {
         'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            # PubSub em vez do RedisChannelLayer (baseado em listas/BRPOP): o uso
+            # aqui é só broadcast (group_send p/ o dashboard), e o layer de listas
+            # cospe "Timeout reading from redis" periódico nas conexões WS ociosas.
+            # O PubSub usa pub/sub nativo (sem BRPOP bloqueante) e não tem esse ruído.
+            'BACKEND': 'channels_redis.pubsub.RedisPubSubChannelLayer',
             'CONFIG': {
                 'hosts': [(REDIS_HOST, config('REDIS_PORT', default=6379, cast=int))],
             },
@@ -318,6 +322,12 @@ if SECURE_SSL_REDIRECT:
     SECURE_HSTS_SECONDS = 31536000          # 1 ano
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+    # O healthcheck do Docker bate em http://127.0.0.1:8000/healthz SEM passar pelo
+    # proxy (logo, sem X-Forwarded-Proto: https), então o SecurityMiddleware o
+    # redirecionaria (301) e o container ficaria "unhealthy". Isenta /healthz do
+    # redirect — é público e não trafega dado sensível. (Padrão matched contra
+    # request.path sem a barra inicial.)
+    SECURE_REDIRECT_EXEMPT = [r'^healthz$']
 
 # ── Monitoramento de erros (Sentry) — OPCIONAL ────────────────────────────────
 # Ativa só quando SENTRY_DSN está definido (e fora de DEBUG). O import é protegido:
