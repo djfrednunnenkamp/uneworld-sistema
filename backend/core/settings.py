@@ -295,7 +295,7 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Domínio dos cookies de sessão/CSRF. Em deploy cross-subdomínio (front e back em
 # subdomínios distintos do MESMO domínio — ex.: uneworld-intranet... e
-# backend-uneworld-intranet...), defina o domínio-pai (ex.: ".personalizeit.com.br")
+# backend-uneworld-intranet...), defina o domínio-pai (ex.: ".uneworld.com.br")
 # para o cookie ser compartilhado entre os dois e o CSRF-token ser legível pelo
 # front. Vazio (None) = comportamento padrão do Django (cookie preso ao host).
 # Isso continua same-site (SameSite=Lax funciona), pois compartilham o mesmo
