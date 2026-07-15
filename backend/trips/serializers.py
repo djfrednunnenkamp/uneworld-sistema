@@ -236,6 +236,17 @@ class PassengerListSerializer(serializers.ModelSerializer):
                 out.append(p.full_name)
         return out
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Capacidade do bloqueio e total de acomodações vêm da Disponibilidade do
+        # roteiro (Valores › Disponibilidade) quando há bloqueios definidos. Só cai
+        # nos campos manuais quando o roteiro ainda não tem disponibilidade.
+        totals = instance.inventory_totals
+        if totals is not None:
+            data['block_capacity'] = totals['block_capacity']
+            data['total_accommodations'] = totals['total_accommodations']
+        return data
+
     def update(self, instance, validated_data):
         # Lista vinculada a um roteiro ATIVO tem os campos herdados do roteiro
         # travados (nome, tipo, categoria, datas e aeroportos base). Se o roteiro
@@ -244,6 +255,11 @@ class PassengerListSerializer(serializers.ModelSerializer):
             for f in ('name', 'list_type', 'category', 'start_date', 'end_date',
                       'default_airport', 'default_airports'):
                 validated_data.pop(f, None)
+        # Capacidade/acomodações são derivadas da disponibilidade do roteiro quando
+        # ela existe — ignora qualquer valor manual enviado nesses casos.
+        if instance.inventory_totals is not None:
+            validated_data.pop('block_capacity', None)
+            validated_data.pop('total_accommodations', None)
         return super().update(instance, validated_data)
 
     def get_default_airport_data(self, obj):

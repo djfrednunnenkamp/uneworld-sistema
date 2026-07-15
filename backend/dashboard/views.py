@@ -101,7 +101,7 @@ def dashboard_stats(request):
         # Exclui viagens já encerradas (end_date preenchida e no passado)
         qs = PassengerList.objects.filter(
             models.Q(end_date__isnull=True) | models.Q(end_date__gte=today), is_deleted=False,
-        )
+        ).prefetch_related('roteiros__inventory_blocks')
         if scope is not None:
             # Só listas em que a agência dele tem passageiros.
             qs = qs.filter(list_enrollments__agency_id__in=scope).distinct()
@@ -120,7 +120,8 @@ def dashboard_stats(request):
                 # Para usuário de agência, mostra só a contagem de passageiros DELE na lista.
                 'enrolled_count': (l.list_enrollments.filter(agency_id__in=scope).exclude(passenger__is_deleted=True).count()
                                    if scope is not None else l.enrolled_count),
-                'block_capacity': l.block_capacity,
+                # Capacidade derivada da disponibilidade do roteiro (com fallback ao manual).
+                'block_capacity': (l.inventory_totals or {}).get('block_capacity', l.block_capacity),
                 'is_ongoing': _ongoing(l),
                 'updated_at': l.updated_at,
             }
