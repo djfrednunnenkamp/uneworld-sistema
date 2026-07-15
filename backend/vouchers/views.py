@@ -10,6 +10,18 @@ from .models import VoucherList, VoucherTemplate, VoucherFlightConfirmation, Vou
 from . import build
 
 
+def _itin_cover_url(itin, request):
+    """URL da capa do roteiro: imagem kind='cover'; senão a 1ª da galeria."""
+    if not itin:
+        return None
+    imgs = list(itin.images.all())
+    cover = next((i for i in imgs if i.kind == 'cover'), None) \
+        or next((i for i in imgs if i.day_id is None), None)
+    if not cover or not cover.image:
+        return None
+    return request.build_absolute_uri(cover.image.url) if request else cover.image.url
+
+
 def _sanitize_blocks(blocks):
     """Guarda só o essencial de cada bloco (tipo conhecido + campos)."""
     if not isinstance(blocks, list):
@@ -69,12 +81,14 @@ class VoucherViewSet(viewsets.ViewSet):
             pax_qs = ListEnrollment.objects.filter(passenger_list=pl, passenger__isnull=False)
             if scope is not None:
                 pax_qs = pax_qs.filter(agency_id__in=scope)
+            roteiros = list(pl.roteiros.all())
             row = {
                 'id': pl.id,
                 'name': pl.name,
                 'start_date': pl.start_date,
                 'end_date': pl.end_date,
-                'roteiro_name': ', '.join(r.name for r in pl.roteiros.all()) or None,
+                'roteiro_name': ', '.join(r.name for r in roteiros) or None,
+                'roteiro_cover': _itin_cover_url(roteiros[0], request) if roteiros else None,
                 'passenger_count': pax_qs.count(),
                 'is_custom': bool(voucher and voucher.blocks),
                 'status': (voucher.status if voucher else 'em_edicao'),

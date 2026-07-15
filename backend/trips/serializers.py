@@ -86,11 +86,22 @@ class RoteiroSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     airports_data = serializers.SerializerMethodField()
     cabin_groups  = serializers.SerializerMethodField()
+    cover         = serializers.SerializerMethodField()
 
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data',
-                  'has_barco', 'has_voo', 'has_terrestre', 'cabin_groups']
+                  'has_barco', 'has_voo', 'has_terrestre', 'cabin_groups', 'cover']
+
+    def get_cover(self, obj):
+        # Capa do roteiro: imagem kind='cover'; senão a 1ª da galeria (day nulo).
+        imgs = list(obj.images.all())
+        cover = next((i for i in imgs if i.kind == 'cover'), None) \
+            or next((i for i in imgs if i.day_id is None), None)
+        if not cover or not cover.image:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(cover.image.url) if request else cover.image.url
 
     def get_cabin_groups(self, obj):
         # Grupos de cabine (categoria + capacidade) que TÊM preço definido no
