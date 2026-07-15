@@ -276,8 +276,11 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # da direita, sem confiar no item forjável da esquerda (anti-bypass de rate-limit).
 TRUSTED_PROXY_COUNT = config('TRUSTED_PROXY_COUNT', default=1, cast=int)
 
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+# Cookies só por HTTPS. Default seguro (True em produção). Para testar por HTTP
+# puro (ex.: acesso por IP sem TLS) defina SESSION_COOKIE_SECURE=False no .env —
+# senão o navegador nem guarda o cookie de sessão e o login não "cola".
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
 
 # Expiração de sessão. O default do Django é 2 SEMANAS fixas — demais para um ERP
 # com PII (CPF/RG/passaporte): um cookie roubado ou navegador esquecido fica válido
@@ -300,15 +303,18 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 # front. Vazio (None) = comportamento padrão do Django (cookie preso ao host).
 # Isso continua same-site (SameSite=Lax funciona), pois compartilham o mesmo
 # domínio registrável.
-SESSION_COOKIE_DOMAIN = config('SESSION_COOKIE_DOMAIN', default=None)
-CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default=None)
+# Vazio = None (cookie preso ao host — obrigatório ao acessar por IP, pois não dá
+# para prender cookie a um domínio-pai quando o host é um IP).
+SESSION_COOKIE_DOMAIN = config('SESSION_COOKIE_DOMAIN', default='') or None
+CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default='') or None
 
-# HSTS e redirect forçado para HTTPS só em PRODUÇÃO (DEBUG=False). Em dev local
-# (HTTP puro) ligar isso quebraria o acesso — o browser passaria a exigir HTTPS.
-# O redirect respeita o SECURE_PROXY_SSL_HEADER acima (Cloudflare/nginx), então
-# não entra em loop quando o TLS termina no proxy.
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+# Redirect forçado para HTTPS + HSTS. Default: ligado em produção (DEBUG=False).
+# Para testar por HTTP puro (acesso por IP sem TLS), defina SECURE_SSL_REDIRECT=False
+# no .env — senão o Django devolve 301 para https:// e o teste por HTTP quebra.
+# O redirect respeita o SECURE_PROXY_SSL_HEADER acima, então não entra em loop
+# quando o TLS termina no proxy (Cloudflare/NPM).
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
+if SECURE_SSL_REDIRECT:
     SECURE_HSTS_SECONDS = 31536000          # 1 ano
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
