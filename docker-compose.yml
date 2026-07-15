@@ -35,7 +35,7 @@ services:
       redis:
         condition: service_healthy
     # Publica a porta do Daphne no host. O Nginx Proxy Manager (roteador público
-    # do servidor) aponta backend-uneworld-intranet.personalizeit.com.br para esta
+    # do servidor) aponta backend-intranet.uneworld.com.br para esta
     # porta. 5800 escolhida por estar livre no servidor (8000 já é do flowbot-bot).
     ports:
       - "${BACKEND_PORT:-5800}:8000"
