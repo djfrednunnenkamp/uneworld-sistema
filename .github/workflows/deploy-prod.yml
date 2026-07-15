@@ -1,0 +1,64 @@
+name: Deploy (Production)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+
+            DEPLOY_PATH="${{ vars.DEPLOY_PATH }}"
+            if [ -z "$DEPLOY_PATH" ]; then
+              DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+              if [ -n "$DEPLOY_PATH" ]; then
+                echo "INFO: Using secrets.DEPLOY_PATH (configured as secret)."
+              fi
+            else
+              echo "INFO: Using vars.DEPLOY_PATH (configured as variable)."
+            fi
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "ERROR: DEPLOY_PATH is empty for Environment 'production'."
+              echo "Set it as a Variable (preferred) or Secret: DEPLOY_PATH."
+              exit 2
+            fi
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "ERROR: DEPLOY_PATH does not exist: $DEPLOY_PATH"
+              exit 2
+            fi
+
+            cd "$DEPLOY_PATH"
+            if [ ! -d .git ]; then
+              echo "ERROR: DEPLOY_PATH is not a git repository: $DEPLOY_PATH"
+              echo "Expected to find: $DEPLOY_PATH/.git"
+              exit 2
+            fi
+
+            git fetch --prune origin
+            git checkout main
+            git reset --hard origin/main
+            sudo docker compose build
+            sudo docker compose up -d --remove-orphans

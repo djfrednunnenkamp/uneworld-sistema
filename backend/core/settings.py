@@ -293,6 +293,16 @@ SESSION_COOKIE_HTTPONLY = True              # cookie de sessão inacessível via
 SESSION_COOKIE_SAMESITE = 'Lax'             # mitiga CSRF cross-site
 CSRF_COOKIE_SAMESITE = 'Lax'
 
+# Domínio dos cookies de sessão/CSRF. Em deploy cross-subdomínio (front e back em
+# subdomínios distintos do MESMO domínio — ex.: uneworld-intranet... e
+# backend-uneworld-intranet...), defina o domínio-pai (ex.: ".personalizeit.com.br")
+# para o cookie ser compartilhado entre os dois e o CSRF-token ser legível pelo
+# front. Vazio (None) = comportamento padrão do Django (cookie preso ao host).
+# Isso continua same-site (SameSite=Lax funciona), pois compartilham o mesmo
+# domínio registrável.
+SESSION_COOKIE_DOMAIN = config('SESSION_COOKIE_DOMAIN', default=None)
+CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default=None)
+
 # HSTS e redirect forçado para HTTPS só em PRODUÇÃO (DEBUG=False). Em dev local
 # (HTTP puro) ligar isso quebraria o acesso — o browser passaria a exigir HTTPS.
 # O redirect respeita o SECURE_PROXY_SSL_HEADER acima (Cloudflare/nginx), então
