@@ -971,9 +971,22 @@ class FlightSegmentViewSet(viewsets.ModelViewSet):
 
 
 class FlightClassSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=80)   # sem UniqueValidator herdado
+
     class Meta:
         model = ConfigFlightClass
         fields = ['id', 'name', 'itinerary']
+        validators = []   # unicidade por escopo (itinerary, name) — ver abaixo
+
+    def validate(self, attrs):
+        name = attrs.get('name', getattr(self.instance, 'name', None))
+        itin = attrs.get('itinerary', getattr(self.instance, 'itinerary', None))
+        qs = ConfigFlightClass.objects.filter(name=name, itinerary=itin)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError({'name': 'Já existe uma classe com esse nome aqui.'})
+        return attrs
 
 
 class FlightClassViewSet(viewsets.ModelViewSet):
@@ -1794,9 +1807,25 @@ def _scoped_config_qs(qs, view):
 
 
 class AccommodationSerializer(serializers.ModelSerializer):
+    # `name` declarado explícito p/ NÃO herdar o UniqueValidator que o DRF gera do
+    # UniqueConstraint de campo único (ele ignora a condição `itinerary IS NULL` e
+    # barraria criar um tipo do roteiro com nome que já existe no global).
+    name = serializers.CharField(max_length=200)
+
     class Meta:
         model = ConfigAccommodation
         fields = ['id', 'name', 'capacity', 'is_couple', 'itinerary']
+        validators = []   # unicidade por ESCOPO validada manualmente (validate)
+
+    def validate(self, attrs):
+        name = attrs.get('name', getattr(self.instance, 'name', None))
+        itin = attrs.get('itinerary', getattr(self.instance, 'itinerary', None))
+        qs = ConfigAccommodation.objects.filter(name=name, itinerary=itin)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError({'name': 'Já existe um tipo com esse nome aqui.'})
+        return attrs
 
 
 class AccommodationViewSet(viewsets.ModelViewSet):
@@ -1810,9 +1839,23 @@ class AccommodationViewSet(viewsets.ModelViewSet):
 # ── Tipos de Cabine (navio) ────────────────────────────────────────────────
 
 class ShipCabinSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=200)   # sem UniqueValidator herdado
+
     class Meta:
         model = ConfigShipCabin
         fields = ['id', 'category', 'name', 'capacity', 'is_couple', 'itinerary']
+        validators = []   # unicidade por escopo (itinerary, category, name) — ver abaixo
+
+    def validate(self, attrs):
+        name = attrs.get('name', getattr(self.instance, 'name', None))
+        cat  = attrs.get('category', getattr(self.instance, 'category', ''))
+        itin = attrs.get('itinerary', getattr(self.instance, 'itinerary', None))
+        qs = ConfigShipCabin.objects.filter(name=name, category=cat or '', itinerary=itin)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError({'name': 'Já existe uma cabine com esse nome nesta categoria aqui.'})
+        return attrs
 
 
 class ShipCabinViewSet(viewsets.ModelViewSet):
