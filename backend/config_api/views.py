@@ -973,7 +973,7 @@ class FlightSegmentViewSet(viewsets.ModelViewSet):
 class FlightClassSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigFlightClass
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'itinerary']
 
 
 class FlightClassViewSet(viewsets.ModelViewSet):
@@ -984,7 +984,9 @@ class FlightClassViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ConfigFlightClass.objects.all()
         q = self.request.query_params.get('q', '').strip()
-        return qs.filter(name__icontains=q) if q else qs
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return _scoped_config_qs(qs, self)
 
 
 class InclusionSerializer(serializers.ModelSerializer):

@@ -784,11 +784,18 @@ class ConfigFlightSegment(models.Model):
 
 class ConfigFlightClass(models.Model):
     """Classe da passagem aérea (aba Valores › Aéreo): ex. Econômica, Premium
-    Economy, Executiva, Primeira Classe. Cadastrada nas Configurações."""
-    name = models.CharField('Nome', max_length=80, unique=True)
+    Economy, Executiva, Primeira Classe. Cadastrada nas Configurações.
+    Pode ser personalizada por roteiro (FK itinerary opcional, igual à
+    acomodação/cabine): null = global; setado = exclusiva do roteiro."""
+    name = models.CharField('Nome', max_length=80)
+    itinerary = models.ForeignKey('itineraries.Itinerary', null=True, blank=True, on_delete=models.CASCADE, related_name='+')
 
     class Meta:
         ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(fields=['name'], condition=models.Q(itinerary__isnull=True), name='uniq_global_flightclass'),
+            models.UniqueConstraint(fields=['itinerary', 'name'], name='uniq_roteiro_flightclass'),
+        ]
         verbose_name = 'Classe aérea'
         verbose_name_plural = 'Classes aéreas'
 
