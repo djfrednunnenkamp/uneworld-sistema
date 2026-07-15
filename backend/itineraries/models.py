@@ -793,3 +793,44 @@ class ItineraryCostItem(models.Model):
 
     def __str__(self):
         return f'{self.description} ({self.get_cost_type_display()})'
+
+
+class ItineraryInventoryBlock(models.Model):
+    """Bloqueio / disponibilidade do roteiro (aba Valores › Disponibilidade).
+
+    Registra quantas UNIDADES (quartos, assentos ou cabines) estão bloqueadas por
+    tipo de transporte e por classe. As classes vêm dos catálogos de Configurações.
+
+    - Terrestre: `accommodations` (M2M) lista as classes de quarto do bloco. Uma
+      classe só = bloco FIXO; várias = POOL compartilhado (ex.: 10 unidades que
+      podem virar single OU duplo — se 1 vira single, sobram 9 pro duplo).
+    - Aéreo: `airline` (companhia, opcional) + `flight_class` (classe);
+      `quantity` = nº de assentos bloqueados.
+    - Navio: `ship_cabin` (cabine representante do grupo categoria+capacidade, ex.:
+      'Janela · Duplo'); `quantity` = nº de cabines.
+    """
+    KIND_CHOICES = [('terrestre', 'Terrestre'), ('aereo', 'Aéreo'), ('navio', 'Navio')]
+
+    itinerary    = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='inventory_blocks')
+    kind         = models.CharField('Tipo', max_length=10, choices=KIND_CHOICES)
+    quantity     = models.PositiveIntegerField('Quantidade (unidades no bloco)', default=0)
+
+    # Terrestre — classes de quarto permitidas (1 = fixo; várias = pool compartilhado).
+    accommodations = models.ManyToManyField('config_api.ConfigAccommodation', blank=True, related_name='+')
+    # Navio — grupo de cabine (categoria + capacidade), guardado pela cabine representante.
+    ship_cabin   = models.ForeignKey('config_api.ConfigShipCabin', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    # Aéreo — companhia (opcional) + classe.
+    airline      = models.ForeignKey('config_api.Airline', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    flight_class = models.ForeignKey('config_api.ConfigFlightClass', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+
+    notes        = models.CharField('Observação', max_length=200, blank=True, default='')
+    order        = models.PositiveIntegerField('Ordem', default=0)
+    is_active    = models.BooleanField('Ativo', default=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['kind', 'order', 'id']
+
+    def __str__(self):
+        return f'Bloqueio {self.get_kind_display()} · {self.quantity} (roteiro {self.itinerary_id})'

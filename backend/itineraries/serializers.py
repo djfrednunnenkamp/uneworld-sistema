@@ -5,7 +5,8 @@ from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, Confi
 from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
-                     ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate)
+                     ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
+                     ItineraryInventoryBlock)
 from . import onlyoffice
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -788,3 +789,24 @@ class ItineraryCostItemSerializer(serializers.ModelSerializer):
                   'flight_segment', 'flight_segment_name', 'flight_class', 'flight_class_name',
                   'tax_kind', 'tax_value',
                   'payment_method', 'due_date', 'included_in_price', 'is_active', 'order', 'notes']
+
+
+class ItineraryInventoryBlockSerializer(serializers.ModelSerializer):
+    """Bloqueio / disponibilidade (aba Valores › Disponibilidade)."""
+    accommodations_data = serializers.SerializerMethodField()
+    ship_cabin_name = serializers.CharField(source='ship_cabin.name', read_only=True, default=None)
+    ship_cabin_category = serializers.CharField(source='ship_cabin.category', read_only=True, default=None)
+    ship_cabin_capacity = serializers.IntegerField(source='ship_cabin.capacity', read_only=True, default=None)
+    airline_name = serializers.CharField(source='airline.name', read_only=True, default=None)
+    flight_class_name = serializers.CharField(source='flight_class.name', read_only=True, default=None)
+
+    class Meta:
+        model = ItineraryInventoryBlock
+        fields = ['id', 'itinerary', 'kind', 'quantity',
+                  'accommodations', 'accommodations_data',
+                  'ship_cabin', 'ship_cabin_name', 'ship_cabin_category', 'ship_cabin_capacity',
+                  'airline', 'airline_name', 'flight_class', 'flight_class_name',
+                  'notes', 'order', 'is_active']
+
+    def get_accommodations_data(self, obj):
+        return [{'id': a.id, 'name': a.name, 'capacity': a.capacity} for a in obj.accommodations.all()]
