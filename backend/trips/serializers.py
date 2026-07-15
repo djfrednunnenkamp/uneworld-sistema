@@ -85,11 +85,28 @@ class RoteiroSerializer(serializers.ModelSerializer):
     Carrega os campos que auto-preenchem a lista ao selecionar o roteiro."""
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     airports_data = serializers.SerializerMethodField()
+    cabin_groups  = serializers.SerializerMethodField()
 
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data',
-                  'has_barco', 'has_voo', 'has_terrestre']
+                  'has_barco', 'has_voo', 'has_terrestre', 'cabin_groups']
+
+    def get_cabin_groups(self, obj):
+        # Grupos de cabine (categoria + capacidade) que TÊM preço definido no
+        # roteiro (linhas de acomodação de navio) — para a lista só oferecer esses.
+        out, seen = [], set()
+        for l in obj.accommodation_lines.select_related('ship_cabin').all():
+            if not (l.ship_cabin_id or l.accommodation_label):
+                continue   # é hotel, não cabine
+            cat = (l.ship_cabin.category if l.ship_cabin_id else
+                   ((l.accommodation_label or '').split(' — ')[0]))
+            key = ((cat or '').strip(), l.capacity)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({'category': key[0], 'capacity': l.capacity})
+        return out
 
     def get_airports_data(self, obj):
         # Aeroportos base do roteiro = os aeroportos de saída dos blocos de partida
