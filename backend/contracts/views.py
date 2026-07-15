@@ -146,7 +146,15 @@ def enroll_contract_guests(contract, pl):
         by_type = defaultdict(list)
         for g in contract.guests.select_related('passenger', 'accommodation_type').all():
             if g.passenger_id:
-                by_type[g.accommodation_type_id].append(g)
+                # Hotel agrupa por tipo; cabine de navio (sem tipo) por (rótulo,
+                # capacidade) — senão todas caem num "Acomodação" genérico.
+                if g.accommodation_type_id:
+                    key = ('acc', g.accommodation_type_id)
+                elif g.accommodation_label or g.ship_cabin_id:
+                    key = ('cab', g.accommodation_label or '', g.capacity)
+                else:
+                    key = ('none', None)
+                by_type[key].append(g)
 
         existing_rooms = set(pl.rooms.values_list('name', flat=True))
         # Ocupação atual de cada quarto (por nome), p/ reaproveitar vagas.
@@ -162,10 +170,18 @@ def enroll_contract_guests(contract, pl):
                 i += 1
             return f'{tname} {i}'
 
-        for _tid, gs in by_type.items():
-            atype = gs[0].accommodation_type
-            cap = max(1, (atype.capacity if atype else 1) or 1)
-            tname = atype.name if atype else 'Acomodação'
+        for _key, gs in by_type.items():
+            g0 = gs[0]
+            atype = g0.accommodation_type
+            if atype:                                   # hotel (aéreo/terrestre)
+                cap = max(1, (atype.capacity or 1))
+                tname = atype.name
+            elif g0.accommodation_label:                # cabine de navio
+                cap = max(1, (g0.capacity or 1))
+                tname = g0.accommodation_label
+            else:
+                cap = 1
+                tname = 'Acomodação'
 
             # Só entram quem tem passageiro e ainda não está na lista.
             pending = []
