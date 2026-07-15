@@ -169,6 +169,29 @@ class PassengerList(models.Model):
         # Passageiros na lixeira (soft-delete) não contam; bloqueios (passenger nulo) permanecem.
         return self.list_enrollments.exclude(passenger__is_deleted=True).count()
 
+    @property
+    def inventory_totals(self):
+        """Capacidade e total de acomodações vindos da Disponibilidade dos roteiros
+        vinculados (Valores › Disponibilidade), somando os bloqueios ativos:
+        - block_capacity      = assentos do bloqueio aéreo (blocos kind='aereo');
+        - total_accommodations = quartos + cabines (kind='terrestre' e 'navio').
+        Retorna None quando nenhum bloco foi definido — aí valem os campos manuais
+        legados (compatibilidade com listas antigas sem disponibilidade)."""
+        air = acc = 0
+        found = False
+        for r in self.roteiros.all():
+            for b in r.inventory_blocks.all():
+                if not b.is_active:
+                    continue
+                found = True
+                if b.kind == 'aereo':
+                    air += b.quantity
+                elif b.kind in ('terrestre', 'navio'):
+                    acc += b.quantity
+        if not found:
+            return None
+        return {'block_capacity': air, 'total_accommodations': acc}
+
 
 class ListEnrollment(models.Model):
     STATUS_CHOICES = [

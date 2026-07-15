@@ -86,11 +86,22 @@ class RoteiroSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     airports_data = serializers.SerializerMethodField()
     cabin_groups  = serializers.SerializerMethodField()
+    cover         = serializers.SerializerMethodField()
 
     class Meta:
         model  = Itinerary
         fields = ['id', 'name', 'start_date', 'end_date', 'capacity', 'trip_type', 'category_name', 'airports_data',
-                  'has_barco', 'has_voo', 'has_terrestre', 'cabin_groups']
+                  'has_barco', 'has_voo', 'has_terrestre', 'cabin_groups', 'cover']
+
+    def get_cover(self, obj):
+        # Capa do roteiro: imagem kind='cover'; senão a 1ª da galeria (day nulo).
+        imgs = list(obj.images.all())
+        cover = next((i for i in imgs if i.kind == 'cover'), None) \
+            or next((i for i in imgs if i.day_id is None), None)
+        if not cover or not cover.image:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(cover.image.url) if request else cover.image.url
 
     def get_cabin_groups(self, obj):
         # Grupos de cabine (categoria + capacidade) que TÊM preço definido no
@@ -225,6 +236,17 @@ class PassengerListSerializer(serializers.ModelSerializer):
                 out.append(p.full_name)
         return out
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Capacidade do bloqueio e total de acomodações vêm da Disponibilidade do
+        # roteiro (Valores › Disponibilidade) quando há bloqueios definidos. Só cai
+        # nos campos manuais quando o roteiro ainda não tem disponibilidade.
+        totals = instance.inventory_totals
+        if totals is not None:
+            data['block_capacity'] = totals['block_capacity']
+            data['total_accommodations'] = totals['total_accommodations']
+        return data
+
     def update(self, instance, validated_data):
         # Lista vinculada a um roteiro ATIVO tem os campos herdados do roteiro
         # travados (nome, tipo, categoria, datas e aeroportos base). Se o roteiro
@@ -233,6 +255,11 @@ class PassengerListSerializer(serializers.ModelSerializer):
             for f in ('name', 'list_type', 'category', 'start_date', 'end_date',
                       'default_airport', 'default_airports'):
                 validated_data.pop(f, None)
+        # Capacidade/acomodações são derivadas da disponibilidade do roteiro quando
+        # ela existe — ignora qualquer valor manual enviado nesses casos.
+        if instance.inventory_totals is not None:
+            validated_data.pop('block_capacity', None)
+            validated_data.pop('total_accommodations', None)
         return super().update(instance, validated_data)
 
     def get_default_airport_data(self, obj):

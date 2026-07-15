@@ -22,7 +22,8 @@ from . import onlyoffice
 from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, ItineraryDeparture,
                      ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
-                     ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate)
+                     ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
+                     ItineraryInventoryBlock)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
@@ -30,7 +31,7 @@ from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer,
                           ItineraryDocumentSerializer, ItineraryDocumentFolderSerializer,
                           ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
-                          ItineraryCurrencyRateSerializer)
+                          ItineraryCurrencyRateSerializer, ItineraryInventoryBlockSerializer)
 from core.search import AccentInsensitiveSearchFilter
 
 
@@ -1491,3 +1492,28 @@ class ItineraryCurrencyRateViewSet(viewsets.ModelViewSet):
             it = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=it) if it else qs.none()
         return qs
+
+
+class ItineraryInventoryBlockViewSet(viewsets.ModelViewSet):
+    """Bloqueios / disponibilidade do roteiro (aba Valores › Disponibilidade).
+    Filtra por ?itinerary=<id>."""
+    serializer_class = ItineraryInventoryBlockSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = (ItineraryInventoryBlock.objects
+              .select_related('ship_cabin', 'airline', 'flight_class')
+              .prefetch_related('accommodations'))
+        if self.action == 'list':
+            it = self.request.query_params.get('itinerary')
+            return qs.filter(itinerary_id=it) if it else qs.none()
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        ids = request.data.get('order') or []
+        with transaction.atomic():
+            for pos, cid in enumerate(ids):
+                ItineraryInventoryBlock.objects.filter(pk=cid).update(order=pos)
+        return Response(status=status.HTTP_204_NO_CONTENT)

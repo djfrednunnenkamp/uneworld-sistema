@@ -224,6 +224,9 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         'default_airport', 'departure_country', 'departure_state', 'departure_city', 'bus_map'
     ).prefetch_related(
         'suppliers', 'additionals', 'roteiros', 'default_airports',
+        # Bloqueios de disponibilidade dos roteiros (capacidade/acomodações
+        # derivadas) — evita N+1 na listagem/detalhe.
+        'roteiros__inventory_blocks',
         # Guias da lista (passageiros marcados como guia, não cancelados) — p/ a
         # coluna "Guia" na listagem, sem N+1.
         Prefetch('list_enrollments',
