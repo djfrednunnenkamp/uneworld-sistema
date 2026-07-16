@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
 
+from core.storages import public_media_storage
+
 
 def avatar_upload_path(instance, filename):
     # Sempre .jpg (o upload é revalidado e re-encodado como JPEG no backend).
@@ -50,8 +52,8 @@ class UserPermissions(models.Model):
     # Foto de perfil. Sempre revalidada e re-encodada como JPEG no upload (seguro).
     # `avatar` = recorte exibido; `avatar_original` = imagem completa enviada;
     # `avatar_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.
-    avatar          = models.ImageField('Foto de perfil', upload_to=avatar_upload_path, null=True, blank=True)
-    avatar_original = models.ImageField('Foto de perfil (original)', upload_to=avatar_upload_path, null=True, blank=True)
+    avatar          = models.ImageField('Foto de perfil', upload_to=avatar_upload_path, storage=public_media_storage, null=True, blank=True)
+    avatar_original = models.ImageField('Foto de perfil (original)', upload_to=avatar_upload_path, storage=public_media_storage, null=True, blank=True)
     avatar_crop     = models.JSONField('Recorte da foto', default=dict, blank=True)
 
     # Visão Geral (Dashboard)

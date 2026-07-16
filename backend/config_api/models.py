@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.core.validators import RegexValidator
 from django.db import models
 
+from core.storages import public_media_storage
+
 
 def airline_logo_path(instance, filename):
     """Nome único (uuid) para a logo da companhia — evita cache velho ao trocar."""
@@ -452,7 +454,7 @@ class Airline(models.Model):
     is_favorite = models.BooleanField('Favorito', default=False, db_index=True)
     # Logo normalizada em 320×160 PNG (fundo transparente) — upload manual (com
     # recorte no front) ou baixada da Kiwi pelo código IATA.
-    logo        = models.ImageField('Logo', upload_to=airline_logo_path, null=True, blank=True)
+    logo        = models.ImageField('Logo', upload_to=airline_logo_path, storage=public_media_storage, null=True, blank=True)
 
     class Meta:
         ordering            = ['name']
@@ -643,28 +645,28 @@ class SystemSettings(models.Model):
     a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
 
     # Logos configuráveis por lugar (branding). Vazio = usa o /logo.png padrão.
-    logo_system   = models.ImageField('Logo do tema (sistema)', upload_to=branding_logo_path, null=True, blank=True)  # legado
-    logo_sidebar  = models.ImageField('Logo da sidebar', upload_to=branding_logo_path, null=True, blank=True)
-    logo_topbar   = models.ImageField('Logo do topo (barra branca)', upload_to=branding_logo_path, null=True, blank=True)
-    logo_login    = models.ImageField('Logo das telas de login', upload_to=branding_logo_path, null=True, blank=True)
-    favicon       = models.ImageField('Favicon (ícone do navegador)', upload_to=branding_logo_path, null=True, blank=True)
-    logo_site     = models.ImageField('Logo do site (vitrine)', upload_to=branding_logo_path, null=True, blank=True)
-    logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to=branding_logo_path, null=True, blank=True)
-    logo_contract = models.ImageField('Logo dos contratos', upload_to=branding_logo_path, null=True, blank=True)
-    logo_voucher  = models.ImageField('Logo dos vouchers', upload_to=branding_logo_path, null=True, blank=True)
-    logo_list     = models.ImageField('Logo do PDF da lista de passageiros', upload_to=branding_logo_path, null=True, blank=True)
+    logo_system   = models.ImageField('Logo do tema (sistema)', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)  # legado
+    logo_sidebar  = models.ImageField('Logo da sidebar', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_topbar   = models.ImageField('Logo do topo (barra branca)', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_login    = models.ImageField('Logo das telas de login', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    favicon       = models.ImageField('Favicon (ícone do navegador)', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_site     = models.ImageField('Logo do site (vitrine)', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_pdf      = models.ImageField('Logo do PDF dos roteiros', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_contract = models.ImageField('Logo dos contratos', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_voucher  = models.ImageField('Logo dos vouchers', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_list     = models.ImageField('Logo do PDF da lista de passageiros', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
     # Não-destrutivo: a imagem ORIGINAL de cada logo (para reabrir/desfazer o
     # enquadramento). Os dados do recorte ficam em `branding_crops` (slot → {u,v,du,dv,fw,fh}).
-    logo_system_original   = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_sidebar_original  = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_topbar_original   = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_login_original    = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    favicon_original       = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_site_original     = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_pdf_original      = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_contract_original = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_voucher_original  = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
-    logo_list_original     = models.ImageField(upload_to=branding_logo_path, null=True, blank=True)
+    logo_system_original   = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_sidebar_original  = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_topbar_original   = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_login_original    = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    favicon_original       = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_site_original     = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_pdf_original      = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_contract_original = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_voucher_original  = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_list_original     = models.ImageField(upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
     branding_crops = models.JSONField('Recortes das logos', default=dict, blank=True)
     # Template GLOBAL padrão do voucher (blocos). Vazio = usa o padrão do código
     # (vouchers.models.DEFAULT_VOUCHER_BLOCKS). Cada lista pode ter o seu próprio.
@@ -934,7 +936,7 @@ class ConfigHotelMedia(models.Model):
     IMAGE = 'image'
     VIDEO = 'video'
     hotel       = models.ForeignKey(ConfigHotel, on_delete=models.CASCADE, related_name='media')
-    file        = models.FileField('Arquivo', upload_to=hotel_media_path)
+    file        = models.FileField('Arquivo', upload_to=hotel_media_path, storage=public_media_storage)
     kind        = models.CharField('Tipo', max_length=10, default=IMAGE)
     order       = models.PositiveIntegerField('Ordem', default=0)
     uploaded_at = models.DateTimeField('Enviado em', auto_now_add=True)
@@ -970,7 +972,7 @@ class ConfigBoatMedia(models.Model):
     IMAGE = 'image'
     VIDEO = 'video'
     boat        = models.ForeignKey(ConfigBoat, on_delete=models.CASCADE, related_name='media')
-    file        = models.FileField('Arquivo', upload_to=boat_media_path)
+    file        = models.FileField('Arquivo', upload_to=boat_media_path, storage=public_media_storage)
     kind        = models.CharField('Tipo', max_length=10, default=IMAGE)
     order       = models.PositiveIntegerField('Ordem', default=0)
     uploaded_at = models.DateTimeField('Enviado em', auto_now_add=True)

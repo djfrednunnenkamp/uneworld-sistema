@@ -155,13 +155,45 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# --- Armazenamento de mídia PÚBLICA no S3 (django-storages) ---------------------
+# Imagens públicas (logos, imagens/vídeos de roteiro, avatares, fotos, vouchers) vão
+# DIRETO pro S3 — não ocupam o disco do servidor. Documentos SENSÍVEIS continuam no
+# storage 'default' (local + views autenticadas). Se S3_BUCKET/credenciais estiverem
+# vazios (dev), 'public_media' cai no filesystem local — nada quebra.
+AWS_ACCESS_KEY_ID       = config('AWS_ACCESS_KEY_ID', default='')
+AWS_SECRET_ACCESS_KEY   = config('AWS_SECRET_ACCESS_KEY', default='')
+AWS_S3_REGION_NAME      = config('AWS_REGION', default='us-east-2')
+AWS_STORAGE_BUCKET_NAME = config('S3_BUCKET', default='')
+S3_PUBLIC_PREFIX        = config('S3_PREFIX', default='').strip('/')
+_USE_S3_PUBLIC = bool(AWS_STORAGE_BUCKET_NAME and AWS_ACCESS_KEY_ID)
+
 STORAGES = {
+    # Documentos SENSÍVEIS (docs de passageiro/roteiro, contratos, Drive, assinatura
+    # do CEO) — filesystem local, servidos só por views autenticadas (A-11).
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+if _USE_S3_PUBLIC:
+    STORAGES['public_media'] = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+        'OPTIONS': {
+            'access_key': AWS_ACCESS_KEY_ID,
+            'secret_key': AWS_SECRET_ACCESS_KEY,
+            'bucket_name': AWS_STORAGE_BUCKET_NAME,
+            'region_name': AWS_S3_REGION_NAME,
+            'location': S3_PUBLIC_PREFIX,   # ex.: uneworld/intranet/images/prod
+            'querystring_auth': False,      # URLs públicas limpas (sem assinatura)
+            'default_acl': None,            # bucket usa policy pública no prefixo (ACLs off)
+            'file_overwrite': False,
+        },
+    }
+else:
+    STORAGES['public_media'] = {'BACKEND': 'django.core.files.storage.FileSystemStorage'}
 
 # ── OnlyOffice Document Server (edição de Office na aba Observações do roteiro) ──
 # Vazio = integração desligada (o front mostra baixar/visualizar em vez de editar).
