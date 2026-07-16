@@ -252,6 +252,23 @@ RESEND_FROM     = config('RESEND_FROM_EMAIL', default='UneWorld Turismo <noreply
 FRONTEND_URL    = config('FRONTEND_URL', default='http://localhost:5173')
 BACKEND_URL          = config('BACKEND_URL',          default='')
 EMAIL_PREVIEW_ENABLED = config('EMAIL_PREVIEW_ENABLED', default='True') == 'True'
+
+# --- E-mail SMTP (fallback quando NÃO houver RESEND_API_KEY) ---------------------
+# O envio transacional usa Resend por padrão (agenda/email_service.py). Se RESEND_API_KEY
+# estiver vazio E EMAIL_HOST preenchido, o envio cai pro SMTP do Django (ex.: Mailgun).
+# Sem nenhum dos dois, o e-mail é apenas simulado/logado. Não muda produção (que usa Resend).
+EMAIL_BACKEND       = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST          = config('EMAIL_HOST', default='')
+EMAIL_PORT          = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS       = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL       = config('EMAIL_USE_SSL', default=False, cast=bool)
+EMAIL_HOST_USER     = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_TIMEOUT       = config('EMAIL_TIMEOUT', default=15, cast=int)
+# Remetente do SMTP. Tem que ser de um domínio autorizado no provedor (Mailgun),
+# por isso NÃO cai no RESEND_FROM (que é @uneworld.com.br) — usa o próprio usuário SMTP.
+EMAIL_FROM          = config('EMAIL_FROM', default='') or EMAIL_HOST_USER
+
 MAXMIND_ACCOUNT_ID  = config('MAXMIND_ACCOUNT_ID', default='')
 MAXMIND_LICENSE_KEY = config('MAXMIND_LICENSE_KEY', default='')
 
