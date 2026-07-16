@@ -4,6 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.conf import settings
 from django.utils import timezone
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.decorators import api_view, permission_classes, throttle_classes, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -182,9 +183,13 @@ def logout_view(request):
     return Response({'message': 'Logout realizado com sucesso.'})
 
 
+@ensure_csrf_cookie
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def me_view(request):
+    # @ensure_csrf_cookie: reemite o cookie csrftoken a cada boot do app (chamada
+    # do /me). Sem isso, em navegador mobile o cookie pode faltar/expirar e os POSTs
+    # (ex.: criar documento no Drive) falham com 403 CSRF enquanto os GET funcionam.
     user = request.user
     if request.method == 'PATCH':
         data = request.data
