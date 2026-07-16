@@ -2,7 +2,7 @@ name: Build e publicar imagens Docker
 
 on:
   push:
-    branches: [main, desenvolver]
+    branches: [main, develop]
     tags: ['v*']
   workflow_dispatch:
 
@@ -47,7 +47,7 @@ jobs:
             type=ref,event=branch
             type=ref,event=tag
             type=sha,format=short
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/desenvolver' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
 
       - name: Build e push
         uses: docker/build-push-action@v6

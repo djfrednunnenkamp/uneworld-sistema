@@ -1,0 +1,69 @@
+name: Deploy (Develop)
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-develop
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: develop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # Porta configurável. Se o sshd não estiver na 22, defina a Variable/Secret
+          # SSH_PORT. IMPORTANTE: DEPLOY_HOST deve ser o IP direto do servidor
+          # (147.93.13.64), NÃO um domínio atrás de Cloudflare/NPM — senão a porta
+          # SSH não chega no sshd real e o handshake falha ("overflow reading
+          # version string").
+          port: ${{ vars.SSH_PORT || secrets.SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+
+            DEPLOY_PATH="${{ vars.DEPLOY_PATH }}"
+            if [ -z "$DEPLOY_PATH" ]; then
+              DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+              if [ -n "$DEPLOY_PATH" ]; then
+                echo "INFO: Using secrets.DEPLOY_PATH (configured as secret)."
+              fi
+            else
+              echo "INFO: Using vars.DEPLOY_PATH (configured as variable)."
+            fi
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "ERROR: DEPLOY_PATH is empty for Environment 'develop'."
+              echo "Set it as a Variable (preferred) or Secret: DEPLOY_PATH."
+              exit 2
+            fi
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "ERROR: DEPLOY_PATH does not exist: $DEPLOY_PATH"
+              exit 2
+            fi
+
+            cd "$DEPLOY_PATH"
+            if [ ! -d .git ]; then
+              echo "ERROR: DEPLOY_PATH is not a git repository: $DEPLOY_PATH"
+              echo "Expected to find: $DEPLOY_PATH/.git"
+              exit 2
+            fi
+
+            git fetch --prune origin
+            git checkout develop
+            git reset --hard origin/develop
+            sudo docker compose build
+            sudo docker compose up -d --remove-orphans

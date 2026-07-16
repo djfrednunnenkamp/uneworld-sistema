@@ -48,6 +48,38 @@ services:
       retries: 5
       start_period: 60s
 
+  # OnlyOffice Document Server: edição de Word/Excel/PowerPoint/PDF no navegador
+  # (aba Observações do roteiro e Drive). Fica na MESMA rede do backend, então o DS
+  # alcança o Django por nome de serviço: no .env, ONLYOFFICE_BACKEND_URL=http://backend:8000
+  # (sem round-trip público). O NAVEGADOR acessa o DS pela ONLYOFFICE_DS_URL (domínio
+  # público roteado pelo Nginx Proxy Manager -> ONLYOFFICE_PORT, com WebSocket LIGADO).
+  # O JWT_SECRET aqui TEM que ser IGUAL ao ONLYOFFICE_JWT_SECRET do backend — os dois
+  # leem a MESMA variável do .env. Sem segredo, o callback de salvar é rejeitado.
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      JWT_HEADER: Authorization
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+      - onlyoffice_cache:/var/lib/onlyoffice
+    # Porta publicada no host (NPM aponta o domínio do DS pra cá). O DS escuta 80
+    # dentro do container. Use uma porta livre e DIFERENTE entre develop e prod.
+    ports:
+      - "${ONLYOFFICE_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
 volumes:
   media_data:
   geoip_data:
+  onlyoffice_data:
+  onlyoffice_logs:
+  onlyoffice_cache:
