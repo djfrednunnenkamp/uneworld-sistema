@@ -105,9 +105,18 @@ def dashboard_stats(request):
         if scope is not None:
             # Só listas em que a agência dele tem passageiros.
             qs = qs.filter(list_enrollments__agency_id__in=scope).distinct()
-        qs = qs.order_by('-created_at')[:20]
+        # Filtro pessoal: quais status o usuário quer ver no card (vazio = todos).
+        _lpref = getattr(user, 'calendar_preference', None)
+        allowed_status = set(_lpref.dashboard_list_statuses) if (_lpref and _lpref.dashboard_list_statuses) else None
+
+        def _bucket(l):
+            return 'ongoing' if _ongoing(l) else ('aberta' if l.status == 'aberta' else 'fechada')
+
+        # Com filtro ativo, puxa um pool maior para ainda preencher 10 após filtrar.
+        qs = qs.order_by('-created_at')[:60 if allowed_status else 20]
+        cand = [l for l in qs if allowed_status is None or _bucket(l) in allowed_status]
         # Em andamento aparecem primeiro, depois as demais
-        recent = sorted(qs, key=lambda l: (0 if _ongoing(l) else 1))[:10]
+        recent = sorted(cand, key=lambda l: (0 if _ongoing(l) else 1))[:10]
         recent_lists = [
             {
                 'id': l.id,

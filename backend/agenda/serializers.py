@@ -11,7 +11,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position',
                   'contract_create_layout', 'contract_edit_layout',
-                  'dashboard_currencies', 'dashboard_chart_range', 'lamina_recent_colors',
+                  'dashboard_currencies', 'dashboard_chart_range', 'dashboard_list_statuses', 'lamina_recent_colors',
                   'lamina_favorite_patterns', 'lamina_recent_patterns', 'lamina_favorite_recommended',
                   'lamina_favorite_themes',
                   'itinerary_tab_order', 'drive_columns',
@@ -63,6 +63,13 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
             return [int(v) for v in value]
         except (TypeError, ValueError):
             raise serializers.ValidationError('IDs de moeda inválidos.')
+
+    def validate_dashboard_list_statuses(self, value):
+        # Subconjunto de {'ongoing','aberta','fechada'} (status das listas no card).
+        allowed = {'ongoing', 'aberta', 'fechada'}
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Formato inválido.')
+        return [v for v in dict.fromkeys(value) if v in allowed]
 
     def validate_itinerary_tab_order(self, value):
         # Lista de chaves de aba (strings). Guardamos como veio; o front ignora

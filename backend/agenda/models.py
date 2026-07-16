@@ -48,6 +48,10 @@ class CalendarPreference(models.Model):
     DASHBOARD_RANGE_CHOICES = [('week', '1 semana'), ('month', '1 mês'), ('6months', '6 meses'), ('year', '1 ano')]
     dashboard_chart_range = models.CharField('Intervalo do gráfico de câmbio', max_length=8,
                                              choices=DASHBOARD_RANGE_CHOICES, default='week')
+    # Status das listas que o usuário quer ver no card "Listas de Passageiros
+    # recentes" da Visão Geral. Subconjunto de ['ongoing','aberta','fechada'].
+    # Vazio = mostra todas.
+    dashboard_list_statuses = models.JSONField('Status das listas no painel', default=list, blank=True)
     # Ordem das abas do detalhe do roteiro escolhida pelo usuário (lista de chaves,
     # ex.: ['destinos','voo','valores',...]). Vazio = ordem padrão do sistema.
     itinerary_tab_order  = models.JSONField('Ordem das abas do roteiro', default=list, blank=True)
