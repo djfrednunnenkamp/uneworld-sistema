@@ -187,6 +187,9 @@ if _USE_S3_PUBLIC:
             'bucket_name': AWS_STORAGE_BUCKET_NAME,
             'region_name': AWS_S3_REGION_NAME,
             'location': S3_PUBLIC_PREFIX,   # ex.: uneworld/intranet/images/prod
+            # Host REGIONAL fixo nas URLs (senão o django-storages gera o global
+            # 's3.amazonaws.com', que não bate com a CSP do front). Determinístico.
+            'custom_domain': f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com',
             'querystring_auth': False,      # URLs públicas limpas (sem assinatura)
             'default_acl': None,            # bucket usa policy pública no prefixo (ACLs off)
             'file_overwrite': False,
