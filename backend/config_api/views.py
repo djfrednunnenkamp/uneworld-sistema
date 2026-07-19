@@ -1372,8 +1372,8 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
                   'markup_percent_installment', 'rate', 'rate_installment',
                   'auto_update', 'is_favorite', 'source_url', 'script', 'update_time',
                   'last_auto_update', 'rounding_decimals', 'rounding_mode',
-                  'rate_updated_at', 'updated_at']
-        read_only_fields = ['rate', 'rate_installment', 'last_auto_update', 'rate_updated_at', 'updated_at']
+                  'rate_updated_at', 'rate_checked_at', 'updated_at']
+        read_only_fields = ['rate', 'rate_installment', 'last_auto_update', 'rate_updated_at', 'rate_checked_at', 'updated_at']
 
     def validate(self, attrs):
         # Enforce server-side as permissões granulares do câmbio — não basta o
@@ -1495,7 +1495,7 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Não foi possível obter a taxa desta moeda agora.'},
                                 status=status.HTTP_502_BAD_GATEWAY)
             _apply_rates(row, data)
-            row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'updated_at'])
+            row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'rate_checked_at', 'updated_at'])
         except Exception as e:
             return Response({'error': f'Não foi possível atualizar: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)

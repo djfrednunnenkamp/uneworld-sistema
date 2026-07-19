@@ -184,6 +184,10 @@ class ConfigExchangeRate(models.Model):
     # cada save (estrelar favorito, mexer no markup…), então não serve pra mostrar
     # "quando o câmbio atualizou". Este campo só avança quando `rate` muda mesmo.
     rate_updated_at = models.DateTimeField('Taxa atualizada em', null=True, blank=True)
+    # Última vez que a cotação foi VERIFICADA/puxada da fonte (mesmo que o valor
+    # tenha vindo igual). Avança em toda atualização manual/automática — é o que
+    # mostramos na linha como "Atualizado …" pra confirmar que a ação rodou.
+    rate_checked_at = models.DateTimeField('Cotação verificada em', null=True, blank=True)
     updated_at    = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:

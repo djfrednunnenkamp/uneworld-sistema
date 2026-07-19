@@ -140,6 +140,10 @@ def _apply_rates(row, data):
     # acréscimo configurado pelo usuário.
     row._script_a_vista = a_vista
     row._script_parcelado = parcelado
+    # Marca que a cotação foi verificada agora (mesmo que o valor venha igual) —
+    # é o que confirma na tela que a atualização rodou.
+    from django.utils import timezone
+    row.rate_checked_at = timezone.now()
 
 
 def pull_all_from_internet(include_scripts=True):
@@ -167,7 +171,7 @@ def pull_all_from_internet(include_scripts=True):
         if not data:
             continue
         _apply_rates(row, data)
-        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'updated_at'])
+        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'rate_checked_at', 'updated_at'])
         updated += 1
     # Cria as que faltam (a partir da API global)
     for code, brl in global_rates.items():
@@ -225,6 +229,6 @@ def update_due(now=None, force=False, include_scripts=True):
             continue
         _apply_rates(row, data)
         row.last_auto_update = today
-        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'last_auto_update', 'updated_at'])
+        row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'last_auto_update', 'rate_checked_at', 'updated_at'])
         n += 1
     return n
