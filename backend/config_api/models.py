@@ -247,8 +247,9 @@ class ConfigExchangeRate(models.Model):
 
     def _record_history_point(self):
         """Guarda 1 ponto por dia (atualiza o do dia se a taxa mudar de novo),
-        com data e horário da captura, e mantém ~1 ano — o usuário escolhe o
-        intervalo exibido (semana/mês/6 meses/ano) no gráfico da Visão Geral."""
+        com data e horário da captura, e mantém ~10 anos — o usuário escolhe o
+        intervalo exibido (semana/meses/anos) no gráfico da moeda. Períodos sem
+        dado ficam vazios no gráfico (o histórico só cresce a partir de agora)."""
         from django.utils import timezone
         now = timezone.now()
         today = timezone.localdate().isoformat()
@@ -258,7 +259,7 @@ class ConfigExchangeRate(models.Model):
             hist[-1] = point
         else:
             hist.append(point)
-        self.rate_history = hist[-366:]
+        self.rate_history = hist[-3660:]   # ~10 anos (1 ponto/dia)
 
     def __str__(self):
         return f'{self.from_currency} → {self.to_currency}: {self.rate}'

@@ -1477,6 +1477,18 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_502_BAD_GATEWAY)
         return Response({'updated': n})
 
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        """Histórico da taxa desta moeda (1 ponto/dia, ~10 anos) para o gráfico.
+        Cada ponto: d (data YYYY-MM-DD), r (taxa efetiva), t (ISO da captura).
+        Não entra na listagem para não pesar; é buscado só ao abrir o gráfico."""
+        row = self.get_object()
+        return Response({
+            'from_currency': row.from_currency,
+            'to_currency': row.to_currency,
+            'history': row.rate_history or [],
+        })
+
     @action(detail=True, methods=['post'], url_path='update-now')
     def update_one(self, request, pk=None):
         """Atualiza UMA moeda agora, pela fonte configurada nela (script, link
