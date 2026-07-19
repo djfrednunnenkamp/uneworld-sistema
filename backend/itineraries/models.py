@@ -135,6 +135,9 @@ class Itinerary(models.Model):
     info_values        = models.TextField('Informações sobre Valores', blank=True, default='')
     info_extras        = models.TextField('Extras', blank=True, default='')
     info_lamina        = models.TextField('Texto informativo da lâmina', blank=True, default='')
+    info_required_docs  = models.TextField('Documentos Obrigatórios', blank=True, default='')
+    info_weather        = models.TextField('Clima Previsto', blank=True, default='')
+    info_what_to_bring  = models.TextField('O Que Levar', blank=True, default='')
     # Observações por aba (bagagem, políticas, etc.) — editadas nas próprias abas
     # (Voo/Hotéis/Valores/Terrestre/Barco), com suporte a template (igual aos campos
     # de Informações do Roteiro).
@@ -178,6 +181,12 @@ class Itinerary(models.Model):
     info_extras_template_linked     = models.BooleanField(default=False)
     info_lamina_template            = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     info_lamina_template_linked     = models.BooleanField(default=False)
+    info_required_docs_template        = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_required_docs_template_linked = models.BooleanField(default=False)
+    info_weather_template              = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_weather_template_linked       = models.BooleanField(default=False)
+    info_what_to_bring_template        = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    info_what_to_bring_template_linked = models.BooleanField(default=False)
     flight_notes_template           = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     flight_notes_template_linked    = models.BooleanField(default=False)
     hotel_notes_template            = models.ForeignKey('ItineraryFieldTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
@@ -473,6 +482,9 @@ class ItineraryFieldTemplate(models.Model):
         ('accommodation','Observações dos Valores'),
         ('terrestre',    'Observações do Terrestre'),
         ('boat',         'Observações do Barco'),
+        ('required_docs', 'Documentos Obrigatórios'),
+        ('weather',       'Clima Previsto'),
+        ('what_to_bring', 'O Que Levar'),
     ]
     # field -> (coluna de conteúdo, coluna do FK, coluna do vínculo) no Itinerary.
     FIELD_COLUMNS = {
@@ -492,6 +504,9 @@ class ItineraryFieldTemplate(models.Model):
         'accommodation':('accommodation_notes', 'accommodation_notes_template', 'accommodation_notes_template_linked'),
         'terrestre':    ('terrestre_notes',     'terrestre_notes_template',     'terrestre_notes_template_linked'),
         'boat':         ('boat_notes',          'boat_notes_template',          'boat_notes_template_linked'),
+        'required_docs': ('info_required_docs', 'info_required_docs_template', 'info_required_docs_template_linked'),
+        'weather':       ('info_weather', 'info_weather_template', 'info_weather_template_linked'),
+        'what_to_bring': ('info_what_to_bring', 'info_what_to_bring_template', 'info_what_to_bring_template_linked'),
     }
 
     field      = models.CharField('Campo', max_length=20, choices=FIELD_CHOICES, db_index=True)

@@ -193,6 +193,9 @@ PERMISSION_FIELDS = [
     'settings_tpl_accommodation_view', 'settings_tpl_accommodation_edit', 'settings_tpl_accommodation_delete', 'settings_tpl_accommodation_bulk_import', 'settings_tpl_accommodation_export',
     'settings_tpl_terrestre_view', 'settings_tpl_terrestre_edit', 'settings_tpl_terrestre_delete', 'settings_tpl_terrestre_bulk_import', 'settings_tpl_terrestre_export',
     'settings_tpl_boat_view', 'settings_tpl_boat_edit', 'settings_tpl_boat_delete', 'settings_tpl_boat_bulk_import', 'settings_tpl_boat_export',
+    'settings_tpl_required_docs_view', 'settings_tpl_required_docs_edit', 'settings_tpl_required_docs_delete', 'settings_tpl_required_docs_bulk_import', 'settings_tpl_required_docs_export',
+    'settings_tpl_weather_view', 'settings_tpl_weather_edit', 'settings_tpl_weather_delete', 'settings_tpl_weather_bulk_import', 'settings_tpl_weather_export',
+    'settings_tpl_what_to_bring_view', 'settings_tpl_what_to_bring_edit', 'settings_tpl_what_to_bring_delete', 'settings_tpl_what_to_bring_bulk_import', 'settings_tpl_what_to_bring_export',
 ]
 
 # Permissões que, se concedidas, fazem o usuário ser considerado "staff"
@@ -272,6 +275,9 @@ STAFF_PERMISSION_FIELDS = [
     'settings_tpl_accommodation_view', 'settings_tpl_accommodation_edit', 'settings_tpl_accommodation_delete', 'settings_tpl_accommodation_bulk_import', 'settings_tpl_accommodation_export',
     'settings_tpl_terrestre_view', 'settings_tpl_terrestre_edit', 'settings_tpl_terrestre_delete', 'settings_tpl_terrestre_bulk_import', 'settings_tpl_terrestre_export',
     'settings_tpl_boat_view', 'settings_tpl_boat_edit', 'settings_tpl_boat_delete', 'settings_tpl_boat_bulk_import', 'settings_tpl_boat_export',
+    'settings_tpl_required_docs_view', 'settings_tpl_required_docs_edit', 'settings_tpl_required_docs_delete', 'settings_tpl_required_docs_bulk_import', 'settings_tpl_required_docs_export',
+    'settings_tpl_weather_view', 'settings_tpl_weather_edit', 'settings_tpl_weather_delete', 'settings_tpl_weather_bulk_import', 'settings_tpl_weather_export',
+    'settings_tpl_what_to_bring_view', 'settings_tpl_what_to_bring_edit', 'settings_tpl_what_to_bring_delete', 'settings_tpl_what_to_bring_bulk_import', 'settings_tpl_what_to_bring_export',
     # Log do sistema. log_view (acesso amplo legado) saiu: ver log não torna
     # ninguém Administrador. log_page_views continua porque é uma permissão
     # ativa e concedida de propósito.
