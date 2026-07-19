@@ -265,6 +265,28 @@ AUTENTIQUE_API_TOKEN      = config('AUTENTIQUE_API_TOKEN', default='')
 AUTENTIQUE_SANDBOX        = config('AUTENTIQUE_SANDBOX', default=True, cast=bool)
 AUTENTIQUE_DELIVERY       = config('AUTENTIQUE_DELIVERY', default='email')
 AUTENTIQUE_WEBHOOK_SECRET = config('AUTENTIQUE_WEBHOOK_SECRET', default='')
+
+# ── Verificação do contrato assinado (QR) ─────────────────────────────────────
+# No upload do contrato assinado (físico), confere pelos QR de cada página se é
+# ESTE contrato, na versão atual, com todas as páginas na ordem. Ligado por
+# padrão; desligue com CONTRACT_QR_VERIFY=False (aceita o upload sem conferir).
+CONTRACT_QR_VERIFY = config('CONTRACT_QR_VERIFY', default=True, cast=bool)
+
+# ── Retenção dos logs de auditoria (poda automática pelo agendador) ───────────
+# Idade máxima, em DIAS, para manter cada tipo de log. Vazio/ausente = infinito
+# (guarda para sempre, até acabar o armazenamento).
+#  - NAVIGATION: navegação/movimento (páginas visitadas + login/logout).
+#  - CHANGE: mudanças no banco (criação/edição/exclusão de registros).
+def _retention_days(key):
+    raw = config(key, default='')
+    try:
+        n = int(str(raw).strip())
+        return n if n > 0 else None
+    except (TypeError, ValueError):
+        return None
+AUDIT_NAVIGATION_RETENTION_DAYS = _retention_days('AUDIT_NAVIGATION_RETENTION_DAYS')
+AUDIT_CHANGE_RETENTION_DAYS     = _retention_days('AUDIT_CHANGE_RETENTION_DAYS')
+
 GEOIP_DB_PATH = BASE_DIR / 'geoip_db' / 'GeoLite2-City.mmdb'
 CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
