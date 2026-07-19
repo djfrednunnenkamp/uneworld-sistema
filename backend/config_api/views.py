@@ -1454,7 +1454,8 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
         os câmbios. Mantém o acréscimo (%) já configurado em cada um."""
         from .exchange_service import pull_all_from_internet
         try:
-            created, updated = pull_all_from_internet()
+            # Script customizado só executa para superusuário (execução de código).
+            created, updated = pull_all_from_internet(include_scripts=request.user.is_superuser)
         except Exception as e:
             return Response({'error': f'Não foi possível puxar da internet: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)

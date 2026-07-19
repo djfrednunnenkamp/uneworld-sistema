@@ -142,16 +142,24 @@ def _apply_rates(row, data):
     row._script_parcelado = parcelado
 
 
-def pull_all_from_internet():
-    """Cria/atualiza um câmbio MOEDA → BRL para cada moeda. Linhas com link próprio
-    usam o link; as demais usam a API global. Mantém o acréscimo (markup) de cada
-    uma. Devolve (criadas, atualizadas)."""
+def pull_all_from_internet(include_scripts=True):
+    """Atualiza o câmbio de TODAS as moedas cadastradas (MOEDA → BRL), cada uma
+    pela SUA fonte: script customizado, link próprio ou a API global da internet.
+    Mantém o acréscimo (markup) de cada uma e cria as que faltarem (da API global).
+    Devolve (criadas, atualizadas).
+
+    include_scripts=False pula as moedas com script (execução de código no
+    servidor) — usado quando quem dispara não é superusuário."""
     from .models import ConfigExchangeRate
     global_rates = fetch_brl_rates()
     created = updated = 0
     existing = {r.from_currency.upper(): r for r in ConfigExchangeRate.objects.filter(to_currency='BRL')}
-    # Atualiza as existentes (respeitando link próprio)
+    # Atualiza as existentes, cada uma pela sua fonte (script/link/API global).
     for code, row in existing.items():
+        # Script só roda para quem tem privilégio (superusuário); para os demais a
+        # moeda com script é deixada como está.
+        if not include_scripts and _has_script(row):
+            continue
         try:
             data = _rates_for(row, global_rates)
         except Exception:
