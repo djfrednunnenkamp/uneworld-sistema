@@ -22,6 +22,18 @@ class AgencySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'logo_crop']
 
+    def to_internal_value(self, data):
+        # O site pode ser informado só com o domínio (ex.: "exemplo.com.br").
+        # O URLField exige esquema, então prefixamos https:// quando faltar,
+        # evitando o falso "URL inválida" para quem não digita http/https.
+        site = data.get('website') if hasattr(data, 'get') else None
+        if isinstance(site, str):
+            s = site.strip()
+            if s and '://' not in s:
+                data = data.copy()
+                data['website'] = 'https://' + s
+        return super().to_internal_value(data)
+
     def get_logo_url(self, obj):
         return obj.logo.url if obj.logo else None
 
