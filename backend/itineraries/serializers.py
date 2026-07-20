@@ -467,7 +467,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   # published_data da vitrine. Sem sanitizar aqui = stored XSS (A-12).
                   'info_general', 'info_optionals', 'info_tips', 'info_documents',
                   'info_insurance', 'info_promo_rules', 'info_extras', 'info_values',
-                  'info_lamina', 'info_included', 'info_not_included'):
+                  'info_lamina', 'info_included', 'info_not_included',
+                  'info_required_docs', 'info_weather', 'info_what_to_bring'):
             if attrs.get(f):
                 attrs[f] = sanitize_html(attrs[f])
         return attrs
@@ -493,6 +494,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_general', 'info_included', 'info_not_included', 'info_optionals',
                   'info_tips', 'info_documents', 'info_promo_rules', 'info_insurance',
                   'info_values', 'info_extras', 'info_lamina',
+                  'info_required_docs', 'info_weather', 'info_what_to_bring',
                   'notes', 'map_embed_url',
                   # Vínculo vivo com templates (por campo): FK + toggle.
                   'info_general_template', 'info_general_template_linked',
@@ -506,6 +508,9 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_values_template', 'info_values_template_linked',
                   'info_extras_template', 'info_extras_template_linked',
                   'info_lamina_template', 'info_lamina_template_linked',
+                  'info_required_docs_template', 'info_required_docs_template_linked',
+                  'info_weather_template', 'info_weather_template_linked',
+                  'info_what_to_bring_template', 'info_what_to_bring_template_linked',
                   'flight_notes', 'flight_notes_template', 'flight_notes_template_linked',
                   'hotel_notes', 'hotel_notes_template', 'hotel_notes_template_linked',
                   'accommodation_notes', 'accommodation_notes_template', 'accommodation_notes_template_linked',

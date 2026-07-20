@@ -35,11 +35,16 @@ class AuditLogSerializer(serializers.ModelSerializer):
     timestamp_br = serializers.SerializerMethodField()
     has_file     = serializers.SerializerMethodField()
     user_avatar  = serializers.SerializerMethodField()
+    source       = serializers.SerializerMethodField()
+
+    def get_source(self, obj):
+        # Registros antigos não têm `source` — deriva pela presença de usuário.
+        return obj.source or ('user' if obj.user_id else 'system')
 
     class Meta:
         model = AuditLog
         fields = [
-            'id', 'timestamp', 'timestamp_br',
+            'id', 'timestamp', 'timestamp_br', 'source',
             'user_display', 'user_avatar', 'action', 'action_label',
             'model_name', 'model_label', 'object_id', 'object_repr',
             'changes', 'ip_address', 'has_file',
@@ -164,6 +169,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         contract_id  = self.request.query_params.get('contract_id')
         itinerary_id = self.request.query_params.get('itinerary_id')
         scope        = self.request.query_params.get('scope')
+        source       = self.request.query_params.get('source')
         show_nav     = self.request.query_params.get('show_nav') in ('1', 'true', 'True')
 
         current_user = self.request.user
@@ -263,6 +269,15 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 sq |= nav_q
             qs = qs.filter(sq)
         if action:    qs = qs.filter(action=action)
+        # Origem (Sistema/Usuário/CSV). Registros antigos têm source='' — derivam
+        # system/user pela presença de usuário, então o filtro cobre os dois.
+        from django.db.models import Q as DQ
+        if source == 'system':
+            qs = qs.filter(DQ(source='system') | (DQ(source='') & DQ(user__isnull=True)))
+        elif source == 'user':
+            qs = qs.filter(DQ(source='user') | (DQ(source='') & DQ(user__isnull=False)))
+        elif source == 'csv':
+            qs = qs.filter(source='csv')
         if model:     qs = qs.filter(model_name=model)
         if object_id: qs = qs.filter(object_id=object_id)
         if user_search:    qs = qs.filter(user_display__icontains=user_search)

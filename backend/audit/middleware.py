@@ -11,6 +11,12 @@ def get_current_ip():
     return getattr(_local, 'ip', None)
 
 
+def get_current_source():
+    """Origem explícita da requisição atual ('csv' quando o front marca uma
+    importação de planilha via header X-Audit-Source). None = derivar."""
+    return getattr(_local, 'source', None)
+
+
 class AuditMiddleware:
     """Armazena o usuário e IP da requisição atual em thread-local para uso nos sinais."""
 
@@ -28,6 +34,11 @@ class AuditMiddleware:
         from core.throttling import client_ip
         _local.ip = client_ip(request)
 
+        # Origem explícita marcada pelo front (só aceitamos 'csv' — importação de
+        # planilha; qualquer outro valor é ignorado e a origem é derivada).
+        hdr = request.headers.get('X-Audit-Source', '')
+        _local.source = 'csv' if hdr == 'csv' else None
+
         try:
             return self.get_response(request)
         finally:
@@ -36,3 +47,4 @@ class AuditMiddleware:
             # herdam o usuário/IP da requisição anterior — atribuindo ações ao usuário errado.
             _local.user = None
             _local.ip = None
+            _local.source = None

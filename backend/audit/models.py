@@ -28,6 +28,11 @@ class AuditLog(models.Model):
     user         = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
                                      verbose_name='Usuário', related_name='audit_logs')
     user_display = models.CharField('Usuário', max_length=200, blank=True)
+    # Origem da ação: 'system' (automática, sem usuário), 'user' (pessoa direto na
+    # tela) ou 'csv' (pessoa via importação de planilha). Vazio nos registros
+    # antigos — o serializer deriva system/user pela presença de usuário.
+    SOURCE_CHOICES = [('system', 'Sistema'), ('user', 'Usuário'), ('csv', 'CSV')]
+    source       = models.CharField('Origem', max_length=10, choices=SOURCE_CHOICES, blank=True, default='', db_index=True)
     action       = models.CharField('Ação', max_length=20, choices=ACTION_CHOICES, db_index=True)
     model_name   = models.CharField('Modelo', max_length=100, db_index=True)
     model_label  = models.CharField('Tipo de registro', max_length=100, blank=True)

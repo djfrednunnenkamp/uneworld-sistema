@@ -4,7 +4,7 @@ Registra qualquer create/update/delete nos modelos listados em TRACKED_MODELS.
 """
 from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
-from .middleware import get_current_user, get_current_ip
+from .middleware import get_current_user, get_current_ip, get_current_source
 
 # {NomeDoModel: 'Rótulo legível'}
 TRACKED_MODELS = {
@@ -232,6 +232,15 @@ def user_display(user):
     return name or user.email or user.username
 
 
+def resolve_source(user):
+    """Origem do evento: 'csv' quando a requisição marcou importação de planilha;
+    senão 'user' se há usuário autenticado, ou 'system' (automático)."""
+    src = get_current_source()
+    if src:
+        return src
+    return 'user' if getattr(user, 'is_authenticated', False) else 'system'
+
+
 def log_event(action, *, model_name, model_label, object_id='', object_repr='', changes=None, user=None):
     """Registra um evento de auditoria manual — para mutações que os signals não
     capturam (bulk update/create, M2M .set(), reorders, downloads, actions).
@@ -243,6 +252,7 @@ def log_event(action, *, model_name, model_label, object_id='', object_repr='', 
     AuditLog.objects.create(
         user=user if authed else None,
         user_display=user_display(user) if authed else 'Sistema',
+        source=resolve_source(user if authed else None),
         action=action, model_name=model_name, model_label=model_label,
         object_id=str(object_id or ''), object_repr=str(object_repr or '')[:500],
         changes=changes or {}, ip_address=get_current_ip(),
@@ -318,6 +328,7 @@ def log_save(sender, instance, created, **kwargs):
     AuditLog.objects.create(
         user=user,
         user_display=user_display(user),
+        source=resolve_source(user),
         action=action,
         model_name=sender.__name__,
         model_label=TRACKED_MODELS[sender.__name__],
@@ -350,6 +361,7 @@ def log_delete(sender, instance, **kwargs):
     AuditLog.objects.create(
         user=user,
         user_display=user_display(user),
+        source=resolve_source(user),
         action=action,
         model_name=sender.__name__,
         model_label=TRACKED_MODELS[sender.__name__],

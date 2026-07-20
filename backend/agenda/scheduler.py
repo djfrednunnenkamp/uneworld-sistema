@@ -90,6 +90,7 @@ def run_once():
 
     _send_daily_notifications(today, current_hour)
     _purge_drive_trash()
+    _prune_audit_logs()
 
 
 def _purge_drive_trash():
@@ -102,6 +103,17 @@ def _purge_drive_trash():
             logger.info('[LIXEIRA DRIVE] %s item(ns) expurgado(s) (>30 dias).', n)
     except Exception as e:
         logger.exception('[LIXEIRA DRIVE] erro no expurgo: %s', e)
+
+
+def _prune_audit_logs():
+    """Poda os logs de auditoria além da retenção configurada no .env
+    (AUDIT_NAVIGATION_RETENTION_DAYS / AUDIT_CHANGE_RETENTION_DAYS). Vazio =
+    infinito. Idempotente e barato; roda a cada ciclo (de hora em hora)."""
+    try:
+        from audit.retention import prune_audit_logs
+        prune_audit_logs()
+    except Exception as e:
+        logger.exception('[AUDIT RETENÇÃO] erro na poda: %s', e)
 
 
 # ── Coletores de dados ────────────────────────────────────────────────────────

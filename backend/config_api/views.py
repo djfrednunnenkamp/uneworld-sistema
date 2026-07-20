@@ -1372,8 +1372,8 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
                   'markup_percent_installment', 'rate', 'rate_installment',
                   'auto_update', 'is_favorite', 'source_url', 'script', 'update_time',
                   'last_auto_update', 'rounding_decimals', 'rounding_mode',
-                  'rate_updated_at', 'updated_at']
-        read_only_fields = ['rate', 'rate_installment', 'last_auto_update', 'rate_updated_at', 'updated_at']
+                  'rate_updated_at', 'rate_checked_at', 'updated_at']
+        read_only_fields = ['rate', 'rate_installment', 'last_auto_update', 'rate_updated_at', 'rate_checked_at', 'updated_at']
 
     def validate(self, attrs):
         # Enforce server-side as permissões granulares do câmbio — não basta o
@@ -1454,7 +1454,8 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
         os câmbios. Mantém o acréscimo (%) já configurado em cada um."""
         from .exchange_service import pull_all_from_internet
         try:
-            created, updated = pull_all_from_internet()
+            # Script customizado só executa para superusuário (execução de código).
+            created, updated = pull_all_from_internet(include_scripts=request.user.is_superuser)
         except Exception as e:
             return Response({'error': f'Não foi possível puxar da internet: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)
@@ -1476,6 +1477,18 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_502_BAD_GATEWAY)
         return Response({'updated': n})
 
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        """Histórico da taxa desta moeda (1 ponto/dia, ~10 anos) para o gráfico.
+        Cada ponto: d (data YYYY-MM-DD), r (taxa efetiva), t (ISO da captura).
+        Não entra na listagem para não pesar; é buscado só ao abrir o gráfico."""
+        row = self.get_object()
+        return Response({
+            'from_currency': row.from_currency,
+            'to_currency': row.to_currency,
+            'history': row.rate_history or [],
+        })
+
     @action(detail=True, methods=['post'], url_path='update-now')
     def update_one(self, request, pk=None):
         """Atualiza UMA moeda agora, pela fonte configurada nela (script, link
@@ -1494,7 +1507,7 @@ class ExchangeRateViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Não foi possível obter a taxa desta moeda agora.'},
                                 status=status.HTTP_502_BAD_GATEWAY)
             _apply_rates(row, data)
-            row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'updated_at'])
+            row.save(update_fields=['base_rate', 'rate', 'rate_installment', 'rate_checked_at', 'updated_at'])
         except Exception as e:
             return Response({'error': f'Não foi possível atualizar: {e}'},
                             status=status.HTTP_502_BAD_GATEWAY)

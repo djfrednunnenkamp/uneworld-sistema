@@ -186,6 +186,10 @@ class ConfigExchangeRate(models.Model):
     # cada save (estrelar favorito, mexer no markup…), então não serve pra mostrar
     # "quando o câmbio atualizou". Este campo só avança quando `rate` muda mesmo.
     rate_updated_at = models.DateTimeField('Taxa atualizada em', null=True, blank=True)
+    # Última vez que a cotação foi VERIFICADA/puxada da fonte (mesmo que o valor
+    # tenha vindo igual). Avança em toda atualização manual/automática — é o que
+    # mostramos na linha como "Atualizado …" pra confirmar que a ação rodou.
+    rate_checked_at = models.DateTimeField('Cotação verificada em', null=True, blank=True)
     updated_at    = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:
@@ -220,14 +224,20 @@ class ConfigExchangeRate(models.Model):
         old_rate = type(self).objects.filter(pk=self.pk).values_list('rate', flat=True).first() if self.pk else None
         self.rate = new_rate
         rate_changed = old_rate is None or old_rate != new_rate
-        extra_fields = set()
-        if rate_changed:
-            self._record_history_point()
-            self.rate_updated_at = timezone.now()
-            extra_fields |= {'rate_history', 'rate_updated_at'}
-        # Quando o save é parcial (update_fields), garante que a taxa recalculada
-        # (e o histórico/data, quando mudou) também sejam gravados.
+        # É uma VERIFICAÇÃO da taxa (atualização manual/automática) quando o save
+        # inclui rate_checked_at — nesse caso registra um ponto no histórico SEMPRE,
+        # mesmo que o valor venha igual (assim o gráfico mostra cada coleta, várias
+        # no mesmo dia inclusive). rate_updated_at só avança quando a taxa muda.
         uf = kwargs.get('update_fields')
+        is_check = uf is not None and 'rate_checked_at' in set(uf)
+        extra_fields = set()
+        if is_check or rate_changed:
+            self._record_history_point()
+            extra_fields.add('rate_history')
+        if rate_changed:
+            self.rate_updated_at = timezone.now()
+            extra_fields.add('rate_updated_at')
+        # Save parcial (update_fields): garante gravar a taxa recalculada + extras.
         if uf is not None:
             kwargs['update_fields'] = set(uf) | {'rate', 'rate_installment'} | extra_fields
         super().save(*args, **kwargs)
@@ -244,19 +254,19 @@ class ConfigExchangeRate(models.Model):
         return value.quantize(Decimal('0.0001'))
 
     def _record_history_point(self):
-        """Guarda 1 ponto por dia (atualiza o do dia se a taxa mudar de novo),
-        com data e horário da captura, e mantém ~1 ano — o usuário escolhe o
-        intervalo exibido (semana/mês/6 meses/ano) no gráfico da Visão Geral."""
+        """Registra UM ponto do histórico a cada verificação/atualização da taxa —
+        MESMO que o valor venha igual —, com data e horário da captura. Assim o
+        gráfico mostra cada coleta (inclusive várias no mesmo dia, ex.: no
+        intervalo de 24h). Só evita duplicar o mesmíssimo instante (double-save da
+        mesma operação). Mantém os últimos ~5000 pontos; o que passa disso é
+        descartado (os mais antigos)."""
         from django.utils import timezone
         now = timezone.now()
-        today = timezone.localdate().isoformat()
         hist = list(self.rate_history or [])
-        point = {'d': today, 'r': float(self.rate), 't': now.isoformat()}
-        if hist and hist[-1].get('d') == today:
-            hist[-1] = point
-        else:
+        point = {'d': timezone.localdate().isoformat(), 'r': float(self.rate), 't': now.isoformat()}
+        if not (hist and hist[-1].get('t') == point['t']):
             hist.append(point)
-        self.rate_history = hist[-366:]
+        self.rate_history = hist[-5000:]
 
     def __str__(self):
         return f'{self.from_currency} → {self.to_currency}: {self.rate}'

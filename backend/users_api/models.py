@@ -490,6 +490,21 @@ class UserPermissions(models.Model):
     settings_tpl_boat_delete           = models.BooleanField(default=False)
     settings_tpl_boat_bulk_import      = models.BooleanField(default=False)
     settings_tpl_boat_export           = models.BooleanField(default=False)
+    settings_tpl_required_docs_view        = models.BooleanField(default=False)
+    settings_tpl_required_docs_edit        = models.BooleanField(default=False)
+    settings_tpl_required_docs_delete      = models.BooleanField(default=False)
+    settings_tpl_required_docs_bulk_import = models.BooleanField(default=False)
+    settings_tpl_required_docs_export      = models.BooleanField(default=False)
+    settings_tpl_weather_view        = models.BooleanField(default=False)
+    settings_tpl_weather_edit        = models.BooleanField(default=False)
+    settings_tpl_weather_delete      = models.BooleanField(default=False)
+    settings_tpl_weather_bulk_import = models.BooleanField(default=False)
+    settings_tpl_weather_export      = models.BooleanField(default=False)
+    settings_tpl_what_to_bring_view        = models.BooleanField(default=False)
+    settings_tpl_what_to_bring_edit        = models.BooleanField(default=False)
+    settings_tpl_what_to_bring_delete      = models.BooleanField(default=False)
+    settings_tpl_what_to_bring_bulk_import = models.BooleanField(default=False)
+    settings_tpl_what_to_bring_export      = models.BooleanField(default=False)
 
     # Exportar CSV (download) — granular por área. Antes o download dependia só
     # de "_view"; agora cada área tem permissão própria de download.
