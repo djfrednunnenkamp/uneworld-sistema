@@ -349,20 +349,22 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='sellers')
     def sellers(self, request):
-        """Vendedores selecionáveis (ativos, com a tag 'Vendedor', não excluídos).
-        - `?agency=<id>`: Vendedores da AGÊNCIA → membros daquela agência com a tag.
-        - sem `agency`: Vendedores da OPERADORA → internos (sem vínculo de agência).
+        """Vendedores selecionáveis (ativos, não excluídos).
+        - `?agency=<id>`: Vendedor da AGÊNCIA → TODOS os membros daquela agência
+          (sem exigir a tag 'Vendedor'; qualquer usuário da agência pode ser).
+        - sem `agency`: Vendedor da OPERADORA → internos (sem vínculo de agência)
+          que tenham a tag 'Vendedor'.
         Trocar o vendedor da operadora é gated por contracts_change_seller no
         serializer; o vendedor da agência é validado no serializer."""
         from django.contrib.auth.models import User
         from .serializers import _seller_brief
-        qs = (User.objects.filter(is_active=True, permissions__is_seller=True)
+        qs = (User.objects.filter(is_active=True)
               .exclude(permissions__is_deleted=True))
         agency_id = request.query_params.get('agency')
         if agency_id:
             qs = qs.filter(agency_memberships__agency_id=agency_id).distinct()
         else:
-            qs = qs.filter(agency_memberships__isnull=True)
+            qs = qs.filter(agency_memberships__isnull=True, permissions__is_seller=True)
         qs = qs.select_related('permissions').order_by('first_name', 'last_name', 'username')
         return Response([_seller_brief(u) for u in qs])
 

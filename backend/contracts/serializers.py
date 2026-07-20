@@ -87,11 +87,8 @@ def _seller_brief(u):
 
 def _valid_agency_seller(user_obj, agency):
     """True se `user_obj` pode ser o Vendedor da agência de um contrato daquela
-    `agency`: precisa ter a tag Vendedor (is_seller) E ser membro da agência."""
+    `agency`: basta ser membro da agência (qualquer usuário dela)."""
     if not user_obj or not agency:
-        return False
-    perms = getattr(user_obj, 'permissions', None)
-    if not (perms and perms.is_seller):
         return False
     from agencies.models import AgencyMember
     return AgencyMember.objects.filter(agency=agency, user=user_obj).exists()
