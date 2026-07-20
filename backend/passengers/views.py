@@ -275,6 +275,32 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
             return Response({'exists': True, 'id': passenger.id, 'name': name})
         return Response({'exists': False})
 
+    @action(detail=False, methods=['get'], url_path='check-email')
+    def check_email(self, request):
+        email = request.query_params.get('email', '').strip()
+        if not email:
+            return Response({'error': 'E-mail não informado.'}, status=400)
+        qs = Passenger.objects.filter(email__iexact=email, is_deleted=False)
+        exclude_id = request.query_params.get('exclude')
+        if exclude_id:
+            qs = qs.exclude(pk=exclude_id)
+        passenger = qs.first()
+        if not passenger:
+            return Response({'exists': False})
+        # O e-mail é único globalmente, então precisamos avisar mesmo quando o
+        # passageiro é de outra agência. Mas o NOME só é revelado se estiver no
+        # escopo do usuário — evita usar o endpoint para enumerar PII cross-tenant
+        # (mesma proteção do check-cpf).
+        from users_api.permissions import agency_scope_ids
+        scope = agency_scope_ids(request.user)
+        in_scope = scope is None or passenger.agencies.filter(id__in=scope).exists()
+        data = {'exists': True, 'id': passenger.id if in_scope else None}
+        if in_scope:
+            data['name'] = (passenger.full_name or
+                            f'{passenger.first_name} {passenger.last_name}'.strip() or
+                            'Passageiro')
+        return Response(data)
+
     @action(detail=False, methods=['get'])
     def active(self, request):
         qs = self.get_queryset().filter(status='active')

@@ -112,7 +112,18 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         return attrs
 
     def validate_email(self, value):
-        return value or None
+        # E-mail é único por passageiro. Damos uma mensagem clara em vez de deixar
+        # estourar no banco (que viraria erro genérico). Ignora só os excluídos —
+        # rascunhos entram porque o unique do banco também os inclui.
+        if not value:
+            return None
+        qs = Passenger.objects.filter(email__iexact=value, is_deleted=False)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                'Este e-mail já está cadastrado em outro passageiro.')
+        return value
 
     def validate_photo(self, value):
         # Foto é PII: reprocessa (jpg/png) removendo EXIF/GPS e limitando tamanho.
