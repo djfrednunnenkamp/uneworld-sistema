@@ -85,6 +85,18 @@ def _seller_brief(u):
     return {'id': u.id, 'name': name, 'email': u.email or '', 'phone': phone}
 
 
+def _valid_agency_seller(user_obj, agency):
+    """True se `user_obj` pode ser o Vendedor da agência de um contrato daquela
+    `agency`: precisa ter a tag Vendedor (is_seller) E ser membro da agência."""
+    if not user_obj or not agency:
+        return False
+    perms = getattr(user_obj, 'permissions', None)
+    if not (perms and perms.is_seller):
+        return False
+    from agencies.models import AgencyMember
+    return AgencyMember.objects.filter(agency=agency, user=user_obj).exists()
+
+
 def _accom_display_name(obj):
     """Nome exibido da acomodação: tipo de hotel → rótulo denormalizado (cabine)
     → nome do grupo da cabine → '—'. Nunca estoura com FK null."""
@@ -210,6 +222,7 @@ class ContractSerializer(serializers.ModelSerializer):
     itinerary_departure_data = serializers.SerializerMethodField()
     clauses_data        = serializers.SerializerMethodField()
     seller_data         = serializers.SerializerMethodField()
+    agency_seller_data  = serializers.SerializerMethodField()
 
     # Etapa e arquivo assinado mudam só pelas ações (send-for-signature/upload-signed).
     stage         = serializers.CharField(read_only=True)
@@ -241,7 +254,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'contratante', 'contratante_data',
                   'payer_type', 'payer_name', 'payer_document', 'payer_birth_date', 'payer_gender',
                   'payer_email', 'payer_phone', 'payer_address',
-                  'seller', 'seller_data',
+                  'seller', 'seller_data', 'agency_seller', 'agency_seller_data',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
                   'base_currency', 'payment_type', 'total_usd', 'total_brl', 'exchange_rate',
                   'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value',
@@ -331,8 +344,12 @@ class ContractSerializer(serializers.ModelSerializer):
         return (comm * obj.exchange_rate).quantize(Decimal('0.01'))
 
     def get_seller_data(self, obj):
-        # Vendedor que aparece no contrato: o escolhido ou, na falta, o criador.
+        # Vendedor da operadora que aparece no contrato: o escolhido ou o criador.
         return _seller_brief(obj.seller or obj.created_by)
+
+    def get_agency_seller_data(self, obj):
+        # Vendedor da agência (pode não existir).
+        return _seller_brief(obj.agency_seller)
 
     def get_clauses_data(self, obj):
         # Cláusulas cadastradas (M2M) + as personalizadas deste contrato. O PDF e a
@@ -595,6 +612,15 @@ class ContractSerializer(serializers.ModelSerializer):
             validated_data['seller'] = requested_seller
         else:
             validated_data['seller'] = user
+        # Vendedor da AGÊNCIA: usuário de agência = ele próprio; operadora escolhe
+        # um membro da agência com a tag Vendedor (validado). Senão, fica vazio.
+        requested_agency_seller = validated_data.pop('agency_seller', None)
+        if scope is not None:
+            validated_data['agency_seller'] = user
+        elif _valid_agency_seller(requested_agency_seller, validated_data.get('agency')):
+            validated_data['agency_seller'] = requested_agency_seller
+        else:
+            validated_data['agency_seller'] = None
 
         # Cláusulas personalizadas só são aceitas de quem tem a permissão.
         if not (user and has_any_perm(user, 'contracts_custom_clauses')):
@@ -652,6 +678,15 @@ class ContractSerializer(serializers.ModelSerializer):
             user = getattr(request, 'user', None) if request else None
             if not (user and has_any_perm(user, 'contracts_change_seller')):
                 validated_data.pop('seller', None)
+        # Vendedor da agência: usuário de agência não altera (mantém); operadora só
+        # pode definir um membro válido da agência do contrato com a tag.
+        if 'agency_seller' in validated_data:
+            if _scope is not None:
+                validated_data.pop('agency_seller', None)
+            else:
+                ag = validated_data.get('agency', instance.agency)
+                if validated_data['agency_seller'] and not _valid_agency_seller(validated_data['agency_seller'], ag):
+                    validated_data.pop('agency_seller', None)
         if validated_data.get('contratante'):
             for f in ('payer_type', 'payer_name', 'payer_document', 'payer_birth_date',
                       'payer_gender', 'payer_email', 'payer_phone', 'payer_address'):

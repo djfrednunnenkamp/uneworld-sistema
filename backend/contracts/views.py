@@ -349,16 +349,22 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='sellers')
     def sellers(self, request):
-        """Usuários selecionáveis como vendedor do contrato (ativos, não excluídos).
-        Disponível para qualquer um que acesse contratos; trocar o vendedor de
-        fato é gated por contracts_change_seller no serializer."""
+        """Vendedores selecionáveis (ativos, com a tag 'Vendedor', não excluídos).
+        - `?agency=<id>`: Vendedores da AGÊNCIA → membros daquela agência com a tag.
+        - sem `agency`: Vendedores da OPERADORA → internos (sem vínculo de agência).
+        Trocar o vendedor da operadora é gated por contracts_change_seller no
+        serializer; o vendedor da agência é validado no serializer."""
         from django.contrib.auth.models import User
         from .serializers import _seller_brief
-        users = (User.objects.filter(is_active=True)
-                 .exclude(permissions__is_deleted=True)
-                 .select_related('permissions')
-                 .order_by('first_name', 'last_name', 'username'))
-        return Response([_seller_brief(u) for u in users])
+        qs = (User.objects.filter(is_active=True, permissions__is_seller=True)
+              .exclude(permissions__is_deleted=True))
+        agency_id = request.query_params.get('agency')
+        if agency_id:
+            qs = qs.filter(agency_memberships__agency_id=agency_id).distinct()
+        else:
+            qs = qs.filter(agency_memberships__isnull=True)
+        qs = qs.select_related('permissions').order_by('first_name', 'last_name', 'username')
+        return Response([_seller_brief(u) for u in qs])
 
     @action(detail=True, methods=['post'], url_path='send-for-signature',
             parser_classes=[MultiPartParser, FormParser])
