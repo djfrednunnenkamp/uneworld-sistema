@@ -1411,6 +1411,23 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         img.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=False, methods=['get'], url_path='facets')
+    def facets(self, request):
+        """GET /api/itineraries/gallery/facets/ — valores realmente presentes na
+        galeria, para os filtros só listarem o que retorna resultado. Hoje: países
+        (id, name, continent) que têm ao menos uma imagem visível ao usuário."""
+        qs = ItineraryImage.objects.filter(day__isnull=True, country__isnull=False)
+        if _gallery_laminas_only(request.user):
+            qs = self._operadora_restrict(qs)
+        pairs = (qs.values_list('country_id', 'country__name', 'country__continent__name')
+                   .distinct())
+        seen = {}
+        for cid, name, cont in pairs:
+            if cid and cid not in seen:
+                seen[cid] = {'id': cid, 'name': name, 'continent': cont}
+        countries = sorted(seen.values(), key=lambda c: (c['name'] or '').lower())
+        return Response({'countries': countries})
+
     @action(detail=False, methods=['get'], url_path='download')
     def download(self, request):
         """GET /api/itineraries/gallery/download/  — baixa um ZIP com os arquivos
