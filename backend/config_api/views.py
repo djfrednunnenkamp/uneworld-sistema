@@ -2284,7 +2284,7 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
         model  = OperatingCompany
         fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'website', 'address',
                   'pix_key_type', 'pix_key',
-                  'default_signature_type', 'contract_review_open_mode',
+                  'default_signature_type',
                   'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign', 'ceo_signature',
                   'updated_at']
 

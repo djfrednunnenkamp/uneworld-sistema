@@ -554,10 +554,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except Exception:
             logger.exception('Falha ao inscrever passageiros do contrato %s ao aprovar', contract.pk)
         # Como o front deve abrir a lista após aprovar (aba separada / mesma aba /
-        # não abrir) — configurável em Configurações › Operadora › Assinatura.
-        from config_api.models import OperatingCompany
-        oc = OperatingCompany.objects.first()
-        resp['open_mode'] = oc.contract_review_open_mode if oc else 'new_tab'
+        # não abrir) — PREFERÊNCIA PESSOAL do usuário (Minha conta › Contratos).
+        from agenda.models import CalendarPreference
+        pref = CalendarPreference.objects.filter(user=request.user).first()
+        resp['open_mode'] = pref.contract_review_open_mode if pref else 'new_tab'
         return Response(resp)
 
     @action(detail=True, methods=['get'], url_path='enrollable-lists')
