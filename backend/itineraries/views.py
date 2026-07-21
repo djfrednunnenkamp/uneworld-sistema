@@ -478,6 +478,10 @@ def _payment_plan_snapshot(p):
     def _f(v):
         return float(v) if v is not None else 0
     return {
+        # _cfgId liga a cópia ao Modelo global de origem — assim o seletor
+        # "Escolher forma de pagamento" do roteiro já mostra os favoritos
+        # marcados (e desmarcar remove), igual às formas adicionadas à mão.
+        '_cfgId': p.id,
         'name': p.name,
         'a_vista': p.a_vista,
         'has_down_payment': p.has_down_payment,
