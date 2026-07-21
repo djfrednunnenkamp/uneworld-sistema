@@ -592,6 +592,14 @@ class OperatingCompany(models.Model):
     SIGNATURE_CHOICES = [('fisica', 'Física (imprimir e assinar)'), ('digital', 'Digital')]
     default_signature_type = models.CharField('Assinatura padrão dos contratos', max_length=10,
                                               choices=SIGNATURE_CHOICES, default='fisica')
+    # Ao APROVAR um contrato na revisão (passageiros já entram na lista do roteiro),
+    # o que fazer com a lista: abrir em aba separada (padrão), abrir na mesma aba
+    # (com voltar) ou não abrir (segue revisando).
+    REVIEW_OPEN_CHOICES = [('new_tab', 'Abrir em aba separada'),
+                           ('same_tab', 'Abrir na mesma aba'),
+                           ('none', 'Não abrir')]
+    contract_review_open_mode = models.CharField('Ao aprovar contrato, abrir a lista', max_length=10,
+                                                 choices=REVIEW_OPEN_CHOICES, default='new_tab')
     # Assinatura digital automática do CEO: ele entra como signatário oficial e o
     # sistema assina por ele via API da Autentique (signDocument com o token dele).
     ceo_name              = models.CharField('CEO — nome', max_length=200, blank=True)

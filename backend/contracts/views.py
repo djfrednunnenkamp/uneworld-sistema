@@ -553,6 +553,11 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 resp['list_deleted'] = True
         except Exception:
             logger.exception('Falha ao inscrever passageiros do contrato %s ao aprovar', contract.pk)
+        # Como o front deve abrir a lista após aprovar (aba separada / mesma aba /
+        # não abrir) — configurável em Configurações › Operadora › Assinatura.
+        from config_api.models import OperatingCompany
+        oc = OperatingCompany.objects.first()
+        resp['open_mode'] = oc.contract_review_open_mode if oc else 'new_tab'
         return Response(resp)
 
     @action(detail=True, methods=['get'], url_path='enrollable-lists')
