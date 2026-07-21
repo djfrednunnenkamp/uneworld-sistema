@@ -503,7 +503,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         'category', 'continent', 'itinerary_type', 'maritime_company',
     ).prefetch_related(
         'accommodation_lines__accommodation_type',
-        'cities__state__country', 'countries', 'airports', 'keywords', 'inclusions', 'highlights',
+        'cities__state__country__continent', 'countries__continent', 'airports', 'keywords', 'inclusions', 'highlights',
         'itinerary_types', 'special_dates', 'continents',
         'days__city', 'days__images', 'images', 'shared_agencies',
     )

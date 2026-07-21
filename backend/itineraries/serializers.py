@@ -710,6 +710,12 @@ class ItinerarySerializer(serializers.ModelSerializer):
 class ItineraryListSerializer(serializers.ModelSerializer):
     category_name         = serializers.CharField(source='category.name', read_only=True, default=None)
     continent_name        = serializers.CharField(source='continent.name', read_only=True, default=None)
+    # Continentes/países do roteiro para os filtros da lista. Reúne o FK legado
+    # `continent`, o M2M `continents`, e os continentes derivados dos países
+    # (countries) e das cidades visitadas (cities→state→country). O país carrega
+    # o continente pra o filtro de país seguir o de continente selecionado.
+    continent_names       = serializers.SerializerMethodField()
+    countries_data        = serializers.SerializerMethodField()
     # Aditivos (o frontend ignora campos extras) — úteis para novas colunas na listagem.
     itinerary_type_name   = serializers.CharField(source='itinerary_type.name', read_only=True, default=None)
     maritime_company_name = serializers.CharField(source='maritime_company.name', read_only=True, default=None)
@@ -724,7 +730,7 @@ class ItineraryListSerializer(serializers.ModelSerializer):
         model  = Itinerary
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'base_currency', 'capacity',
                   'badge_text', 'badge_color',
-                  'category_name', 'continent_name',
+                  'category_name', 'continent_name', 'continent_names', 'countries_data',
                   'itinerary_type_name', 'maritime_company_name', 'cover',
                   'status', 'is_published', 'has_unpublished_changes', 'order',
                   'visibility', 'shared_agencies_count', 'shared_agencies_data',
@@ -734,6 +740,35 @@ class ItineraryListSerializer(serializers.ModelSerializer):
 
     shared_agencies_count = serializers.SerializerMethodField()
     shared_agencies_data  = serializers.SerializerMethodField()
+
+    def _country_continent_pairs(self, obj):
+        """(país, continente) de todos os países do roteiro — via M2M `countries` e
+        via cidades visitadas (cities→state→country). Usa os prefetches (sem N+1)."""
+        seen = {}
+        def add(co):
+            if co and co.name and co.name not in seen:
+                seen[co.name] = co.continent.name if getattr(co, 'continent', None) else None
+        for co in obj.countries.all():
+            add(co)
+        for city in obj.cities.all():
+            st = getattr(city, 'state', None)
+            add(getattr(st, 'country', None) if st else None)
+        return seen
+
+    def get_continent_names(self, obj):
+        names = set()
+        for c in obj.continents.all():
+            if c and c.name:
+                names.add(c.name)
+        if obj.continent and obj.continent.name:
+            names.add(obj.continent.name)
+        for cont in self._country_continent_pairs(obj).values():
+            if cont:
+                names.add(cont)
+        return sorted(names)
+
+    def get_countries_data(self, obj):
+        return [{'name': n, 'continent': c} for n, c in sorted(self._country_continent_pairs(obj).items())]
 
     def get_shared_agencies_count(self, obj):
         return len(obj.shared_agencies.all())   # usa o prefetch (sem query extra)
