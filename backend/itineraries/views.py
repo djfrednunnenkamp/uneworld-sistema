@@ -1343,10 +1343,18 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                            | Q(country__name__icontains=search)
                            | Q(itinerary__name__icontains=search))
         for field, param in [('subject_type', 'subject_type'), ('color_bucket', 'color'),
-                             ('itinerary_id', 'itinerary'), ('city_id', 'city'),
-                             ('country_id', 'country'), ('country__continent_id', 'continent')]:
+                             ('itinerary_id', 'itinerary')]:
             if p.get(param):
                 qs = qs.filter(**{field: p[param]})
+        # Geo: casa por campo explícito OU derivado da cidade (país/continente).
+        if p.get('city'):
+            qs = qs.filter(city_id=p['city'])
+        if p.get('country'):
+            qs = qs.filter(Q(country_id=p['country']) | Q(city__state__country_id=p['country']))
+        if p.get('continent'):
+            qs = qs.filter(Q(continent_id=p['continent'])
+                           | Q(country__continent_id=p['continent'])
+                           | Q(city__state__country__continent_id=p['continent']))
         return qs
 
     def get_queryset(self):
@@ -1438,20 +1446,47 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='facets')
     def facets(self, request):
-        """GET /api/itineraries/gallery/facets/ — valores realmente presentes na
-        galeria, para os filtros só listarem o que retorna resultado. Hoje: países
-        (id, name, continent) que têm ao menos uma imagem visível ao usuário."""
-        qs = ItineraryImage.objects.filter(day__isnull=True, country__isnull=False)
+        """GET /api/itineraries/gallery/facets/ — continentes, países e cidades que
+        REALMENTE aparecem na galeria (por campo explícito OU derivado da cidade),
+        para os filtros só listarem o que retorna resultado. Cada país traz seu
+        continente e cada cidade traz país+continente (para os filtros se ligarem)."""
+        base = ItineraryImage.objects.filter(day__isnull=True)
         if _gallery_laminas_only(request.user):
-            qs = self._operadora_restrict(qs)
-        pairs = (qs.values_list('country_id', 'country__name', 'country__continent__name')
-                   .distinct())
-        seen = {}
-        for cid, name, cont in pairs:
-            if cid and cid not in seen:
-                seen[cid] = {'id': cid, 'name': name, 'continent': cont}
-        countries = sorted(seen.values(), key=lambda c: (c['name'] or '').lower())
-        return Response({'countries': countries})
+            base = self._operadora_restrict(base)
+
+        continents = {}
+        for src in (
+            base.filter(continent__isnull=False).values_list('continent_id', 'continent__name'),
+            base.filter(country__continent__isnull=False).values_list('country__continent_id', 'country__continent__name'),
+            base.filter(city__state__country__continent__isnull=False).values_list('city__state__country__continent_id', 'city__state__country__continent__name'),
+        ):
+            for cid, name in src.distinct():
+                if cid and cid not in continents:
+                    continents[cid] = {'id': cid, 'name': name}
+
+        countries = {}
+        for src in (
+            base.filter(country__isnull=False).values_list('country_id', 'country__name', 'country__continent_id'),
+            base.filter(city__isnull=False).values_list('city__state__country_id', 'city__state__country__name', 'city__state__country__continent_id'),
+        ):
+            for cid, name, contid in src.distinct():
+                if cid and cid not in countries:
+                    countries[cid] = {'id': cid, 'name': name, 'continent': contid}
+
+        cities = {}
+        for cid, name, coid, contid, coname in base.filter(city__isnull=False).values_list(
+                'city_id', 'city__name', 'city__state__country_id',
+                'city__state__country__continent_id', 'city__state__country__name').distinct():
+            if cid and cid not in cities:
+                cities[cid] = {'id': cid, 'name': name, 'country': coid, 'continent': contid,
+                               'label': f'{name}, {coname}' if coname else name}
+
+        low = lambda k: (k or '').lower()
+        return Response({
+            'continents': sorted(continents.values(), key=lambda c: low(c['name'])),
+            'countries':  sorted(countries.values(),  key=lambda c: low(c['name'])),
+            'cities':     sorted(cities.values(),     key=lambda c: low(c['label'])),
+        })
 
     @action(detail=False, methods=['get'], url_path='download')
     def download(self, request):
