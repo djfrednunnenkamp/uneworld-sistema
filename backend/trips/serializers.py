@@ -472,8 +472,8 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_agency_name(self, obj):
         def _name(a):
             if a.person_type == 'fisica':
-                return a.company_name or f'{a.name} {a.last_name}'.strip() or ''
-            return a.name or a.company_name or ''
+                return a.company_name or f'{a.name} {a.last_name}'.strip() or str(a)
+            return a.name or a.company_name or str(a)
         if obj.agency:
             return _name(obj.agency)
         if obj.block_agency:
