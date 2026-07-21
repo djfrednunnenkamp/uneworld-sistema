@@ -146,7 +146,7 @@ def _agency_of(enrollment, request):
     ag = getattr(enrollment, 'agency', None) or enrollment.passenger.agencies.first()
     if not ag:
         return (None, None)
-    name = ag.name or ag.company_name or ''
+    name = ag.display_name
     url = None
     if ag.logo:
         url = request.build_absolute_uri(ag.logo.url) if request else ag.logo.url

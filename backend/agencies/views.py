@@ -58,7 +58,20 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        agency = serializer.save(created_by=self.request.user)
+        # Agência criada já ativa (sem passar por rascunho) → provisiona o admin.
+        if agency.status != 'rascunho':
+            from .provisioning import ensure_agency_admin_user
+            ensure_agency_admin_user(agency, self.request.user)
+
+    def perform_update(self, serializer):
+        # Ao finalizar (rascunho → ativa/pendente/...), cria o usuário admin da
+        # agência com o e-mail do cadastro. Transição evita reprovisionar em edições.
+        was_draft = serializer.instance.status == 'rascunho'
+        agency = serializer.save()
+        if was_draft and agency.status != 'rascunho':
+            from .provisioning import ensure_agency_admin_user
+            ensure_agency_admin_user(agency, self.request.user)
 
     def get_permissions(self):
         if self.action == 'destroy':

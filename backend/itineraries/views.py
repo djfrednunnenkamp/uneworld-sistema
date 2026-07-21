@@ -472,12 +472,38 @@ class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+def _payment_plan_snapshot(p):
+    """Copia um Modelo de pagamento global (ConfigPaymentPlan) para o formato de
+    item usado em Itinerary.payment_plans (JSON). Decimais viram float p/ o JSON."""
+    def _f(v):
+        return float(v) if v is not None else 0
+    return {
+        # _cfgId liga a cópia ao Modelo global de origem — assim o seletor
+        # "Escolher forma de pagamento" do roteiro já mostra os favoritos
+        # marcados (e desmarcar remove), igual às formas adicionadas à mão.
+        '_cfgId': p.id,
+        'name': p.name,
+        'a_vista': p.a_vista,
+        'has_down_payment': p.has_down_payment,
+        'down_payment_mode': p.down_payment_mode,
+        'down_payment_value': _f(p.down_payment_value),
+        'down_payment_method': p.down_payment_method or '',
+        'down_payment_rounding': _f(p.down_payment_rounding),
+        'installments_count': p.installments_count,
+        'payment_method': p.payment_method or '',
+        'installment_rounding': _f(p.installment_rounding),
+        'interest_tiers': p.interest_tiers or [],
+        'first_due_days': p.first_due_days,
+        'interval_days': p.interval_days,
+    }
+
+
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = Itinerary.objects.select_related(
         'category', 'continent', 'itinerary_type', 'maritime_company',
     ).prefetch_related(
         'accommodation_lines__accommodation_type',
-        'cities__state__country', 'countries', 'airports', 'keywords', 'inclusions', 'highlights',
+        'cities__state__country__continent', 'countries__continent', 'airports', 'keywords', 'inclusions', 'highlights',
         'itinerary_types', 'special_dates', 'continents',
         'days__city', 'days__images', 'images', 'shared_agencies',
     )
@@ -564,7 +590,19 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         u = self.request.user
-        serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
+        it = serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
+        # Roteiro NOVO já nasce com os modelos de pagamento marcados como FAVORITOS
+        # nas Configurações (cada um vira uma cópia editável só deste roteiro — o
+        # usuário pode desmarcar/editar sem afetar o modelo global). Só quando o
+        # roteiro ainda não trouxe planos (criação em branco, não duplicação).
+        if not it.payment_plans:
+            from config_api.models import ConfigPaymentPlan
+            favs = ConfigPaymentPlan.objects.filter(is_favorite=True).order_by('name')
+            plans = [_payment_plan_snapshot(p) for p in favs]
+            if plans:
+                it.payment_plans = plans
+                it.payment_plan = plans[0]   # compat.: contrato ainda lê um só
+                it.save(update_fields=['payment_plans', 'payment_plan'])
 
     @action(detail=False, methods=['get'], url_path='with_documents')
     def with_documents(self, request):
@@ -766,7 +804,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action in ('upload_image', 'delete_image', 'reorder_images',
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
-        if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft', 'pricing_config'):
+        if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
+                           'pricing_config', 'import_kml_preview'):
             return [RequirePermission('roteiros_edit')()]
         if self.action == 'list':
             # Também quem faz contratos: o seletor de roteiro do contrato lista os
@@ -787,6 +826,32 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if getattr(u, 'is_superuser', False):
             return False
         return has_any_perm(u, 'roteiros_laminas_edit') and not has_any_perm(u, 'roteiros_edit')
+
+    @action(detail=True, methods=['post'], url_path='import-kml/preview')
+    def import_kml_preview(self, request, pk=None):
+        """POST /api/itineraries/{id}/import-kml/preview/ — analisa um KML/KMZ do
+        Google My Maps (multipart, campo `file`) e devolve a PRÉVIA dos destinos
+        (cidades) encontrados, casados com o catálogo. NÃO grava nada: a confirmação
+        acontece no formulário do roteiro (as cidades selecionadas entram no M2M
+        `cities` e são salvas junto com o roteiro, com a auditoria já existente)."""
+        from .services.kml_import_service import (
+            build_kml_preview, KmlImportError, MAX_UPLOAD_BYTES, ALLOWED_EXTS)
+        it = self.get_object()   # 404 + escopo/permissão (roteiros_edit)
+        f = request.FILES.get('file')
+        if not f:
+            return Response({'error': 'Envie um arquivo KML ou KMZ.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not (f.name or '').lower().endswith(ALLOWED_EXTS):
+            return Response({'error': 'O arquivo enviado não é um KML ou KMZ válido.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if f.size and f.size > MAX_UPLOAD_BYTES:
+            return Response({'error': 'O arquivo ultrapassa o tamanho máximo permitido.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        prefer = list(it.countries.values_list('id', flat=True))
+        try:
+            preview = build_kml_preview(f.read(), f.name, prefer_country_ids=prefer)
+        except KmlImportError as e:
+            return Response({'error': str(e), 'code': e.code}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(preview)
 
 
     # ── Ordem manual da listagem (arrastar) — alimenta a ordem do site público ──
@@ -1051,8 +1116,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             fields = _apply_image_meta(img, request.data)
         except ValueError as e:
             key = str(e)
-            return Response({key: ['Cidade inválida.' if key == 'city' else 'País inválido.']},
-                            status=status.HTTP_400_BAD_REQUEST)
+            msg = {'city': 'Cidade inválida.', 'country': 'País inválido.',
+                   'continent': 'Continente inválido.'}.get(key, 'Valor inválido.')
+            return Response({key: [msg]}, status=status.HTTP_400_BAD_REQUEST)
         if fields:
             img.save(update_fields=list(fields))
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
@@ -1098,11 +1164,12 @@ def _apply_dominant_color(img):
 
 
 def _apply_image_meta(img, data):
-    """Aplica subject_type/caption/city/country a uma imagem (mutando-a) e devolve o
-    conjunto de campos alterados. Cidade deriva o país; país manual desvincula a
-    cidade; fora de 'landscape' a geo é limpa. Levanta ValueError('city'|'country')
+    """Aplica subject_type/caption e a geo FLEXÍVEL (cidade OU país OU continente) a
+    uma imagem (mutando-a) e devolve o conjunto de campos alterados. Precedência:
+    cidade > país > continente — a mais específica preenchida deriva as demais.
+    Fora de 'landscape' a geo é limpa. Levanta ValueError('city'|'country'|'continent')
     se um id for inválido."""
-    from config_api.models import ConfigCity, ConfigCountry
+    from config_api.models import ConfigCity, ConfigCountry, ConfigContinent
     fields = set()
     if 'subject_type' in data:
         st = data.get('subject_type') or ''
@@ -1112,34 +1179,56 @@ def _apply_image_meta(img, data):
     if 'caption' in data:
         img.caption = (data.get('caption') or '')[:300]
         fields.add('caption')
+
+    # Geo: resolve na ordem cidade → país → continente. A primeira preenchida vence
+    # e deriva as demais; as seguintes só se aplicam quando a mais específica está
+    # ausente (por isso o país manual funciona mesmo com `city: null` no payload).
+    city_set = country_set = False
     if 'city' in data:
         cid = data.get('city')
         if cid:
-            city = ConfigCity.objects.select_related('state__country').filter(pk=cid).first()
+            city = ConfigCity.objects.select_related('state__country__continent').filter(pk=cid).first()
             if city is None:
                 raise ValueError('city')
             img.city = city
             img.country_id = city.state.country_id
-            fields.update({'city', 'country'})
+            img.continent_id = getattr(getattr(city.state, 'country', None), 'continent_id', None)
+            fields.update({'city', 'country', 'continent'})
+            city_set = True
         else:
             img.city = None
             fields.add('city')
-    if 'country' in data and 'city' not in data:
+    if not city_set and 'country' in data:
         cid = data.get('country')
         if cid:
-            country = ConfigCountry.objects.filter(pk=cid).first()
+            country = ConfigCountry.objects.select_related('continent').filter(pk=cid).first()
             if country is None:
                 raise ValueError('country')
             img.country = country
             img.city = None
-            fields.update({'country', 'city'})
+            img.continent_id = country.continent_id
+            fields.update({'country', 'city', 'continent'})
+            country_set = True
         else:
             img.country = None
-            fields.add('country')
+            fields.update({'country'})
+    if not city_set and not country_set and 'continent' in data:
+        cid = data.get('continent')
+        if cid:
+            continent = ConfigContinent.objects.filter(pk=cid).first()
+            if continent is None:
+                raise ValueError('continent')
+            img.continent = continent
+            fields.add('continent')
+        else:
+            img.continent = None
+            fields.add('continent')
+
     if img.subject_type in ('object', 'lamina'):
         img.city = None
         img.country = None
-        fields.update({'city', 'country'})
+        img.continent = None
+        fields.update({'city', 'country', 'continent'})
     return fields
 
 
@@ -1281,10 +1370,18 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                            | Q(country__name__icontains=search)
                            | Q(itinerary__name__icontains=search))
         for field, param in [('subject_type', 'subject_type'), ('color_bucket', 'color'),
-                             ('itinerary_id', 'itinerary'), ('city_id', 'city'),
-                             ('country_id', 'country'), ('country__continent_id', 'continent')]:
+                             ('itinerary_id', 'itinerary')]:
             if p.get(param):
                 qs = qs.filter(**{field: p[param]})
+        # Geo: casa por campo explícito OU derivado da cidade (país/continente).
+        if p.get('city'):
+            qs = qs.filter(city_id=p['city'])
+        if p.get('country'):
+            qs = qs.filter(Q(country_id=p['country']) | Q(city__state__country_id=p['country']))
+        if p.get('continent'):
+            qs = qs.filter(Q(continent_id=p['continent'])
+                           | Q(country__continent_id=p['continent'])
+                           | Q(city__state__country__continent_id=p['continent']))
         return qs
 
     def get_queryset(self):
@@ -1345,8 +1442,9 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             fields = _apply_image_meta(img, request.data)
         except ValueError as e:
             key = str(e)
-            return Response({key: ['Cidade inválida.' if key == 'city' else 'País inválido.']},
-                            status=status.HTTP_400_BAD_REQUEST)
+            msg = {'city': 'Cidade inválida.', 'country': 'País inválido.',
+                   'continent': 'Continente inválido.'}.get(key, 'Valor inválido.')
+            return Response({key: [msg]}, status=status.HTTP_400_BAD_REQUEST)
         if fields:
             img.save(update_fields=list(fields))
         return Response(ItineraryImageSerializer(img, context=self.get_serializer_context()).data)
@@ -1372,6 +1470,50 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT)
         img.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['get'], url_path='facets')
+    def facets(self, request):
+        """GET /api/itineraries/gallery/facets/ — continentes, países e cidades que
+        REALMENTE aparecem na galeria (por campo explícito OU derivado da cidade),
+        para os filtros só listarem o que retorna resultado. Cada país traz seu
+        continente e cada cidade traz país+continente (para os filtros se ligarem)."""
+        base = ItineraryImage.objects.filter(day__isnull=True)
+        if _gallery_laminas_only(request.user):
+            base = self._operadora_restrict(base)
+
+        continents = {}
+        for src in (
+            base.filter(continent__isnull=False).values_list('continent_id', 'continent__name'),
+            base.filter(country__continent__isnull=False).values_list('country__continent_id', 'country__continent__name'),
+            base.filter(city__state__country__continent__isnull=False).values_list('city__state__country__continent_id', 'city__state__country__continent__name'),
+        ):
+            for cid, name in src.distinct():
+                if cid and cid not in continents:
+                    continents[cid] = {'id': cid, 'name': name}
+
+        countries = {}
+        for src in (
+            base.filter(country__isnull=False).values_list('country_id', 'country__name', 'country__continent_id'),
+            base.filter(city__isnull=False).values_list('city__state__country_id', 'city__state__country__name', 'city__state__country__continent_id'),
+        ):
+            for cid, name, contid in src.distinct():
+                if cid and cid not in countries:
+                    countries[cid] = {'id': cid, 'name': name, 'continent': contid}
+
+        cities = {}
+        for cid, name, coid, contid, coname in base.filter(city__isnull=False).values_list(
+                'city_id', 'city__name', 'city__state__country_id',
+                'city__state__country__continent_id', 'city__state__country__name').distinct():
+            if cid and cid not in cities:
+                cities[cid] = {'id': cid, 'name': name, 'country': coid, 'continent': contid,
+                               'label': f'{name}, {coname}' if coname else name}
+
+        low = lambda k: (k or '').lower()
+        return Response({
+            'continents': sorted(continents.values(), key=lambda c: low(c['name'])),
+            'countries':  sorted(countries.values(),  key=lambda c: low(c['name'])),
+            'cities':     sorted(cities.values(),     key=lambda c: low(c['label'])),
+        })
 
     @action(detail=False, methods=['get'], url_path='download')
     def download(self, request):

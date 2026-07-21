@@ -56,7 +56,7 @@ def serialize_user(u, perms=None):
         'agency_ids':     scope or [],
         # Agências do usuário (id+nome) — usado no filtro de Agência da lista de
         # Usuários. Só para usuário de agência (interno não entra no filtro).
-        'agencies': ([{'id': am.agency_id, 'name': am.agency.name}
+        'agencies': ([{'id': am.agency_id, 'name': am.agency.display_name}
                       for am in u.agency_memberships.select_related('agency').all()]
                      if scope is not None else []),
         # Admin de agência: pode gerenciar os usuários da(s) agência(s) dele.
@@ -72,6 +72,7 @@ def serialize_user(u, perms=None):
         'last_name':    u.last_name,
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
         'phone':        perms.phone,
+        'is_seller':    perms.is_seller,
         'avatar_url':   perms.avatar.url if perms.avatar else None,
         'avatar_original_url': perms.avatar_original.url if perms.avatar_original else None,
         'avatar_crop':  perms.avatar_crop or {},
@@ -433,10 +434,14 @@ def user_create(request):
         target_agency = req_ag if req_ag in actor_admin_ids else actor_admin_ids[0]
         AgencyMember.objects.get_or_create(agency_id=target_agency, user=user, defaults={'role': 'operator'})
 
-    if 'phone' in data:
+    if 'phone' in data or 'is_seller' in data:
         perms = get_user_permissions(user)
-        perms.phone = (data.get('phone') or '').strip()
-        perms.save(update_fields=['phone'])
+        fields = []
+        if 'phone' in data:
+            perms.phone = (data.get('phone') or '').strip(); fields.append('phone')
+        if 'is_seller' in data:
+            perms.is_seller = bool(data.get('is_seller')); fields.append('is_seller')
+        perms.save(update_fields=fields)
 
     # Sempre envia convite por e-mail para o novo usuário definir a própria senha
     try:
@@ -529,10 +534,15 @@ def user_update(request, pk):
                     perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
-    if 'phone' in data and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit):
+    if (('phone' in data or 'is_seller' in data)
+            and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit)):
         perms = get_user_permissions(user)
-        perms.phone = (data.get('phone') or '').strip()
-        perms.save(update_fields=['phone'])
+        fields = []
+        if 'phone' in data:
+            perms.phone = (data.get('phone') or '').strip(); fields.append('phone')
+        if 'is_seller' in data:
+            perms.is_seller = bool(data.get('is_seller')); fields.append('is_seller')
+        perms.save(update_fields=fields)
     # Se virou conta interna (staff/superusuário), deixa de ser usuário de agência →
     # remove os vínculos de agência (senão continuava aparecendo na agência).
     drop_agency_memberships_if_internal(user)

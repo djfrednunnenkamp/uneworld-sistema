@@ -115,8 +115,20 @@ class Agency(models.Model):
             self.cpf = ''
         super().save(*args, **kwargs)
 
+    @property
+    def display_name(self):
+        """Nome de exibição da agência — NUNCA vazio. Pessoa física usa razão
+        social ou nome+sobrenome; jurídica usa nome/razão social. Cai para
+        responsável, e-mail e, por fim, "Agência #id". Usado em qualquer lugar
+        que mostra a agência (filtros, badges, login) para não ficar em branco."""
+        if self.person_type == 'fisica':
+            base = self.company_name or f'{self.name} {self.last_name}'.strip()
+        else:
+            base = self.name or self.company_name
+        return base or self.responsible or self.email or f'Agência #{self.pk}'
+
     def __str__(self):
-        return self.company_name or self.name or f'Agência #{self.pk}'
+        return self.display_name
 
 
 class AgencyMember(models.Model):

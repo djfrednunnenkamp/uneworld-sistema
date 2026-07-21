@@ -29,6 +29,10 @@ class CalendarPreference(models.Model):
     CONTRACT_LAYOUT_CHOICES = [('steps', 'Passo a passo'), ('full', 'Completo')]
     contract_create_layout = models.CharField('Layout ao criar contrato', max_length=6, choices=CONTRACT_LAYOUT_CHOICES, default='steps')
     contract_edit_layout   = models.CharField('Layout ao editar contrato', max_length=6, choices=CONTRACT_LAYOUT_CHOICES, default='full')
+    # Ao APROVAR um contrato na revisão, o que fazer com a lista de passageiros —
+    # PREFERÊNCIA PESSOAL de cada usuário (aba separada [padrão] / mesma aba / não abrir).
+    REVIEW_OPEN_CHOICES = [('new_tab', 'Abrir em aba separada'), ('same_tab', 'Abrir na mesma aba'), ('none', 'Não abrir')]
+    contract_review_open_mode = models.CharField('Ao aprovar contrato, abrir a lista', max_length=10, choices=REVIEW_OPEN_CHOICES, default='new_tab')
     # Moedas que o usuário escolheu ver na faixa de câmbio da Visão Geral
     # (lista de IDs de ConfigExchangeRate). Vazio = usa as favoritas globais.
     dashboard_currencies = models.JSONField('Moedas do câmbio no painel', default=list, blank=True)
@@ -55,6 +59,7 @@ class CalendarPreference(models.Model):
     # Ordem das abas do detalhe do roteiro escolhida pelo usuário (lista de chaves,
     # ex.: ['destinos','voo','valores',...]). Vazio = ordem padrão do sistema.
     itinerary_tab_order  = models.JSONField('Ordem das abas do roteiro', default=list, blank=True)
+    contract_tab_order   = models.JSONField('Ordem das abas dos contratos', default=list, blank=True)
     # Colunas da lista do Drive (Meus Documentos), com ordem e visibilidade
     # escolhidas pelo usuário: [{"key":"modified","on":true}, ...]. Vazio = padrão.
     drive_columns        = models.JSONField('Colunas da lista do Drive', default=list, blank=True)

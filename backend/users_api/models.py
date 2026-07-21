@@ -49,6 +49,9 @@ class UserPermissions(models.Model):
 
     # Dados de perfil
     phone      = models.CharField(max_length=30, blank=True, default='')
+    # Marca se o usuário é VENDEDOR (aparece como tag na lista e pode ser usado
+    # como vendedor de contratos). Definido por quem gerencia usuários.
+    is_seller  = models.BooleanField('Vendedor', default=False)
     # Foto de perfil. Sempre revalidada e re-encodada como JPEG no upload (seguro).
     # `avatar` = recorte exibido; `avatar_original` = imagem completa enviada;
     # `avatar_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.

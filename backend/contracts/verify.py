@@ -222,7 +222,7 @@ def build_expected(contract):
     add('Reserva nº', contract.reservation_number, 'digits')
     contratante = contract.contratante.full_name if contract.contratante_id else contract.payer_name
     add('Contratante', contratante, 'name')
-    add('Agência', contract.agency.name if contract.agency_id else None, 'name')
+    add('Agência', contract.agency.display_name if contract.agency_id else None, 'name')
     add('Pacote', contract.package_name, 'name')
     if contract.total_brl:
         add('Total (BRL)', contract.total_brl, 'digits')

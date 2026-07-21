@@ -10,11 +10,11 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'reminder_enabled', 'reminder_days_before',
                   'receive_deadline_emails', 'receive_task_emails', 'receive_birthday_emails',
                   'send_hour', 'side_panel_enabled', 'side_panel_position',
-                  'contract_create_layout', 'contract_edit_layout',
+                  'contract_create_layout', 'contract_edit_layout', 'contract_review_open_mode',
                   'dashboard_currencies', 'dashboard_chart_range', 'dashboard_list_statuses', 'lamina_recent_colors',
                   'lamina_favorite_patterns', 'lamina_recent_patterns', 'lamina_favorite_recommended',
                   'lamina_favorite_themes',
-                  'itinerary_tab_order', 'drive_columns',
+                  'itinerary_tab_order', 'contract_tab_order', 'drive_columns',
                   'nav_order', 'nav_hidden', 'table_columns']
 
     def validate_lamina_recent_colors(self, value):

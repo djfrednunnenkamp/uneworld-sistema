@@ -349,16 +349,24 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='sellers')
     def sellers(self, request):
-        """Usuários selecionáveis como vendedor do contrato (ativos, não excluídos).
-        Disponível para qualquer um que acesse contratos; trocar o vendedor de
-        fato é gated por contracts_change_seller no serializer."""
+        """Vendedores selecionáveis (ativos, não excluídos).
+        - `?agency=<id>`: Vendedor da AGÊNCIA → TODOS os membros daquela agência
+          (sem exigir a tag 'Vendedor'; qualquer usuário da agência pode ser).
+        - sem `agency`: Vendedor da OPERADORA → internos (sem vínculo de agência)
+          que tenham a tag 'Vendedor'.
+        Trocar o vendedor da operadora é gated por contracts_change_seller no
+        serializer; o vendedor da agência é validado no serializer."""
         from django.contrib.auth.models import User
         from .serializers import _seller_brief
-        users = (User.objects.filter(is_active=True)
-                 .exclude(permissions__is_deleted=True)
-                 .select_related('permissions')
-                 .order_by('first_name', 'last_name', 'username'))
-        return Response([_seller_brief(u) for u in users])
+        qs = (User.objects.filter(is_active=True)
+              .exclude(permissions__is_deleted=True))
+        agency_id = request.query_params.get('agency')
+        if agency_id:
+            qs = qs.filter(agency_memberships__agency_id=agency_id).distinct()
+        else:
+            qs = qs.filter(agency_memberships__isnull=True, permissions__is_seller=True)
+        qs = qs.select_related('permissions').order_by('first_name', 'last_name', 'username')
+        return Response([_seller_brief(u) for u in qs])
 
     @action(detail=True, methods=['post'], url_path='send-for-signature',
             parser_classes=[MultiPartParser, FormParser])
@@ -545,6 +553,11 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 resp['list_deleted'] = True
         except Exception:
             logger.exception('Falha ao inscrever passageiros do contrato %s ao aprovar', contract.pk)
+        # Como o front deve abrir a lista após aprovar (aba separada / mesma aba /
+        # não abrir) — PREFERÊNCIA PESSOAL do usuário (Minha conta › Contratos).
+        from agenda.models import CalendarPreference
+        pref = CalendarPreference.objects.filter(user=request.user).first()
+        resp['open_mode'] = pref.contract_review_open_mode if pref else 'new_tab'
         return Response(resp)
 
     @action(detail=True, methods=['get'], url_path='enrollable-lists')
