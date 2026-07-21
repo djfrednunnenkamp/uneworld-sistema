@@ -88,7 +88,7 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('passengers_delete')()]
-        if self.action in ('create', 'update', 'partial_update', 'discard'):
+        if self.action in ('create', 'update', 'partial_update', 'discard', 'claim_cpf'):
             return [RequirePermission('passengers_edit')()]
         if self.action == 'merge':
             return [RequirePermission('passengers_edit')(), RequirePermission('passengers_delete')()]
@@ -251,29 +251,62 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         result.sort(key=lambda g: (-g['total'], g['name'].lower()))
         return Response({'years': sorted(years, reverse=True), 'guides': result})
 
+    @staticmethod
+    def _passenger_by_cpf_qs(cpf):
+        digits = re.sub(r'\D', '', cpf)
+        return (Passenger.objects.filter(Q(cpf=cpf) | Q(cpf=digits), is_deleted=False)
+                .exclude(cpf='').exclude(status='rascunho'))
+
+    @staticmethod
+    def _passenger_brief(p):
+        return {'id': p.id, 'name': (p.full_name or
+                                     f'{p.first_name} {p.last_name}'.strip() or 'Passageiro')}
+
     @action(detail=False, methods=['get'], url_path='check-cpf')
     def check_cpf(self, request):
         cpf = request.query_params.get('cpf', '').strip()
         if not cpf:
             return Response({'error': 'CPF não informado.'}, status=400)
-        digits = re.sub(r'\D', '', cpf)
-        qs = Passenger.objects.filter(
-            Q(cpf=cpf) | Q(cpf=digits), is_deleted=False
-        ).exclude(cpf='').exclude(status='rascunho')
-        # Isolamento por agência (A-01): usuário de agência não pode usar o check-cpf
-        # como oráculo para descobrir existência + nome de passageiros de OUTRAS
-        # agências (vazamento de PII cross-tenant / enumeração de CPF).
+        base = self._passenger_by_cpf_qs(cpf)
+        # Isolamento por agência (A-01): por padrão, usuário de agência não pode usar
+        # o check-cpf como oráculo para descobrir passageiros de OUTRAS agências.
+        # `?claim=1` (fluxo "Novo passageiro") abre exceção: revela que o passageiro
+        # já existe no sistema para permitir ASSOCIÁ-LO à agência (claim-cpf abaixo).
         from users_api.permissions import agency_scope_ids
         scope = agency_scope_ids(request.user)
-        if scope is not None:
-            qs = qs.filter(agencies__in=scope)
-        passenger = qs.first()
-        if passenger:
-            name = (passenger.full_name or
-                    f"{passenger.first_name} {passenger.last_name}".strip() or
-                    'Passageiro')
-            return Response({'exists': True, 'id': passenger.id, 'name': name})
+        if scope is None:
+            p = base.first()
+            return Response({'exists': True, 'in_scope': True, **self._passenger_brief(p)}
+                            if p else {'exists': False})
+        in_p = base.filter(agencies__in=scope).first()
+        if in_p:
+            return Response({'exists': True, 'in_scope': True, **self._passenger_brief(in_p)})
+        if request.query_params.get('claim'):
+            out_p = base.first()
+            if out_p:
+                return Response({'exists': True, 'in_scope': False, 'can_claim': True,
+                                 **self._passenger_brief(out_p)})
         return Response({'exists': False})
+
+    @action(detail=False, methods=['post'], url_path='claim-cpf')
+    def claim_cpf(self, request):
+        """Associa um passageiro JÁ EXISTENTE (por CPF) à(s) agência(s) do usuário —
+        para quando a agência vai vender para alguém que já está no banco (cadastrado
+        por outra agência/operadora). Depois disso o passageiro entra no escopo da
+        agência e o cadastro completo fica acessível. Interno/superusuário não precisa
+        associar (já vê tudo)."""
+        cpf = request.data.get('cpf', '').strip()
+        if not cpf:
+            return Response({'error': 'CPF não informado.'}, status=400)
+        passenger = self._passenger_by_cpf_qs(cpf).first()
+        if not passenger:
+            return Response({'error': 'Passageiro não encontrado.'}, status=404)
+        from users_api.permissions import agency_scope_ids
+        scope = agency_scope_ids(request.user)
+        if scope:
+            from agencies.models import Agency
+            passenger.agencies.add(*Agency.objects.filter(id__in=scope))
+        return Response(self._passenger_brief(passenger))
 
     @action(detail=False, methods=['get'], url_path='check-email')
     def check_email(self, request):
