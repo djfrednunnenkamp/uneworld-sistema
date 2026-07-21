@@ -133,11 +133,14 @@ class ConfigPaymentPlan(models.Model):
     interest_tiers       = models.JSONField('Juros por faixa de parcelas', default=list, blank=True)
     first_due_days       = models.PositiveSmallIntegerField('1º vencimento (dias após aplicar)', default=30)
     interval_days        = models.PositiveSmallIntegerField('Intervalo entre parcelas (dias)', default=30)
+    # Favorito: os modelos marcados entram AUTOMATICAMENTE em cada roteiro novo
+    # (o usuário pode desmarcar/editar a cópia só no roteiro).
+    is_favorite          = models.BooleanField('Favorito', default=False, db_index=True)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at           = models.DateTimeField('Atualizado em', auto_now=True)
 
     class Meta:
-        ordering = ['name']
+        ordering = ['-is_favorite', 'name']
         verbose_name = 'Modelo de pagamento'
 
     def __str__(self):

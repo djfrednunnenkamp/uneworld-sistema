@@ -1325,7 +1325,7 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'a_vista', 'a_vista_discount_mode', 'a_vista_discount_value',
                   'has_down_payment', 'down_payment_mode', 'down_payment_value',
                   'down_payment_method', 'down_payment_rounding', 'installments_count', 'payment_method',
-                  'installment_rounding', 'interest_tiers', 'first_due_days', 'interval_days']
+                  'installment_rounding', 'interest_tiers', 'first_due_days', 'interval_days', 'is_favorite']
 
     def validate_interest_tiers(self, v):
         """Higieniza as faixas de juros por nº de parcelas: {from:int, to:int|None, rate:0..1000}.

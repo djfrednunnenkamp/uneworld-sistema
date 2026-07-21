@@ -472,6 +472,28 @@ class ItineraryFieldTemplateViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+def _payment_plan_snapshot(p):
+    """Copia um Modelo de pagamento global (ConfigPaymentPlan) para o formato de
+    item usado em Itinerary.payment_plans (JSON). Decimais viram float p/ o JSON."""
+    def _f(v):
+        return float(v) if v is not None else 0
+    return {
+        'name': p.name,
+        'a_vista': p.a_vista,
+        'has_down_payment': p.has_down_payment,
+        'down_payment_mode': p.down_payment_mode,
+        'down_payment_value': _f(p.down_payment_value),
+        'down_payment_method': p.down_payment_method or '',
+        'down_payment_rounding': _f(p.down_payment_rounding),
+        'installments_count': p.installments_count,
+        'payment_method': p.payment_method or '',
+        'installment_rounding': _f(p.installment_rounding),
+        'interest_tiers': p.interest_tiers or [],
+        'first_due_days': p.first_due_days,
+        'interval_days': p.interval_days,
+    }
+
+
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = Itinerary.objects.select_related(
         'category', 'continent', 'itinerary_type', 'maritime_company',
@@ -564,7 +586,19 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         u = self.request.user
-        serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
+        it = serializer.save(created_by=u if getattr(u, 'is_authenticated', False) else None)
+        # Roteiro NOVO já nasce com os modelos de pagamento marcados como FAVORITOS
+        # nas Configurações (cada um vira uma cópia editável só deste roteiro — o
+        # usuário pode desmarcar/editar sem afetar o modelo global). Só quando o
+        # roteiro ainda não trouxe planos (criação em branco, não duplicação).
+        if not it.payment_plans:
+            from config_api.models import ConfigPaymentPlan
+            favs = ConfigPaymentPlan.objects.filter(is_favorite=True).order_by('name')
+            plans = [_payment_plan_snapshot(p) for p in favs]
+            if plans:
+                it.payment_plans = plans
+                it.payment_plan = plans[0]   # compat.: contrato ainda lê um só
+                it.save(update_fields=['payment_plans', 'payment_plan'])
 
     @action(detail=False, methods=['get'], url_path='with_documents')
     def with_documents(self, request):
