@@ -1089,8 +1089,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             fields = _apply_image_meta(img, request.data)
         except ValueError as e:
             key = str(e)
-            return Response({key: ['Cidade inválida.' if key == 'city' else 'País inválido.']},
-                            status=status.HTTP_400_BAD_REQUEST)
+            msg = {'city': 'Cidade inválida.', 'country': 'País inválido.',
+                   'continent': 'Continente inválido.'}.get(key, 'Valor inválido.')
+            return Response({key: [msg]}, status=status.HTTP_400_BAD_REQUEST)
         if fields:
             img.save(update_fields=list(fields))
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
@@ -1136,11 +1137,12 @@ def _apply_dominant_color(img):
 
 
 def _apply_image_meta(img, data):
-    """Aplica subject_type/caption/city/country a uma imagem (mutando-a) e devolve o
-    conjunto de campos alterados. Cidade deriva o país; país manual desvincula a
-    cidade; fora de 'landscape' a geo é limpa. Levanta ValueError('city'|'country')
+    """Aplica subject_type/caption e a geo FLEXÍVEL (cidade OU país OU continente) a
+    uma imagem (mutando-a) e devolve o conjunto de campos alterados. Precedência:
+    cidade > país > continente — a mais específica preenchida deriva as demais.
+    Fora de 'landscape' a geo é limpa. Levanta ValueError('city'|'country'|'continent')
     se um id for inválido."""
-    from config_api.models import ConfigCity, ConfigCountry
+    from config_api.models import ConfigCity, ConfigCountry, ConfigContinent
     fields = set()
     if 'subject_type' in data:
         st = data.get('subject_type') or ''
@@ -1150,34 +1152,56 @@ def _apply_image_meta(img, data):
     if 'caption' in data:
         img.caption = (data.get('caption') or '')[:300]
         fields.add('caption')
+
+    # Geo: resolve na ordem cidade → país → continente. A primeira preenchida vence
+    # e deriva as demais; as seguintes só se aplicam quando a mais específica está
+    # ausente (por isso o país manual funciona mesmo com `city: null` no payload).
+    city_set = country_set = False
     if 'city' in data:
         cid = data.get('city')
         if cid:
-            city = ConfigCity.objects.select_related('state__country').filter(pk=cid).first()
+            city = ConfigCity.objects.select_related('state__country__continent').filter(pk=cid).first()
             if city is None:
                 raise ValueError('city')
             img.city = city
             img.country_id = city.state.country_id
-            fields.update({'city', 'country'})
+            img.continent_id = getattr(getattr(city.state, 'country', None), 'continent_id', None)
+            fields.update({'city', 'country', 'continent'})
+            city_set = True
         else:
             img.city = None
             fields.add('city')
-    if 'country' in data and 'city' not in data:
+    if not city_set and 'country' in data:
         cid = data.get('country')
         if cid:
-            country = ConfigCountry.objects.filter(pk=cid).first()
+            country = ConfigCountry.objects.select_related('continent').filter(pk=cid).first()
             if country is None:
                 raise ValueError('country')
             img.country = country
             img.city = None
-            fields.update({'country', 'city'})
+            img.continent_id = country.continent_id
+            fields.update({'country', 'city', 'continent'})
+            country_set = True
         else:
             img.country = None
-            fields.add('country')
+            fields.update({'country'})
+    if not city_set and not country_set and 'continent' in data:
+        cid = data.get('continent')
+        if cid:
+            continent = ConfigContinent.objects.filter(pk=cid).first()
+            if continent is None:
+                raise ValueError('continent')
+            img.continent = continent
+            fields.add('continent')
+        else:
+            img.continent = None
+            fields.add('continent')
+
     if img.subject_type in ('object', 'lamina'):
         img.city = None
         img.country = None
-        fields.update({'city', 'country'})
+        img.continent = None
+        fields.update({'city', 'country', 'continent'})
     return fields
 
 
@@ -1383,8 +1407,9 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             fields = _apply_image_meta(img, request.data)
         except ValueError as e:
             key = str(e)
-            return Response({key: ['Cidade inválida.' if key == 'city' else 'País inválido.']},
-                            status=status.HTTP_400_BAD_REQUEST)
+            msg = {'city': 'Cidade inválida.', 'country': 'País inválido.',
+                   'continent': 'Continente inválido.'}.get(key, 'Valor inválido.')
+            return Response({key: [msg]}, status=status.HTTP_400_BAD_REQUEST)
         if fields:
             img.save(update_fields=list(fields))
         return Response(ItineraryImageSerializer(img, context=self.get_serializer_context()).data)

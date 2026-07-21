@@ -338,12 +338,15 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ItineraryImage
         fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
-                  'city', 'country', 'city_data', 'country_data', 'continent_name',
+                  'city', 'country', 'continent', 'city_data', 'country_data', 'continent_name',
                   'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name']
 
     def get_continent_name(self, obj):
-        c = obj.country or (obj.city.state.country if (obj.city_id and obj.city and obj.city.state_id) else None)
-        cont = getattr(c, 'continent', None)
+        # Continente explícito tem prioridade; senão deriva do país / da cidade.
+        cont = getattr(obj, 'continent', None)
+        if cont is None:
+            c = obj.country or (obj.city.state.country if (obj.city_id and obj.city and obj.city.state_id) else None)
+            cont = getattr(c, 'continent', None)
         return getattr(cont, 'name', None)
 
     def get_is_video(self, obj):

@@ -431,13 +431,16 @@ class ItineraryImage(models.Model):
         ('lamina',    'Lâmina'),
     ]
     subject_type = models.CharField('Tipo de conteúdo', max_length=12, choices=SUBJECT_CHOICES, blank=True, default='')
-    # Geolocalização (só faz sentido para 'paisagem'): a cidade define país e
-    # continente; ou define-se só o país (continente derivado). Continente NÃO é
-    # armazenado — é derivado.
+    # Geolocalização (só faz sentido para 'paisagem'), preenchível de forma FLEXÍVEL:
+    # cidade (define país+continente), OU só país (continente derivado), OU só
+    # continente. O campo `continent` guarda a escolha manual/derivada; a cidade e o
+    # país continuam derivando o continente quando presentes.
     city      = models.ForeignKey('config_api.ConfigCity', null=True, blank=True,
                                   on_delete=models.SET_NULL, related_name='+', verbose_name='Cidade')
     country   = models.ForeignKey('config_api.ConfigCountry', null=True, blank=True,
                                   on_delete=models.SET_NULL, related_name='+', verbose_name='País')
+    continent = models.ForeignKey('config_api.ConfigContinent', null=True, blank=True,
+                                  on_delete=models.SET_NULL, related_name='+', verbose_name='Continente')
     kind      = models.CharField('Tipo', max_length=20, choices=KIND_CHOICES, default='gallery')
     order     = models.PositiveIntegerField('Ordem', default=0)
     # Cor dominante (hex) + faixa de cor nomeada, para o filtro por cor na Galeria.
