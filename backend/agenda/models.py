@@ -59,6 +59,7 @@ class CalendarPreference(models.Model):
     # Ordem das abas do detalhe do roteiro escolhida pelo usuário (lista de chaves,
     # ex.: ['destinos','voo','valores',...]). Vazio = ordem padrão do sistema.
     itinerary_tab_order  = models.JSONField('Ordem das abas do roteiro', default=list, blank=True)
+    contract_tab_order   = models.JSONField('Ordem das abas dos contratos', default=list, blank=True)
     # Colunas da lista do Drive (Meus Documentos), com ordem e visibilidade
     # escolhidas pelo usuário: [{"key":"modified","on":true}, ...]. Vazio = padrão.
     drive_columns        = models.JSONField('Colunas da lista do Drive', default=list, blank=True)
