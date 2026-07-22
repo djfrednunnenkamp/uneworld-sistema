@@ -92,6 +92,33 @@ def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro', 
     )
 
 
+def _touch_unpublished(itinerary):
+    """Marca o roteiro como tendo ALTERAÇÕES NÃO PUBLICADAS.
+
+    Os recursos da aba Valores (custos e config de cálculo) são salvos por API
+    imediata — fora do rascunho do roteiro. Sem isto, mexer num custo/markup não
+    acendia o selo "Público · pendente" nem entrava em "Alterações pendentes".
+    Só age em roteiro publicado (nos demais, "pendente" não faz sentido)."""
+    if itinerary and itinerary.is_published and not itinerary.has_unpublished_changes:
+        itinerary.has_unpublished_changes = True
+        itinerary.save(update_fields=['has_unpublished_changes'])
+
+
+def _pricing_snapshot(itinerary):
+    """Foto dos VALORES (config de cálculo + itens de custo) do roteiro.
+
+    Guardada no published_data ao publicar e servida ao vivo em pricing-snapshot,
+    para o pop-up "Alterações pendentes" comparar campo a campo o que mudou nos
+    valores desde a última publicação. Fonte: os próprios serializers (mesma
+    forma nos dois lados → diff estável)."""
+    from .serializers import ItineraryPricingConfigSerializer, ItineraryCostItemSerializer
+    cfg = getattr(itinerary, 'pricing', None)
+    config = ItineraryPricingConfigSerializer(cfg).data if cfg is not None else {}
+    items = ItineraryCostItemSerializer(
+        itinerary.cost_items.select_related('accommodation_type', 'ship_cabin').order_by('id'), many=True).data
+    return {'config': config, 'cost_items': list(items)}
+
+
 class ItineraryDepartureViewSet(viewsets.ModelViewSet):
     """Aeroportos de saída de um roteiro (aba Voo). Filtra por ?itinerary=<id>."""
     serializer_class = ItineraryDepartureSerializer
@@ -894,6 +921,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def publish(self, request, pk=None):
         obj = self.get_object()
         snapshot = ItinerarySerializer(obj, context=self.get_serializer_context()).data
+        # Foto dos VALORES junto (custos + config) — pra "Alterações pendentes"
+        # comparar os preços vivos com o que foi publicado.
+        snapshot['pricing_snapshot'] = _pricing_snapshot(obj)
         obj.published_data = json.loads(json.dumps(snapshot, cls=DjangoJSONEncoder))
         obj.is_published = True
         obj.visibility = 'public'   # publicar = tornar público (todas as agências)
@@ -935,9 +965,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             ser = ItineraryPricingConfigSerializer(cfg, data=request.data, partial=True)
             ser.is_valid(raise_exception=True)
             ser.save()
+            _touch_unpublished(obj)
             _audit(request, 'update', obj, changes={'Precificação': {'antes': '—', 'depois': 'config atualizada'}})
             return Response(ser.data)
         return Response(ItineraryPricingConfigSerializer(cfg).data)
+
+    @action(detail=True, methods=['get'], url_path='pricing-snapshot')
+    def pricing_snapshot(self, request, pk=None):
+        """Foto AO VIVO dos valores (config + custos), na mesma forma do que foi
+        congelado no published_data. O front compara os dois em "Alterações pendentes"."""
+        return Response(_pricing_snapshot(self.get_object()))
 
     @action(detail=True, methods=['get'], url_path='pricing')
     def pricing(self, request, pk=None):
@@ -1613,12 +1650,29 @@ class ItineraryCostItemViewSet(viewsets.ModelViewSet):
             return qs.filter(itinerary_id=it) if it else qs.none()
         return qs
 
+    # Qualquer mexida num custo acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         ids = request.data.get('order') or []
         with transaction.atomic():
             for pos, cid in enumerate(ids):
                 ItineraryCostItem.objects.filter(pk=cid).update(order=pos)
+        first = ItineraryCostItem.objects.filter(pk__in=ids).select_related('itinerary').first()
+        if first:
+            _touch_unpublished(first.itinerary)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='duplicate')
@@ -1627,6 +1681,7 @@ class ItineraryCostItemViewSet(viewsets.ModelViewSet):
         obj.pk = None
         obj.description = f'{obj.description} (cópia)'
         obj.save()
+        _touch_unpublished(obj.itinerary)
         return Response(self.get_serializer(obj).data, status=status.HTTP_201_CREATED)
 
 
