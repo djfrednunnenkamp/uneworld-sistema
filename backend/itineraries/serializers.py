@@ -270,7 +270,7 @@ class ItineraryBoatSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ItineraryBoat
         fields = ['id', 'itinerary', 'config_boat', 'config_boat_data', 'config_boat_linked',
-                  'name', 'check_in', 'check_out', 'notes', 'order']
+                  'name', 'website', 'check_in', 'check_out', 'notes', 'order']
 
     def validate_notes(self, v):
         from core.sanitize import sanitize_html   # HTML rico → anti-XSS (A-12)

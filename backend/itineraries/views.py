@@ -146,7 +146,8 @@ def _pricing_snapshot(itinerary):
     forma nos dois lados → diff estável). `override_labels` traduz as chaves de
     price_overrides (preços finais ajustados) em rótulos legíveis."""
     from .serializers import (ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
-                              ItineraryInventoryBlockSerializer, ItineraryHotelSerializer)
+                              ItineraryInventoryBlockSerializer, ItineraryHotelSerializer,
+                              ItineraryBoatSerializer)
     from .pricing import _dep_label
     cfg = getattr(itinerary, 'pricing', None)
     config = ItineraryPricingConfigSerializer(cfg).data if cfg is not None else {}
@@ -160,11 +161,16 @@ def _pricing_snapshot(itinerary):
             itinerary.hotels.select_related('config_hotel').order_by('id'), many=True).data
     except Exception:
         hotels = []   # ex.: migration pendente — degrada sem quebrar
+    try:
+        boats = ItineraryBoatSerializer(
+            itinerary.boats.select_related('config_boat').order_by('id'), many=True).data
+    except Exception:
+        boats = []
     dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
     overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
     override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
     return {'config': config, 'cost_items': list(items), 'inventory_blocks': list(blocks),
-            'hotels': list(hotels), 'override_labels': override_labels}
+            'hotels': list(hotels), 'boats': list(boats), 'override_labels': override_labels}
 
 
 class ItineraryDepartureViewSet(viewsets.ModelViewSet):
@@ -304,6 +310,20 @@ class ItineraryBoatViewSet(viewsets.ModelViewSet):
             itinerary = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
         return qs
+
+    # Qualquer mexida num navio acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
 
 
 class ItineraryDocumentFolderViewSet(viewsets.ModelViewSet):

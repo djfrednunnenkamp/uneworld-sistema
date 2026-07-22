@@ -990,6 +990,9 @@ class ConfigBoatMedia(models.Model):
     kind        = models.CharField('Tipo', max_length=10, default=IMAGE)
     order       = models.PositiveIntegerField('Ordem', default=0)
     uploaded_at = models.DateTimeField('Enviado em', auto_now_add=True)
+    # Soft-delete: igual ao hotel — excluir só marca, e o roteiro pode RESTAURAR
+    # pelo id ao reverter (o diff limpa de verdade).
+    is_deleted  = models.BooleanField('Excluída', default=False, db_index=True)
 
     class Meta:
         ordering = ['order', 'id']

@@ -1251,7 +1251,8 @@ class BoatViewSet(viewsets.ModelViewSet):
         vinculados (vínculo vivo ligado)."""
         boat = serializer.save()
         from itineraries.models import ItineraryBoat
-        ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True).update(name=boat.name)
+        ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True).update(
+            name=boat.name, website=boat.website)
 
 
 class BoatMediaViewSet(viewsets.ModelViewSet):
@@ -1259,12 +1260,34 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
     serializer_class = BoatMediaSerializer
     pagination_class = None
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    get_permissions = _settings_perm('settings_boats', extra_write=['reorder'])
+    get_permissions = _settings_perm('settings_boats', extra_write=['reorder', 'restore'])
 
     def get_queryset(self):
         qs = ConfigBoatMedia.objects.all()
         boat = self.request.query_params.get('boat')
-        return qs.filter(boat_id=boat) if boat else qs
+        if boat:
+            qs = qs.filter(boat_id=boat)
+        # Na LISTAGEM, esconde as excluídas (soft-delete); detail/restore acessa todas.
+        if self.action == 'list':
+            qs = qs.filter(is_deleted=False)
+        return qs
+
+    # Soft-delete: excluir só marca — assim o roteiro pode RESTAURAR pelo id ao reverter.
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj.is_deleted:
+            obj.is_deleted = True
+            obj.save(update_fields=['is_deleted'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        """Restaura uma mídia excluída (soft-delete) — mantém o mesmo id."""
+        obj = self.get_object()
+        if obj.is_deleted:
+            obj.is_deleted = False
+            obj.save(update_fields=['is_deleted'])
+        return Response(BoatMediaSerializer(obj, context=self.get_serializer_context()).data)
 
     def perform_create(self, serializer):
         from passengers.validators import validate_media_file

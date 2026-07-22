@@ -617,6 +617,7 @@ class ItineraryBoat(models.Model):
     # Vínculo vivo: se True, editar o barco nas Configurações reaplica o nome aqui.
     config_boat_linked = models.BooleanField(default=True)
     name      = models.CharField('Nome do barco', max_length=300)
+    website   = models.CharField('Site', max_length=500, blank=True)
     check_in  = models.DateField('Check-in', null=True, blank=True)
     check_out = models.DateField('Check-out', null=True, blank=True)
     notes     = models.TextField('Observações', blank=True, default='')
