@@ -104,19 +104,57 @@ def _touch_unpublished(itinerary):
         itinerary.save(update_fields=['has_unpublished_changes'])
 
 
+def _combo_label(key, dep_labels):
+    """Rótulo amigável da combinação de preço final (chave do price_overrides).
+    Ex.: 'cap2__dep5' -> 'Duplo · GRU · São Paulo'. Espelha o buildCostCombos do
+    front: 'cap'+capacidade, 'cab'+categoria|capacidade, 'dep'+id da saída."""
+    from .pricing import _cap_name
+    out = []
+    for p in str(key).split('__'):
+        if p.startswith('dep'):
+            try:
+                out.append(dep_labels.get(int(p[3:]), 'Saída'))
+            except (ValueError, TypeError):
+                out.append('Saída')
+        elif p.startswith('cap'):
+            try:
+                out.append(_cap_name(int(p[3:])))
+            except (ValueError, TypeError):
+                out.append(p)
+        elif p.startswith('cab'):
+            rest = p[3:]
+            if '|' in rest:
+                cat, _, cap = rest.rpartition('|')
+                try:
+                    capn = _cap_name(int(cap))
+                except (ValueError, TypeError):
+                    capn = cap
+                out.append(f'{cat} — {capn}' if cat else capn)
+            else:
+                out.append(rest or 'Cabine')
+        else:
+            out.append(p)
+    return ' · '.join(out)
+
+
 def _pricing_snapshot(itinerary):
     """Foto dos VALORES (config de cálculo + itens de custo) do roteiro.
 
     Guardada no published_data ao publicar e servida ao vivo em pricing-snapshot,
     para o pop-up "Alterações pendentes" comparar campo a campo o que mudou nos
     valores desde a última publicação. Fonte: os próprios serializers (mesma
-    forma nos dois lados → diff estável)."""
+    forma nos dois lados → diff estável). `override_labels` traduz as chaves de
+    price_overrides (preços finais ajustados) em rótulos legíveis."""
     from .serializers import ItineraryPricingConfigSerializer, ItineraryCostItemSerializer
+    from .pricing import _dep_label
     cfg = getattr(itinerary, 'pricing', None)
     config = ItineraryPricingConfigSerializer(cfg).data if cfg is not None else {}
     items = ItineraryCostItemSerializer(
         itinerary.cost_items.select_related('accommodation_type', 'ship_cabin').order_by('id'), many=True).data
-    return {'config': config, 'cost_items': list(items)}
+    dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
+    overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
+    override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
+    return {'config': config, 'cost_items': list(items), 'override_labels': override_labels}
 
 
 class ItineraryDepartureViewSet(viewsets.ModelViewSet):
