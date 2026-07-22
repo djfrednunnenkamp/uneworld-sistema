@@ -404,7 +404,19 @@ if SECURE_SSL_REDIRECT:
     # redirecionaria (301) e o container ficaria "unhealthy". Isenta /healthz do
     # redirect — é público e não trafega dado sensível. (Padrão matched contra
     # request.path sem a barra inicial.)
-    SECURE_REDIRECT_EXEMPT = [r'^healthz$']
+    #
+    # Mesma questão para o OnlyOffice Document Server: ele chama o backend por HTTP
+    # interno (ONLYOFFICE_BACKEND_URL=http://backend:8000), sem TLS e sem o header
+    # X-Forwarded-Proto: https. Sem isentar, o 301→https quebraria o download do
+    # documento (view assinada) e o callback de salvar (que não seguem redirect).
+    # Endpoints protegidos por token/assinatura JWT — não abrem nada extra.
+    SECURE_REDIRECT_EXEMPT = [
+        r'^healthz$',
+        r'^api/drive/oo-download/$',
+        r'^api/drive/\d+/callback/$',
+        r'^api/itineraries/documents/oo-download/$',
+        r'^api/itineraries/documents/\d+/callback/$',
+    ]
 
 # ── Monitoramento de erros (Sentry) — OPCIONAL ────────────────────────────────
 # Ativa só quando SENTRY_DSN está definido (e fora de DEBUG). O import é protegido:

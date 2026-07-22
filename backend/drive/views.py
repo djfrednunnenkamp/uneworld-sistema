@@ -244,9 +244,11 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             can_edit = (level == 'edit')
             can_comment = (level in ('edit', 'comment'))
         try:
+            file_url = (onlyoffice.ds_file_url('/api/drive/oo-download/', {'t': 'node', 'id': node.id})
+                        or node.file.url)
             return Response(onlyoffice.build_editor_config(
                 doc_key=f'drive{node.id}', edit_key=node.edit_key,
-                fname=node.name or node.file.name, file_url=node.file.url,
+                fname=node.name or node.file.name, file_url=file_url,
                 callback_url=f'/api/drive/{node.id}/callback/',
                 user=request.user, user_can_edit=can_edit, can_comment=can_comment,
                 allow_download=False))   # Drive: tudo fica virtual, sem baixar
@@ -470,18 +472,21 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Versão inválida.'}, status=status.HTTP_400_BAD_REQUEST)
         v = vers[n - 1]
         ext = os.path.splitext(node.name or node.file.name)[1].lower().lstrip('.')
+        def _ver_url(fieldfile, vid, scope='ver'):
+            signed = onlyoffice.ds_file_url('/api/drive/oo-download/', {'t': scope, 'id': vid})
+            return onlyoffice._backend(signed or fieldfile.url)   # dev sem segredo: /media/
         data = {
             'fileType': ext,
             'version': n,
             'key': v.doc_key or f'drive{node.id}ver{v.id}',
-            'url': onlyoffice._backend(v.file.url),
+            'url': _ver_url(v.file, v.id),
         }
         if n > 1 and v.changes_file:
             prev = vers[n - 2]
-            data['changesUrl'] = onlyoffice._backend(v.changes_file.url)
+            data['changesUrl'] = _ver_url(v.changes_file, v.id, 'verchanges')
             data['previous'] = {
                 'key': prev.doc_key or f'drive{node.id}ver{prev.id}',
-                'url': onlyoffice._backend(prev.file.url),
+                'url': _ver_url(prev.file, prev.id),
             }
         secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
         if secret:
@@ -608,7 +613,8 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         if not node.thumb:
             ext = os.path.splitext(node.name or node.file.name)[1].lower().lstrip('.')
             png = onlyoffice.render_thumbnail(
-                file_url=node.file.url, ext=ext,
+                file_url=(onlyoffice.ds_file_url('/api/drive/oo-download/', {'t': 'node', 'id': node.id})
+                          or node.file.url), ext=ext,
                 doc_key=f'drivethumb{node.id}v{node.edit_key or "0"}', title=node.name or node.file.name)
             if not png:
                 raise Http404
@@ -654,6 +660,37 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(fname)}"
         resp['X-Content-Type-Options'] = 'nosniff'
         return resp
+
+
+@api_view(['GET'])
+@authentication_classes([])          # o Document Server baixa sem sessão de usuário
+@permission_classes([AllowAny])      # autorizado pelo token JWT curto (ds_file_url)
+def drive_oo_download(request):
+    """Entrega arquivos do Drive AO OnlyOffice Document Server. /media/ não é servido
+    em produção (A-11), então o editor baixa o conteúdo por aqui. O DS não tem sessão;
+    a autorização é o token JWT curto assinado em onlyoffice.ds_file_url (fail-closed:
+    sem segredo/assinatura válida → 404). O id do objeto vem DENTRO do token assinado."""
+    claims = onlyoffice.verify_ds_token(request.query_params.get('token'))
+    if not claims:
+        raise Http404
+    scope, oid = claims.get('t'), claims.get('id')
+    ff = None
+    if scope == 'node':
+        n = DriveNode.objects.filter(pk=oid, kind='file').first()
+        ff = n.file if n else None
+    elif scope == 'ver':
+        v = DriveNodeVersion.objects.filter(pk=oid).first()
+        ff = v.file if v else None
+    elif scope == 'verchanges':
+        v = DriveNodeVersion.objects.filter(pk=oid).first()
+        ff = v.changes_file if v else None
+    if not ff:
+        raise Http404
+    try:
+        fh = ff.open('rb')
+    except Exception:
+        raise Http404
+    return FileResponse(fh, content_type='application/octet-stream')
 
 
 @csrf_exempt

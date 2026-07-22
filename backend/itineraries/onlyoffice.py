@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 
 from django.conf import settings
 
@@ -116,6 +117,46 @@ def _backend(path: str) -> str:
     return f'{base}{path}'
 
 
+# ── Download de arquivos SENSÍVEIS para o Document Server ──
+# Documentos do Drive/roteiro NÃO ficam em /media/ público (A-11): em produção
+# /media/ não é servido (DEBUG=False) e o nginx bloqueia. Como o DS baixa o
+# conteúdo sem sessão de usuário, servimos por uma view AllowAny autorizada por
+# um token JWT curto e assinado (o MESMO segredo do editor), fail-closed.
+def sign_ds_token(claims: dict, ttl: int = 3600):
+    """Assina claims curtos p/ o DS baixar um arquivo. None se não houver segredo
+    (dev sem OnlyOffice) — o chamador cai na URL crua do arquivo (/media/, que em
+    dev É servido porque DEBUG=True)."""
+    secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
+    if not secret:
+        return None
+    return jwt_encode({**claims, 'exp': int(time.time()) + ttl}, secret)
+
+
+def verify_ds_token(token: str):
+    """Valida o token de download do DS (assinatura + expiração). None = inválido."""
+    secret = getattr(settings, 'ONLYOFFICE_JWT_SECRET', '')
+    if not secret or not token:
+        return None
+    try:
+        data = jwt_decode(token, secret)
+    except Exception:
+        return None
+    exp = data.get('exp')
+    if exp and int(time.time()) > int(exp):
+        return None
+    return data
+
+
+def ds_file_url(view_path: str, claims: dict, ttl: int = 3600):
+    """URL RELATIVA (assinada) para o DS baixar um arquivo sensível. Anexa o token
+    como ?token=. None se não houver segredo — chamador usa a URL crua do arquivo."""
+    token = sign_ds_token(claims, ttl)
+    if token is None:
+        return None
+    sep = '&' if '?' in view_path else '?'
+    return f'{view_path}{sep}token={token}'
+
+
 def render_thumbnail(*, file_url, ext, doc_key, title, width=480, height=360):
     """Gera uma MINIATURA (PNG) da primeira página do documento usando o serviço
     de conversão do OnlyOffice (ConvertService.ashx). Devolve os bytes do PNG ou
@@ -212,8 +253,10 @@ def editor_config(document, user):
     fname = document.name or (document.file.name if document.file else '')
     from users_api.permissions import has_any_perm
     user_can_edit = bool(getattr(user, 'is_superuser', False) or has_any_perm(user, 'roteiros_docs_edit'))
+    file_url = (ds_file_url('/api/itineraries/documents/oo-download/', {'t': 'doc', 'id': document.id})
+                or document.file.url)
     return build_editor_config(
         doc_key=f'doc{document.id}', edit_key=document.edit_key, fname=fname,
-        file_url=document.file.url, callback_url=f'/api/itineraries/documents/{document.id}/callback/',
+        file_url=file_url, callback_url=f'/api/itineraries/documents/{document.id}/callback/',
         user=user, user_can_edit=user_can_edit,
     )
