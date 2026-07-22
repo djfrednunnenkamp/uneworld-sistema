@@ -145,16 +145,21 @@ def _pricing_snapshot(itinerary):
     valores desde a última publicação. Fonte: os próprios serializers (mesma
     forma nos dois lados → diff estável). `override_labels` traduz as chaves de
     price_overrides (preços finais ajustados) em rótulos legíveis."""
-    from .serializers import ItineraryPricingConfigSerializer, ItineraryCostItemSerializer
+    from .serializers import (ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
+                              ItineraryInventoryBlockSerializer)
     from .pricing import _dep_label
     cfg = getattr(itinerary, 'pricing', None)
     config = ItineraryPricingConfigSerializer(cfg).data if cfg is not None else {}
     items = ItineraryCostItemSerializer(
         itinerary.cost_items.select_related('accommodation_type', 'ship_cabin').order_by('id'), many=True).data
+    blocks = ItineraryInventoryBlockSerializer(
+        itinerary.inventory_blocks.select_related('ship_cabin', 'airline', 'flight_class')
+        .prefetch_related('accommodations').order_by('id'), many=True).data
     dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
     overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
     override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
-    return {'config': config, 'cost_items': list(items), 'override_labels': override_labels}
+    return {'config': config, 'cost_items': list(items), 'inventory_blocks': list(blocks),
+            'override_labels': override_labels}
 
 
 class ItineraryDepartureViewSet(viewsets.ModelViewSet):
@@ -1753,10 +1758,27 @@ class ItineraryInventoryBlockViewSet(viewsets.ModelViewSet):
             return qs.filter(itinerary_id=it) if it else qs.none()
         return qs
 
+    # Qualquer mexida num bloqueio acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         ids = request.data.get('order') or []
         with transaction.atomic():
             for pos, cid in enumerate(ids):
                 ItineraryInventoryBlock.objects.filter(pk=cid).update(order=pos)
+        first = ItineraryInventoryBlock.objects.filter(pk__in=ids).select_related('itinerary').first()
+        if first:
+            _touch_unpublished(first.itinerary)
         return Response(status=status.HTTP_204_NO_CONTENT)
