@@ -155,8 +155,11 @@ def _pricing_snapshot(itinerary):
     blocks = ItineraryInventoryBlockSerializer(
         itinerary.inventory_blocks.select_related('ship_cabin', 'airline', 'flight_class')
         .prefetch_related('accommodations').order_by('id'), many=True).data
-    hotels = ItineraryHotelSerializer(
-        itinerary.hotels.select_related('config_hotel').order_by('id'), many=True).data
+    try:
+        hotels = ItineraryHotelSerializer(
+            itinerary.hotels.select_related('config_hotel').order_by('id'), many=True).data
+    except Exception:
+        hotels = []   # ex.: migration pendente — degrada sem quebrar
     dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
     overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
     override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
@@ -980,9 +983,14 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def publish(self, request, pk=None):
         obj = self.get_object()
         snapshot = ItinerarySerializer(obj, context=self.get_serializer_context()).data
-        # Foto dos VALORES junto (custos + config) — pra "Alterações pendentes"
-        # comparar os preços vivos com o que foi publicado.
-        snapshot['pricing_snapshot'] = _pricing_snapshot(obj)
+        # Foto dos VALORES junto (custos + config + disponibilidade + hotéis) — pra
+        # "Alterações pendentes" comparar os valores vivos com o que foi publicado.
+        # É OPCIONAL: se falhar (ex.: migration pendente), NUNCA bloqueia a publicação
+        # — o diff só cai no modo "sem baseline" até a próxima publicação.
+        try:
+            snapshot['pricing_snapshot'] = _pricing_snapshot(obj)
+        except Exception:
+            snapshot.pop('pricing_snapshot', None)
         obj.published_data = json.loads(json.dumps(snapshot, cls=DjangoJSONEncoder))
         obj.is_published = True
         obj.visibility = 'public'   # publicar = tornar público (todas as agências)
@@ -1031,9 +1039,13 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='pricing-snapshot')
     def pricing_snapshot(self, request, pk=None):
-        """Foto AO VIVO dos valores (config + custos), na mesma forma do que foi
-        congelado no published_data. O front compara os dois em "Alterações pendentes"."""
-        return Response(_pricing_snapshot(self.get_object()))
+        """Foto AO VIVO dos valores (config + custos + disponibilidade + hotéis), na
+        mesma forma do que foi congelado no published_data. O front compara os dois
+        em "Alterações pendentes". Resiliente: nunca 500 (o front cai no modo sem foto)."""
+        try:
+            return Response(_pricing_snapshot(self.get_object()))
+        except Exception:
+            return Response({})
 
     @action(detail=True, methods=['get'], url_path='pricing')
     def pricing(self, request, pk=None):
