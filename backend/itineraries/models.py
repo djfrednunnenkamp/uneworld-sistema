@@ -595,6 +595,7 @@ class ItineraryHotel(models.Model):
     check_out = models.DateField('Check-out', null=True, blank=True)
     address   = models.CharField('Endereço', max_length=400, blank=True)
     phone     = models.CharField('Telefone', max_length=40, blank=True)
+    website   = models.CharField('Site', max_length=300, blank=True)
     notes     = models.TextField('Observações', blank=True, default='')
     order     = models.PositiveIntegerField('Ordem', default=0)
 

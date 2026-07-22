@@ -1142,7 +1142,7 @@ class HotelViewSet(viewsets.ModelViewSet):
                                        c.state.country.name if c and c.state and c.state.country else None] if p])
         from itineraries.models import ItineraryHotel
         ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True).update(
-            name=hotel.name, city=label, phone=hotel.phone)
+            name=hotel.name, city=label, phone=hotel.phone, website=hotel.website)
 
 
 class HotelMediaViewSet(viewsets.ModelViewSet):
