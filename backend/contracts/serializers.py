@@ -436,12 +436,12 @@ class ContractSerializer(serializers.ModelSerializer):
                 for i, row in enumerate(installments)
             ])
 
-        # As cláusulas marcadas como "padrão" (favoritas) sempre entram no
-        # contrato, independente do que foi enviado — o usuário só escolhe as
-        # adicionais.
-        default_ids = set(ContractClause.objects.filter(is_default=True).values_list('id', flat=True))
-        chosen_ids  = set(c.id for c in clauses) if clauses is not None else set()
-        contract.clauses.set(default_ids | chosen_ids)
+        # Cláusulas do contrato: exatamente o que foi enviado. As "padrão"
+        # (is_default) já vêm PRÉ-MARCADAS no formulário/roteiro, mas podem ser
+        # DESMARCADAS por contrato/roteiro — então respeitamos a escolha e NÃO
+        # forçamos as padrão de volta (senão desmarcar não teria efeito).
+        if clauses is not None:
+            contract.clauses.set([c.id for c in clauses])
 
     # ── Auditoria: os filhos do contrato são salvos com bulk_create (não disparam
     # signal), então mudanças em hóspedes/parcelas/ajustes/acomodações (inclusive
