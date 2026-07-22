@@ -603,6 +603,14 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 it.payment_plans = plans
                 it.payment_plan = plans[0]   # compat.: contrato ainda lê um só
                 it.save(update_fields=['payment_plans', 'payment_plan'])
+        # Roteiro NOVO já nasce com as cláusulas PADRÃO (is_default) das Configurações
+        # marcadas — o usuário pode desmarcar por roteiro (e o contrato feito com ele
+        # herda essas marcações). Só na criação em branco (não duplicação).
+        if not it.clauses.exists():
+            from config_api.models import ContractClause
+            default_ids = list(ContractClause.objects.filter(is_default=True).values_list('id', flat=True))
+            if default_ids:
+                it.clauses.add(*default_ids)
 
     @action(detail=False, methods=['get'], url_path='with_documents')
     def with_documents(self, request):
