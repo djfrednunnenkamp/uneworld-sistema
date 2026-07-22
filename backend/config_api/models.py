@@ -951,6 +951,9 @@ class ConfigHotelMedia(models.Model):
     kind        = models.CharField('Tipo', max_length=10, default=IMAGE)
     order       = models.PositiveIntegerField('Ordem', default=0)
     uploaded_at = models.DateTimeField('Enviado em', auto_now_add=True)
+    # Soft-delete: "excluir" só marca — o arquivo/registro ficam, e o roteiro pode
+    # RESTAURAR (preservando o id) ao reverter as "Alterações pendentes".
+    is_deleted  = models.BooleanField('Excluída', default=False, db_index=True)
 
     class Meta:
         ordering = ['order', 'id']

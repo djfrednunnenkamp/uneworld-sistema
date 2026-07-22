@@ -221,7 +221,7 @@ class ConfigHotelMiniSerializer(serializers.ModelSerializer):
 
     def get_media(self, obj):
         out = []
-        for m in obj.media.all():
+        for m in obj.media.filter(is_deleted=False):
             try:
                 url = m.file.url
             except ValueError:
@@ -254,7 +254,7 @@ class ConfigBoatMiniSerializer(serializers.ModelSerializer):
 
     def get_media(self, obj):
         out = []
-        for m in obj.media.all():
+        for m in obj.media.filter(is_deleted=False):
             try:
                 url = m.file.url
             except ValueError:
