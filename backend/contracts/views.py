@@ -401,7 +401,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'invoice_data':
             return [RequirePermission('contracts_invoice_view', 'contracts_invoice')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge', 'discard',
-                           'send_for_signature', 'upload_signed', 'reopen', 'check_signature'):
+                           'send_for_signature', 'upload_signed', 'upload_receipt', 'reopen', 'check_signature'):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
 
@@ -565,6 +565,24 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         resp['X-Frame-Options'] = 'SAMEORIGIN'
         resp['X-Content-Type-Options'] = 'nosniff'
         return resp
+
+    @action(detail=True, methods=['post'], url_path='upload-receipt', parser_classes=[MultiPartParser, FormParser])
+    def upload_receipt(self, request, pk=None):
+        """Anexa o COMPROVANTE de pagamento avulso (usado no fluxo DIGITAL, onde não
+        há upload do assinado). Opcional. Aceita PDF ou imagem."""
+        contract = self.get_object()
+        receipt = request.FILES.get('receipt')
+        if not receipt:
+            return Response({'error': 'Nenhum comprovante enviado.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+        contract.payment_receipt = receipt
+        contract.save(update_fields=['payment_receipt'])
+        _log_contract_event(request, contract, 'upload',
+                            f'Anexou o comprovante de pagamento do contrato #{contract.id}', file_field='payment_receipt')
+        return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='reopen')
     def reopen(self, request, pk=None):
@@ -802,15 +820,14 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        # Comprovante de pagamento — OBRIGATÓRIO, anexado junto do assinado. Aceita
-        # PDF ou imagem (foto/print do comprovante).
+        # Comprovante de pagamento — OPCIONAL (o front pergunta se quer enviar sem).
+        # Aceita PDF ou imagem (foto/print do comprovante).
         receipt = request.FILES.get('receipt')
-        if not receipt:
-            return Response({'error': 'Anexe o comprovante de pagamento (campo "receipt").'}, status=http_status.HTTP_400_BAD_REQUEST)
-        try:
-            receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
-        except DjangoValidationError as e:
-            return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+        if receipt:
+            try:
+                receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+            except DjangoValidationError as e:
+                return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
 
         from django.utils import timezone
         # Segurança do assinado físico: lê os QR de cada página e confere se é este
@@ -843,12 +860,15 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                         status=http_status.HTTP_400_BAD_REQUEST)
 
         contract.signed_file = f
-        contract.payment_receipt = receipt
+        fields = ['signed_file', 'stage', 'signed_at', 'signed_verification']
+        if receipt:
+            contract.payment_receipt = receipt
+            fields.append('payment_receipt')
         # Assinado (física) → vai direto para a revisão da operadora.
         contract.stage = 'revisao'
         contract.signed_at = timezone.now()
         contract.signed_verification = verification
-        contract.save(update_fields=['signed_file', 'payment_receipt', 'stage', 'signed_at', 'signed_verification'])
+        contract.save(update_fields=fields)
         # A mudança de etapa já é registrada no log pelo sinal em audit/tracking.py.
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
