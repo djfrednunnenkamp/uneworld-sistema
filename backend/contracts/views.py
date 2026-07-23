@@ -73,6 +73,40 @@ def _contract_signers(contract, method=None, sms_verification=False):
     return signers, missing
 
 
+_DELIVERY_LABEL = {
+    'DELIVERY_METHOD_WHATSAPP': 'whatsapp',
+    'DELIVERY_METHOD_SMS':      'sms',
+    'DELIVERY_METHOD_LINK':     'link',
+}
+
+
+def _signer_state(s):
+    """Normaliza uma assinatura da Autentique para o painel de acompanhamento:
+    quem é, por qual CANAL recebeu, o CONTATO e o STATUS (enviado / visualizado /
+    assinado / rejeitado / e-mail não entregue)."""
+    dm = (s.get('delivery_method') or '').upper()
+    channel = _DELIVERY_LABEL.get(dm) or 'email'
+    ev = s.get('email_events') or {}
+    if isinstance(ev, list):
+        ev = ev[0] if ev else {}
+    signed = s.get('signed')
+    return {
+        'name':   (s.get('name') or '').strip() or None,
+        'email':  s.get('email') or None,
+        'phone':  s.get('phone') or None,
+        'channel': channel,   # email | whatsapp | sms | link
+        'link':   (s.get('link') or {}).get('short_link'),
+        'signed': bool(signed),
+        'signed_at': signed.get('created_at') if isinstance(signed, dict) else None,
+        'viewed': bool(s.get('viewed')),
+        'rejected': bool(s.get('rejected')),
+        # Entrega por e-mail (só quando o canal é e-mail): entregue / recusado
+        # (endereço inexistente) — None quando não há dado ou o canal é telefone.
+        'email_delivered': bool(ev.get('delivered')) if ev else None,
+        'email_refused':   bool(ev.get('refused')) if ev else None,
+    }
+
+
 def _apply_autentique_state(contract, doc, save=True):
     """Espelha o estado dos signatários da Autentique em autentique_data e, se o
     documento já estiver totalmente assinado, baixa o PDF assinado e move o
@@ -83,16 +117,7 @@ def _apply_autentique_state(contract, doc, save=True):
     sigs = doc.get('signatures') or []
     contract.autentique_data = {
         'document_id': doc.get('id'),
-        'signers': [
-            {
-                'email': s.get('email'),
-                'link': (s.get('link') or {}).get('short_link'),
-                'signed': bool(s.get('signed')),
-                'viewed': bool(s.get('viewed')),
-                'rejected': bool(s.get('rejected')),
-            }
-            for s in sigs
-        ],
+        'signers': [_signer_state(s) for s in sigs],
     }
     became_signed = False
     fields = ['autentique_data']
