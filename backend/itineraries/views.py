@@ -147,7 +147,9 @@ def _pricing_snapshot(itinerary):
     price_overrides (preços finais ajustados) em rótulos legíveis."""
     from .serializers import (ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
                               ItineraryInventoryBlockSerializer, ItineraryHotelSerializer,
-                              ItineraryBoatSerializer)
+                              ItineraryBoatSerializer, ItineraryDepartureSerializer,
+                              ItineraryFlightSerializer)
+    from .models import ItineraryFlight
     from .pricing import _dep_label
     cfg = getattr(itinerary, 'pricing', None)
     config = ItineraryPricingConfigSerializer(cfg).data if cfg is not None else {}
@@ -166,11 +168,21 @@ def _pricing_snapshot(itinerary):
             itinerary.boats.select_related('config_boat').order_by('id'), many=True).data
     except Exception:
         boats = []
+    try:
+        departures = ItineraryDepartureSerializer(
+            itinerary.departures.select_related('airport').order_by('id'), many=True).data
+        flights = ItineraryFlightSerializer(
+            ItineraryFlight.objects.filter(departure__itinerary=itinerary)
+            .select_related('airline', 'origin', 'destination').order_by('departure_id', 'order', 'id'), many=True).data
+    except Exception:
+        departures, flights = [], []
     dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
     overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
     override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
     return {'config': config, 'cost_items': list(items), 'inventory_blocks': list(blocks),
-            'hotels': list(hotels), 'boats': list(boats), 'override_labels': override_labels}
+            'hotels': list(hotels), 'boats': list(boats),
+            'departures': list(departures), 'flights': list(flights),
+            'override_labels': override_labels}
 
 
 class ItineraryDepartureViewSet(viewsets.ModelViewSet):
@@ -186,6 +198,20 @@ class ItineraryDepartureViewSet(viewsets.ModelViewSet):
             qs = qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
         return _scope_child_to_visible(qs, self.request)
 
+    # Mexer nas saídas acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         """Reordena os aeroportos de saída: body {"order": [id1, id2, ...]}."""
@@ -197,6 +223,7 @@ class ItineraryDepartureViewSet(viewsets.ModelViewSet):
                     ItineraryDeparture.objects.filter(pk=did).update(order=pos)
         first = ItineraryDeparture.objects.filter(pk__in=ids).select_related('itinerary').first()
         if first and first.itinerary_id:
+            _touch_unpublished(first.itinerary)
             _audit(request, 'update', first.itinerary, changes={'Aeroportos de saída': {'antes': '—', 'depois': 'reordenados'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -214,6 +241,24 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
             return qs.filter(departure_id=departure) if departure else qs.none()
         return qs
 
+    # Mexer nos voos acende "Público · pendente" (o roteiro é via departure).
+    def _flight_itin(self, obj):
+        dep = getattr(obj, 'departure', None)
+        return getattr(dep, 'itinerary', None) if dep else None
+
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(self._flight_itin(obj))
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(self._flight_itin(obj))
+
+    def perform_destroy(self, instance):
+        it = self._flight_itin(instance)
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         """Reordena os voos na sequência informada: body {"order": [id1, id2, ...]}."""
@@ -225,6 +270,7 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
                     ItineraryFlight.objects.filter(pk=fid).update(order=pos)
         first = ItineraryFlight.objects.filter(pk__in=ids).select_related('departure__itinerary').first()
         if first and first.departure and first.departure.itinerary_id:
+            _touch_unpublished(first.departure.itinerary)
             _audit(request, 'update', first.departure.itinerary, changes={'Voos': {'antes': '—', 'depois': 'reordenados'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
 
