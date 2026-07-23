@@ -176,12 +176,24 @@ def _pricing_snapshot(itinerary):
             .select_related('airline', 'origin', 'destination').order_by('departure_id', 'order', 'id'), many=True).data
     except Exception:
         departures, flights = [], []
+    # Tipos personalizados por roteiro (aba/pop-up Acomodações): acomodações, cabines
+    # e classes de voo com FK itinerary = este roteiro.
+    try:
+        from config_api.models import ConfigAccommodation, ConfigShipCabin, ConfigFlightClass
+        from config_api.views import AccommodationSerializer, ShipCabinSerializer, FlightClassSerializer
+        accommodations = AccommodationSerializer(ConfigAccommodation.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
+        ship_cabins = ShipCabinSerializer(ConfigShipCabin.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
+        flight_classes = FlightClassSerializer(ConfigFlightClass.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
+    except Exception:
+        accommodations, ship_cabins, flight_classes = [], [], []
     dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
     overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
     override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
     return {'config': config, 'cost_items': list(items), 'inventory_blocks': list(blocks),
             'hotels': list(hotels), 'boats': list(boats),
             'departures': list(departures), 'flights': list(flights),
+            'accommodations': list(accommodations), 'ship_cabins': list(ship_cabins),
+            'flight_classes': list(flight_classes),
             'override_labels': override_labels}
 
 

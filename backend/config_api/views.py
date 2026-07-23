@@ -989,7 +989,31 @@ class FlightClassSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class FlightClassViewSet(viewsets.ModelViewSet):
+# Tipos personalizados por roteiro (acomodação/cabine/classe) são API imediata:
+# mexer num que pertence a um roteiro publicado acende "Público · pendente".
+def _touch_itin_unpublished(itinerary):
+    if itinerary and itinerary.is_published and not itinerary.has_unpublished_changes:
+        itinerary.has_unpublished_changes = True
+        itinerary.save(update_fields=['has_unpublished_changes'])
+
+
+class _ScopedTypeMixin:
+    """perform_create/update/destroy que acendem 'pendente' no roteiro do tipo."""
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_itin_unpublished(getattr(obj, 'itinerary', None))
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_itin_unpublished(getattr(obj, 'itinerary', None))
+
+    def perform_destroy(self, instance):
+        it = getattr(instance, 'itinerary', None)
+        instance.delete()
+        _touch_itin_unpublished(it)
+
+
+class FlightClassViewSet(_ScopedTypeMixin, viewsets.ModelViewSet):
     serializer_class = FlightClassSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_flight_classes')
@@ -1887,7 +1911,7 @@ class AccommodationSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class AccommodationViewSet(viewsets.ModelViewSet):
+class AccommodationViewSet(_ScopedTypeMixin, viewsets.ModelViewSet):
     serializer_class = AccommodationSerializer
     get_permissions  = _settings_perm('settings_accommodations')
 
@@ -1917,7 +1941,7 @@ class ShipCabinSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class ShipCabinViewSet(viewsets.ModelViewSet):
+class ShipCabinViewSet(_ScopedTypeMixin, viewsets.ModelViewSet):
     serializer_class = ShipCabinSerializer
     get_permissions  = _settings_perm('settings_ship_cabins')
 
