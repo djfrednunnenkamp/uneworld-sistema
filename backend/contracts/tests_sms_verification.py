@@ -176,6 +176,46 @@ class AgencyAutentiqueConfigEndpointTest(APITestCase):
         self.assertEqual(self.ag.autentique_token, 'tk')
 
 
+class AgencySelfUpdateEndpointTest(APITestCase):
+    """Minha Agência: admin da agência edita o próprio cadastro; comissão/status são
+    ignorados (controle da operadora); terceiro sem vínculo leva 403."""
+
+    def setUp(self):
+        from agencies.models import Agency, AgencyMember
+        from decimal import Decimal
+        self.ag = Agency.objects.create(name='Ag', person_type='juridica', email='c@ag.com',
+                                        phone='(51) 3000-0000', commission_rate=Decimal('12.00'), status='active')
+        self.admin = make_user('adm-ag')
+        AgencyMember.objects.create(agency=self.ag, user=self.admin, role='admin')
+        self.nobody = make_user('ze')
+
+    def _url(self):
+        return f'/api/agencies/{self.ag.id}/self-update/'
+
+    def test_admin_edits_own_data(self):
+        self.client.force_authenticate(self.admin)
+        r = self.client.patch(self._url(), {'phone': '(51) 99999-1111', 'email': 'novo@ag.com', 'city': 'Porto Alegre'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.ag.refresh_from_db()
+        self.assertEqual(self.ag.email, 'novo@ag.com')
+        self.assertEqual(self.ag.city, 'Porto Alegre')
+
+    def test_ignores_commission_and_status(self):
+        from decimal import Decimal
+        self.client.force_authenticate(self.admin)
+        r = self.client.patch(self._url(), {'commission_rate': '99', 'status': 'inactive', 'phone': '(51) 98888-2222'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.ag.refresh_from_db()
+        self.assertEqual(self.ag.commission_rate, Decimal('12.00'))   # inalterada
+        self.assertEqual(self.ag.status, 'active')                    # inalterado
+        self.assertEqual(self.ag.phone, '(51) 98888-2222')            # editado
+
+    def test_forbidden_for_unrelated_user(self):
+        self.client.force_authenticate(self.nobody)
+        r = self.client.patch(self._url(), {'phone': 'x'}, format='json')
+        self.assertEqual(r.status_code, 403)
+
+
 class OperatorSmsToggleTest(APITestCase):
     def setUp(self):
         u = User.objects.create_user('root', 'root@x.com', 'pw12345678')

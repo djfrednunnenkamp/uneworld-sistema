@@ -76,7 +76,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
     def get_permissions(self):
         if self.action == 'destroy':
             return [RequirePermission('agencies_delete')()]
-        if self.action in ('create', 'update', 'partial_update', 'discard', 'logo'):
+        if self.action in ('create', 'update', 'partial_update', 'discard'):
             return [RequirePermission('agencies_edit')()]
         if self.action == 'merge':
             return [RequirePermission('agencies_edit')(), RequirePermission('agencies_delete')()]
@@ -91,7 +91,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             return [RequirePermission(*VIEW_PERMS)()]
         if self.action == 'attachable_users':
             return [RequirePermission('agencies_edit')()]
-        if self.action == 'autentique_config':
+        if self.action in ('autentique_config', 'self_update', 'logo'):
             # Admin da agência OU operadora — o gate fino é feito dentro da action.
             from rest_framework.permissions import IsAuthenticated
             return [IsAuthenticated()]
@@ -126,13 +126,47 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             agency.save(update_fields=fields)
         return Response(AgencySerializer(agency, context={'request': request}).data)
 
+    # Campos que a PRÓPRIA agência (admin) pode editar na página "Minha Agência".
+    # NÃO inclui comissão, status, tipo de cadastro nem a permissão de auto-assinatura
+    # (auto_sign_allowed) — isso é controle da OPERADORA. Token/e-mail/auto_sign vão
+    # pelo endpoint autentique-config; logo pelo endpoint logo.
+    _SELF_EDIT_FIELDS = {
+        'person_type', 'cnpj', 'cpf', 'company_name', 'name', 'last_name',
+        'state_registration', 'municipal_registration', 'responsible',
+        'phone', 'mobile', 'email', 'website',
+        'cep', 'street', 'number', 'complement', 'neighborhood', 'city', 'state', 'country',
+        'receives_mail', 'pix_key_type', 'pix_key', 'use_agency_pix', 'notes',
+    }
+
+    @action(detail=True, methods=['patch'], url_path='self-update')
+    def self_update(self, request, pk=None):
+        """Autoedição do cadastro pelo ADMIN DA AGÊNCIA (role='admin') — página "Minha
+        Agência". Edita identidade/contatos/endereço/PIX/obs; IGNORA comissão, status,
+        tipo de cadastro e auto_sign_allowed (controle da operadora)."""
+        from users_api.permissions import agency_admin_ids
+        agency = self.get_object()
+        u = request.user
+        if not (agency.id in (agency_admin_ids(u) or []) or bool(getattr(u, 'is_superuser', False))):
+            return Response({'error': 'Só o administrador da agência pode editar os dados dela.'}, status=403)
+        data = {k: v for k, v in request.data.items() if k in self._SELF_EDIT_FIELDS}
+        ser = AgencySerializer(agency, data=data, partial=True, context={'request': request})
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+
     @action(detail=True, methods=['post', 'delete'], parser_classes=[MultiPartParser, FormParser])
     def logo(self, request, pk=None):
         """Upload/remoção da LOGO da agência. SEGURO: valida tamanho, verifica a
         imagem com Pillow e re-encoda como PNG (mantém transparência; descarta
         qualquer payload embutido). Nunca serve o arquivo enviado como veio."""
         from audit.tracking import log_event
+        from users_api.permissions import agency_admin_ids, has_any_perm
         agency = self.get_object()
+        # Operadora (agencies_edit/superuser) OU o admin DESTA agência (Minha Agência).
+        if not (has_any_perm(request.user, 'agencies_edit')
+                or bool(getattr(request.user, 'is_superuser', False))
+                or agency.id in (agency_admin_ids(request.user) or [])):
+            return Response({'error': 'Sem permissão para alterar a logo desta agência.'}, status=403)
         if request.method == 'DELETE':
             if agency.logo or agency.logo_original:
                 if agency.logo:
