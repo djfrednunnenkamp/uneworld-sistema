@@ -27,9 +27,11 @@ def _contract_signers(contract, method=None, sms_verification=False):
     'sms'); None usa o padrão global. `sms_verification` (config da operadora)
     exige autenticação por SMS antes de assinar (2FA) — aplicada ao cliente e à
     agência, NÃO ao CEO (que assina automaticamente via token e travaria com 2FA).
-    Retorna (signers, faltando) — `faltando` lista, em texto, as partes sem
-    contato utilizável, para avisar o usuário."""
-    signers, missing = [], []
+    Retorna (signers, faltando, metas) — `faltando` lista as partes sem contato
+    utilizável (texto p/ o usuário); `metas` traz {role,name,channel,contact} de
+    cada signatário na MESMA ordem de `signers` (usado no painel de acompanhamento,
+    já que a Autentique não expõe canal/telefone por assinatura)."""
+    signers, missing, metas = [], [], []
 
     # Cliente / contratante (passageiro cadastrado ou pagante manual).
     if contract.contratante_id:
@@ -43,10 +45,13 @@ def _contract_signers(contract, method=None, sms_verification=False):
         c_name  = contract.payer_name or 'Cliente'
     # O CLIENTE usa o canal escolhido no pop-up: telefone p/ WhatsApp/SMS, e-mail
     # p/ e-mail. A mensagem de "faltando" diz qual contato falta.
-    client_needs = 'telefone' if autentique._delivery_method(method) else 'e-mail'
+    client_channel = _DELIVERY_LABEL.get(autentique._delivery_method(method)) or 'email'
+    client_needs = 'telefone' if client_channel in ('whatsapp', 'sms') else 'e-mail'
     c_signer = autentique.build_signer(email=c_email, phone=c_phone, method=method, sms_verification=sms_verification)
     if c_signer:
         signers.append(c_signer)
+        metas.append({'role': 'Cliente', 'name': c_name, 'channel': client_channel,
+                      'contact': c_phone if client_channel in ('whatsapp', 'sms') else c_email})
     else:
         missing.append(f'cliente ({c_name}) — falta {client_needs}')
 
@@ -60,6 +65,7 @@ def _contract_signers(contract, method=None, sms_verification=False):
         a_signer = autentique.build_signer(email=a_email, phone=a_phone, method='email', sms_verification=sms_verification)
         if a_signer:
             signers.append(a_signer)
+            metas.append({'role': 'Agência', 'name': ag.name or ag.company_name, 'channel': 'email', 'contact': a_email})
         else:
             missing.append(f'agência ({ag.name or ag.company_name}) — falta e-mail')
 
@@ -69,8 +75,10 @@ def _contract_signers(contract, method=None, sms_verification=False):
     oc = OperatingCompany.get()
     if oc.ceo_auto_sign_enabled:
         signers.append({'action': 'SIGN', 'email': oc.ceo_email.strip()})
+        metas.append({'role': 'Operadora (CEO)', 'name': (oc.ceo_name or '').strip() or 'CEO',
+                      'channel': 'email', 'contact': oc.ceo_email.strip()})
 
-    return signers, missing
+    return signers, missing, metas
 
 
 _DELIVERY_LABEL = {
@@ -78,47 +86,52 @@ _DELIVERY_LABEL = {
     'DELIVERY_METHOD_SMS':      'sms',
     'DELIVERY_METHOD_LINK':     'link',
 }
+_META_KEYS = ('role', 'name', 'channel', 'contact')
 
 
 def _signer_state(s):
-    """Normaliza uma assinatura da Autentique para o painel de acompanhamento:
-    quem é, por qual CANAL recebeu, o CONTATO e o STATUS (enviado / visualizado /
-    assinado / rejeitado / e-mail não entregue)."""
-    dm = (s.get('delivery_method') or '').upper()
-    channel = _DELIVERY_LABEL.get(dm) or 'email'
-    ev = s.get('email_events') or {}
-    if isinstance(ev, list):
-        ev = ev[0] if ev else {}
+    """Extrai o STATUS de uma assinatura da Autentique — só os campos EXISTENTES
+    no tipo Signature (email/link/action/viewed/signed/rejected). Quem é / canal /
+    contato NÃO vêm da Autentique (o tipo não expõe phone/delivery_method) — são
+    injetados dos nossos metadados (ver _apply_autentique_state)."""
     signed = s.get('signed')
     return {
-        'name':   (s.get('name') or '').strip() or None,
+        'public_id': s.get('public_id'),
         'email':  s.get('email') or None,
-        'phone':  s.get('phone') or None,
-        'channel': channel,   # email | whatsapp | sms | link
         'link':   (s.get('link') or {}).get('short_link'),
         'signed': bool(signed),
         'signed_at': signed.get('created_at') if isinstance(signed, dict) else None,
         'viewed': bool(s.get('viewed')),
         'rejected': bool(s.get('rejected')),
-        # Entrega por e-mail (só quando o canal é e-mail): entregue / recusado
-        # (endereço inexistente) — None quando não há dado ou o canal é telefone.
-        'email_delivered': bool(ev.get('delivered')) if ev else None,
-        'email_refused':   bool(ev.get('refused')) if ev else None,
     }
 
 
-def _apply_autentique_state(contract, doc, save=True):
+def _apply_autentique_state(contract, doc, save=True, metas=None):
     """Espelha o estado dos signatários da Autentique em autentique_data e, se o
     documento já estiver totalmente assinado, baixa o PDF assinado e move o
-    contrato para 'Assinado'. Retorna True se passou para assinado agora."""
+    contrato para 'Assinado'. Retorna True se passou para assinado agora.
+
+    `metas` (na CRIAÇÃO): metadados dos signatários (papel/nome/canal/contato) na
+    MESMA ordem enviada à Autentique. Na verificação (metas=None) os metadados são
+    recuperados do que já foi salvo, casando por `public_id` (chave estável)."""
     from django.utils import timezone
     from django.core.files.base import ContentFile
 
     sigs = doc.get('signatures') or []
-    contract.autentique_data = {
-        'document_id': doc.get('id'),
-        'signers': [_signer_state(s) for s in sigs],
-    }
+    new = [_signer_state(s) for s in sigs]
+    # Injeta quem/canal/contato: na criação, alinhado por ORDEM; na verificação,
+    # carrega do estado anterior casando por public_id.
+    if metas is not None:
+        for st, meta in zip(new, metas):
+            st.update({k: meta.get(k) for k in _META_KEYS})
+    else:
+        prev = {p.get('public_id'): p for p in ((contract.autentique_data or {}).get('signers') or []) if p.get('public_id')}
+        for st in new:
+            old = prev.get(st.get('public_id')) or {}
+            for k in _META_KEYS:
+                if old.get(k) is not None:
+                    st[k] = old.get(k)
+    contract.autentique_data = {'document_id': doc.get('id'), 'signers': new}
     became_signed = False
     fields = ['autentique_data']
     if autentique.is_fully_signed(doc) and contract.stage not in ('revisao', 'aprovado'):
@@ -429,7 +442,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             # Autenticação por SMS antes de assinar (2FA) — toggle da operadora.
             from config_api.models import OperatingCompany
             sms_verification = OperatingCompany.get().sms_verification
-            signers, missing = _contract_signers(contract, method=method, sms_verification=sms_verification)
+            signers, missing, metas = _contract_signers(contract, method=method, sms_verification=sms_verification)
             if missing:
                 return Response({'error': 'Faltam contatos para a assinatura digital: ' + '; '.join(missing) +
                                           '. Preencha antes de enviar. (A agência assina sempre por e-mail.)'},
@@ -451,7 +464,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 except autentique.AutentiqueError:
                     logger.warning('Falha na assinatura automática do CEO no doc %s', doc.get('id'))
             contract.autentique_document_id = doc.get('id') or ''
-            _apply_autentique_state(contract, doc, save=False)
+            _apply_autentique_state(contract, doc, save=False, metas=metas)
             contract.stage = 'enviado'
             contract.sent_at = timezone.now()
             contract.review_note = ''   # nova rodada de assinatura: limpa o motivo da reprovação

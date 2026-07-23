@@ -125,10 +125,7 @@ mutation CreateDocument($document: DocumentInput!, $signers: [SignerInput!]!, $f
     name
     signatures {
       public_id
-      name
       email
-      phone
-      delivery_method
       action { name }
       link { short_link }
     }
@@ -144,16 +141,12 @@ query Document($id: UUID!) {
     files { signed original }
     signatures {
       public_id
-      name
       email
-      phone
-      delivery_method
       viewed { created_at }
       signed { created_at }
       rejected { created_at }
       action { name }
       link { short_link }
-      email_events { sent delivered refused reason }
     }
   }
 }
