@@ -99,16 +99,16 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
 
     @action(detail=True, methods=['patch'], url_path='autentique-config')
     def autentique_config(self, request, pk=None):
-        """Credenciais Autentique da agência (assinatura automática). Só o ADMIN DA
-        AGÊNCIA (AgencyMember role='admin') ou a operadora (agencies_edit/superuser)
-        configuram. O token é write-only (entra, nunca volta). Só funciona depois
-        que a operadora permitiu (auto_sign_allowed)."""
-        from users_api.permissions import agency_admin_ids, has_any_perm
+        """Credenciais Autentique da agência (assinatura automática). Quem configura
+        é SÓ o ADMIN DA AGÊNCIA (AgencyMember role='admin') — a operadora NÃO mexe no
+        token (nunca precisa vê-lo). O token é write-only (entra, nunca volta). Só
+        funciona depois que a operadora permitiu (auto_sign_allowed). Superuser é
+        mantido como último recurso técnico, mas a UI não o oferece à operadora."""
+        from users_api.permissions import agency_admin_ids
         agency = self.get_object()
         u = request.user
         is_admin_here = agency.id in (agency_admin_ids(u) or [])
-        is_operator = bool(getattr(u, 'is_superuser', False)) or has_any_perm(u, 'agencies_edit')
-        if not (is_admin_here or is_operator):
+        if not (is_admin_here or bool(getattr(u, 'is_superuser', False))):
             return Response({'error': 'Só o administrador da agência pode configurar a assinatura automática.'}, status=403)
         if not agency.auto_sign_allowed:
             return Response({'error': 'A operadora ainda não liberou a assinatura automática para esta agência.'}, status=400)
