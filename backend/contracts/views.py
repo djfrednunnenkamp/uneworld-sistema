@@ -20,11 +20,12 @@ from core.search import AccentInsensitiveSearchFilter
 logger = logging.getLogger(__name__)
 
 
-def _contract_signers(contract):
+def _contract_signers(contract, method=None):
     """Signatários do contrato para a Autentique: o cliente (contratante) e a
     agência. Cada um precisa de e-mail (ou telefone, se a entrega for por
-    WhatsApp/SMS). Retorna (signers, faltando) — `faltando` lista, em texto, as
-    partes sem contato utilizável, para avisar o usuário."""
+    WhatsApp/SMS). `method` é o canal escolhido no envio ('email'|'whatsapp'|
+    'sms'); None usa o padrão global. Retorna (signers, faltando) — `faltando`
+    lista, em texto, as partes sem contato utilizável, para avisar o usuário."""
     signers, missing = [], []
 
     # Cliente / contratante (passageiro cadastrado ou pagante manual).
@@ -36,7 +37,7 @@ def _contract_signers(contract):
         c_email = (contract.payer_email or '').strip()
         c_phone = (contract.payer_phone or '').strip()
         c_name  = contract.payer_name or 'Cliente'
-    c_signer = autentique.build_signer(email=c_email, phone=c_phone)
+    c_signer = autentique.build_signer(email=c_email, phone=c_phone, method=method)
     if c_signer:
         signers.append(c_signer)
     else:
@@ -47,7 +48,7 @@ def _contract_signers(contract):
     if ag:
         a_email = (ag.email or '').strip()
         a_phone = (ag.mobile or ag.phone or '').strip()
-        a_signer = autentique.build_signer(email=a_email, phone=a_phone)
+        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method=method)
         if a_signer:
             signers.append(a_signer)
         else:
@@ -389,9 +390,11 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             if not pdf:
                 return Response({'error': 'PDF do contrato não recebido para a assinatura digital.'},
                                 status=http_status.HTTP_400_BAD_REQUEST)
-            signers, missing = _contract_signers(contract)
+            # Canal de entrega escolhido no envio ('email'|'whatsapp'|'sms').
+            method = (request.data.get('delivery_method') or '').strip().lower() or None
+            signers, missing = _contract_signers(contract, method=method)
             if missing:
-                contato = 'telefone' if autentique._delivery_method() else 'e-mail'
+                contato = 'telefone' if autentique._delivery_method(method) else 'e-mail'
                 return Response({'error': f'Sem {contato} para: ' + ', '.join(missing) +
                                           f'. Preencha o {contato} antes de enviar para assinatura digital.'},
                                 status=http_status.HTTP_400_BAD_REQUEST)

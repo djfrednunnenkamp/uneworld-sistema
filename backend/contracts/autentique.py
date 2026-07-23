@@ -153,16 +153,24 @@ query Document($id: UUID!) {
 """
 
 
-def _delivery_method():
-    val = (getattr(settings, 'AUTENTIQUE_DELIVERY', 'email') or 'email').lower()
-    return {
-        'whatsapp': 'DELIVERY_METHOD_WHATSAPP',
-        'sms':      'DELIVERY_METHOD_SMS',
-        'link':     'DELIVERY_METHOD_LINK',
-    }.get(val)  # None => entrega padrão (e-mail)
+_DELIVERY_MAP = {
+    'whatsapp': 'DELIVERY_METHOD_WHATSAPP',
+    'sms':      'DELIVERY_METHOD_SMS',
+    'link':     'DELIVERY_METHOD_LINK',
+}
 
 
-def build_signer(email='', phone=''):
+def _delivery_method(method=None):
+    """Resolve o canal de entrega da Autentique.
+
+    `method` (escolhido POR CONTRATO no envio: 'email'|'whatsapp'|'sms') tem
+    prioridade sobre o padrão global AUTENTIQUE_DELIVERY. Retorna a constante da
+    Autentique (DELIVERY_METHOD_*) ou None => entrega por e-mail (padrão)."""
+    val = (method or getattr(settings, 'AUTENTIQUE_DELIVERY', 'email') or 'email').lower()
+    return _DELIVERY_MAP.get(val)  # None => e-mail
+
+
+def build_signer(email='', phone='', method=None):
     """Monta um signatário no formato da Autentique.
 
     A Autentique aceita UM canal de entrega por signatário — enviar e-mail e
@@ -170,8 +178,10 @@ def build_signer(email='', phone=''):
     também (`is_required_when_present`). Então:
       - entrega por e-mail (padrão):  {action, email}
       - entrega por WhatsApp/SMS:     {action, phone E.164 com +, delivery_method}
-    Retorna None quando não há contato compatível com o canal configurado."""
-    method = _delivery_method()  # None => e-mail
+    `method` sobrepõe o canal global (escolha por contrato). Retorna None quando
+    não há contato compatível com o canal escolhido."""
+    resolved = _delivery_method(method)  # None => e-mail
+    method = resolved
     digits = ''.join(c for c in (phone or '') if c.isdigit())
     if method:
         # Entrega por telefone (WhatsApp/SMS): exige telefone válido E.164.
