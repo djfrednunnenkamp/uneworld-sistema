@@ -74,6 +74,9 @@ class CalendarPreference(models.Model):
     # {"contracts":[{"key":"payer","on":true},...], "passengers":[...], ...}.
     # A 1ª coluna de cada tabela é fixa e não entra aqui. Vazio = padrão.
     table_columns        = models.JSONField('Colunas das tabelas', default=dict, blank=True)
+    # Nº de colunas da grade da Galeria escolhido pelo usuário. 0 = automático
+    # (responsivo, padrão); 1..N = quantidade fixa de colunas.
+    gallery_columns      = models.PositiveSmallIntegerField('Colunas da galeria', default=0)
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)
