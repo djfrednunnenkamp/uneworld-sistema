@@ -184,8 +184,15 @@ def _pricing_snapshot(itinerary):
         accommodations = AccommodationSerializer(ConfigAccommodation.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
         ship_cabins = ShipCabinSerializer(ConfigShipCabin.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
         flight_classes = FlightClassSerializer(ConfigFlightClass.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
+        # Globais também — servem de BASE quando o roteiro não tem tipos próprios
+        # (sem próprios = usa os globais). Assim o auto-seed (cópia dos globais) não
+        # vira "N tipos adicionados": os semeados se anulam com os globais.
+        accommodations_global = AccommodationSerializer(ConfigAccommodation.objects.filter(itinerary__isnull=True).order_by('id'), many=True).data
+        ship_cabins_global = ShipCabinSerializer(ConfigShipCabin.objects.filter(itinerary__isnull=True).order_by('id'), many=True).data
+        flight_classes_global = FlightClassSerializer(ConfigFlightClass.objects.filter(itinerary__isnull=True).order_by('id'), many=True).data
     except Exception:
         accommodations, ship_cabins, flight_classes = [], [], []
+        accommodations_global, ship_cabins_global, flight_classes_global = [], [], []
     dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
     overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
     override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
@@ -194,6 +201,9 @@ def _pricing_snapshot(itinerary):
             'departures': list(departures), 'flights': list(flights),
             'accommodations': list(accommodations), 'ship_cabins': list(ship_cabins),
             'flight_classes': list(flight_classes),
+            'accommodations_global': list(accommodations_global),
+            'ship_cabins_global': list(ship_cabins_global),
+            'flight_classes_global': list(flight_classes_global),
             'override_labels': override_labels}
 
 
