@@ -154,7 +154,9 @@ class AgencyAutentiqueConfigEndpointTest(APITestCase):
 
     def setUp(self):
         from agencies.models import Agency
-        self.ag = Agency.objects.create(name='Ag', person_type='juridica', email='c@ag.com')
+        # auto_sign_allowed=False explícito (o default do model virou True) — o
+        # teste "blocked_when_not_allowed" depende de a operadora NÃO ter liberado.
+        self.ag = Agency.objects.create(name='Ag', person_type='juridica', email='c@ag.com', auto_sign_allowed=False)
         self.op = make_user('op', superuser=True)   # operadora
         self.nobody = make_user('ze')                # sem vínculo/permite
 
@@ -198,6 +200,28 @@ class AgencyAutentiqueConfigEndpointTest(APITestCase):
         self.assertEqual(r.status_code, 200)
         self.ag.refresh_from_db()
         self.assertEqual(self.ag.autentique_token, 'tk')
+
+
+class ContractDocumentNameTest(TestCase):
+    """Nome do documento na Autentique = roteiro + pagante + reserva."""
+
+    def test_name_with_all_parts(self):
+        from contracts.views import _contract_document_name
+        class _It: name = 'PRIMAVERA NA EUROPA'
+        class _C:
+            itinerary_id = 1; itinerary = _It(); package_name = ''
+            contratante_id = None; payer_name = 'Frederico N'
+            reservation_number = '000185'; id = 9
+        self.assertEqual(_contract_document_name(_C()),
+                         'Contrato de viagem – PRIMAVERA NA EUROPA – Frederico N – Reserva 000185')
+
+    def test_name_fallbacks(self):
+        from contracts.views import _contract_document_name
+        class _C:
+            itinerary_id = None; package_name = ''
+            contratante_id = None; payer_name = ''
+            reservation_number = ''; id = 42
+        self.assertEqual(_contract_document_name(_C()), 'Contrato de viagem – Reserva #42')
 
 
 class AgencySelfUpdateEndpointTest(APITestCase):

@@ -161,6 +161,25 @@ def _apply_autentique_state(contract, doc, save=True, metas=None):
     return became_signed
 
 
+def _contract_document_name(contract):
+    """Nome bonito do documento enviado à Autentique: roteiro + pagante + reserva.
+    Ex.: 'Contrato de viagem – PRIMAVERA NA EUROPA – Frederico Nunnenkam – Reserva 000185'."""
+    roteiro = ''
+    if contract.itinerary_id and (getattr(contract.itinerary, 'name', '') or '').strip():
+        roteiro = contract.itinerary.name.strip()
+    elif (getattr(contract, 'package_name', '') or '').strip():
+        roteiro = contract.package_name.strip()
+    payer = ((contract.contratante.full_name if contract.contratante_id else contract.payer_name) or '').strip()
+    num = (contract.reservation_number or '').strip() or f'#{contract.id}'
+    parts = ['Contrato de viagem']
+    if roteiro:
+        parts.append(roteiro)
+    if payer:
+        parts.append(payer)
+    parts.append(f'Reserva {num}')
+    return ' – '.join(parts)[:255]
+
+
 def _log_contract_event(request, contract, action, label, file_field=None):
     """Registra no log de auditoria uma ação sobre o contrato que NÃO passa por
     save() — download do arquivo assinado/PDF e upload do contrato assinado.
@@ -458,7 +477,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 return Response({'error': 'Faltam contatos para a assinatura digital: ' + '; '.join(missing) +
                                           '. Preencha antes de enviar. (A agência assina sempre por e-mail.)'},
                                 status=http_status.HTTP_400_BAD_REQUEST)
-            name = f'Contrato {contract.reservation_number}'.strip() if contract.reservation_number else f'Contrato #{contract.id}'
+            name = _contract_document_name(contract)
             try:
                 doc = autentique.create_document(name, pdf.read(), signers)
             except autentique.AutentiqueError as e:
@@ -726,7 +745,15 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.reviewed_at = timezone.now()
         contract.reviewed_by = request.user
         contract.review_note = note
-        # A assinatura anterior deixa de valer — limpa para uma nova rodada.
+        # A assinatura anterior deixa de valer — apaga o documento na Autentique
+        # (recusado = descartado lá também) e limpa para uma nova rodada.
+        # Best-effort: se a Autentique falhar, a reprovação segue mesmo assim.
+        if contract.signature_type == 'digital' and contract.autentique_document_id:
+            try:
+                autentique.delete_document(contract.autentique_document_id)
+            except autentique.AutentiqueError:
+                logger.warning('Falha ao apagar documento Autentique %s na reprovação do contrato %s',
+                               contract.autentique_document_id, contract.id)
         contract.signed_file = None
         contract.signed_at = None
         contract.autentique_document_id = ''
