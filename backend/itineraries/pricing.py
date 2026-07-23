@@ -193,8 +193,15 @@ def compute(itinerary, pax=None):
     # também os accommodation_lines (hospedagem por acomodação) já existentes
     accom_lines = list(itinerary.accommodation_lines.select_related('accommodation_type').all())
 
+    # Barco desativado (has_barco = False): os custos de navio ficam guardados no
+    # banco, mas ficam FORA dos cálculos — como se não existissem. Reativar o barco
+    # os traz de volta. Navio = tem cabine (ship_cabin) ou categoria marítima.
+    ship_on = bool(getattr(itinerary, 'has_barco', False))
+    def _is_ship(i):
+        return bool(i.ship_cabin_id) or (i.category or '').strip() == 'Transporte marítimo'
     items = [i for i in itinerary.cost_items.select_related('accommodation_type', 'ship_cabin').all()
-             if i.is_active and i.included_in_price and not i.is_fee]   # taxas (is_fee) não entram no net
+             if i.is_active and i.included_in_price and not i.is_fee   # taxas (is_fee) não entram no net
+             and (ship_on or not _is_ship(i))]
 
     warnings = []
     items_out = []
