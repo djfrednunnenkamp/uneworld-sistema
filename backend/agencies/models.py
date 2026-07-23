@@ -85,7 +85,7 @@ class Agency(models.Model):
     #    conta Autentique dela (a operadora não digita o token; é segredo da agência).
     # Quando ligada+configurada, o contrato digital é assinado automaticamente pela
     # conta da agência (token dela). Espelha a assinatura automática do CEO.
-    auto_sign_allowed = models.BooleanField('Operadora permite assinatura automática', default=False)
+    auto_sign_allowed = models.BooleanField('Operadora permite assinatura automática', default=True)
     auto_sign        = models.BooleanField('Assinar automaticamente os contratos digitais', default=False)
     autentique_email = models.EmailField('E-mail da conta Autentique da agência', blank=True)
     autentique_token = models.CharField('Token de assinatura (Autentique) da agência', max_length=255, blank=True)
