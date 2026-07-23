@@ -123,6 +123,30 @@ class AgencyAutoSignTest(TestCase):
         signers, _m, _meta = _contract_signers(self._FakeContract(ag), method='email')
         self.assertEqual(signers[1]['email'], 'contato@ag.com')
 
+    def test_apply_state_ignores_non_sign_creator(self):
+        # A Autentique inclui a CONTA CRIADORA como participante action=None. Ela
+        # NÃO pode entrar como signatário (senão empurra os metas uma posição e a
+        # agência que já assinou aparece como "aguardando").
+        from contracts.views import _apply_autentique_state
+        class _C:
+            autentique_data = None; stage = 'enviado'; reservation_number = 'x'; id = 1
+            def save(self, **k): pass
+        doc = {'id': 'd', 'signatures': [
+            {'public_id': 'creator', 'email': 'api@x.com', 'action': {'name': None}},          # criadora → ignora
+            {'public_id': 'p0', 'email': None, 'action': {'name': 'SIGN'}},                     # cliente (whatsapp)
+            {'public_id': 'p1', 'email': 'ag@x.com', 'action': {'name': 'SIGN'}, 'signed': {'created_at': 'y'}},   # agência assinou
+            {'public_id': 'p2', 'email': 'ceo@x.com', 'action': {'name': 'SIGN'}, 'signed': {'created_at': 'y'}},  # CEO assinou
+        ]}
+        metas = [{'role': 'Cliente', 'name': 'Cli', 'channel': 'whatsapp', 'contact': '+5551'},
+                 {'role': 'Agência', 'name': 'Ag', 'channel': 'email', 'contact': 'ag@x.com'},
+                 {'role': 'Operadora (CEO)', 'name': 'CEO', 'channel': 'email', 'contact': 'ceo@x.com'}]
+        c = _C(); _apply_autentique_state(c, doc, save=False, metas=metas)
+        s = c.autentique_data['signers']
+        self.assertEqual(len(s), 3)                                   # sem a criadora
+        self.assertEqual(s[0]['role'], 'Cliente'); self.assertFalse(s[0]['signed'])
+        self.assertEqual(s[1]['role'], 'Agência'); self.assertTrue(s[1]['signed'])   # agência alinhada e assinada
+        self.assertEqual(s[2]['role'], 'Operadora (CEO)'); self.assertTrue(s[2]['signed'])
+
 
 class AgencyAutentiqueConfigEndpointTest(APITestCase):
     """Endpoint autentique-config: só admin da agência/operadora; token write-only;

@@ -123,7 +123,12 @@ def _apply_autentique_state(contract, doc, save=True, metas=None):
     from django.utils import timezone
     from django.core.files.base import ContentFile
 
-    sigs = doc.get('signatures') or []
+    # SÓ signatários (action=SIGN). A Autentique inclui a CONTA CRIADORA do
+    # documento como participante com action=None — se ela entrasse, viraria um
+    # "signatário" fantasma e empurraria os metadados (Cliente/Agência/CEO) uma
+    # posição, desalinhando tudo (agência aparecia como "aguardando" mesmo já
+    # tendo assinado). Filtrar por SIGN mantém a contagem e o alinhamento certos.
+    sigs = [s for s in (doc.get('signatures') or []) if (s.get('action') or {}).get('name') == 'SIGN']
     new = [_signer_state(s) for s in sigs]
     # Injeta quem/canal/contato: na criação, alinhado por ORDEM; na verificação,
     # carrega do estado anterior casando por public_id.
