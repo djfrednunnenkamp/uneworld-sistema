@@ -17,7 +17,8 @@ class AgencySerializer(serializers.ModelSerializer):
             'municipal_registration', 'responsible', 'phone', 'mobile', 'email',
             'website', 'commission_rate', 'cep', 'street', 'number', 'complement',
             'neighborhood', 'city', 'state', 'country', 'receives_mail',
-            'pix_key_type', 'pix_key', 'use_agency_pix', 'notes', 'logo_url',
+            'pix_key_type', 'pix_key', 'use_agency_pix',
+            'auto_sign', 'autentique_email', 'autentique_token', 'notes', 'logo_url',
             'logo_original_url', 'logo_crop',
             'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
         ]

@@ -71,6 +71,44 @@ class PassengerPhoneTest(TestCase):
         self.assertEqual(passenger_phone(p), '')
 
 
+class AgencyAutoSignTest(TestCase):
+    """Assinatura automática da agência: o signatário usa o e-mail da conta
+    Autentique (pro token bater) e não leva 2FA por SMS."""
+
+    class _FakeContract:
+        contratante_id = None
+        payer_email = 'cliente@x.com'
+        payer_phone = ''
+        payer_name = 'Cliente'
+        def __init__(self, agency):
+            self.agency = agency
+
+    def test_auto_sign_enabled_property(self):
+        from agencies.models import Agency
+        a = Agency(auto_sign=True, autentique_email='ag@aut.com', autentique_token='tok')
+        self.assertTrue(a.auto_sign_enabled)
+        self.assertFalse(Agency(auto_sign=True, autentique_email='', autentique_token='tok').auto_sign_enabled)
+        self.assertFalse(Agency(auto_sign=False, autentique_email='ag@aut.com', autentique_token='tok').auto_sign_enabled)
+
+    def test_signer_uses_autentique_email_and_skips_2fa(self):
+        from agencies.models import Agency
+        from contracts.views import _contract_signers
+        ag = Agency.objects.create(name='Ag X', email='contato@ag.com', person_type='juridica',
+                                   auto_sign=True, autentique_email='conta@autentique.com', autentique_token='tok')
+        signers, missing, metas = _contract_signers(self._FakeContract(ag), method='email', sms_verification=True)
+        agency_signer = signers[1]   # 0 = cliente, 1 = agência
+        self.assertEqual(agency_signer['email'], 'conta@autentique.com')   # e-mail da conta Autentique, não o de contato
+        self.assertNotIn('security_verifications', agency_signer)          # auto-assina → sem 2FA
+        self.assertEqual(metas[1]['contact'], 'conta@autentique.com')
+
+    def test_signer_uses_contact_email_when_auto_off(self):
+        from agencies.models import Agency
+        from contracts.views import _contract_signers
+        ag = Agency.objects.create(name='Ag Y', email='contato@ag.com', person_type='juridica', auto_sign=False)
+        signers, _m, _meta = _contract_signers(self._FakeContract(ag), method='email')
+        self.assertEqual(signers[1]['email'], 'contato@ag.com')
+
+
 class OperatorSmsToggleTest(APITestCase):
     def setUp(self):
         u = User.objects.create_user('root', 'root@x.com', 'pw12345678')

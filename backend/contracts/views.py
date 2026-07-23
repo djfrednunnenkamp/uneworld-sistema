@@ -58,11 +58,17 @@ def _contract_signers(contract, method=None, sms_verification=False):
     # Agência.
     ag = contract.agency
     if ag:
-        a_email = (ag.email or '').strip()
+        auto = ag.auto_sign_enabled
+        # Com assinatura automática, o signatário usa o E-MAIL DA CONTA AUTENTIQUE
+        # da agência (é essa conta que assina via token logo após a criação); sem
+        # ela, usa o e-mail de contato normal.
+        a_email = ((ag.autentique_email if auto else ag.email) or '').strip()
         a_phone = (ag.mobile or ag.phone or '').strip()
         # A AGÊNCIA assina SEMPRE por e-mail — o canal escolhido no pop-up
-        # (WhatsApp/SMS) vale só para o passageiro/cliente.
-        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method='email', sms_verification=sms_verification)
+        # (WhatsApp/SMS) vale só para o passageiro/cliente. Se auto-assina, NÃO
+        # aplica 2FA por SMS nela (a conta assina via token, sem link/código).
+        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method='email',
+                                           sms_verification=(sms_verification and not auto))
         if a_signer:
             signers.append(a_signer)
             metas.append({'role': 'Agência', 'name': ag.name or ag.company_name, 'channel': 'email', 'contact': a_email})
@@ -463,6 +469,16 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     doc = autentique.get_document(doc['id'])   # reflete a assinatura do CEO
                 except autentique.AutentiqueError:
                     logger.warning('Falha na assinatura automática do CEO no doc %s', doc.get('id'))
+            # Assinatura automática da AGÊNCIA (se configurada): assina como a conta
+            # Autentique da agência (token dela). Best-effort — se falhar, o
+            # documento segue e a agência ainda assina pelo link enviado.
+            ag = contract.agency
+            if ag and ag.auto_sign_enabled and doc.get('id'):
+                try:
+                    autentique.sign_document(doc['id'], token=(ag.autentique_token or '').strip())
+                    doc = autentique.get_document(doc['id'])   # reflete a assinatura da agência
+                except autentique.AutentiqueError:
+                    logger.warning('Falha na assinatura automática da agência no doc %s', doc.get('id'))
             contract.autentique_document_id = doc.get('id') or ''
             _apply_autentique_state(contract, doc, save=False, metas=metas)
             contract.stage = 'enviado'
