@@ -570,6 +570,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def upload_receipt(self, request, pk=None):
         """Anexa o COMPROVANTE de pagamento avulso (usado no fluxo DIGITAL, onde não
         há upload do assinado). Opcional. Aceita PDF ou imagem."""
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from passengers.validators import validate_document_file
         contract = self.get_object()
         receipt = request.FILES.get('receipt')
         if not receipt:
