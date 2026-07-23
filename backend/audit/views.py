@@ -113,7 +113,9 @@ SCOPE_MODELS = {
     'contracts':   CONTRACT_MODELS,
     'itineraries': ['Itinerary', 'ItineraryDocument', 'ItineraryImage', 'ItineraryDeparture',
                     'ItineraryFlight', 'ItineraryHotel', 'ItineraryBoat',
-                    'ItineraryTerrestreDeparture', 'ItineraryTerrestreLeg'],
+                    'ItineraryTerrestreDeparture', 'ItineraryTerrestreLeg',
+                    'ItineraryCostItem', 'ItineraryInventoryBlock', 'ItineraryCurrencyRate',
+                    'ConfigShipCabin', 'ConfigFlightClass'],
 }
 
 
@@ -334,7 +336,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             from itineraries.models import (
                 ItineraryDocument, ItineraryImage, ItineraryDeparture, ItineraryFlight,
                 ItineraryHotel, ItineraryBoat, ItineraryTerrestreDeparture, ItineraryTerrestreLeg,
+                ItineraryCostItem, ItineraryInventoryBlock, ItineraryCurrencyRate,
             )
+            from config_api.models import ConfigShipCabin, ConfigFlightClass
             from django.db.models import Q
             iq = Q(model_name='Itinerary', object_id=str(itinerary_id))
             # Filhos diretos (FK itinerary)
@@ -342,6 +346,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 (ItineraryDocument, 'ItineraryDocument'), (ItineraryImage, 'ItineraryImage'),
                 (ItineraryDeparture, 'ItineraryDeparture'), (ItineraryHotel, 'ItineraryHotel'),
                 (ItineraryBoat, 'ItineraryBoat'), (ItineraryTerrestreDeparture, 'ItineraryTerrestreDeparture'),
+                (ItineraryCostItem, 'ItineraryCostItem'), (ItineraryInventoryBlock, 'ItineraryInventoryBlock'),
+                (ItineraryCurrencyRate, 'ItineraryCurrencyRate'),
+                (ConfigShipCabin, 'ConfigShipCabin'), (ConfigFlightClass, 'ConfigFlightClass'),
             ):
                 ids = list(model_cls.objects.filter(itinerary_id=itinerary_id).values_list('id', flat=True))
                 if ids:

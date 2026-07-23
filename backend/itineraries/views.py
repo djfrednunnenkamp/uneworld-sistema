@@ -78,18 +78,25 @@ def _scope_child_to_visible(qs, request):
 def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro', changes=None):
     """Registra um evento de auditoria de roteiro (publicar, upload, reordenar…).
     Eventos que os signals automáticos não capturam (ações e bulk updates)."""
+    import logging
+    from django.db import transaction
     from audit.models import AuditLog
     from audit.tracking import user_display
     from audit.middleware import get_current_ip
     user = getattr(request, 'user', None)
     authed = getattr(user, 'is_authenticated', False)
-    AuditLog.objects.create(
-        user=user if authed else None,
-        user_display=user_display(user) if authed else 'Sistema',
-        action=action, model_name=model_name, model_label=model_label,
-        object_id=str(getattr(obj, 'pk', '') or ''), object_repr=str(obj)[:500],
-        changes=changes or {}, ip_address=get_current_ip(),
-    )
+    # Savepoint isolado: uma falha de auditoria nunca derruba a operação real.
+    try:
+        with transaction.atomic():
+            AuditLog.objects.create(
+                user=user if authed else None,
+                user_display=user_display(user) if authed else 'Sistema',
+                action=action, model_name=model_name, model_label=model_label,
+                object_id=str(getattr(obj, 'pk', '') or ''), object_repr=str(obj)[:500],
+                changes=changes or {}, ip_address=get_current_ip(),
+            )
+    except Exception:
+        logging.getLogger('audit').exception('Falha ao gravar _audit (%s %s)', action, model_name)
 
 
 def _touch_unpublished(itinerary):
@@ -1117,11 +1124,31 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         obj = self.get_object()
         cfg, _ = ItineraryPricingConfig.objects.get_or_create(itinerary=obj)
         if request.method == 'PATCH':
+            # Snapshot ANTES para diff campo-a-campo (a config de preço não é um
+            # model rastreado por signal; sem isto o log virava um marcador
+            # genérico "config atualizada", sem dizer o que mudou).
+            before = ItineraryPricingConfigSerializer(cfg).data
             ser = ItineraryPricingConfigSerializer(cfg, data=request.data, partial=True)
             ser.is_valid(raise_exception=True)
             ser.save()
             _touch_unpublished(obj)
-            _audit(request, 'update', obj, changes={'Precificação': {'antes': '—', 'depois': 'config atualizada'}})
+            after = ItineraryPricingConfigSerializer(cfg).data
+            _LBL = {
+                'base_pax': 'Quantidade-base', 'min_pax': 'Mínimo de passageiros',
+                'max_pax': 'Máximo de passageiros', 'free_pax': 'Gratuidades',
+                'free_mode': 'Modo de gratuidade', 'rounding_mode': 'Modo de arredondamento',
+                'rounding_value': 'Arredondar para', 'margin_mode': 'Tipo de margem',
+                'margin_percent': 'Margem (%)', 'final_fee_percent': 'Taxa final (%)',
+                'min_margin_percent': 'Margem mínima (%)', 'notes': 'Observações',
+                'price_overrides': 'Preços manuais',
+            }
+            changes = {
+                _LBL.get(k, k): {'antes': before.get(k), 'depois': after.get(k)}
+                for k in set(request.data) & set(after)
+                if before.get(k) != after.get(k)
+            }
+            if changes:
+                _audit(request, 'update', obj, changes=changes)
             return Response(ser.data)
         return Response(ItineraryPricingConfigSerializer(cfg).data)
 
@@ -1762,6 +1789,7 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
 
         buf = io.BytesIO()
         used = set()
+        n_files = 0
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
             for img in qs.iterator():
                 name = img.image.name or ''
@@ -1782,6 +1810,7 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                 try:
                     img.image.open('rb')
                     zf.writestr(fname, img.image.read())
+                    n_files += 1
                 except Exception:
                     continue
                 finally:
@@ -1789,6 +1818,17 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                         img.image.close()
                     except Exception:
                         pass
+
+        # Download em lote de mídia do roteiro precisa ficar rastreável (quem
+        # baixou, quantos arquivos) — antes esse ZIP não deixava rastro nenhum.
+        try:
+            from audit.tracking import log_event
+            log_event('download', model_name='ItineraryImage', model_label='Galeria de mídia',
+                      object_repr='Galeria (ZIP)',
+                      changes={'Galeria (ZIP)': f'{n_files} arquivo(s) baixado(s)'},
+                      user=getattr(request, 'user', None))
+        except Exception:
+            pass
 
         resp = HttpResponse(buf.getvalue(), content_type='application/zip')
         resp['Content-Disposition'] = 'attachment; filename="galeria.zip"'

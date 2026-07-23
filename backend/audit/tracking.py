@@ -2,9 +2,31 @@
 Rastreamento automático de mudanças via sinais Django.
 Registra qualquer create/update/delete nos modelos listados em TRACKED_MODELS.
 """
+import logging
+from django.db import transaction
 from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
 from .middleware import get_current_user, get_current_ip, get_current_source
+
+_log = logging.getLogger('audit')
+
+
+def _safe_create(**kwargs):
+    """Grava um AuditLog isolando a escrita num savepoint próprio.
+
+    A auditoria roda DENTRO da transação da operação do usuário (post_save/
+    post_delete). Se a gravação do log falhasse, ela abortaria a transação
+    inteira e derrubaria a ação real (salvar hotel, custo, etc.). O savepoint
+    garante que uma falha de auditoria role atrás só o log — nunca a operação.
+    O registro confiável continua no back-end; só deixamos de matar o pedido
+    legítimo por causa de um erro de logging."""
+    from .models import AuditLog
+    try:
+        with transaction.atomic():
+            AuditLog.objects.create(**kwargs)
+    except Exception:
+        _log.exception('Falha ao gravar AuditLog (%s %s)',
+                       kwargs.get('action'), kwargs.get('model_name'))
 
 # {NomeDoModel: 'Rótulo legível'}
 TRACKED_MODELS = {
@@ -28,6 +50,8 @@ TRACKED_MODELS = {
     'ConfigGender':         'Gênero',
     'ConfigProfCard':       'Carteira profissional',
     'ConfigAccommodation':  'Tipo de acomodação',
+    'ConfigShipCabin':      'Tipo de cabine',
+    'ConfigFlightClass':    'Classe de voo',
     'ConfigListCategory':   'Categoria de lista',
     'ConfigItineraryCategory': 'Categoria de roteiro',
     'ConfigItineraryType':  'Tipo de roteiro',
@@ -74,6 +98,9 @@ TRACKED_MODELS = {
     'ItineraryBoat':            'Barco do roteiro',
     'ItineraryTerrestreDeparture': 'Cidade de partida (terrestre)',
     'ItineraryTerrestreLeg':    'Trecho terrestre',
+    'ItineraryCostItem':        'Item de custo do roteiro',
+    'ItineraryInventoryBlock':  'Bloqueio de disponibilidade',
+    'ItineraryCurrencyRate':    'Câmbio travado do roteiro',
     'Contract':                 'Contrato',
     'ContractAccommodationLine':'Acomodação do contrato',
     'ContractGuest':            'Hóspede do contrato',
@@ -249,7 +276,7 @@ def log_event(action, *, model_name, model_label, object_id='', object_repr='', 
     if user is None:
         user = get_current_user()
     authed = getattr(user, 'is_authenticated', False)
-    AuditLog.objects.create(
+    _safe_create(
         user=user if authed else None,
         user_display=user_display(user) if authed else 'Sistema',
         source=resolve_source(user if authed else None),
@@ -325,7 +352,7 @@ def log_save(sender, instance, created, **kwargs):
         repr_str = str(instance)[:500]
     except Exception:
         repr_str = f'{sender.__name__}#{instance.pk}'
-    AuditLog.objects.create(
+    _safe_create(
         user=user,
         user_display=user_display(user),
         source=resolve_source(user),
@@ -358,7 +385,7 @@ def log_delete(sender, instance, **kwargs):
     # ação "purge" (exclusão definitiva) — destroy() normal vira save(), não
     # delete(). Pra esses, marca como "purge" em vez de "delete" no log.
     action = 'purge' if hasattr(instance, 'is_deleted') else 'delete'
-    AuditLog.objects.create(
+    _safe_create(
         user=user,
         user_display=user_display(user),
         source=resolve_source(user),
