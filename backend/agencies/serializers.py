@@ -6,6 +6,12 @@ class AgencySerializer(serializers.ModelSerializer):
     logo_url = serializers.SerializerMethodField()
     logo_original_url = serializers.SerializerMethodField()
     display_name = serializers.ReadOnlyField()
+    # Só informa SE o token está configurado — o segredo nunca volta pro front (nem
+    # pra operadora). O token é gravado só pelo endpoint autentique-config (agência).
+    has_autentique_token = serializers.SerializerMethodField()
+
+    def get_has_autentique_token(self, obj):
+        return bool((obj.autentique_token or '').strip())
 
     class Meta:
         model  = Agency
@@ -18,11 +24,16 @@ class AgencySerializer(serializers.ModelSerializer):
             'website', 'commission_rate', 'cep', 'street', 'number', 'complement',
             'neighborhood', 'city', 'state', 'country', 'receives_mail',
             'pix_key_type', 'pix_key', 'use_agency_pix',
-            'auto_sign', 'autentique_email', 'autentique_token', 'notes', 'logo_url',
+            'auto_sign_allowed', 'auto_sign', 'autentique_email', 'has_autentique_token',
+            'notes', 'logo_url',
             'logo_original_url', 'logo_crop',
             'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'logo_crop']
+        # auto_sign/e-mail/token são geridos SÓ pelo endpoint autentique-config (admin
+        # da agência) — read-only aqui pra a operadora não os alterar pelo form normal.
+        # Só auto_sign_allowed (permissão) é editável pela operadora (agencies_edit).
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'logo_crop',
+                            'auto_sign', 'autentique_email']
 
     def to_internal_value(self, data):
         # O site pode ser informado só com o domínio (ex.: "exemplo.com.br").

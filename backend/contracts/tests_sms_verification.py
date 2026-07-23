@@ -13,6 +13,18 @@ from contracts import autentique
 from contracts.serializers import passenger_phone
 from config_api.models import OperatingCompany
 from passengers.models import Passenger
+from users_api.models import UserPermissions
+
+
+def make_user(username, superuser=False, **perms):
+    u = User.objects.create_user(username=username, email=f'{username}@x.com', password='pw12345678')
+    if superuser:
+        u.is_superuser = True; u.is_staff = True; u.save()
+    p, _ = UserPermissions.objects.get_or_create(user=u)
+    for k, v in perms.items():
+        setattr(p, k, v)
+    p.save()
+    return u
 
 
 class BuildSignerTest(SimpleTestCase):
@@ -85,16 +97,19 @@ class AgencyAutoSignTest(TestCase):
 
     def test_auto_sign_enabled_property(self):
         from agencies.models import Agency
-        a = Agency(auto_sign=True, autentique_email='ag@aut.com', autentique_token='tok')
-        self.assertTrue(a.auto_sign_enabled)
-        self.assertFalse(Agency(auto_sign=True, autentique_email='', autentique_token='tok').auto_sign_enabled)
-        self.assertFalse(Agency(auto_sign=False, autentique_email='ag@aut.com', autentique_token='tok').auto_sign_enabled)
+        full = dict(auto_sign_allowed=True, auto_sign=True, autentique_email='ag@aut.com', autentique_token='tok')
+        self.assertTrue(Agency(**full).auto_sign_enabled)
+        self.assertFalse(Agency(**{**full, 'auto_sign_allowed': False}).auto_sign_enabled)   # operadora não liberou
+        self.assertFalse(Agency(**{**full, 'auto_sign': False}).auto_sign_enabled)           # agência não ativou
+        self.assertFalse(Agency(**{**full, 'autentique_email': ''}).auto_sign_enabled)       # sem e-mail
+        self.assertFalse(Agency(**{**full, 'autentique_token': ''}).auto_sign_enabled)       # sem token
 
     def test_signer_uses_autentique_email_and_skips_2fa(self):
         from agencies.models import Agency
         from contracts.views import _contract_signers
         ag = Agency.objects.create(name='Ag X', email='contato@ag.com', person_type='juridica',
-                                   auto_sign=True, autentique_email='conta@autentique.com', autentique_token='tok')
+                                   auto_sign_allowed=True, auto_sign=True,
+                                   autentique_email='conta@autentique.com', autentique_token='tok')
         signers, missing, metas = _contract_signers(self._FakeContract(ag), method='email', sms_verification=True)
         agency_signer = signers[1]   # 0 = cliente, 1 = agência
         self.assertEqual(agency_signer['email'], 'conta@autentique.com')   # e-mail da conta Autentique, não o de contato
@@ -107,6 +122,58 @@ class AgencyAutoSignTest(TestCase):
         ag = Agency.objects.create(name='Ag Y', email='contato@ag.com', person_type='juridica', auto_sign=False)
         signers, _m, _meta = _contract_signers(self._FakeContract(ag), method='email')
         self.assertEqual(signers[1]['email'], 'contato@ag.com')
+
+
+class AgencyAutentiqueConfigEndpointTest(APITestCase):
+    """Endpoint autentique-config: só admin da agência/operadora; token write-only;
+    exige que a operadora tenha permitido (auto_sign_allowed)."""
+
+    def setUp(self):
+        from agencies.models import Agency
+        self.ag = Agency.objects.create(name='Ag', person_type='juridica', email='c@ag.com')
+        self.op = make_user('op', superuser=True)   # operadora
+        self.nobody = make_user('ze')                # sem vínculo/permite
+
+    def _url(self):
+        return f'/api/agencies/{self.ag.id}/autentique-config/'
+
+    def test_blocked_when_not_allowed(self):
+        self.client.force_authenticate(self.op)
+        r = self.client.patch(self._url(), {'auto_sign': True, 'autentique_email': 'x@y.com', 'autentique_token': 'tok'}, format='json')
+        self.assertEqual(r.status_code, 400)   # operadora ainda não liberou
+
+    def test_operator_configures_after_allowed_and_token_is_write_only(self):
+        self.ag.auto_sign_allowed = True; self.ag.save()
+        self.client.force_authenticate(self.op)
+        r = self.client.patch(self._url(), {'auto_sign': True, 'autentique_email': 'conta@aut.com', 'autentique_token': 'segredo'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()['has_autentique_token'])
+        self.assertNotIn('autentique_token', r.json())   # segredo nunca volta
+        self.ag.refresh_from_db()
+        self.assertEqual(self.ag.autentique_token, 'segredo')
+        self.assertTrue(self.ag.auto_sign_enabled)
+        # Token em branco NÃO apaga o atual:
+        r2 = self.client.patch(self._url(), {'autentique_email': 'nova@aut.com', 'autentique_token': ''}, format='json')
+        self.ag.refresh_from_db()
+        self.assertEqual(self.ag.autentique_token, 'segredo')
+        self.assertEqual(self.ag.autentique_email, 'nova@aut.com')
+
+    def test_forbidden_for_unrelated_user(self):
+        self.ag.auto_sign_allowed = True; self.ag.save()
+        self.client.force_authenticate(self.nobody)
+        r = self.client.patch(self._url(), {'auto_sign': True}, format='json')
+        self.assertEqual(r.status_code, 403)
+
+    def test_agency_admin_can_configure(self):
+        from agencies.models import Agency, AgencyMember
+        self.ag.auto_sign_allowed = True; self.ag.save()
+        admin = make_user('adm-ag')
+        AgencyMember.objects.create(agency=self.ag, user=admin, role='admin')
+        self.client.force_authenticate(admin)
+        r = self.client.patch(self._url(), {'auto_sign': True, 'autentique_email': 'a@a.com', 'autentique_token': 'tk'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.ag.refresh_from_db()
+        self.assertEqual(self.ag.autentique_token, 'tk')
 
 
 class OperatorSmsToggleTest(APITestCase):

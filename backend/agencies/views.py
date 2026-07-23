@@ -91,7 +91,40 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             return [RequirePermission(*VIEW_PERMS)()]
         if self.action == 'attachable_users':
             return [RequirePermission('agencies_edit')()]
+        if self.action == 'autentique_config':
+            # Admin da agência OU operadora — o gate fino é feito dentro da action.
+            from rest_framework.permissions import IsAuthenticated
+            return [IsAuthenticated()]
         return super().get_permissions()
+
+    @action(detail=True, methods=['patch'], url_path='autentique-config')
+    def autentique_config(self, request, pk=None):
+        """Credenciais Autentique da agência (assinatura automática). Só o ADMIN DA
+        AGÊNCIA (AgencyMember role='admin') ou a operadora (agencies_edit/superuser)
+        configuram. O token é write-only (entra, nunca volta). Só funciona depois
+        que a operadora permitiu (auto_sign_allowed)."""
+        from users_api.permissions import agency_admin_ids, has_any_perm
+        agency = self.get_object()
+        u = request.user
+        is_admin_here = agency.id in (agency_admin_ids(u) or [])
+        is_operator = bool(getattr(u, 'is_superuser', False)) or has_any_perm(u, 'agencies_edit')
+        if not (is_admin_here or is_operator):
+            return Response({'error': 'Só o administrador da agência pode configurar a assinatura automática.'}, status=403)
+        if not agency.auto_sign_allowed:
+            return Response({'error': 'A operadora ainda não liberou a assinatura automática para esta agência.'}, status=400)
+        data = request.data
+        fields = []
+        if 'auto_sign' in data:
+            agency.auto_sign = bool(data.get('auto_sign')); fields.append('auto_sign')
+        if 'autentique_email' in data:
+            agency.autentique_email = (data.get('autentique_email') or '').strip(); fields.append('autentique_email')
+        # Token: só grava se veio um valor não-vazio (em branco = mantém o atual).
+        tok = data.get('autentique_token')
+        if tok is not None and str(tok).strip():
+            agency.autentique_token = str(tok).strip(); fields.append('autentique_token')
+        if fields:
+            agency.save(update_fields=fields)
+        return Response(AgencySerializer(agency, context={'request': request}).data)
 
     @action(detail=True, methods=['post', 'delete'], parser_classes=[MultiPartParser, FormParser])
     def logo(self, request, pk=None):
