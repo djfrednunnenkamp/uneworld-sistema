@@ -38,6 +38,14 @@ class BuildSignerTest(SimpleTestCase):
         s = autentique.build_signer(email='a@b.com', phone='', sms_verification=True)
         self.assertEqual(s['security_verifications'], [{'type': 'SMS'}])
 
+    def test_sms_verification_omits_invalid_mobile(self):
+        # Fixo/número inválido NÃO pré-preenche verify_phone (senão a Autentique
+        # rejeita com must_be_a_valid_phone_number) — o signatário informa na hora.
+        s = autentique.build_signer(email='a@b.com', phone='(51) 3511-0666', method='email', sms_verification=True)
+        self.assertEqual(s['security_verifications'], [{'type': 'SMS'}])
+        s2 = autentique.build_signer(email='a@b.com', phone='51 99931-1574', method='email', sms_verification=True)
+        self.assertEqual(s2['security_verifications'], [{'type': 'SMS', 'verify_phone': '+5551999311574'}])
+
     def test_sms_verification_off_has_no_security(self):
         s = autentique.build_signer(email='a@b.com', phone='11988887777', sms_verification=False)
         self.assertNotIn('security_verifications', s)

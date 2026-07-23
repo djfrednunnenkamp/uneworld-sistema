@@ -170,6 +170,13 @@ def _delivery_method(method=None):
     return _DELIVERY_MAP.get(val)  # None => e-mail
 
 
+def _is_valid_br_mobile(e164):
+    """Celular BR em E.164: +55 + DDD (2) + 9 + 8 dígitos = 13 dígitos após o '+'.
+    (Fixo tem 8 dígitos no assinante e não começa com 9 — não serve p/ SMS.)"""
+    import re
+    return bool(re.match(r'^\+55\d{2}9\d{8}$', e164 or ''))
+
+
 def build_signer(email='', phone='', method=None, sms_verification=False):
     """Monta um signatário no formato da Autentique.
 
@@ -183,7 +190,9 @@ def build_signer(email='', phone='', method=None, sms_verification=False):
 
     `sms_verification` (config da operadora): exige AUTENTICAÇÃO por SMS antes de
     assinar (2FA) — acrescenta `security_verifications: [{type: SMS, verify_phone}]`.
-    Se houver telefone, já preenche o número; senão o signatário informa na hora."""
+    Só pré-preenche `verify_phone` quando é um CELULAR válido; senão omite (a
+    Autentique deixa o signatário informar na hora — pré-preencher um fixo/número
+    inválido dá `verify_phone: must_be_a_valid_phone_number`)."""
     resolved = _delivery_method(method)  # None => e-mail
     digits = ''.join(c for c in (phone or '') if c.isdigit())
     e164 = ('+' + (digits if digits.startswith('55') else f'55{digits}')) if digits else ''
@@ -199,7 +208,7 @@ def build_signer(email='', phone='', method=None, sms_verification=False):
         return None
     if sms_verification:
         ver = {'type': 'SMS'}
-        if e164:
+        if _is_valid_br_mobile(e164):
             ver['verify_phone'] = e164
         signer['security_verifications'] = [ver]
     return signer
