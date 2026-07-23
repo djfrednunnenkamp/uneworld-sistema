@@ -33,8 +33,9 @@ def _contract_signers(contract, method=None, sms_verification=False):
 
     # Cliente / contratante (passageiro cadastrado ou pagante manual).
     if contract.contratante_id:
+        from .serializers import passenger_phone
         c_email = (contract.contratante.email or '').strip()
-        c_phone = (contract.contratante.mobile or '').strip()
+        c_phone = passenger_phone(contract.contratante)
         c_name  = contract.contratante.full_name or 'Cliente'
     else:
         c_email = (contract.payer_email or '').strip()

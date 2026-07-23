@@ -51,11 +51,19 @@ def avista_discount_usd(payment_type, base_total_usd, exchange_rate, itinerary=N
     return max(Decimal('0'), min(Decimal(base_total_usd), disc))
 
 
+def passenger_phone(p):
+    """Telefone de CONTATO do passageiro (contrato/assinatura): o "Telefone"
+    principal (phone1, campo obrigatório do cadastro) tem prioridade; cai no
+    celular/2º telefone se vazio. Antes lia-se só `mobile` (Celular, opcional),
+    que costuma estar vazio — daí "Sem telefone" mesmo com o Telefone preenchido."""
+    return ((p.phone1 or '').strip() or (p.mobile or '').strip() or (p.phone2 or '').strip())
+
+
 def _passenger_brief(p):
     return {
         'id': p.id, 'full_name': p.full_name, 'gender': p.gender,
         'birth_date': p.birth_date, 'passport': p.passport, 'cpf': p.cpf,
-        'mobile': p.mobile, 'email': p.email,
+        'mobile': passenger_phone(p), 'email': p.email,
     }
 
 

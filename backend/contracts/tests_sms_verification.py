@@ -6,11 +6,13 @@
 - O toggle `sms_verification` da operadora persiste via /config/operating-company/.
 """
 from django.contrib.auth.models import User
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APITestCase
 
 from contracts import autentique
+from contracts.serializers import passenger_phone
 from config_api.models import OperatingCompany
+from passengers.models import Passenger
 
 
 class BuildSignerTest(SimpleTestCase):
@@ -39,6 +41,26 @@ class BuildSignerTest(SimpleTestCase):
     def test_sms_verification_off_has_no_security(self):
         s = autentique.build_signer(email='a@b.com', phone='11988887777', sms_verification=False)
         self.assertNotIn('security_verifications', s)
+
+
+class PassengerPhoneTest(TestCase):
+    """Telefone de contato = "Telefone" principal (phone1), não o Celular (mobile).
+    Antes lia só `mobile` → "Sem telefone" mesmo com o Telefone preenchido."""
+
+    def test_prefers_phone1(self):
+        p = Passenger.objects.create(first_name='Fred', last_name='N',
+                                     phone1='+55 (51) 99931-1574', mobile='')
+        self.assertEqual(passenger_phone(p), '+55 (51) 99931-1574')
+
+    def test_falls_back_to_mobile_then_phone2(self):
+        p = Passenger.objects.create(first_name='X', last_name='Y', phone1='', mobile='11988887777')
+        self.assertEqual(passenger_phone(p), '11988887777')
+        p2 = Passenger.objects.create(first_name='Z', last_name='W', phone1='', mobile='', phone2='4133332222')
+        self.assertEqual(passenger_phone(p2), '4133332222')
+
+    def test_empty_when_no_phone(self):
+        p = Passenger.objects.create(first_name='A', last_name='B', phone1='', mobile='', phone2='')
+        self.assertEqual(passenger_phone(p), '')
 
 
 class OperatorSmsToggleTest(APITestCase):
