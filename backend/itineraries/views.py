@@ -997,7 +997,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
-                           'pricing_config', 'import_kml_preview'):
+                           'pricing_config', 'import_kml_preview', 'set_pending'):
             return [RequirePermission('roteiros_edit')()]
         if self.action == 'list':
             # Também quem faz contratos: o seletor de roteiro do contrato lista os
@@ -1151,6 +1151,25 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 _audit(request, 'update', obj, changes=changes)
             return Response(ser.data)
         return Response(ItineraryPricingConfigSerializer(cfg).data)
+
+    @action(detail=True, methods=['post'], url_path='set-pending')
+    def set_pending(self, request, pk=None):
+        """Liga/desliga o selo "Público · pendente" (has_unpublished_changes).
+
+        Quem decide se HÁ pendência é o FRONT — ele compara, no pop-up "Alterações
+        pendentes", a foto publicada com o estado vivo (formulário + valores), com
+        toda a normalização (null-vs-'', delete+recreate, tipos efetivos). Quando
+        esse diff zera (o usuário reverteu tudo de volta ao publicado), o selo tem
+        que voltar sozinho para "publicado" — é isso que esta action grava.
+        Só faz sentido em roteiro publicado; nos demais, "pendente" não existe."""
+        obj = self.get_object()
+        if not obj.is_published:
+            return Response({'has_unpublished_changes': obj.has_unpublished_changes})
+        pending = bool(request.data.get('pending'))
+        if obj.has_unpublished_changes != pending:
+            obj.has_unpublished_changes = pending
+            obj.save(update_fields=['has_unpublished_changes'])
+        return Response({'has_unpublished_changes': obj.has_unpublished_changes})
 
     @action(detail=True, methods=['get'], url_path='pricing-snapshot')
     def pricing_snapshot(self, request, pk=None):
