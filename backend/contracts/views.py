@@ -41,22 +41,27 @@ def _contract_signers(contract, method=None, sms_verification=False):
         c_email = (contract.payer_email or '').strip()
         c_phone = (contract.payer_phone or '').strip()
         c_name  = contract.payer_name or 'Cliente'
+    # O CLIENTE usa o canal escolhido no pop-up: telefone p/ WhatsApp/SMS, e-mail
+    # p/ e-mail. A mensagem de "faltando" diz qual contato falta.
+    client_needs = 'telefone' if autentique._delivery_method(method) else 'e-mail'
     c_signer = autentique.build_signer(email=c_email, phone=c_phone, method=method, sms_verification=sms_verification)
     if c_signer:
         signers.append(c_signer)
     else:
-        missing.append(f'cliente ({c_name})')
+        missing.append(f'cliente ({c_name}) — falta {client_needs}')
 
     # Agência.
     ag = contract.agency
     if ag:
         a_email = (ag.email or '').strip()
         a_phone = (ag.mobile or ag.phone or '').strip()
-        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method=method, sms_verification=sms_verification)
+        # A AGÊNCIA assina SEMPRE por e-mail — o canal escolhido no pop-up
+        # (WhatsApp/SMS) vale só para o passageiro/cliente.
+        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method='email', sms_verification=sms_verification)
         if a_signer:
             signers.append(a_signer)
         else:
-            missing.append(f'agência ({ag.name or ag.company_name})')
+            missing.append(f'agência ({ag.name or ag.company_name}) — falta e-mail')
 
     # CEO (assinatura automática): entra como signatário oficial por e-mail — é a
     # conta dona do token que assina via API logo após a criação do documento.
@@ -401,9 +406,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             sms_verification = OperatingCompany.get().sms_verification
             signers, missing = _contract_signers(contract, method=method, sms_verification=sms_verification)
             if missing:
-                contato = 'telefone' if autentique._delivery_method(method) else 'e-mail'
-                return Response({'error': f'Sem {contato} para: ' + ', '.join(missing) +
-                                          f'. Preencha o {contato} antes de enviar para assinatura digital.'},
+                return Response({'error': 'Faltam contatos para a assinatura digital: ' + '; '.join(missing) +
+                                          '. Preencha antes de enviar. (A agência assina sempre por e-mail.)'},
                                 status=http_status.HTTP_400_BAD_REQUEST)
             name = f'Contrato {contract.reservation_number}'.strip() if contract.reservation_number else f'Contrato #{contract.id}'
             try:
