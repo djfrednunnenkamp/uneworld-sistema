@@ -170,7 +170,7 @@ def _delivery_method(method=None):
     return _DELIVERY_MAP.get(val)  # None => e-mail
 
 
-def build_signer(email='', phone='', method=None):
+def build_signer(email='', phone='', method=None, sms_verification=False):
     """Monta um signatário no formato da Autentique.
 
     A Autentique aceita UM canal de entrega por signatário — enviar e-mail e
@@ -179,20 +179,30 @@ def build_signer(email='', phone='', method=None):
       - entrega por e-mail (padrão):  {action, email}
       - entrega por WhatsApp/SMS:     {action, phone E.164 com +, delivery_method}
     `method` sobrepõe o canal global (escolha por contrato). Retorna None quando
-    não há contato compatível com o canal escolhido."""
+    não há contato compatível com o canal escolhido.
+
+    `sms_verification` (config da operadora): exige AUTENTICAÇÃO por SMS antes de
+    assinar (2FA) — acrescenta `security_verifications: [{type: SMS, verify_phone}]`.
+    Se houver telefone, já preenche o número; senão o signatário informa na hora."""
     resolved = _delivery_method(method)  # None => e-mail
-    method = resolved
     digits = ''.join(c for c in (phone or '') if c.isdigit())
-    if method:
+    e164 = ('+' + (digits if digits.startswith('55') else f'55{digits}')) if digits else ''
+    if resolved:
         # Entrega por telefone (WhatsApp/SMS): exige telefone válido E.164.
-        if not digits:
+        if not e164:
             return None
-        e164 = digits if digits.startswith('55') else f'55{digits}'
-        return {'action': 'SIGN', 'phone': f'+{e164}', 'delivery_method': method}
-    # Entrega por e-mail (padrão).
-    if not email:
+        signer = {'action': 'SIGN', 'phone': e164, 'delivery_method': resolved}
+    elif email:
+        # Entrega por e-mail (padrão).
+        signer = {'action': 'SIGN', 'email': email}
+    else:
         return None
-    return {'action': 'SIGN', 'email': email}
+    if sms_verification:
+        ver = {'type': 'SMS'}
+        if e164:
+            ver['verify_phone'] = e164
+        signer['security_verifications'] = [ver]
+    return signer
 
 
 def create_document(name, pdf_bytes, signers):

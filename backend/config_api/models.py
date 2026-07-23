@@ -595,6 +595,10 @@ class OperatingCompany(models.Model):
     SIGNATURE_CHOICES = [('fisica', 'Física (imprimir e assinar)'), ('digital', 'Digital')]
     default_signature_type = models.CharField('Assinatura padrão dos contratos', max_length=10,
                                               choices=SIGNATURE_CHOICES, default='fisica')
+    # Autenticação por SMS antes de assinar (2FA na Autentique): quando ligado,
+    # todo contrato digital exige que o cliente/agência validem um código enviado
+    # por SMS antes de conseguir assinar. Não se aplica ao CEO (assina via token).
+    sms_verification = models.BooleanField('Exigir verificação por SMS ao assinar', default=False)
     # Assinatura digital automática do CEO: ele entra como signatário oficial e o
     # sistema assina por ele via API da Autentique (signDocument com o token dele).
     ceo_name              = models.CharField('CEO — nome', max_length=200, blank=True)

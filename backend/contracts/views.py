@@ -20,12 +20,15 @@ from core.search import AccentInsensitiveSearchFilter
 logger = logging.getLogger(__name__)
 
 
-def _contract_signers(contract, method=None):
+def _contract_signers(contract, method=None, sms_verification=False):
     """Signatários do contrato para a Autentique: o cliente (contratante) e a
     agência. Cada um precisa de e-mail (ou telefone, se a entrega for por
     WhatsApp/SMS). `method` é o canal escolhido no envio ('email'|'whatsapp'|
-    'sms'); None usa o padrão global. Retorna (signers, faltando) — `faltando`
-    lista, em texto, as partes sem contato utilizável, para avisar o usuário."""
+    'sms'); None usa o padrão global. `sms_verification` (config da operadora)
+    exige autenticação por SMS antes de assinar (2FA) — aplicada ao cliente e à
+    agência, NÃO ao CEO (que assina automaticamente via token e travaria com 2FA).
+    Retorna (signers, faltando) — `faltando` lista, em texto, as partes sem
+    contato utilizável, para avisar o usuário."""
     signers, missing = [], []
 
     # Cliente / contratante (passageiro cadastrado ou pagante manual).
@@ -37,7 +40,7 @@ def _contract_signers(contract, method=None):
         c_email = (contract.payer_email or '').strip()
         c_phone = (contract.payer_phone or '').strip()
         c_name  = contract.payer_name or 'Cliente'
-    c_signer = autentique.build_signer(email=c_email, phone=c_phone, method=method)
+    c_signer = autentique.build_signer(email=c_email, phone=c_phone, method=method, sms_verification=sms_verification)
     if c_signer:
         signers.append(c_signer)
     else:
@@ -48,7 +51,7 @@ def _contract_signers(contract, method=None):
     if ag:
         a_email = (ag.email or '').strip()
         a_phone = (ag.mobile or ag.phone or '').strip()
-        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method=method)
+        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method=method, sms_verification=sms_verification)
         if a_signer:
             signers.append(a_signer)
         else:
@@ -392,7 +395,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                 status=http_status.HTTP_400_BAD_REQUEST)
             # Canal de entrega escolhido no envio ('email'|'whatsapp'|'sms').
             method = (request.data.get('delivery_method') or '').strip().lower() or None
-            signers, missing = _contract_signers(contract, method=method)
+            # Autenticação por SMS antes de assinar (2FA) — toggle da operadora.
+            from config_api.models import OperatingCompany
+            sms_verification = OperatingCompany.get().sms_verification
+            signers, missing = _contract_signers(contract, method=method, sms_verification=sms_verification)
             if missing:
                 contato = 'telefone' if autentique._delivery_method(method) else 'e-mail'
                 return Response({'error': f'Sem {contato} para: ' + ', '.join(missing) +
