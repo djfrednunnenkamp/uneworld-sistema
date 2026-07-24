@@ -272,8 +272,8 @@ docker compose -f docker-compose.prod.yml exec backend python manage.py shell
 
 Todo vídeo enviado à Galeria gera **duas versões** para tocar em qualquer navegador,
 além de uma **thumbnail** real:
-- **MP4 / H.264** (`avc1`, yuv420p, `+faststart`) — o padrão (celular, Windows, macOS,
-  navegadores com H.264).
+- **MP4 / H.264 Main** (`avc1`, level 4.0, yuv420p, AAC, `+faststart`) — o padrão, com
+  máxima compatibilidade (celular, Windows, macOS, TVs, navegadores com H.264).
 - **WebM / VP9** (Opus) — **fallback** para navegadores/players **Linux sem decoder
   H.264** (ex.: Opera/Firefox no Ubuntu sem os codecs proprietários). O player usa a
   versão que o navegador consegue decodificar (e troca sozinho no `<video>`).
@@ -311,6 +311,11 @@ o build estático inclui `libx264`, `libvpx-vp9` e `libopus`.
   O comando é **idempotente** e pode rodar por cron (ex.: `--pending --requeue-stuck 30`
   a cada 5 min) em servidores com muito volume, ou com `VIDEO_PROCESS_INLINE=0`
   quando quiser tirar a conversão do processo web.
+- **Nome do download:** o arquivo baixado recebe um nome BONITO montado dos metadados
+  da Galeria — `Tipo - Cidade - País - Descrição - ID.ext` (partes ausentes são
+  puladas; o ID vai por último). É calculado no download (editar metadados muda o
+  próximo nome, sem mover arquivo). O storage continua usando nomes internos uuid;
+  o `Content-Disposition` traz `filename` (ASCII) + `filename*` (UTF-8, com acentos).
 - **Limite de upload:** o limite do sistema é 200 MB por vídeo. O **proxy reverso**
   na frente do backend (nginx/Cloudflare) precisa aceitar corpos desse tamanho —
   no nginx: `client_max_body_size 210m;` e um `proxy_read_timeout` folgado para

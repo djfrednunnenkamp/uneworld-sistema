@@ -443,6 +443,38 @@ class VideoApiTest(APITestCase):
         self.assertIn('attachment', r['Content-Disposition'])
         self.assertTrue(r['Content-Disposition'].endswith('.mp4"') or '.mp4' in r['Content-Disposition'])
 
+    def test_mp4_is_main_profile(self):
+        img_id, _ = self._upload_and_process()
+        img = ItineraryImage.objects.get(pk=img_id)
+        out = subprocess.run([FFPROBE, '-v', 'error', '-select_streams', 'v:0',
+                              '-show_entries', 'stream=profile,codec_tag_string,pix_fmt',
+                              '-of', 'default=noprint_wrappers=1', img.video_normalized.path],
+                             capture_output=True, text=True).stdout
+        self.assertIn('profile=Main', out)
+        self.assertIn('codec_tag_string=avc1', out)
+        self.assertIn('pix_fmt=yuv420p', out)
+
+    def test_downloads_contract(self):
+        img_id, _ = self._upload_and_process()
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/')
+        dl = r.data['downloads']
+        self.assertTrue(dl['mp4']['available'])
+        self.assertTrue(dl['mp4']['url'])
+        self.assertTrue(dl['mp4']['filename'].endswith('.mp4'))
+        self.assertIn(str(img_id), dl['mp4']['filename'])          # id no nome
+        # sem WebM neste teste (VIDEO_MAKE_WEBM=False) → webm available False
+        self.assertFalse(dl['webm']['available'])
+
+    def test_download_uses_pretty_name_not_uuid(self):
+        img_id, _ = self._upload_and_process()
+        img = ItineraryImage.objects.get(pk=img_id)
+        uuid_name = img.video_normalized.name.split('/')[-1]
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/download/?fmt=mp4')
+        cd = r['Content-Disposition']
+        self.assertIn("filename*=UTF-8''", cd)                     # RFC 5987
+        self.assertIn(f'- {img_id}.mp4', cd)                       # nome bonito, id por último
+        self.assertNotIn(uuid_name, cd)                            # NÃO expõe o nome físico
+
     def test_processing_video_has_no_playback_url(self):
         # Enquanto processa, NÃO expõe video_url (o front não abre player quebrado).
         self.client.force_authenticate(self.uploader)
@@ -566,3 +598,126 @@ class VideoDualFormatTest(APITestCase):
         img.delete()
         self.assertFalse(os.path.exists(mp4p))
         self.assertFalse(os.path.exists(webmp))
+
+
+class _FakeImg:
+    """Objeto leve com os atributos que gallery_naming lê (evita fixtures de FK geo)."""
+    SUBJECT_CHOICES = ItineraryImage.SUBJECT_CHOICES
+    is_video = True
+    def __init__(self, **kw):
+        self.id = kw.get('id', 1); self.kind = kw.get('kind', 'gallery')
+        self.subject_type = kw.get('subject_type', 'landscape'); self.caption = kw.get('caption', '')
+        self.continent = None; self.continent_id = None
+        self.country = None; self.country_id = None
+        self.city = None; self.city_id = None
+        cont = kw.get('continent')
+        if cont: self.continent = type('X', (), {'name': cont})(); self.continent_id = 1
+        country = kw.get('country'); city = kw.get('city')
+        if country:
+            self.country = type('X', (), {'name': country})(); self.country_id = 1
+        if city:
+            st = None
+            if kw.get('country_from_city'):
+                st = type('S', (), {'country': type('C', (), {'name': kw['country_from_city']})(), 'country_id': 1})()
+            self.city = type('Ci', (), {'name': city, 'state': st, 'state_id': (1 if st else None)})()
+            self.city_id = 1
+
+
+class GalleryNamingTest(_Base):
+    """Nome de download a partir dos metadados — casos e sanitização (sem ffmpeg)."""
+
+    def setUp(self):
+        from itineraries import gallery_naming as gn
+        self.gn = gn
+
+    def test_full_name(self):
+        img = _FakeImg(id=461, subject_type='landscape', city='Paris', country='França', caption='Torre Eiffel ao entardecer')
+        self.assertEqual(self.gn.download_filename(img, '.mp4'),
+                         'Paisagem - Paris - França - Torre Eiffel ao entardecer - 461.mp4')
+
+    def test_no_description(self):
+        img = _FakeImg(id=461, city='Paris', country='França')
+        self.assertEqual(self.gn.download_filename(img, '.mp4'), 'Paisagem - Paris - França - 461.mp4')
+
+    def test_city_only(self):
+        img = _FakeImg(id=461, city='Paris')
+        self.assertEqual(self.gn.download_filename(img, '.mp4'), 'Paisagem - Paris - 461.mp4')
+
+    def test_country_derived_from_city(self):
+        img = _FakeImg(id=7, city='Paris', country_from_city='França')
+        self.assertEqual(self.gn.download_filename(img, '.mp4'), 'Paisagem - Paris - França - 7.mp4')
+
+    def test_no_metadata(self):
+        img = _FakeImg(id=461, subject_type='')
+        self.assertEqual(self.gn.download_filename(img, '.mp4'), 'Vídeo - 461.mp4')
+
+    def test_object_type_label(self):
+        img = _FakeImg(id=9, subject_type='object', city='Roma', country='Itália', caption='Escultura')
+        self.assertEqual(self.gn.download_filename(img, '.mp4'), 'Objeto - Roma - Itália - Escultura - 9.mp4')
+
+    def test_forbidden_chars_removed(self):
+        img = _FakeImg(id=5, subject_type='object', caption='a/b\\c:d*e?f"g<h>i|j')
+        out = self.gn.download_filename(img, '.mp4')
+        for ch in '/\\:*?"<>|':
+            self.assertNotIn(ch, out.replace('.mp4', ''))
+        self.assertTrue(out.endswith('- 5.mp4'))
+
+    def test_control_and_crlf_removed(self):
+        img = _FakeImg(id=5, caption='linha1\r\nlinha2\ttab\x00nul')
+        out = self.gn.download_filename(img, '.mp4')
+        for ch in ['\r', '\n', '\t', '\x00']:
+            self.assertNotIn(ch, out)
+
+    def test_path_traversal_neutralized(self):
+        img = _FakeImg(id=5, caption='../../etc/passwd')
+        out = self.gn.download_filename(img, '.mp4')
+        self.assertNotIn('..', out)
+        self.assertNotIn('/', out.replace('.mp4', ''))
+
+    def test_length_limited(self):
+        img = _FakeImg(id=5, caption='x' * 500)
+        out = self.gn.download_filename(img, '.mp4')
+        self.assertLessEqual(len(out), 210)
+        self.assertTrue(out.endswith('- 5.mp4'))
+
+    def test_id_is_last(self):
+        img = _FakeImg(id=999, city='Paris', caption='Desc')
+        self.assertTrue(self.gn.download_filename(img, '.mp4').endswith(' - 999.mp4'))
+
+    def test_no_duplicate_separators(self):
+        # caption vazia entre partes não deve deixar " -  - "
+        img = _FakeImg(id=3, subject_type='landscape', city='', country='França')
+        self.assertEqual(self.gn.download_filename(img, '.mp4'), 'Paisagem - França - 3.mp4')
+
+    def test_extension_normalized(self):
+        img = _FakeImg(id=1)
+        self.assertTrue(self.gn.download_filename(img, 'MP4').endswith('.mp4'))
+        self.assertTrue(self.gn.download_filename(img, '.WEBM').endswith('.webm'))
+
+    def test_content_disposition_has_both_and_ascii_fallback(self):
+        img = _FakeImg(id=461, city='Paris', country='França', caption='Torre')
+        cd = self.gn.content_disposition(self.gn.download_filename(img, '.mp4'))
+        self.assertIn('attachment;', cd)
+        self.assertIn('filename="', cd)
+        self.assertIn("filename*=UTF-8''", cd)
+        # fallback ASCII sem acento (França → Franca)
+        self.assertIn('Franca', cd.split("filename*=")[0])
+        # sem CR/LF no header (anti-injeção)
+        self.assertNotIn('\r', cd); self.assertNotIn('\n', cd)
+
+    def test_content_disposition_no_crlf_injection(self):
+        # O vetor real de injeção é o CR/LF (quebra o header); o resto vira texto do
+        # nome, entre aspas / percent-encoded — não injeta cabeçalho novo.
+        img = _FakeImg(id=5, caption='a";\r\nSet-Cookie: x=1')
+        cd = self.gn.content_disposition(self.gn.download_filename(img, '.mp4'))
+        self.assertNotIn('\r', cd); self.assertNotIn('\n', cd)     # sem quebra de linha
+        self.assertNotIn('"', cd.split('filename="')[1].split('";')[0])  # aspas não escaparam do valor
+
+    def test_name_reflects_edited_metadata(self):
+        # Editar metadado muda o PRÓXIMO nome de download (calculado dinamicamente).
+        img = _FakeImg(id=1, subject_type='landscape', city='Paris')
+        self.assertEqual(self.gn.download_basename(img), 'Paisagem - Paris - 1')
+        img.caption = 'Nova descrição'
+        self.assertEqual(self.gn.download_basename(img), 'Paisagem - Paris - Nova descrição - 1')
+        img.subject_type = 'object'
+        self.assertEqual(self.gn.download_basename(img), 'Objeto - Paris - Nova descrição - 1')

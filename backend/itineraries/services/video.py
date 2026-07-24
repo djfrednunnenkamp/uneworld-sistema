@@ -218,7 +218,11 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
         '-i', src,
         '-map', '0:v:0', '-map', '0:a?',
         '-vf', vf,
-        '-c:v', 'libx264', '-preset', preset, '-crf', str(crf),
+        # Profile MAIN + level 4.0: máxima compatibilidade (equipamentos antigos,
+        # Apple, TVs). yuv420p garante 8-bit 4:2:0 (não usa High10/422/444). O
+        # codec_tag continua avc1.
+        '-c:v', 'libx264', '-profile:v', 'main', '-level', '4.0',
+        '-preset', preset, '-crf', str(crf),
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac', '-b:a', '128k', '-ac', '2',
         '-movflags', '+faststart',

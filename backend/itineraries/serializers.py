@@ -340,7 +340,8 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     webm_url        = serializers.SerializerMethodField()    # WebM/VP9 (fallback Linux sem H.264)
     thumb_url       = serializers.SerializerMethodField()
     download_url    = serializers.SerializerMethodField()    # MP4 (compat)
-    download_urls   = serializers.SerializerMethodField()    # {mp4, webm}
+    download_urls   = serializers.SerializerMethodField()    # {mp4, webm} (compat)
+    downloads       = serializers.SerializerMethodField()    # {mp4,webm}{url,filename,available}
     playback_sources = serializers.SerializerMethodField()   # [{url, type, codec}]
     mime_type       = serializers.SerializerMethodField()
     error           = serializers.SerializerMethodField()
@@ -353,7 +354,7 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
                   'city', 'country', 'continent', 'city_data', 'country_data', 'continent_name',
                   'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name',
                   'status', 'video_url', 'webm_url', 'thumb_url', 'download_url', 'download_urls',
-                  'playback_sources', 'mime_type', 'duration', 'width', 'height', 'error',
+                  'downloads', 'playback_sources', 'mime_type', 'duration', 'width', 'height', 'error',
                   'processing_stage', 'processing_progress', 'estimated_remaining_seconds',
                   'processing_elapsed_seconds', 'processing_heartbeat_at']
 
@@ -401,8 +402,8 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
             return []
         out = []
         mp4 = self.get_video_url(obj)
-        if mp4:
-            out.append({'url': mp4, 'type': 'video/mp4; codecs="avc1.4d401f"', 'codec': 'avc1'})
+        if mp4:                                  # avc1.4d4028 = H.264 Main level 4.0
+            out.append({'url': mp4, 'type': 'video/mp4; codecs="avc1.4d4028"', 'codec': 'avc1'})
         webm = self.get_webm_url(obj)
         if webm:
             out.append({'url': webm, 'type': 'video/webm; codecs="vp9, opus"', 'codec': 'vp9'})
@@ -422,6 +423,22 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
         if obj.video_normalized_webm:
             d['webm'] = self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=webm')
         return d
+
+    def get_downloads(self, obj):
+        """Contrato de download por formato: url + filename BONITO (dos metadados) +
+        available. O filename real vem do Content-Disposition; aqui é para exibir."""
+        if obj.pk is None or not self.get_is_video(obj):
+            return {}
+        from .gallery_naming import download_filename
+        ready = obj.status == 'ready'
+        has_mp4 = ready and bool(obj.video_normalized and obj.video_normalized.name)
+        has_webm = ready and bool(obj.video_normalized_webm and obj.video_normalized_webm.name)
+        return {
+            'mp4': {'url': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=mp4'),
+                    'filename': download_filename(obj, '.mp4'), 'available': has_mp4},
+            'webm': {'url': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=webm'),
+                     'filename': download_filename(obj, '.webm'), 'available': has_webm},
+        }
 
     def get_mime_type(self, obj):
         if self.get_is_video(obj):

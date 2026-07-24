@@ -1915,7 +1915,7 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             'processing_heartbeat_at': d.get('processing_heartbeat_at'),
             'error': d.get('error'), 'video_url': d.get('video_url'),
             'webm_url': d.get('webm_url'), 'playback_sources': d.get('playback_sources'),
-            'download_urls': d.get('download_urls'),
+            'download_urls': d.get('download_urls'), 'downloads': d.get('downloads'),
             'thumb_url': d.get('thumb_url'), 'duration': d.get('duration'),
         })
 
@@ -1950,13 +1950,14 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         if not src or not src.name:
             return Response({'detail': 'Arquivo indisponível.'}, status=status.HTTP_404_NOT_FOUND)
         ext = _os.path.splitext(src.name)[1].lower() or ('.mp4' if img.is_video else '')
-        label = (img.caption or (img.city.name if img.city_id else '')
-                 or (img.itinerary.name if img.itinerary_id else '') or 'arquivo')
-        from django.utils.text import slugify
-        fname = f'{img.id}-{slugify(label)[:60] or "arquivo"}{ext}'
+        # Nome BONITO a partir dos metadados (fonte única no backend); NUNCA expõe o
+        # nome físico (uuid) do storage. Content-Disposition com fallback ASCII + UTF-8.
+        from .gallery_naming import download_filename, content_disposition
+        fname = download_filename(img, ext)
         try:
             src.open('rb')
-            resp = FileResponse(src, as_attachment=True, filename=fname, content_type=ctype)
+            resp = FileResponse(src, content_type=ctype)
+            resp['Content-Disposition'] = content_disposition(fname)
         except Exception:
             return Response({'detail': 'Não foi possível ler o arquivo.'}, status=status.HTTP_404_NOT_FOUND)
         try:
