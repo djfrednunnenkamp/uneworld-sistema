@@ -170,6 +170,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         agency_id    = self.request.query_params.get('agency_id')
         contract_id  = self.request.query_params.get('contract_id')
         itinerary_id = self.request.query_params.get('itinerary_id')
+        target_user_id = self.request.query_params.get('target_user_id')   # mudanças feitas AO usuário
         scope        = self.request.query_params.get('scope')
         source       = self.request.query_params.get('source')
         show_nav     = self.request.query_params.get('show_nav') in ('1', 'true', 'True')
@@ -287,16 +288,26 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         if date_from: qs = qs.filter(timestamp__date__gte=date_from)
         if date_to:   qs = qs.filter(timestamp__date__lte=date_to)
         if list_id:
-            from trips.models import ListEnrollment
+            from trips.models import ListEnrollment, Room, ListTask
             from django.db.models import Q
-            enrollment_ids = list(
-                ListEnrollment.objects.filter(passenger_list_id=list_id)
-                .values_list('id', flat=True)
-            )
-            qs = qs.filter(
-                Q(model_name='ListEnrollment', object_id__in=[str(i) for i in enrollment_ids]) |
-                Q(model_name='PassengerList', object_id=str(list_id))
-            )
+            lq = Q(model_name='PassengerList', object_id=str(list_id))
+            # Filhos ligados por FK `passenger_list`.
+            for model_cls, name in ((ListEnrollment, 'ListEnrollment'), (Room, 'Room'), (ListTask, 'ListTask')):
+                ids = list(model_cls.objects.filter(passenger_list_id=list_id).values_list('id', flat=True))
+                if ids:
+                    lq |= Q(model_name=name, object_id__in=[str(i) for i in ids])
+            # Voucher da lista + confirmações de voo (via voucher → passenger_list).
+            try:
+                from vouchers.models import VoucherList, VoucherFlightConfirmation
+                vl_ids = list(VoucherList.objects.filter(passenger_list_id=list_id).values_list('id', flat=True))
+                if vl_ids:
+                    lq |= Q(model_name='VoucherList', object_id__in=[str(i) for i in vl_ids])
+                    fc_ids = list(VoucherFlightConfirmation.objects.filter(voucher_id__in=vl_ids).values_list('id', flat=True))
+                    if fc_ids:
+                        lq |= Q(model_name='VoucherFlightConfirmation', object_id__in=[str(i) for i in fc_ids])
+            except Exception:
+                pass
+            qs = qs.filter(lq)
         if passenger_id:
             from passengers.models import PassengerDocument
             from django.db.models import Q
@@ -309,7 +320,27 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 Q(model_name='PassengerDocument', object_id__in=[str(i) for i in doc_ids])
             )
         if agency_id:
-            qs = qs.filter(model_name='Agency', object_id=str(agency_id))
+            from agencies.models import AgencyMember
+            from django.db.models import Q
+            member_ids = list(AgencyMember.objects.filter(agency_id=agency_id).values_list('id', flat=True))
+            qs = qs.filter(
+                Q(model_name='Agency', object_id=str(agency_id)) |
+                Q(model_name='AgencyMember', object_id__in=[str(i) for i in member_ids])
+            )
+        if target_user_id:
+            # Mudanças feitas AO usuário (conta, permissões, vínculos de agência) — o
+            # `user_id` filtra por ATOR; este filtra por ALVO.
+            from django.db.models import Q
+            from users_api.models import UserPermissions
+            from agencies.models import AgencyMember
+            perm_ids = list(UserPermissions.objects.filter(user_id=target_user_id).values_list('id', flat=True))
+            mem_ids = list(AgencyMember.objects.filter(user_id=target_user_id).values_list('id', flat=True))
+            tq = Q(model_name='User', object_id=str(target_user_id))
+            if perm_ids:
+                tq |= Q(model_name='UserPermissions', object_id__in=[str(i) for i in perm_ids])
+            if mem_ids:
+                tq |= Q(model_name='AgencyMember', object_id__in=[str(i) for i in mem_ids])
+            qs = qs.filter(tq)
         if contract_id:
             from contracts.models import (
                 ContractAccommodationLine, ContractGuest,
@@ -370,20 +401,35 @@ from audit.middleware import get_current_ip
 from audit.tracking import user_display
 
 
+# Modelos que os logs disparados pelo cliente podem referenciar além dos rastreados
+# (os defaults de import/export de CSV, que não têm modelo próprio).
+_CLIENT_LOG_MODELS = {'CsvImport', 'CsvExport'}
+
+
 def _log_client_event(request, action, default_model_name, default_model_label):
     """Registra um upload/download disparado pelo frontend (ex: exportação/importação
     de CSV em Configurações) — esses fluxos não passam por um único request de
-    backend que represente "a ação" inteira, então o frontend chama isso direto."""
+    backend que represente "a ação" inteira, então o frontend chama isso direto.
+
+    Segurança: o usuário/IP/hora vêm do servidor (não forjáveis). O `model_name`/
+    `object_id` vêm do cliente, então são VALIDADOS aqui — só aceitamos um modelo
+    conhecido; qualquer outro cai no default do endpoint (o cliente não auto-atribui
+    o evento a uma entidade arbitrária)."""
+    from audit.tracking import TRACKED_MODELS
     label = (request.data.get('label') or '').strip()[:200]
     model_label = (request.data.get('model_label') or default_model_label).strip()[:100]
     summary = request.data.get('summary') or {}
     if not label:
         return Response({'error': 'label é obrigatório.'}, status=400)
+    req_model = (request.data.get('model_name') or '').strip()[:100]
+    allowed = set(TRACKED_MODELS) | _CLIENT_LOG_MODELS
+    model_name = req_model if req_model in allowed else default_model_name
+    object_id = str(request.data.get('object_id') or '')[:50]
     user = request.user
     AuditLog.objects.create(
-        user=user, user_display=user_display(user), action=action,
-        model_name=request.data.get('model_name') or default_model_name, model_label=model_label,
-        object_id=str(request.data.get('object_id') or ''), object_repr=label,
+        user=user, user_display=user_display(user), source='user', action=action,
+        model_name=model_name, model_label=model_label,
+        object_id=object_id, object_repr=label,
         changes=summary if isinstance(summary, dict) else {},
         ip_address=get_current_ip(),
     )
