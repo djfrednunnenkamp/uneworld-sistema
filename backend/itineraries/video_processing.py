@@ -301,6 +301,10 @@ def process_video(image_id: int, *, force: bool = False, claimed: bool = False,
                 with open(out_webm, 'rb') as f:
                     fresh.video_normalized_webm.save('n.webm', File(f), save=False)
                 update_fields += ['video_normalized_webm']
+            # Registra a falha do WebM (best-effort) — MP4 segue e o vídeo fica 'ready'.
+            if make_webm:
+                fresh.webm_error = (webm_error or '')[:2000]
+                update_fields += ['webm_error']
             fresh.status = 'ready'
             fresh.error_message = ''
             fresh.processing_stage = 'completed'

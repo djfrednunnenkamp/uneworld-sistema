@@ -512,6 +512,9 @@ class ItineraryImage(models.Model):
     height          = models.PositiveIntegerField('Altura', null=True, blank=True)
     codec           = models.CharField('Codec de origem', max_length=40, blank=True, default='')
     error_message   = models.TextField('Mensagem técnica (falha)', blank=True, default='')
+    # Falha SÓ da versão WebM (best-effort): o MP4 pode estar OK e o vídeo 'ready'.
+    # Vazio = WebM ok ou ainda não tentado. A disponibilidade real é o arquivo existir.
+    webm_error      = models.TextField('Falha técnica do WebM', blank=True, default='')
     processing_started_at  = models.DateTimeField('Processamento iniciado em', null=True, blank=True)
     processing_finished_at = models.DateTimeField('Processamento concluído em', null=True, blank=True)
 

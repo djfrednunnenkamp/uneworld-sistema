@@ -219,12 +219,12 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
         '-map', '0:v:0', '-map', '0:a?',
         '-vf', vf,
         # Profile MAIN + level 4.0: máxima compatibilidade (equipamentos antigos,
-        # Apple, TVs). yuv420p garante 8-bit 4:2:0 (não usa High10/422/444). O
-        # codec_tag continua avc1.
-        '-c:v', 'libx264', '-profile:v', 'main', '-level', '4.0',
+        # Apple, TVs). yuv420p = 8-bit 4:2:0 (não usa High10/422/444). tag avc1
+        # explícita; áudio AAC-LC (aac_low).
+        '-c:v', 'libx264', '-profile:v', 'main', '-level', '4.0', '-tag:v', 'avc1',
         '-preset', preset, '-crf', str(crf),
         '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac', '-b:a', '128k', '-ac', '2',
+        '-c:a', 'aac', '-profile:a', 'aac_low', '-b:a', '128k', '-ac', '2',
         '-movflags', '+faststart',
         '-max_muxing_queue_size', '1024',
         '-progress', 'pipe:1',   # relatório máquina-legível de progresso no stdout
@@ -304,18 +304,20 @@ def _run_with_progress(cmd, timeout, step, on_progress=None):
 
 def normalize_webm(src: str, dst: str, *, target_fps: int | None = None,
                    max_height: int | None = None, crf: int | None = None,
-                   cpu_used: int | None = None, deadline: str | None = None,
-                   on_progress=None) -> None:
-    """Gera a versão WebM (VP9/Opus) — fallback p/ navegadores/players sem H.264.
-    Mesmas correções de timestamp/escala/pixel format do MP4. Áudio Opus quando
-    houver; sem áudio é aceito. VP9 é mais lento que o x264, por isso usa
-    `-row-mt 1` + `-cpu-used`/`-deadline` configuráveis."""
+                   bitrate: str | None = None, cpu_used: int | None = None,
+                   deadline: str | None = None, on_progress=None) -> None:
+    """Gera a versão WebM **VP8/Vorbis** — a mais compatível com players Linux
+    (GStreamer padrão do Ubuntu: `vp8dec`/`vorbisdec` vêm em plugins-good/base, que
+    todo Ubuntu tem; VP9/Opus exigem plugins-bad/opus que NEM sempre estão presentes).
+    Mesmas correções de timestamp/escala/pixel format do MP4. Áudio Vorbis quando
+    houver; sem áudio é aceito normalmente."""
     ffmpeg = _bin('FFMPEG_BIN', 'ffmpeg')
     target_fps = target_fps or getattr(settings, 'VIDEO_TARGET_FPS', 30)
     max_height = max_height or getattr(settings, 'VIDEO_MAX_HEIGHT', 1080)
-    crf = crf if crf is not None else getattr(settings, 'VIDEO_VP9_CRF', 34)
-    cpu_used = cpu_used if cpu_used is not None else getattr(settings, 'VIDEO_VP9_CPU_USED', 4)
-    deadline = deadline or getattr(settings, 'VIDEO_VP9_DEADLINE', 'good')
+    crf = crf if crf is not None else getattr(settings, 'VIDEO_VP8_CRF', 10)
+    bitrate = bitrate or getattr(settings, 'VIDEO_VP8_BITRATE', '1M')
+    cpu_used = cpu_used if cpu_used is not None else getattr(settings, 'VIDEO_VP8_CPU_USED', 2)
+    deadline = deadline or getattr(settings, 'VIDEO_VP8_DEADLINE', 'good')
     vf = (
         f"scale=-2:'min({max_height},ih)':flags=lanczos,"
         f"scale=trunc(iw/2)*2:trunc(ih/2)*2,"
@@ -327,10 +329,11 @@ def normalize_webm(src: str, dst: str, *, target_fps: int | None = None,
         '-i', src,
         '-map', '0:v:0', '-map', '0:a?',
         '-vf', vf,
-        '-c:v', 'libvpx-vp9', '-crf', str(crf), '-b:v', '0',
-        '-row-mt', '1', '-deadline', deadline, '-cpu-used', str(cpu_used),
+        # VP8 (libvpx): -crf + -b:v definem a qualidade em modo VBR limitado.
+        '-c:v', 'libvpx', '-crf', str(crf), '-b:v', bitrate,
+        '-deadline', deadline, '-cpu-used', str(cpu_used),
         '-pix_fmt', 'yuv420p',
-        '-c:a', 'libopus', '-b:a', '96k',
+        '-c:a', 'libvorbis', '-q:a', '4',
         '-progress', 'pipe:1',
         dst,
     ]
@@ -392,13 +395,14 @@ def validate_output(path: str) -> ProbeResult:
 
 
 def validate_output_webm(path: str) -> ProbeResult:
-    """Valida o WebM (VP9) já convertido: contêiner WebM/Matroska, vídeo VP9,
-    pixel format do navegador, duração > 0, dimensões válidas e decodificação sem
-    erro fatal. Levanta VideoError se algo falhar."""
+    """Valida o WebM (VP8) já convertido: contêiner WebM/Matroska, vídeo VP8 (aceita
+    VP9 por compatibilidade com arquivos antigos), pixel format do navegador, duração
+    > 0, dimensões válidas e decodificação sem erro fatal. Levanta VideoError se algo
+    falhar."""
     info = probe(path)
     if 'webm' not in info.format_name and 'matroska' not in info.format_name:
         raise VideoError('O arquivo convertido não é um WebM válido.')
-    if info.codec != 'vp9':
+    if info.codec not in ('vp8', 'vp9'):
         raise VideoError(f'Codec inesperado no WebM ({info.codec or "?"}).')
     if info.pix_fmt not in _BROWSER_SAFE_PIX_FMTS:
         raise VideoError(f'Pixel format incompatível no WebM ({info.pix_fmt or "?"}).')

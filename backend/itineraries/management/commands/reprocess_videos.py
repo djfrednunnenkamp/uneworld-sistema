@@ -37,7 +37,9 @@ class Command(BaseCommand):
         parser.add_argument('--only-missing', action='store_true',
                             help='Só os que não têm normalizado OU thumbnail (qualquer status).')
         parser.add_argument('--missing-webm', action='store_true',
-                            help='Vídeos com MP4 pronto mas SEM a versão WebM (VP9) — só gera o WebM.')
+                            help='Vídeos com MP4 pronto mas SEM a versão WebM — só gera o WebM (VP8).')
+        parser.add_argument('--webm-outdated', action='store_true',
+                            help='Regenera o WebM dos que NÃO estão em VP8 (ex.: VP9 antigo) — só o WebM.')
         parser.add_argument('--all-formats', action='store_true',
                             help='Regenera TODAS as versões (MP4 + WebM) do conjunto selecionado.')
         parser.add_argument('--id', type=int, default=None, help='Processa um único item por id.')
@@ -68,10 +70,23 @@ class Command(BaseCommand):
 
         qs = self._select(opts)
         total = qs.count()
-        if opts['batch']:
-            qs = qs[:opts['batch']]
-
         ids = list(qs.values_list('id', flat=True))
+        # --webm-outdated: dentre os que TÊM webm, mantém só os que NÃO são VP8 (probe).
+        if opts['webm_outdated']:
+            keep = []
+            for pk in ids:
+                img = ItineraryImage.objects.filter(pk=pk).first()
+                if not (img and img.video_normalized_webm and img.video_normalized_webm.name):
+                    continue
+                try:
+                    if vsvc.probe(img.video_normalized_webm.path).codec != 'vp8':
+                        keep.append(pk)
+                except Exception:
+                    keep.append(pk)   # ilegível → regenera
+            ids = keep
+            total = len(ids)
+        if opts['batch']:
+            ids = ids[:opts['batch']]
         self.stdout.write(self.style.NOTICE(
             f'{len(ids)} vídeo(s) selecionado(s) (de {total} elegível(is)).'))
         if opts['dry_run']:
@@ -83,9 +98,10 @@ class Command(BaseCommand):
 
         # Antigos/incompletos entram como status='ready' herdado — precisam de force
         # para serem reivindicados e (re)gerar as versões.
-        force = opts['force'] or opts['legacy'] or opts['only_missing'] or opts['missing_webm'] or opts['all_formats']
-        # --missing-webm: mantém o MP4/thumbnail e só (re)gera o WebM ausente.
-        webm_only = opts['missing_webm'] and not opts['all_formats']
+        force = (opts['force'] or opts['legacy'] or opts['only_missing'] or opts['missing_webm']
+                 or opts['webm_outdated'] or opts['all_formats'])
+        # --missing-webm/--webm-outdated: mantém o MP4/thumbnail e só (re)gera o WebM.
+        webm_only = (opts['missing_webm'] or opts['webm_outdated']) and not opts['all_formats']
         ok = failed = skipped = 0
         for pk in ids:
             result = vp.process_video(pk, force=force, webm_only=webm_only)
@@ -119,6 +135,10 @@ class Command(BaseCommand):
             # MP4 pronto (existe) mas WebM ausente.
             return base.filter(status='ready').exclude(
                 Q(video_normalized='') | Q(video_normalized__isnull=True)).filter(
+                Q(video_normalized_webm='') | Q(video_normalized_webm__isnull=True))
+        if opts['webm_outdated']:
+            # Candidatos: prontos COM webm (o filtro fino por codec é feito no handle).
+            return base.filter(status='ready').exclude(
                 Q(video_normalized_webm='') | Q(video_normalized_webm__isnull=True))
         if opts['only_missing']:
             return base.filter(Q(video_normalized='') | Q(video_normalized__isnull=True)

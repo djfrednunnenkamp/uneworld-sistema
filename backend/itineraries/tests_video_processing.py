@@ -491,18 +491,18 @@ class VideoApiTest(APITestCase):
         self.assertIsNone(r.data['video_url'])
 
 
-HAVE_VP9 = HAVE_FFMPEG and ('libvpx-vp9' in (
+HAVE_VP8 = HAVE_FFMPEG and ('libvpx ' in (
     subprocess.run([FFMPEG, '-hide_banner', '-encoders'], capture_output=True, text=True).stdout if FFMPEG else ''))
-requires_vp9 = unittest.skipUnless(HAVE_VP9, 'libvpx-vp9 indisponível')
+requires_vp8 = unittest.skipUnless(HAVE_VP8, 'libvpx (VP8) indisponível')
 
 
-@requires_vp9
+@requires_vp8
 @media_isolated
 @override_settings(VIDEO_PROCESS_INLINE=False, VIDEO_MAKE_WEBM=True,
-                   VIDEO_VP9_CPU_USED=8, VIDEO_VP9_DEADLINE='realtime', VIDEO_VP9_CRF=40)
+                   VIDEO_VP8_CPU_USED=5, VIDEO_VP8_DEADLINE='realtime', VIDEO_VP8_CRF=20)
 class VideoDualFormatTest(APITestCase):
-    """Gera MP4 (H.264) + WebM (VP9) e valida o contrato/download das duas versões.
-    Usa VP9 rápido (cpu-used 8/realtime) para não travar o teste."""
+    """Gera MP4 (H.264) + WebM (VP8) e valida o contrato/download das duas versões.
+    Usa VP8 rápido (cpu-used 5/realtime) para não travar o teste."""
 
     def setUp(self):
         self.user = make_user('dual', gallery_upload_videos=True, gallery_view=True)
@@ -526,7 +526,7 @@ class VideoDualFormatTest(APITestCase):
         mp4 = vsvc.probe(img.video_normalized.path)
         webm = vsvc.probe(img.video_normalized_webm.path)
         self.assertEqual(mp4.codec, 'h264')
-        self.assertEqual(webm.codec, 'vp9')
+        self.assertEqual(webm.codec, 'vp8')
         self.assertIn(webm.pix_fmt, ('yuv420p', 'yuvj420p'))
         self.assertTrue(vsvc.decode_ok(img.video_normalized_webm.path))
 
@@ -567,7 +567,7 @@ class VideoDualFormatTest(APITestCase):
         sources = r.data['playback_sources']
         self.assertEqual(len(sources), 2)
         self.assertEqual(sources[0]['codec'], 'avc1')
-        self.assertEqual(sources[1]['codec'], 'vp9')
+        self.assertEqual(sources[1]['codec'], 'vp8')
         self.assertIn('mp4', r.data['download_urls'])
         self.assertIn('webm', r.data['download_urls'])
         self.assertIn('fmt=webm', r.data['download_urls']['webm'])   # não usa ?format= (reservado DRF)

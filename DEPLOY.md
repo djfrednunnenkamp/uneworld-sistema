@@ -274,16 +274,18 @@ Todo vídeo enviado à Galeria gera **duas versões** para tocar em qualquer nav
 além de uma **thumbnail** real:
 - **MP4 / H.264 Main** (`avc1`, level 4.0, yuv420p, AAC, `+faststart`) — o padrão, com
   máxima compatibilidade (celular, Windows, macOS, TVs, navegadores com H.264).
-- **WebM / VP9** (Opus) — **fallback** para navegadores/players **Linux sem decoder
-  H.264** (ex.: Opera/Firefox no Ubuntu sem os codecs proprietários). O player usa a
-  versão que o navegador consegue decodificar (e troca sozinho no `<video>`).
+- **WebM / VP8 + Vorbis** — **para Linux**. É a combinação que abre no **reprodutor
+  padrão do Ubuntu** (GStreamer): `vp8dec`/`vorbisdec` vêm em `plugins-good`/`base`,
+  presentes em TODO Ubuntu. VP9/Opus e H.264 exigem `plugins-bad`/`libav`, que **não**
+  vêm por padrão (comprovado: `gst-discoverer` reporta "Missing plugins" p/ VP9 num
+  Ubuntu stock). O **download** de um cliente Linux escolhe o WebM automaticamente.
 
 O `ffmpeg`/`ffprobe` já vêm **instalados na imagem do backend** (ver `Dockerfile`) —
-o build estático inclui `libx264`, `libvpx-vp9` e `libopus`.
+o build estático inclui `libx264`, `libvpx` (VP8), `libvorbis` e o AAC nativo.
 
 - **Como processa:** logo após o upload, um vídeo entra como `processando` e uma
-  thread de fundo converte MP4 → WebM (VP9 é mais lento; a barra mostra as etapas
-  "Preparando versão MP4" / "…compatível com navegadores Linux"). O card vira ▶
+  thread de fundo converte MP4 → WebM (VP8 é mais lento; a barra mostra as etapas
+  "Preparando a versão MP4" / "…compatível com navegadores Linux"). O card vira ▶
   (pronto) ou "Falha no vídeo" sozinho, via WebSocket. Se o **WebM falhar**, o vídeo
   ainda fica pronto com o MP4 (best-effort). Desligue o WebM com `VIDEO_MAKE_WEBM=0`
   se a CPU do servidor não comportar.
@@ -301,6 +303,9 @@ o build estático inclui `libx264`, `libvpx-vp9` e `libopus`.
       python manage.py reprocess_videos --missing-webm --dry-run
   docker compose -f docker-compose.prod.yml exec backend \
       python manage.py reprocess_videos --missing-webm
+  # Regenerar WebM que NÃO é VP8 (ex.: VP9 antigo → VP8, mantém o MP4):
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --webm-outdated
   # Regenerar TODAS as versões (MP4 + WebM) de um item:
   docker compose -f docker-compose.prod.yml exec backend \
       python manage.py reprocess_videos --id 123 --all-formats
@@ -335,18 +340,22 @@ o build estático inclui `libx264`, `libvpx-vp9` e `libopus`.
 - **Ajustes finos** (`.env`, opcionais): `VIDEO_TARGET_FPS` (30), `VIDEO_MAX_HEIGHT`
   (1080, não amplia), `VIDEO_CRF` (23), `VIDEO_PRESET` (medium), `FFMPEG_TIMEOUT`,
   `VIDEO_STUCK_HEARTBEAT_SECONDS` (120), `VIDEO_MAX_PROCESSING_ATTEMPTS` (3);
-  WebM: `VIDEO_MAKE_WEBM` (1), `VIDEO_VP9_CRF` (34), `VIDEO_VP9_CPU_USED` (4, 0=melhor/lento…8=rápido),
-  `VIDEO_VP9_DEADLINE` (good), `VIDEO_WEBM_TIMEOUT` (3600).
+  WebM (VP8): `VIDEO_MAKE_WEBM` (1), `VIDEO_VP8_CRF` (10), `VIDEO_VP8_BITRATE` (1M),
+  `VIDEO_VP8_CPU_USED` (2, 0=melhor/lento…5=rápido), `VIDEO_VP8_DEADLINE` (good), `VIDEO_WEBM_TIMEOUT` (3600).
 
 ### Vídeo não abre no Ubuntu ("Não há suporte a este Codec… h264")
 
 Esse erro é do **reprodutor/navegador do usuário**, não do arquivo: o computador não
-tem o **decoder H.264** instalado. O MP4 pode estar 100% válido. Opções (o sistema
-**não** instala codecs na máquina do usuário; ele já oferece a versão WebM como
-alternativa):
+tem o **decoder H.264** instalado. O MP4 pode estar 100% válido. **O sistema já
+resolve isso sozinho:**
 
-- **Usar a versão WebM** — no player do sistema, se o MP4 não tocar, ele troca sozinho
-  para o WebM/VP9; no download, use "Baixar WebM". WebM não depende do H.264.
+- **No Linux, o botão "Baixar vídeo" baixa a versão WebM (VP8/Vorbis) automaticamente**
+  — ela abre no reprodutor padrão do Ubuntu **sem instalar nada** (codecs `vp8dec`/
+  `vorbisdec` vêm de fábrica). Nada de escolher formato ou codec.
+- No player dentro do sistema, se o MP4 não tocar, ele **troca sozinho** para o WebM.
+
+Só se o usuário quiser tocar o **MP4** no reprodutor do Ubuntu (opcional):
+
 - **VLC** (traz os próprios decoders):
   ```bash
   sudo apt update && sudo apt install vlc

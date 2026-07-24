@@ -183,14 +183,17 @@ VIDEO_MAX_HEIGHT  = config('VIDEO_MAX_HEIGHT',  default=1080, cast=int)  # não 
 VIDEO_CRF         = config('VIDEO_CRF',         default=23, cast=int)
 VIDEO_PRESET      = config('VIDEO_PRESET',      default='medium')
 # Fallback WebM (VP9/Opus): navegadores/players Linux sem decoder H.264 tocam esta
-# versão. É gerada ADICIONALMENTE ao MP4 (não o substitui). VP9 é mais lento; se
-# falhar, o vídeo ainda fica 'ready' (MP4 continua servindo). Desligue com
-# VIDEO_MAKE_WEBM=0 se a CPU do servidor não comportar.
+# versão. É gerada ADICIONALMENTE ao MP4 (não o substitui). Se falhar, o vídeo ainda
+# fica 'ready' (MP4 continua servindo). Desligue com VIDEO_MAKE_WEBM=0.
+# WebM = **VP8/Vorbis** (não VP9/Opus): decodifica no GStreamer PADRÃO do Ubuntu
+# (plugins-good/base), que todo Ubuntu tem — VP9/Opus exigem plugins-bad/opus, nem
+# sempre presentes. Comprovado com gst-discoverer (VP9 → "Missing plugins" no stock).
 VIDEO_MAKE_WEBM   = config('VIDEO_MAKE_WEBM',   default=True, cast=bool)
-VIDEO_VP9_CRF     = config('VIDEO_VP9_CRF',     default=34, cast=int)
-VIDEO_VP9_CPU_USED= config('VIDEO_VP9_CPU_USED',default=4,  cast=int)   # 0=melhor/lento … 8=rápido
-VIDEO_VP9_DEADLINE= config('VIDEO_VP9_DEADLINE',default='good')          # 'good' | 'realtime'
-VIDEO_WEBM_TIMEOUT= config('VIDEO_WEBM_TIMEOUT',default=3600, cast=int)  # VP9 é lento (até 1h)
+VIDEO_VP8_CRF     = config('VIDEO_VP8_CRF',     default=10, cast=int)    # 4..63 (menor = melhor)
+VIDEO_VP8_BITRATE = config('VIDEO_VP8_BITRATE', default='1M')            # teto de bitrate do VP8
+VIDEO_VP8_CPU_USED= config('VIDEO_VP8_CPU_USED',default=2,  cast=int)    # 0=melhor/lento … 5=rápido
+VIDEO_VP8_DEADLINE= config('VIDEO_VP8_DEADLINE',default='good')          # 'good' | 'realtime'
+VIDEO_WEBM_TIMEOUT= config('VIDEO_WEBM_TIMEOUT',default=3600, cast=int)  # VP8 é lento (até 1h)
 # Processar numa THREAD de fundo logo após o upload (dev/prod sem worker dedicado).
 # NÃO bloqueia a requisição — o upload responde na hora (status 'processing') e a
 # conversão roda em paralelo. Desligue (0) para processar SÓ pelo comando

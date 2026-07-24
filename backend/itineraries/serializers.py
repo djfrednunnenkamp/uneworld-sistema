@@ -405,8 +405,8 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
         if mp4:                                  # avc1.4d4028 = H.264 Main level 4.0
             out.append({'url': mp4, 'type': 'video/mp4; codecs="avc1.4d4028"', 'codec': 'avc1'})
         webm = self.get_webm_url(obj)
-        if webm:
-            out.append({'url': webm, 'type': 'video/webm; codecs="vp9, opus"', 'codec': 'vp9'})
+        if webm:                                 # VP8/Vorbis (compat Linux/GStreamer padrão)
+            out.append({'url': webm, 'type': 'video/webm; codecs="vp8, vorbis"', 'codec': 'vp8'})
         return out
 
     def get_download_url(self, obj):
@@ -433,7 +433,10 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
         ready = obj.status == 'ready'
         has_mp4 = ready and bool(obj.video_normalized and obj.video_normalized.name)
         has_webm = ready and bool(obj.video_normalized_webm and obj.video_normalized_webm.name)
+        # 'recommended': 'auto' → o FRONT decide pelo dispositivo (Linux → webm, senão
+        # mp4) e cai na versão válida se a recomendada não existir.
         return {
+            'recommended': 'auto',
             'mp4': {'url': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=mp4'),
                     'filename': download_filename(obj, '.mp4'), 'available': has_mp4},
             'webm': {'url': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=webm'),
