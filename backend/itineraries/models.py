@@ -581,6 +581,7 @@ class VideoExport(models.Model):
     audio_codec  = models.CharField('Codec de áudio', max_length=10)
     resolution   = models.CharField('Resolução', max_length=10)
     quality      = models.CharField('Qualidade', max_length=12)
+    frame_rate   = models.CharField('Taxa de quadros', max_length=8, default='auto')
     config_hash  = models.CharField('Hash da config', max_length=64, db_index=True)
 
     status       = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending', db_index=True)
@@ -607,7 +608,8 @@ class VideoExport(models.Model):
 
     def config(self):
         return {'container': self.container, 'video_codec': self.video_codec,
-                'audio_codec': self.audio_codec, 'resolution': self.resolution, 'quality': self.quality}
+                'audio_codec': self.audio_codec, 'resolution': self.resolution,
+                'quality': self.quality, 'frame_rate': self.frame_rate or 'auto'}
 
     def elapsed_seconds(self):
         if not self.started_at:

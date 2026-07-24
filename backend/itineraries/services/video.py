@@ -21,6 +21,7 @@ import logging
 import os
 import shutil
 import subprocess
+from fractions import Fraction
 
 from django.conf import settings
 
@@ -177,6 +178,108 @@ def decode_ok(path: str) -> bool:
     return proc.returncode == 0
 
 
+# ── política adaptativa de frame rate ───────────────────────────────────────────
+#
+# Investigação forense (roteiro #467): o MP4 normalizado NÃO abria no reprodutor
+# padrão do Ubuntu, mas o ORIGINAL abria — apesar de bitstream H.264 IDÊNTICO
+# (Constrained Baseline / level 4.0 / avc1 / yuv420p / refs=1 / sem B-frames). A
+# ÚNICA diferença real era TEMPORAL + contêiner: forçávamos 30fps CFR (2339 quadros,
+# ~1600 DUPLICADOS de uma origem de ~8,9fps) e o brand `isom`; o original tem a
+# cadência real (~8,88fps, 692 quadros) e brand `mp42`. Reproduzir a cadência da
+# origem (em vez de inflar para 30fps) e casar o brand faz o arquivo gerado ficar
+# ESTRUTURALMENTE igual ao que comprovadamente abre. Ver §16 do relatório.
+#
+# `r_frame_rate` é INUTILIZÁVEL como alvo (vem `10000/1` em telas gravadas); o campo
+# confiável é `avg_frame_rate` = quadros/duração real.
+
+# Taxas "padrão" (inclui variantes NTSC) — se a cadência real ficar muito perto de
+# uma delas, encaixamos (uma origem 30fps real continua exatamente 30fps).
+_STD_RATES = [Fraction(24000, 1001), Fraction(24), Fraction(25), Fraction(30000, 1001),
+              Fraction(30), Fraction(50), Fraction(60000, 1001), Fraction(60)]
+
+
+def _parse_rate(s) -> Fraction | None:
+    """'a/b' → Fraction positiva; None se ausente/zero/absurda ('0/0', 'N/A')."""
+    try:
+        f = Fraction(s)
+    except (ValueError, ZeroDivisionError, TypeError):
+        return None
+    return f if f > 0 else None
+
+
+def _fps_str(fr: Fraction) -> str:
+    """Fraction → 'num/den' exato para `-r` e para o filtro `fps=` (sem drift)."""
+    fr = Fraction(fr).limit_denominator(1_000_000)
+    return f'{fr.numerator}/{fr.denominator}'
+
+
+def _probe_rate_fields(src: str) -> dict:
+    """avg/r_frame_rate + nb_frames + duração do 1º stream de vídeo (p/ o plano de fps)."""
+    ffprobe = _bin('FFPROBE_BIN', 'ffprobe')
+    proc = _run(
+        [ffprobe, '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+         'stream=avg_frame_rate,r_frame_rate,nb_frames,duration:format=duration',
+         '-of', 'json', src],
+        timeout=getattr(settings, 'FFPROBE_TIMEOUT', 60), step='inspecionar a cadência do vídeo')
+    try:
+        data = json.loads(proc.stdout or '{}')
+    except json.JSONDecodeError:
+        return {}
+    streams = data.get('streams') or []
+    st = streams[0] if streams else {}
+    fmt = data.get('format') or {}
+    return {
+        'avg': st.get('avg_frame_rate'), 'r': st.get('r_frame_rate'),
+        'nb_frames': _to_int(st.get('nb_frames')),
+        'duration': _to_float(st.get('duration')) or _to_float(fmt.get('duration')),
+    }
+
+
+def plan_target_fps(src: str, *, override=None, max_fps: int | None = None,
+                    fallback: int | None = None) -> str:
+    """Decide a taxa de quadros CFR de saída PRESERVANDO a cadência real da origem
+    (em vez de forçar um valor fixo). Retorna string 'num/den' para o ffmpeg.
+
+    Ordem de decisão:
+      1. `override` explícito (export avançado: 24/25/30/60…) vence, limitado a `max_fps`.
+         'auto'/'original'/None → política adaptativa abaixo.
+      2. `avg_frame_rate` da origem (quadros/duração real) — NUNCA `r_frame_rate`.
+      3. Se avg inválido/absurdo, calcula nb_frames/duração.
+      4. Último recurso: `fallback` (30).
+    Nunca AMPLIA além de `max_fps` (não cria 30fps de uma origem ~9fps → evita ~1600
+    quadros duplicados) e encaixa numa taxa padrão quando está a <2% dela.
+    """
+    max_fps = max_fps or getattr(settings, 'VIDEO_MAX_FPS', 60)
+    fallback = fallback or getattr(settings, 'VIDEO_TARGET_FPS', 30)
+
+    if override not in (None, '', 'auto', 'original'):
+        ov = _parse_rate(override)
+        if ov:
+            return _fps_str(min(ov, Fraction(max_fps)))
+
+    try:
+        fields = _probe_rate_fields(src)
+    except VideoError:
+        fields = {}
+
+    rate = _parse_rate(fields.get('avg'))
+    if rate is None or rate > 240:      # avg ausente/absurdo → conta real de quadros
+        nb, dur = fields.get('nb_frames'), fields.get('duration')
+        if nb and dur and dur > 0:
+            rate = Fraction(nb) / Fraction(dur).limit_denominator(100_000)
+    if rate is None or rate <= 0:
+        rate = Fraction(fallback)
+
+    rate = min(rate, Fraction(max_fps))
+    for std in _STD_RATES:              # encaixa em taxa padrão se muito perto
+        if abs(float(rate) - float(std)) <= float(std) * 0.02:
+            rate = std
+            break
+    if rate < Fraction(1):
+        rate = Fraction(1)
+    return _fps_str(rate)
+
+
 # ── conversão / normalização ──────────────────────────────────────────────────
 
 def normalize(src: str, dst: str, *, target_fps: int | None = None,
@@ -187,7 +290,8 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
     Correções aplicadas SEMPRE (a origem pode ter timestamps ruins como o exemplo
     com DTS não-monotônico):
       * `-fflags +genpts` reconstrói PTS ausentes/duplicados;
-      * `fps=<alvo>` força taxa constante (CFR) — elimina DTS não-monotônico;
+      * CFR na cadência REAL da origem (`plan_target_fps`) — elimina DTS não-monotônico
+        SEM inflar para 30fps nem duplicar quadros; preserva ~9fps se a origem é ~9fps;
       * `format=yuv420p` garante pixel format compatível;
       * dimensões forçadas a pares (libx264 exige);
       * `-movflags +faststart` move o moov atom para o início (streaming/seek);
@@ -199,18 +303,21 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
     para a barra de progresso real (via `-progress pipe:1`).
     """
     ffmpeg = _bin('FFMPEG_BIN', 'ffmpeg')
-    target_fps = target_fps or getattr(settings, 'VIDEO_TARGET_FPS', 30)
+    # Cadência de saída ADAPTATIVA: preserva a taxa real da origem (não força 30fps —
+    # ver comentário da política acima). Um `target_fps` explícito (export avançado)
+    # ainda manda; None → adaptativo.
+    fps = plan_target_fps(src, override=target_fps)
     max_height = max_height or getattr(settings, 'VIDEO_MAX_HEIGHT', 1080)
     crf = crf if crf is not None else getattr(settings, 'VIDEO_CRF', 23)
     preset = preset or getattr(settings, 'VIDEO_PRESET', 'medium')
 
     # Filtro de vídeo: 1) reduz p/ max_height só se maior (sem ampliar), mantendo a
-    # proporção; 2) força dimensões PARES; 3) CFR; 4) yuv420p. O ffmpeg aplica a
-    # rotação do metadado automaticamente (autorotate) e reescreve limpo.
+    # proporção; 2) força dimensões PARES; 3) CFR na cadência real; 4) yuv420p. O
+    # ffmpeg aplica a rotação do metadado automaticamente (autorotate) e reescreve limpo.
     vf = (
         f"scale=-2:'min({max_height},ih)':flags=lanczos,"
         f"scale=trunc(iw/2)*2:trunc(ih/2)*2,"
-        f"fps={target_fps},format=yuv420p"
+        f"fps={fps},format=yuv420p"
     )
     cmd = [
         ffmpeg, '-y', '-loglevel', 'error', '-nostdin', '-nostats',
@@ -218,7 +325,7 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
         '-i', src,
         '-map', '0:v:0', '-map', '0:a?',
         '-vf', vf,
-        '-fps_mode', 'cfr', '-r', str(target_fps),
+        '-fps_mode', 'cfr', '-r', fps,
         # H.264 CONSTRAINED BASELINE (a versão de MÁXIMA compatibilidade — abre no
         # reprodutor padrão do Ubuntu e em aparelhos antigos): sem B-frames, refs=1,
         # CABAC desligado. yuv420p 8-bit, tag avc1, áudio AAC-LC. faststart.
@@ -228,6 +335,9 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac', '-profile:a', 'aac_low', '-b:a', '128k', '-ac', '2',
         '-movflags', '+faststart',
+        # Brand `mp42` (não `isom`): casa com o contêiner do arquivo que comprovadamente
+        # abre no player do Ubuntu — demuxers estritos (VA-API/v4l2) toleram melhor.
+        '-brand', 'mp42',
         '-max_muxing_queue_size', '1024',
         '-progress', 'pipe:1',   # relatório máquina-legível de progresso no stdout
         dst,
@@ -314,7 +424,7 @@ def normalize_webm(src: str, dst: str, *, target_fps: int | None = None,
     Mesmas correções de timestamp/escala/pixel format do MP4. Áudio Vorbis quando
     houver; sem áudio é aceito normalmente."""
     ffmpeg = _bin('FFMPEG_BIN', 'ffmpeg')
-    target_fps = target_fps or getattr(settings, 'VIDEO_TARGET_FPS', 30)
+    fps = plan_target_fps(src, override=target_fps)   # mesma cadência adaptativa do MP4
     max_height = max_height or getattr(settings, 'VIDEO_MAX_HEIGHT', 1080)
     crf = crf if crf is not None else getattr(settings, 'VIDEO_VP8_CRF', 10)
     bitrate = bitrate or getattr(settings, 'VIDEO_VP8_BITRATE', '1M')
@@ -323,7 +433,7 @@ def normalize_webm(src: str, dst: str, *, target_fps: int | None = None,
     vf = (
         f"scale=-2:'min({max_height},ih)':flags=lanczos,"
         f"scale=trunc(iw/2)*2:trunc(ih/2)*2,"
-        f"fps={target_fps},format=yuv420p"
+        f"fps={fps},format=yuv420p"
     )
     cmd = [
         ffmpeg, '-y', '-loglevel', 'error', '-nostdin', '-nostats',

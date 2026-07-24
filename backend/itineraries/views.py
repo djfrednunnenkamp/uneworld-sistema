@@ -1978,13 +1978,15 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         img = self.get_object()
         from . import gallery_export_presets as P
         source_h = None
+        source_fps = None
         try:
             src = img.image
             if getattr(src, 'path', None):
                 source_h = vsvc_probe_height(src.path)
+                source_fps = vsvc_probe_fps(src.path)
         except Exception:
             source_h = img.height
-        return Response(P.options_payload(source_height=source_h))
+        return Response(P.options_payload(source_height=source_h, source_fps=source_fps))
 
     @action(detail=True, methods=['post'], url_path='exports')
     def exports(self, request, pk=None):
@@ -2072,6 +2074,18 @@ def vsvc_probe_height(path):
         info = vsvc.probe(path)
         _w, h = info.display_dims
         return h or info.height
+    except Exception:
+        return None
+
+
+def vsvc_probe_fps(path):
+    """Cadência REAL da origem (fps efetivo) para avisar no seletor de taxa de quadros.
+    Usa a mesma política adaptativa (avg_frame_rate/contagem real, nunca r_frame_rate).
+    None se falhar."""
+    try:
+        from .services import video as vsvc
+        from fractions import Fraction
+        return float(Fraction(vsvc.plan_target_fps(path, override='auto')))
     except Exception:
         return None
 

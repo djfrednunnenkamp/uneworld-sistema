@@ -457,6 +457,58 @@ class VideoApiTest(APITestCase):
         self.assertIn('pix_fmt=yuv420p', out)
         self.assertIn('has_b_frames=0', out)
 
+    def test_default_mp4_brand_is_mp42(self):
+        # Contêiner com major_brand mp42 (casa com o arquivo que abre no player
+        # padrão do Ubuntu; demuxers estritos toleram melhor que 'isom').
+        img_id, _ = self._upload_and_process()
+        img = ItineraryImage.objects.get(pk=img_id)
+        with open(img.video_normalized.path, 'rb') as fh:
+            head = fh.read(16)
+        self.assertIn(b'ftyp', head)
+        self.assertIn(b'mp42', head)     # major_brand
+
+    def test_normalize_preserves_source_cadence_not_30fps(self):
+        # REGRA FORENSE: NÃO forçar 30fps. Uma origem de ~8fps deve continuar ~8fps
+        # (sem inflar para 30fps e ~1600 quadros duplicados). Ver §16 do relatório.
+        from .services import video as vsvc
+        src = _gen('.mp4', seconds=3, fps=8)
+        dst = tempfile.mkstemp(suffix='.mp4')[1]
+        try:
+            vsvc.normalize(src, dst)
+            out = subprocess.run([FFPROBE, '-v', 'error', '-select_streams', 'v:0',
+                                  '-show_entries', 'stream=avg_frame_rate,nb_frames',
+                                  '-of', 'default=nw=1:nk=1', dst],
+                                 capture_output=True, text=True).stdout.split()
+            from fractions import Fraction
+            fps = float(Fraction(out[0]))
+            nb = int(out[1])
+            self.assertLess(fps, 12, f'cadência inflada: {fps}fps')   # ~8, não 30
+            self.assertLess(nb, 40, f'quadros duplicados: {nb}')       # ~24, não ~90
+        finally:
+            for p in (src, dst):
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
+    def test_plan_target_fps_ignores_bogus_and_honors_override(self):
+        from .services import video as vsvc
+        from fractions import Fraction
+        src = _gen('.mp4', seconds=2, fps=8)
+        try:
+            auto = float(Fraction(vsvc.plan_target_fps(src, override='auto')))
+            self.assertLess(auto, 12)                                  # preserva ~8fps
+            forced = float(Fraction(vsvc.plan_target_fps(src, override='30')))
+            self.assertEqual(forced, 30.0)                            # override explícito vence
+            # 'original' = adaptativo (mesma cadência da origem)
+            orig = float(Fraction(vsvc.plan_target_fps(src, override='original')))
+            self.assertLess(orig, 12)
+        finally:
+            try:
+                os.unlink(src)
+            except OSError:
+                pass
+
     def test_downloads_contract(self):
         img_id, _ = self._upload_and_process()
         r = self.client.get(f'/api/itineraries/gallery/{img_id}/')
@@ -780,6 +832,29 @@ class ExportPresetsTest(_Base):
         self.assertIsInstance(cmd, list)
         self.assertIn('libx264', cmd); self.assertIn('-an', cmd)
         self.assertIn('baseline', cmd)
+
+    def test_frame_rate_option_default_and_validation(self):
+        # default = 'auto'; enums válidos aceitos; inválido rejeitado.
+        cfg = self.P.normalize_config(self.P.DEFAULT_CONFIG)
+        self.assertEqual(cfg['frame_rate'], 'auto')
+        for fr in ('auto', 'original', '24', '30', '60'):
+            c = self.P.normalize_config({**self.P.DEFAULT_CONFIG, 'frame_rate': fr})
+            self.assertEqual(c['frame_rate'], fr)
+        with self.assertRaises(self.P.ExportOptionError):
+            self.P.normalize_config({**self.P.DEFAULT_CONFIG, 'frame_rate': '999'})
+
+    def test_frame_rate_changes_hash(self):
+        a = self.P.normalize_config({**self.P.DEFAULT_CONFIG, 'frame_rate': 'auto'})
+        b = self.P.normalize_config({**self.P.DEFAULT_CONFIG, 'frame_rate': '30'})
+        self.assertNotEqual(self.P.config_hash(1, a), self.P.config_hash(1, b))
+
+    def test_options_payload_frame_rates_warn_on_upsample(self):
+        # origem ~9fps → oferecer 60fps com aviso (não incentiva duplicar quadros).
+        p = self.P.options_payload(source_height=720, source_fps=9)
+        rates = {r['value']: r for r in p['frame_rates']}
+        self.assertIn('auto', rates)
+        self.assertTrue(rates['60']['warn'])
+        self.assertFalse(rates['auto']['warn'])
 
 
 @requires_vp8   # usa VP9/H.264 rápidos (encoders libvpx/x264 já checados)

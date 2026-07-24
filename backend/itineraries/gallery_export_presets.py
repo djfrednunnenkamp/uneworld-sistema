@@ -18,7 +18,8 @@ import subprocess
 from django.conf import settings
 
 # Versão do esquema de config — muda o hash quando a matriz/args mudam (invalida cache).
-PRESET_SCHEMA_VERSION = 1
+# v2: cadência adaptativa + seletor de taxa de quadros (frame_rate) + brand mp42.
+PRESET_SCHEMA_VERSION = 2
 
 # ── Contêineres → codecs de vídeo permitidos ────────────────────────────────────
 CONTAINERS = {
@@ -91,8 +92,16 @@ QUALITY_LABELS = [('compact', 'Compacta'), ('balanced', 'Equilibrada'),
 RESOLUTIONS = [('original', 'Original'), ('2160', '2160p (4K)'),
                ('1080', '1080p'), ('720', '720p'), ('480', '480p')]
 
-DEFAULT_CONFIG = {'container': 'mp4', 'video_codec': 'h264_baseline',
-                  'audio_codec': 'aac', 'resolution': 'original', 'quality': 'balanced'}
+# Taxa de quadros oferecida. 'auto'/'original' PRESERVAM a cadência real da origem
+# (não inflam nem duplicam quadros — ver política em services/video.py). As fixas
+# só devem ser oferecidas com aviso quando MAIORES que a cadência da origem (o
+# frontend usa `warn`/`hint` calculados em options_payload).
+FRAME_RATES = [('auto', 'Automática'), ('original', 'Original'),
+               ('24', '24 fps'), ('25', '25 fps'), ('30', '30 fps'), ('60', '60 fps')]
+_FRAME_RATE_VALUES = {v for v, _ in FRAME_RATES}
+
+DEFAULT_CONFIG = {'container': 'mp4', 'video_codec': 'h264_baseline', 'audio_codec': 'aac',
+                  'resolution': 'original', 'quality': 'balanced', 'frame_rate': 'auto'}
 
 
 class ExportOptionError(Exception):
@@ -125,8 +134,11 @@ def normalize_config(payload, *, source_height=None):
         quality = str(payload.get('quality') or 'balanced').lower()
         if quality not in QUALITY_CRF[family]:
             raise ExportOptionError('Qualidade inválida.')
+    frame_rate = str(payload.get('frame_rate') or 'auto').lower()
+    if frame_rate not in _FRAME_RATE_VALUES:
+        raise ExportOptionError('Taxa de quadros inválida.')
     return {'container': container, 'video_codec': vcodec, 'audio_codec': acodec,
-            'resolution': resolution, 'quality': quality}
+            'resolution': resolution, 'quality': quality, 'frame_rate': frame_rate}
 
 
 def config_hash(video_id, config):
@@ -151,6 +163,9 @@ def config_summary(config):
     res = 'Original' if config['resolution'] == 'original' else f"{config['resolution']}p"
     q = dict(QUALITY_LABELS).get(config['quality'], '')
     parts = [c, v, res] + ([q] if q else [])
+    fr = config.get('frame_rate', 'auto')
+    if fr not in ('auto', 'original', '', None):
+        parts.append(f'{fr} fps')
     return ' · '.join(parts)
 
 
@@ -220,19 +235,27 @@ def _audio_args(config):
 
 
 def build_command(ffmpeg, src, dst, config, *, target_fps=None):
-    """Monta a lista de args do FFmpeg para a config (allowlist). Sem shell."""
+    """Monta a lista de args do FFmpeg para a config (allowlist). Sem shell.
+
+    A cadência de saída segue a política ADAPTATIVA (`video.plan_target_fps`):
+    'auto'/'original' preservam a taxa real da origem; um valor fixo (24/25/30/60)
+    vence. `target_fps` explícito (legado) ainda tem prioridade máxima.
+    """
+    from .services import video as vsvc
     vargs, family = _video_args(config)
     vf = _scale_vf(config, family)
+    override = target_fps if target_fps else config.get('frame_rate', 'auto')
+    fps = vsvc.plan_target_fps(src, override=override)
     cmd = [ffmpeg, '-y', '-loglevel', 'error', '-nostdin', '-nostats',
            '-fflags', '+genpts', '-i', src, '-map', '0:v:0']
     if config['audio_codec'] != 'none':
         cmd += ['-map', '0:a?']
-    cmd += ['-vf', vf, '-fps_mode', 'cfr']
-    if target_fps:
-        cmd += ['-r', str(target_fps)]
+    cmd += ['-vf', vf, '-fps_mode', 'cfr', '-r', fps]
     cmd += vargs + _audio_args(config)
     if config['container'] in ('mp4', 'mov'):
         cmd += ['-movflags', '+faststart']
+    if config['container'] == 'mp4':
+        cmd += ['-brand', 'mp42']     # casa com o contêiner que abre no player estrito
     cmd += ['-max_muxing_queue_size', '1024', '-progress', 'pipe:1', dst]
     return cmd
 
@@ -272,9 +295,37 @@ def validate_output(path, config):
 
 # ── Payload de opções para a UI ─────────────────────────────────────────────────
 
-def options_payload(*, source_height=None):
+def _frame_rate_list(source_fps=None):
+    """Opções de taxa de quadros para a UI. Marca `warn` nas taxas fixas MAIORES que
+    a cadência da origem (converter ~9fps→60fps só duplica quadros e incha o arquivo);
+    o frontend mostra o aviso e só aplica se o usuário confirmar."""
+    src = None
+    try:
+        src = float(source_fps) if source_fps else None
+    except (TypeError, ValueError):
+        src = None
+    out = []
+    for value, label in FRAME_RATES:
+        item = {'value': value, 'label': label, 'warn': False, 'hint': ''}
+        if value == 'auto':
+            item['hint'] = 'Preserva a cadência real do vídeo (recomendado).'
+        elif value == 'original':
+            item['hint'] = 'Mantém a taxa de quadros original.'
+        elif src:
+            fixed = float(value)
+            if fixed > src * 1.5:
+                item['warn'] = True
+                item['hint'] = f'A origem tem cerca de {src:.0f} fps; converter para {value} fps apenas duplica quadros e aumenta o arquivo.'
+            elif fixed < src * 0.6:
+                item['hint'] = f'Reduz de ~{src:.0f} fps para {value} fps (pode ficar menos fluido).'
+        out.append(item)
+    return out
+
+
+def options_payload(*, source_height=None, source_fps=None):
     """Descreve a matriz para o modal (contêineres → codecs → áudios), resoluções
-    filtradas pela origem, qualidades e o default. O backend é a fonte da verdade."""
+    filtradas pela origem, qualidades, taxas de quadros e o default. O backend é a
+    fonte da verdade."""
     def res_list():
         out = []
         for value, label in RESOLUTIONS:
@@ -302,4 +353,5 @@ def options_payload(*, source_height=None):
         'containers': containers,
         'resolutions': res_list(),
         'qualities': [{'value': v, 'label': l} for v, l in QUALITY_LABELS],
+        'frame_rates': _frame_rate_list(source_fps),
     }
