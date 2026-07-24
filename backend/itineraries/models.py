@@ -470,6 +470,24 @@ class ItineraryImage(models.Model):
     ]
     status          = models.CharField('Status do processamento', max_length=12,
                                        choices=STATUS_CHOICES, default='ready', db_index=True)
+    # Progresso real (etapa + % 0-100 + heartbeat + ETA) para a barra da interface.
+    STAGE_CHOICES = [
+        ('queued',              'Na fila'),
+        ('probing',             'Analisando o arquivo'),
+        ('transcoding',         'Convertendo'),
+        ('validating',          'Verificando'),
+        ('generating_thumbnail','Gerando capa'),
+        ('finalizing',          'Finalizando'),
+        ('completed',           'Concluído'),
+        ('failed',              'Falhou'),
+    ]
+    processing_stage    = models.CharField('Etapa', max_length=24, choices=STAGE_CHOICES,
+                                           default='queued', blank=True)
+    processing_progress = models.FloatField('Progresso (%)', default=0)
+    processing_heartbeat_at = models.DateTimeField('Último sinal de vida', null=True, blank=True)
+    estimated_remaining_seconds = models.FloatField('Tempo restante estimado (s)', null=True, blank=True)
+    processing_speed    = models.FloatField('Velocidade do FFmpeg (x)', null=True, blank=True)
+    processing_attempts = models.PositiveIntegerField('Tentativas de processamento', default=0)
     video_normalized = models.FileField('Vídeo normalizado (MP4)', upload_to=secure_itinerary_video_norm_path,
                                         null=True, blank=True)
     thumbnail       = models.FileField('Miniatura do vídeo', upload_to=secure_itinerary_thumb_path,
@@ -508,6 +526,14 @@ class ItineraryImage(models.Model):
         if self.is_video and self.status == 'ready' and self.video_normalized:
             return self.video_normalized
         return self.image
+
+    def processing_elapsed_seconds(self):
+        """Segundos desde o início do processamento (ou até o fim, se concluído)."""
+        if not self.processing_started_at:
+            return None
+        from django.utils import timezone
+        end = self.processing_finished_at or timezone.now()
+        return max(0.0, (end - self.processing_started_at).total_seconds())
 
     def __str__(self):
         try:

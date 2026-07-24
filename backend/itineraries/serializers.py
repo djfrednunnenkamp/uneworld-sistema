@@ -339,13 +339,20 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     video_url       = serializers.SerializerMethodField()
     thumb_url       = serializers.SerializerMethodField()
     error           = serializers.SerializerMethodField()
+    # Progresso real do processamento (barra + ETA na interface).
+    processing_elapsed_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model  = ItineraryImage
         fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
                   'city', 'country', 'continent', 'city_data', 'country_data', 'continent_name',
                   'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name',
-                  'status', 'video_url', 'thumb_url', 'duration', 'width', 'height', 'error']
+                  'status', 'video_url', 'thumb_url', 'duration', 'width', 'height', 'error',
+                  'processing_stage', 'processing_progress', 'estimated_remaining_seconds',
+                  'processing_elapsed_seconds', 'processing_heartbeat_at']
+
+    def get_processing_elapsed_seconds(self, obj):
+        return obj.processing_elapsed_seconds()
 
     def _abs(self, url):
         request = self.context.get('request')

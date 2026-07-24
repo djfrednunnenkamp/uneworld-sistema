@@ -225,6 +225,91 @@ class VideoStateMachineTest(_Base):
         # process_video com claim de outro em andamento → skip
         self.assertEqual(vp.process_video(img.id), 'skipped')
 
+    def test_progress_reaches_100_when_ready(self):
+        # Processa síncrono (na thread do teste, mesma conexão) → estado final coerente.
+        img = self._make_img(seconds=2)
+        vp.process_video(img.id)
+        img.refresh_from_db()
+        self.assertEqual(img.status, 'ready')
+        self.assertEqual(img.processing_progress, 100.0)
+        self.assertEqual(img.processing_stage, 'completed')
+        self.assertEqual(img.estimated_remaining_seconds, 0)
+        self.assertIsNotNone(img.processing_heartbeat_at)
+        self.assertIsNotNone(img.processing_finished_at)
+
+    def test_progress_never_regresses(self):
+        # O reporter clampa monotonicamente: nunca grava um % menor que o já salvo.
+        from itineraries.video_processing import _Reporter
+        img = self._make_img(seconds=1)
+        rep = _Reporter(img.id, duration=10)
+        rep._persist({}, force=True, progress=50)
+        img.refresh_from_db(); self.assertEqual(img.processing_progress, 50.0)
+        rep._persist({}, force=True, progress=30)          # regressão ignorada
+        img.refresh_from_db(); self.assertEqual(img.processing_progress, 50.0)
+        rep._persist({}, force=True, progress=80)
+        img.refresh_from_db(); self.assertEqual(img.processing_progress, 80.0)
+
+    def test_ffmpeg_missing_fails_fast(self):
+        from unittest import mock
+        img = self._make_img()
+        with mock.patch.object(vsvc, 'ffmpeg_available', return_value=False):
+            result = vp.process_video(img.id)
+        img.refresh_from_db()
+        self.assertEqual(result, 'failed')
+        self.assertEqual(img.status, 'failed')            # NUNCA fica preso em processing
+        self.assertIn('indisponível', img.error_message)
+
+    def test_exception_after_thumbnail_becomes_failed(self):
+        from unittest import mock
+        img = self._make_img()
+        # Falha DEPOIS da thumbnail (na gravação atômica) → precisa virar failed, não
+        # ficar eternamente em processing, e não publicar normalizado.
+        with mock.patch.object(vsvc, 'make_thumbnail', side_effect=vsvc.VideoError('boom thumb')):
+            result = vp.process_video(img.id)
+        img.refresh_from_db()
+        self.assertEqual(result, 'failed')
+        self.assertEqual(img.status, 'failed')
+        self.assertFalse(img.video_normalized)
+
+
+class VideoStuckRecoveryTest(_Base):
+    """Detecção/recuperação de processamento abandonado (heartbeat) — sem ffmpeg."""
+
+    def _proc(self, attempts=1, hb_minutes_ago=10):
+        from datetime import timedelta
+        from django.utils import timezone
+        img = ItineraryImage(kind='gallery')
+        img.image.save('v.mp4', SimpleUploadedFile('v.mp4', b'\x00\x00\x00\x18ftypmp42' + b'\x00' * 40), save=False)
+        img.status = 'processing'; img.processing_attempts = attempts
+        img.processing_started_at = timezone.now() - timedelta(minutes=hb_minutes_ago)
+        img.processing_heartbeat_at = timezone.now() - timedelta(minutes=hb_minutes_ago)
+        img.save()
+        return img
+
+    def test_fresh_heartbeat_not_stuck(self):
+        from django.utils import timezone
+        img = self._proc()
+        img.processing_heartbeat_at = timezone.now(); img.save()
+        self.assertFalse(vp.is_stuck(img))
+
+    def test_stale_heartbeat_is_stuck(self):
+        self.assertTrue(vp.is_stuck(self._proc()))
+
+    def test_recover_requeues_when_attempts_left(self):
+        img = self._proc(attempts=1)
+        r = vp.recover_stuck()
+        img.refresh_from_db()
+        self.assertEqual(img.status, 'pending')
+        self.assertEqual(r['requeued'], 1)
+
+    def test_recover_fails_when_attempts_exhausted(self):
+        img = self._proc(attempts=3)
+        r = vp.recover_stuck()
+        img.refresh_from_db()
+        self.assertEqual(img.status, 'failed')
+        self.assertEqual(r['failed'], 1)
+        self.assertTrue(img.error_message)
+
 
 @requires_ffmpeg
 @media_isolated
@@ -307,4 +392,36 @@ class VideoApiTest(APITestCase):
         img_id, _ = self._upload_and_process()
         self.client.force_authenticate(self.viewer)
         r = self.client.post(f'/api/itineraries/gallery/{img_id}/reprocess/')
+        self.assertIn(r.status_code, (403, 404))
+
+    def test_status_endpoint_returns_progress_fields(self):
+        img_id, _ = self._upload_and_process()
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/status/')
+        self.assertEqual(r.status_code, 200)
+        for key in ('id', 'status', 'processing_stage', 'processing_progress',
+                    'estimated_remaining_seconds', 'processing_elapsed_seconds',
+                    'processing_heartbeat_at', 'video_url', 'thumb_url', 'duration'):
+            self.assertIn(key, r.data)
+        self.assertEqual(r.data['status'], 'ready')
+        self.assertEqual(r.data['processing_progress'], 100.0)
+        self.assertTrue(r.data['video_url'])
+
+    def test_status_endpoint_recovers_stuck(self):
+        # Um vídeo preso em processing (heartbeat velho) deve se recuperar ao ser
+        # consultado pelo /status/ (self-heal), sem ficar carregando pra sempre.
+        from datetime import timedelta
+        from django.utils import timezone
+        img_id, _ = self._upload_and_process()
+        ItineraryImage.objects.filter(pk=img_id).update(
+            status='processing', processing_attempts=1,
+            processing_heartbeat_at=timezone.now() - timedelta(minutes=10),
+            processing_started_at=timezone.now() - timedelta(minutes=10))
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/status/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(r.data['status'], ('pending', 'failed'))   # não segue 'processing'
+
+    def test_status_endpoint_permission(self):
+        img_id, _ = self._upload_and_process()
+        self.client.force_authenticate(self.viewer)          # não vê vídeos
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/status/')
         self.assertIn(r.status_code, (403, 404))

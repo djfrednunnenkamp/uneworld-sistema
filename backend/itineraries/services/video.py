@@ -101,6 +101,18 @@ def ffmpeg_available() -> bool:
         return False
 
 
+def resolved_binaries() -> dict:
+    """Caminhos resolvidos de ffmpeg/ffprobe (ou None) — para log/diagnóstico. Usa
+    o MESMO PATH do processo Django (não do terminal)."""
+    def _try(setting, default):
+        try:
+            return _bin(setting, default)
+        except FFmpegNotAvailable:
+            return None
+    return {'ffmpeg': _try('FFMPEG_BIN', 'ffmpeg'), 'ffprobe': _try('FFPROBE_BIN', 'ffprobe'),
+            'PATH': os.environ.get('PATH', '')}
+
+
 def _run(cmd: list[str], timeout: int, step: str) -> subprocess.CompletedProcess:
     """Executa um binário (lista de args, sem shell) com timeout. Levanta VideoError
     com stderr sanitizado se falhar."""
@@ -169,7 +181,7 @@ def decode_ok(path: str) -> bool:
 
 def normalize(src: str, dst: str, *, target_fps: int | None = None,
               max_height: int | None = None, crf: int | None = None,
-              preset: str | None = None) -> None:
+              preset: str | None = None, on_progress=None) -> None:
     """Converte `src` em um MP4 tocável no navegador, gravando em `dst`.
 
     Correções aplicadas SEMPRE (a origem pode ter timestamps ruins como o exemplo
@@ -181,6 +193,10 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
       * `-movflags +faststart` move o moov atom para o início (streaming/seek);
       * áudio → AAC quando existir; sem áudio é aceito normalmente.
     Não amplia vídeos pequenos (só reduz se passar de `max_height`).
+
+    `on_progress(processed_seconds, speed)` (opcional) é chamado enquanto o FFmpeg
+    trabalha, com o tempo de vídeo já processado (s) e a velocidade (× tempo real),
+    para a barra de progresso real (via `-progress pipe:1`).
     """
     ffmpeg = _bin('FFMPEG_BIN', 'ffmpeg')
     target_fps = target_fps or getattr(settings, 'VIDEO_TARGET_FPS', 30)
@@ -197,7 +213,7 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
         f"fps={target_fps},format=yuv420p"
     )
     cmd = [
-        ffmpeg, '-y', '-loglevel', 'error', '-nostdin',
+        ffmpeg, '-y', '-loglevel', 'error', '-nostdin', '-nostats',
         '-fflags', '+genpts',
         '-i', src,
         '-map', '0:v:0', '-map', '0:a?',
@@ -207,11 +223,79 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
         '-c:a', 'aac', '-b:a', '128k', '-ac', '2',
         '-movflags', '+faststart',
         '-max_muxing_queue_size', '1024',
+        '-progress', 'pipe:1',   # relatório máquina-legível de progresso no stdout
         dst,
     ]
-    _run(cmd, timeout=getattr(settings, 'FFMPEG_TIMEOUT', 1800), step='converter o vídeo')
+    _run_with_progress(cmd, timeout=getattr(settings, 'FFMPEG_TIMEOUT', 1800),
+                       step='converter o vídeo', on_progress=on_progress)
     if not os.path.exists(dst) or os.path.getsize(dst) == 0:
         raise VideoError('A conversão não gerou um arquivo válido.')
+
+
+def _run_with_progress(cmd, timeout, step, on_progress=None):
+    """Roda o ffmpeg lendo `-progress pipe:1` (stdout) linha a linha para reportar
+    progresso, enquanto acumula o stderr para a mensagem de erro. Mata o processo
+    no timeout. Sem shell — lista de argumentos."""
+    import time
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, errors='replace', bufsize=1)
+    except (OSError, ValueError) as e:
+        raise VideoError(f'Falha ao executar o processamento ({step}).') from e
+
+    deadline = time.monotonic() + timeout
+    out_us = 0
+    speed = None
+    try:
+        for line in proc.stdout:            # bloqueia por linha; ffmpeg emite blocos
+            if time.monotonic() > deadline:
+                proc.kill()
+                raise VideoError(f'Tempo esgotado ao {step} (limite {timeout}s).')
+            line = line.strip()
+            if not line or '=' not in line:
+                continue
+            key, _, val = line.partition('=')
+            if key in ('out_time_us', 'out_time_ms'):
+                # out_time_ms é, historicamente, microssegundos no ffmpeg — tratamos
+                # os dois como µs (out_time_us é o canônico).
+                try:
+                    out_us = int(val)
+                except ValueError:
+                    pass
+            elif key == 'speed':
+                v = val.replace('x', '').strip()
+                try:
+                    speed = float(v) if v not in ('', 'N/A') else speed
+                except ValueError:
+                    pass
+            elif key == 'progress':
+                if on_progress:
+                    try:
+                        on_progress(max(0.0, out_us / 1_000_000.0), speed)
+                    except Exception:   # callback nunca derruba a conversão
+                        logger.debug('on_progress falhou', exc_info=True)
+                if val == 'end':
+                    break
+        # Espera o processo terminar e coleta o resto do stderr.
+        try:
+            proc.wait(timeout=max(1, int(deadline - time.monotonic())))
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise VideoError(f'Tempo esgotado ao {step} (limite {timeout}s).')
+    finally:
+        stderr = ''
+        try:
+            stderr = proc.stderr.read() or ''
+        except Exception:
+            pass
+        try:
+            proc.stdout.close(); proc.stderr.close()
+        except Exception:
+            pass
+    if proc.returncode not in (0, None) and proc.returncode != 0:
+        tail = _tail(stderr)
+        logger.warning('ffmpeg/%s falhou (rc=%s): %s', step, proc.returncode, tail)
+        raise VideoError(f'Falha ao {step}: {tail}')
 
 
 def make_thumbnail(src: str, dst: str, *, duration: float | None = None,

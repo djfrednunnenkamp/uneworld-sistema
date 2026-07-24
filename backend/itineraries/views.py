@@ -1587,7 +1587,7 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve', 'download', 'download_item'):
+        if self.action in ('list', 'retrieve', 'download', 'download_item', 'video_status'):
             return [_GalleryReadPermission()]
         if self.action == 'reprocess':
             return [RequirePermission('gallery_upload_videos', 'gallery_edit')()]
@@ -1893,6 +1893,29 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         resp = HttpResponse(buf.getvalue(), content_type='application/zip')
         resp['Content-Disposition'] = 'attachment; filename="galeria.zip"'
         return resp
+
+    @action(detail=True, methods=['get'], url_path='status')
+    def video_status(self, request, pk=None):
+        """GET /api/itineraries/gallery/{id}/status/ — status LEVE do processamento
+        (sem binário), para o polling do modal. Se o item estiver ABANDONADO (preso
+        em processing sem heartbeat), recupera na hora (self-heal ao ser consultado)."""
+        img = self.get_object()
+        from .video_processing import is_stuck, recover_stuck
+        if img.is_video and is_stuck(img):
+            recover_stuck()
+            img.refresh_from_db()
+        ser = ItineraryImageSerializer(img, context=self.get_serializer_context())
+        d = ser.data
+        return Response({
+            'id': d['id'], 'status': d['status'], 'is_video': d['is_video'],
+            'processing_stage': d.get('processing_stage'),
+            'processing_progress': d.get('processing_progress'),
+            'estimated_remaining_seconds': d.get('estimated_remaining_seconds'),
+            'processing_elapsed_seconds': d.get('processing_elapsed_seconds'),
+            'processing_heartbeat_at': d.get('processing_heartbeat_at'),
+            'error': d.get('error'), 'video_url': d.get('video_url'),
+            'thumb_url': d.get('thumb_url'), 'duration': d.get('duration'),
+        })
 
     @action(detail=True, methods=['post'], url_path='reprocess')
     def reprocess(self, request, pk=None):

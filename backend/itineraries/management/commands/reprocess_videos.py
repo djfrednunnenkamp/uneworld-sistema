@@ -40,19 +40,27 @@ class Command(BaseCommand):
         parser.add_argument('--force', action='store_true', help='Reprocessa mesmo os já prontos.')
         parser.add_argument('--batch', type=int, default=0, help='Limita a N itens (0 = todos).')
         parser.add_argument('--dry-run', action='store_true', help='Só lista o que faria.')
-        parser.add_argument('--requeue-stuck', type=int, default=0, metavar='MIN',
-                            help='Antes, destrava os presos em processing há > MIN minutos.')
+        parser.add_argument('--requeue-stuck', nargs='?', type=int, const=-1, default=0, metavar='MIN',
+                            help='Antes, recupera os ABANDONADOS (regra de heartbeat centralizada). '
+                                 'Opcional: MIN em minutos como limite; sem valor usa o padrão do sistema.')
 
     def handle(self, *args, **opts):
-        if not vsvc.ffmpeg_available():
+        # Diagnóstico: mostra os binários REALMENTE resolvidos pelo processo (mesmo
+        # PATH do Django), não o que o terminal enxerga.
+        bins = vsvc.resolved_binaries()
+        if not (bins['ffmpeg'] and bins['ffprobe']):
             self.stderr.write(self.style.ERROR(
-                'ffmpeg/ffprobe não encontrados. Instale o FFmpeg (ou configure '
-                'FFMPEG_BIN/FFPROBE_BIN) antes de reprocessar.'))
+                f"ffmpeg/ffprobe não encontrados pelo processo (ffmpeg={bins['ffmpeg']}, "
+                f"ffprobe={bins['ffprobe']}). Configure FFMPEG_BINARY/FFPROBE_BINARY "
+                f"(caminho absoluto) ou o PATH e reinicie."))
             return
+        self.stdout.write(f"FFmpeg: {bins['ffmpeg']} | FFprobe: {bins['ffprobe']}")
 
         if opts['requeue_stuck']:
-            n = vp.requeue_stuck(opts['requeue_stuck'])
-            self.stdout.write(f'Destravados {n} preso(s) em processing.')
+            timeout = None if opts['requeue_stuck'] == -1 else opts['requeue_stuck'] * 60
+            r = vp.recover_stuck(heartbeat_timeout=timeout)
+            self.stdout.write(f"Abandonados recuperados: {r['requeued']} reenfileirado(s), "
+                              f"{r['failed']} marcado(s) como falha.")
 
         qs = self._select(opts)
         total = qs.count()

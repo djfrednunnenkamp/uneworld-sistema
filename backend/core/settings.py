@@ -168,8 +168,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # reconstruídos) para tocar em qualquer navegador, e ganham uma thumbnail real.
 # Precisa dos binários ffmpeg/ffprobe no PATH (ou caminho absoluto abaixo). Sem
 # eles, o upload é aceito mas o registro fica 'failed' com mensagem clara.
-FFMPEG_BIN  = config('FFMPEG_BIN',  default='ffmpeg')
-FFPROBE_BIN = config('FFPROBE_BIN', default='ffprobe')
+# Aceita FFMPEG_BINARY/FFPROBE_BINARY (caminho absoluto explícito) OU FFMPEG_BIN
+# (nome no PATH). Útil quando o processo Django foi iniciado com um PATH diferente
+# do terminal (ex.: ffmpeg em ~/.local/bin e o systemd/daphne sem esse dir).
+FFMPEG_BIN  = config('FFMPEG_BINARY',  default=config('FFMPEG_BIN',  default='ffmpeg'))
+FFPROBE_BIN = config('FFPROBE_BINARY', default=config('FFPROBE_BIN', default='ffprobe'))
 # Tempos-limite (segundos) por etapa — protegem contra vídeos maliciosos/travados.
 FFPROBE_TIMEOUT   = config('FFPROBE_TIMEOUT',   default=60,   cast=int)
 FFMPEG_TIMEOUT    = config('FFMPEG_TIMEOUT',    default=1800, cast=int)  # 30 min p/ vídeos longos
@@ -179,9 +182,18 @@ VIDEO_TARGET_FPS  = config('VIDEO_TARGET_FPS',  default=30, cast=int)
 VIDEO_MAX_HEIGHT  = config('VIDEO_MAX_HEIGHT',  default=1080, cast=int)  # não amplia; só limita p/ baixo
 VIDEO_CRF         = config('VIDEO_CRF',         default=23, cast=int)
 VIDEO_PRESET      = config('VIDEO_PRESET',      default='medium')
-# Processar em thread de fundo logo após o upload (dev/prod sem worker dedicado).
-# Desligue (0) se rodar SÓ pelo comando `manage.py reprocess_videos` (cron/worker).
-VIDEO_PROCESS_INLINE = config('VIDEO_PROCESS_INLINE', default=True, cast=bool)
+# Processar numa THREAD de fundo logo após o upload (dev/prod sem worker dedicado).
+# NÃO bloqueia a requisição — o upload responde na hora (status 'processing') e a
+# conversão roda em paralelo. Desligue (0) para processar SÓ pelo comando
+# `manage.py reprocess_videos` (cron/worker externo). Ver VIDEO_PROCESS_MODE p/ o
+# nome explícito. (Alias mantido por compatibilidade.)
+VIDEO_PROCESS_MODE = config('VIDEO_PROCESS_MODE', default='thread')  # 'thread' | 'off'
+VIDEO_PROCESS_INLINE = config('VIDEO_PROCESS_INLINE', default=(VIDEO_PROCESS_MODE != 'off'), cast=bool)
+# Um vídeo em 'processing' sem heartbeat há mais que isto é considerado ABANDONADO
+# (thread/processo morreu). Baseado em heartbeat, não na duração total — vídeos
+# grandes podem demorar, mas precisam continuar emitindo sinal de vida.
+VIDEO_STUCK_HEARTBEAT_SECONDS = config('VIDEO_STUCK_HEARTBEAT_SECONDS', default=120, cast=int)
+VIDEO_MAX_PROCESSING_ATTEMPTS = config('VIDEO_MAX_PROCESSING_ATTEMPTS', default=3, cast=int)
 
 # ── OnlyOffice Document Server (edição de Office na aba Observações do roteiro) ──
 # Vazio = integração desligada (o front mostra baixar/visualizar em vez de editar).

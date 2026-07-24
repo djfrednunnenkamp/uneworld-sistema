@@ -299,8 +299,20 @@ backend** (ver `Dockerfile`) — não há nada a instalar manualmente.
   no nginx: `client_max_body_size 210m;` e um `proxy_read_timeout` folgado para
   uploads grandes. O `/media` já é servido com **HTTP Range** (nginx nativo), o que
   permite o *seek* no player.
+- **Progresso real + recuperação:** a interface mostra barra/etapa/tempo restante
+  (via `-progress` do FFmpeg + polling do endpoint `/status/`, com WebSocket para o
+  instantâneo). Um vídeo que trava (thread/processo morto) é detectado por
+  **heartbeat** e recuperado — pelo `--requeue-stuck`, e também sozinho quando o
+  modal consulta o `/status/`. Nada fica "Processando…" para sempre.
+- **FFmpeg não encontrado pelo Django:** se o processo Django subiu com um `PATH`
+  diferente (ex.: ffmpeg em `~/.local/bin` e o serviço sem esse dir), o upload é
+  aceito mas o vídeo vai para `failed` na hora (fail-fast, com mensagem clara) — não
+  fica preso. Aponte o binário com `FFMPEG_BINARY=/caminho/ffmpeg` e
+  `FFPROBE_BINARY=/caminho/ffprobe` no `.env` e **reinicie** o backend. Confira o que
+  o processo resolve com `manage.py reprocess_videos` (ele imprime os caminhos).
 - **Ajustes finos** (`.env`, opcionais): `VIDEO_TARGET_FPS` (30), `VIDEO_MAX_HEIGHT`
-  (1080, não amplia), `VIDEO_CRF` (23), `VIDEO_PRESET` (medium), `FFMPEG_TIMEOUT`.
+  (1080, não amplia), `VIDEO_CRF` (23), `VIDEO_PRESET` (medium), `FFMPEG_TIMEOUT`,
+  `VIDEO_STUCK_HEARTBEAT_SECONDS` (120), `VIDEO_MAX_PROCESSING_ATTEMPTS` (3).
 
 ## Solução de problemas
 
