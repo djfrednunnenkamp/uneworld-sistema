@@ -57,6 +57,10 @@ def _serve_media_range(request, path):
         resp = FileResponse(open(full, 'rb'), content_type=ctype)
         resp['Content-Length'] = str(size)
     resp['Accept-Ranges'] = 'bytes'
+    # Sem isto, o navegador cacheia a resposta heuristicamente (Last-Modified sem
+    # Cache-Control) e, se cacheou uma versão SEM Range no passado, serve ela do
+    # cache e o vídeo trava preto. no-cache = sempre revalida antes de reusar.
+    resp['Cache-Control'] = 'no-cache'
     return resp
 
 
