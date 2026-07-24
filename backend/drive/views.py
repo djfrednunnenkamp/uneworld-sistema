@@ -525,6 +525,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
 
         buf = io.BytesIO()
         names = set()   # evita nomes duplicados dentro do mesmo caminho
+        n_files = [0]
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
             def walk(node, prefix, depth):
                 if depth > 60:
@@ -542,11 +543,18 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                         try:
                             with child.file.open('rb') as fh:
                                 z.writestr(n, fh.read())
+                            n_files[0] += 1
                         except Exception:
                             pass
             walk(folder, f'{_safe(folder.name)}/', 0)
         buf.seek(0)
         from urllib.parse import quote
+        # Extração em massa do repositório de documentos → deixa rastro (quem baixou a
+        # pasta inteira e quantos arquivos saíram).
+        from audit.tracking import log_event
+        log_event('download', model_name='DriveNode', model_label='Pasta',
+                  object_id=folder.id, object_repr=f'{folder.name} (.zip)', user=request.user,
+                  changes={'Arquivos baixados': n_files[0]})
         resp = FileResponse(buf, as_attachment=True, content_type='application/zip')
         resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(folder.name + '.zip')}"
         return resp
@@ -653,6 +661,12 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             resp = FileResponse(fh, content_type='application/octet-stream')
             resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(fname)}"
         resp['X-Content-Type-Options'] = 'nosniff'
+        # Leitura de arquivo do Drive: download explícito ('download') ou visualização
+        # inline ('view'). Antes, uploads/exclusões eram logados mas as LEITURAS não —
+        # deixava o vazamento de um arquivo sem rastro.
+        from audit.tracking import log_event
+        log_event('view' if inline else 'download', model_name='DriveNode', model_label='Documento',
+                  object_id=node.id, object_repr=node.name, user=request.user)
         return resp
 
 

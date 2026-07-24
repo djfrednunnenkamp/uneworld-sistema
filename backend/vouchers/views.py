@@ -182,6 +182,27 @@ class VoucherViewSet(viewsets.ViewSet):
                   changes={'Voucher baixado': {'antes': '—', 'depois': depois[:480]}}, user=request.user)
         return Response({'ok': True})
 
+    @action(detail=True, methods=['post'], url_path='mark_labels_downloaded')
+    def mark_labels_downloaded(self, request, pk=None):
+        """Registra o download das ETIQUETAS de passageiros (folha adesiva) — extração
+        em massa de PII gerada no cliente. Body opcional: count, model, modes."""
+        pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        count = request.data.get('count')
+        model = str(request.data.get('model') or '').strip()[:120]
+        modes = str(request.data.get('modes') or '').strip()[:120]
+        detalhe = f'{count} etiqueta(s)' if count else 'etiquetas'
+        if model:
+            detalhe += f' · {model}'
+        if modes:
+            detalhe += f' · {modes}'
+        from audit.tracking import log_event
+        log_event('download', model_name='VoucherList', model_label='Etiquetas de passageiros',
+                  object_id=pl.id, object_repr=pl.name,
+                  changes={'Etiquetas baixadas': {'antes': '—', 'depois': detalhe[:480]}}, user=request.user)
+        return Response({'ok': True})
+
     @action(detail=True, methods=['post', 'delete', 'patch'], url_path='flight_confirmation')
     def flight_confirmation(self, request, pk=None):
         """Confirmações de voo (capturas de tela) de UM voucher (passageiro/casal).

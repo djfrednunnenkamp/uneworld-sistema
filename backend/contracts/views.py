@@ -321,6 +321,14 @@ def _promote_paid_contracts():
                .values_list('id', flat=True))
     if ids:
         Contract.objects.filter(id__in=ids).update(stage='faturado')
+        # O bulk update NÃO dispara o signal que loga as demais transições de etapa
+        # (send/sign/approve/invoice). Sem isto, a passagem AUTOMÁTICA "Em pagamento →
+        # Pagos" some do histórico. Loga cada contrato promovido (ação 'invoice').
+        from audit.tracking import log_event, FIELD_LABELS
+        for c in Contract.objects.filter(id__in=ids):
+            log_event('invoice', model_name='Contract', model_label='Contrato',
+                      object_id=c.id, object_repr=str(c),
+                      changes={FIELD_LABELS['stage']: {'antes': 'em_pagamento', 'depois': 'faturado'}})
     return ids
 
 

@@ -691,7 +691,20 @@ class ItineraryFieldTemplate(models.Model):
     def apply_to_linked(self):
         """Reaplica este conteúdo aos roteiros com vínculo vivo ligado a ele."""
         content_col, fk_col, linked_col = self.FIELD_COLUMNS[self.field]
-        Itinerary.objects.filter(**{fk_col: self, linked_col: True}).update(**{content_col: self.content})
+        targets = list(Itinerary.objects.filter(**{fk_col: self, linked_col: True}).values_list('pk', flat=True))
+        if not targets:
+            return
+        Itinerary.objects.filter(pk__in=targets).update(**{content_col: self.content})
+        # O update em massa burla o signal. Loga a reaplicação em cada roteiro afetado
+        # com marcador conciso (o conteúdo do campo é texto longo — logar o diff inteiro
+        # seria ruído; o essencial é QUE campo foi reaplicado de QUAL template).
+        from audit.tracking import log_event, FIELD_LABELS
+        label = FIELD_LABELS.get(content_col, content_col)
+        for pk in targets:
+            log_event('update', model_name='Itinerary', model_label='Roteiro',
+                      object_id=pk, object_repr=f'Roteiro #{pk}',
+                      changes={label: {'antes': '(conteúdo anterior)',
+                                       'depois': f'reaplicado do template "{self.name}"'}})
 
 
 class ItineraryDeparture(models.Model):

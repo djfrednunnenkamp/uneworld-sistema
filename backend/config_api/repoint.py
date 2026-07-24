@@ -46,6 +46,15 @@ def repoint_scoped_row(scoped):
     Reponta as FKs do roteiro `scoped.itinerary_id` que ainda apontam para o
     tipo GLOBAL correspondente, direcionando-as para `scoped`.
     Idempotente e à prova de falha (nunca deixa o save quebrar).
+
+    AUDITORIA — intencionalmente NÃO logado (campo técnico, valor preservado):
+    este repointamento troca uma FK do tipo GLOBAL para o tipo PRÓPRIO do roteiro
+    de MESMO nome/categoria. O valor exibido ao usuário (o nome da acomodação/
+    cabine/classe) é idêntico antes e depois — logar geraria entradas confusas do
+    tipo "antes = X, depois = X". A criação/edição do tipo próprio em si JÁ é
+    auditada pelo signal (ConfigShipCabin/ConfigAccommodation/ConfigFlightClass são
+    modelos rastreados), então a ação do usuário fica registrada; só o relink
+    interno de FK — que não altera nada visível — é omitido de propósito.
     """
     from .models import ConfigShipCabin, ConfigAccommodation, ConfigFlightClass
 

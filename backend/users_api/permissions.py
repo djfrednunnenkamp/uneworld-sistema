@@ -406,7 +406,11 @@ def drop_agency_memberships_if_internal(user):
     interno continuava aparecendo como membro da agência."""
     if user and (user.is_staff or user.is_superuser):
         from django.apps import apps
-        apps.get_model('agencies', 'AgencyMember').objects.filter(user=user).delete()
+        from audit.tracking import log_bulk_delete
+        AgencyMember = apps.get_model('agencies', 'AgencyMember')
+        members = list(AgencyMember.objects.filter(user=user))
+        log_bulk_delete(members, model_name='AgencyMember', model_label='Membro de agência')
+        AgencyMember.objects.filter(pk__in=[m.pk for m in members]).delete()
 
 
 def sync_is_staff(user):

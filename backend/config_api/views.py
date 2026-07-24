@@ -1165,8 +1165,13 @@ class HotelViewSet(viewsets.ModelViewSet):
                                        c.state.name if c and c.state else None,
                                        c.state.country.name if c and c.state and c.state.country else None] if p])
         from itineraries.models import ItineraryHotel
-        ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True).update(
-            name=hotel.name, city=label, phone=hotel.phone, website=hotel.website)
+        from audit.tracking import log_field_propagation
+        new_vals = {'name': hotel.name, 'city': label, 'phone': hotel.phone, 'website': hotel.website}
+        linked = list(ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True))
+        ItineraryHotel.objects.filter(pk__in=[h.pk for h in linked]).update(**new_vals)
+        # O update em massa burla o signal — loga a propagação do vínculo vivo linha a
+        # linha (aparece no log de cada roteiro afetado, com o diff dos campos).
+        log_field_propagation(linked, new_vals, model_name='ItineraryHotel', model_label='Hotel do roteiro')
 
 
 class HotelMediaViewSet(viewsets.ModelViewSet):
@@ -1275,8 +1280,11 @@ class BoatViewSet(viewsets.ModelViewSet):
         vinculados (vínculo vivo ligado)."""
         boat = serializer.save()
         from itineraries.models import ItineraryBoat
-        ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True).update(
-            name=boat.name, website=boat.website)
+        from audit.tracking import log_field_propagation
+        new_vals = {'name': boat.name, 'website': boat.website}
+        linked = list(ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True))
+        ItineraryBoat.objects.filter(pk__in=[b.pk for b in linked]).update(**new_vals)
+        log_field_propagation(linked, new_vals, model_name='ItineraryBoat', model_label='Barco do roteiro')
 
 
 class BoatMediaViewSet(viewsets.ModelViewSet):
@@ -2521,7 +2529,15 @@ class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def _ensure_single_agency_default(self, obj):
         # Só UM perfil pode ser o padrão de agência — ao marcar um, desmarca os demais.
         if obj.is_agency_default:
-            PermissionProfile.objects.exclude(pk=obj.pk).filter(is_agency_default=True).update(is_agency_default=False)
+            demoted = list(PermissionProfile.objects.exclude(pk=obj.pk).filter(is_agency_default=True))
+            PermissionProfile.objects.filter(pk__in=[p.pk for p in demoted]).update(is_agency_default=False)
+            # Bulk update burla o signal — perda do "padrão de agência" é relevante p/
+            # segurança (define as permissões que toda nova agência herda). Loga cada um.
+            from audit.tracking import log_event
+            for p in demoted:
+                log_event('update', model_name='PermissionProfile', model_label='Perfil de permissão',
+                          object_id=p.pk, object_repr=str(p),
+                          changes={'Padrão de agência': {'antes': 'Sim', 'depois': 'Não'}})
 
     def _reapply_to_linked_users(self, profile):
         # Link VIVO: ao editar o perfil, re-aplica as permissões a todos os usuários

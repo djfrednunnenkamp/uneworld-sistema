@@ -286,6 +286,35 @@ def log_event(action, *, model_name, model_label, object_id='', object_repr='', 
     )
 
 
+def log_field_propagation(instances, new_values, *, model_name, model_label, action='update'):
+    """Loga um update de campos APLICADO EM MASSA (`QuerySet.update`, que burla o
+    signal) linha a linha, com diff antes/depois só dos campos que realmente mudaram.
+    `instances` = objetos com os valores ANTIGOS (capturados ANTES do update);
+    `new_values` = dict {campo: novo_valor}. Nada é logado para linhas sem mudança."""
+    for inst in instances:
+        changes = {}
+        for field, new in new_values.items():
+            old = getattr(inst, field, None)
+            if old != new:
+                changes[FIELD_LABELS.get(field, field)] = {
+                    'antes': serialize_value(old), 'depois': serialize_value(new)}
+        if changes:
+            log_event(action, model_name=model_name, model_label=model_label,
+                      object_id=inst.pk, object_repr=str(inst), changes=changes)
+
+
+def log_bulk_delete(instances, *, model_name, model_label):
+    """Loga a exclusão de linhas removidas por `QuerySet.delete()` (fast-path, que NÃO
+    dispara `post_delete`). Chame ANTES do delete, com a lista já materializada."""
+    for inst in instances:
+        try:
+            repr_str = str(inst)
+        except Exception:
+            repr_str = f'{model_name}#{getattr(inst, "pk", "")}'
+        log_event('delete', model_name=model_name, model_label=model_label,
+                  object_id=getattr(inst, 'pk', ''), object_repr=repr_str, changes={})
+
+
 # ── Captura estado antes do save ────────────────────────────────────────────
 
 @receiver(pre_save)
