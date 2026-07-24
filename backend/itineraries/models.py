@@ -425,6 +425,9 @@ class ItineraryImage(models.Model):
     KIND_CHOICES = [
         ('gallery',        'Galeria'),
         ('cover',          'Capa'),
+        # Seção DEDICADA a vídeos (só aceita vídeo). O vídeo também pode ficar na
+        # galeria comum ('gallery'); esta é só um lugar separado, exclusivo de vídeo.
+        ('video',          'Vídeo'),
         # Lâminas do bloqueio: pode ter várias, ordenadas; a primeira (menor
         # `order`) é a padrão que o sistema usa.
         ('blocking',       'Lâmina do Bloqueio'),

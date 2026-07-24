@@ -1255,11 +1255,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         is_video = _os.path.splitext(upload.name or '')[1].lower() in GALLERY_VIDEO_EXTENSIONS
         try:
             if is_video:
-                if kind != 'gallery':
-                    return Response({'image': ['Vídeos só podem ser adicionados à galeria.']},
+                # Vídeo vai para a GALERIA comum ou para a seção dedicada de vídeos.
+                if kind not in ('gallery', 'video'):
+                    return Response({'image': ['Vídeos só podem ir para a galeria ou a seção de vídeos.']},
                                     status=status.HTTP_400_BAD_REQUEST)
                 validate_video_file(upload, allowed_exts=GALLERY_VIDEO_EXTENSIONS)
             else:
+                # A seção dedicada de vídeos não aceita imagem.
+                if kind == 'video':
+                    return Response({'image': ['A seção de vídeos aceita apenas vídeos.']},
+                                    status=status.HTTP_400_BAD_REQUEST)
                 validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
@@ -1309,6 +1314,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         kind = request.data.get('kind') or 'gallery'
         if kind not in {c[0] for c in ItineraryImage.KIND_CHOICES}:
             kind = 'gallery'
+        # A seção de vídeos só recebe vídeo; imagem escolhida cai na galeria comum.
+        if kind == 'video' and not src.is_video:
+            kind = 'gallery'
+        elif src.is_video and kind not in ('gallery', 'video'):
+            kind = 'gallery'
         try:
             src.image.open('rb')
             data = src.image.read()
@@ -1351,6 +1361,14 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         valid = {c[0] for c in ItineraryImage.KIND_CHOICES}
         if kind not in valid:
             return Response({'detail': 'Tipo inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Regras de vídeo: um vídeo só pode ficar na galeria ou na seção de vídeos; a
+        # seção de vídeos não aceita imagem.
+        if img.is_video and kind not in ('gallery', 'video'):
+            return Response({'detail': 'Vídeos só podem ficar na galeria ou na seção de vídeos.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if kind == 'video' and not img.is_video:
+            return Response({'detail': 'A seção de vídeos aceita apenas vídeos.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         # Restrito a lâminas: só pode mexer numa lâmina e mantê-la como lâmina.
         if self._laminas_only() and (kind != 'blocking' or img.kind != 'blocking'):
             return Response({'detail': 'Sem permissão: só é permitido gerenciar imagens das lâminas.'},
