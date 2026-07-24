@@ -1,8 +1,12 @@
+import os
+import re
+import mimetypes
+
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
-from django.conf.urls.static import static
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse, HttpResponseNotFound
+from django.utils._os import safe_join
 
 from .views import validate_email, healthz
 
@@ -12,6 +16,48 @@ def _serve_email_logo(request):
     # repositório separado, então o arquivo vive aqui em core/assets/).
     logo_path = settings.BASE_DIR / 'core' / 'assets' / 'logo-email.png'
     return FileResponse(open(logo_path, 'rb'), content_type='image/png')
+
+
+_RANGE_RE = re.compile(r'bytes=(\d+)-(\d*)', re.I)
+
+
+def _serve_media_range(request, path):
+    """Serve /media/ em DESENVOLVIMENTO com suporte a HTTP Range (206).
+
+    O django.views.static.serve devolve o arquivo inteiro (200, sem Accept-Ranges).
+    O <video> do navegador PRECISA de Range para pegar os metadados/primeiro frame
+    e para tocar/buscar — sem isso, o vídeo da Galeria fica preto e não roda. Em
+    produção o /media é servido pelo nginx do backend (Range nativo); isto é só o
+    espelho disso para o ambiente de desenvolvimento (DEBUG)."""
+    try:
+        full = safe_join(settings.MEDIA_ROOT, path)
+    except Exception:
+        return HttpResponseNotFound()
+    if not os.path.isfile(full):
+        return HttpResponseNotFound()
+    ctype = mimetypes.guess_type(full)[0] or 'application/octet-stream'
+    size = os.path.getsize(full)
+    m = _RANGE_RE.match(request.headers.get('Range') or '')
+    if m:
+        start = int(m.group(1))
+        end = int(m.group(2)) if m.group(2) else size - 1
+        end = min(end, size - 1)
+        if start > end or start >= size:
+            resp = HttpResponse(status=416)
+            resp['Content-Range'] = f'bytes */{size}'
+            return resp
+        length = end - start + 1
+        with open(full, 'rb') as f:
+            f.seek(start)
+            data = f.read(length)
+        resp = HttpResponse(data, status=206, content_type=ctype)
+        resp['Content-Range'] = f'bytes {start}-{end}/{size}'
+        resp['Content-Length'] = str(length)
+    else:
+        resp = FileResponse(open(full, 'rb'), content_type=ctype)
+        resp['Content-Length'] = str(size)
+    resp['Accept-Ranges'] = 'bytes'
+    return resp
 
 
 urlpatterns = [
@@ -42,4 +88,5 @@ urlpatterns = [
 # O nginx também bloqueia /media/ público (ver frontend/nginx.conf) como 2ª camada.
 # static() já retornaria [] com DEBUG=False; o if deixa a intenção explícita (A-11).
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Range-capable (206) — necessário para tocar vídeo da Galeria no navegador.
+    urlpatterns += [re_path(r'^media/(?P<path>.*)$', _serve_media_range)]
