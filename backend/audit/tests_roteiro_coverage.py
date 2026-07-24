@@ -96,6 +96,28 @@ class SignalCoverageTest(TestCase):
         self.assertTrue(_logs('ConfigShipCabin', 'create', cab.id).exists())
 
 
+class NewlyTrackedModelsTest(TestCase):
+    """Modelos de negócio que estavam FORA da whitelist agora geram log (P2)."""
+
+    def test_config_cost_category_tracked(self):
+        from config_api.models import ConfigCostCategory
+        c = ConfigCostCategory.objects.create(name='ZZ_Cat_Auditoria')
+        self.assertTrue(_logs('ConfigCostCategory', 'create', c.id).exists())
+        c.name = 'ZZ_Cat_Auditoria_2'
+        c.save()
+        self.assertTrue(_logs('ConfigCostCategory', 'update', c.id).exists())
+
+    def test_config_flight_segment_tracked(self):
+        from config_api.models import ConfigFlightSegment
+        s = ConfigFlightSegment.objects.create(name='ZZ_Seg_Auditoria')
+        self.assertTrue(_logs('ConfigFlightSegment', 'create', s.id).exists())
+
+    def test_voucher_template_tracked(self):
+        from vouchers.models import VoucherTemplate
+        t = VoucherTemplate.objects.create(name='Padrão')
+        self.assertTrue(_logs('VoucherTemplate', 'create', t.id).exists())
+
+
 class AuditSafetyTest(TestCase):
     """Uma falha ao gravar o log NUNCA pode derrubar a operação real do usuário."""
 

@@ -108,9 +108,24 @@ TRACKED_MODELS = {
     'ContractAdjustment':       'Ajuste do contrato',
     'ContractClause':           'Cláusula de contrato',
     'ItineraryFieldTemplate':   'Template de campo (roteiro)',
+    # Modelos de negócio que estavam FORA da whitelist (auditoria zero) — incluídos.
+    'Lamina':                   'Lâmina',
+    'VoucherTemplate':          'Template de voucher',
+    'ConfigSpecialNeed':        'Necessidade especial',
+    'ConfigCostCategory':       'Categoria de custo',
+    'ConfigFlightSegment':      'Segmento de voo (custo)',
 }
 
-# Campos a ignorar no diff
+# Campos a ignorar no diff. IMPORTANTE: nenhum campo aqui é omitido "às escondidas"
+# — cada um é técnico e/ou tem o evento coberto por outro caminho:
+#   * file / original_name / file_size / mime_type / preview_url / download_url —
+#     metadados físicos do arquivo (caminho/uuid/tamanho). O CICLO DE VIDA do arquivo
+#     JÁ é auditado: a CRIAÇÃO de um registro com arquivo vira ação 'upload'
+#     (instance_has_file), a exclusão vira 'delete', e downloads são logados à parte
+#     (log_event 'download'). Renomear/editar metadados legíveis (doc_type, número,
+#     legenda, etc.) NÃO está aqui, então continua aparecendo no diff.
+#   * signed_file — arquivo do contrato assinado: a mudança de ETAPA já registra o evento.
+#   * password / last_login — sensível/ruído.
 SKIP_FIELDS = {
     'password', 'last_login', 'file', 'original_name',
     'file_size', 'mime_type', 'preview_url', 'download_url',
