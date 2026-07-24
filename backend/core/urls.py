@@ -18,7 +18,34 @@ def _serve_email_logo(request):
     return FileResponse(open(logo_path, 'rb'), content_type='image/png')
 
 
-_RANGE_RE = re.compile(r'bytes=(\d+)-(\d*)', re.I)
+# Uma faixa só (o navegador manda single range p/ vídeo). Aceita as 3 formas:
+#   bytes=INÍCIO-FIM  ·  bytes=INÍCIO-  (até o fim)  ·  bytes=-SUFIXO  (últimos N bytes)
+_RANGE_RE = re.compile(r'^\s*bytes=(\d*)-(\d*)\s*$', re.I)
+
+
+def _parse_range(range_header, size):
+    """(start, end) inclusivos, ou None (sem range / inválido → responder 200/416).
+    Trata suffix range (bytes=-N) — é o que o navegador usa p/ pegar o `moov` do
+    FIM do mp4; sem isso o vídeo não toca."""
+    if not range_header:
+        return None
+    m = _RANGE_RE.match(range_header)
+    if not m:
+        return None
+    g1, g2 = m.group(1), m.group(2)
+    if g1 == '' and g2 == '':
+        return None
+    if g1 == '':                      # bytes=-N  → últimos N bytes
+        n = int(g2)
+        if n <= 0:
+            return 'invalid'
+        return max(0, size - n), size - 1
+    start = int(g1)
+    end = int(g2) if g2 != '' else size - 1
+    end = min(end, size - 1)
+    if start > end or start >= size:
+        return 'invalid'
+    return start, end
 
 
 def _serve_media_range(request, path):
@@ -37,15 +64,14 @@ def _serve_media_range(request, path):
         return HttpResponseNotFound()
     ctype = mimetypes.guess_type(full)[0] or 'application/octet-stream'
     size = os.path.getsize(full)
-    m = _RANGE_RE.match(request.headers.get('Range') or '')
-    if m:
-        start = int(m.group(1))
-        end = int(m.group(2)) if m.group(2) else size - 1
-        end = min(end, size - 1)
-        if start > end or start >= size:
-            resp = HttpResponse(status=416)
-            resp['Content-Range'] = f'bytes */{size}'
-            return resp
+    rng = _parse_range(request.headers.get('Range'), size)
+    if rng == 'invalid':
+        resp = HttpResponse(status=416)
+        resp['Content-Range'] = f'bytes */{size}'
+        resp['Accept-Ranges'] = 'bytes'
+        return resp
+    if rng:
+        start, end = rng
         length = end - start + 1
         with open(full, 'rb') as f:
             f.seek(start)
