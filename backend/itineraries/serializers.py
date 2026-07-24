@@ -928,10 +928,12 @@ class ItineraryListSerializer(serializers.ModelSerializer):
     def get_pub_end_date(self, obj):   return self._pub(obj, 'end_date') or obj.end_date
 
     def get_cover(self, obj):
-        # Capa: imagem kind='cover'; senão a 1ª imagem da galeria (day nulo).
+        # Capa: imagem kind='cover'; senão a 1ª imagem da galeria (day nulo). NUNCA um
+        # vídeo — a URL de vídeo num <img> vira ícone de imagem quebrada; sem imagem
+        # real, retorna None e o front mostra o placeholder padrão.
         imgs = list(obj.images.all())
-        cover = next((i for i in imgs if i.kind == 'cover'), None) \
-            or next((i for i in imgs if i.day_id is None), None)
+        cover = next((i for i in imgs if i.kind == 'cover' and not i.is_video), None) \
+            or next((i for i in imgs if i.day_id is None and not i.is_video), None)
         if not cover or not cover.image:
             return None
         request = self.context.get('request')

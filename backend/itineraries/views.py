@@ -36,10 +36,11 @@ from core.search import AccentInsensitiveSearchFilter
 
 
 def _itinerary_cover_url(it, request):
-    """URL absoluta da capa do roteiro (imagem kind='cover' ou 1ª da galeria)."""
+    """URL absoluta da capa do roteiro (imagem kind='cover' ou 1ª da galeria). NUNCA
+    um vídeo — sem imagem real retorna None (o front mostra o placeholder)."""
     imgs = list(it.images.all())
-    cover = next((i for i in imgs if i.kind == 'cover'), None) \
-        or next((i for i in imgs if i.day_id is None), None)
+    cover = next((i for i in imgs if i.kind == 'cover' and not i.is_video), None) \
+        or next((i for i in imgs if i.day_id is None and not i.is_video), None)
     if not cover or not cover.image:
         return None
     return request.build_absolute_uri(cover.image.url) if request else cover.image.url
