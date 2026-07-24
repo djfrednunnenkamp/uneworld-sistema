@@ -268,6 +268,40 @@ docker compose -f docker-compose.prod.yml down
 docker compose -f docker-compose.prod.yml exec backend python manage.py shell
 ```
 
+## Vídeos da Galeria (FFmpeg)
+
+Todo vídeo enviado à Galeria é **normalizado** no servidor para um MP4 tocável em
+qualquer navegador (H.264/yuv420p, `+faststart`, timestamps reconstruídos) e ganha
+uma **thumbnail** real. O `ffmpeg`/`ffprobe` já vêm **instalados na imagem do
+backend** (ver `Dockerfile`) — não há nada a instalar manualmente.
+
+- **Como processa:** logo após o upload, um vídeo entra como `processando` e uma
+  thread de fundo o converte (`VIDEO_PROCESS_INLINE=True`, padrão). O card mostra
+  "Processando…" e vira ▶ (pronto) ou "Falha no vídeo" sozinho, via WebSocket.
+- **Recuperar/reprocessar** (fila, presos, falhados, e vídeos **antigos** que ainda
+  não têm versão normalizada):
+  ```bash
+  # Ver o que falta dos antigos (sem alterar nada)
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --legacy --dry-run
+  # Migrar os antigos em lotes + destravar presos há >30min
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --legacy --requeue-stuck 30
+  # Retentar os que falharam
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --failed
+  ```
+  O comando é **idempotente** e pode rodar por cron (ex.: `--pending --requeue-stuck 30`
+  a cada 5 min) em servidores com muito volume, ou com `VIDEO_PROCESS_INLINE=0`
+  quando quiser tirar a conversão do processo web.
+- **Limite de upload:** o limite do sistema é 200 MB por vídeo. O **proxy reverso**
+  na frente do backend (nginx/Cloudflare) precisa aceitar corpos desse tamanho —
+  no nginx: `client_max_body_size 210m;` e um `proxy_read_timeout` folgado para
+  uploads grandes. O `/media` já é servido com **HTTP Range** (nginx nativo), o que
+  permite o *seek* no player.
+- **Ajustes finos** (`.env`, opcionais): `VIDEO_TARGET_FPS` (30), `VIDEO_MAX_HEIGHT`
+  (1080, não amplia), `VIDEO_CRF` (23), `VIDEO_PRESET` (medium), `FFMPEG_TIMEOUT`.
+
 ## Solução de problemas
 
 **"https://seu-dominio.com.br" não abre / erro de conexão**

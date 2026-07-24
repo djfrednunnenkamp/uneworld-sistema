@@ -163,6 +163,26 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# ── Processamento de vídeo da Galeria (FFmpeg) ──────────────────────────────────
+# Vídeos enviados à Galeria são NORMALIZADOS (H.264/yuv420p/faststart, timestamps
+# reconstruídos) para tocar em qualquer navegador, e ganham uma thumbnail real.
+# Precisa dos binários ffmpeg/ffprobe no PATH (ou caminho absoluto abaixo). Sem
+# eles, o upload é aceito mas o registro fica 'failed' com mensagem clara.
+FFMPEG_BIN  = config('FFMPEG_BIN',  default='ffmpeg')
+FFPROBE_BIN = config('FFPROBE_BIN', default='ffprobe')
+# Tempos-limite (segundos) por etapa — protegem contra vídeos maliciosos/travados.
+FFPROBE_TIMEOUT   = config('FFPROBE_TIMEOUT',   default=60,   cast=int)
+FFMPEG_TIMEOUT    = config('FFMPEG_TIMEOUT',    default=1800, cast=int)  # 30 min p/ vídeos longos
+THUMBNAIL_TIMEOUT = config('THUMBNAIL_TIMEOUT', default=120,  cast=int)
+# Taxa de quadros-alvo da normalização (CFR) quando a origem tem timestamps ruins.
+VIDEO_TARGET_FPS  = config('VIDEO_TARGET_FPS',  default=30, cast=int)
+VIDEO_MAX_HEIGHT  = config('VIDEO_MAX_HEIGHT',  default=1080, cast=int)  # não amplia; só limita p/ baixo
+VIDEO_CRF         = config('VIDEO_CRF',         default=23, cast=int)
+VIDEO_PRESET      = config('VIDEO_PRESET',      default='medium')
+# Processar em thread de fundo logo após o upload (dev/prod sem worker dedicado).
+# Desligue (0) se rodar SÓ pelo comando `manage.py reprocess_videos` (cron/worker).
+VIDEO_PROCESS_INLINE = config('VIDEO_PROCESS_INLINE', default=True, cast=bool)
+
 # ── OnlyOffice Document Server (edição de Office na aba Observações do roteiro) ──
 # Vazio = integração desligada (o front mostra baixar/visualizar em vez de editar).
 ONLYOFFICE_DS_URL      = config('ONLYOFFICE_DS_URL', default='')       # URL pública do DS (ex.: http://localhost:8080)

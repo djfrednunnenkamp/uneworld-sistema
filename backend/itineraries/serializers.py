@@ -334,12 +334,22 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     country_data    = CountryMiniSerializer(source='country', read_only=True)
     continent_name  = serializers.SerializerMethodField()
     itinerary_name  = serializers.CharField(source='itinerary.name', read_only=True, default=None)
+    # Vídeo: URL da versão NORMALIZADA (o player usa esta, nunca o original quebrado),
+    # URL da thumbnail (poster do card/modal) e o status/erro do processamento.
+    video_url       = serializers.SerializerMethodField()
+    thumb_url       = serializers.SerializerMethodField()
+    error           = serializers.SerializerMethodField()
 
     class Meta:
         model  = ItineraryImage
         fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
                   'city', 'country', 'continent', 'city_data', 'country_data', 'continent_name',
-                  'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name']
+                  'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name',
+                  'status', 'video_url', 'thumb_url', 'duration', 'width', 'height', 'error']
+
+    def _abs(self, url):
+        request = self.context.get('request')
+        return request.build_absolute_uri(url) if (request and url) else url
 
     def get_continent_name(self, obj):
         # Continente explícito tem prioridade; senão deriva do país / da cidade.
@@ -351,7 +361,23 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
 
     def get_is_video(self, obj):
         name = (getattr(obj.image, 'name', '') or '').lower()
-        return name.endswith(('.mp4', '.webm', '.mov', '.m4v', '.ogv'))
+        return name.endswith(ItineraryImage.VIDEO_EXTS)
+
+    def get_video_url(self, obj):
+        # Só devolve URL de reprodução quando o vídeo está PRONTO (normalizado). Antes
+        # disso é None — o front mostra 'processando' e não abre um player quebrado.
+        if self.get_is_video(obj) and obj.status == 'ready' and obj.video_normalized:
+            return self._abs(obj.video_normalized.url)
+        return None
+
+    def get_thumb_url(self, obj):
+        if self.get_is_video(obj) and obj.thumbnail:
+            return self._abs(obj.thumbnail.url)
+        return None
+
+    def get_error(self, obj):
+        # Mensagem pública só quando falhou (sem stack trace/caminhos internos).
+        return obj.error_message if obj.status == 'failed' else ''
 
 
 class ItineraryDaySerializer(serializers.ModelSerializer):

@@ -1250,15 +1250,15 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # Vídeo só é aceito na GALERIA (não em capa/lâminas). Imagem: jpg/png com
         # re-processamento; vídeo: validação de contêiner (mesma base dos passageiros).
         import os as _os
-        from passengers.validators import validate_document_file, validate_video_file, VIDEO_EXTENSIONS
+        from passengers.validators import validate_document_file, validate_video_file, GALLERY_VIDEO_EXTENSIONS
         from django.core.exceptions import ValidationError as DjangoValidationError
-        is_video = _os.path.splitext(upload.name or '')[1].lower() in VIDEO_EXTENSIONS
+        is_video = _os.path.splitext(upload.name or '')[1].lower() in GALLERY_VIDEO_EXTENSIONS
         try:
             if is_video:
                 if kind != 'gallery':
                     return Response({'image': ['Vídeos só podem ser adicionados à galeria.']},
                                     status=status.HTTP_400_BAD_REQUEST)
-                validate_video_file(upload)
+                validate_video_file(upload, allowed_exts=GALLERY_VIDEO_EXTENSIONS)
             else:
                 validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
@@ -1269,7 +1269,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if kind == 'blocking':
             save_kwargs['subject_type'] = 'lamina'
         img = ser.save(**save_kwargs)
-        if not is_video:
+        if is_video:
+            _start_video_processing(img, upload, request)
+        else:
             _apply_dominant_color(img)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
@@ -1323,6 +1325,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                              dominant_color=src.dominant_color, color_bucket=src.color_bucket)
         new.image.save(f'copy{ext}', ContentFile(data), save=False)
         new.save()
+        # Vídeo: a cópia precisa da própria versão normalizada + thumbnail — reprocessa
+        # (idempotente). Herda os metadados do original enquanto processa.
+        if new.is_video:
+            new.orig_name = src.orig_name or _os.path.basename(src.image.name or '')
+            new.orig_size = src.orig_size
+            new.save(update_fields=['orig_name', 'orig_size'])
+            from .video_processing import schedule_processing
+            new.status = 'pending'
+            new.save(update_fields=['status'])
+            schedule_processing(new)
         out = ItineraryImageSerializer(new, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
 
@@ -1413,6 +1425,27 @@ def _apply_dominant_color(img):
         img.save(update_fields=['dominant_color', 'color_bucket'])
 
 
+def _start_video_processing(img, upload, request=None):
+    """Registra os metadados do arquivo original e coloca o vídeo para NORMALIZAR
+    (thread/worker). O card aparece como 'processando' até virar pronto/erro."""
+    import os as _os
+    img.orig_name = (getattr(upload, 'name', '') or '')[:255]
+    img.orig_size = getattr(upload, 'size', None)
+    img.detected_mime = (getattr(upload, 'content_type', '') or '')[:100]
+    img.status = 'pending'
+    img.save(update_fields=['orig_name', 'orig_size', 'detected_mime', 'status'])
+    try:
+        from audit.tracking import log_event
+        log_event('upload', model_name='ItineraryImage', model_label='Galeria de mídia',
+                  object_id=str(img.pk), object_repr=(img.orig_name or f'vídeo #{img.pk}'),
+                  changes={'Upload de vídeo': f'{img.orig_name} ({img.orig_size or "?"} bytes) — na fila'},
+                  user=getattr(request, 'user', None))
+    except Exception:
+        pass
+    from .video_processing import schedule_processing
+    schedule_processing(img)
+
+
 def _apply_image_meta(img, data):
     """Aplica subject_type/caption e a geo FLEXÍVEL (cidade OU país OU continente) a
     uma imagem (mutando-a) e devolve o conjunto de campos alterados. Precedência:
@@ -1490,7 +1523,8 @@ GALLERY_BROAD = ('gallery_edit', 'gallery_delete')
 GALLERY_VIEW_PERMS = ('gallery_view', 'gallery_view_images', 'gallery_view_videos',
                       'gallery_view_laminas', 'roteiros_images_from_gallery') + GALLERY_BROAD
 
-VIDEO_EXTS_TUP = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
+# Extensões de vídeo — fonte única no modelo (mantém front/serializer/validator alinhados).
+VIDEO_EXTS_TUP = ItineraryImage.VIDEO_EXTS
 
 
 def _gallery_laminas_only(user):
@@ -1553,8 +1587,10 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve', 'download'):
+        if self.action in ('list', 'retrieve', 'download', 'download_item'):
             return [_GalleryReadPermission()]
+        if self.action == 'reprocess':
+            return [RequirePermission('gallery_upload_videos', 'gallery_edit')()]
         if self.action == 'create':
             # Gate amplo aqui; o tipo específico (imagem/vídeo) é checado no create().
             return [RequirePermission('gallery_upload_images', 'gallery_upload_videos', 'gallery_edit')()]
@@ -1598,7 +1634,7 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                       .order_by('order', 'id').values('id')[:1])
         return qs.filter(id=Subquery(default_id))
 
-    VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
+    VIDEO_EXTS = ItineraryImage.VIDEO_EXTS
 
     @classmethod
     def _video_q(cls):
@@ -1663,25 +1699,27 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Upload de imagem/vídeo para o BANCO (sem roteiro)."""
         import os as _os
-        from passengers.validators import validate_document_file, validate_video_file, VIDEO_EXTENSIONS
+        from passengers.validators import validate_document_file, validate_video_file, GALLERY_VIDEO_EXTENSIONS
         from django.core.exceptions import ValidationError as DjangoValidationError
         ser = ItineraryImageSerializer(data=request.data, context=self.get_serializer_context())
         ser.is_valid(raise_exception=True)
         upload = ser.validated_data['image']
-        is_video = _os.path.splitext(upload.name or '')[1].lower() in VIDEO_EXTENSIONS
+        is_video = _os.path.splitext(upload.name or '')[1].lower() in GALLERY_VIDEO_EXTENSIONS
         media = 'video' if is_video else 'image'
         if not _gallery_can_upload(request.user, media):
             return Response({'detail': f'Você não tem permissão para enviar {"vídeos" if is_video else "imagens"}.'},
                             status=status.HTTP_403_FORBIDDEN)
         try:
             if is_video:
-                validate_video_file(upload)
+                validate_video_file(upload, allowed_exts=GALLERY_VIDEO_EXTENSIONS)
             else:
                 validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         img = ser.save(itinerary=None, day=None, kind='gallery')
-        if not is_video:
+        if is_video:
+            _start_video_processing(img, upload, request)
+        else:
             _apply_dominant_color(img)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
@@ -1812,8 +1850,11 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
             for img in qs.iterator():
                 name = img.image.name or ''
-                ext = _os.path.splitext(name)[1].lower()
-                is_vid = ext in self.VIDEO_EXTS
+                is_vid = _os.path.splitext(name)[1].lower() in self.VIDEO_EXTS
+                # Vídeo: baixa a versão NORMALIZADA (MP4 válido/tocável) quando pronta;
+                # senão o original. Imagens: o próprio arquivo.
+                src = img.playable_file()
+                ext = _os.path.splitext(src.name or name)[1].lower() or ('.mp4' if is_vid else '')
                 folder = 'laminas' if img.kind == 'blocking' else ('videos' if is_vid else 'imagens')
                 label = (img.caption
                          or (img.city.name if img.city_id else '')
@@ -1827,14 +1868,14 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                     i += 1
                 used.add(fname)
                 try:
-                    img.image.open('rb')
-                    zf.writestr(fname, img.image.read())
+                    src.open('rb')
+                    zf.writestr(fname, src.read())
                     n_files += 1
                 except Exception:
                     continue
                 finally:
                     try:
-                        img.image.close()
+                        src.close()
                     except Exception:
                         pass
 
@@ -1851,6 +1892,49 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
 
         resp = HttpResponse(buf.getvalue(), content_type='application/zip')
         resp['Content-Disposition'] = 'attachment; filename="galeria.zip"'
+        return resp
+
+    @action(detail=True, methods=['post'], url_path='reprocess')
+    def reprocess(self, request, pk=None):
+        """POST /api/itineraries/gallery/{id}/reprocess/ — reprocessa um vídeo
+        (tenta de novo os que falharam ou força a renormalização). Idempotente:
+        se já estiver processando, não duplica."""
+        img = self.get_object()
+        if not img.is_video:
+            return Response({'detail': 'Só vídeos podem ser reprocessados.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        from .video_processing import schedule_processing
+        schedule_processing(img, force=True)
+        img.refresh_from_db()
+        return Response(ItineraryImageSerializer(img, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download_item(self, request, pk=None):
+        """GET /api/itineraries/gallery/{id}/download/ — baixa UM item como anexo.
+        Para vídeos, entrega a versão NORMALIZADA (MP4 válido) quando pronta."""
+        import os as _os
+        img = self.get_object()
+        src = img.playable_file()
+        if not src or not src.name:
+            return Response({'detail': 'Arquivo indisponível.'}, status=status.HTTP_404_NOT_FOUND)
+        ext = _os.path.splitext(src.name)[1].lower() or ('.mp4' if img.is_video else '')
+        label = (img.caption or (img.city.name if img.city_id else '')
+                 or (img.itinerary.name if img.itinerary_id else '') or 'arquivo')
+        from django.utils.text import slugify
+        fname = f'{img.id}-{slugify(label)[:60] or "arquivo"}{ext}'
+        ctype = 'video/mp4' if img.is_video else None
+        try:
+            src.open('rb')
+            resp = FileResponse(src, as_attachment=True, filename=fname, content_type=ctype)
+        except Exception:
+            return Response({'detail': 'Não foi possível ler o arquivo.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            from audit.tracking import log_event
+            log_event('download', model_name='ItineraryImage', model_label='Galeria de mídia',
+                      object_id=str(img.pk), object_repr=(img.orig_name or fname),
+                      changes={'Download': fname}, user=getattr(request, 'user', None))
+        except Exception:
+            pass
         return resp
 
 

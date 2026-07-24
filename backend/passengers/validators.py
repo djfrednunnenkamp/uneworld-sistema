@@ -138,9 +138,18 @@ def validate_document_file(file, allowed_exts=None, allow_images=True):
     return file
 
 
-# ── Vídeo (galeria de roteiros) ──────────────────────────────────────────────
+# ── Vídeo ────────────────────────────────────────────────────────────────────
 MAX_VIDEO_SIZE = 200 * 1024 * 1024  # 200 MB
-VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov', '.m4v', '.ogv'}
+# Conjunto CONSERVADOR: formatos que os navegadores tocam CRUS (sem conversão).
+# Usado onde a mídia é servida como está (galerias de hotéis/barcos em config_api).
+VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov', '.m4v', '.ogv', '.ogg'}
+# Conjunto EXPANDIDO: aceito só na Galeria de roteiros, que NORMALIZA todo vídeo
+# para MP4/H.264 no servidor (itineraries.services.video). Como sempre convertemos,
+# aceitamos os contêineres comuns que o FFmpeg lê. A validação definitiva do
+# conteúdo é o ffprobe no processamento; aqui é a 1ª barreira (extensão + tamanho +
+# sniff). Mantido em sincronia com ItineraryImage.VIDEO_EXTS.
+GALLERY_VIDEO_EXTENSIONS = VIDEO_EXTENSIONS | {
+    '.mkv', '.avi', '.mpeg', '.mpg', '.3gp', '.3g2', '.wmv', '.flv'}
 # Átomos iniciais (bytes 4-8) de contêineres MP4/MOV (ISO BMFF / QuickTime).
 _MP4_ATOMS = {b'ftyp', b'moov', b'mdat', b'free', b'skip', b'wide', b'pnot'}
 
@@ -227,14 +236,16 @@ def validate_media_file(file):
     return 'image'
 
 
-def validate_video_file(file):
+def validate_video_file(file, allowed_exts=None):
     """Valida um upload de VÍDEO (extensão, tamanho e magic bytes do contêiner).
-    Não re-processa o conteúdo (só imagens são reprocessadas). Levanta
+    `allowed_exts` restringe as extensões (padrão: VIDEO_EXTENSIONS, tocáveis crus;
+    a Galeria passa GALLERY_VIDEO_EXTENSIONS por normalizar tudo depois). Levanta
     ValidationError se algo estiver fora do esperado."""
+    allowed_exts = set(allowed_exts) if allowed_exts else set(VIDEO_EXTENSIONS)
     ext = os.path.splitext(file.name or '')[1].lower()
-    if ext not in VIDEO_EXTENSIONS:
+    if ext not in allowed_exts:
         raise ValidationError(
-            f'Extensão "{ext}" não permitida. Vídeos aceitos: MP4, WebM, MOV, M4V, OGV.'
+            f'Extensão "{ext}" não permitida para vídeo.'
         )
     if file.size > MAX_VIDEO_SIZE:
         raise ValidationError(
@@ -243,12 +254,28 @@ def validate_video_file(file):
     file.seek(0)
     header = file.read(16)
     file.seek(0)
-    is_mp4 = len(header) >= 8 and header[4:8] in _MP4_ATOMS
-    is_webm = header.startswith(b'\x1aE\xdf\xa3')   # EBML (WebM/MKV)
-    is_ogg = header.startswith(b'OggS')             # OGG (OGV)
-    if not (is_mp4 or is_webm or is_ogg):
+    if not _looks_like_video(header):
         raise ValidationError('Arquivo rejeitado: o conteúdo não parece um vídeo válido.')
     return file
+
+
+def _looks_like_video(header: bytes) -> bool:
+    """Sniff leve do contêiner pelos primeiros bytes (barreira rápida no upload;
+    o ffprobe é a validação definitiva no processamento)."""
+    if len(header) < 8:
+        return False
+    checks = (
+        header[4:8] in _MP4_ATOMS,                 # MP4/MOV/M4V/3GP (ISO BMFF/QuickTime)
+        header.startswith(b'\x1aE\xdf\xa3'),       # EBML (WebM/MKV)
+        header.startswith(b'OggS'),                # OGG/OGV
+        header[:4] == b'RIFF' and header[8:12] == b'AVI ',  # AVI
+        header.startswith(b'\x00\x00\x01\xba'),    # MPEG program stream
+        header.startswith(b'\x00\x00\x01\xb3'),    # MPEG video sequence
+        header[0] == 0x47,                         # MPEG-TS (sync byte)
+        header.startswith(b'FLV'),                 # Flash Video
+        header.startswith(b'0&\xb2u'),             # ASF/WMV (30 26 B2 75)
+    )
+    return any(checks)
 
 
 # ── Recorte não-destrutivo (logos/avatar) ──────────────────────────────────────

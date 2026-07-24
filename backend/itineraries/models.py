@@ -22,6 +22,16 @@ def secure_itinerary_document_path(instance, filename):
     return f"itineraries/docs/{uuid.uuid4().hex}{ext}"
 
 
+def secure_itinerary_video_norm_path(instance, filename):
+    """Caminho do MP4 NORMALIZADO (tocável no navegador) de um vídeo da galeria."""
+    return f"itineraries/video/{uuid.uuid4().hex}.mp4"
+
+
+def secure_itinerary_thumb_path(instance, filename):
+    """Caminho da THUMBNAIL (JPEG) de um vídeo da galeria."""
+    return f"itineraries/thumb/{uuid.uuid4().hex}.jpg"
+
+
 class Itinerary(models.Model):
     """Roteiro turístico (pacote/itinerário publicável) — distinto da Lista
     de Passageiros (trips.PassengerList): o Roteiro é o "produto" comercial
@@ -448,6 +458,33 @@ class ItineraryImage(models.Model):
     color_bucket   = models.CharField('Faixa de cor', max_length=12, blank=True, default='', db_index=True)
     created_at = models.DateTimeField('Criado em', auto_now_add=True, null=True)
 
+    # ── Processamento de VÍDEO ────────────────────────────────────────────────
+    # `image` guarda SEMPRE os bytes ORIGINAIS enviados (integridade preservada).
+    # Para vídeos, geramos uma versão NORMALIZADA (H.264/faststart, tocável no
+    # navegador) + uma THUMBNAIL real. Imagens não usam estes campos (status='ready').
+    STATUS_CHOICES = [
+        ('pending',    'Na fila'),
+        ('processing', 'Processando'),
+        ('ready',      'Pronto'),
+        ('failed',     'Falhou'),
+    ]
+    status          = models.CharField('Status do processamento', max_length=12,
+                                       choices=STATUS_CHOICES, default='ready', db_index=True)
+    video_normalized = models.FileField('Vídeo normalizado (MP4)', upload_to=secure_itinerary_video_norm_path,
+                                        null=True, blank=True)
+    thumbnail       = models.FileField('Miniatura do vídeo', upload_to=secure_itinerary_thumb_path,
+                                       null=True, blank=True)
+    orig_name       = models.CharField('Nome original', max_length=255, blank=True, default='')
+    orig_size       = models.BigIntegerField('Tamanho original (bytes)', null=True, blank=True)
+    detected_mime   = models.CharField('MIME detectado', max_length=100, blank=True, default='')
+    duration        = models.FloatField('Duração (s)', null=True, blank=True)
+    width           = models.PositiveIntegerField('Largura', null=True, blank=True)
+    height          = models.PositiveIntegerField('Altura', null=True, blank=True)
+    codec           = models.CharField('Codec de origem', max_length=40, blank=True, default='')
+    error_message   = models.TextField('Mensagem técnica (falha)', blank=True, default='')
+    processing_started_at  = models.DateTimeField('Processamento iniciado em', null=True, blank=True)
+    processing_finished_at = models.DateTimeField('Processamento concluído em', null=True, blank=True)
+
     class Meta:
         ordering = ['order']
         verbose_name = 'Imagem do roteiro'
@@ -455,6 +492,22 @@ class ItineraryImage(models.Model):
         indexes = [
             models.Index(fields=['itinerary', 'order'], name='idx_itinimg_itin_order'),
         ]
+
+    # Extensões que classificam o arquivo como VÍDEO (mesmo conjunto do front/serializer).
+    VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v', '.ogv', '.mkv', '.avi',
+                  '.mpeg', '.mpg', '.3gp', '.3g2', '.wmv', '.flv', '.ogg')
+
+    @property
+    def is_video(self) -> bool:
+        name = (getattr(self.image, 'name', '') or '').lower()
+        return name.endswith(self.VIDEO_EXTS)
+
+    def playable_file(self):
+        """Arquivo que o player/download deve usar: o normalizado quando pronto,
+        senão o original (imagens sempre usam o original)."""
+        if self.is_video and self.status == 'ready' and self.video_normalized:
+            return self.video_normalized
+        return self.image
 
     def __str__(self):
         try:

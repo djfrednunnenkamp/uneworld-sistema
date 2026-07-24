@@ -25,7 +25,7 @@ _FILE_FIELDS = {
     'contracts.Contract':          ('signed_file', 'payment_receipt'),
     'config_api.OperatingCompany': ('ceo_signature',),
     'trips.Destination':           ('image',),
-    'itineraries.ItineraryImage':  ('image',),
+    'itineraries.ItineraryImage':  ('image', 'video_normalized', 'thumbnail'),
     'passengers.Passenger':        ('photo',),
     'passengers.PassengerDocument': ('file',),
 }
