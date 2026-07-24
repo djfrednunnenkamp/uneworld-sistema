@@ -443,16 +443,19 @@ class VideoApiTest(APITestCase):
         self.assertIn('attachment', r['Content-Disposition'])
         self.assertTrue(r['Content-Disposition'].endswith('.mp4"') or '.mp4' in r['Content-Disposition'])
 
-    def test_mp4_is_main_profile(self):
+    def test_default_mp4_is_constrained_baseline(self):
+        # Versão PADRÃO = H.264 Constrained Baseline (máxima compatibilidade):
+        # sem B-frames, refs=1, tag avc1, yuv420p.
         img_id, _ = self._upload_and_process()
         img = ItineraryImage.objects.get(pk=img_id)
         out = subprocess.run([FFPROBE, '-v', 'error', '-select_streams', 'v:0',
-                              '-show_entries', 'stream=profile,codec_tag_string,pix_fmt',
+                              '-show_entries', 'stream=profile,codec_tag_string,pix_fmt,has_b_frames,refs',
                               '-of', 'default=noprint_wrappers=1', img.video_normalized.path],
                              capture_output=True, text=True).stdout
-        self.assertIn('profile=Main', out)
+        self.assertIn('profile=Constrained Baseline', out)
         self.assertIn('codec_tag_string=avc1', out)
         self.assertIn('pix_fmt=yuv420p', out)
+        self.assertIn('has_b_frames=0', out)
 
     def test_downloads_contract(self):
         img_id, _ = self._upload_and_process()
@@ -721,3 +724,175 @@ class GalleryNamingTest(_Base):
         self.assertEqual(self.gn.download_basename(img), 'Paisagem - Paris - Nova descrição - 1')
         img.subject_type = 'object'
         self.assertEqual(self.gn.download_basename(img), 'Objeto - Paris - Nova descrição - 1')
+
+
+# ═══════════ Exportação avançada (sob demanda + cache) ═══════════
+
+class ExportPresetsTest(_Base):
+    """Matriz/allowlist de exportação — validação e hash (sem ffmpeg)."""
+
+    def setUp(self):
+        from itineraries import gallery_export_presets as P
+        self.P = P
+
+    def test_default_config_valid(self):
+        cfg = self.P.normalize_config(self.P.DEFAULT_CONFIG)
+        self.assertEqual(cfg['container'], 'mp4')
+        self.assertEqual(cfg['video_codec'], 'h264_baseline')
+        self.assertEqual(cfg['audio_codec'], 'aac')
+
+    def test_rejects_invalid_container(self):
+        with self.assertRaises(self.P.ExportOptionError):
+            self.P.normalize_config({'container': 'avi', 'video_codec': 'h264_high'})
+
+    def test_rejects_codec_not_in_container(self):
+        with self.assertRaises(self.P.ExportOptionError):
+            self.P.normalize_config({'container': 'webm', 'video_codec': 'h264_high'})  # webm só vp9/av1
+        with self.assertRaises(self.P.ExportOptionError):
+            self.P.normalize_config({'container': 'mp4', 'video_codec': 'prores_422'})  # prores só mov
+
+    def test_rejects_audio_not_valid(self):
+        with self.assertRaises(self.P.ExportOptionError):
+            self.P.normalize_config({'container': 'mp4', 'video_codec': 'h264_high', 'audio_codec': 'opus'})
+
+    def test_rejects_upscale(self):
+        with self.assertRaises(self.P.ExportOptionError):
+            self.P.normalize_config({'container': 'mp4', 'video_codec': 'h264_high', 'resolution': '2160'},
+                                    source_height=1080)
+
+    def test_hash_deterministic_and_config_sensitive(self):
+        c1 = self.P.normalize_config({'container': 'mp4', 'video_codec': 'h264_high', 'quality': 'high'})
+        c2 = self.P.normalize_config({'container': 'mp4', 'video_codec': 'h264_high', 'quality': 'compact'})
+        self.assertEqual(self.P.config_hash(5, c1), self.P.config_hash(5, c1))
+        self.assertNotEqual(self.P.config_hash(5, c1), self.P.config_hash(5, c2))
+        self.assertNotEqual(self.P.config_hash(5, c1), self.P.config_hash(6, c1))
+
+    def test_options_payload_filters_resolutions(self):
+        p = self.P.options_payload(source_height=720)
+        vals = {r['value'] for r in p['resolutions']}
+        self.assertIn('720', vals); self.assertIn('original', vals)
+        self.assertNotIn('2160', vals); self.assertNotIn('1080', vals)  # maiores que a origem
+
+    def test_build_command_has_no_shell_and_only_allowlist(self):
+        cfg = self.P.normalize_config({'container': 'mp4', 'video_codec': 'h264_baseline',
+                                       'audio_codec': 'none', 'quality': 'balanced'})
+        cmd = self.P.build_command('ffmpeg', '/in.mp4', '/out.mp4', cfg)
+        self.assertIsInstance(cmd, list)
+        self.assertIn('libx264', cmd); self.assertIn('-an', cmd)
+        self.assertIn('baseline', cmd)
+
+
+@requires_vp8   # usa VP9/H.264 rápidos (encoders libvpx/x264 já checados)
+@media_isolated
+@override_settings(VIDEO_PROCESS_INLINE=False, DEBUG=True,
+                   VIDEO_VP9_CPU_USED=5)
+class VideoExportApiTest(APITestCase):
+    """Fluxo de exportação: options, criar/dedup, processar, status, download, segurança."""
+
+    def setUp(self):
+        self.user = make_user('exp', gallery_upload_videos=True, gallery_view=True)
+        self.viewer = make_user('expv', gallery_view_images=True)  # não vê vídeos
+        self.img = self._make_video()
+
+    def _make_video(self):
+        src = _gen('.mp4', seconds=2, size='640x480', audio=True)
+        with open(src, 'rb') as f:
+            data = f.read()
+        os.remove(src)
+        img = ItineraryImage(kind='gallery', subject_type='landscape', caption='Teste')
+        img.image.save('v.mp4', SimpleUploadedFile('v.mp4', data), save=False)
+        img.status = 'ready'; img.save()
+        return img
+
+    def _run(self, config):
+        """Cria via API (inline off → pending) e processa síncrono. Retorna o export."""
+        from itineraries.models import VideoExport
+        from itineraries import video_export as VE
+        self.client.force_authenticate(self.user)
+        r = self.client.post(f'/api/itineraries/gallery/{self.img.id}/exports/', config, format='json')
+        self.assertIn(r.status_code, (200, 202), r.content)
+        exp_id = r.data['id']
+        VE.process_export(exp_id)
+        return VideoExport.objects.get(pk=exp_id)
+
+    def test_options_endpoint(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.get(f'/api/itineraries/gallery/{self.img.id}/export-options/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['default']['video_codec'], 'h264_baseline')
+        self.assertTrue(any(c['value'] == 'mp4' for c in r.data['containers']))
+
+    def test_create_returns_202_and_processes(self):
+        exp = self._run({'container': 'mp4', 'video_codec': 'h264_high', 'audio_codec': 'aac',
+                         'resolution': 'original', 'quality': 'compact'})
+        self.assertEqual(exp.status, 'ready')
+        self.assertTrue(exp.file and exp.file.name)
+        info = vsvc.probe(exp.file.path)
+        self.assertEqual(info.codec, 'h264')
+
+    def test_webm_vp9_export(self):
+        exp = self._run({'container': 'webm', 'video_codec': 'vp9', 'audio_codec': 'opus',
+                         'resolution': '480', 'quality': 'compact'})
+        self.assertEqual(exp.status, 'ready')
+        self.assertEqual(vsvc.probe(exp.file.path).codec, 'vp9')
+
+    def test_dedup_same_config_reuses(self):
+        cfg = {'container': 'mp4', 'video_codec': 'h264_high', 'audio_codec': 'aac', 'quality': 'balanced'}
+        e1 = self._run(cfg)
+        self.client.force_authenticate(self.user)
+        r = self.client.post(f'/api/itineraries/gallery/{self.img.id}/exports/', cfg, format='json')
+        self.assertEqual(r.data['id'], e1.id)      # mesma config → reusa
+        self.assertEqual(r.status_code, 200)       # já pronto
+
+    def test_invalid_combo_rejected_400(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.post(f'/api/itineraries/gallery/{self.img.id}/exports/',
+                             {'container': 'webm', 'video_codec': 'h264_high'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_status_and_download(self):
+        import hashlib
+        exp = self._run({'container': 'mp4', 'video_codec': 'h264_high', 'audio_codec': 'aac', 'quality': 'compact'})
+        self.client.force_authenticate(self.user)
+        st = self.client.get(f'/api/itineraries/gallery/{self.img.id}/exports/{exp.id}/status/')
+        self.assertEqual(st.data['status'], 'ready')
+        self.assertTrue(st.data['download_url'])
+        with exp.file.open('rb') as f:
+            stored = hashlib.sha256(f.read()).hexdigest()
+        dl = self.client.get(f'/api/itineraries/gallery/{self.img.id}/exports/{exp.id}/download/')
+        self.assertEqual(dl.status_code, 200)
+        self.assertEqual(dl['Content-Type'], 'video/mp4')
+        self.assertIn('attachment', dl['Content-Disposition'])
+        self.assertIn('MP4', dl['Content-Disposition'])
+        body = b''.join(dl.streaming_content)
+        self.assertEqual(hashlib.sha256(body).hexdigest(), stored)
+
+    def test_download_before_ready_conflicts(self):
+        from itineraries.models import VideoExport
+        self.client.force_authenticate(self.user)
+        r = self.client.post(f'/api/itineraries/gallery/{self.img.id}/exports/',
+                             {'container': 'mp4', 'video_codec': 'h264_high', 'quality': 'compact'}, format='json')
+        exp = VideoExport.objects.get(pk=r.data['id'])   # pending (inline off)
+        dl = self.client.get(f'/api/itineraries/gallery/{self.img.id}/exports/{exp.id}/download/')
+        self.assertEqual(dl.status_code, 409)
+
+    def test_permission_required(self):
+        self.client.force_authenticate(self.viewer)      # não vê vídeos
+        r = self.client.get(f'/api/itineraries/gallery/{self.img.id}/export-options/')
+        self.assertIn(r.status_code, (403, 404))
+
+    def test_expired_purge_keeps_originals(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from itineraries.models import VideoExport
+        from itineraries import video_export as VE
+        exp = self._run({'container': 'mp4', 'video_codec': 'h264_high', 'quality': 'compact'})
+        path = exp.file.path
+        VideoExport.objects.filter(pk=exp.id).update(expires_at=timezone.now() - timedelta(days=1))
+        orig_path = self.img.image.path
+        VE.purge_expired()
+        self.assertFalse(VideoExport.objects.filter(pk=exp.id).exists())
+        self.assertFalse(os.path.exists(path))           # export removida
+        self.img.refresh_from_db()                       # original intacto
+        self.assertTrue(self.img.image and self.img.image.name)
+        self.assertTrue(os.path.exists(orig_path))

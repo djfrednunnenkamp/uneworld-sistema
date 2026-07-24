@@ -218,10 +218,12 @@ def normalize(src: str, dst: str, *, target_fps: int | None = None,
         '-i', src,
         '-map', '0:v:0', '-map', '0:a?',
         '-vf', vf,
-        # Profile MAIN + level 4.0: máxima compatibilidade (equipamentos antigos,
-        # Apple, TVs). yuv420p = 8-bit 4:2:0 (não usa High10/422/444). tag avc1
-        # explícita; áudio AAC-LC (aac_low).
-        '-c:v', 'libx264', '-profile:v', 'main', '-level', '4.0', '-tag:v', 'avc1',
+        '-fps_mode', 'cfr', '-r', str(target_fps),
+        # H.264 CONSTRAINED BASELINE (a versão de MÁXIMA compatibilidade — abre no
+        # reprodutor padrão do Ubuntu e em aparelhos antigos): sem B-frames, refs=1,
+        # CABAC desligado. yuv420p 8-bit, tag avc1, áudio AAC-LC. faststart.
+        '-c:v', 'libx264', '-profile:v', 'baseline', '-level', '4.0', '-tag:v', 'avc1',
+        '-x264-params', 'cabac=0:bframes=0:ref=1',
         '-preset', preset, '-crf', str(crf),
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac', '-profile:a', 'aac_low', '-b:a', '128k', '-ac', '2',

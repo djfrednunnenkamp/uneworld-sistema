@@ -1587,7 +1587,8 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve', 'download', 'download_item', 'video_status'):
+        if self.action in ('list', 'retrieve', 'download', 'download_item', 'video_status',
+                           'export_options', 'exports', 'export_status', 'export_download'):
             return [_GalleryReadPermission()]
         if self.action == 'reprocess':
             return [RequirePermission('gallery_upload_videos', 'gallery_edit')()]
@@ -1968,6 +1969,111 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         except Exception:
             pass
         return resp
+
+    # ── Exportação avançada (sob demanda + cache) ─────────────────────────────
+    @action(detail=True, methods=['get'], url_path='export-options')
+    def export_options(self, request, pk=None):
+        """GET /gallery/{id}/export-options/ — matriz de formatos/codecs/resoluções
+        (fonte da verdade no backend), filtrando resoluções pela origem do vídeo."""
+        img = self.get_object()
+        from . import gallery_export_presets as P
+        source_h = None
+        try:
+            src = img.image
+            if getattr(src, 'path', None):
+                source_h = vsvc_probe_height(src.path)
+        except Exception:
+            source_h = img.height
+        return Response(P.options_payload(source_height=source_h))
+
+    @action(detail=True, methods=['post'], url_path='exports')
+    def exports(self, request, pk=None):
+        """POST /gallery/{id}/exports/ — cria (ou reusa) uma exportação. 202 Accepted
+        com o estado. Só ENUMS validados na allowlist; nunca args de FFmpeg do cliente."""
+        img = self.get_object()
+        if not img.is_video:
+            return Response({'detail': 'Só vídeos podem ser exportados.'}, status=status.HTTP_400_BAD_REQUEST)
+        from . import gallery_export_presets as P
+        from .video_export import create_or_reuse, ExportBusy
+        source_h = None
+        try:
+            if getattr(img.image, 'path', None):
+                source_h = vsvc_probe_height(img.image.path)
+        except Exception:
+            source_h = img.height
+        try:
+            config = P.normalize_config(request.data, source_height=source_h)
+        except P.ExportOptionError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            export, created = create_or_reuse(img, config, getattr(request, 'user', None))
+        except ExportBusy as e:
+            return Response({'detail': str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        from .serializers import VideoExportSerializer
+        data = VideoExportSerializer(export, context=self.get_serializer_context()).data
+        return Response(data, status=(status.HTTP_202_ACCEPTED if export.status != 'ready' else status.HTTP_200_OK))
+
+    @action(detail=True, methods=['get'], url_path=r'exports/(?P<export_id>[0-9]+)/status')
+    def export_status(self, request, pk=None, export_id=None):
+        """GET status/progresso de UMA exportação (self-heal de presos)."""
+        img = self.get_object()
+        from .models import VideoExport
+        from .video_export import recover_stuck
+        exp = VideoExport.objects.filter(pk=export_id, video=img).first()
+        if exp is None:
+            return Response({'detail': 'Exportação não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if exp.status == 'processing':
+            from django.utils import timezone as _tz
+            hb = exp.heartbeat_at or exp.started_at
+            if hb and (_tz.now() - hb).total_seconds() > getattr(settings, 'VIDEO_STUCK_HEARTBEAT_SECONDS', 120):
+                recover_stuck(); exp.refresh_from_db()
+        from .serializers import VideoExportSerializer
+        return Response(VideoExportSerializer(exp, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['get'], url_path=r'exports/(?P<export_id>[0-9]+)/download')
+    def export_download(self, request, pk=None, export_id=None):
+        """GET baixa o arquivo da exportação quando pronta (attachment, nome bonito)."""
+        import os as _os
+        img = self.get_object()
+        from .models import VideoExport
+        exp = VideoExport.objects.filter(pk=export_id, video=img).first()
+        if exp is None:
+            return Response({'detail': 'Exportação não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if exp.status != 'ready' or not (exp.file and exp.file.name):
+            return Response({'detail': 'A exportação ainda não está pronta.'}, status=status.HTTP_409_CONFLICT)
+        from . import gallery_export_presets as P
+        from .gallery_naming import download_basename, content_disposition
+        ext = P.container_ext(exp.config())
+        suffix = P.config_summary(exp.config()).replace(' · ', ' ').replace('.', '')
+        fname = f'{download_basename(img)} - {suffix}'[:190] + ext
+        ctype = P.container_mime(exp.config())
+        try:
+            exp.file.open('rb')
+            resp = FileResponse(exp.file, content_type=ctype)
+            resp['Content-Disposition'] = content_disposition(fname)
+        except Exception:
+            return Response({'detail': 'Não foi possível ler o arquivo.'}, status=status.HTTP_404_NOT_FOUND)
+        from django.utils import timezone as _tz
+        VideoExport.objects.filter(pk=exp.pk).update(last_downloaded_at=_tz.now())
+        try:
+            from audit.tracking import log_event
+            log_event('download', model_name='VideoExport', model_label='Exportação de vídeo',
+                      object_id=str(exp.pk), object_repr=fname,
+                      changes={'Download (exportação)': fname}, user=getattr(request, 'user', None))
+        except Exception:
+            pass
+        return resp
+
+
+def vsvc_probe_height(path):
+    """Altura do vídeo de origem (para filtrar resoluções). None se falhar."""
+    try:
+        from .services import video as vsvc
+        info = vsvc.probe(path)
+        _w, h = info.display_dims
+        return h or info.height
+    except Exception:
+        return None
 
 
 # ═══════════ Precificação (aba Valores) ═══════════

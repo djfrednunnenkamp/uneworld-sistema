@@ -272,8 +272,9 @@ docker compose -f docker-compose.prod.yml exec backend python manage.py shell
 
 Todo vídeo enviado à Galeria gera **duas versões** para tocar em qualquer navegador,
 além de uma **thumbnail** real:
-- **MP4 / H.264 Main** (`avc1`, level 4.0, yuv420p, AAC, `+faststart`) — o padrão, com
-  máxima compatibilidade (celular, Windows, macOS, TVs, navegadores com H.264).
+- **MP4 / H.264 Constrained Baseline** (`avc1`, sem B-frames, refs=1, CABAC off, level
+  4.0, yuv420p, AAC-LC, `+faststart`) — o **padrão de download** (máxima compatibilidade:
+  abre até em decodificadores mínimos como o openh264, aparelhos antigos, TVs).
 - **WebM / VP8 + Vorbis** — **para Linux**. É a combinação que abre no **reprodutor
   padrão do Ubuntu** (GStreamer): `vp8dec`/`vorbisdec` vêm em `plugins-good`/`base`,
   presentes em TODO Ubuntu. VP9/Opus e H.264 exigem `plugins-bad`/`libav`, que **não**
@@ -316,6 +317,19 @@ o build estático inclui `libx264`, `libvpx` (VP8), `libvorbis` e o AAC nativo.
   O comando é **idempotente** e pode rodar por cron (ex.: `--pending --requeue-stuck 30`
   a cada 5 min) em servidores com muito volume, ou com `VIDEO_PROCESS_INLINE=0`
   quando quiser tirar a conversão do processo web.
+- **Download em dois níveis:** o botão "Baixar vídeo" baixa **imediatamente** a versão
+  padrão (MP4 CBP, já pronta — sem nova conversão). "Opções avançadas…" abre um modal
+  para exportar em outro **formato/codec/resolução/qualidade** (MP4 h264/HEVC/AV1, WebM
+  VP9/AV1, MOV h264/HEVC/ProRes, MKV) — geradas **sob demanda**, com **cache** por
+  configuração (`VideoExport`, dedup por hash, expira em `VIDEO_EXPORT_EXPIRY_DAYS`).
+  Só ENUMS da allowlist do backend (nunca args de FFmpeg do cliente). Manutenção:
+  ```bash
+  python manage.py video_exports --purge-expired     # limpa exports vencidos (cron)
+  python manage.py video_exports --requeue-stuck      # recupera presos
+  python manage.py video_exports --process-pending    # fila (se VIDEO_PROCESS_INLINE=0)
+  ```
+  Limites (anti-DoS): `VIDEO_EXPORT_MAX_PER_USER` (3), `VIDEO_EXPORT_MAX_TOTAL` (6),
+  `VIDEO_EXPORT_TIMEOUT` (3600s). AV1 é lento (`VIDEO_AV1_CPU_USED`).
 - **Nome do download:** o arquivo baixado recebe um nome BONITO montado dos metadados
   da Galeria — `Tipo - Cidade - País - Descrição - ID.ext` (partes ausentes são
   puladas; o ID vai por último). É calculado no download (editar metadados muda o

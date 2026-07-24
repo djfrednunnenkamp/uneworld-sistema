@@ -26,6 +26,7 @@ _FILE_FIELDS = {
     'config_api.OperatingCompany': ('ceo_signature',),
     'trips.Destination':           ('image',),
     'itineraries.ItineraryImage':  ('image', 'video_normalized', 'video_normalized_webm', 'thumbnail'),
+    'itineraries.VideoExport':     ('file',),
     'passengers.Passenger':        ('photo',),
     'passengers.PassengerDocument': ('file',),
 }

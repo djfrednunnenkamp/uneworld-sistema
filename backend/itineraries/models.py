@@ -558,6 +558,68 @@ class ItineraryImage(models.Model):
         return f'Imagem ({self.get_kind_display()}) — {rot}'
 
 
+def secure_video_export_path(instance, filename):
+    """Caminho do arquivo de EXPORTAÇÃO avançada (nome interno uuid; o nome bonito é
+    calculado no download)."""
+    ext = os.path.splitext(filename)[1].lower() or '.bin'
+    return f"itineraries/exports/{uuid.uuid4().hex}{ext}"
+
+
+class VideoExport(models.Model):
+    """Exportação avançada, sob demanda, de um vídeo da Galeria em outro formato/
+    codec/resolução/qualidade. É CACHEADA por `config_hash` (mesma config + vídeo =
+    reusa). NÃO substitui o original nem o normalizado padrão. Expira e é limpa."""
+    STATUS_CHOICES = [
+        ('pending', 'Na fila'), ('processing', 'Processando'),
+        ('ready', 'Pronto'), ('failed', 'Falhou'),
+    ]
+    video       = models.ForeignKey(ItineraryImage, on_delete=models.CASCADE, related_name='exports')
+    requested_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    # Config canônica (enums validados no backend) + hash determinístico p/ dedup.
+    container    = models.CharField('Contêiner', max_length=8)
+    video_codec  = models.CharField('Codec de vídeo', max_length=20)
+    audio_codec  = models.CharField('Codec de áudio', max_length=10)
+    resolution   = models.CharField('Resolução', max_length=10)
+    quality      = models.CharField('Qualidade', max_length=12)
+    config_hash  = models.CharField('Hash da config', max_length=64, db_index=True)
+
+    status       = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending', db_index=True)
+    progress     = models.FloatField('Progresso (%)', default=0)
+    stage        = models.CharField('Etapa', max_length=24, blank=True, default='queued')
+    estimated_remaining_seconds = models.FloatField('Tempo restante (s)', null=True, blank=True)
+    heartbeat_at = models.DateTimeField('Sinal de vida', null=True, blank=True)
+    attempts     = models.PositiveIntegerField(default=0)
+
+    file         = models.FileField('Arquivo exportado', upload_to=secure_video_export_path, null=True, blank=True)
+    file_size    = models.BigIntegerField('Tamanho (bytes)', null=True, blank=True)
+    error        = models.TextField('Falha técnica', blank=True, default='')
+
+    created_at   = models.DateTimeField(auto_now_add=True)
+    started_at   = models.DateTimeField(null=True, blank=True)
+    finished_at  = models.DateTimeField(null=True, blank=True)
+    expires_at   = models.DateTimeField('Expira em', null=True, blank=True, db_index=True)
+    last_downloaded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Exportação de vídeo'
+        verbose_name_plural = 'Exportações de vídeo'
+        indexes = [models.Index(fields=['video', 'config_hash'], name='idx_vexport_video_hash')]
+
+    def config(self):
+        return {'container': self.container, 'video_codec': self.video_codec,
+                'audio_codec': self.audio_codec, 'resolution': self.resolution, 'quality': self.quality}
+
+    def elapsed_seconds(self):
+        if not self.started_at:
+            return None
+        from django.utils import timezone
+        end = self.finished_at or timezone.now()
+        return max(0.0, (end - self.started_at).total_seconds())
+
+    def __str__(self):
+        return f'Export #{self.pk} vídeo #{self.video_id} ({self.container}/{self.video_codec})'
+
+
 class ItineraryFieldTemplate(models.Model):
     """Template reutilizável para os campos de texto da aba 'Informações do
     Roteiro'. Cada template pertence a UM campo. Ao ser editado nas Configurações,

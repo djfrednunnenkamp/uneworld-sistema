@@ -206,6 +206,14 @@ VIDEO_PROCESS_INLINE = config('VIDEO_PROCESS_INLINE', default=(VIDEO_PROCESS_MOD
 # grandes podem demorar, mas precisam continuar emitindo sinal de vida.
 VIDEO_STUCK_HEARTBEAT_SECONDS = config('VIDEO_STUCK_HEARTBEAT_SECONDS', default=120, cast=int)
 VIDEO_MAX_PROCESSING_ATTEMPTS = config('VIDEO_MAX_PROCESSING_ATTEMPTS', default=3, cast=int)
+# ── Exportação avançada (sob demanda) ──────────────────────────────────────────
+# Gera outros formatos/codecs sob demanda, com CACHE por config. Não gera tudo
+# antecipadamente. Ajuste limites conforme a CPU do servidor.
+VIDEO_EXPORT_TIMEOUT      = config('VIDEO_EXPORT_TIMEOUT',      default=3600, cast=int)  # por conversão
+VIDEO_EXPORT_EXPIRY_DAYS  = config('VIDEO_EXPORT_EXPIRY_DAYS',  default=7,    cast=int)  # cache
+VIDEO_EXPORT_MAX_PER_USER = config('VIDEO_EXPORT_MAX_PER_USER', default=3,    cast=int)  # simultâneas/usuário
+VIDEO_EXPORT_MAX_TOTAL    = config('VIDEO_EXPORT_MAX_TOTAL',    default=6,    cast=int)  # simultâneas global
+VIDEO_AV1_CPU_USED        = config('VIDEO_AV1_CPU_USED',        default=6,    cast=int)  # AV1 é lento
 
 # ── OnlyOffice Document Server (edição de Office na aba Observações do roteiro) ──
 # Vazio = integração desligada (o front mostra baixar/visualizar em vez de editar).

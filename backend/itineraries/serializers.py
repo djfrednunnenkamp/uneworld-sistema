@@ -6,7 +6,7 @@ from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, Itiner
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
-                     ItineraryInventoryBlock)
+                     ItineraryInventoryBlock, VideoExport)
 from . import onlyoffice
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -402,8 +402,8 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
             return []
         out = []
         mp4 = self.get_video_url(obj)
-        if mp4:                                  # avc1.4d4028 = H.264 Main level 4.0
-            out.append({'url': mp4, 'type': 'video/mp4; codecs="avc1.4d4028"', 'codec': 'avc1'})
+        if mp4:                                  # avc1.42e01e = H.264 Constrained Baseline
+            out.append({'url': mp4, 'type': 'video/mp4; codecs="avc1.42e01e"', 'codec': 'avc1'})
         webm = self.get_webm_url(obj)
         if webm:                                 # VP8/Vorbis (compat Linux/GStreamer padrão)
             out.append({'url': webm, 'type': 'video/webm; codecs="vp8, vorbis"', 'codec': 'vp8'})
@@ -451,6 +451,47 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     def get_error(self, obj):
         # Mensagem pública só quando falhou (sem stack trace/caminhos internos).
         return obj.error_message if obj.status == 'failed' else ''
+
+
+class VideoExportSerializer(serializers.ModelSerializer):
+    """Estado de UMA exportação avançada (progresso + link quando pronto)."""
+    summary        = serializers.SerializerMethodField()
+    download_url   = serializers.SerializerMethodField()
+    filename       = serializers.SerializerMethodField()
+    elapsed_seconds = serializers.SerializerMethodField()
+    error_message  = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = VideoExport
+        fields = ['id', 'video', 'container', 'video_codec', 'audio_codec', 'resolution', 'quality',
+                  'status', 'progress', 'stage', 'estimated_remaining_seconds', 'elapsed_seconds',
+                  'file_size', 'summary', 'download_url', 'filename', 'error_message',
+                  'created_at', 'finished_at', 'expires_at']
+
+    def get_summary(self, obj):
+        from .gallery_export_presets import config_summary
+        return config_summary(obj.config())
+
+    def get_download_url(self, obj):
+        if obj.status != 'ready':
+            return None
+        request = self.context.get('request')
+        url = f'/api/itineraries/gallery/{obj.video_id}/exports/{obj.pk}/download/'
+        return request.build_absolute_uri(url) if request else url
+
+    def get_filename(self, obj):
+        from .gallery_export_presets import container_ext, config_summary
+        from .gallery_naming import download_basename
+        base = download_basename(obj.video)
+        suffix = config_summary(obj.config()).replace(' · ', ' ').replace('.', '')
+        name = f'{base} - {suffix}'[:200]
+        return f'{name}{container_ext(obj.config())}'
+
+    def get_elapsed_seconds(self, obj):
+        return obj.elapsed_seconds()
+
+    def get_error_message(self, obj):
+        return obj.error if obj.status == 'failed' else ''
 
 
 class ItineraryDaySerializer(serializers.ModelSerializer):
