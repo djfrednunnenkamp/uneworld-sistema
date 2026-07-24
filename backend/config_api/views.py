@@ -2156,6 +2156,12 @@ class BusMapSerializer(serializers.ModelSerializer):
                       left_labels=row.get('left_labels', []), right_labels=row.get('right_labels', []))
             for i, row in enumerate(rows_data)
         ])
+        # delete()+bulk_create burlam o signal e o diff do BusMap não inclui as linhas
+        # (relação reversa) → o redesenho do layout ficaria invisível. Loga um resumo.
+        from audit.tracking import log_event
+        log_event('update', model_name='BusMap', model_label='Mapa de ônibus',
+                  object_id=bus_map.pk, object_repr=str(bus_map),
+                  changes={'Layout de assentos': {'antes': '—', 'depois': f'{len(rows_data)} linha(s) redefinidas'}})
 
     def create(self, validated_data):
         rows_data = validated_data.pop('rows', [])

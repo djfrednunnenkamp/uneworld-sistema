@@ -422,8 +422,12 @@ def _log_client_event(request, action, default_model_name, default_model_label):
     if not label:
         return Response({'error': 'label é obrigatório.'}, status=400)
     req_model = (request.data.get('model_name') or '').strip()[:100]
-    allowed = set(TRACKED_MODELS) | _CLIENT_LOG_MODELS
-    model_name = req_model if req_model in allowed else default_model_name
+    # Aceita um modelo RASTREADO (ex.: Contract/Itinerary/Lamina, usados por
+    # exportações reais) ou a convenção de import/export de planilha do cliente
+    # (prefixo 'Csv…', ex.: CsvImportGeo/CsvExportGeo/CsvImportPassageiros). Qualquer
+    # outra coisa cai no default — o cliente não crava um model_name arbitrário.
+    allowed = req_model in TRACKED_MODELS or req_model in _CLIENT_LOG_MODELS or req_model.startswith('Csv')
+    model_name = req_model if allowed else default_model_name
     object_id = str(request.data.get('object_id') or '')[:50]
     user = request.user
     AuditLog.objects.create(

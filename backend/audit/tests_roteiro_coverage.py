@@ -118,6 +118,15 @@ class NewlyTrackedModelsTest(TestCase):
         self.assertTrue(_logs('VoucherTemplate', 'create', t.id).exists())
 
 
+class WhitelistCollisionGuardTest(TestCase):
+    """A whitelist (chaveada por nome puro) não pode ter colisão entre apps (P4)."""
+
+    def test_no_tracked_name_collisions(self):
+        from audit.tracking import check_tracked_model_collisions
+        self.assertEqual(check_tracked_model_collisions(), [],
+                         msg='dois modelos de apps diferentes com o mesmo nome estão rastreados')
+
+
 class AuditSafetyTest(TestCase):
     """Uma falha ao gravar o log NUNCA pode derrubar a operação real do usuário."""
 

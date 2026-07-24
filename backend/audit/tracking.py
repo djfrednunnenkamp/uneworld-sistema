@@ -318,6 +318,29 @@ def log_field_propagation(instances, new_values, *, model_name, model_label, act
                       object_id=inst.pk, object_repr=str(inst), changes=changes)
 
 
+def check_tracked_model_collisions():
+    """A whitelist é chaveada pelo NOME PURO da classe. Isso é intencional para
+    COMPATIBILIDADE: o `model_name` gravado no log e todos os filtros/drills de
+    consulta (e o frontend) usam o nome puro, que é ÚNICO hoje. O risco é uma COLISÃO
+    FUTURA — dois modelos de apps diferentes com o mesmo nome de classe fariam o
+    signal rastrear/rotular o modelo errado, silenciosamente. Este guard roda no
+    startup e AVISA (loud) se isso acontecer, para o hazard deixar de ser silencioso.
+    Retorna a lista de nomes em colisão (para testes)."""
+    from django.apps import apps
+    by_name = {}
+    for m in apps.get_models():
+        by_name.setdefault(m.__name__, []).append(m._meta.label)
+    collided = []
+    for name in TRACKED_MODELS:
+        labels = by_name.get(name, [])
+        if len(labels) > 1:
+            collided.append(name)
+            _log.warning('AUDITORIA: nome de modelo rastreado %r existe em múltiplos apps %s — '
+                         'o signal usa o nome PURO e pode rastrear/rotular o modelo errado. '
+                         'Desambigue (renomeie a classe ou trate por app_label).', name, labels)
+    return collided
+
+
 def log_bulk_delete(instances, *, model_name, model_label):
     """Loga a exclusão de linhas removidas por `QuerySet.delete()` (fast-path, que NÃO
     dispara `post_delete`). Chame ANTES do delete, com a lista já materializada."""
