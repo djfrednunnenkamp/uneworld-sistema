@@ -425,3 +425,35 @@ class VideoApiTest(APITestCase):
         self.client.force_authenticate(self.viewer)          # não vê vídeos
         r = self.client.get(f'/api/itineraries/gallery/{img_id}/status/')
         self.assertIn(r.status_code, (403, 404))
+
+    def test_serializer_media_contract(self):
+        # Contrato claro de mídia: playback (video_url), download_url, thumb, mime.
+        img_id, _ = self._upload_and_process()
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/')
+        self.assertTrue(r.data['video_url'])
+        self.assertTrue(r.data['thumb_url'])
+        self.assertEqual(r.data['mime_type'], 'video/mp4')
+        self.assertIn(f'/api/itineraries/gallery/{img_id}/download/', r.data['download_url'])
+
+    def test_download_endpoint_headers(self):
+        img_id, _ = self._upload_and_process()
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/download/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'video/mp4')
+        self.assertIn('attachment', r['Content-Disposition'])
+        self.assertTrue(r['Content-Disposition'].endswith('.mp4"') or '.mp4' in r['Content-Disposition'])
+
+    def test_processing_video_has_no_playback_url(self):
+        # Enquanto processa, NÃO expõe video_url (o front não abre player quebrado).
+        self.client.force_authenticate(self.uploader)
+        src = _gen('.mp4')
+        with open(src, 'rb') as f:
+            data = f.read()
+        os.remove(src)
+        resp = self.client.post('/api/itineraries/gallery/',
+                                {'image': SimpleUploadedFile('c.mp4', data, content_type='video/mp4')},
+                                format='multipart')
+        img_id = resp.data['id']   # status 'pending', ainda não processado
+        r = self.client.get(f'/api/itineraries/gallery/{img_id}/status/')
+        self.assertIn(r.data['status'], ('pending', 'processing'))
+        self.assertIsNone(r.data['video_url'])

@@ -338,6 +338,8 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     # URL da thumbnail (poster do card/modal) e o status/erro do processamento.
     video_url       = serializers.SerializerMethodField()
     thumb_url       = serializers.SerializerMethodField()
+    download_url    = serializers.SerializerMethodField()
+    mime_type       = serializers.SerializerMethodField()
     error           = serializers.SerializerMethodField()
     # Progresso real do processamento (barra + ETA na interface).
     processing_elapsed_seconds = serializers.SerializerMethodField()
@@ -347,7 +349,8 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
                   'city', 'country', 'continent', 'city_data', 'country_data', 'continent_name',
                   'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name',
-                  'status', 'video_url', 'thumb_url', 'duration', 'width', 'height', 'error',
+                  'status', 'video_url', 'thumb_url', 'download_url', 'mime_type',
+                  'duration', 'width', 'height', 'error',
                   'processing_stage', 'processing_progress', 'estimated_remaining_seconds',
                   'processing_elapsed_seconds', 'processing_heartbeat_at']
 
@@ -380,6 +383,18 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     def get_thumb_url(self, obj):
         if self.get_is_video(obj) and obj.thumbnail:
             return self._abs(obj.thumbnail.url)
+        return None
+
+    def get_download_url(self, obj):
+        # Endpoint autenticado de download (attachment). O front usa via axios
+        # (cookie/CSRF, proxy same-origin/CORS) — nunca monta path de storage à mão.
+        if obj.pk is None:
+            return None
+        return self._abs(f'/api/itineraries/gallery/{obj.pk}/download/')
+
+    def get_mime_type(self, obj):
+        if self.get_is_video(obj):
+            return 'video/mp4' if obj.status == 'ready' else None
         return None
 
     def get_error(self, obj):
