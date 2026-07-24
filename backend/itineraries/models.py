@@ -27,6 +27,11 @@ def secure_itinerary_video_norm_path(instance, filename):
     return f"itineraries/video/{uuid.uuid4().hex}.mp4"
 
 
+def secure_itinerary_video_webm_path(instance, filename):
+    """Caminho da versão WebM (VP9/Opus) — fallback p/ navegadores/players sem H.264."""
+    return f"itineraries/video/{uuid.uuid4().hex}.webm"
+
+
 def secure_itinerary_thumb_path(instance, filename):
     """Caminho da THUMBNAIL (JPEG) de um vídeo da galeria."""
     return f"itineraries/thumb/{uuid.uuid4().hex}.jpg"
@@ -472,14 +477,16 @@ class ItineraryImage(models.Model):
                                        choices=STATUS_CHOICES, default='ready', db_index=True)
     # Progresso real (etapa + % 0-100 + heartbeat + ETA) para a barra da interface.
     STAGE_CHOICES = [
-        ('queued',              'Na fila'),
-        ('probing',             'Analisando o arquivo'),
-        ('transcoding',         'Convertendo'),
-        ('validating',          'Verificando'),
-        ('generating_thumbnail','Gerando capa'),
-        ('finalizing',          'Finalizando'),
-        ('completed',           'Concluído'),
-        ('failed',              'Falhou'),
+        ('queued',                'Na fila'),
+        ('probing',               'Analisando o arquivo'),
+        ('transcoding',           'Convertendo (MP4)'),
+        ('validating',            'Verificando (MP4)'),
+        ('transcoding_webm',      'Convertendo (WebM)'),
+        ('validating_webm',       'Verificando (WebM)'),
+        ('generating_thumbnail',  'Gerando capa'),
+        ('finalizing',            'Finalizando'),
+        ('completed',             'Concluído'),
+        ('failed',                'Falhou'),
     ]
     processing_stage    = models.CharField('Etapa', max_length=24, choices=STAGE_CHOICES,
                                            default='queued', blank=True)
@@ -488,8 +495,13 @@ class ItineraryImage(models.Model):
     estimated_remaining_seconds = models.FloatField('Tempo restante estimado (s)', null=True, blank=True)
     processing_speed    = models.FloatField('Velocidade do FFmpeg (x)', null=True, blank=True)
     processing_attempts = models.PositiveIntegerField('Tentativas de processamento', default=0)
-    video_normalized = models.FileField('Vídeo normalizado (MP4)', upload_to=secure_itinerary_video_norm_path,
+    video_normalized = models.FileField('Vídeo normalizado (MP4/H.264)', upload_to=secure_itinerary_video_norm_path,
                                         null=True, blank=True)
+    # Versão WebM (VP9/Opus) — fallback para navegadores/players Linux sem decoder
+    # H.264. Gerada ADICIONALMENTE ao MP4; pode faltar (VP9 falhou/desligado) sem
+    # impedir a reprodução do MP4.
+    video_normalized_webm = models.FileField('Vídeo normalizado (WebM/VP9)', upload_to=secure_itinerary_video_webm_path,
+                                             null=True, blank=True)
     thumbnail       = models.FileField('Miniatura do vídeo', upload_to=secure_itinerary_thumb_path,
                                        null=True, blank=True)
     orig_name       = models.CharField('Nome original', max_length=255, blank=True, default='')

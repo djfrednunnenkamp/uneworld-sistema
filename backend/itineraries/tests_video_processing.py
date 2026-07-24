@@ -167,7 +167,7 @@ class VideoServiceTest(_Base):
 
 @requires_ffmpeg
 @media_isolated
-@override_settings(VIDEO_PROCESS_INLINE=False)   # controla o processamento no teste
+@override_settings(VIDEO_PROCESS_INLINE=False, VIDEO_MAKE_WEBM=False)  # MP4 só; WebM tem classe própria
 class VideoStateMachineTest(_Base):
     """Máquina de estados + gravação atômica via orquestrador."""
 
@@ -313,7 +313,7 @@ class VideoStuckRecoveryTest(_Base):
 
 @requires_ffmpeg
 @media_isolated
-@override_settings(VIDEO_PROCESS_INLINE=False, DEBUG=True)
+@override_settings(VIDEO_PROCESS_INLINE=False, DEBUG=True, VIDEO_MAKE_WEBM=False)
 class VideoApiTest(APITestCase):
     """Upload, streaming com Range, download com hash idêntico e permissões."""
 
@@ -457,3 +457,112 @@ class VideoApiTest(APITestCase):
         r = self.client.get(f'/api/itineraries/gallery/{img_id}/status/')
         self.assertIn(r.data['status'], ('pending', 'processing'))
         self.assertIsNone(r.data['video_url'])
+
+
+HAVE_VP9 = HAVE_FFMPEG and ('libvpx-vp9' in (
+    subprocess.run([FFMPEG, '-hide_banner', '-encoders'], capture_output=True, text=True).stdout if FFMPEG else ''))
+requires_vp9 = unittest.skipUnless(HAVE_VP9, 'libvpx-vp9 indisponível')
+
+
+@requires_vp9
+@media_isolated
+@override_settings(VIDEO_PROCESS_INLINE=False, VIDEO_MAKE_WEBM=True,
+                   VIDEO_VP9_CPU_USED=8, VIDEO_VP9_DEADLINE='realtime', VIDEO_VP9_CRF=40)
+class VideoDualFormatTest(APITestCase):
+    """Gera MP4 (H.264) + WebM (VP9) e valida o contrato/download das duas versões.
+    Usa VP9 rápido (cpu-used 8/realtime) para não travar o teste."""
+
+    def setUp(self):
+        self.user = make_user('dual', gallery_upload_videos=True, gallery_view=True)
+
+    def _make(self, **kw):
+        src = _gen('.mp4', seconds=2, **kw)
+        with open(src, 'rb') as f:
+            data = f.read()
+        os.remove(src)
+        img = ItineraryImage(kind='gallery')
+        img.image.save('d.mp4', SimpleUploadedFile('d.mp4', data), save=False)
+        img.status = 'pending'; img.save()
+        return img
+
+    def test_generates_both_formats(self):
+        img = self._make(audio=True)
+        self.assertEqual(vp.process_video(img.id), 'ready')
+        img.refresh_from_db()
+        self.assertTrue(img.video_normalized, 'MP4 ausente')
+        self.assertTrue(img.video_normalized_webm, 'WebM ausente')
+        mp4 = vsvc.probe(img.video_normalized.path)
+        webm = vsvc.probe(img.video_normalized_webm.path)
+        self.assertEqual(mp4.codec, 'h264')
+        self.assertEqual(webm.codec, 'vp9')
+        self.assertIn(webm.pix_fmt, ('yuv420p', 'yuvj420p'))
+        self.assertTrue(vsvc.decode_ok(img.video_normalized_webm.path))
+
+    def test_no_audio_both_formats(self):
+        img = self._make(audio=False)
+        self.assertEqual(vp.process_video(img.id), 'ready')
+        img.refresh_from_db()
+        self.assertTrue(img.video_normalized and img.video_normalized_webm)
+
+    def test_webm_failure_keeps_mp4_ready(self):
+        # WebM falha (mock) mas o MP4 é válido → vídeo ainda fica 'ready' (best-effort).
+        from unittest import mock
+        img = self._make()
+        with mock.patch.object(vsvc, 'normalize_webm', side_effect=vsvc.VideoError('vp9 boom')):
+            self.assertEqual(vp.process_video(img.id), 'ready')
+        img.refresh_from_db()
+        self.assertEqual(img.status, 'ready')
+        self.assertTrue(img.video_normalized)          # MP4 presente
+        self.assertFalse(img.video_normalized_webm)    # WebM ausente (falhou), mas não bloqueou
+
+    def test_webm_only_reprocess_keeps_mp4(self):
+        img = self._make()
+        vp.process_video(img.id)                       # gera MP4+WebM
+        img.refresh_from_db()
+        mp4_name = img.video_normalized.name
+        # apaga só o WebM e regenera com webm_only
+        img.video_normalized_webm.delete(save=False); img.video_normalized_webm = ''; img.save()
+        self.assertEqual(vp.process_video(img.id, force=True, webm_only=True), 'ready')
+        img.refresh_from_db()
+        self.assertEqual(img.video_normalized.name, mp4_name)   # MP4 preservado (mesmo arquivo)
+        self.assertTrue(img.video_normalized_webm)              # WebM regenerado
+
+    def test_serializer_playback_sources_and_download_urls(self):
+        img = self._make()
+        vp.process_video(img.id)
+        self.client.force_authenticate(self.user)
+        r = self.client.get(f'/api/itineraries/gallery/{img.id}/')
+        sources = r.data['playback_sources']
+        self.assertEqual(len(sources), 2)
+        self.assertEqual(sources[0]['codec'], 'avc1')
+        self.assertEqual(sources[1]['codec'], 'vp9')
+        self.assertIn('mp4', r.data['download_urls'])
+        self.assertIn('webm', r.data['download_urls'])
+        self.assertIn('fmt=webm', r.data['download_urls']['webm'])   # não usa ?format= (reservado DRF)
+        self.assertTrue(r.data['webm_url'])
+
+    def test_download_webm_hash_and_headers(self):
+        import hashlib
+        img = self._make()
+        vp.process_video(img.id)
+        img.refresh_from_db()
+        with img.video_normalized_webm.open('rb') as f:
+            stored = hashlib.sha256(f.read()).hexdigest()
+        self.client.force_authenticate(self.user)
+        r = self.client.get(f'/api/itineraries/gallery/{img.id}/download/?fmt=webm')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'video/webm')
+        self.assertIn('attachment', r['Content-Disposition'])
+        self.assertTrue(r['Content-Disposition'].endswith('.webm"') or '.webm' in r['Content-Disposition'])
+        body = b''.join(r.streaming_content)
+        self.assertEqual(hashlib.sha256(body).hexdigest(), stored)
+
+    def test_deleting_video_removes_both_files(self):
+        img = self._make()
+        vp.process_video(img.id)
+        img.refresh_from_db()
+        mp4p, webmp = img.video_normalized.path, img.video_normalized_webm.path
+        self.assertTrue(os.path.exists(mp4p) and os.path.exists(webmp))
+        img.delete()
+        self.assertFalse(os.path.exists(mp4p))
+        self.assertFalse(os.path.exists(webmp))

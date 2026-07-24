@@ -336,9 +336,12 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     itinerary_name  = serializers.CharField(source='itinerary.name', read_only=True, default=None)
     # Vídeo: URL da versão NORMALIZADA (o player usa esta, nunca o original quebrado),
     # URL da thumbnail (poster do card/modal) e o status/erro do processamento.
-    video_url       = serializers.SerializerMethodField()
+    video_url       = serializers.SerializerMethodField()   # MP4 (compat) = playback principal
+    webm_url        = serializers.SerializerMethodField()    # WebM/VP9 (fallback Linux sem H.264)
     thumb_url       = serializers.SerializerMethodField()
-    download_url    = serializers.SerializerMethodField()
+    download_url    = serializers.SerializerMethodField()    # MP4 (compat)
+    download_urls   = serializers.SerializerMethodField()    # {mp4, webm}
+    playback_sources = serializers.SerializerMethodField()   # [{url, type, codec}]
     mime_type       = serializers.SerializerMethodField()
     error           = serializers.SerializerMethodField()
     # Progresso real do processamento (barra + ETA na interface).
@@ -349,8 +352,8 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
                   'city', 'country', 'continent', 'city_data', 'country_data', 'continent_name',
                   'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name',
-                  'status', 'video_url', 'thumb_url', 'download_url', 'mime_type',
-                  'duration', 'width', 'height', 'error',
+                  'status', 'video_url', 'webm_url', 'thumb_url', 'download_url', 'download_urls',
+                  'playback_sources', 'mime_type', 'duration', 'width', 'height', 'error',
                   'processing_stage', 'processing_progress', 'estimated_remaining_seconds',
                   'processing_elapsed_seconds', 'processing_heartbeat_at']
 
@@ -380,17 +383,45 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
             return self._abs(obj.video_normalized.url)
         return None
 
+    def get_webm_url(self, obj):
+        # Só quando pronto E existe o WebM (VP9). Fallback p/ navegadores/players sem H.264.
+        if self.get_is_video(obj) and obj.status == 'ready' and obj.video_normalized_webm:
+            return self._abs(obj.video_normalized_webm.url)
+        return None
+
     def get_thumb_url(self, obj):
         if self.get_is_video(obj) and obj.thumbnail:
             return self._abs(obj.thumbnail.url)
         return None
 
+    def get_playback_sources(self, obj):
+        """Fontes de reprodução em ORDEM DE PREFERÊNCIA (MP4 primeiro; o player
+        reordena por canPlayType). Só inclui a versão que EXISTE e está pronta."""
+        if not (self.get_is_video(obj) and obj.status == 'ready'):
+            return []
+        out = []
+        mp4 = self.get_video_url(obj)
+        if mp4:
+            out.append({'url': mp4, 'type': 'video/mp4; codecs="avc1.4d401f"', 'codec': 'avc1'})
+        webm = self.get_webm_url(obj)
+        if webm:
+            out.append({'url': webm, 'type': 'video/webm; codecs="vp9, opus"', 'codec': 'vp9'})
+        return out
+
     def get_download_url(self, obj):
-        # Endpoint autenticado de download (attachment). O front usa via axios
+        # Endpoint autenticado de download (attachment, MP4). O front usa via axios
         # (cookie/CSRF, proxy same-origin/CORS) — nunca monta path de storage à mão.
         if obj.pk is None:
             return None
         return self._abs(f'/api/itineraries/gallery/{obj.pk}/download/')
+
+    def get_download_urls(self, obj):
+        if obj.pk is None or not self.get_is_video(obj):
+            return {}
+        d = {'mp4': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=mp4')}
+        if obj.video_normalized_webm:
+            d['webm'] = self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=webm')
+        return d
 
     def get_mime_type(self, obj):
         if self.get_is_video(obj):

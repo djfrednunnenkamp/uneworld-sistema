@@ -62,13 +62,17 @@ def _audit(action, img, msg=''):
 
 
 # ── barras de progresso por etapa ──────────────────────────────────────────────
-# O usuário deve perceber o trabalho COMPLETO (não só o FFmpeg). Distribuímos o
-# 0–100 pelas etapas; a transcodificação (a mais longa) ocupa a maior faixa.
+# Duas conversões: MP4 (H.264, rápida) e WebM (VP9, lenta) — por isso o WebM ocupa
+# a maior faixa do progresso. As faixas de transcodificação são passadas ao reporter
+# por etapa (set_band). Sem WebM (desligado/falha), o MP4 usa a faixa cheia.
 _STAGE_START = {
-    'queued': 0.0, 'probing': 2.0, 'transcoding': 5.0, 'validating': 85.0,
-    'generating_thumbnail': 92.0, 'finalizing': 97.0, 'completed': 100.0,
+    'queued': 0.0, 'probing': 2.0, 'transcoding': 3.0, 'validating': 22.0,
+    'transcoding_webm': 25.0, 'validating_webm': 88.0,
+    'generating_thumbnail': 91.0, 'finalizing': 96.0, 'completed': 100.0,
 }
-_TRANSCODE_LO, _TRANSCODE_HI = 5.0, 85.0
+_BAND_MP4  = (3.0, 22.0)     # com WebM depois
+_BAND_WEBM = (25.0, 88.0)
+_BAND_MP4_ONLY = (3.0, 85.0) # sem WebM, o MP4 usa quase toda a barra
 
 
 class _Reporter:
@@ -81,6 +85,15 @@ class _Reporter:
         self.speed_ema = None
         self.last_write = 0.0
         self.last_progress = 0.0
+        self.band = _BAND_MP4        # faixa de progresso da transcodificação atual
+        self.tail = 5.0              # folga (s) somada à ETA p/ etapas pós-transcode
+
+    def set_band(self, band, *, tail=5.0):
+        """Define a faixa de % que a próxima transcodificação vai preencher e reseta
+        a média de velocidade (cada codec tem sua velocidade)."""
+        self.band = band
+        self.tail = tail
+        self.speed_ema = None
 
     def _persist(self, fields, *, force=False, progress=None):
         # Monotônico: nunca grava um progresso menor que o já registrado.
@@ -108,17 +121,18 @@ class _Reporter:
 
     def transcode(self, processed_seconds, speed):
         """Callback do FFmpeg durante a conversão (throttled ~1x/s)."""
-        pct = _TRANSCODE_LO
+        lo, hi = self.band
+        pct = lo
         if self.duration > 0:
             frac = min(1.0, max(0.0, processed_seconds / self.duration))
-            pct = _TRANSCODE_LO + frac * (_TRANSCODE_HI - _TRANSCODE_LO)
+            pct = lo + frac * (hi - lo)
         if speed and speed > 0:
             self.speed_ema = speed if self.speed_ema is None else 0.3 * speed + 0.7 * self.speed_ema
         eta = None
         if self.duration > 0 and self.speed_ema and self.speed_ema > 0.01:
             remaining_video = max(0.0, self.duration - processed_seconds)
-            # tempo de parede restante + folga para validar/thumb/finalizar
-            eta = remaining_video / self.speed_ema + max(2.0, self.duration * 0.05)
+            # tempo de parede restante + folga para as etapas seguintes (self.tail)
+            eta = remaining_video / self.speed_ema + self.tail
         fields = {}
         if self.speed_ema is not None:
             fields['processing_speed'] = round(self.speed_ema, 3)
@@ -144,9 +158,11 @@ def claim(image_id: int, *, force: bool = False) -> bool:
     return bool(updated)
 
 
-def process_video(image_id: int, *, force: bool = False, claimed: bool = False) -> str:
-    """Processa UM vídeo: inspeciona → normaliza → valida → thumbnail → grava.
-    Retorna o status final ('ready' | 'failed' | 'skipped'). Nunca levanta."""
+def process_video(image_id: int, *, force: bool = False, claimed: bool = False,
+                  webm_only: bool = False) -> str:
+    """Processa UM vídeo: inspeciona → MP4(H.264) → WebM(VP9, best-effort) → valida
+    → thumbnail → grava. `webm_only=True` mantém o MP4/thumbnail e só (re)gera o
+    WebM ausente. Retorna o status final ('ready' | 'failed' | 'skipped'). Nunca levanta."""
     from .models import ItineraryImage
 
     if not claimed and not claim(image_id, force=force):
@@ -197,48 +213,94 @@ def process_video(image_id: int, *, force: bool = False, claimed: bool = False) 
         info = vsvc.probe(work_src)
         rep.duration = info.duration or 0.0
 
-        # 3) Normalização com PROGRESSO REAL (corrige timestamps, faststart, yuv420p…).
-        rep.stage('transcoding')
-        out_mp4 = os.path.join(tmpdir, 'out.mp4')
-        vsvc.normalize(work_src, out_mp4, on_progress=rep.transcode)
+        make_webm = webm_only or getattr(settings, 'VIDEO_MAKE_WEBM', True)
+        out_mp4 = out_info = out_thumb = out_webm = webm_info = None
+        webm_error = ''
 
-        # 4) Validação do RESULTADO antes de publicar (não serve arquivo quebrado).
-        rep.stage('validating', eta=max(2.0, rep.duration * 0.05))
-        out_info = vsvc.validate_output(out_mp4)
+        # 3) MP4 (H.264) — a versão principal. Em webm_only reusamos o MP4 existente.
+        if not webm_only:
+            rep.set_band(_BAND_MP4 if make_webm else _BAND_MP4_ONLY,
+                         tail=(rep.duration * 1.3 + 10 if make_webm else max(2.0, rep.duration * 0.05)))
+            rep.stage('transcoding')
+            out_mp4 = os.path.join(tmpdir, 'out.mp4')
+            vsvc.normalize(work_src, out_mp4, on_progress=rep.transcode)
 
-        # 5) Sanidade de duração — a conversão não pode ter cortado/acelerado o vídeo.
-        if info.duration and out_info.duration:
-            drift = abs(out_info.duration - info.duration)
-            if drift > max(2.0, info.duration * 0.15):
-                raise vsvc.VideoError(
-                    f'Duração inconsistente após a conversão ({out_info.duration:.1f}s '
-                    f'vs {info.duration:.1f}s esperados).')
+            # 4) Validação do MP4 antes de publicar (não serve arquivo quebrado).
+            rep.stage('validating', eta=max(2.0, rep.duration * 0.05))
+            out_info = vsvc.validate_output(out_mp4)
+            if info.duration and out_info.duration:
+                drift = abs(out_info.duration - info.duration)
+                if drift > max(2.0, info.duration * 0.15):
+                    raise vsvc.VideoError(
+                        f'Duração inconsistente após a conversão MP4 ({out_info.duration:.1f}s '
+                        f'vs {info.duration:.1f}s esperados).')
+        else:
+            # webm_only: exige um MP4 válido já existente (senão faz o fluxo completo)
+            if not (img.video_normalized and getattr(img.video_normalized, 'name', '')):
+                webm_only = False  # cai para o fluxo completo abaixo se não há MP4
+                return process_video(image_id, force=True, claimed=True)
 
-        # 6) Thumbnail de um frame real (evita frame 0 preto).
-        rep.stage('generating_thumbnail', eta=2.0)
-        out_thumb = os.path.join(tmpdir, 'thumb.jpg')
-        vsvc.make_thumbnail(out_mp4, out_thumb, duration=out_info.duration)
+        # 5) WebM (VP9/Opus) — fallback p/ navegadores/players sem H.264. BEST-EFFORT:
+        # se falhar, o MP4 continua válido e o vídeo ainda fica 'ready'.
+        if make_webm:
+            rep.set_band(_BAND_WEBM, tail=10)
+            rep.stage('transcoding_webm')
+            cand = os.path.join(tmpdir, 'out.webm')
+            try:
+                vsvc.normalize_webm(work_src, cand, on_progress=rep.transcode)
+                rep.stage('validating_webm', eta=8)
+                webm_info = vsvc.validate_output_webm(cand)
+                ref_dur = (out_info.duration if out_info else info.duration)
+                if ref_dur and webm_info.duration and abs(webm_info.duration - ref_dur) > max(2.0, ref_dur * 0.15):
+                    raise vsvc.VideoError(
+                        f'Duração inconsistente no WebM ({webm_info.duration:.1f}s vs {ref_dur:.1f}s).')
+                out_webm = cand
+            except vsvc.VideoError as we:
+                webm_error = str(we)
+                out_webm = webm_info = None
+                logger.warning('vídeo #%s: WebM falhou (MP4 segue válido) — %s', image_id, we)
+
+        # 6) Thumbnail (só no fluxo completo; em webm_only mantém a existente).
+        if not webm_only:
+            rep.stage('generating_thumbnail', eta=3.0)
+            out_thumb = os.path.join(tmpdir, 'thumb.jpg')
+            vsvc.make_thumbnail(out_mp4, out_thumb, duration=out_info.duration)
 
         # 7) GRAVAÇÃO ATÔMICA: só agora escreve nos campos e marca 'ready' (100%).
         rep.stage('finalizing', eta=1.0)
-        dw, dh = out_info.display_dims
         with transaction.atomic():
             fresh = ItineraryImage.objects.select_for_update().get(pk=image_id)
-            for old in (fresh.video_normalized, fresh.thumbnail):
+            update_fields = ['status', 'error_message', 'processing_stage', 'processing_progress',
+                             'estimated_remaining_seconds', 'processing_heartbeat_at', 'processing_finished_at']
+            if not webm_only:
+                for old in (fresh.video_normalized, fresh.thumbnail):
+                    try:
+                        if old and old.name:
+                            old.delete(save=False)
+                    except Exception:
+                        pass
+                with open(out_mp4, 'rb') as f:
+                    fresh.video_normalized.save('n.mp4', File(f), save=False)
+                with open(out_thumb, 'rb') as f:
+                    fresh.thumbnail.save('t.jpg', File(f), save=False)
+                dw, dh = out_info.display_dims
+                fresh.duration = out_info.duration
+                fresh.width = dw or None
+                fresh.height = dh or None
+                fresh.codec = (info.codec or '')[:40]
+                fresh.detected_mime = 'video/mp4'
+                update_fields += ['video_normalized', 'thumbnail', 'duration', 'width', 'height',
+                                  'codec', 'detected_mime']
+            # WebM: só substitui se um novo válido foi gerado (não apaga um válido por nada).
+            if out_webm:
                 try:
-                    if old and old.name:
-                        old.delete(save=False)
+                    if fresh.video_normalized_webm and fresh.video_normalized_webm.name:
+                        fresh.video_normalized_webm.delete(save=False)
                 except Exception:
                     pass
-            with open(out_mp4, 'rb') as f:
-                fresh.video_normalized.save('n.mp4', File(f), save=False)
-            with open(out_thumb, 'rb') as f:
-                fresh.thumbnail.save('t.jpg', File(f), save=False)
-            fresh.duration = out_info.duration
-            fresh.width = dw or None
-            fresh.height = dh or None
-            fresh.codec = (info.codec or '')[:40]
-            fresh.detected_mime = 'video/mp4'
+                with open(out_webm, 'rb') as f:
+                    fresh.video_normalized_webm.save('n.webm', File(f), save=False)
+                update_fields += ['video_normalized_webm']
             fresh.status = 'ready'
             fresh.error_message = ''
             fresh.processing_stage = 'completed'
@@ -246,14 +308,13 @@ def process_video(image_id: int, *, force: bool = False, claimed: bool = False) 
             fresh.estimated_remaining_seconds = 0
             fresh.processing_heartbeat_at = timezone.now()
             fresh.processing_finished_at = timezone.now()
-            fresh.save(update_fields=[
-                'video_normalized', 'thumbnail', 'duration', 'width', 'height',
-                'codec', 'detected_mime', 'status', 'error_message', 'processing_stage',
-                'processing_progress', 'estimated_remaining_seconds',
-                'processing_heartbeat_at', 'processing_finished_at'])
+            fresh.save(update_fields=update_fields)
         elapsed = time.monotonic() - t0
-        _audit('process_done', img, f'{dw}x{dh}, {out_info.duration:.1f}s em {elapsed:.0f}s')
-        logger.info('vídeo #%s: pronto em %.0fs (%sx%s, %.1fs)', image_id, elapsed, dw, dh, out_info.duration or 0)
+        _audit('process_done', img,
+               f'MP4{"+WebM" if out_webm else (" (WebM falhou)" if make_webm else "")} em {elapsed:.0f}s')
+        logger.info('vídeo #%s: pronto em %.0fs (mp4=%s webm=%s%s)', image_id, elapsed,
+                    not webm_only or bool(img.video_normalized), bool(out_webm),
+                    f' webm_error={webm_error}' if webm_error else '')
         _notify_gallery()
         return 'ready'
 

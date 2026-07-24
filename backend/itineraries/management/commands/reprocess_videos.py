@@ -36,6 +36,10 @@ class Command(BaseCommand):
                             help='Vídeos antigos sem versão normalizada/thumbnail.')
         parser.add_argument('--only-missing', action='store_true',
                             help='Só os que não têm normalizado OU thumbnail (qualquer status).')
+        parser.add_argument('--missing-webm', action='store_true',
+                            help='Vídeos com MP4 pronto mas SEM a versão WebM (VP9) — só gera o WebM.')
+        parser.add_argument('--all-formats', action='store_true',
+                            help='Regenera TODAS as versões (MP4 + WebM) do conjunto selecionado.')
         parser.add_argument('--id', type=int, default=None, help='Processa um único item por id.')
         parser.add_argument('--force', action='store_true', help='Reprocessa mesmo os já prontos.')
         parser.add_argument('--batch', type=int, default=0, help='Limita a N itens (0 = todos).')
@@ -78,11 +82,13 @@ class Command(BaseCommand):
             return
 
         # Antigos/incompletos entram como status='ready' herdado — precisam de force
-        # para serem reivindicados e (re)gerar normalizado+thumbnail.
-        force = opts['force'] or opts['legacy'] or opts['only_missing']
+        # para serem reivindicados e (re)gerar as versões.
+        force = opts['force'] or opts['legacy'] or opts['only_missing'] or opts['missing_webm'] or opts['all_formats']
+        # --missing-webm: mantém o MP4/thumbnail e só (re)gera o WebM ausente.
+        webm_only = opts['missing_webm'] and not opts['all_formats']
         ok = failed = skipped = 0
         for pk in ids:
-            result = vp.process_video(pk, force=force)
+            result = vp.process_video(pk, force=force, webm_only=webm_only)
             if result == 'ready':
                 ok += 1
                 self.stdout.write(self.style.SUCCESS(f'  ✓ #{pk} pronto'))
@@ -109,6 +115,11 @@ class Command(BaseCommand):
 
         if opts['id']:
             return base.filter(pk=opts['id'])
+        if opts['missing_webm']:
+            # MP4 pronto (existe) mas WebM ausente.
+            return base.filter(status='ready').exclude(
+                Q(video_normalized='') | Q(video_normalized__isnull=True)).filter(
+                Q(video_normalized_webm='') | Q(video_normalized_webm__isnull=True))
         if opts['only_missing']:
             return base.filter(Q(video_normalized='') | Q(video_normalized__isnull=True)
                                | Q(thumbnail='') | Q(thumbnail__isnull=True))

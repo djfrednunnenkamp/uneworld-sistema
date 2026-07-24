@@ -298,6 +298,44 @@ def _run_with_progress(cmd, timeout, step, on_progress=None):
         raise VideoError(f'Falha ao {step}: {tail}')
 
 
+def normalize_webm(src: str, dst: str, *, target_fps: int | None = None,
+                   max_height: int | None = None, crf: int | None = None,
+                   cpu_used: int | None = None, deadline: str | None = None,
+                   on_progress=None) -> None:
+    """Gera a versão WebM (VP9/Opus) — fallback p/ navegadores/players sem H.264.
+    Mesmas correções de timestamp/escala/pixel format do MP4. Áudio Opus quando
+    houver; sem áudio é aceito. VP9 é mais lento que o x264, por isso usa
+    `-row-mt 1` + `-cpu-used`/`-deadline` configuráveis."""
+    ffmpeg = _bin('FFMPEG_BIN', 'ffmpeg')
+    target_fps = target_fps or getattr(settings, 'VIDEO_TARGET_FPS', 30)
+    max_height = max_height or getattr(settings, 'VIDEO_MAX_HEIGHT', 1080)
+    crf = crf if crf is not None else getattr(settings, 'VIDEO_VP9_CRF', 34)
+    cpu_used = cpu_used if cpu_used is not None else getattr(settings, 'VIDEO_VP9_CPU_USED', 4)
+    deadline = deadline or getattr(settings, 'VIDEO_VP9_DEADLINE', 'good')
+    vf = (
+        f"scale=-2:'min({max_height},ih)':flags=lanczos,"
+        f"scale=trunc(iw/2)*2:trunc(ih/2)*2,"
+        f"fps={target_fps},format=yuv420p"
+    )
+    cmd = [
+        ffmpeg, '-y', '-loglevel', 'error', '-nostdin', '-nostats',
+        '-fflags', '+genpts',
+        '-i', src,
+        '-map', '0:v:0', '-map', '0:a?',
+        '-vf', vf,
+        '-c:v', 'libvpx-vp9', '-crf', str(crf), '-b:v', '0',
+        '-row-mt', '1', '-deadline', deadline, '-cpu-used', str(cpu_used),
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'libopus', '-b:a', '96k',
+        '-progress', 'pipe:1',
+        dst,
+    ]
+    _run_with_progress(cmd, timeout=getattr(settings, 'VIDEO_WEBM_TIMEOUT', 3600),
+                       step='converter para WebM', on_progress=on_progress)
+    if not os.path.exists(dst) or os.path.getsize(dst) == 0:
+        raise VideoError('A conversão WebM não gerou um arquivo válido.')
+
+
 def make_thumbnail(src: str, dst: str, *, duration: float | None = None,
                    max_width: int = 640) -> None:
     """Extrai uma thumbnail JPEG de um frame REAL (evita o frame 0, que costuma ser
@@ -346,6 +384,26 @@ def validate_output(path: str) -> ProbeResult:
         raise VideoError('O vídeo convertido tem dimensões inválidas.')
     if not decode_ok(path):
         raise VideoError('O vídeo convertido não pôde ser decodificado.')
+    return info
+
+
+def validate_output_webm(path: str) -> ProbeResult:
+    """Valida o WebM (VP9) já convertido: contêiner WebM/Matroska, vídeo VP9,
+    pixel format do navegador, duração > 0, dimensões válidas e decodificação sem
+    erro fatal. Levanta VideoError se algo falhar."""
+    info = probe(path)
+    if 'webm' not in info.format_name and 'matroska' not in info.format_name:
+        raise VideoError('O arquivo convertido não é um WebM válido.')
+    if info.codec != 'vp9':
+        raise VideoError(f'Codec inesperado no WebM ({info.codec or "?"}).')
+    if info.pix_fmt not in _BROWSER_SAFE_PIX_FMTS:
+        raise VideoError(f'Pixel format incompatível no WebM ({info.pix_fmt or "?"}).')
+    if not info.duration or info.duration <= 0:
+        raise VideoError('O WebM convertido tem duração inválida.')
+    if not info.width or not info.height:
+        raise VideoError('O WebM convertido tem dimensões inválidas.')
+    if not decode_ok(path):
+        raise VideoError('O WebM convertido não pôde ser decodificado.')
     return info
 
 

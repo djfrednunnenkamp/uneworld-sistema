@@ -270,16 +270,25 @@ docker compose -f docker-compose.prod.yml exec backend python manage.py shell
 
 ## Vídeos da Galeria (FFmpeg)
 
-Todo vídeo enviado à Galeria é **normalizado** no servidor para um MP4 tocável em
-qualquer navegador (H.264/yuv420p, `+faststart`, timestamps reconstruídos) e ganha
-uma **thumbnail** real. O `ffmpeg`/`ffprobe` já vêm **instalados na imagem do
-backend** (ver `Dockerfile`) — não há nada a instalar manualmente.
+Todo vídeo enviado à Galeria gera **duas versões** para tocar em qualquer navegador,
+além de uma **thumbnail** real:
+- **MP4 / H.264** (`avc1`, yuv420p, `+faststart`) — o padrão (celular, Windows, macOS,
+  navegadores com H.264).
+- **WebM / VP9** (Opus) — **fallback** para navegadores/players **Linux sem decoder
+  H.264** (ex.: Opera/Firefox no Ubuntu sem os codecs proprietários). O player usa a
+  versão que o navegador consegue decodificar (e troca sozinho no `<video>`).
+
+O `ffmpeg`/`ffprobe` já vêm **instalados na imagem do backend** (ver `Dockerfile`) —
+o build estático inclui `libx264`, `libvpx-vp9` e `libopus`.
 
 - **Como processa:** logo após o upload, um vídeo entra como `processando` e uma
-  thread de fundo o converte (`VIDEO_PROCESS_INLINE=True`, padrão). O card mostra
-  "Processando…" e vira ▶ (pronto) ou "Falha no vídeo" sozinho, via WebSocket.
-- **Recuperar/reprocessar** (fila, presos, falhados, e vídeos **antigos** que ainda
-  não têm versão normalizada):
+  thread de fundo converte MP4 → WebM (VP9 é mais lento; a barra mostra as etapas
+  "Preparando versão MP4" / "…compatível com navegadores Linux"). O card vira ▶
+  (pronto) ou "Falha no vídeo" sozinho, via WebSocket. Se o **WebM falhar**, o vídeo
+  ainda fica pronto com o MP4 (best-effort). Desligue o WebM com `VIDEO_MAKE_WEBM=0`
+  se a CPU do servidor não comportar.
+- **Recuperar/reprocessar** (fila, presos, falhados, antigos e **gerar o WebM que
+  falta** nos vídeos que só têm MP4):
   ```bash
   # Ver o que falta dos antigos (sem alterar nada)
   docker compose -f docker-compose.prod.yml exec backend \
@@ -287,6 +296,14 @@ backend** (ver `Dockerfile`) — não há nada a instalar manualmente.
   # Migrar os antigos em lotes + destravar presos há >30min
   docker compose -f docker-compose.prod.yml exec backend \
       python manage.py reprocess_videos --legacy --requeue-stuck 30
+  # Gerar SÓ o WebM ausente (mantém o MP4/thumbnail):
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --missing-webm --dry-run
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --missing-webm
+  # Regenerar TODAS as versões (MP4 + WebM) de um item:
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --id 123 --all-formats
   # Retentar os que falharam
   docker compose -f docker-compose.prod.yml exec backend \
       python manage.py reprocess_videos --failed
@@ -312,7 +329,30 @@ backend** (ver `Dockerfile`) — não há nada a instalar manualmente.
   o processo resolve com `manage.py reprocess_videos` (ele imprime os caminhos).
 - **Ajustes finos** (`.env`, opcionais): `VIDEO_TARGET_FPS` (30), `VIDEO_MAX_HEIGHT`
   (1080, não amplia), `VIDEO_CRF` (23), `VIDEO_PRESET` (medium), `FFMPEG_TIMEOUT`,
-  `VIDEO_STUCK_HEARTBEAT_SECONDS` (120), `VIDEO_MAX_PROCESSING_ATTEMPTS` (3).
+  `VIDEO_STUCK_HEARTBEAT_SECONDS` (120), `VIDEO_MAX_PROCESSING_ATTEMPTS` (3);
+  WebM: `VIDEO_MAKE_WEBM` (1), `VIDEO_VP9_CRF` (34), `VIDEO_VP9_CPU_USED` (4, 0=melhor/lento…8=rápido),
+  `VIDEO_VP9_DEADLINE` (good), `VIDEO_WEBM_TIMEOUT` (3600).
+
+### Vídeo não abre no Ubuntu ("Não há suporte a este Codec… h264")
+
+Esse erro é do **reprodutor/navegador do usuário**, não do arquivo: o computador não
+tem o **decoder H.264** instalado. O MP4 pode estar 100% válido. Opções (o sistema
+**não** instala codecs na máquina do usuário; ele já oferece a versão WebM como
+alternativa):
+
+- **Usar a versão WebM** — no player do sistema, se o MP4 não tocar, ele troca sozinho
+  para o WebM/VP9; no download, use "Baixar WebM". WebM não depende do H.264.
+- **VLC** (traz os próprios decoders):
+  ```bash
+  sudo apt update && sudo apt install vlc
+  ```
+- **Codecs do sistema (GStreamer)** — habilita H.264 no reprodutor padrão e nos navegadores:
+  ```bash
+  sudo apt update && sudo apt install \
+    ubuntu-restricted-extras gstreamer1.0-libav \
+    gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+  ```
+  Pode ser necessário **fechar e reabrir** o navegador/reprodutor depois de instalar.
 
 ## Solução de problemas
 

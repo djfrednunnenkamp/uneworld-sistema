@@ -1914,6 +1914,8 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             'processing_elapsed_seconds': d.get('processing_elapsed_seconds'),
             'processing_heartbeat_at': d.get('processing_heartbeat_at'),
             'error': d.get('error'), 'video_url': d.get('video_url'),
+            'webm_url': d.get('webm_url'), 'playback_sources': d.get('playback_sources'),
+            'download_urls': d.get('download_urls'),
             'thumb_url': d.get('thumb_url'), 'duration': d.get('duration'),
         })
 
@@ -1933,11 +1935,18 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='download')
     def download_item(self, request, pk=None):
-        """GET /api/itineraries/gallery/{id}/download/ — baixa UM item como anexo.
-        Para vídeos, entrega a versão NORMALIZADA (MP4 válido) quando pronta."""
+        """GET /api/itineraries/gallery/{id}/download/?fmt=mp4|webm — baixa UM item
+        como anexo. Vídeo: MP4 normalizado (padrão) ou WebM (?fmt=webm) quando pronto.
+        (Usa `fmt`, não `format`: `format` é reservado pela negociação de conteúdo do DRF.)"""
         import os as _os
         img = self.get_object()
-        src = img.playable_file()
+        fmt = (request.query_params.get('fmt') or '').lower()
+        if img.is_video and fmt == 'webm' and img.video_normalized_webm and img.video_normalized_webm.name:
+            src = img.video_normalized_webm
+            ctype = 'video/webm'
+        else:
+            src = img.playable_file()                    # MP4 normalizado (ou original de imagem)
+            ctype = 'video/mp4' if img.is_video else None
         if not src or not src.name:
             return Response({'detail': 'Arquivo indisponível.'}, status=status.HTTP_404_NOT_FOUND)
         ext = _os.path.splitext(src.name)[1].lower() or ('.mp4' if img.is_video else '')
@@ -1945,7 +1954,6 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                  or (img.itinerary.name if img.itinerary_id else '') or 'arquivo')
         from django.utils.text import slugify
         fname = f'{img.id}-{slugify(label)[:60] or "arquivo"}{ext}'
-        ctype = 'video/mp4' if img.is_video else None
         try:
             src.open('rb')
             resp = FileResponse(src, as_attachment=True, filename=fname, content_type=ctype)
