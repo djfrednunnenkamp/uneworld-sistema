@@ -123,6 +123,8 @@ def commissions_seller_contracts(request, seller_id):
             'final_usd': str(fin['final_usd']) if fin['final_usd'] is not None else None,
             'agency_commission_brl': str(fin['agency_commission_brl']),
             'agency_commission_usd': str(fin['agency_commission_usd']),
+            'seller_commission_brl': str(fin['seller_commission_brl']),
+            'seller_commission_pct': fin['seller_commission_pct'],
             'has_value': fin['has_value'], 'has_margin': fin['has_margin'],
         })
     return Response({'seller_id': seller_id, 'contracts': rows})
@@ -142,12 +144,14 @@ def commissions_export(request):
                 'Valor de venda (BRL)', 'Valor de venda (USD)',
                 'Preço final c/ comissão da agência (BRL)', 'Preço final (USD)',
                 'Nossa comissão (BRL)', 'Comissão da agência (BRL)',
+                'Comissão do vendedor (%)', 'Comissão do vendedor (BRL)',
                 'Ticket médio (BRL)', 'Participação (%)'])
     for r in rows:
         w.writerow([r['seller_name'], r['contracts'], r['passengers'],
                     r['net_brl'], r['net_usd'], r['sale_brl'], r['sale_usd'],
                     r['final_brl'], r['final_usd'], r['operator_commission_brl'],
-                    r['agency_commission_brl'], r['avg_ticket_brl'], r['share_pct']])
+                    r['agency_commission_brl'], r.get('seller_commission_pct') or '', r['seller_commission_brl'],
+                    r['avg_ticket_brl'], r['share_pct']])
     content = buf.getvalue().encode('utf-8-sig')   # BOM p/ acentos no Excel
 
     lo = (f['date_from'].isoformat() if f['date_from'] else (str(f['year']) if f['year'] else 'tudo'))

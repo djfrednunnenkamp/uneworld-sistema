@@ -68,6 +68,25 @@ class FinancialsTest(APITestCase):
         self.assertEqual(fin['operator_commission_brl'], Decimal('900.00'))
         self.assertEqual(fin['final_brl'], Decimal('5000'))
 
+    def test_seller_commission_percent_of_final_minus_taxes(self):
+        # Vendedor com 10% de comissão. Preço final 5000, taxas = 100 USD × câmbio 5
+        # = 500 BRL → base = 4500 → comissão do vendedor = 10% × 4500 = 450.
+        vend = make_user('com', seller_commission_percent=Decimal('10'))
+        c = Contract.objects.create(base_currency='USD', seller=vend, agency=self.ag,
+                                    total_usd=Decimal('1000'), total_brl=Decimal('5000'),
+                                    exchange_rate=Decimal('5'), stage='faturado', status='ativo',
+                                    contract_date=date(2026, 3, 10))
+        ContractAccommodationLine.objects.create(contract=c, value_per_person_usd=Decimal('900'),
+                                                 taxes_usd=Decimal('100'), quantity=1)
+        fin = C.contract_financials(c)
+        self.assertEqual(Decimal(fin['seller_commission_pct']), Decimal('10'))
+        self.assertEqual(fin['seller_commission_brl'], Decimal('450.00'))
+
+    def test_no_seller_commission_when_percent_unset(self):
+        c = make_contract(seller=self.seller, agency=self.ag)   # seller sem % definido
+        self.assertEqual(C.contract_financials(c)['seller_commission_brl'], Decimal('0'))
+        self.assertIsNone(C.contract_financials(c)['seller_commission_pct'])
+
     def test_no_agency_no_commission(self):
         c = make_contract(seller=self.seller, agency=None)
         fin = C.contract_financials(c)

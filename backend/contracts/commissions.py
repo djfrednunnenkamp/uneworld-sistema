@@ -134,14 +134,21 @@ def operator_factor(contract):
 
 
 def effective_seller(contract):
-    """Vendedor da operadora efetivo: seller, senão o criador. (id, nome, avatar_url)."""
+    """Vendedor da operadora efetivo: seller, senão o criador.
+    (id, nome, avatar_url, comissão% do vendedor)."""
     u = contract.seller or contract.created_by
     if not u:
-        return (None, '', None)
+        return (None, '', None, None)
     name = f'{u.first_name} {u.last_name}'.strip() or u.email or u.username
     perms = getattr(u, 'permissions', None)
     avatar = perms.avatar.url if (perms and perms.avatar) else None
-    return (u.id, name, avatar)
+    pct = perms.seller_commission_percent if perms else None
+    return (u.id, name, avatar, pct)
+
+
+def taxes_usd(contract):
+    """Soma das TAXAS por linha de acomodação (taxes_usd × quantidade), em USD."""
+    return sum((l.taxes_usd or Decimal('0')) * l.quantity for l in contract.accommodation_lines.all())
 
 
 def contract_financials(contract):
@@ -166,13 +173,27 @@ def contract_financials(contract):
         net_brl, net_usd = sale_brl, sale_usd
     op_brl = (sale_brl - net_brl) if (sale_brl is not None and net_brl is not None) else Decimal('0')
     op_usd = (sale_usd - net_usd) if (sale_usd is not None and net_usd is not None) else Decimal('0')
-    sid, sname, savatar = effective_seller(contract)
+    # Comissão do VENDEDOR = % do vendedor × (preço final − taxas). Base = o que o
+    # cliente paga (net + nossa comissão + comissão da agência) menos as taxas.
+    tx_usd = taxes_usd(contract)
+    tx_brl = (tx_usd * rate).quantize(CENT) if rate else Decimal('0')
+    sid, sname, savatar, spct = effective_seller(contract)
+    base_brl = (final_brl - tx_brl) if final_brl is not None else None
+    base_usd = (final_usd - tx_usd) if final_usd is not None else None
+    if spct and base_brl is not None:
+        p = Decimal(spct) / Decimal('100')
+        sc_brl = (base_brl * p).quantize(CENT)
+        sc_usd = (base_usd * p).quantize(CENT) if base_usd is not None else Decimal('0')
+    else:
+        sc_brl, sc_usd = Decimal('0'), Decimal('0')
     return {
         'net_brl': net_brl, 'net_usd': net_usd,
         'sale_brl': sale_brl, 'sale_usd': sale_usd,
         'final_brl': final_brl, 'final_usd': final_usd,
         'operator_commission_brl': op_brl, 'operator_commission_usd': op_usd,
         'agency_commission_brl': comm_brl, 'agency_commission_usd': comm_usd,
+        'seller_commission_brl': sc_brl, 'seller_commission_usd': sc_usd,
+        'seller_commission_pct': (str(spct) if spct is not None else None),
         'has_value': has_value, 'has_margin': has_margin,
         'currency': contract.base_currency or 'USD',
         'exchange_rate': rate or None,
@@ -184,7 +205,7 @@ def contract_financials(contract):
 
 
 # Chaves de dinheiro somadas (cada uma em BRL e USD).
-_MONEY_KEYS = ['net', 'sale', 'final', 'operator_commission', 'agency_commission']
+_MONEY_KEYS = ['net', 'sale', 'final', 'operator_commission', 'agency_commission', 'seller_commission']
 
 
 def _blank_agg():
@@ -245,7 +266,8 @@ def by_seller(qs):
         fin = contract_financials(c)
         key = fin['seller_id']
         g = groups.setdefault(key, {'seller_id': key, 'seller_name': fin['seller_name'],
-                                    'seller_avatar': fin['seller_avatar'], **_blank_agg()})
+                                    'seller_avatar': fin['seller_avatar'],
+                                    'seller_commission_pct': fin['seller_commission_pct'], **_blank_agg()})
         _add(g, fin)
     total_final = sum((g['final_brl'] for g in groups.values()), Decimal('0'))
     rows = []
@@ -254,6 +276,7 @@ def by_seller(qs):
         share = (g['final_brl'] / total_final * 100).quantize(CENT) if total_final else Decimal('0')
         rows.append({
             'seller_id': g['seller_id'], 'seller_name': g['seller_name'], 'seller_avatar': g.get('seller_avatar'),
+            'seller_commission_pct': g.get('seller_commission_pct'),
             'contracts': contracts, 'passengers': g['passengers'],
             **_money_out(g),
             'avg_ticket_brl': _money((g['final_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')),
