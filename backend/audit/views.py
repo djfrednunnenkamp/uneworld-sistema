@@ -107,6 +107,8 @@ SCOPE_MODELS = {
     'settings':    SETTINGS_MODELS,
     'lists':       ['PassengerList', 'ListEnrollment', 'Enrollment', 'Roteiro', 'Room', 'ListTask',
                     'VoucherList', 'VoucherFlightConfirmation'],
+    # Vouchers = visão dedicada (subconjunto de 'lists'): tudo do voucher da lista.
+    'vouchers':    ['VoucherList', 'VoucherFlightConfirmation', 'VoucherDownload', 'VoucherTemplate'],
     'passengers':  ['Passenger', 'PassengerDocument'],
     'agencies':    ['Agency', 'AgencyMember'],
     'users':       ['User', 'UserPermissions'],
@@ -194,9 +196,11 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         has_log_settings   = has_global or has_any_perm(current_user, 'settings_view_logs')
         has_log_contracts  = has_global or has_any_perm(current_user, 'contracts_view_logs')
         has_log_itineraries = has_global or has_any_perm(current_user, 'roteiros_view_logs')
+        # Vouchers pertencem às Listas → reaproveita a MESMA permissão de log de listas.
+        has_log_vouchers   = has_global or has_any_perm(current_user, 'lists_view_logs')
         has_any_area = (has_log_passengers or has_log_lists or has_log_agencies
                         or has_log_users or has_log_settings or has_log_contracts
-                        or has_log_itineraries)
+                        or has_log_itineraries or has_log_vouchers)
         has_page_view_access = has_global or has_any_perm(current_user, 'log_page_views')
 
         # Navegação entre páginas (PageView) e login/logout: por padrão ficam fora
@@ -223,6 +227,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             'settings': has_log_settings, 'lists': has_log_lists,
             'passengers': has_log_passengers, 'agencies': has_log_agencies, 'users': has_log_users,
             'contracts': has_log_contracts, 'itineraries': has_log_itineraries,
+            'vouchers': has_log_vouchers,
         }
         if scope in scope_perms and not scope_perms[scope]:
             return qs.none()
@@ -256,6 +261,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 area_q |= DQ(model_name__in=CONTRACT_MODELS)
             if has_log_itineraries:
                 area_q |= DQ(model_name__in=SCOPE_MODELS['itineraries'])
+            if has_log_vouchers:
+                area_q |= DQ(model_name__in=SCOPE_MODELS['vouchers'])
             if show_nav and has_page_view_access:
                 area_q |= DQ(model_name='PageView') | DQ(action__in=['login', 'logout'])
             if area_q.children:
