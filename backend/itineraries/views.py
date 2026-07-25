@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.views.decorators.csrf import csrf_exempt
@@ -575,6 +575,26 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
             return Response(onlyoffice.editor_config(doc, request.user))
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@authentication_classes([])          # o DS baixa sem sessão de usuário
+@permission_classes([AllowAny])      # autorizado pelo token JWT curto (ds_file_url)
+def document_oo_download(request):
+    """Entrega o documento do roteiro AO OnlyOffice DS. /media/ não é servido em
+    produção (A-11); o DS não tem sessão, então autorizamos pelo token JWT curto
+    assinado em onlyoffice.ds_file_url (fail-closed). O id vem dentro do token."""
+    claims = onlyoffice.verify_ds_token(request.query_params.get('token'))
+    if not claims or claims.get('t') != 'doc':
+        raise Http404
+    doc = ItineraryDocument.objects.filter(pk=claims.get('id')).first()
+    if not doc or not doc.file:
+        raise Http404
+    try:
+        fh = doc.file.open('rb')
+    except Exception:
+        raise Http404
+    return FileResponse(fh, content_type='application/octet-stream')
 
 
 @csrf_exempt

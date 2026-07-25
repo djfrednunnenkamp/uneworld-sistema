@@ -36,3 +36,8 @@ dnspython==2.8.0
 # Monitoramento de erros em produção (OPCIONAL — só ativa se SENTRY_DSN estiver
 # definido no .env; a init em core/settings.py é protegida com try/except).
 sentry-sdk>=2,<3
+# Armazenamento de mídia PÚBLICA no S3 (imagens/logos vão direto pro bucket, sem
+# ocupar o disco do servidor). Ativa só se S3_BUCKET/AWS_* estiverem no .env; senão
+# o storage public_media cai no filesystem local. O extra [s3] já puxa o boto3.
+django-storages[s3]>=1.14,<2
+boto3>=1.34,<2

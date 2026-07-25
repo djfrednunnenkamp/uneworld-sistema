@@ -106,21 +106,32 @@ def _html_for_preview(html: str) -> str:
 
 
 def _send(to, subject, html, email_type='other'):
+    """Envia por Resend (padrão). Se não houver RESEND_API_KEY mas houver EMAIL_HOST,
+    cai no SMTP do Django (ex.: Mailgun). Sem nenhum dos dois, apenas simula/loga."""
     from .models import EmailLog
     to_list = to if isinstance(to, list) else [to]
     to_str  = ', '.join(to_list)
     html_preview = _html_for_preview(html)
-
-    resend.api_key = settings.RESEND_API_KEY
-    simulated = not settings.RESEND_API_KEY or settings.RESEND_API_KEY.startswith('re_sua_chave')
-
     masked = ', '.join(mask_email(t) for t in to_list)
-    if simulated:
-        logger.debug("E-mail simulado: %s → %s", subject, masked)
-        EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
-                                html_body=html_preview, success=True)
-        return True
 
+    resend_key = settings.RESEND_API_KEY
+    resend_ok  = bool(resend_key) and not resend_key.startswith('re_sua_chave')
+    smtp_ok    = bool(getattr(settings, 'EMAIL_HOST', ''))
+
+    if resend_ok:
+        return _send_via_resend(to_list, to_str, subject, html, html_preview, email_type, masked)
+    if smtp_ok:
+        return _send_via_smtp(to_list, to_str, subject, html, html_preview, email_type, masked)
+
+    logger.debug("E-mail simulado (sem Resend/SMTP): %s → %s", subject, masked)
+    EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
+                            html_body=html_preview, success=True)
+    return True
+
+
+def _send_via_resend(to_list, to_str, subject, html, html_preview, email_type, masked):
+    from .models import EmailLog
+    resend.api_key = settings.RESEND_API_KEY
     _, use_cid = get_logo_src()
     payload = {
         "from": settings.RESEND_FROM,
@@ -142,6 +153,42 @@ def _send(to, subject, html, email_type='other'):
         return True
     except Exception as e:
         logger.error("Falha ao enviar e-mail via Resend (%s): %s", masked, e)
+        EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
+                                html_body=html_preview, success=False, status='failed')
+        return False
+
+
+def _send_via_smtp(to_list, to_str, subject, html, html_preview, email_type, masked):
+    """Fallback SMTP (Django). O rastreamento por webhook do Resend não se aplica —
+    o EmailLog fica sem resend_id, mas com success/status. Se o logo usa CID, anexa a
+    imagem inline (multipart/related); se usa URL pública (BACKEND_URL), nada a anexar."""
+    import base64
+    from email.mime.image import MIMEImage
+    from django.core.mail import EmailMultiAlternatives
+    from .models import EmailLog
+
+    _, use_cid = get_logo_src()
+    from_addr = getattr(settings, 'EMAIL_FROM', '') or settings.EMAIL_HOST_USER
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body='Este e-mail requer um cliente com suporte a HTML.',
+            from_email=from_addr,
+            to=to_list,
+        )
+        msg.attach_alternative(html, 'text/html')
+        if use_cid:
+            msg.mixed_subtype = 'related'  # relaciona o HTML com a imagem CID
+            img = MIMEImage(base64.b64decode(LOGO_B64_CONTENT))
+            img.add_header('Content-ID', f'<{LOGO_CID}>')
+            img.add_header('Content-Disposition', 'inline', filename='logo.png')
+            msg.attach(img)
+        msg.send(fail_silently=False)
+        EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
+                                html_body=html_preview, success=True, status='sent')
+        return True
+    except Exception as e:
+        logger.error("Falha ao enviar e-mail via SMTP (%s): %s", masked, e)
         EmailLog.objects.create(to=to_str, subject=subject, email_type=email_type,
                                 html_body=html_preview, success=False, status='failed')
         return False

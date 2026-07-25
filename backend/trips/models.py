@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models
 from passengers.models import Passenger
 
+from core.storages import public_media_storage
+
 
 # ── Modelos legados (mantidos para integridade das migrations) ───────────────
 
@@ -9,7 +11,7 @@ class Destination(models.Model):
     name        = models.CharField('Destino', max_length=200)
     country     = models.CharField('País', max_length=100)
     description = models.TextField('Descrição', blank=True)
-    image       = models.ImageField('Imagem', upload_to='destinations/', null=True, blank=True)
+    image       = models.ImageField('Imagem', upload_to='destinations/', storage=public_media_storage, null=True, blank=True)
 
     class Meta:
         verbose_name        = 'Destino'

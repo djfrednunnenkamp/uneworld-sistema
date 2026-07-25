@@ -155,13 +155,48 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# --- Armazenamento de mídia PÚBLICA no S3 (django-storages) ---------------------
+# Imagens públicas (logos, imagens/vídeos de roteiro, avatares, fotos, vouchers) vão
+# DIRETO pro S3 — não ocupam o disco do servidor. Documentos SENSÍVEIS continuam no
+# storage 'default' (local + views autenticadas). Se S3_BUCKET/credenciais estiverem
+# vazios (dev), 'public_media' cai no filesystem local — nada quebra.
+AWS_ACCESS_KEY_ID       = config('AWS_ACCESS_KEY_ID', default='')
+AWS_SECRET_ACCESS_KEY   = config('AWS_SECRET_ACCESS_KEY', default='')
+AWS_S3_REGION_NAME      = config('AWS_REGION', default='us-east-2')
+AWS_STORAGE_BUCKET_NAME = config('S3_BUCKET', default='')
+S3_PUBLIC_PREFIX        = config('S3_PREFIX', default='').strip('/')
+_USE_S3_PUBLIC = bool(AWS_STORAGE_BUCKET_NAME and AWS_ACCESS_KEY_ID)
+
 STORAGES = {
+    # Documentos SENSÍVEIS (docs de passageiro/roteiro, contratos, Drive, assinatura
+    # do CEO) — filesystem local, servidos só por views autenticadas (A-11).
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+if _USE_S3_PUBLIC:
+    STORAGES['public_media'] = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+        'OPTIONS': {
+            'access_key': AWS_ACCESS_KEY_ID,
+            'secret_key': AWS_SECRET_ACCESS_KEY,
+            'bucket_name': AWS_STORAGE_BUCKET_NAME,
+            'region_name': AWS_S3_REGION_NAME,
+            'location': S3_PUBLIC_PREFIX,   # ex.: uneworld/intranet/images/prod
+            # Host REGIONAL fixo nas URLs (senão o django-storages gera o global
+            # 's3.amazonaws.com', que não bate com a CSP do front). Determinístico.
+            'custom_domain': f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com',
+            'querystring_auth': False,      # URLs públicas limpas (sem assinatura)
+            'default_acl': None,            # bucket usa policy pública no prefixo (ACLs off)
+            'file_overwrite': False,
+        },
+    }
+else:
+    STORAGES['public_media'] = {'BACKEND': 'django.core.files.storage.FileSystemStorage'}
 
 # ── Processamento de vídeo da Galeria (FFmpeg) ──────────────────────────────────
 # Vídeos enviados à Galeria são NORMALIZADOS (H.264/yuv420p/faststart, timestamps
@@ -307,6 +342,23 @@ RESEND_FROM     = config('RESEND_FROM_EMAIL', default='UneWorld Turismo <noreply
 FRONTEND_URL    = config('FRONTEND_URL', default='http://localhost:5173')
 BACKEND_URL          = config('BACKEND_URL',          default='')
 EMAIL_PREVIEW_ENABLED = config('EMAIL_PREVIEW_ENABLED', default='True') == 'True'
+
+# --- E-mail SMTP (fallback quando NÃO houver RESEND_API_KEY) ---------------------
+# O envio transacional usa Resend por padrão (agenda/email_service.py). Se RESEND_API_KEY
+# estiver vazio E EMAIL_HOST preenchido, o envio cai pro SMTP do Django (ex.: Mailgun).
+# Sem nenhum dos dois, o e-mail é apenas simulado/logado. Não muda produção (que usa Resend).
+EMAIL_BACKEND       = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST          = config('EMAIL_HOST', default='')
+EMAIL_PORT          = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS       = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL       = config('EMAIL_USE_SSL', default=False, cast=bool)
+EMAIL_HOST_USER     = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_TIMEOUT       = config('EMAIL_TIMEOUT', default=15, cast=int)
+# Remetente do SMTP. Tem que ser de um domínio autorizado no provedor (Mailgun),
+# por isso NÃO cai no RESEND_FROM (que é @uneworld.com.br) — usa o próprio usuário SMTP.
+EMAIL_FROM          = config('EMAIL_FROM', default='') or EMAIL_HOST_USER
+
 MAXMIND_ACCOUNT_ID  = config('MAXMIND_ACCOUNT_ID', default='')
 MAXMIND_LICENSE_KEY = config('MAXMIND_LICENSE_KEY', default='')
 
@@ -404,7 +456,19 @@ if SECURE_SSL_REDIRECT:
     # redirecionaria (301) e o container ficaria "unhealthy". Isenta /healthz do
     # redirect — é público e não trafega dado sensível. (Padrão matched contra
     # request.path sem a barra inicial.)
-    SECURE_REDIRECT_EXEMPT = [r'^healthz$']
+    #
+    # Mesma questão para o OnlyOffice Document Server: ele chama o backend por HTTP
+    # interno (ONLYOFFICE_BACKEND_URL=http://backend:8000), sem TLS e sem o header
+    # X-Forwarded-Proto: https. Sem isentar, o 301→https quebraria o download do
+    # documento (view assinada) e o callback de salvar (que não seguem redirect).
+    # Endpoints protegidos por token/assinatura JWT — não abrem nada extra.
+    SECURE_REDIRECT_EXEMPT = [
+        r'^healthz$',
+        r'^api/drive/oo-download/$',
+        r'^api/drive/\d+/callback/$',
+        r'^api/itineraries/documents/oo-download/$',
+        r'^api/itineraries/documents/\d+/callback/$',
+    ]
 
 # ── Monitoramento de erros (Sentry) — OPCIONAL ────────────────────────────────
 # Ativa só quando SENTRY_DSN está definido (e fora de DEBUG). O import é protegido:

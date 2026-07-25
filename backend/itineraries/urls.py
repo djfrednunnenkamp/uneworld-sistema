@@ -4,7 +4,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (ItineraryViewSet, ItineraryFieldTemplateViewSet,
                     ItineraryDepartureViewSet, ItineraryFlightViewSet, ItineraryHotelViewSet,
                     ItineraryBoatViewSet, ItineraryTerrestreDepartureViewSet, ItineraryTerrestreLegViewSet,
-                    ItineraryDocumentViewSet, ItineraryDocumentFolderViewSet, GalleryImageViewSet, document_callback,
+                    ItineraryDocumentViewSet, ItineraryDocumentFolderViewSet, GalleryImageViewSet,
+                    document_callback, document_oo_download,
                     ItineraryCostItemViewSet, ItineraryCurrencyRateViewSet,
                     ItineraryInventoryBlockViewSet)
 
@@ -26,7 +27,9 @@ router.register('inventory-blocks', ItineraryInventoryBlockViewSet, basename='it
 router.register('gallery', GalleryImageViewSet, basename='gallery-image')
 router.register('', ItineraryViewSet, basename='itinerary')
 
-# Callback do OnlyOffice (fora do router: sem auth/CSRF, o DS chama server-side).
+# Callback e download do OnlyOffice (fora do router: sem auth/CSRF, o DS chama
+# server-side). Vêm ANTES de router.urls para não colidir com 'documents/<pk>/'.
 urlpatterns = [
     path('documents/<int:pk>/callback/', document_callback, name='itinerary-document-callback'),
+    path('documents/oo-download/', document_oo_download, name='itinerary-document-oo-download'),
 ] + router.urls

@@ -1,5 +1,7 @@
 from django.db import models
 
+from core.storages import public_media_storage
+
 # Template PADRÃO do voucher (usado quando a lista não tem blocos próprios e como
 # semente do template global em Configurações). Blocos flexíveis: o usuário
 # monta/reordena. Tipos: title | text | day_by_day | inclusions | image.
@@ -46,7 +48,7 @@ class VoucherFlightConfirmation(models.Model):
     calculada em build.build_entries."""
     voucher    = models.ForeignKey(VoucherList, on_delete=models.CASCADE, related_name='flight_confirmations')
     entry_key  = models.CharField('Voucher (passageiro/casal)', max_length=200, db_index=True)
-    image      = models.ImageField('Confirmação do voo', upload_to='vouchers/flight_confirmations/')
+    image      = models.ImageField('Confirmação do voo', upload_to='vouchers/flight_confirmations/', storage=public_media_storage)
     title      = models.CharField('Título', max_length=200, blank=True, default='')
     order      = models.PositiveIntegerField('Ordem', default=0, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)

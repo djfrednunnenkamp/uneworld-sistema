@@ -3,6 +3,8 @@ import os
 from django.db import models
 from django.contrib.auth.models import User
 
+from core.storages import public_media_storage
+
 
 def secure_upload_path(instance, filename):
     ext = os.path.splitext(filename)[1].lower()
@@ -106,7 +108,7 @@ class Passenger(models.Model):
     # ── Sistema ────────────────────────────────────────────────────
     status     = models.CharField('Status', max_length=10, choices=STATUS_CHOICES, default='active')
     notes      = models.TextField('Observações', blank=True)
-    photo      = models.ImageField('Foto', upload_to='passengers/', null=True, blank=True)
+    photo      = models.ImageField('Foto', upload_to='passengers/', storage=public_media_storage, null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='passengers_created', verbose_name='Criado por')
     created_at = models.DateTimeField('Criado em', auto_now_add=True)

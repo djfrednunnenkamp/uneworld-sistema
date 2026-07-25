@@ -8,6 +8,8 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
+from core.storages import public_media_storage
+
 
 def secure_itinerary_image_path(instance, filename):
     """Nome de arquivo seguro (uuid) — descarta o nome enviado pelo cliente,
@@ -440,7 +442,7 @@ class ItineraryImage(models.Model):
     day       = models.ForeignKey('ItineraryDay', null=True, blank=True, on_delete=models.CASCADE, related_name='images')
     # FileField (não ImageField) pra aceitar também VÍDEO na galeria. O tipo é
     # validado na action de upload (imagem: jpg/png; vídeo: mp4/webm/mov/…).
-    image     = models.FileField('Arquivo (imagem/vídeo)', upload_to=secure_itinerary_image_path)
+    image     = models.FileField('Arquivo (imagem/vídeo)', upload_to=secure_itinerary_image_path, storage=public_media_storage)
     caption   = models.CharField('Legenda', max_length=300, blank=True)
     # Tipo de conteúdo: paisagem (tem lugar), objeto (texto livre) ou lâmina (nada).
     SUBJECT_CHOICES = [

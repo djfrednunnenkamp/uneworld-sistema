@@ -2,6 +2,8 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import User
 
+from core.storages import public_media_storage
+
 
 def agency_logo_path(instance, filename):
     # Sempre .png (o upload é revalidado e re-encodado como PNG no backend).
@@ -96,8 +98,8 @@ class Agency(models.Model):
     # Logo da agência. Sempre revalidada e re-encodada como PNG no upload (seguro).
     # Não-destrutivo: `logo` = recorte exibido; `logo_original` = imagem completa;
     # `logo_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.
-    logo  = models.ImageField('Logo', upload_to=agency_logo_path, null=True, blank=True)
-    logo_original = models.ImageField('Logo (original)', upload_to=agency_logo_path, null=True, blank=True)
+    logo  = models.ImageField('Logo', upload_to=agency_logo_path, storage=public_media_storage, null=True, blank=True)
+    logo_original = models.ImageField('Logo (original)', upload_to=agency_logo_path, storage=public_media_storage, null=True, blank=True)
     logo_crop     = models.JSONField('Recorte da logo', default=dict, blank=True)
 
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
