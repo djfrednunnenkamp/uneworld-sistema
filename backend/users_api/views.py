@@ -73,6 +73,7 @@ def serialize_user(u, perms=None):
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
         'phone':        perms.phone,
         'is_seller':    perms.is_seller,
+        'seller_commission_percent': perms.seller_commission_percent,
         'avatar_url':   perms.avatar.url if perms.avatar else None,
         'avatar_original_url': perms.avatar_original.url if perms.avatar_original else None,
         'avatar_crop':  perms.avatar_crop or {},
@@ -434,13 +435,17 @@ def user_create(request):
         target_agency = req_ag if req_ag in actor_admin_ids else actor_admin_ids[0]
         AgencyMember.objects.get_or_create(agency_id=target_agency, user=user, defaults={'role': 'operator'})
 
-    if 'phone' in data or 'is_seller' in data:
+    if 'phone' in data or 'is_seller' in data or 'seller_commission_percent' in data:
         perms = get_user_permissions(user)
         fields = []
         if 'phone' in data:
             perms.phone = (data.get('phone') or '').strip(); fields.append('phone')
         if 'is_seller' in data:
             perms.is_seller = bool(data.get('is_seller')); fields.append('is_seller')
+        if 'seller_commission_percent' in data:
+            v = data.get('seller_commission_percent')
+            perms.seller_commission_percent = None if v in (None, '') else v
+            fields.append('seller_commission_percent')
         perms.save(update_fields=fields)
 
     # Sempre envia convite por e-mail para o novo usuário definir a própria senha
@@ -534,7 +539,7 @@ def user_update(request, pk):
                     perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
-    if (('phone' in data or 'is_seller' in data)
+    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data)
             and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit)):
         perms = get_user_permissions(user)
         fields = []
@@ -542,6 +547,10 @@ def user_update(request, pk):
             perms.phone = (data.get('phone') or '').strip(); fields.append('phone')
         if 'is_seller' in data:
             perms.is_seller = bool(data.get('is_seller')); fields.append('is_seller')
+        if 'seller_commission_percent' in data:
+            v = data.get('seller_commission_percent')
+            perms.seller_commission_percent = None if v in (None, '') else v
+            fields.append('seller_commission_percent')
         perms.save(update_fields=fields)
     # Se virou conta interna (staff/superusuário), deixa de ser usuário de agência →
     # remove os vínculos de agência (senão continuava aparecendo na agência).
