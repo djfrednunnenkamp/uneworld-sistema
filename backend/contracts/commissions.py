@@ -32,8 +32,13 @@ CENT = Decimal('0.01')
 # ── Política de STATUS: o que conta como venda ──────────────────────────────
 # Etapas do contrato (Contract.STAGE_CHOICES): em_edicao → enviado → assinado/
 # revisao → a_faturar → em_pagamento → faturado. status: rascunho/ativo/cancelado.
-CONFIRMED_STAGES = {'assinado', 'revisao', 'aprovado', 'a_faturar', 'em_pagamento', 'faturado'}
-PENDING_STAGES   = {'enviado'}          # enviado p/ assinatura, ainda não fechado
+#
+# Regra do negócio: só conta como VENDIDO DE FATO quando o contrato já passou pela
+# revisão E pela verificação do financeiro — ou seja, de "Em pagamento" em diante
+# (em_pagamento e faturado). Antes disso (enviado/assinado/revisão/a faturar) é
+# venda em andamento (pendente), ainda não confirmada.
+CONFIRMED_STAGES = {'em_pagamento', 'faturado'}
+PENDING_STAGES   = {'enviado', 'assinado', 'revisao', 'aprovado', 'a_faturar'}
 PAID_STAGES      = {'faturado'}         # pagos (financeiro concluiu)
 
 # Grupos que a UI pode pedir via ?situacao=

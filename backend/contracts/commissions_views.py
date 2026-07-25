@@ -79,8 +79,8 @@ def commissions_meta(request):
         'can_view_all': C.can_view_all(request.user),
         'can_export': has_any_perm(request.user, 'commissions_export'),
         'situacoes': [
-            {'value': 'confirmadas', 'label': 'Vendas confirmadas'},
-            {'value': 'pendentes', 'label': 'Pendentes (enviadas)'},
+            {'value': 'confirmadas', 'label': 'Vendas confirmadas (em pagamento em diante)'},
+            {'value': 'pendentes', 'label': 'Em andamento (antes do pagamento)'},
             {'value': 'pagas', 'label': 'Pagas'},
             {'value': 'canceladas', 'label': 'Canceladas'},
             {'value': 'todas', 'label': 'Todas'},

@@ -92,6 +92,19 @@ class PolicyAndConsistencyTest(APITestCase):
         self.assertEqual(sum(Decimal(r['sold_brl']) for r in sellers), Decimal(summ['sold_brl']))
         self.assertEqual(sum(r['contracts'] for r in sellers), summ['contracts'])
 
+    def test_confirmed_only_from_payment_onward(self):
+        # Só conta como venda confirmada de "em_pagamento" em diante (pós revisão +
+        # financeiro). Antes disso (enviado/assinado/revisão/a_faturar) é pendente.
+        make_contract(seller=self.a, agency=self.ag, stage='enviado')      # pendente
+        make_contract(seller=self.a, agency=self.ag, stage='assinado')     # pendente
+        make_contract(seller=self.a, agency=self.ag, stage='a_faturar')    # pendente (financeiro)
+        make_contract(seller=self.a, agency=self.ag, stage='em_pagamento') # CONTA
+        make_contract(seller=self.a, agency=self.ag, stage='faturado')     # CONTA (pago)
+        root_qs = C.base_queryset(self.root)
+        self.assertEqual(C.summarize(C.apply_filters(root_qs))['contracts'], 2)                      # confirmadas
+        self.assertEqual(C.summarize(C.apply_filters(root_qs, situacao='pendentes'))['contracts'], 3)
+        self.assertEqual(C.summarize(C.apply_filters(root_qs, situacao='pagas'))['contracts'], 1)
+
     def test_year_filter(self):
         make_contract(seller=self.a, agency=self.ag, contract_date=date(2025, 6, 1))
         make_contract(seller=self.a, agency=self.ag, contract_date=date(2026, 6, 1))
