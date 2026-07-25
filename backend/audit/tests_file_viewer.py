@@ -6,6 +6,7 @@ do conteúdo, os estados (ok/removido/legacy), permissões, e a regra de auditor
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 
 from users_api.models import UserPermissions
@@ -171,6 +172,83 @@ class FileEndpointsTest(APITestCase):
         self.assertEqual(r.status_code, 404)   # nem sabe que o log existe (sem IDOR)
         r2 = self.client.get(f'/api/audit/logs/{self.log.id}/file/')
         self.assertEqual(r2.status_code, 404)
+
+
+class MimeGuessTest(APITestCase):
+    """Bug do contrato: _file sem mime → antes servia octet-stream e o visualizador
+    de PDF (que decide pelo tipo do blob) não renderizava. Agora adivinha pelo nome."""
+    def setUp(self):
+        self.u = make_user('mime', superuser=True)
+        self.client.force_authenticate(self.u)
+
+    def test_empty_mime_is_guessed_pdf(self):
+        node = make_file_node(self.u, 'k.pdf', content=b'%PDF-1.4 x', mime='')
+        # Simula um log ANTIGO com _file sem mime (como o contrato gravava).
+        log = AuditLog.objects.create(
+            action='download', model_name='DriveNode', model_label='Documento',
+            object_id=str(node.id), object_repr='Contrato 75 — Cleoni Regina Bender.pdf',
+            changes={'_file': {'name': 'Contrato 75 — Cleoni Regina Bender.pdf',
+                               'storage_name': node.file.name, 'ext': 'pdf', 'mime': '', 'size': 10}})
+        info = af.file_info_for_log(log)
+        self.assertEqual(info['mime'], 'application/pdf')
+        self.assertEqual(info['kind'], 'pdf')
+        r = self.client.get(f'/api/audit/logs/{log.id}/file/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'application/pdf')   # não octet-stream
+
+    def test_friendly_name_not_storage_key(self):
+        node = make_file_node(self.u, 'x.pdf')
+        log = AuditLog.objects.create(
+            action='download', model_name='DriveNode', model_label='Documento',
+            object_id=str(node.id), object_repr='c',
+            changes={'_file': {'name': 'Contrato 75 — Cleoni Regina Bender.pdf',
+                               'storage_name': node.file.name, 'ext': 'pdf', 'mime': 'application/pdf', 'size': 10}})
+        info = af.file_info_for_log(log)
+        self.assertEqual(info['name'], 'Contrato 75 — Cleoni Regina Bender.pdf')
+        self.assertNotIn(node.file.name.split('/')[-1], info['name'])
+
+
+class LogFileArtifactEndpointTest(APITestCase):
+    """Etiquetas/PDFs gerados no cliente: /audit/log-file/ guarda o arquivo entregue
+    e cria o log com referência estruturada (o pop-up abre exatamente aquele arquivo)."""
+    def setUp(self):
+        self.u = make_user('gen', superuser=True)
+        self.client.force_authenticate(self.u)
+
+    def test_stores_artifact_and_creates_log(self):
+        pdf = SimpleUploadedFile('etiquetas.pdf', b'%PDF-1.4 labels', content_type='application/pdf')
+        r = self.client.post('/api/audit/log-file/', {
+            'file': pdf, 'action': 'download', 'model_name': 'VoucherList',
+            'model_label': 'Etiquetas de passageiros', 'object_id': '123',
+            'object_repr': 'Etiquetas — Lista X',
+            'original_name': 'Etiquetas - Pimaco 6180 - Lista X.pdf',
+            'changes': '{"Etiquetas baixadas": 3, "Modelo": "Pimaco 6180"}',
+        }, format='multipart')
+        self.assertEqual(r.status_code, 201, r.content)
+        log = AuditLog.objects.filter(model_name='VoucherList', action='download').latest('id')
+        meta = log.changes.get('_file')
+        self.assertIsNotNone(meta)
+        self.assertEqual(meta['name'], 'Etiquetas - Pimaco 6180 - Lista X.pdf')
+        self.assertEqual(meta['kind'], 'pdf')
+        self.assertEqual(log.changes.get('Etiquetas baixadas'), 3)   # metadados complementares
+        # E o pop-up consegue servir o PDF gerado:
+        info = self.client.get(f'/api/audit/logs/{log.id}/file/info/').json()
+        self.assertTrue(info['available'])
+        rf = self.client.get(f'/api/audit/logs/{log.id}/file/')
+        self.assertEqual(rf.status_code, 200)
+        self.assertEqual(b''.join(rf.streaming_content), b'%PDF-1.4 labels')
+        self.assertEqual(rf['Content-Type'], 'application/pdf')
+
+    def test_rejects_disallowed_extension(self):
+        bad = SimpleUploadedFile('x.exe', b'MZ', content_type='application/octet-stream')
+        r = self.client.post('/api/audit/log-file/', {'file': bad}, format='multipart')
+        self.assertEqual(r.status_code, 400)
+
+    def test_requires_auth(self):
+        self.client.force_authenticate(None)
+        pdf = SimpleUploadedFile('x.pdf', b'%PDF', content_type='application/pdf')
+        r = self.client.post('/api/audit/log-file/', {'file': pdf}, format='multipart')
+        self.assertIn(r.status_code, (401, 403))
 
 
 class LargeFileTest(APITestCase):

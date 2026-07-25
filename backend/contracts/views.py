@@ -197,8 +197,15 @@ def _log_contract_event(request, contract, action, label, file_field=None):
         # objeto vivo (visualização pelo histórico de logs).
         ff = getattr(contract, file_field, None)
         if ff:
+            import os as _os
             from audit.files import meta_from_fieldfile
-            m = meta_from_fieldfile(ff)
+            # Nome AMIGÁVEL (não a chave interna b4d2…​.pdf) para exibir no log.
+            _who = (str(getattr(contract, 'contratante', '') or '')).strip()
+            _num = contract.reservation_number or contract.id
+            _ext = _os.path.splitext(ff.name)[1] or '.pdf'
+            _kind = 'assinado' if file_field == 'signed_file' else 'comprovante'
+            _friendly = f'Contrato {_num}{(" — " + _who) if _who else ""} ({_kind}){_ext}'
+            m = meta_from_fieldfile(ff, original_name=_friendly)
             if m:
                 changes['_file'] = m
     AuditLog.objects.create(

@@ -18,6 +18,7 @@ Princípios:
 Este módulo é reutilizável por qualquer app; nada aqui é específico de uma tela.
 """
 import os
+import mimetypes
 
 # ── Classificação de formato (única no backend) ─────────────────────────────
 KIND_BY_EXT = {}
@@ -44,6 +45,28 @@ LARGE_FILE_BYTES = 25 * 1024 * 1024   # 25 MB
 
 def ext_of(name):
     return (os.path.splitext(name or '')[1].lstrip('.') or '').lower()
+
+
+# MIME por extensão para os formatos que o mimetypes do sistema às vezes não sabe.
+_EXTRA_MIME = {
+    'pdf': 'application/pdf', 'csv': 'text/csv', 'json': 'application/json',
+    'svg': 'image/svg+xml', 'webp': 'image/webp', 'avif': 'image/avif',
+    'heic': 'image/heic', 'heif': 'image/heif', 'mkv': 'video/x-matroska',
+    'webm': 'video/webm', 'ogv': 'video/ogg', 'm4v': 'video/x-m4v',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'zip': 'application/zip',
+}
+
+
+def guess_mime(name, fallback='application/octet-stream'):
+    """MIME confiável a partir do nome (extensão). Usado quando o mime salvo está
+    vazio — é o que corrige o preview servido como octet-stream."""
+    e = ext_of(name)
+    if e in _EXTRA_MIME:
+        return _EXTRA_MIME[e]
+    return mimetypes.guess_type(name or '')[0] or fallback
 
 
 def kind_for(mime='', name=''):
@@ -114,11 +137,14 @@ def meta_from_fieldfile(fieldfile, *, original_name=None, mime=None, size=None,
             size = fieldfile.size
         except Exception:
             size = None
+    # MIME: usa o informado; senão adivinha pela extensão (nome amigável ou chave).
+    # Sem isso, o preview era servido como octet-stream e o visualizador falhava.
+    resolved_mime = mime or guess_mime(display, fallback='') or guess_mime(storage_name, fallback='')
     meta = {
         'name': display,
         'storage_name': storage_name,
         'ext': ext_of(display) or ext_of(storage_name),
-        'mime': mime or '',
+        'mime': resolved_mime or '',
         'size': size,
     }
     meta['kind'] = kind or kind_for(meta['mime'], meta['name'])
@@ -316,7 +342,7 @@ def file_info_for_log(log):
             pass
     meta = meta or stored or {}
     name = meta.get('name') or (log.object_repr or 'arquivo')
-    mime = meta.get('mime') or ''
+    mime = meta.get('mime') or guess_mime(name, fallback='')
     ext  = meta.get('ext') or ext_of(name)
     kind = meta.get('kind') or kind_for(mime, name)
     size = meta.get('size')

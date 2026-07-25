@@ -1,6 +1,7 @@
 from django.utils import timezone
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -166,17 +167,25 @@ class VoucherViewSet(viewsets.ViewSet):
         voucher.save(update_fields=['status', 'updated_at'])
         return self.retrieve(request, pk=pk)
 
-    @action(detail=True, methods=['post'], url_path='mark_downloaded')
+    @action(detail=True, methods=['post'], url_path='mark_downloaded',
+            parser_classes=[JSONParser, MultiPartParser, FormParser])
     def mark_downloaded(self, request, pk=None):
         """Registra o download do(s) voucher(s). Body: entry_key ou entry_keys.
         QUALQUER usuário gera log de auditoria ('download'); só a AGÊNCIA marca o
-        progresso (VoucherDownload) que a operadora acompanha."""
+        progresso (VoucherDownload) que a operadora acompanha. Opcional (multipart):
+        `file` = o PDF gerado no cliente → o log guarda o próprio arquivo baixado."""
+        import json as _json
         pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
         if not pl:
             return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
         scope = agency_scope_ids(request.user)
         keys = request.data.get('entry_keys')
+        if isinstance(keys, str):   # multipart manda a lista como JSON string
+            try:
+                keys = _json.loads(keys)
+            except Exception:
+                keys = []
         if not isinstance(keys, list):
             k = request.data.get('entry_key')
             keys = [k] if k else []
@@ -196,10 +205,24 @@ class VoucherViewSet(viewsets.ViewSet):
         # Auditoria — qualquer usuário que baixa aparece no Log.
         names = [by_key[k] for k in valid]
         depois = names[0] if len(names) == 1 else f'{len(names)} vouchers — ' + ', '.join(names)
+        changes = {'Voucher baixado': {'antes': '—', 'depois': depois[:480]}}
+        # Se o cliente enviou o PDF gerado, guarda o próprio arquivo (mesmo log).
+        up = request.FILES.get('file')
+        if up:
+            from django.core.files.storage import default_storage
+            from django.core.files.base import ContentFile
+            from audit.files import ext_of, guess_mime, kind_for
+            import uuid as _uuid
+            oname = (request.data.get('original_name') or up.name or 'voucher.pdf').strip()[:255]
+            ext = ext_of(oname) or 'pdf'
+            sname = f'audit_artifacts/{_uuid.uuid4().hex}.{ext}'
+            default_storage.save(sname, ContentFile(up.read()))
+            mime = (up.content_type or '').split(';')[0].strip() or guess_mime(oname)
+            changes['_file'] = {'name': oname, 'storage_name': sname, 'ext': ext,
+                                'mime': mime, 'size': up.size, 'kind': kind_for(mime, oname)}
         from audit.tracking import log_event
         log_event('download', model_name='VoucherList', model_label='Voucher',
-                  object_id=pl.id, object_repr=pl.name,
-                  changes={'Voucher baixado': {'antes': '—', 'depois': depois[:480]}}, user=request.user)
+                  object_id=pl.id, object_repr=pl.name, changes=changes, user=request.user)
         return Response({'ok': True})
 
     @action(detail=True, methods=['post'], url_path='mark_labels_downloaded')

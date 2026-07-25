@@ -138,7 +138,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         meta = meta or {}
         name = meta.get('name') or (log.object_repr or 'arquivo')
         as_attachment = request.query_params.get('download') == '1'
-        content_type = meta.get('mime') or None
+        # MIME correto é essencial: o visualizador de PDF decide pelo tipo do blob.
+        # Sem isso (octet-stream), um PDF era tratado como imagem e não renderizava.
+        content_type = meta.get('mime') or audit_files.guess_mime(name)
         if not as_attachment:
             # Preview inline: neutraliza formatos executáveis (HTML/SVG/XML).
             content_type = audit_files.safe_inline_content_type(content_type or '', name)
@@ -405,7 +407,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-from rest_framework.decorators import api_view, permission_classes as drf_permission_classes
+from rest_framework.decorators import api_view, permission_classes as drf_permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from audit.middleware import get_current_ip
 from audit.tracking import user_display
@@ -414,6 +417,15 @@ from audit.tracking import user_display
 # Modelos que os logs disparados pelo cliente podem referenciar além dos rastreados
 # (os defaults de import/export de CSV, que não têm modelo próprio).
 _CLIENT_LOG_MODELS = {'CsvImport', 'CsvExport'}
+
+# Modelos aos quais um download/geração de arquivo NO CLIENTE pode se atribuir
+# (PDFs de etiquetas/lista/voucher/contrato gerados no navegador).
+_FILE_LOG_MODELS = {'VoucherList', 'PassengerList', 'Contract', 'Itinerary', 'GeneratedDocument'}
+_ARTIFACT_MAX_BYTES = 60 * 1024 * 1024
+_ARTIFACT_ALLOWED_EXT = {
+    'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'csv', 'tsv', 'json',
+    'xml', 'txt', 'zip', 'xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt', 'ods', 'odt', 'odp',
+}
 
 
 def _log_client_event(request, action, default_model_name, default_model_label):
@@ -460,6 +472,68 @@ def log_upload(request):
 @drf_permission_classes([IsAuthenticated])
 def log_download(request):
     return _log_client_event(request, 'download', 'CsvExport', 'Exportação CSV')
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def log_file(request):
+    """Registra um download/geração de ARQUIVO feito no cliente (PDF de etiquetas,
+    lista, voucher etc. gerados no navegador) GUARDANDO o próprio arquivo entregue
+    ao usuário — para visualização posterior pelo log, com referência estruturada
+    `_file` (o log abre exatamente aquele arquivo, não uma regeração com dados atuais).
+
+    Segurança: exige autenticação; usuário/IP/hora vêm do servidor; valida modelo,
+    extensão e tamanho; a chave de storage é opaca (sem PII no caminho)."""
+    import json, uuid as _uuid
+    from django.core.files.storage import default_storage
+    from django.core.files.base import ContentFile
+    from audit.tracking import TRACKED_MODELS, log_event
+
+    up = request.FILES.get('file')
+    if not up:
+        return Response({'error': 'Arquivo é obrigatório.'}, status=400)
+    if (up.size or 0) > _ARTIFACT_MAX_BYTES:
+        return Response({'error': 'Arquivo grande demais para registrar.'}, status=413)
+    original_name = (request.data.get('original_name') or up.name or 'arquivo').strip()[:255]
+    ext = audit_files.ext_of(original_name) or audit_files.ext_of(up.name or '')
+    if ext not in _ARTIFACT_ALLOWED_EXT:
+        return Response({'error': f'Extensão .{ext} não permitida.'}, status=400)
+
+    action = (request.data.get('action') or 'download').strip()[:20]
+    if action not in ('download', 'upload', 'export', 'import'):
+        action = 'download'
+    req_model = (request.data.get('model_name') or '').strip()[:100]
+    model_name = req_model if (req_model in TRACKED_MODELS or req_model in _FILE_LOG_MODELS) else 'GeneratedDocument'
+    model_label = (request.data.get('model_label') or 'Documento gerado').strip()[:100]
+    object_id = str(request.data.get('object_id') or '')[:50]
+    object_repr = (request.data.get('object_repr') or original_name).strip()[:500]
+
+    # Metadados extras da geração (contagem de etiquetas, categorias…) — só dict,
+    # sem chaves internas (que começam com '_').
+    extra = {}
+    raw = request.data.get('changes')
+    if raw:
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(parsed, dict):
+                extra = {str(k)[:80]: v for k, v in parsed.items() if not str(k).startswith('_')}
+        except Exception:
+            extra = {}
+
+    storage_name = f'audit_artifacts/{_uuid.uuid4().hex}{("." + ext) if ext else ""}'
+    default_storage.save(storage_name, ContentFile(up.read()))
+    mime = (up.content_type or '').split(';')[0].strip() or audit_files.guess_mime(original_name)
+    changes = dict(extra)
+    changes['_file'] = {
+        'name': original_name, 'storage_name': storage_name, 'ext': ext,
+        'mime': mime, 'size': up.size, 'kind': audit_files.kind_for(mime, original_name),
+    }
+    log_event(action, model_name=model_name, model_label=model_label,
+              object_id=object_id, object_repr=object_repr, changes=changes, user=request.user)
+    log = (AuditLog.objects.filter(model_name=model_name, object_id=object_id, action=action,
+                                   user=request.user).order_by('-id').first())
+    return Response({'ok': True, 'id': getattr(log, 'id', None)}, status=201)
 
 
 @api_view(['POST'])
