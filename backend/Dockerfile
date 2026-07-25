@@ -8,7 +8,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libgomp1 libglib2.0-0 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+# ffmpeg + ffprobe: normalização de vídeo da Galeria (H.264/faststart/timestamps)
+# e geração de thumbnails. Ver itineraries/services/video.py e settings FFMPEG_BIN.
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \

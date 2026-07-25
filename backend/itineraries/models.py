@@ -24,6 +24,21 @@ def secure_itinerary_document_path(instance, filename):
     return f"itineraries/docs/{uuid.uuid4().hex}{ext}"
 
 
+def secure_itinerary_video_norm_path(instance, filename):
+    """Caminho do MP4 NORMALIZADO (tocável no navegador) de um vídeo da galeria."""
+    return f"itineraries/video/{uuid.uuid4().hex}.mp4"
+
+
+def secure_itinerary_video_webm_path(instance, filename):
+    """Caminho da versão WebM (VP9/Opus) — fallback p/ navegadores/players sem H.264."""
+    return f"itineraries/video/{uuid.uuid4().hex}.webm"
+
+
+def secure_itinerary_thumb_path(instance, filename):
+    """Caminho da THUMBNAIL (JPEG) de um vídeo da galeria."""
+    return f"itineraries/thumb/{uuid.uuid4().hex}.jpg"
+
+
 class Itinerary(models.Model):
     """Roteiro turístico (pacote/itinerário publicável) — distinto da Lista
     de Passageiros (trips.PassengerList): o Roteiro é o "produto" comercial
@@ -412,6 +427,9 @@ class ItineraryImage(models.Model):
     KIND_CHOICES = [
         ('gallery',        'Galeria'),
         ('cover',          'Capa'),
+        # Seção DEDICADA a vídeos (só aceita vídeo). O vídeo também pode ficar na
+        # galeria comum ('gallery'); esta é só um lugar separado, exclusivo de vídeo.
+        ('video',          'Vídeo'),
         # Lâminas do bloqueio: pode ter várias, ordenadas; a primeira (menor
         # `order`) é a padrão que o sistema usa.
         ('blocking',       'Lâmina do Bloqueio'),
@@ -450,6 +468,61 @@ class ItineraryImage(models.Model):
     color_bucket   = models.CharField('Faixa de cor', max_length=12, blank=True, default='', db_index=True)
     created_at = models.DateTimeField('Criado em', auto_now_add=True, null=True)
 
+    # ── Processamento de VÍDEO ────────────────────────────────────────────────
+    # `image` guarda SEMPRE os bytes ORIGINAIS enviados (integridade preservada).
+    # Para vídeos, geramos uma versão NORMALIZADA (H.264/faststart, tocável no
+    # navegador) + uma THUMBNAIL real. Imagens não usam estes campos (status='ready').
+    STATUS_CHOICES = [
+        ('pending',    'Na fila'),
+        ('processing', 'Processando'),
+        ('ready',      'Pronto'),
+        ('failed',     'Falhou'),
+    ]
+    status          = models.CharField('Status do processamento', max_length=12,
+                                       choices=STATUS_CHOICES, default='ready', db_index=True)
+    # Progresso real (etapa + % 0-100 + heartbeat + ETA) para a barra da interface.
+    STAGE_CHOICES = [
+        ('queued',                'Na fila'),
+        ('probing',               'Analisando o arquivo'),
+        ('transcoding',           'Convertendo (MP4)'),
+        ('validating',            'Verificando (MP4)'),
+        ('transcoding_webm',      'Convertendo (WebM)'),
+        ('validating_webm',       'Verificando (WebM)'),
+        ('generating_thumbnail',  'Gerando capa'),
+        ('finalizing',            'Finalizando'),
+        ('completed',             'Concluído'),
+        ('failed',                'Falhou'),
+    ]
+    processing_stage    = models.CharField('Etapa', max_length=24, choices=STAGE_CHOICES,
+                                           default='queued', blank=True)
+    processing_progress = models.FloatField('Progresso (%)', default=0)
+    processing_heartbeat_at = models.DateTimeField('Último sinal de vida', null=True, blank=True)
+    estimated_remaining_seconds = models.FloatField('Tempo restante estimado (s)', null=True, blank=True)
+    processing_speed    = models.FloatField('Velocidade do FFmpeg (x)', null=True, blank=True)
+    processing_attempts = models.PositiveIntegerField('Tentativas de processamento', default=0)
+    video_normalized = models.FileField('Vídeo normalizado (MP4/H.264)', upload_to=secure_itinerary_video_norm_path,
+                                        null=True, blank=True)
+    # Versão WebM (VP9/Opus) — fallback para navegadores/players Linux sem decoder
+    # H.264. Gerada ADICIONALMENTE ao MP4; pode faltar (VP9 falhou/desligado) sem
+    # impedir a reprodução do MP4.
+    video_normalized_webm = models.FileField('Vídeo normalizado (WebM/VP9)', upload_to=secure_itinerary_video_webm_path,
+                                             null=True, blank=True)
+    thumbnail       = models.FileField('Miniatura do vídeo', upload_to=secure_itinerary_thumb_path,
+                                       null=True, blank=True)
+    orig_name       = models.CharField('Nome original', max_length=255, blank=True, default='')
+    orig_size       = models.BigIntegerField('Tamanho original (bytes)', null=True, blank=True)
+    detected_mime   = models.CharField('MIME detectado', max_length=100, blank=True, default='')
+    duration        = models.FloatField('Duração (s)', null=True, blank=True)
+    width           = models.PositiveIntegerField('Largura', null=True, blank=True)
+    height          = models.PositiveIntegerField('Altura', null=True, blank=True)
+    codec           = models.CharField('Codec de origem', max_length=40, blank=True, default='')
+    error_message   = models.TextField('Mensagem técnica (falha)', blank=True, default='')
+    # Falha SÓ da versão WebM (best-effort): o MP4 pode estar OK e o vídeo 'ready'.
+    # Vazio = WebM ok ou ainda não tentado. A disponibilidade real é o arquivo existir.
+    webm_error      = models.TextField('Falha técnica do WebM', blank=True, default='')
+    processing_started_at  = models.DateTimeField('Processamento iniciado em', null=True, blank=True)
+    processing_finished_at = models.DateTimeField('Processamento concluído em', null=True, blank=True)
+
     class Meta:
         ordering = ['order']
         verbose_name = 'Imagem do roteiro'
@@ -458,12 +531,100 @@ class ItineraryImage(models.Model):
             models.Index(fields=['itinerary', 'order'], name='idx_itinimg_itin_order'),
         ]
 
+    # Extensões que classificam o arquivo como VÍDEO (mesmo conjunto do front/serializer).
+    VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v', '.ogv', '.mkv', '.avi',
+                  '.mpeg', '.mpg', '.3gp', '.3g2', '.wmv', '.flv', '.ogg')
+
+    @property
+    def is_video(self) -> bool:
+        name = (getattr(self.image, 'name', '') or '').lower()
+        return name.endswith(self.VIDEO_EXTS)
+
+    def playable_file(self):
+        """Arquivo que o player/download deve usar: o normalizado quando pronto,
+        senão o original (imagens sempre usam o original)."""
+        if self.is_video and self.status == 'ready' and self.video_normalized:
+            return self.video_normalized
+        return self.image
+
+    def processing_elapsed_seconds(self):
+        """Segundos desde o início do processamento (ou até o fim, se concluído)."""
+        if not self.processing_started_at:
+            return None
+        from django.utils import timezone
+        end = self.processing_finished_at or timezone.now()
+        return max(0.0, (end - self.processing_started_at).total_seconds())
+
     def __str__(self):
         try:
             rot = self.itinerary.name
         except Exception:
             rot = f'#{self.itinerary_id}'
         return f'Imagem ({self.get_kind_display()}) — {rot}'
+
+
+def secure_video_export_path(instance, filename):
+    """Caminho do arquivo de EXPORTAÇÃO avançada (nome interno uuid; o nome bonito é
+    calculado no download)."""
+    ext = os.path.splitext(filename)[1].lower() or '.bin'
+    return f"itineraries/exports/{uuid.uuid4().hex}{ext}"
+
+
+class VideoExport(models.Model):
+    """Exportação avançada, sob demanda, de um vídeo da Galeria em outro formato/
+    codec/resolução/qualidade. É CACHEADA por `config_hash` (mesma config + vídeo =
+    reusa). NÃO substitui o original nem o normalizado padrão. Expira e é limpa."""
+    STATUS_CHOICES = [
+        ('pending', 'Na fila'), ('processing', 'Processando'),
+        ('ready', 'Pronto'), ('failed', 'Falhou'),
+    ]
+    video       = models.ForeignKey(ItineraryImage, on_delete=models.CASCADE, related_name='exports')
+    requested_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    # Config canônica (enums validados no backend) + hash determinístico p/ dedup.
+    container    = models.CharField('Contêiner', max_length=8)
+    video_codec  = models.CharField('Codec de vídeo', max_length=20)
+    audio_codec  = models.CharField('Codec de áudio', max_length=10)
+    resolution   = models.CharField('Resolução', max_length=10)
+    quality      = models.CharField('Qualidade', max_length=12)
+    frame_rate   = models.CharField('Taxa de quadros', max_length=8, default='auto')
+    config_hash  = models.CharField('Hash da config', max_length=64, db_index=True)
+
+    status       = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending', db_index=True)
+    progress     = models.FloatField('Progresso (%)', default=0)
+    stage        = models.CharField('Etapa', max_length=24, blank=True, default='queued')
+    estimated_remaining_seconds = models.FloatField('Tempo restante (s)', null=True, blank=True)
+    heartbeat_at = models.DateTimeField('Sinal de vida', null=True, blank=True)
+    attempts     = models.PositiveIntegerField(default=0)
+
+    file         = models.FileField('Arquivo exportado', upload_to=secure_video_export_path, null=True, blank=True)
+    file_size    = models.BigIntegerField('Tamanho (bytes)', null=True, blank=True)
+    error        = models.TextField('Falha técnica', blank=True, default='')
+
+    created_at   = models.DateTimeField(auto_now_add=True)
+    started_at   = models.DateTimeField(null=True, blank=True)
+    finished_at  = models.DateTimeField(null=True, blank=True)
+    expires_at   = models.DateTimeField('Expira em', null=True, blank=True, db_index=True)
+    last_downloaded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Exportação de vídeo'
+        verbose_name_plural = 'Exportações de vídeo'
+        indexes = [models.Index(fields=['video', 'config_hash'], name='idx_vexport_video_hash')]
+
+    def config(self):
+        return {'container': self.container, 'video_codec': self.video_codec,
+                'audio_codec': self.audio_codec, 'resolution': self.resolution,
+                'quality': self.quality, 'frame_rate': self.frame_rate or 'auto'}
+
+    def elapsed_seconds(self):
+        if not self.started_at:
+            return None
+        from django.utils import timezone
+        end = self.finished_at or timezone.now()
+        return max(0.0, (end - self.started_at).total_seconds())
+
+    def __str__(self):
+        return f'Export #{self.pk} vídeo #{self.video_id} ({self.container}/{self.video_codec})'
 
 
 class ItineraryFieldTemplate(models.Model):
@@ -532,7 +693,20 @@ class ItineraryFieldTemplate(models.Model):
     def apply_to_linked(self):
         """Reaplica este conteúdo aos roteiros com vínculo vivo ligado a ele."""
         content_col, fk_col, linked_col = self.FIELD_COLUMNS[self.field]
-        Itinerary.objects.filter(**{fk_col: self, linked_col: True}).update(**{content_col: self.content})
+        targets = list(Itinerary.objects.filter(**{fk_col: self, linked_col: True}).values_list('pk', flat=True))
+        if not targets:
+            return
+        Itinerary.objects.filter(pk__in=targets).update(**{content_col: self.content})
+        # O update em massa burla o signal. Loga a reaplicação em cada roteiro afetado
+        # com marcador conciso (o conteúdo do campo é texto longo — logar o diff inteiro
+        # seria ruído; o essencial é QUE campo foi reaplicado de QUAL template).
+        from audit.tracking import log_event, FIELD_LABELS
+        label = FIELD_LABELS.get(content_col, content_col)
+        for pk in targets:
+            log_event('update', model_name='Itinerary', model_label='Roteiro',
+                      object_id=pk, object_repr=f'Roteiro #{pk}',
+                      changes={label: {'antes': '(conteúdo anterior)',
+                                       'depois': f'reaplicado do template "{self.name}"'}})
 
 
 class ItineraryDeparture(models.Model):
@@ -597,6 +771,7 @@ class ItineraryHotel(models.Model):
     check_out = models.DateField('Check-out', null=True, blank=True)
     address   = models.CharField('Endereço', max_length=400, blank=True)
     phone     = models.CharField('Telefone', max_length=40, blank=True)
+    website   = models.CharField('Site', max_length=300, blank=True)
     notes     = models.TextField('Observações', blank=True, default='')
     order     = models.PositiveIntegerField('Ordem', default=0)
 
@@ -618,6 +793,7 @@ class ItineraryBoat(models.Model):
     # Vínculo vivo: se True, editar o barco nas Configurações reaplica o nome aqui.
     config_boat_linked = models.BooleanField(default=True)
     name      = models.CharField('Nome do barco', max_length=300)
+    website   = models.CharField('Site', max_length=500, blank=True)
     check_in  = models.DateField('Check-in', null=True, blank=True)
     check_out = models.DateField('Check-out', null=True, blank=True)
     notes     = models.TextField('Observações', blank=True, default='')

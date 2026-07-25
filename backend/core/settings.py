@@ -198,6 +198,58 @@ if _USE_S3_PUBLIC:
 else:
     STORAGES['public_media'] = {'BACKEND': 'django.core.files.storage.FileSystemStorage'}
 
+# ── Processamento de vídeo da Galeria (FFmpeg) ──────────────────────────────────
+# Vídeos enviados à Galeria são NORMALIZADOS (H.264/yuv420p/faststart, timestamps
+# reconstruídos) para tocar em qualquer navegador, e ganham uma thumbnail real.
+# Precisa dos binários ffmpeg/ffprobe no PATH (ou caminho absoluto abaixo). Sem
+# eles, o upload é aceito mas o registro fica 'failed' com mensagem clara.
+# Aceita FFMPEG_BINARY/FFPROBE_BINARY (caminho absoluto explícito) OU FFMPEG_BIN
+# (nome no PATH). Útil quando o processo Django foi iniciado com um PATH diferente
+# do terminal (ex.: ffmpeg em ~/.local/bin e o systemd/daphne sem esse dir).
+FFMPEG_BIN  = config('FFMPEG_BINARY',  default=config('FFMPEG_BIN',  default='ffmpeg'))
+FFPROBE_BIN = config('FFPROBE_BINARY', default=config('FFPROBE_BIN', default='ffprobe'))
+# Tempos-limite (segundos) por etapa — protegem contra vídeos maliciosos/travados.
+FFPROBE_TIMEOUT   = config('FFPROBE_TIMEOUT',   default=60,   cast=int)
+FFMPEG_TIMEOUT    = config('FFMPEG_TIMEOUT',    default=1800, cast=int)  # 30 min p/ vídeos longos
+THUMBNAIL_TIMEOUT = config('THUMBNAIL_TIMEOUT', default=120,  cast=int)
+# Taxa de quadros-alvo da normalização (CFR) quando a origem tem timestamps ruins.
+VIDEO_TARGET_FPS  = config('VIDEO_TARGET_FPS',  default=30, cast=int)
+VIDEO_MAX_HEIGHT  = config('VIDEO_MAX_HEIGHT',  default=1080, cast=int)  # não amplia; só limita p/ baixo
+VIDEO_CRF         = config('VIDEO_CRF',         default=23, cast=int)
+VIDEO_PRESET      = config('VIDEO_PRESET',      default='medium')
+# Fallback WebM (VP9/Opus): navegadores/players Linux sem decoder H.264 tocam esta
+# versão. É gerada ADICIONALMENTE ao MP4 (não o substitui). Se falhar, o vídeo ainda
+# fica 'ready' (MP4 continua servindo). Desligue com VIDEO_MAKE_WEBM=0.
+# WebM = **VP8/Vorbis** (não VP9/Opus): decodifica no GStreamer PADRÃO do Ubuntu
+# (plugins-good/base), que todo Ubuntu tem — VP9/Opus exigem plugins-bad/opus, nem
+# sempre presentes. Comprovado com gst-discoverer (VP9 → "Missing plugins" no stock).
+VIDEO_MAKE_WEBM   = config('VIDEO_MAKE_WEBM',   default=True, cast=bool)
+VIDEO_VP8_CRF     = config('VIDEO_VP8_CRF',     default=10, cast=int)    # 4..63 (menor = melhor)
+VIDEO_VP8_BITRATE = config('VIDEO_VP8_BITRATE', default='1M')            # teto de bitrate do VP8
+VIDEO_VP8_CPU_USED= config('VIDEO_VP8_CPU_USED',default=2,  cast=int)    # 0=melhor/lento … 5=rápido
+VIDEO_VP8_DEADLINE= config('VIDEO_VP8_DEADLINE',default='good')          # 'good' | 'realtime'
+VIDEO_WEBM_TIMEOUT= config('VIDEO_WEBM_TIMEOUT',default=3600, cast=int)  # VP8 é lento (até 1h)
+# Processar numa THREAD de fundo logo após o upload (dev/prod sem worker dedicado).
+# NÃO bloqueia a requisição — o upload responde na hora (status 'processing') e a
+# conversão roda em paralelo. Desligue (0) para processar SÓ pelo comando
+# `manage.py reprocess_videos` (cron/worker externo). Ver VIDEO_PROCESS_MODE p/ o
+# nome explícito. (Alias mantido por compatibilidade.)
+VIDEO_PROCESS_MODE = config('VIDEO_PROCESS_MODE', default='thread')  # 'thread' | 'off'
+VIDEO_PROCESS_INLINE = config('VIDEO_PROCESS_INLINE', default=(VIDEO_PROCESS_MODE != 'off'), cast=bool)
+# Um vídeo em 'processing' sem heartbeat há mais que isto é considerado ABANDONADO
+# (thread/processo morreu). Baseado em heartbeat, não na duração total — vídeos
+# grandes podem demorar, mas precisam continuar emitindo sinal de vida.
+VIDEO_STUCK_HEARTBEAT_SECONDS = config('VIDEO_STUCK_HEARTBEAT_SECONDS', default=120, cast=int)
+VIDEO_MAX_PROCESSING_ATTEMPTS = config('VIDEO_MAX_PROCESSING_ATTEMPTS', default=3, cast=int)
+# ── Exportação avançada (sob demanda) ──────────────────────────────────────────
+# Gera outros formatos/codecs sob demanda, com CACHE por config. Não gera tudo
+# antecipadamente. Ajuste limites conforme a CPU do servidor.
+VIDEO_EXPORT_TIMEOUT      = config('VIDEO_EXPORT_TIMEOUT',      default=3600, cast=int)  # por conversão
+VIDEO_EXPORT_EXPIRY_DAYS  = config('VIDEO_EXPORT_EXPIRY_DAYS',  default=7,    cast=int)  # cache
+VIDEO_EXPORT_MAX_PER_USER = config('VIDEO_EXPORT_MAX_PER_USER', default=3,    cast=int)  # simultâneas/usuário
+VIDEO_EXPORT_MAX_TOTAL    = config('VIDEO_EXPORT_MAX_TOTAL',    default=6,    cast=int)  # simultâneas global
+VIDEO_AV1_CPU_USED        = config('VIDEO_AV1_CPU_USED',        default=6,    cast=int)  # AV1 é lento
+
 # ── OnlyOffice Document Server (edição de Office na aba Observações do roteiro) ──
 # Vazio = integração desligada (o front mostra baixar/visualizar em vez de editar).
 ONLYOFFICE_DS_URL      = config('ONLYOFFICE_DS_URL', default='')       # URL pública do DS (ex.: http://localhost:8080)

@@ -51,11 +51,19 @@ def avista_discount_usd(payment_type, base_total_usd, exchange_rate, itinerary=N
     return max(Decimal('0'), min(Decimal(base_total_usd), disc))
 
 
+def passenger_phone(p):
+    """Telefone de CONTATO do passageiro (contrato/assinatura): o "Telefone"
+    principal (phone1, campo obrigatório do cadastro) tem prioridade; cai no
+    celular/2º telefone se vazio. Antes lia-se só `mobile` (Celular, opcional),
+    que costuma estar vazio — daí "Sem telefone" mesmo com o Telefone preenchido."""
+    return ((p.phone1 or '').strip() or (p.mobile or '').strip() or (p.phone2 or '').strip())
+
+
 def _passenger_brief(p):
     return {
         'id': p.id, 'full_name': p.full_name, 'gender': p.gender,
         'birth_date': p.birth_date, 'passport': p.passport, 'cpf': p.cpf,
-        'mobile': p.mobile, 'email': p.email,
+        'mobile': passenger_phone(p), 'email': p.email,
     }
 
 
@@ -436,12 +444,12 @@ class ContractSerializer(serializers.ModelSerializer):
                 for i, row in enumerate(installments)
             ])
 
-        # As cláusulas marcadas como "padrão" (favoritas) sempre entram no
-        # contrato, independente do que foi enviado — o usuário só escolhe as
-        # adicionais.
-        default_ids = set(ContractClause.objects.filter(is_default=True).values_list('id', flat=True))
-        chosen_ids  = set(c.id for c in clauses) if clauses is not None else set()
-        contract.clauses.set(default_ids | chosen_ids)
+        # Cláusulas do contrato: exatamente o que foi enviado. As "padrão"
+        # (is_default) já vêm PRÉ-MARCADAS no formulário/roteiro, mas podem ser
+        # DESMARCADAS por contrato/roteiro — então respeitamos a escolha e NÃO
+        # forçamos as padrão de volta (senão desmarcar não teria efeito).
+        if clauses is not None:
+            contract.clauses.set([c.id for c in clauses])
 
     # ── Auditoria: os filhos do contrato são salvos com bulk_create (não disparam
     # signal), então mudanças em hóspedes/parcelas/ajustes/acomodações (inclusive

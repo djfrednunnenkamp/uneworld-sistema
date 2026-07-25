@@ -36,10 +36,11 @@ from core.search import AccentInsensitiveSearchFilter
 
 
 def _itinerary_cover_url(it, request):
-    """URL absoluta da capa do roteiro (imagem kind='cover' ou 1ª da galeria)."""
+    """URL absoluta da capa do roteiro (imagem kind='cover' ou 1ª da galeria). NUNCA
+    um vídeo — sem imagem real retorna None (o front mostra o placeholder)."""
     imgs = list(it.images.all())
-    cover = next((i for i in imgs if i.kind == 'cover'), None) \
-        or next((i for i in imgs if i.day_id is None), None)
+    cover = next((i for i in imgs if i.kind == 'cover' and not i.is_video), None) \
+        or next((i for i in imgs if i.day_id is None and not i.is_video), None)
     if not cover or not cover.image:
         return None
     return request.build_absolute_uri(cover.image.url) if request else cover.image.url
@@ -78,18 +79,140 @@ def _scope_child_to_visible(qs, request):
 def _audit(request, action, obj, model_name='Itinerary', model_label='Roteiro', changes=None):
     """Registra um evento de auditoria de roteiro (publicar, upload, reordenar…).
     Eventos que os signals automáticos não capturam (ações e bulk updates)."""
+    import logging
+    from django.db import transaction
     from audit.models import AuditLog
     from audit.tracking import user_display
     from audit.middleware import get_current_ip
     user = getattr(request, 'user', None)
     authed = getattr(user, 'is_authenticated', False)
-    AuditLog.objects.create(
-        user=user if authed else None,
-        user_display=user_display(user) if authed else 'Sistema',
-        action=action, model_name=model_name, model_label=model_label,
-        object_id=str(getattr(obj, 'pk', '') or ''), object_repr=str(obj)[:500],
-        changes=changes or {}, ip_address=get_current_ip(),
-    )
+    # Savepoint isolado: uma falha de auditoria nunca derruba a operação real.
+    try:
+        with transaction.atomic():
+            AuditLog.objects.create(
+                user=user if authed else None,
+                user_display=user_display(user) if authed else 'Sistema',
+                action=action, model_name=model_name, model_label=model_label,
+                object_id=str(getattr(obj, 'pk', '') or ''), object_repr=str(obj)[:500],
+                changes=changes or {}, ip_address=get_current_ip(),
+            )
+    except Exception:
+        logging.getLogger('audit').exception('Falha ao gravar _audit (%s %s)', action, model_name)
+
+
+def _touch_unpublished(itinerary):
+    """Marca o roteiro como tendo ALTERAÇÕES NÃO PUBLICADAS.
+
+    Os recursos da aba Valores (custos e config de cálculo) são salvos por API
+    imediata — fora do rascunho do roteiro. Sem isto, mexer num custo/markup não
+    acendia o selo "Público · pendente" nem entrava em "Alterações pendentes".
+    Só age em roteiro publicado (nos demais, "pendente" não faz sentido)."""
+    if itinerary and itinerary.is_published and not itinerary.has_unpublished_changes:
+        itinerary.has_unpublished_changes = True
+        itinerary.save(update_fields=['has_unpublished_changes'])
+
+
+def _combo_label(key, dep_labels):
+    """Rótulo amigável da combinação de preço final (chave do price_overrides).
+    Ex.: 'cap2__dep5' -> 'Duplo · GRU · São Paulo'. Espelha o buildCostCombos do
+    front: 'cap'+capacidade, 'cab'+categoria|capacidade, 'dep'+id da saída."""
+    from .pricing import _cap_name
+    out = []
+    for p in str(key).split('__'):
+        if p.startswith('dep'):
+            try:
+                out.append(dep_labels.get(int(p[3:]), 'Saída'))
+            except (ValueError, TypeError):
+                out.append('Saída')
+        elif p.startswith('cap'):
+            try:
+                out.append(_cap_name(int(p[3:])))
+            except (ValueError, TypeError):
+                out.append(p)
+        elif p.startswith('cab'):
+            rest = p[3:]
+            if '|' in rest:
+                cat, _, cap = rest.rpartition('|')
+                try:
+                    capn = _cap_name(int(cap))
+                except (ValueError, TypeError):
+                    capn = cap
+                out.append(f'{cat} — {capn}' if cat else capn)
+            else:
+                out.append(rest or 'Cabine')
+        else:
+            out.append(p)
+    return ' · '.join(out)
+
+
+def _pricing_snapshot(itinerary):
+    """Foto dos VALORES (config de cálculo + itens de custo) do roteiro.
+
+    Guardada no published_data ao publicar e servida ao vivo em pricing-snapshot,
+    para o pop-up "Alterações pendentes" comparar campo a campo o que mudou nos
+    valores desde a última publicação. Fonte: os próprios serializers (mesma
+    forma nos dois lados → diff estável). `override_labels` traduz as chaves de
+    price_overrides (preços finais ajustados) em rótulos legíveis."""
+    from .serializers import (ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
+                              ItineraryInventoryBlockSerializer, ItineraryHotelSerializer,
+                              ItineraryBoatSerializer, ItineraryDepartureSerializer,
+                              ItineraryFlightSerializer)
+    from .models import ItineraryFlight
+    from .pricing import _dep_label
+    cfg = getattr(itinerary, 'pricing', None)
+    config = ItineraryPricingConfigSerializer(cfg).data if cfg is not None else {}
+    items = ItineraryCostItemSerializer(
+        itinerary.cost_items.select_related('accommodation_type', 'ship_cabin').order_by('id'), many=True).data
+    blocks = ItineraryInventoryBlockSerializer(
+        itinerary.inventory_blocks.select_related('ship_cabin', 'airline', 'flight_class')
+        .prefetch_related('accommodations').order_by('id'), many=True).data
+    try:
+        hotels = ItineraryHotelSerializer(
+            itinerary.hotels.select_related('config_hotel').order_by('id'), many=True).data
+    except Exception:
+        hotels = []   # ex.: migration pendente — degrada sem quebrar
+    try:
+        boats = ItineraryBoatSerializer(
+            itinerary.boats.select_related('config_boat').order_by('id'), many=True).data
+    except Exception:
+        boats = []
+    try:
+        departures = ItineraryDepartureSerializer(
+            itinerary.departures.select_related('airport').order_by('id'), many=True).data
+        flights = ItineraryFlightSerializer(
+            ItineraryFlight.objects.filter(departure__itinerary=itinerary)
+            .select_related('airline', 'origin', 'destination').order_by('departure_id', 'order', 'id'), many=True).data
+    except Exception:
+        departures, flights = [], []
+    # Tipos personalizados por roteiro (aba/pop-up Acomodações): acomodações, cabines
+    # e classes de voo com FK itinerary = este roteiro.
+    try:
+        from config_api.models import ConfigAccommodation, ConfigShipCabin, ConfigFlightClass
+        from config_api.views import AccommodationSerializer, ShipCabinSerializer, FlightClassSerializer
+        accommodations = AccommodationSerializer(ConfigAccommodation.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
+        ship_cabins = ShipCabinSerializer(ConfigShipCabin.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
+        flight_classes = FlightClassSerializer(ConfigFlightClass.objects.filter(itinerary=itinerary).order_by('id'), many=True).data
+        # Globais também — servem de BASE quando o roteiro não tem tipos próprios
+        # (sem próprios = usa os globais). Assim o auto-seed (cópia dos globais) não
+        # vira "N tipos adicionados": os semeados se anulam com os globais.
+        accommodations_global = AccommodationSerializer(ConfigAccommodation.objects.filter(itinerary__isnull=True).order_by('id'), many=True).data
+        ship_cabins_global = ShipCabinSerializer(ConfigShipCabin.objects.filter(itinerary__isnull=True).order_by('id'), many=True).data
+        flight_classes_global = FlightClassSerializer(ConfigFlightClass.objects.filter(itinerary__isnull=True).order_by('id'), many=True).data
+    except Exception:
+        accommodations, ship_cabins, flight_classes = [], [], []
+        accommodations_global, ship_cabins_global, flight_classes_global = [], [], []
+    dep_labels = {d.id: _dep_label(d) for d in itinerary.departures.all()}
+    overrides = (config.get('price_overrides') or {}) if isinstance(config, dict) else {}
+    override_labels = {k: _combo_label(k, dep_labels) for k in overrides}
+    return {'config': config, 'cost_items': list(items), 'inventory_blocks': list(blocks),
+            'hotels': list(hotels), 'boats': list(boats),
+            'departures': list(departures), 'flights': list(flights),
+            'accommodations': list(accommodations), 'ship_cabins': list(ship_cabins),
+            'flight_classes': list(flight_classes),
+            'accommodations_global': list(accommodations_global),
+            'ship_cabins_global': list(ship_cabins_global),
+            'flight_classes_global': list(flight_classes_global),
+            'override_labels': override_labels}
 
 
 class ItineraryDepartureViewSet(viewsets.ModelViewSet):
@@ -105,6 +228,20 @@ class ItineraryDepartureViewSet(viewsets.ModelViewSet):
             qs = qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
         return _scope_child_to_visible(qs, self.request)
 
+    # Mexer nas saídas acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         """Reordena os aeroportos de saída: body {"order": [id1, id2, ...]}."""
@@ -116,6 +253,7 @@ class ItineraryDepartureViewSet(viewsets.ModelViewSet):
                     ItineraryDeparture.objects.filter(pk=did).update(order=pos)
         first = ItineraryDeparture.objects.filter(pk__in=ids).select_related('itinerary').first()
         if first and first.itinerary_id:
+            _touch_unpublished(first.itinerary)
             _audit(request, 'update', first.itinerary, changes={'Aeroportos de saída': {'antes': '—', 'depois': 'reordenados'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -133,6 +271,24 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
             return qs.filter(departure_id=departure) if departure else qs.none()
         return qs
 
+    # Mexer nos voos acende "Público · pendente" (o roteiro é via departure).
+    def _flight_itin(self, obj):
+        dep = getattr(obj, 'departure', None)
+        return getattr(dep, 'itinerary', None) if dep else None
+
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(self._flight_itin(obj))
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(self._flight_itin(obj))
+
+    def perform_destroy(self, instance):
+        it = self._flight_itin(instance)
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         """Reordena os voos na sequência informada: body {"order": [id1, id2, ...]}."""
@@ -144,6 +300,7 @@ class ItineraryFlightViewSet(viewsets.ModelViewSet):
                     ItineraryFlight.objects.filter(pk=fid).update(order=pos)
         first = ItineraryFlight.objects.filter(pk__in=ids).select_related('departure__itinerary').first()
         if first and first.departure and first.departure.itinerary_id:
+            _touch_unpublished(first.departure.itinerary)
             _audit(request, 'update', first.departure.itinerary, changes={'Voos': {'antes': '—', 'depois': 'reordenados'}})
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -202,6 +359,20 @@ class ItineraryHotelViewSet(viewsets.ModelViewSet):
             return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
         return qs
 
+    # Qualquer mexida num hotel acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
+
 
 class ItineraryBoatViewSet(viewsets.ModelViewSet):
     """Barcos reservados de um roteiro (aba Barco). Filtra por ?itinerary=<id>."""
@@ -215,6 +386,20 @@ class ItineraryBoatViewSet(viewsets.ModelViewSet):
             itinerary = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=itinerary) if itinerary else qs.none()
         return qs
+
+    # Qualquer mexida num navio acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
 
 
 class ItineraryDocumentFolderViewSet(viewsets.ModelViewSet):
@@ -372,7 +557,10 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
         doc = self.get_object()
         if not doc.file:
             return Response({'detail': 'Este item é um link, não um arquivo.'}, status=status.HTTP_400_BAD_REQUEST)
-        _audit(request, 'download', doc, model_name='ItineraryDocument', model_label='Documento do roteiro')
+        from audit.files import meta_from_fieldfile
+        _m = meta_from_fieldfile(doc.file, original_name=getattr(doc, 'name', None) or None)
+        _audit(request, 'download', doc, model_name='ItineraryDocument', model_label='Documento do roteiro',
+               changes=({'_file': _m} if _m else None))
         return FileResponse(doc.file.open('rb'), as_attachment=True, filename=doc.name or doc.file.name.split('/')[-1])
 
     @action(detail=True, methods=['get'], url_path='config')
@@ -623,6 +811,14 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 it.payment_plans = plans
                 it.payment_plan = plans[0]   # compat.: contrato ainda lê um só
                 it.save(update_fields=['payment_plans', 'payment_plan'])
+        # Roteiro NOVO já nasce com as cláusulas PADRÃO (is_default) das Configurações
+        # marcadas — o usuário pode desmarcar por roteiro (e o contrato feito com ele
+        # herda essas marcações). Só na criação em branco (não duplicação).
+        if not it.clauses.exists():
+            from config_api.models import ContractClause
+            default_ids = list(ContractClause.objects.filter(is_default=True).values_list('id', flat=True))
+            if default_ids:
+                it.clauses.add(*default_ids)
 
     @action(detail=False, methods=['get'], url_path='with_documents')
     def with_documents(self, request):
@@ -825,7 +1021,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
-                           'pricing_config', 'import_kml_preview'):
+                           'pricing_config', 'import_kml_preview', 'set_pending'):
             return [RequirePermission('roteiros_edit')()]
         if self.action == 'list':
             # Também quem faz contratos: o seletor de roteiro do contrato lista os
@@ -906,6 +1102,14 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def publish(self, request, pk=None):
         obj = self.get_object()
         snapshot = ItinerarySerializer(obj, context=self.get_serializer_context()).data
+        # Foto dos VALORES junto (custos + config + disponibilidade + hotéis) — pra
+        # "Alterações pendentes" comparar os valores vivos com o que foi publicado.
+        # É OPCIONAL: se falhar (ex.: migration pendente), NUNCA bloqueia a publicação
+        # — o diff só cai no modo "sem baseline" até a próxima publicação.
+        try:
+            snapshot['pricing_snapshot'] = _pricing_snapshot(obj)
+        except Exception:
+            snapshot.pop('pricing_snapshot', None)
         obj.published_data = json.loads(json.dumps(snapshot, cls=DjangoJSONEncoder))
         obj.is_published = True
         obj.visibility = 'public'   # publicar = tornar público (todas as agências)
@@ -944,12 +1148,62 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         obj = self.get_object()
         cfg, _ = ItineraryPricingConfig.objects.get_or_create(itinerary=obj)
         if request.method == 'PATCH':
+            # Snapshot ANTES para diff campo-a-campo (a config de preço não é um
+            # model rastreado por signal; sem isto o log virava um marcador
+            # genérico "config atualizada", sem dizer o que mudou).
+            before = ItineraryPricingConfigSerializer(cfg).data
             ser = ItineraryPricingConfigSerializer(cfg, data=request.data, partial=True)
             ser.is_valid(raise_exception=True)
             ser.save()
-            _audit(request, 'update', obj, changes={'Precificação': {'antes': '—', 'depois': 'config atualizada'}})
+            _touch_unpublished(obj)
+            after = ItineraryPricingConfigSerializer(cfg).data
+            _LBL = {
+                'base_pax': 'Quantidade-base', 'min_pax': 'Mínimo de passageiros',
+                'max_pax': 'Máximo de passageiros', 'free_pax': 'Gratuidades',
+                'free_mode': 'Modo de gratuidade', 'rounding_mode': 'Modo de arredondamento',
+                'rounding_value': 'Arredondar para', 'margin_mode': 'Tipo de margem',
+                'margin_percent': 'Margem (%)', 'final_fee_percent': 'Taxa final (%)',
+                'min_margin_percent': 'Margem mínima (%)', 'notes': 'Observações',
+                'price_overrides': 'Preços manuais',
+            }
+            changes = {
+                _LBL.get(k, k): {'antes': before.get(k), 'depois': after.get(k)}
+                for k in set(request.data) & set(after)
+                if before.get(k) != after.get(k)
+            }
+            if changes:
+                _audit(request, 'update', obj, changes=changes)
             return Response(ser.data)
         return Response(ItineraryPricingConfigSerializer(cfg).data)
+
+    @action(detail=True, methods=['post'], url_path='set-pending')
+    def set_pending(self, request, pk=None):
+        """Liga/desliga o selo "Público · pendente" (has_unpublished_changes).
+
+        Quem decide se HÁ pendência é o FRONT — ele compara, no pop-up "Alterações
+        pendentes", a foto publicada com o estado vivo (formulário + valores), com
+        toda a normalização (null-vs-'', delete+recreate, tipos efetivos). Quando
+        esse diff zera (o usuário reverteu tudo de volta ao publicado), o selo tem
+        que voltar sozinho para "publicado" — é isso que esta action grava.
+        Só faz sentido em roteiro publicado; nos demais, "pendente" não existe."""
+        obj = self.get_object()
+        if not obj.is_published:
+            return Response({'has_unpublished_changes': obj.has_unpublished_changes})
+        pending = bool(request.data.get('pending'))
+        if obj.has_unpublished_changes != pending:
+            obj.has_unpublished_changes = pending
+            obj.save(update_fields=['has_unpublished_changes'])
+        return Response({'has_unpublished_changes': obj.has_unpublished_changes})
+
+    @action(detail=True, methods=['get'], url_path='pricing-snapshot')
+    def pricing_snapshot(self, request, pk=None):
+        """Foto AO VIVO dos valores (config + custos + disponibilidade + hotéis), na
+        mesma forma do que foi congelado no published_data. O front compara os dois
+        em "Alterações pendentes". Resiliente: nunca 500 (o front cai no modo sem foto)."""
+        try:
+            return Response(_pricing_snapshot(self.get_object()))
+        except Exception:
+            return Response({})
 
     @action(detail=True, methods=['get'], url_path='pricing')
     def pricing(self, request, pk=None):
@@ -1020,16 +1274,21 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # Vídeo só é aceito na GALERIA (não em capa/lâminas). Imagem: jpg/png com
         # re-processamento; vídeo: validação de contêiner (mesma base dos passageiros).
         import os as _os
-        from passengers.validators import validate_document_file, validate_video_file, VIDEO_EXTENSIONS
+        from passengers.validators import validate_document_file, validate_video_file, GALLERY_VIDEO_EXTENSIONS
         from django.core.exceptions import ValidationError as DjangoValidationError
-        is_video = _os.path.splitext(upload.name or '')[1].lower() in VIDEO_EXTENSIONS
+        is_video = _os.path.splitext(upload.name or '')[1].lower() in GALLERY_VIDEO_EXTENSIONS
         try:
             if is_video:
-                if kind != 'gallery':
-                    return Response({'image': ['Vídeos só podem ser adicionados à galeria.']},
+                # Vídeo vai para a GALERIA comum ou para a seção dedicada de vídeos.
+                if kind not in ('gallery', 'video'):
+                    return Response({'image': ['Vídeos só podem ir para a galeria ou a seção de vídeos.']},
                                     status=status.HTTP_400_BAD_REQUEST)
-                validate_video_file(upload)
+                validate_video_file(upload, allowed_exts=GALLERY_VIDEO_EXTENSIONS)
             else:
+                # A seção dedicada de vídeos não aceita imagem.
+                if kind == 'video':
+                    return Response({'image': ['A seção de vídeos aceita apenas vídeos.']},
+                                    status=status.HTTP_400_BAD_REQUEST)
                 validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
@@ -1039,7 +1298,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if kind == 'blocking':
             save_kwargs['subject_type'] = 'lamina'
         img = ser.save(**save_kwargs)
-        if not is_video:
+        if is_video:
+            _start_video_processing(img, upload, request)
+        else:
             _apply_dominant_color(img)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
@@ -1077,6 +1338,11 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         kind = request.data.get('kind') or 'gallery'
         if kind not in {c[0] for c in ItineraryImage.KIND_CHOICES}:
             kind = 'gallery'
+        # A seção de vídeos só recebe vídeo; imagem escolhida cai na galeria comum.
+        if kind == 'video' and not src.is_video:
+            kind = 'gallery'
+        elif src.is_video and kind not in ('gallery', 'video'):
+            kind = 'gallery'
         try:
             src.image.open('rb')
             data = src.image.read()
@@ -1093,6 +1359,16 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                              dominant_color=src.dominant_color, color_bucket=src.color_bucket)
         new.image.save(f'copy{ext}', ContentFile(data), save=False)
         new.save()
+        # Vídeo: a cópia precisa da própria versão normalizada + thumbnail — reprocessa
+        # (idempotente). Herda os metadados do original enquanto processa.
+        if new.is_video:
+            new.orig_name = src.orig_name or _os.path.basename(src.image.name or '')
+            new.orig_size = src.orig_size
+            new.save(update_fields=['orig_name', 'orig_size'])
+            from .video_processing import schedule_processing
+            new.status = 'pending'
+            new.save(update_fields=['status'])
+            schedule_processing(new)
         out = ItineraryImageSerializer(new, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
 
@@ -1109,6 +1385,14 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         valid = {c[0] for c in ItineraryImage.KIND_CHOICES}
         if kind not in valid:
             return Response({'detail': 'Tipo inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Regras de vídeo: um vídeo só pode ficar na galeria ou na seção de vídeos; a
+        # seção de vídeos não aceita imagem.
+        if img.is_video and kind not in ('gallery', 'video'):
+            return Response({'detail': 'Vídeos só podem ficar na galeria ou na seção de vídeos.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if kind == 'video' and not img.is_video:
+            return Response({'detail': 'A seção de vídeos aceita apenas vídeos.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         # Restrito a lâminas: só pode mexer numa lâmina e mantê-la como lâmina.
         if self._laminas_only() and (kind != 'blocking' or img.kind != 'blocking'):
             return Response({'detail': 'Sem permissão: só é permitido gerenciar imagens das lâminas.'},
@@ -1181,6 +1465,27 @@ def _apply_dominant_color(img):
         img.dominant_color = hexc
         img.color_bucket = bucket
         img.save(update_fields=['dominant_color', 'color_bucket'])
+
+
+def _start_video_processing(img, upload, request=None):
+    """Registra os metadados do arquivo original e coloca o vídeo para NORMALIZAR
+    (thread/worker). O card aparece como 'processando' até virar pronto/erro."""
+    import os as _os
+    img.orig_name = (getattr(upload, 'name', '') or '')[:255]
+    img.orig_size = getattr(upload, 'size', None)
+    img.detected_mime = (getattr(upload, 'content_type', '') or '')[:100]
+    img.status = 'pending'
+    img.save(update_fields=['orig_name', 'orig_size', 'detected_mime', 'status'])
+    try:
+        from audit.tracking import log_event
+        log_event('upload', model_name='ItineraryImage', model_label='Galeria de mídia',
+                  object_id=str(img.pk), object_repr=(img.orig_name or f'vídeo #{img.pk}'),
+                  changes={'Upload de vídeo': f'{img.orig_name} ({img.orig_size or "?"} bytes) — na fila'},
+                  user=getattr(request, 'user', None))
+    except Exception:
+        pass
+    from .video_processing import schedule_processing
+    schedule_processing(img)
 
 
 def _apply_image_meta(img, data):
@@ -1260,7 +1565,8 @@ GALLERY_BROAD = ('gallery_edit', 'gallery_delete')
 GALLERY_VIEW_PERMS = ('gallery_view', 'gallery_view_images', 'gallery_view_videos',
                       'gallery_view_laminas', 'roteiros_images_from_gallery') + GALLERY_BROAD
 
-VIDEO_EXTS_TUP = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
+# Extensões de vídeo — fonte única no modelo (mantém front/serializer/validator alinhados).
+VIDEO_EXTS_TUP = ItineraryImage.VIDEO_EXTS
 
 
 def _gallery_laminas_only(user):
@@ -1323,8 +1629,11 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
-        if self.action in ('list', 'retrieve', 'download'):
+        if self.action in ('list', 'retrieve', 'download', 'download_item', 'video_status',
+                           'export_options', 'exports', 'export_status', 'export_download'):
             return [_GalleryReadPermission()]
+        if self.action == 'reprocess':
+            return [RequirePermission('gallery_upload_videos', 'gallery_edit')()]
         if self.action == 'create':
             # Gate amplo aqui; o tipo específico (imagem/vídeo) é checado no create().
             return [RequirePermission('gallery_upload_images', 'gallery_upload_videos', 'gallery_edit')()]
@@ -1368,7 +1677,7 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                       .order_by('order', 'id').values('id')[:1])
         return qs.filter(id=Subquery(default_id))
 
-    VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v', '.ogv')
+    VIDEO_EXTS = ItineraryImage.VIDEO_EXTS
 
     @classmethod
     def _video_q(cls):
@@ -1433,25 +1742,27 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Upload de imagem/vídeo para o BANCO (sem roteiro)."""
         import os as _os
-        from passengers.validators import validate_document_file, validate_video_file, VIDEO_EXTENSIONS
+        from passengers.validators import validate_document_file, validate_video_file, GALLERY_VIDEO_EXTENSIONS
         from django.core.exceptions import ValidationError as DjangoValidationError
         ser = ItineraryImageSerializer(data=request.data, context=self.get_serializer_context())
         ser.is_valid(raise_exception=True)
         upload = ser.validated_data['image']
-        is_video = _os.path.splitext(upload.name or '')[1].lower() in VIDEO_EXTENSIONS
+        is_video = _os.path.splitext(upload.name or '')[1].lower() in GALLERY_VIDEO_EXTENSIONS
         media = 'video' if is_video else 'image'
         if not _gallery_can_upload(request.user, media):
             return Response({'detail': f'Você não tem permissão para enviar {"vídeos" if is_video else "imagens"}.'},
                             status=status.HTTP_403_FORBIDDEN)
         try:
             if is_video:
-                validate_video_file(upload)
+                validate_video_file(upload, allowed_exts=GALLERY_VIDEO_EXTENSIONS)
             else:
                 validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         img = ser.save(itinerary=None, day=None, kind='gallery')
-        if not is_video:
+        if is_video:
+            _start_video_processing(img, upload, request)
+        else:
             _apply_dominant_color(img)
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
@@ -1578,11 +1889,15 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
 
         buf = io.BytesIO()
         used = set()
+        n_files = 0
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
             for img in qs.iterator():
                 name = img.image.name or ''
-                ext = _os.path.splitext(name)[1].lower()
-                is_vid = ext in self.VIDEO_EXTS
+                is_vid = _os.path.splitext(name)[1].lower() in self.VIDEO_EXTS
+                # Vídeo: baixa a versão NORMALIZADA (MP4 válido/tocável) quando pronta;
+                # senão o original. Imagens: o próprio arquivo.
+                src = img.playable_file()
+                ext = _os.path.splitext(src.name or name)[1].lower() or ('.mp4' if is_vid else '')
                 folder = 'laminas' if img.kind == 'blocking' else ('videos' if is_vid else 'imagens')
                 label = (img.caption
                          or (img.city.name if img.city_id else '')
@@ -1596,19 +1911,235 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
                     i += 1
                 used.add(fname)
                 try:
-                    img.image.open('rb')
-                    zf.writestr(fname, img.image.read())
+                    src.open('rb')
+                    zf.writestr(fname, src.read())
+                    n_files += 1
                 except Exception:
                     continue
                 finally:
                     try:
-                        img.image.close()
+                        src.close()
                     except Exception:
                         pass
+
+        # Download em lote de mídia do roteiro precisa ficar rastreável (quem
+        # baixou, quantos arquivos) — antes esse ZIP não deixava rastro nenhum.
+        try:
+            from audit.tracking import log_event
+            log_event('download', model_name='ItineraryImage', model_label='Galeria de mídia',
+                      object_repr='Galeria (ZIP)',
+                      changes={'Galeria (ZIP)': f'{n_files} arquivo(s) baixado(s)'},
+                      user=getattr(request, 'user', None))
+        except Exception:
+            pass
 
         resp = HttpResponse(buf.getvalue(), content_type='application/zip')
         resp['Content-Disposition'] = 'attachment; filename="galeria.zip"'
         return resp
+
+    @action(detail=True, methods=['get'], url_path='status')
+    def video_status(self, request, pk=None):
+        """GET /api/itineraries/gallery/{id}/status/ — status LEVE do processamento
+        (sem binário), para o polling do modal. Se o item estiver ABANDONADO (preso
+        em processing sem heartbeat), recupera na hora (self-heal ao ser consultado)."""
+        img = self.get_object()
+        from .video_processing import is_stuck, recover_stuck
+        if img.is_video and is_stuck(img):
+            recover_stuck()
+            img.refresh_from_db()
+        ser = ItineraryImageSerializer(img, context=self.get_serializer_context())
+        d = ser.data
+        return Response({
+            'id': d['id'], 'status': d['status'], 'is_video': d['is_video'],
+            'processing_stage': d.get('processing_stage'),
+            'processing_progress': d.get('processing_progress'),
+            'estimated_remaining_seconds': d.get('estimated_remaining_seconds'),
+            'processing_elapsed_seconds': d.get('processing_elapsed_seconds'),
+            'processing_heartbeat_at': d.get('processing_heartbeat_at'),
+            'error': d.get('error'), 'video_url': d.get('video_url'),
+            'webm_url': d.get('webm_url'), 'playback_sources': d.get('playback_sources'),
+            'download_urls': d.get('download_urls'), 'downloads': d.get('downloads'),
+            'thumb_url': d.get('thumb_url'), 'duration': d.get('duration'),
+        })
+
+    @action(detail=True, methods=['post'], url_path='reprocess')
+    def reprocess(self, request, pk=None):
+        """POST /api/itineraries/gallery/{id}/reprocess/ — reprocessa um vídeo
+        (tenta de novo os que falharam ou força a renormalização). Idempotente:
+        se já estiver processando, não duplica."""
+        img = self.get_object()
+        if not img.is_video:
+            return Response({'detail': 'Só vídeos podem ser reprocessados.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        from .video_processing import schedule_processing
+        schedule_processing(img, force=True)
+        img.refresh_from_db()
+        return Response(ItineraryImageSerializer(img, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download_item(self, request, pk=None):
+        """GET /api/itineraries/gallery/{id}/download/?fmt=mp4|webm — baixa UM item
+        como anexo. Vídeo: MP4 normalizado (padrão) ou WebM (?fmt=webm) quando pronto.
+        (Usa `fmt`, não `format`: `format` é reservado pela negociação de conteúdo do DRF.)"""
+        import os as _os
+        img = self.get_object()
+        fmt = (request.query_params.get('fmt') or '').lower()
+        if img.is_video and fmt == 'webm' and img.video_normalized_webm and img.video_normalized_webm.name:
+            src = img.video_normalized_webm
+            ctype = 'video/webm'
+        else:
+            src = img.playable_file()                    # MP4 normalizado (ou original de imagem)
+            ctype = 'video/mp4' if img.is_video else None
+        if not src or not src.name:
+            return Response({'detail': 'Arquivo indisponível.'}, status=status.HTTP_404_NOT_FOUND)
+        ext = _os.path.splitext(src.name)[1].lower() or ('.mp4' if img.is_video else '')
+        # Nome BONITO a partir dos metadados (fonte única no backend); NUNCA expõe o
+        # nome físico (uuid) do storage. Content-Disposition com fallback ASCII + UTF-8.
+        from .gallery_naming import download_filename, content_disposition
+        fname = download_filename(img, ext)
+        try:
+            src.open('rb')
+            resp = FileResponse(src, content_type=ctype)
+            resp['Content-Disposition'] = content_disposition(fname)
+        except Exception:
+            return Response({'detail': 'Não foi possível ler o arquivo.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            from audit.tracking import log_event
+            from audit.files import meta_from_fieldfile
+            _ch = {'Download': fname}
+            _m = meta_from_fieldfile(img.image, original_name=(img.orig_name or fname))
+            if _m:
+                _ch['_file'] = _m
+            log_event('download', model_name='ItineraryImage', model_label='Galeria de mídia',
+                      object_id=str(img.pk), object_repr=(img.orig_name or fname),
+                      changes=_ch, user=getattr(request, 'user', None))
+        except Exception:
+            pass
+        return resp
+
+    # ── Exportação avançada (sob demanda + cache) ─────────────────────────────
+    @action(detail=True, methods=['get'], url_path='export-options')
+    def export_options(self, request, pk=None):
+        """GET /gallery/{id}/export-options/ — matriz de formatos/codecs/resoluções
+        (fonte da verdade no backend), filtrando resoluções pela origem do vídeo."""
+        img = self.get_object()
+        from . import gallery_export_presets as P
+        source_h = None
+        source_fps = None
+        try:
+            src = img.image
+            if getattr(src, 'path', None):
+                source_h = vsvc_probe_height(src.path)
+                source_fps = vsvc_probe_fps(src.path)
+        except Exception:
+            source_h = img.height
+        return Response(P.options_payload(source_height=source_h, source_fps=source_fps))
+
+    @action(detail=True, methods=['post'], url_path='exports')
+    def exports(self, request, pk=None):
+        """POST /gallery/{id}/exports/ — cria (ou reusa) uma exportação. 202 Accepted
+        com o estado. Só ENUMS validados na allowlist; nunca args de FFmpeg do cliente."""
+        img = self.get_object()
+        if not img.is_video:
+            return Response({'detail': 'Só vídeos podem ser exportados.'}, status=status.HTTP_400_BAD_REQUEST)
+        from . import gallery_export_presets as P
+        from .video_export import create_or_reuse, ExportBusy
+        source_h = None
+        try:
+            if getattr(img.image, 'path', None):
+                source_h = vsvc_probe_height(img.image.path)
+        except Exception:
+            source_h = img.height
+        try:
+            config = P.normalize_config(request.data, source_height=source_h)
+        except P.ExportOptionError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            export, created = create_or_reuse(img, config, getattr(request, 'user', None))
+        except ExportBusy as e:
+            return Response({'detail': str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        from .serializers import VideoExportSerializer
+        data = VideoExportSerializer(export, context=self.get_serializer_context()).data
+        return Response(data, status=(status.HTTP_202_ACCEPTED if export.status != 'ready' else status.HTTP_200_OK))
+
+    @action(detail=True, methods=['get'], url_path=r'exports/(?P<export_id>[0-9]+)/status')
+    def export_status(self, request, pk=None, export_id=None):
+        """GET status/progresso de UMA exportação (self-heal de presos)."""
+        img = self.get_object()
+        from .models import VideoExport
+        from .video_export import recover_stuck
+        exp = VideoExport.objects.filter(pk=export_id, video=img).first()
+        if exp is None:
+            return Response({'detail': 'Exportação não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if exp.status == 'processing':
+            from django.utils import timezone as _tz
+            hb = exp.heartbeat_at or exp.started_at
+            if hb and (_tz.now() - hb).total_seconds() > getattr(settings, 'VIDEO_STUCK_HEARTBEAT_SECONDS', 120):
+                recover_stuck(); exp.refresh_from_db()
+        from .serializers import VideoExportSerializer
+        return Response(VideoExportSerializer(exp, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['get'], url_path=r'exports/(?P<export_id>[0-9]+)/download')
+    def export_download(self, request, pk=None, export_id=None):
+        """GET baixa o arquivo da exportação quando pronta (attachment, nome bonito)."""
+        import os as _os
+        img = self.get_object()
+        from .models import VideoExport
+        exp = VideoExport.objects.filter(pk=export_id, video=img).first()
+        if exp is None:
+            return Response({'detail': 'Exportação não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if exp.status != 'ready' or not (exp.file and exp.file.name):
+            return Response({'detail': 'A exportação ainda não está pronta.'}, status=status.HTTP_409_CONFLICT)
+        from . import gallery_export_presets as P
+        from .gallery_naming import download_basename, content_disposition
+        ext = P.container_ext(exp.config())
+        suffix = P.config_summary(exp.config()).replace(' · ', ' ').replace('.', '')
+        fname = f'{download_basename(img)} - {suffix}'[:190] + ext
+        ctype = P.container_mime(exp.config())
+        try:
+            exp.file.open('rb')
+            resp = FileResponse(exp.file, content_type=ctype)
+            resp['Content-Disposition'] = content_disposition(fname)
+        except Exception:
+            return Response({'detail': 'Não foi possível ler o arquivo.'}, status=status.HTTP_404_NOT_FOUND)
+        from django.utils import timezone as _tz
+        VideoExport.objects.filter(pk=exp.pk).update(last_downloaded_at=_tz.now())
+        try:
+            from audit.tracking import log_event
+            from audit.files import meta_from_fieldfile
+            _ch = {'Download (exportação)': fname}
+            _m = meta_from_fieldfile(exp.file, original_name=fname)
+            if _m:
+                _ch['_file'] = _m
+            log_event('download', model_name='VideoExport', model_label='Exportação de vídeo',
+                      object_id=str(exp.pk), object_repr=fname,
+                      changes=_ch, user=getattr(request, 'user', None))
+        except Exception:
+            pass
+        return resp
+
+
+def vsvc_probe_height(path):
+    """Altura do vídeo de origem (para filtrar resoluções). None se falhar."""
+    try:
+        from .services import video as vsvc
+        info = vsvc.probe(path)
+        _w, h = info.display_dims
+        return h or info.height
+    except Exception:
+        return None
+
+
+def vsvc_probe_fps(path):
+    """Cadência REAL da origem (fps efetivo) para avisar no seletor de taxa de quadros.
+    Usa a mesma política adaptativa (avg_frame_rate/contagem real, nunca r_frame_rate).
+    None se falhar."""
+    try:
+        from .services import video as vsvc
+        from fractions import Fraction
+        return float(Fraction(vsvc.plan_target_fps(path, override='auto')))
+    except Exception:
+        return None
 
 
 # ═══════════ Precificação (aba Valores) ═══════════
@@ -1625,12 +2156,29 @@ class ItineraryCostItemViewSet(viewsets.ModelViewSet):
             return qs.filter(itinerary_id=it) if it else qs.none()
         return qs
 
+    # Qualquer mexida num custo acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         ids = request.data.get('order') or []
         with transaction.atomic():
             for pos, cid in enumerate(ids):
                 ItineraryCostItem.objects.filter(pk=cid).update(order=pos)
+        first = ItineraryCostItem.objects.filter(pk__in=ids).select_related('itinerary').first()
+        if first:
+            _touch_unpublished(first.itinerary)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='duplicate')
@@ -1639,6 +2187,7 @@ class ItineraryCostItemViewSet(viewsets.ModelViewSet):
         obj.pk = None
         obj.description = f'{obj.description} (cópia)'
         obj.save()
+        _touch_unpublished(obj.itinerary)
         return Response(self.get_serializer(obj).data, status=status.HTTP_201_CREATED)
 
 
@@ -1672,10 +2221,27 @@ class ItineraryInventoryBlockViewSet(viewsets.ModelViewSet):
             return qs.filter(itinerary_id=it) if it else qs.none()
         return qs
 
+    # Qualquer mexida num bloqueio acende "Público · pendente" (roteiro publicado).
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_unpublished(obj.itinerary)
+
+    def perform_destroy(self, instance):
+        it = instance.itinerary
+        instance.delete()
+        _touch_unpublished(it)
+
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         ids = request.data.get('order') or []
         with transaction.atomic():
             for pos, cid in enumerate(ids):
                 ItineraryInventoryBlock.objects.filter(pk=cid).update(order=pos)
+        first = ItineraryInventoryBlock.objects.filter(pk__in=ids).select_related('itinerary').first()
+        if first:
+            _touch_unpublished(first.itinerary)
         return Response(status=status.HTTP_204_NO_CONTENT)

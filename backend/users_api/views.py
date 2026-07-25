@@ -767,7 +767,10 @@ def user_unlink_agencies(request, pk):
     if not _can_target_user(request.user, user):
         return Response({'error': 'Você não tem permissão para editar esta conta.'}, status=403)
     from agencies.models import AgencyMember
-    AgencyMember.objects.filter(user=user).delete()
+    from audit.tracking import log_bulk_delete
+    members = list(AgencyMember.objects.filter(user=user))
+    log_bulk_delete(members, model_name='AgencyMember', model_label='Membro de agência')
+    AgencyMember.objects.filter(pk__in=[m.pk for m in members]).delete()
     return Response(serialize_user(user))
 
 

@@ -6,7 +6,7 @@ from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, Itiner
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
-                     ItineraryInventoryBlock)
+                     ItineraryInventoryBlock, VideoExport)
 from . import onlyoffice
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -221,7 +221,7 @@ class ConfigHotelMiniSerializer(serializers.ModelSerializer):
 
     def get_media(self, obj):
         out = []
-        for m in obj.media.all():
+        for m in obj.media.filter(is_deleted=False):
             try:
                 url = m.file.url
             except ValueError:
@@ -237,7 +237,7 @@ class ItineraryHotelSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ItineraryHotel
         fields = ['id', 'itinerary', 'config_hotel', 'config_hotel_data', 'config_hotel_linked',
-                  'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'notes', 'order']
+                  'name', 'city', 'check_in', 'check_out', 'address', 'phone', 'website', 'notes', 'order']
 
     def validate_notes(self, v):
         from core.sanitize import sanitize_html   # HTML rico → anti-XSS (A-12)
@@ -254,7 +254,7 @@ class ConfigBoatMiniSerializer(serializers.ModelSerializer):
 
     def get_media(self, obj):
         out = []
-        for m in obj.media.all():
+        for m in obj.media.filter(is_deleted=False):
             try:
                 url = m.file.url
             except ValueError:
@@ -270,7 +270,7 @@ class ItineraryBoatSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ItineraryBoat
         fields = ['id', 'itinerary', 'config_boat', 'config_boat_data', 'config_boat_linked',
-                  'name', 'check_in', 'check_out', 'notes', 'order']
+                  'name', 'website', 'check_in', 'check_out', 'notes', 'order']
 
     def validate_notes(self, v):
         from core.sanitize import sanitize_html   # HTML rico → anti-XSS (A-12)
@@ -334,12 +334,36 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
     country_data    = CountryMiniSerializer(source='country', read_only=True)
     continent_name  = serializers.SerializerMethodField()
     itinerary_name  = serializers.CharField(source='itinerary.name', read_only=True, default=None)
+    # Vídeo: URL da versão NORMALIZADA (o player usa esta, nunca o original quebrado),
+    # URL da thumbnail (poster do card/modal) e o status/erro do processamento.
+    video_url       = serializers.SerializerMethodField()   # MP4 (compat) = playback principal
+    webm_url        = serializers.SerializerMethodField()    # WebM/VP9 (fallback Linux sem H.264)
+    thumb_url       = serializers.SerializerMethodField()
+    download_url    = serializers.SerializerMethodField()    # MP4 (compat)
+    download_urls   = serializers.SerializerMethodField()    # {mp4, webm} (compat)
+    downloads       = serializers.SerializerMethodField()    # {mp4,webm}{url,filename,available}
+    playback_sources = serializers.SerializerMethodField()   # [{url, type, codec}]
+    mime_type       = serializers.SerializerMethodField()
+    error           = serializers.SerializerMethodField()
+    # Progresso real do processamento (barra + ETA na interface).
+    processing_elapsed_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model  = ItineraryImage
         fields = ['id', 'image', 'caption', 'kind', 'order', 'is_video', 'subject_type',
                   'city', 'country', 'continent', 'city_data', 'country_data', 'continent_name',
-                  'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name']
+                  'dominant_color', 'color_bucket', 'created_at', 'itinerary', 'itinerary_name',
+                  'status', 'video_url', 'webm_url', 'thumb_url', 'download_url', 'download_urls',
+                  'downloads', 'playback_sources', 'mime_type', 'duration', 'width', 'height', 'error',
+                  'processing_stage', 'processing_progress', 'estimated_remaining_seconds',
+                  'processing_elapsed_seconds', 'processing_heartbeat_at']
+
+    def get_processing_elapsed_seconds(self, obj):
+        return obj.processing_elapsed_seconds()
+
+    def _abs(self, url):
+        request = self.context.get('request')
+        return request.build_absolute_uri(url) if (request and url) else url
 
     def get_continent_name(self, obj):
         # Continente explícito tem prioridade; senão deriva do país / da cidade.
@@ -351,7 +375,123 @@ class ItineraryImageSerializer(serializers.ModelSerializer):
 
     def get_is_video(self, obj):
         name = (getattr(obj.image, 'name', '') or '').lower()
-        return name.endswith(('.mp4', '.webm', '.mov', '.m4v', '.ogv'))
+        return name.endswith(ItineraryImage.VIDEO_EXTS)
+
+    def get_video_url(self, obj):
+        # Só devolve URL de reprodução quando o vídeo está PRONTO (normalizado). Antes
+        # disso é None — o front mostra 'processando' e não abre um player quebrado.
+        if self.get_is_video(obj) and obj.status == 'ready' and obj.video_normalized:
+            return self._abs(obj.video_normalized.url)
+        return None
+
+    def get_webm_url(self, obj):
+        # Só quando pronto E existe o WebM (VP9). Fallback p/ navegadores/players sem H.264.
+        if self.get_is_video(obj) and obj.status == 'ready' and obj.video_normalized_webm:
+            return self._abs(obj.video_normalized_webm.url)
+        return None
+
+    def get_thumb_url(self, obj):
+        if self.get_is_video(obj) and obj.thumbnail:
+            return self._abs(obj.thumbnail.url)
+        return None
+
+    def get_playback_sources(self, obj):
+        """Fontes de reprodução em ORDEM DE PREFERÊNCIA (MP4 primeiro; o player
+        reordena por canPlayType). Só inclui a versão que EXISTE e está pronta."""
+        if not (self.get_is_video(obj) and obj.status == 'ready'):
+            return []
+        out = []
+        mp4 = self.get_video_url(obj)
+        if mp4:                                  # avc1.42e01e = H.264 Constrained Baseline
+            out.append({'url': mp4, 'type': 'video/mp4; codecs="avc1.42e01e"', 'codec': 'avc1'})
+        webm = self.get_webm_url(obj)
+        if webm:                                 # VP8/Vorbis (compat Linux/GStreamer padrão)
+            out.append({'url': webm, 'type': 'video/webm; codecs="vp8, vorbis"', 'codec': 'vp8'})
+        return out
+
+    def get_download_url(self, obj):
+        # Endpoint autenticado de download (attachment, MP4). O front usa via axios
+        # (cookie/CSRF, proxy same-origin/CORS) — nunca monta path de storage à mão.
+        if obj.pk is None:
+            return None
+        return self._abs(f'/api/itineraries/gallery/{obj.pk}/download/')
+
+    def get_download_urls(self, obj):
+        if obj.pk is None or not self.get_is_video(obj):
+            return {}
+        d = {'mp4': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=mp4')}
+        if obj.video_normalized_webm:
+            d['webm'] = self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=webm')
+        return d
+
+    def get_downloads(self, obj):
+        """Contrato de download por formato: url + filename BONITO (dos metadados) +
+        available. O filename real vem do Content-Disposition; aqui é para exibir."""
+        if obj.pk is None or not self.get_is_video(obj):
+            return {}
+        from .gallery_naming import download_filename
+        ready = obj.status == 'ready'
+        has_mp4 = ready and bool(obj.video_normalized and obj.video_normalized.name)
+        has_webm = ready and bool(obj.video_normalized_webm and obj.video_normalized_webm.name)
+        # 'recommended': 'auto' → o FRONT decide pelo dispositivo (Linux → webm, senão
+        # mp4) e cai na versão válida se a recomendada não existir.
+        return {
+            'recommended': 'auto',
+            'mp4': {'url': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=mp4'),
+                    'filename': download_filename(obj, '.mp4'), 'available': has_mp4},
+            'webm': {'url': self._abs(f'/api/itineraries/gallery/{obj.pk}/download/?fmt=webm'),
+                     'filename': download_filename(obj, '.webm'), 'available': has_webm},
+        }
+
+    def get_mime_type(self, obj):
+        if self.get_is_video(obj):
+            return 'video/mp4' if obj.status == 'ready' else None
+        return None
+
+    def get_error(self, obj):
+        # Mensagem pública só quando falhou (sem stack trace/caminhos internos).
+        return obj.error_message if obj.status == 'failed' else ''
+
+
+class VideoExportSerializer(serializers.ModelSerializer):
+    """Estado de UMA exportação avançada (progresso + link quando pronto)."""
+    summary        = serializers.SerializerMethodField()
+    download_url   = serializers.SerializerMethodField()
+    filename       = serializers.SerializerMethodField()
+    elapsed_seconds = serializers.SerializerMethodField()
+    error_message  = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = VideoExport
+        fields = ['id', 'video', 'container', 'video_codec', 'audio_codec', 'resolution', 'quality',
+                  'status', 'progress', 'stage', 'estimated_remaining_seconds', 'elapsed_seconds',
+                  'file_size', 'summary', 'download_url', 'filename', 'error_message',
+                  'created_at', 'finished_at', 'expires_at']
+
+    def get_summary(self, obj):
+        from .gallery_export_presets import config_summary
+        return config_summary(obj.config())
+
+    def get_download_url(self, obj):
+        if obj.status != 'ready':
+            return None
+        request = self.context.get('request')
+        url = f'/api/itineraries/gallery/{obj.video_id}/exports/{obj.pk}/download/'
+        return request.build_absolute_uri(url) if request else url
+
+    def get_filename(self, obj):
+        from .gallery_export_presets import container_ext, config_summary
+        from .gallery_naming import download_basename
+        base = download_basename(obj.video)
+        suffix = config_summary(obj.config()).replace(' · ', ' ').replace('.', '')
+        name = f'{base} - {suffix}'[:200]
+        return f'{name}{container_ext(obj.config())}'
+
+    def get_elapsed_seconds(self, obj):
+        return obj.elapsed_seconds()
+
+    def get_error_message(self, obj):
+        return obj.error if obj.status == 'failed' else ''
 
 
 class ItineraryDaySerializer(serializers.ModelSerializer):
@@ -788,10 +928,12 @@ class ItineraryListSerializer(serializers.ModelSerializer):
     def get_pub_end_date(self, obj):   return self._pub(obj, 'end_date') or obj.end_date
 
     def get_cover(self, obj):
-        # Capa: imagem kind='cover'; senão a 1ª imagem da galeria (day nulo).
+        # Capa: imagem kind='cover'; senão a 1ª imagem da galeria (day nulo). NUNCA um
+        # vídeo — a URL de vídeo num <img> vira ícone de imagem quebrada; sem imagem
+        # real, retorna None e o front mostra o placeholder padrão.
         imgs = list(obj.images.all())
-        cover = next((i for i in imgs if i.kind == 'cover'), None) \
-            or next((i for i in imgs if i.day_id is None), None)
+        cover = next((i for i in imgs if i.kind == 'cover' and not i.is_video), None) \
+            or next((i for i in imgs if i.day_id is None and not i.is_video), None)
         if not cover or not cover.image:
             return None
         request = self.context.get('request')

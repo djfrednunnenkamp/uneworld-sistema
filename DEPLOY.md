@@ -268,6 +268,120 @@ docker compose -f docker-compose.prod.yml down
 docker compose -f docker-compose.prod.yml exec backend python manage.py shell
 ```
 
+## Vídeos da Galeria (FFmpeg)
+
+Todo vídeo enviado à Galeria gera **duas versões** para tocar em qualquer navegador,
+além de uma **thumbnail** real:
+- **MP4 / H.264 Constrained Baseline** (`avc1`, sem B-frames, refs=1, CABAC off, level
+  4.0, yuv420p, AAC-LC, `+faststart`) — o **padrão de download** (máxima compatibilidade:
+  abre até em decodificadores mínimos como o openh264, aparelhos antigos, TVs).
+- **WebM / VP8 + Vorbis** — **para Linux**. É a combinação que abre no **reprodutor
+  padrão do Ubuntu** (GStreamer): `vp8dec`/`vorbisdec` vêm em `plugins-good`/`base`,
+  presentes em TODO Ubuntu. VP9/Opus e H.264 exigem `plugins-bad`/`libav`, que **não**
+  vêm por padrão (comprovado: `gst-discoverer` reporta "Missing plugins" p/ VP9 num
+  Ubuntu stock). O **download** de um cliente Linux escolhe o WebM automaticamente.
+
+O `ffmpeg`/`ffprobe` já vêm **instalados na imagem do backend** (ver `Dockerfile`) —
+o build estático inclui `libx264`, `libvpx` (VP8), `libvorbis` e o AAC nativo.
+
+- **Como processa:** logo após o upload, um vídeo entra como `processando` e uma
+  thread de fundo converte MP4 → WebM (VP8 é mais lento; a barra mostra as etapas
+  "Preparando a versão MP4" / "…compatível com navegadores Linux"). O card vira ▶
+  (pronto) ou "Falha no vídeo" sozinho, via WebSocket. Se o **WebM falhar**, o vídeo
+  ainda fica pronto com o MP4 (best-effort). Desligue o WebM com `VIDEO_MAKE_WEBM=0`
+  se a CPU do servidor não comportar.
+- **Recuperar/reprocessar** (fila, presos, falhados, antigos e **gerar o WebM que
+  falta** nos vídeos que só têm MP4):
+  ```bash
+  # Ver o que falta dos antigos (sem alterar nada)
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --legacy --dry-run
+  # Migrar os antigos em lotes + destravar presos há >30min
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --legacy --requeue-stuck 30
+  # Gerar SÓ o WebM ausente (mantém o MP4/thumbnail):
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --missing-webm --dry-run
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --missing-webm
+  # Regenerar WebM que NÃO é VP8 (ex.: VP9 antigo → VP8, mantém o MP4):
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --webm-outdated
+  # Regenerar TODAS as versões (MP4 + WebM) de um item:
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --id 123 --all-formats
+  # Retentar os que falharam
+  docker compose -f docker-compose.prod.yml exec backend \
+      python manage.py reprocess_videos --failed
+  ```
+  O comando é **idempotente** e pode rodar por cron (ex.: `--pending --requeue-stuck 30`
+  a cada 5 min) em servidores com muito volume, ou com `VIDEO_PROCESS_INLINE=0`
+  quando quiser tirar a conversão do processo web.
+- **Download em dois níveis:** o botão "Baixar vídeo" baixa **imediatamente** a versão
+  padrão (MP4 CBP, já pronta — sem nova conversão). "Opções avançadas…" abre um modal
+  para exportar em outro **formato/codec/resolução/qualidade** (MP4 h264/HEVC/AV1, WebM
+  VP9/AV1, MOV h264/HEVC/ProRes, MKV) — geradas **sob demanda**, com **cache** por
+  configuração (`VideoExport`, dedup por hash, expira em `VIDEO_EXPORT_EXPIRY_DAYS`).
+  Só ENUMS da allowlist do backend (nunca args de FFmpeg do cliente). Manutenção:
+  ```bash
+  python manage.py video_exports --purge-expired     # limpa exports vencidos (cron)
+  python manage.py video_exports --requeue-stuck      # recupera presos
+  python manage.py video_exports --process-pending    # fila (se VIDEO_PROCESS_INLINE=0)
+  ```
+  Limites (anti-DoS): `VIDEO_EXPORT_MAX_PER_USER` (3), `VIDEO_EXPORT_MAX_TOTAL` (6),
+  `VIDEO_EXPORT_TIMEOUT` (3600s). AV1 é lento (`VIDEO_AV1_CPU_USED`).
+- **Nome do download:** o arquivo baixado recebe um nome BONITO montado dos metadados
+  da Galeria — `Tipo - Cidade - País - Descrição - ID.ext` (partes ausentes são
+  puladas; o ID vai por último). É calculado no download (editar metadados muda o
+  próximo nome, sem mover arquivo). O storage continua usando nomes internos uuid;
+  o `Content-Disposition` traz `filename` (ASCII) + `filename*` (UTF-8, com acentos).
+- **Limite de upload:** o limite do sistema é 200 MB por vídeo. O **proxy reverso**
+  na frente do backend (nginx/Cloudflare) precisa aceitar corpos desse tamanho —
+  no nginx: `client_max_body_size 210m;` e um `proxy_read_timeout` folgado para
+  uploads grandes. O `/media` já é servido com **HTTP Range** (nginx nativo), o que
+  permite o *seek* no player.
+- **Progresso real + recuperação:** a interface mostra barra/etapa/tempo restante
+  (via `-progress` do FFmpeg + polling do endpoint `/status/`, com WebSocket para o
+  instantâneo). Um vídeo que trava (thread/processo morto) é detectado por
+  **heartbeat** e recuperado — pelo `--requeue-stuck`, e também sozinho quando o
+  modal consulta o `/status/`. Nada fica "Processando…" para sempre.
+- **FFmpeg não encontrado pelo Django:** se o processo Django subiu com um `PATH`
+  diferente (ex.: ffmpeg em `~/.local/bin` e o serviço sem esse dir), o upload é
+  aceito mas o vídeo vai para `failed` na hora (fail-fast, com mensagem clara) — não
+  fica preso. Aponte o binário com `FFMPEG_BINARY=/caminho/ffmpeg` e
+  `FFPROBE_BINARY=/caminho/ffprobe` no `.env` e **reinicie** o backend. Confira o que
+  o processo resolve com `manage.py reprocess_videos` (ele imprime os caminhos).
+- **Ajustes finos** (`.env`, opcionais): `VIDEO_TARGET_FPS` (30), `VIDEO_MAX_HEIGHT`
+  (1080, não amplia), `VIDEO_CRF` (23), `VIDEO_PRESET` (medium), `FFMPEG_TIMEOUT`,
+  `VIDEO_STUCK_HEARTBEAT_SECONDS` (120), `VIDEO_MAX_PROCESSING_ATTEMPTS` (3);
+  WebM (VP8): `VIDEO_MAKE_WEBM` (1), `VIDEO_VP8_CRF` (10), `VIDEO_VP8_BITRATE` (1M),
+  `VIDEO_VP8_CPU_USED` (2, 0=melhor/lento…5=rápido), `VIDEO_VP8_DEADLINE` (good), `VIDEO_WEBM_TIMEOUT` (3600).
+
+### Vídeo não abre no Ubuntu ("Não há suporte a este Codec… h264")
+
+Esse erro é do **reprodutor/navegador do usuário**, não do arquivo: o computador não
+tem o **decoder H.264** instalado. O MP4 pode estar 100% válido. **O sistema já
+resolve isso sozinho:**
+
+- **No Linux, o botão "Baixar vídeo" baixa a versão WebM (VP8/Vorbis) automaticamente**
+  — ela abre no reprodutor padrão do Ubuntu **sem instalar nada** (codecs `vp8dec`/
+  `vorbisdec` vêm de fábrica). Nada de escolher formato ou codec.
+- No player dentro do sistema, se o MP4 não tocar, ele **troca sozinho** para o WebM.
+
+Só se o usuário quiser tocar o **MP4** no reprodutor do Ubuntu (opcional):
+
+- **VLC** (traz os próprios decoders):
+  ```bash
+  sudo apt update && sudo apt install vlc
+  ```
+- **Codecs do sistema (GStreamer)** — habilita H.264 no reprodutor padrão e nos navegadores:
+  ```bash
+  sudo apt update && sudo apt install \
+    ubuntu-restricted-extras gstreamer1.0-libav \
+    gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+  ```
+  Pode ser necessário **fechar e reabrir** o navegador/reprodutor depois de instalar.
+
 ## Solução de problemas
 
 **"https://seu-dominio.com.br" não abre / erro de conexão**

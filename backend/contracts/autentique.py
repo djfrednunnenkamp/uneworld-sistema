@@ -153,16 +153,31 @@ query Document($id: UUID!) {
 """
 
 
-def _delivery_method():
-    val = (getattr(settings, 'AUTENTIQUE_DELIVERY', 'email') or 'email').lower()
-    return {
-        'whatsapp': 'DELIVERY_METHOD_WHATSAPP',
-        'sms':      'DELIVERY_METHOD_SMS',
-        'link':     'DELIVERY_METHOD_LINK',
-    }.get(val)  # None => entrega padrão (e-mail)
+_DELIVERY_MAP = {
+    'whatsapp': 'DELIVERY_METHOD_WHATSAPP',
+    'sms':      'DELIVERY_METHOD_SMS',
+    'link':     'DELIVERY_METHOD_LINK',
+}
 
 
-def build_signer(email='', phone=''):
+def _delivery_method(method=None):
+    """Resolve o canal de entrega da Autentique.
+
+    `method` (escolhido POR CONTRATO no envio: 'email'|'whatsapp'|'sms') tem
+    prioridade sobre o padrão global AUTENTIQUE_DELIVERY. Retorna a constante da
+    Autentique (DELIVERY_METHOD_*) ou None => entrega por e-mail (padrão)."""
+    val = (method or getattr(settings, 'AUTENTIQUE_DELIVERY', 'email') or 'email').lower()
+    return _DELIVERY_MAP.get(val)  # None => e-mail
+
+
+def _is_valid_br_mobile(e164):
+    """Celular BR em E.164: +55 + DDD (2) + 9 + 8 dígitos = 13 dígitos após o '+'.
+    (Fixo tem 8 dígitos no assinante e não começa com 9 — não serve p/ SMS.)"""
+    import re
+    return bool(re.match(r'^\+55\d{2}9\d{8}$', e164 or ''))
+
+
+def build_signer(email='', phone='', method=None, sms_verification=False):
     """Monta um signatário no formato da Autentique.
 
     A Autentique aceita UM canal de entrega por signatário — enviar e-mail e
@@ -170,19 +185,33 @@ def build_signer(email='', phone=''):
     também (`is_required_when_present`). Então:
       - entrega por e-mail (padrão):  {action, email}
       - entrega por WhatsApp/SMS:     {action, phone E.164 com +, delivery_method}
-    Retorna None quando não há contato compatível com o canal configurado."""
-    method = _delivery_method()  # None => e-mail
+    `method` sobrepõe o canal global (escolha por contrato). Retorna None quando
+    não há contato compatível com o canal escolhido.
+
+    `sms_verification` (config da operadora): exige AUTENTICAÇÃO por SMS antes de
+    assinar (2FA) — acrescenta `security_verifications: [{type: SMS, verify_phone}]`.
+    Só pré-preenche `verify_phone` quando é um CELULAR válido; senão omite (a
+    Autentique deixa o signatário informar na hora — pré-preencher um fixo/número
+    inválido dá `verify_phone: must_be_a_valid_phone_number`)."""
+    resolved = _delivery_method(method)  # None => e-mail
     digits = ''.join(c for c in (phone or '') if c.isdigit())
-    if method:
+    e164 = ('+' + (digits if digits.startswith('55') else f'55{digits}')) if digits else ''
+    if resolved:
         # Entrega por telefone (WhatsApp/SMS): exige telefone válido E.164.
-        if not digits:
+        if not e164:
             return None
-        e164 = digits if digits.startswith('55') else f'55{digits}'
-        return {'action': 'SIGN', 'phone': f'+{e164}', 'delivery_method': method}
-    # Entrega por e-mail (padrão).
-    if not email:
+        signer = {'action': 'SIGN', 'phone': e164, 'delivery_method': resolved}
+    elif email:
+        # Entrega por e-mail (padrão).
+        signer = {'action': 'SIGN', 'email': email}
+    else:
         return None
-    return {'action': 'SIGN', 'email': email}
+    if sms_verification:
+        ver = {'type': 'SMS'}
+        if _is_valid_br_mobile(e164):
+            ver['verify_phone'] = e164
+        signer['security_verifications'] = [ver]
+    return signer
 
 
 def create_document(name, pdf_bytes, signers):

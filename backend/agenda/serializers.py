@@ -15,7 +15,16 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'lamina_favorite_patterns', 'lamina_recent_patterns', 'lamina_favorite_recommended',
                   'lamina_favorite_themes',
                   'itinerary_tab_order', 'contract_tab_order', 'drive_columns',
-                  'nav_order', 'nav_hidden', 'table_columns']
+                  'nav_order', 'nav_hidden', 'table_columns', 'gallery_columns']
+
+    def validate_gallery_columns(self, value):
+        # Nº de colunas fixas da grade da Galeria. 0 = legado (o front cai no
+        # padrão). 1..60 = quantidade escolhida. Trava no intervalo por segurança.
+        try:
+            n = int(value)
+        except (TypeError, ValueError):
+            return 0
+        return max(0, min(60, n))
 
     def validate_lamina_recent_colors(self, value):
         # Lista de '#RRGGBB' (máx. 16, sem repetição, mais recente primeiro).

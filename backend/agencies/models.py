@@ -81,6 +81,17 @@ class Agency(models.Model):
     # padrão) ou o desta agência (True). Só faz sentido ligar se a agência tem PIX.
     use_agency_pix = models.BooleanField('No contrato, usar o PIX desta agência (senão, o da UneWorld)', default=False)
 
+    # Assinatura automática da agência (via Autentique). DOIS papéis:
+    #  - auto_sign_allowed: a OPERADORA permite (ou não) esta agência usar o recurso.
+    #  - auto_sign + credenciais: o ADMIN DA AGÊNCIA ativa e coloca o e-mail/token da
+    #    conta Autentique dela (a operadora não digita o token; é segredo da agência).
+    # Quando ligada+configurada, o contrato digital é assinado automaticamente pela
+    # conta da agência (token dela). Espelha a assinatura automática do CEO.
+    auto_sign_allowed = models.BooleanField('Operadora permite assinatura automática', default=True)
+    auto_sign        = models.BooleanField('Assinar automaticamente os contratos digitais', default=False)
+    autentique_email = models.EmailField('E-mail da conta Autentique da agência', blank=True)
+    autentique_token = models.CharField('Token de assinatura (Autentique) da agência', max_length=255, blank=True)
+
     # Observações
     notes = models.TextField('Observações', blank=True)
 
@@ -126,6 +137,13 @@ class Agency(models.Model):
         else:
             base = self.name or self.company_name
         return base or self.responsible or self.email or f'Agência #{self.pk}'
+
+    @property
+    def auto_sign_enabled(self):
+        """Habilita a assinatura automática só quando a OPERADORA permitiu E o
+        admin da agência ativou E preencheu e-mail da conta Autentique + token."""
+        return bool(self.auto_sign_allowed and self.auto_sign
+                    and (self.autentique_email or '').strip() and (self.autentique_token or '').strip())
 
     def __str__(self):
         return self.display_name

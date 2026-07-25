@@ -6,34 +6,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import AuditLog
+from . import files as audit_files
 from core.search import AccentInsensitiveSearchFilter
-
-
-# Modelos cujo log de upload/download aponta para um arquivo servível:
-# model_name -> ('app_label.Model', 'campo_do_arquivo')
-# O 2º item é o nome do campo de arquivo OU um callable(obj, log) -> FieldFile
-# (usado no Contrato, que tem 2 arquivos — o log diz qual em changes['_file_field']).
-FILE_MODELS = {
-    'ItineraryImage':    ('itineraries.ItineraryImage', 'image'),
-    'ItineraryDocument': ('itineraries.ItineraryDocument', 'file'),
-    'ConfigHotelMedia':  ('config_api.ConfigHotelMedia', 'file'),
-    'ConfigBoatMedia':   ('config_api.ConfigBoatMedia', 'file'),
-    'PassengerDocument': ('passengers.PassengerDocument', 'file'),
-    'Airline':           ('config_api.Airline', 'logo'),
-    'OperatingCompany':  ('config_api.OperatingCompany', 'ceo_signature'),
-    # Contrato: só serve o arquivo ARMAZENADO (assinado/comprovante, marcados com
-    # _file_field). O "Baixou o PDF" gerado no navegador não fica salvo → devolve
-    # None (404) e o front regenera o PDF na hora.
-    'Contract':          ('contracts.Contract',
-                          lambda obj, log: getattr(obj, (log.changes or {}).get('_file_field'), None)
-                          if (log.changes or {}).get('_file_field') else None),
-}
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
     action_label = serializers.CharField(source='get_action_display', read_only=True)
     timestamp_br = serializers.SerializerMethodField()
     has_file     = serializers.SerializerMethodField()
+    file_kind    = serializers.SerializerMethodField()
     user_avatar  = serializers.SerializerMethodField()
     source       = serializers.SerializerMethodField()
 
@@ -47,20 +28,17 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'id', 'timestamp', 'timestamp_br', 'source',
             'user_display', 'user_avatar', 'action', 'action_label',
             'model_name', 'model_label', 'object_id', 'object_repr',
-            'changes', 'ip_address', 'has_file',
+            'changes', 'ip_address', 'has_file', 'file_kind',
             'geo_city', 'geo_country', 'latitude', 'longitude', 'geo_precise', 'geo_address',
         ]
 
     def get_has_file(self, obj):
-        # O log aponta para um arquivo servível (imagem/doc/mídia/PDF)?
-        spec = FILE_MODELS.get(obj.model_name)
-        if not spec or not obj.object_id:
-            return False
-        # Campo dinâmico (ex: Contrato tem 2 arquivos) → nos eventos de download
-        # (o resolver escolhe pelo _file_field; sem ele, cai no arquivo padrão).
-        if callable(spec[1]):
-            return obj.action == 'download'
-        return True
+        # O log aponta para um arquivo servível (imagem/doc/mídia/PDF)? (barato)
+        return audit_files.has_servable_file(obj)
+
+    def get_file_kind(self, obj):
+        # Kind p/ o indicador discreto na lista (ícone de imagem/vídeo/pdf/arquivo).
+        return audit_files.file_kind_of(obj) if audit_files.has_servable_file(obj) else None
 
     def get_user_avatar(self, obj):
         u = obj.user
@@ -107,13 +85,19 @@ SCOPE_MODELS = {
     'settings':    SETTINGS_MODELS,
     'lists':       ['PassengerList', 'ListEnrollment', 'Enrollment', 'Roteiro', 'Room', 'ListTask',
                     'VoucherList', 'VoucherFlightConfirmation'],
+    # Vouchers = visão dedicada (subconjunto de 'lists'): tudo do voucher da lista.
+    'vouchers':    ['VoucherList', 'VoucherFlightConfirmation', 'VoucherDownload', 'VoucherTemplate'],
+    # Documentos (Drive): upload/download/criar/renomear/mover/compartilhar/transferir/excluir.
+    'documents':   ['DriveNode', 'DriveNodeVersion'],
     'passengers':  ['Passenger', 'PassengerDocument'],
     'agencies':    ['Agency', 'AgencyMember'],
     'users':       ['User', 'UserPermissions'],
     'contracts':   CONTRACT_MODELS,
     'itineraries': ['Itinerary', 'ItineraryDocument', 'ItineraryImage', 'ItineraryDeparture',
                     'ItineraryFlight', 'ItineraryHotel', 'ItineraryBoat',
-                    'ItineraryTerrestreDeparture', 'ItineraryTerrestreLeg'],
+                    'ItineraryTerrestreDeparture', 'ItineraryTerrestreLeg',
+                    'ItineraryCostItem', 'ItineraryInventoryBlock', 'ItineraryCurrencyRate',
+                    'ConfigShipCabin', 'ConfigFlightClass'],
 }
 
 
@@ -128,31 +112,52 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['user_display', 'object_repr', 'model_label']
     ordering = ['-timestamp']
 
+    @action(detail=True, methods=['get'], url_path='file/info')
+    def file_info(self, request, pk=None):
+        """Metadados + disponibilidade do arquivo do log, SEM baixar o conteúdo.
+        get_object respeita o escopo/permissão — só quem pode ver o log consulta.
+        Consultar os metadados NÃO gera log de download (é só inspeção)."""
+        log = self.get_object()
+        return Response(audit_files.file_info_for_log(log))
+
     @action(detail=True, methods=['get'])
     def file(self, request, pk=None):
-        """Serve o arquivo apontado por um log de upload/download (imagem, vídeo,
-        PDF…). ?download=1 força baixar; senão, inline (visualizar). get_object
-        respeita o escopo/permissão — só serve arquivo de log que a pessoa pode ver."""
+        """Serve o arquivo apontado pelo log (imagem, vídeo, PDF, texto…).
+        ?download=1 força baixar (e é AUDITADO como um download do usuário); sem
+        isso é inline/preview e NÃO gera log (evita ruído por thumbnail/iframe).
+        get_object respeita o escopo/permissão — só serve arquivo de log visível.
+        Conteúdo perigoso (HTML/SVG/XML) é servido como texto puro, sem execução."""
         log = self.get_object()
-        spec = FILE_MODELS.get(log.model_name)
-        if not spec or not log.object_id:
-            return Response({'detail': 'Este registro não tem arquivo.'}, status=404)
-        from django.apps import apps
-        try:
-            Model = apps.get_model(spec[0])
-        except Exception:
-            return Response({'detail': 'Modelo indisponível.'}, status=404)
-        obj = Model.objects.filter(pk=log.object_id).first()
-        if not obj:
-            return Response({'detail': 'Arquivo indisponível (o registro pode ter sido removido).'}, status=404)
-        f = spec[1](obj, log) if callable(spec[1]) else getattr(obj, spec[1], None)
-        if not f:
-            return Response({'detail': 'Arquivo indisponível (o registro pode ter sido removido).'}, status=404)
+        fh, meta, status = audit_files.resolve_log_file(log)
+        if status == 'no_file':
+            return Response({'status': status, 'detail': 'Este registro não tem arquivo.'}, status=404)
+        if status in ('removed', 'model_gone', 'legacy') or not fh:
+            return Response({'status': status,
+                             'detail': 'O conteúdo do arquivo não está mais disponível.'}, status=404)
+
+        meta = meta or {}
+        name = meta.get('name') or (log.object_repr or 'arquivo')
         as_attachment = request.query_params.get('download') == '1'
-        try:
-            return FileResponse(f.open('rb'), as_attachment=as_attachment, filename=f.name.split('/')[-1])
-        except FileNotFoundError:
-            return Response({'detail': 'Arquivo não encontrado no servidor.'}, status=404)
+        # MIME correto é essencial: o visualizador de PDF decide pelo tipo do blob.
+        # Sem isso (octet-stream), um PDF era tratado como imagem e não renderizava.
+        content_type = meta.get('mime') or audit_files.guess_mime(name)
+        if not as_attachment:
+            # Preview inline: neutraliza formatos executáveis (HTML/SVG/XML).
+            content_type = audit_files.safe_inline_content_type(content_type or '', name)
+
+        resp = FileResponse(fh, as_attachment=as_attachment, filename=name)
+        if content_type:
+            resp['Content-Type'] = content_type
+        resp['X-Content-Type-Options'] = 'nosniff'
+
+        # Só o DOWNLOAD real do usuário é auditado (o preview inline, não).
+        if as_attachment:
+            from .files import log_file_event
+            log_file_event('download', meta=meta, model_name=log.model_name,
+                           model_label=log.model_label, object_id=log.object_id,
+                           object_repr=name, changes={'Baixado do histórico de logs': name},
+                           user=request.user)
+        return resp
 
     def get_queryset(self):
         qs = AuditLog.objects.select_related('user', 'user__permissions').all()
@@ -168,6 +173,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         agency_id    = self.request.query_params.get('agency_id')
         contract_id  = self.request.query_params.get('contract_id')
         itinerary_id = self.request.query_params.get('itinerary_id')
+        target_user_id = self.request.query_params.get('target_user_id')   # mudanças feitas AO usuário
         scope        = self.request.query_params.get('scope')
         source       = self.request.query_params.get('source')
         show_nav     = self.request.query_params.get('show_nav') in ('1', 'true', 'True')
@@ -191,9 +197,13 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         has_log_settings   = has_global or has_any_perm(current_user, 'settings_view_logs')
         has_log_contracts  = has_global or has_any_perm(current_user, 'contracts_view_logs')
         has_log_itineraries = has_global or has_any_perm(current_user, 'roteiros_view_logs')
+        # Vouchers pertencem às Listas → reaproveita a MESMA permissão de log de listas.
+        has_log_vouchers   = has_global or has_any_perm(current_user, 'lists_view_logs')
+        # Documentos (Drive): quem pode ver a área vê o log dela.
+        has_log_documents  = has_global or has_any_perm(current_user, 'documentos_view')
         has_any_area = (has_log_passengers or has_log_lists or has_log_agencies
                         or has_log_users or has_log_settings or has_log_contracts
-                        or has_log_itineraries)
+                        or has_log_itineraries or has_log_vouchers or has_log_documents)
         has_page_view_access = has_global or has_any_perm(current_user, 'log_page_views')
 
         # Navegação entre páginas (PageView) e login/logout: por padrão ficam fora
@@ -220,6 +230,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             'settings': has_log_settings, 'lists': has_log_lists,
             'passengers': has_log_passengers, 'agencies': has_log_agencies, 'users': has_log_users,
             'contracts': has_log_contracts, 'itineraries': has_log_itineraries,
+            'vouchers': has_log_vouchers, 'documents': has_log_documents,
         }
         if scope in scope_perms and not scope_perms[scope]:
             return qs.none()
@@ -253,6 +264,10 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 area_q |= DQ(model_name__in=CONTRACT_MODELS)
             if has_log_itineraries:
                 area_q |= DQ(model_name__in=SCOPE_MODELS['itineraries'])
+            if has_log_vouchers:
+                area_q |= DQ(model_name__in=SCOPE_MODELS['vouchers'])
+            if has_log_documents:
+                area_q |= DQ(model_name__in=SCOPE_MODELS['documents'])
             if show_nav and has_page_view_access:
                 area_q |= DQ(model_name='PageView') | DQ(action__in=['login', 'logout'])
             if area_q.children:
@@ -285,16 +300,26 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         if date_from: qs = qs.filter(timestamp__date__gte=date_from)
         if date_to:   qs = qs.filter(timestamp__date__lte=date_to)
         if list_id:
-            from trips.models import ListEnrollment
+            from trips.models import ListEnrollment, Room, ListTask
             from django.db.models import Q
-            enrollment_ids = list(
-                ListEnrollment.objects.filter(passenger_list_id=list_id)
-                .values_list('id', flat=True)
-            )
-            qs = qs.filter(
-                Q(model_name='ListEnrollment', object_id__in=[str(i) for i in enrollment_ids]) |
-                Q(model_name='PassengerList', object_id=str(list_id))
-            )
+            lq = Q(model_name='PassengerList', object_id=str(list_id))
+            # Filhos ligados por FK `passenger_list`.
+            for model_cls, name in ((ListEnrollment, 'ListEnrollment'), (Room, 'Room'), (ListTask, 'ListTask')):
+                ids = list(model_cls.objects.filter(passenger_list_id=list_id).values_list('id', flat=True))
+                if ids:
+                    lq |= Q(model_name=name, object_id__in=[str(i) for i in ids])
+            # Voucher da lista + confirmações de voo (via voucher → passenger_list).
+            try:
+                from vouchers.models import VoucherList, VoucherFlightConfirmation
+                vl_ids = list(VoucherList.objects.filter(passenger_list_id=list_id).values_list('id', flat=True))
+                if vl_ids:
+                    lq |= Q(model_name='VoucherList', object_id__in=[str(i) for i in vl_ids])
+                    fc_ids = list(VoucherFlightConfirmation.objects.filter(voucher_id__in=vl_ids).values_list('id', flat=True))
+                    if fc_ids:
+                        lq |= Q(model_name='VoucherFlightConfirmation', object_id__in=[str(i) for i in fc_ids])
+            except Exception:
+                pass
+            qs = qs.filter(lq)
         if passenger_id:
             from passengers.models import PassengerDocument
             from django.db.models import Q
@@ -307,7 +332,27 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 Q(model_name='PassengerDocument', object_id__in=[str(i) for i in doc_ids])
             )
         if agency_id:
-            qs = qs.filter(model_name='Agency', object_id=str(agency_id))
+            from agencies.models import AgencyMember
+            from django.db.models import Q
+            member_ids = list(AgencyMember.objects.filter(agency_id=agency_id).values_list('id', flat=True))
+            qs = qs.filter(
+                Q(model_name='Agency', object_id=str(agency_id)) |
+                Q(model_name='AgencyMember', object_id__in=[str(i) for i in member_ids])
+            )
+        if target_user_id:
+            # Mudanças feitas AO usuário (conta, permissões, vínculos de agência) — o
+            # `user_id` filtra por ATOR; este filtra por ALVO.
+            from django.db.models import Q
+            from users_api.models import UserPermissions
+            from agencies.models import AgencyMember
+            perm_ids = list(UserPermissions.objects.filter(user_id=target_user_id).values_list('id', flat=True))
+            mem_ids = list(AgencyMember.objects.filter(user_id=target_user_id).values_list('id', flat=True))
+            tq = Q(model_name='User', object_id=str(target_user_id))
+            if perm_ids:
+                tq |= Q(model_name='UserPermissions', object_id__in=[str(i) for i in perm_ids])
+            if mem_ids:
+                tq |= Q(model_name='AgencyMember', object_id__in=[str(i) for i in mem_ids])
+            qs = qs.filter(tq)
         if contract_id:
             from contracts.models import (
                 ContractAccommodationLine, ContractGuest,
@@ -334,7 +379,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             from itineraries.models import (
                 ItineraryDocument, ItineraryImage, ItineraryDeparture, ItineraryFlight,
                 ItineraryHotel, ItineraryBoat, ItineraryTerrestreDeparture, ItineraryTerrestreLeg,
+                ItineraryCostItem, ItineraryInventoryBlock, ItineraryCurrencyRate,
             )
+            from config_api.models import ConfigShipCabin, ConfigFlightClass
             from django.db.models import Q
             iq = Q(model_name='Itinerary', object_id=str(itinerary_id))
             # Filhos diretos (FK itinerary)
@@ -342,6 +389,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 (ItineraryDocument, 'ItineraryDocument'), (ItineraryImage, 'ItineraryImage'),
                 (ItineraryDeparture, 'ItineraryDeparture'), (ItineraryHotel, 'ItineraryHotel'),
                 (ItineraryBoat, 'ItineraryBoat'), (ItineraryTerrestreDeparture, 'ItineraryTerrestreDeparture'),
+                (ItineraryCostItem, 'ItineraryCostItem'), (ItineraryInventoryBlock, 'ItineraryInventoryBlock'),
+                (ItineraryCurrencyRate, 'ItineraryCurrencyRate'),
+                (ConfigShipCabin, 'ConfigShipCabin'), (ConfigFlightClass, 'ConfigFlightClass'),
             ):
                 ids = list(model_cls.objects.filter(itinerary_id=itinerary_id).values_list('id', flat=True))
                 if ids:
@@ -357,26 +407,55 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-from rest_framework.decorators import api_view, permission_classes as drf_permission_classes
+from rest_framework.decorators import api_view, permission_classes as drf_permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from audit.middleware import get_current_ip
 from audit.tracking import user_display
 
 
+# Modelos que os logs disparados pelo cliente podem referenciar além dos rastreados
+# (os defaults de import/export de CSV, que não têm modelo próprio).
+_CLIENT_LOG_MODELS = {'CsvImport', 'CsvExport'}
+
+# Modelos aos quais um download/geração de arquivo NO CLIENTE pode se atribuir
+# (PDFs de etiquetas/lista/voucher/contrato gerados no navegador).
+_FILE_LOG_MODELS = {'VoucherList', 'PassengerList', 'Contract', 'Itinerary', 'GeneratedDocument'}
+_ARTIFACT_MAX_BYTES = 60 * 1024 * 1024
+_ARTIFACT_ALLOWED_EXT = {
+    'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'csv', 'tsv', 'json',
+    'xml', 'txt', 'zip', 'xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt', 'ods', 'odt', 'odp',
+}
+
+
 def _log_client_event(request, action, default_model_name, default_model_label):
     """Registra um upload/download disparado pelo frontend (ex: exportação/importação
     de CSV em Configurações) — esses fluxos não passam por um único request de
-    backend que represente "a ação" inteira, então o frontend chama isso direto."""
+    backend que represente "a ação" inteira, então o frontend chama isso direto.
+
+    Segurança: o usuário/IP/hora vêm do servidor (não forjáveis). O `model_name`/
+    `object_id` vêm do cliente, então são VALIDADOS aqui — só aceitamos um modelo
+    conhecido; qualquer outro cai no default do endpoint (o cliente não auto-atribui
+    o evento a uma entidade arbitrária)."""
+    from audit.tracking import TRACKED_MODELS
     label = (request.data.get('label') or '').strip()[:200]
     model_label = (request.data.get('model_label') or default_model_label).strip()[:100]
     summary = request.data.get('summary') or {}
     if not label:
         return Response({'error': 'label é obrigatório.'}, status=400)
+    req_model = (request.data.get('model_name') or '').strip()[:100]
+    # Aceita um modelo RASTREADO (ex.: Contract/Itinerary/Lamina, usados por
+    # exportações reais) ou a convenção de import/export de planilha do cliente
+    # (prefixo 'Csv…', ex.: CsvImportGeo/CsvExportGeo/CsvImportPassageiros). Qualquer
+    # outra coisa cai no default — o cliente não crava um model_name arbitrário.
+    allowed = req_model in TRACKED_MODELS or req_model in _CLIENT_LOG_MODELS or req_model.startswith('Csv')
+    model_name = req_model if allowed else default_model_name
+    object_id = str(request.data.get('object_id') or '')[:50]
     user = request.user
     AuditLog.objects.create(
-        user=user, user_display=user_display(user), action=action,
-        model_name=request.data.get('model_name') or default_model_name, model_label=model_label,
-        object_id=str(request.data.get('object_id') or ''), object_repr=label,
+        user=user, user_display=user_display(user), source='user', action=action,
+        model_name=model_name, model_label=model_label,
+        object_id=object_id, object_repr=label,
         changes=summary if isinstance(summary, dict) else {},
         ip_address=get_current_ip(),
     )
@@ -393,6 +472,68 @@ def log_upload(request):
 @drf_permission_classes([IsAuthenticated])
 def log_download(request):
     return _log_client_event(request, 'download', 'CsvExport', 'Exportação CSV')
+
+
+@api_view(['POST'])
+@drf_permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def log_file(request):
+    """Registra um download/geração de ARQUIVO feito no cliente (PDF de etiquetas,
+    lista, voucher etc. gerados no navegador) GUARDANDO o próprio arquivo entregue
+    ao usuário — para visualização posterior pelo log, com referência estruturada
+    `_file` (o log abre exatamente aquele arquivo, não uma regeração com dados atuais).
+
+    Segurança: exige autenticação; usuário/IP/hora vêm do servidor; valida modelo,
+    extensão e tamanho; a chave de storage é opaca (sem PII no caminho)."""
+    import json, uuid as _uuid
+    from django.core.files.storage import default_storage
+    from django.core.files.base import ContentFile
+    from audit.tracking import TRACKED_MODELS, log_event
+
+    up = request.FILES.get('file')
+    if not up:
+        return Response({'error': 'Arquivo é obrigatório.'}, status=400)
+    if (up.size or 0) > _ARTIFACT_MAX_BYTES:
+        return Response({'error': 'Arquivo grande demais para registrar.'}, status=413)
+    original_name = (request.data.get('original_name') or up.name or 'arquivo').strip()[:255]
+    ext = audit_files.ext_of(original_name) or audit_files.ext_of(up.name or '')
+    if ext not in _ARTIFACT_ALLOWED_EXT:
+        return Response({'error': f'Extensão .{ext} não permitida.'}, status=400)
+
+    action = (request.data.get('action') or 'download').strip()[:20]
+    if action not in ('download', 'upload', 'export', 'import'):
+        action = 'download'
+    req_model = (request.data.get('model_name') or '').strip()[:100]
+    model_name = req_model if (req_model in TRACKED_MODELS or req_model in _FILE_LOG_MODELS) else 'GeneratedDocument'
+    model_label = (request.data.get('model_label') or 'Documento gerado').strip()[:100]
+    object_id = str(request.data.get('object_id') or '')[:50]
+    object_repr = (request.data.get('object_repr') or original_name).strip()[:500]
+
+    # Metadados extras da geração (contagem de etiquetas, categorias…) — só dict,
+    # sem chaves internas (que começam com '_').
+    extra = {}
+    raw = request.data.get('changes')
+    if raw:
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(parsed, dict):
+                extra = {str(k)[:80]: v for k, v in parsed.items() if not str(k).startswith('_')}
+        except Exception:
+            extra = {}
+
+    storage_name = f'audit_artifacts/{_uuid.uuid4().hex}{("." + ext) if ext else ""}'
+    default_storage.save(storage_name, ContentFile(up.read()))
+    mime = (up.content_type or '').split(';')[0].strip() or audit_files.guess_mime(original_name)
+    changes = dict(extra)
+    changes['_file'] = {
+        'name': original_name, 'storage_name': storage_name, 'ext': ext,
+        'mime': mime, 'size': up.size, 'kind': audit_files.kind_for(mime, original_name),
+    }
+    log_event(action, model_name=model_name, model_label=model_label,
+              object_id=object_id, object_repr=object_repr, changes=changes, user=request.user)
+    log = (AuditLog.objects.filter(model_name=model_name, object_id=object_id, action=action,
+                                   user=request.user).order_by('-id').first())
+    return Response({'ok': True, 'id': getattr(log, 'id', None)}, status=201)
 
 
 @api_view(['POST'])

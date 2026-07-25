@@ -989,7 +989,31 @@ class FlightClassSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class FlightClassViewSet(viewsets.ModelViewSet):
+# Tipos personalizados por roteiro (acomodação/cabine/classe) são API imediata:
+# mexer num que pertence a um roteiro publicado acende "Público · pendente".
+def _touch_itin_unpublished(itinerary):
+    if itinerary and itinerary.is_published and not itinerary.has_unpublished_changes:
+        itinerary.has_unpublished_changes = True
+        itinerary.save(update_fields=['has_unpublished_changes'])
+
+
+class _ScopedTypeMixin:
+    """perform_create/update/destroy que acendem 'pendente' no roteiro do tipo."""
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        _touch_itin_unpublished(getattr(obj, 'itinerary', None))
+
+    def perform_update(self, serializer):
+        obj = serializer.save()
+        _touch_itin_unpublished(getattr(obj, 'itinerary', None))
+
+    def perform_destroy(self, instance):
+        it = getattr(instance, 'itinerary', None)
+        instance.delete()
+        _touch_itin_unpublished(it)
+
+
+class FlightClassViewSet(_ScopedTypeMixin, viewsets.ModelViewSet):
     serializer_class = FlightClassSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_flight_classes')
@@ -1141,8 +1165,13 @@ class HotelViewSet(viewsets.ModelViewSet):
                                        c.state.name if c and c.state else None,
                                        c.state.country.name if c and c.state and c.state.country else None] if p])
         from itineraries.models import ItineraryHotel
-        ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True).update(
-            name=hotel.name, city=label, phone=hotel.phone)
+        from audit.tracking import log_field_propagation
+        new_vals = {'name': hotel.name, 'city': label, 'phone': hotel.phone, 'website': hotel.website}
+        linked = list(ItineraryHotel.objects.filter(config_hotel=hotel, config_hotel_linked=True))
+        ItineraryHotel.objects.filter(pk__in=[h.pk for h in linked]).update(**new_vals)
+        # O update em massa burla o signal — loga a propagação do vínculo vivo linha a
+        # linha (aparece no log de cada roteiro afetado, com o diff dos campos).
+        log_field_propagation(linked, new_vals, model_name='ItineraryHotel', model_label='Hotel do roteiro')
 
 
 class HotelMediaViewSet(viewsets.ModelViewSet):
@@ -1150,12 +1179,35 @@ class HotelMediaViewSet(viewsets.ModelViewSet):
     serializer_class = HotelMediaSerializer
     pagination_class = None
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    get_permissions = _settings_perm('settings_hotels', extra_write=['reorder'])
+    get_permissions = _settings_perm('settings_hotels', extra_write=['reorder', 'restore'])
 
     def get_queryset(self):
         qs = ConfigHotelMedia.objects.all()
         hotel = self.request.query_params.get('hotel')
-        return qs.filter(hotel_id=hotel) if hotel else qs
+        if hotel:
+            qs = qs.filter(hotel_id=hotel)
+        # Na LISTAGEM, esconde as excluídas (soft-delete); detail/restore acessa todas.
+        if self.action == 'list':
+            qs = qs.filter(is_deleted=False)
+        return qs
+
+    # Soft-delete: excluir só marca (o arquivo/registro ficam) — assim o roteiro
+    # pode RESTAURAR pelo id ao reverter, e o diff limpa de verdade.
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj.is_deleted:
+            obj.is_deleted = True
+            obj.save(update_fields=['is_deleted'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        """Restaura uma mídia excluída (soft-delete) — mantém o mesmo id."""
+        obj = self.get_object()
+        if obj.is_deleted:
+            obj.is_deleted = False
+            obj.save(update_fields=['is_deleted'])
+        return Response(HotelMediaSerializer(obj, context=self.get_serializer_context()).data)
 
     def perform_create(self, serializer):
         from passengers.validators import validate_media_file
@@ -1228,7 +1280,11 @@ class BoatViewSet(viewsets.ModelViewSet):
         vinculados (vínculo vivo ligado)."""
         boat = serializer.save()
         from itineraries.models import ItineraryBoat
-        ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True).update(name=boat.name)
+        from audit.tracking import log_field_propagation
+        new_vals = {'name': boat.name, 'website': boat.website}
+        linked = list(ItineraryBoat.objects.filter(config_boat=boat, config_boat_linked=True))
+        ItineraryBoat.objects.filter(pk__in=[b.pk for b in linked]).update(**new_vals)
+        log_field_propagation(linked, new_vals, model_name='ItineraryBoat', model_label='Barco do roteiro')
 
 
 class BoatMediaViewSet(viewsets.ModelViewSet):
@@ -1236,12 +1292,34 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
     serializer_class = BoatMediaSerializer
     pagination_class = None
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    get_permissions = _settings_perm('settings_boats', extra_write=['reorder'])
+    get_permissions = _settings_perm('settings_boats', extra_write=['reorder', 'restore'])
 
     def get_queryset(self):
         qs = ConfigBoatMedia.objects.all()
         boat = self.request.query_params.get('boat')
-        return qs.filter(boat_id=boat) if boat else qs
+        if boat:
+            qs = qs.filter(boat_id=boat)
+        # Na LISTAGEM, esconde as excluídas (soft-delete); detail/restore acessa todas.
+        if self.action == 'list':
+            qs = qs.filter(is_deleted=False)
+        return qs
+
+    # Soft-delete: excluir só marca — assim o roteiro pode RESTAURAR pelo id ao reverter.
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if not obj.is_deleted:
+            obj.is_deleted = True
+            obj.save(update_fields=['is_deleted'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        """Restaura uma mídia excluída (soft-delete) — mantém o mesmo id."""
+        obj = self.get_object()
+        if obj.is_deleted:
+            obj.is_deleted = False
+            obj.save(update_fields=['is_deleted'])
+        return Response(BoatMediaSerializer(obj, context=self.get_serializer_context()).data)
 
     def perform_create(self, serializer):
         from passengers.validators import validate_media_file
@@ -1841,7 +1919,7 @@ class AccommodationSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class AccommodationViewSet(viewsets.ModelViewSet):
+class AccommodationViewSet(_ScopedTypeMixin, viewsets.ModelViewSet):
     serializer_class = AccommodationSerializer
     get_permissions  = _settings_perm('settings_accommodations')
 
@@ -1871,7 +1949,7 @@ class ShipCabinSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class ShipCabinViewSet(viewsets.ModelViewSet):
+class ShipCabinViewSet(_ScopedTypeMixin, viewsets.ModelViewSet):
     serializer_class = ShipCabinSerializer
     get_permissions  = _settings_perm('settings_ship_cabins')
 
@@ -2078,6 +2156,12 @@ class BusMapSerializer(serializers.ModelSerializer):
                       left_labels=row.get('left_labels', []), right_labels=row.get('right_labels', []))
             for i, row in enumerate(rows_data)
         ])
+        # delete()+bulk_create burlam o signal e o diff do BusMap não inclui as linhas
+        # (relação reversa) → o redesenho do layout ficaria invisível. Loga um resumo.
+        from audit.tracking import log_event
+        log_event('update', model_name='BusMap', model_label='Mapa de ônibus',
+                  object_id=bus_map.pk, object_repr=str(bus_map),
+                  changes={'Layout de assentos': {'antes': '—', 'depois': f'{len(rows_data)} linha(s) redefinidas'}})
 
     def create(self, validated_data):
         rows_data = validated_data.pop('rows', [])
@@ -2284,7 +2368,7 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
         model  = OperatingCompany
         fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'website', 'address',
                   'pix_key_type', 'pix_key',
-                  'default_signature_type',
+                  'default_signature_type', 'sms_verification',
                   'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign', 'ceo_signature',
                   'updated_at']
 
@@ -2451,7 +2535,15 @@ class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     def _ensure_single_agency_default(self, obj):
         # Só UM perfil pode ser o padrão de agência — ao marcar um, desmarca os demais.
         if obj.is_agency_default:
-            PermissionProfile.objects.exclude(pk=obj.pk).filter(is_agency_default=True).update(is_agency_default=False)
+            demoted = list(PermissionProfile.objects.exclude(pk=obj.pk).filter(is_agency_default=True))
+            PermissionProfile.objects.filter(pk__in=[p.pk for p in demoted]).update(is_agency_default=False)
+            # Bulk update burla o signal — perda do "padrão de agência" é relevante p/
+            # segurança (define as permissões que toda nova agência herda). Loga cada um.
+            from audit.tracking import log_event
+            for p in demoted:
+                log_event('update', model_name='PermissionProfile', model_label='Perfil de permissão',
+                          object_id=p.pk, object_repr=str(p),
+                          changes={'Padrão de agência': {'antes': 'Sim', 'depois': 'Não'}})
 
     def _reapply_to_linked_users(self, profile):
         # Link VIVO: ao editar o perfil, re-aplica as permissões a todos os usuários

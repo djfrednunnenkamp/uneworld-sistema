@@ -20,38 +20,60 @@ from core.search import AccentInsensitiveSearchFilter
 logger = logging.getLogger(__name__)
 
 
-def _contract_signers(contract):
+def _contract_signers(contract, method=None, sms_verification=False):
     """Signatários do contrato para a Autentique: o cliente (contratante) e a
     agência. Cada um precisa de e-mail (ou telefone, se a entrega for por
-    WhatsApp/SMS). Retorna (signers, faltando) — `faltando` lista, em texto, as
-    partes sem contato utilizável, para avisar o usuário."""
-    signers, missing = [], []
+    WhatsApp/SMS). `method` é o canal escolhido no envio ('email'|'whatsapp'|
+    'sms'); None usa o padrão global. `sms_verification` (config da operadora)
+    exige autenticação por SMS antes de assinar (2FA) — aplicada ao cliente e à
+    agência, NÃO ao CEO (que assina automaticamente via token e travaria com 2FA).
+    Retorna (signers, faltando, metas) — `faltando` lista as partes sem contato
+    utilizável (texto p/ o usuário); `metas` traz {role,name,channel,contact} de
+    cada signatário na MESMA ordem de `signers` (usado no painel de acompanhamento,
+    já que a Autentique não expõe canal/telefone por assinatura)."""
+    signers, missing, metas = [], [], []
 
     # Cliente / contratante (passageiro cadastrado ou pagante manual).
     if contract.contratante_id:
+        from .serializers import passenger_phone
         c_email = (contract.contratante.email or '').strip()
-        c_phone = (contract.contratante.mobile or '').strip()
+        c_phone = passenger_phone(contract.contratante)
         c_name  = contract.contratante.full_name or 'Cliente'
     else:
         c_email = (contract.payer_email or '').strip()
         c_phone = (contract.payer_phone or '').strip()
         c_name  = contract.payer_name or 'Cliente'
-    c_signer = autentique.build_signer(email=c_email, phone=c_phone)
+    # O CLIENTE usa o canal escolhido no pop-up: telefone p/ WhatsApp/SMS, e-mail
+    # p/ e-mail. A mensagem de "faltando" diz qual contato falta.
+    client_channel = _DELIVERY_LABEL.get(autentique._delivery_method(method)) or 'email'
+    client_needs = 'telefone' if client_channel in ('whatsapp', 'sms') else 'e-mail'
+    c_signer = autentique.build_signer(email=c_email, phone=c_phone, method=method, sms_verification=sms_verification)
     if c_signer:
         signers.append(c_signer)
+        metas.append({'role': 'Cliente', 'name': c_name, 'channel': client_channel,
+                      'contact': c_phone if client_channel in ('whatsapp', 'sms') else c_email})
     else:
-        missing.append(f'cliente ({c_name})')
+        missing.append(f'cliente ({c_name}) — falta {client_needs}')
 
     # Agência.
     ag = contract.agency
     if ag:
-        a_email = (ag.email or '').strip()
+        auto = ag.auto_sign_enabled
+        # Com assinatura automática, o signatário usa o E-MAIL DA CONTA AUTENTIQUE
+        # da agência (é essa conta que assina via token logo após a criação); sem
+        # ela, usa o e-mail de contato normal.
+        a_email = ((ag.autentique_email if auto else ag.email) or '').strip()
         a_phone = (ag.mobile or ag.phone or '').strip()
-        a_signer = autentique.build_signer(email=a_email, phone=a_phone)
+        # A AGÊNCIA assina SEMPRE por e-mail — o canal escolhido no pop-up
+        # (WhatsApp/SMS) vale só para o passageiro/cliente. Se auto-assina, NÃO
+        # aplica 2FA por SMS nela (a conta assina via token, sem link/código).
+        a_signer = autentique.build_signer(email=a_email, phone=a_phone, method='email',
+                                           sms_verification=(sms_verification and not auto))
         if a_signer:
             signers.append(a_signer)
+            metas.append({'role': 'Agência', 'name': ag.name or ag.company_name, 'channel': 'email', 'contact': a_email})
         else:
-            missing.append(f'agência ({ag.name or ag.company_name})')
+            missing.append(f'agência ({ag.name or ag.company_name}) — falta e-mail')
 
     # CEO (assinatura automática): entra como signatário oficial por e-mail — é a
     # conta dona do token que assina via API logo após a criação do documento.
@@ -59,31 +81,68 @@ def _contract_signers(contract):
     oc = OperatingCompany.get()
     if oc.ceo_auto_sign_enabled:
         signers.append({'action': 'SIGN', 'email': oc.ceo_email.strip()})
+        metas.append({'role': 'Operadora (CEO)', 'name': (oc.ceo_name or '').strip() or 'CEO',
+                      'channel': 'email', 'contact': oc.ceo_email.strip()})
 
-    return signers, missing
+    return signers, missing, metas
 
 
-def _apply_autentique_state(contract, doc, save=True):
+_DELIVERY_LABEL = {
+    'DELIVERY_METHOD_WHATSAPP': 'whatsapp',
+    'DELIVERY_METHOD_SMS':      'sms',
+    'DELIVERY_METHOD_LINK':     'link',
+}
+_META_KEYS = ('role', 'name', 'channel', 'contact')
+
+
+def _signer_state(s):
+    """Extrai o STATUS de uma assinatura da Autentique — só os campos EXISTENTES
+    no tipo Signature (email/link/action/viewed/signed/rejected). Quem é / canal /
+    contato NÃO vêm da Autentique (o tipo não expõe phone/delivery_method) — são
+    injetados dos nossos metadados (ver _apply_autentique_state)."""
+    signed = s.get('signed')
+    return {
+        'public_id': s.get('public_id'),
+        'email':  s.get('email') or None,
+        'link':   (s.get('link') or {}).get('short_link'),
+        'signed': bool(signed),
+        'signed_at': signed.get('created_at') if isinstance(signed, dict) else None,
+        'viewed': bool(s.get('viewed')),
+        'rejected': bool(s.get('rejected')),
+    }
+
+
+def _apply_autentique_state(contract, doc, save=True, metas=None):
     """Espelha o estado dos signatários da Autentique em autentique_data e, se o
     documento já estiver totalmente assinado, baixa o PDF assinado e move o
-    contrato para 'Assinado'. Retorna True se passou para assinado agora."""
+    contrato para 'Assinado'. Retorna True se passou para assinado agora.
+
+    `metas` (na CRIAÇÃO): metadados dos signatários (papel/nome/canal/contato) na
+    MESMA ordem enviada à Autentique. Na verificação (metas=None) os metadados são
+    recuperados do que já foi salvo, casando por `public_id` (chave estável)."""
     from django.utils import timezone
     from django.core.files.base import ContentFile
 
-    sigs = doc.get('signatures') or []
-    contract.autentique_data = {
-        'document_id': doc.get('id'),
-        'signers': [
-            {
-                'email': s.get('email'),
-                'link': (s.get('link') or {}).get('short_link'),
-                'signed': bool(s.get('signed')),
-                'viewed': bool(s.get('viewed')),
-                'rejected': bool(s.get('rejected')),
-            }
-            for s in sigs
-        ],
-    }
+    # SÓ signatários (action=SIGN). A Autentique inclui a CONTA CRIADORA do
+    # documento como participante com action=None — se ela entrasse, viraria um
+    # "signatário" fantasma e empurraria os metadados (Cliente/Agência/CEO) uma
+    # posição, desalinhando tudo (agência aparecia como "aguardando" mesmo já
+    # tendo assinado). Filtrar por SIGN mantém a contagem e o alinhamento certos.
+    sigs = [s for s in (doc.get('signatures') or []) if (s.get('action') or {}).get('name') == 'SIGN']
+    new = [_signer_state(s) for s in sigs]
+    # Injeta quem/canal/contato: na criação, alinhado por ORDEM; na verificação,
+    # carrega do estado anterior casando por public_id.
+    if metas is not None:
+        for st, meta in zip(new, metas):
+            st.update({k: meta.get(k) for k in _META_KEYS})
+    else:
+        prev = {p.get('public_id'): p for p in ((contract.autentique_data or {}).get('signers') or []) if p.get('public_id')}
+        for st in new:
+            old = prev.get(st.get('public_id')) or {}
+            for k in _META_KEYS:
+                if old.get(k) is not None:
+                    st[k] = old.get(k)
+    contract.autentique_data = {'document_id': doc.get('id'), 'signers': new}
     became_signed = False
     fields = ['autentique_data']
     if autentique.is_fully_signed(doc) and contract.stage not in ('revisao', 'aprovado'):
@@ -102,6 +161,25 @@ def _apply_autentique_state(contract, doc, save=True):
     return became_signed
 
 
+def _contract_document_name(contract):
+    """Nome bonito do documento enviado à Autentique: roteiro + pagante + reserva.
+    Ex.: 'Contrato de viagem – PRIMAVERA NA EUROPA – Frederico Nunnenkam – Reserva 000185'."""
+    roteiro = ''
+    if contract.itinerary_id and (getattr(contract.itinerary, 'name', '') or '').strip():
+        roteiro = contract.itinerary.name.strip()
+    elif (getattr(contract, 'package_name', '') or '').strip():
+        roteiro = contract.package_name.strip()
+    payer = ((contract.contratante.full_name if contract.contratante_id else contract.payer_name) or '').strip()
+    num = (contract.reservation_number or '').strip() or f'#{contract.id}'
+    parts = ['Contrato de viagem']
+    if roteiro:
+        parts.append(roteiro)
+    if payer:
+        parts.append(payer)
+    parts.append(f'Reserva {num}')
+    return ' – '.join(parts)[:255]
+
+
 def _log_contract_event(request, contract, action, label, file_field=None):
     """Registra no log de auditoria uma ação sobre o contrato que NÃO passa por
     save() — download do arquivo assinado/PDF e upload do contrato assinado.
@@ -115,6 +193,21 @@ def _log_contract_event(request, contract, action, label, file_field=None):
     changes = {'Ação': label} if label else {}
     if file_field:
         changes['_file_field'] = file_field   # chave interna: o front esconde as que começam com '_'
+        # Referência estruturada do arquivo → sobrevive a remoção e não depende do
+        # objeto vivo (visualização pelo histórico de logs).
+        ff = getattr(contract, file_field, None)
+        if ff:
+            import os as _os
+            from audit.files import meta_from_fieldfile
+            # Nome AMIGÁVEL (não a chave interna b4d2…​.pdf) para exibir no log.
+            _who = (str(getattr(contract, 'contratante', '') or '')).strip()
+            _num = contract.reservation_number or contract.id
+            _ext = _os.path.splitext(ff.name)[1] or '.pdf'
+            _kind = 'assinado' if file_field == 'signed_file' else 'comprovante'
+            _friendly = f'Contrato {_num}{(" — " + _who) if _who else ""} ({_kind}){_ext}'
+            m = meta_from_fieldfile(ff, original_name=_friendly)
+            if m:
+                changes['_file'] = m
     AuditLog.objects.create(
         user=user, user_display=user_display(user), action=action,
         model_name='Contract', model_label='Contrato',
@@ -243,6 +336,14 @@ def _promote_paid_contracts():
                .values_list('id', flat=True))
     if ids:
         Contract.objects.filter(id__in=ids).update(stage='faturado')
+        # O bulk update NÃO dispara o signal que loga as demais transições de etapa
+        # (send/sign/approve/invoice). Sem isto, a passagem AUTOMÁTICA "Em pagamento →
+        # Pagos" some do histórico. Loga cada contrato promovido (ação 'invoice').
+        from audit.tracking import log_event, FIELD_LABELS
+        for c in Contract.objects.filter(id__in=ids):
+            log_event('invoice', model_name='Contract', model_label='Contrato',
+                      object_id=c.id, object_repr=str(c),
+                      changes={FIELD_LABELS['stage']: {'antes': 'em_pagamento', 'depois': 'faturado'}})
     return ids
 
 
@@ -323,7 +424,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'invoice_data':
             return [RequirePermission('contracts_invoice_view', 'contracts_invoice')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge', 'discard',
-                           'send_for_signature', 'upload_signed', 'reopen', 'check_signature'):
+                           'send_for_signature', 'upload_signed', 'upload_receipt', 'reopen', 'check_signature'):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
 
@@ -389,13 +490,17 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             if not pdf:
                 return Response({'error': 'PDF do contrato não recebido para a assinatura digital.'},
                                 status=http_status.HTTP_400_BAD_REQUEST)
-            signers, missing = _contract_signers(contract)
+            # Canal de entrega escolhido no envio ('email'|'whatsapp'|'sms').
+            method = (request.data.get('delivery_method') or '').strip().lower() or None
+            # Autenticação por SMS antes de assinar (2FA) — toggle da operadora.
+            from config_api.models import OperatingCompany
+            sms_verification = OperatingCompany.get().sms_verification
+            signers, missing, metas = _contract_signers(contract, method=method, sms_verification=sms_verification)
             if missing:
-                contato = 'telefone' if autentique._delivery_method() else 'e-mail'
-                return Response({'error': f'Sem {contato} para: ' + ', '.join(missing) +
-                                          f'. Preencha o {contato} antes de enviar para assinatura digital.'},
+                return Response({'error': 'Faltam contatos para a assinatura digital: ' + '; '.join(missing) +
+                                          '. Preencha antes de enviar. (A agência assina sempre por e-mail.)'},
                                 status=http_status.HTTP_400_BAD_REQUEST)
-            name = f'Contrato {contract.reservation_number}'.strip() if contract.reservation_number else f'Contrato #{contract.id}'
+            name = _contract_document_name(contract)
             try:
                 doc = autentique.create_document(name, pdf.read(), signers)
             except autentique.AutentiqueError as e:
@@ -411,8 +516,18 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     doc = autentique.get_document(doc['id'])   # reflete a assinatura do CEO
                 except autentique.AutentiqueError:
                     logger.warning('Falha na assinatura automática do CEO no doc %s', doc.get('id'))
+            # Assinatura automática da AGÊNCIA (se configurada): assina como a conta
+            # Autentique da agência (token dela). Best-effort — se falhar, o
+            # documento segue e a agência ainda assina pelo link enviado.
+            ag = contract.agency
+            if ag and ag.auto_sign_enabled and doc.get('id'):
+                try:
+                    autentique.sign_document(doc['id'], token=(ag.autentique_token or '').strip())
+                    doc = autentique.get_document(doc['id'])   # reflete a assinatura da agência
+                except autentique.AutentiqueError:
+                    logger.warning('Falha na assinatura automática da agência no doc %s', doc.get('id'))
             contract.autentique_document_id = doc.get('id') or ''
-            _apply_autentique_state(contract, doc, save=False)
+            _apply_autentique_state(contract, doc, save=False, metas=metas)
             contract.stage = 'enviado'
             contract.sent_at = timezone.now()
             contract.review_note = ''   # nova rodada de assinatura: limpa o motivo da reprovação
@@ -473,6 +588,26 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         resp['X-Frame-Options'] = 'SAMEORIGIN'
         resp['X-Content-Type-Options'] = 'nosniff'
         return resp
+
+    @action(detail=True, methods=['post'], url_path='upload-receipt', parser_classes=[MultiPartParser, FormParser])
+    def upload_receipt(self, request, pk=None):
+        """Anexa o COMPROVANTE de pagamento avulso (usado no fluxo DIGITAL, onde não
+        há upload do assinado). Opcional. Aceita PDF ou imagem."""
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from passengers.validators import validate_document_file
+        contract = self.get_object()
+        receipt = request.FILES.get('receipt')
+        if not receipt:
+            return Response({'error': 'Nenhum comprovante enviado.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+        contract.payment_receipt = receipt
+        contract.save(update_fields=['payment_receipt'])
+        _log_contract_event(request, contract, 'upload',
+                            f'Anexou o comprovante de pagamento do contrato #{contract.id}', file_field='payment_receipt')
+        return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='reopen')
     def reopen(self, request, pk=None):
@@ -653,7 +788,15 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.reviewed_at = timezone.now()
         contract.reviewed_by = request.user
         contract.review_note = note
-        # A assinatura anterior deixa de valer — limpa para uma nova rodada.
+        # A assinatura anterior deixa de valer — apaga o documento na Autentique
+        # (recusado = descartado lá também) e limpa para uma nova rodada.
+        # Best-effort: se a Autentique falhar, a reprovação segue mesmo assim.
+        if contract.signature_type == 'digital' and contract.autentique_document_id:
+            try:
+                autentique.delete_document(contract.autentique_document_id)
+            except autentique.AutentiqueError:
+                logger.warning('Falha ao apagar documento Autentique %s na reprovação do contrato %s',
+                               contract.autentique_document_id, contract.id)
         contract.signed_file = None
         contract.signed_at = None
         contract.autentique_document_id = ''
@@ -702,15 +845,14 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         except DjangoValidationError as e:
             return Response({'error': ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        # Comprovante de pagamento — OBRIGATÓRIO, anexado junto do assinado. Aceita
-        # PDF ou imagem (foto/print do comprovante).
+        # Comprovante de pagamento — OPCIONAL (o front pergunta se quer enviar sem).
+        # Aceita PDF ou imagem (foto/print do comprovante).
         receipt = request.FILES.get('receipt')
-        if not receipt:
-            return Response({'error': 'Anexe o comprovante de pagamento (campo "receipt").'}, status=http_status.HTTP_400_BAD_REQUEST)
-        try:
-            receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
-        except DjangoValidationError as e:
-            return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
+        if receipt:
+            try:
+                receipt = validate_document_file(receipt, allowed_exts={'.pdf', '.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+            except DjangoValidationError as e:
+                return Response({'error': 'Comprovante inválido: ' + ' '.join(e.messages)}, status=http_status.HTTP_400_BAD_REQUEST)
 
         from django.utils import timezone
         # Segurança do assinado físico: lê os QR de cada página e confere se é este
@@ -743,12 +885,15 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                         status=http_status.HTTP_400_BAD_REQUEST)
 
         contract.signed_file = f
-        contract.payment_receipt = receipt
+        fields = ['signed_file', 'stage', 'signed_at', 'signed_verification']
+        if receipt:
+            contract.payment_receipt = receipt
+            fields.append('payment_receipt')
         # Assinado (física) → vai direto para a revisão da operadora.
         contract.stage = 'revisao'
         contract.signed_at = timezone.now()
         contract.signed_verification = verification
-        contract.save(update_fields=['signed_file', 'payment_receipt', 'stage', 'signed_at', 'signed_verification'])
+        contract.save(update_fields=fields)
         # A mudança de etapa já é registrada no log pelo sinal em audit/tracking.py.
         return Response(ContractSerializer(contract, context={'request': request}).data)
 

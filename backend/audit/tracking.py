@@ -2,9 +2,31 @@
 Rastreamento automático de mudanças via sinais Django.
 Registra qualquer create/update/delete nos modelos listados em TRACKED_MODELS.
 """
+import logging
+from django.db import transaction
 from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
 from .middleware import get_current_user, get_current_ip, get_current_source
+
+_log = logging.getLogger('audit')
+
+
+def _safe_create(**kwargs):
+    """Grava um AuditLog isolando a escrita num savepoint próprio.
+
+    A auditoria roda DENTRO da transação da operação do usuário (post_save/
+    post_delete). Se a gravação do log falhasse, ela abortaria a transação
+    inteira e derrubaria a ação real (salvar hotel, custo, etc.). O savepoint
+    garante que uma falha de auditoria role atrás só o log — nunca a operação.
+    O registro confiável continua no back-end; só deixamos de matar o pedido
+    legítimo por causa de um erro de logging."""
+    from .models import AuditLog
+    try:
+        with transaction.atomic():
+            AuditLog.objects.create(**kwargs)
+    except Exception:
+        _log.exception('Falha ao gravar AuditLog (%s %s)',
+                       kwargs.get('action'), kwargs.get('model_name'))
 
 # {NomeDoModel: 'Rótulo legível'}
 TRACKED_MODELS = {
@@ -28,6 +50,8 @@ TRACKED_MODELS = {
     'ConfigGender':         'Gênero',
     'ConfigProfCard':       'Carteira profissional',
     'ConfigAccommodation':  'Tipo de acomodação',
+    'ConfigShipCabin':      'Tipo de cabine',
+    'ConfigFlightClass':    'Classe de voo',
     'ConfigListCategory':   'Categoria de lista',
     'ConfigItineraryCategory': 'Categoria de roteiro',
     'ConfigItineraryType':  'Tipo de roteiro',
@@ -74,6 +98,9 @@ TRACKED_MODELS = {
     'ItineraryBoat':            'Barco do roteiro',
     'ItineraryTerrestreDeparture': 'Cidade de partida (terrestre)',
     'ItineraryTerrestreLeg':    'Trecho terrestre',
+    'ItineraryCostItem':        'Item de custo do roteiro',
+    'ItineraryInventoryBlock':  'Bloqueio de disponibilidade',
+    'ItineraryCurrencyRate':    'Câmbio travado do roteiro',
     'Contract':                 'Contrato',
     'ContractAccommodationLine':'Acomodação do contrato',
     'ContractGuest':            'Hóspede do contrato',
@@ -81,9 +108,24 @@ TRACKED_MODELS = {
     'ContractAdjustment':       'Ajuste do contrato',
     'ContractClause':           'Cláusula de contrato',
     'ItineraryFieldTemplate':   'Template de campo (roteiro)',
+    # Modelos de negócio que estavam FORA da whitelist (auditoria zero) — incluídos.
+    'Lamina':                   'Lâmina',
+    'VoucherTemplate':          'Template de voucher',
+    'ConfigSpecialNeed':        'Necessidade especial',
+    'ConfigCostCategory':       'Categoria de custo',
+    'ConfigFlightSegment':      'Segmento de voo (custo)',
 }
 
-# Campos a ignorar no diff
+# Campos a ignorar no diff. IMPORTANTE: nenhum campo aqui é omitido "às escondidas"
+# — cada um é técnico e/ou tem o evento coberto por outro caminho:
+#   * file / original_name / file_size / mime_type / preview_url / download_url —
+#     metadados físicos do arquivo (caminho/uuid/tamanho). O CICLO DE VIDA do arquivo
+#     JÁ é auditado: a CRIAÇÃO de um registro com arquivo vira ação 'upload'
+#     (instance_has_file), a exclusão vira 'delete', e downloads são logados à parte
+#     (log_event 'download'). Renomear/editar metadados legíveis (doc_type, número,
+#     legenda, etc.) NÃO está aqui, então continua aparecendo no diff.
+#   * signed_file — arquivo do contrato assinado: a mudança de ETAPA já registra o evento.
+#   * password / last_login — sensível/ruído.
 SKIP_FIELDS = {
     'password', 'last_login', 'file', 'original_name',
     'file_size', 'mime_type', 'preview_url', 'download_url',
@@ -249,7 +291,7 @@ def log_event(action, *, model_name, model_label, object_id='', object_repr='', 
     if user is None:
         user = get_current_user()
     authed = getattr(user, 'is_authenticated', False)
-    AuditLog.objects.create(
+    _safe_create(
         user=user if authed else None,
         user_display=user_display(user) if authed else 'Sistema',
         source=resolve_source(user if authed else None),
@@ -257,6 +299,58 @@ def log_event(action, *, model_name, model_label, object_id='', object_repr='', 
         object_id=str(object_id or ''), object_repr=str(object_repr or '')[:500],
         changes=changes or {}, ip_address=get_current_ip(),
     )
+
+
+def log_field_propagation(instances, new_values, *, model_name, model_label, action='update'):
+    """Loga um update de campos APLICADO EM MASSA (`QuerySet.update`, que burla o
+    signal) linha a linha, com diff antes/depois só dos campos que realmente mudaram.
+    `instances` = objetos com os valores ANTIGOS (capturados ANTES do update);
+    `new_values` = dict {campo: novo_valor}. Nada é logado para linhas sem mudança."""
+    for inst in instances:
+        changes = {}
+        for field, new in new_values.items():
+            old = getattr(inst, field, None)
+            if old != new:
+                changes[FIELD_LABELS.get(field, field)] = {
+                    'antes': serialize_value(old), 'depois': serialize_value(new)}
+        if changes:
+            log_event(action, model_name=model_name, model_label=model_label,
+                      object_id=inst.pk, object_repr=str(inst), changes=changes)
+
+
+def check_tracked_model_collisions():
+    """A whitelist é chaveada pelo NOME PURO da classe. Isso é intencional para
+    COMPATIBILIDADE: o `model_name` gravado no log e todos os filtros/drills de
+    consulta (e o frontend) usam o nome puro, que é ÚNICO hoje. O risco é uma COLISÃO
+    FUTURA — dois modelos de apps diferentes com o mesmo nome de classe fariam o
+    signal rastrear/rotular o modelo errado, silenciosamente. Este guard roda no
+    startup e AVISA (loud) se isso acontecer, para o hazard deixar de ser silencioso.
+    Retorna a lista de nomes em colisão (para testes)."""
+    from django.apps import apps
+    by_name = {}
+    for m in apps.get_models():
+        by_name.setdefault(m.__name__, []).append(m._meta.label)
+    collided = []
+    for name in TRACKED_MODELS:
+        labels = by_name.get(name, [])
+        if len(labels) > 1:
+            collided.append(name)
+            _log.warning('AUDITORIA: nome de modelo rastreado %r existe em múltiplos apps %s — '
+                         'o signal usa o nome PURO e pode rastrear/rotular o modelo errado. '
+                         'Desambigue (renomeie a classe ou trate por app_label).', name, labels)
+    return collided
+
+
+def log_bulk_delete(instances, *, model_name, model_label):
+    """Loga a exclusão de linhas removidas por `QuerySet.delete()` (fast-path, que NÃO
+    dispara `post_delete`). Chame ANTES do delete, com a lista já materializada."""
+    for inst in instances:
+        try:
+            repr_str = str(inst)
+        except Exception:
+            repr_str = f'{model_name}#{getattr(inst, "pk", "")}'
+        log_event('delete', model_name=model_name, model_label=model_label,
+                  object_id=getattr(inst, 'pk', ''), object_repr=repr_str, changes={})
 
 
 # ── Captura estado antes do save ────────────────────────────────────────────
@@ -295,6 +389,13 @@ def log_save(sender, instance, created, **kwargs):
         # Registro com arquivo (imagem/documento/mídia) → é um UPLOAD, não "criação".
         action  = 'upload' if instance_has_file(instance) else 'create'
         changes = obj_to_dict(instance)
+        # Referência estruturada do arquivo (nome/tipo/tamanho/chave de storage) —
+        # centraliza a captura para todo modelo com FileField rastreado.
+        if action == 'upload':
+            from .files import capture_instance_file
+            m = capture_instance_file(instance)
+            if m:
+                changes['_file'] = m
     else:
         old = getattr(instance, '_audit_old', None) or {}
         new = obj_to_dict(instance)
@@ -325,7 +426,7 @@ def log_save(sender, instance, created, **kwargs):
         repr_str = str(instance)[:500]
     except Exception:
         repr_str = f'{sender.__name__}#{instance.pk}'
-    AuditLog.objects.create(
+    _safe_create(
         user=user,
         user_display=user_display(user),
         source=resolve_source(user),
@@ -358,7 +459,14 @@ def log_delete(sender, instance, **kwargs):
     # ação "purge" (exclusão definitiva) — destroy() normal vira save(), não
     # delete(). Pra esses, marca como "purge" em vez de "delete" no log.
     action = 'purge' if hasattr(instance, 'is_deleted') else 'delete'
-    AuditLog.objects.create(
+    changes = obj_to_dict(instance)
+    # Guarda os metadados históricos do arquivo excluído — o modal ainda mostra
+    # nome/tipo/tamanho e deixa claro que o conteúdo não está mais disponível.
+    from .files import capture_instance_file
+    m = capture_instance_file(instance)
+    if m:
+        changes['_file'] = m
+    _safe_create(
         user=user,
         user_display=user_display(user),
         source=resolve_source(user),
@@ -367,6 +475,6 @@ def log_delete(sender, instance, **kwargs):
         model_label=TRACKED_MODELS[sender.__name__],
         object_id=str(instance.pk),
         object_repr=repr_str,
-        changes=obj_to_dict(instance),
+        changes=changes,
         ip_address=get_current_ip(),
     )

@@ -184,9 +184,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             node.save()
             if onlyoffice.office_document_type(node.name or ''):
                 snapshot_version(node, user=request.user, note='Enviado')
-            from audit.tracking import log_event
-            log_event('upload', model_name='DriveNode', model_label='Documento',
-                      object_id=node.id, object_repr=node.name, user=request.user)
+            from audit.files import log_file_event
+            log_file_event('upload', file=node.file, model_name='DriveNode', model_label='Documento',
+                           object_id=node.id, object_repr=node.name, user=request.user,
+                           original_name=node.original_name, mime=node.mime_type, size=node.file_size)
             created.append(node)
         return Response(DriveNodeSerializer(created, many=True, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
@@ -218,9 +219,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         node.file.save(f'novo.{ext}', ContentFile(content), save=False)
         node.save()
         snapshot_version(node, user=request.user, note='Criado')
-        from audit.tracking import log_event
-        log_event('create', model_name='DriveNode', model_label='Documento',
-                  object_id=node.id, object_repr=node.name, user=request.user)
+        from audit.files import log_file_event
+        log_file_event('create', file=node.file, model_name='DriveNode', model_label='Documento',
+                       object_id=node.id, object_repr=node.name, user=request.user,
+                       original_name=node.original_name, mime=node.mime_type, size=node.file_size)
         return Response(DriveNodeSerializer(node, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
 
@@ -258,8 +260,13 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         """Renomear ({name}) e/ou mover ({parent})."""
         node = self.get_object()   # só do dono (get_queryset)
+        old_name = node.name
+        renamed = moved = False
         if 'name' in request.data:
-            node.name = (request.data.get('name') or node.name).strip()[:255] or node.name
+            new_name = (request.data.get('name') or node.name).strip()[:255] or node.name
+            if new_name != node.name:
+                renamed = True
+            node.name = new_name
         if 'parent' in request.data:
             new_parent = self._accessible_folder(request.data.get('parent'))
             if new_parent is False:
@@ -271,8 +278,23 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                     return Response({'error': 'Não é possível mover para dentro da própria pasta.'},
                                     status=status.HTTP_400_BAD_REQUEST)
                 p = p.parent; seen += 1
+            if (node.parent_id or None) != ((new_parent.id if new_parent else None)):
+                moved = True
             node.parent = new_parent or None
         node.save()
+        # Rastro no log: renomear e mover são ações distintas que o usuário espera ver.
+        if renamed or moved:
+            from audit.tracking import log_event
+            label = 'Pasta' if node.kind == 'folder' else 'Documento'
+            if renamed:
+                log_event('rename', model_name='DriveNode', model_label=label,
+                          object_id=node.id, object_repr=node.name, user=request.user,
+                          changes={'Nome': {'antes': old_name, 'depois': node.name}})
+            if moved:
+                dest = node.parent.name if node.parent else 'Meus arquivos (raiz)'
+                log_event('update', model_name='DriveNode', model_label=label,
+                          object_id=node.id, object_repr=f'{node.name} → {dest}', user=request.user,
+                          changes={'Movido para': dest})
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
     def destroy(self, request, *args, **kwargs):
@@ -375,9 +397,21 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             names = ', '.join(_user_label(u) for u in blocked)
             return Response({'error': f'Sem permissão para receber documentos compartilhados: {names}.'},
                             status=status.HTTP_400_BAD_REQUEST)
+        before = set(node.shared_with.values_list('id', flat=True))
         node.shared_with.set(users)
         node.share_levels = {str(u.id): wanted[u.id] for u in users}
         node.save(update_fields=['share_levels'])
+        # Rastro no log: com quem passou a ser compartilhado (mostra a lista atual).
+        after = {u.id: u for u in users}
+        if before != set(after.keys()):
+            from audit.tracking import log_event
+            LVL = {'view': 'ver', 'comment': 'comentar', 'edit': 'editar'}
+            shared_desc = ', '.join(f'{_user_label(u)} ({LVL.get(wanted[uid], wanted[uid])})'
+                                    for uid, u in after.items()) or 'ninguém'
+            log_event('share', model_name='DriveNode',
+                      model_label='Pasta' if node.kind == 'folder' else 'Documento',
+                      object_id=node.id, object_repr=node.name, user=request.user,
+                      changes={'Compartilhado com': shared_desc})
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
@@ -415,9 +449,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         node.save(update_fields=['parent', 'share_levels'])
         broadcast_drive()   # bulk_update não dispara signal
         from audit.tracking import log_event
-        log_event('update', model_name='DriveNode',
+        log_event('transfer', model_name='DriveNode',
                   model_label='Pasta' if node.kind == 'folder' else 'Documento',
-                  object_id=node.id, object_repr=f'{node.name} → {_user_label(target)}', user=request.user)
+                  object_id=node.id, object_repr=f'{node.name} → {_user_label(target)}', user=request.user,
+                  changes={'Novo dono': _user_label(target), 'Dono anterior': _user_label(old_owner)})
         return Response({'ok': True, 'new_owner': _user_label(target)})
 
     @action(detail=True, methods=['get'])
@@ -530,6 +565,7 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
 
         buf = io.BytesIO()
         names = set()   # evita nomes duplicados dentro do mesmo caminho
+        n_files = [0]
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
             def walk(node, prefix, depth):
                 if depth > 60:
@@ -547,11 +583,18 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                         try:
                             with child.file.open('rb') as fh:
                                 z.writestr(n, fh.read())
+                            n_files[0] += 1
                         except Exception:
                             pass
             walk(folder, f'{_safe(folder.name)}/', 0)
         buf.seek(0)
         from urllib.parse import quote
+        # Extração em massa do repositório de documentos → deixa rastro (quem baixou a
+        # pasta inteira e quantos arquivos saíram).
+        from audit.tracking import log_event
+        log_event('download', model_name='DriveNode', model_label='Pasta',
+                  object_id=folder.id, object_repr=f'{folder.name} (.zip)', user=request.user,
+                  changes={'Arquivos baixados': n_files[0]})
         resp = FileResponse(buf, as_attachment=True, content_type='application/zip')
         resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(folder.name + '.zip')}"
         return resp
@@ -659,6 +702,14 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             resp = FileResponse(fh, content_type='application/octet-stream')
             resp['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(fname)}"
         resp['X-Content-Type-Options'] = 'nosniff'
+        # Leitura de arquivo do Drive: download explícito ('download') ou visualização
+        # inline ('view'). Antes, uploads/exclusões eram logados mas as LEITURAS não —
+        # deixava o vazamento de um arquivo sem rastro.
+        from audit.files import log_file_event
+        log_file_event('view' if inline else 'download', file=node.file, model_name='DriveNode',
+                       model_label='Documento', object_id=node.id, object_repr=node.name,
+                       user=request.user, original_name=node.original_name,
+                       mime=node.mime_type, size=node.file_size)
         return resp
 
 
@@ -756,6 +807,16 @@ def drive_document_callback(request, pk):
                         except Exception:
                             pass
                     v.save(update_fields=['server_version', 'changes_json', 'changes_file'])
+                # Substituição do arquivo (salvamento do editor) deixa rastro no log,
+                # apontando para a VERSÃO exata gerada (não a "mais recente" genérica).
+                from audit.files import log_file_event
+                log_file_event('update',
+                               file=(v.file if v else node.file),
+                               model_name='DriveNode', model_label='Documento',
+                               object_id=node.id, object_repr=node.name, user=editor,
+                               original_name=node.original_name, mime=node.mime_type,
+                               size=node.file_size, version_id=(v.id if v else None),
+                               changes={'Arquivo substituído (edição no navegador)': node.name})
             except Exception:
                 return Response({'error': 1})
     return Response({'error': 0})

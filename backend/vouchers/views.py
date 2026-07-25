@@ -1,6 +1,7 @@
 from django.utils import timezone
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -34,6 +35,26 @@ def _sanitize_blocks(blocks):
         out.append({k: v for k, v in b.items()
                     if k in ('id', 'type', 'text', 'content', 'heading', 'url')})
     return out
+
+
+_BLOCK_TYPE_LABEL = {'title': 'Título', 'text': 'Texto', 'day_by_day': 'Dia a dia',
+                     'inclusions': 'O que inclui', 'image': 'Imagem'}
+
+
+def _voucher_blocks_summary(blocks):
+    """Resumo legível dos blocos do voucher p/ o log — mostra ordem, tipo e o
+    conteúdo/nome de cada bloco, então reordenar/renomear/adicionar/remover aparece
+    no antes/depois."""
+    if blocks is None:
+        return 'Template padrão global'
+    if not blocks:
+        return '(sem blocos)'
+    lines = []
+    for i, b in enumerate(blocks, 1):
+        t = _BLOCK_TYPE_LABEL.get(b.get('type'), b.get('type') or '?')
+        val = (b.get('heading') or b.get('text') or b.get('content') or b.get('url') or '').strip()
+        lines.append(f'{i}. {t}' + (f' — {val[:80]}' if val else ''))
+    return '\n'.join(lines)
 
 
 class VoucherViewSet(viewsets.ViewSet):
@@ -146,17 +167,25 @@ class VoucherViewSet(viewsets.ViewSet):
         voucher.save(update_fields=['status', 'updated_at'])
         return self.retrieve(request, pk=pk)
 
-    @action(detail=True, methods=['post'], url_path='mark_downloaded')
+    @action(detail=True, methods=['post'], url_path='mark_downloaded',
+            parser_classes=[JSONParser, MultiPartParser, FormParser])
     def mark_downloaded(self, request, pk=None):
         """Registra o download do(s) voucher(s). Body: entry_key ou entry_keys.
         QUALQUER usuário gera log de auditoria ('download'); só a AGÊNCIA marca o
-        progresso (VoucherDownload) que a operadora acompanha."""
+        progresso (VoucherDownload) que a operadora acompanha. Opcional (multipart):
+        `file` = o PDF gerado no cliente → o log guarda o próprio arquivo baixado."""
+        import json as _json
         pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
         if not pl:
             return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
         voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
         scope = agency_scope_ids(request.user)
         keys = request.data.get('entry_keys')
+        if isinstance(keys, str):   # multipart manda a lista como JSON string
+            try:
+                keys = _json.loads(keys)
+            except Exception:
+                keys = []
         if not isinstance(keys, list):
             k = request.data.get('entry_key')
             keys = [k] if k else []
@@ -176,10 +205,45 @@ class VoucherViewSet(viewsets.ViewSet):
         # Auditoria — qualquer usuário que baixa aparece no Log.
         names = [by_key[k] for k in valid]
         depois = names[0] if len(names) == 1 else f'{len(names)} vouchers — ' + ', '.join(names)
+        changes = {'Voucher baixado': {'antes': '—', 'depois': depois[:480]}}
+        # Se o cliente enviou o PDF gerado, guarda o próprio arquivo (mesmo log).
+        up = request.FILES.get('file')
+        if up:
+            from django.core.files.storage import default_storage
+            from django.core.files.base import ContentFile
+            from audit.files import ext_of, guess_mime, kind_for
+            import uuid as _uuid
+            oname = (request.data.get('original_name') or up.name or 'voucher.pdf').strip()[:255]
+            ext = ext_of(oname) or 'pdf'
+            sname = f'audit_artifacts/{_uuid.uuid4().hex}.{ext}'
+            default_storage.save(sname, ContentFile(up.read()))
+            mime = (up.content_type or '').split(';')[0].strip() or guess_mime(oname)
+            changes['_file'] = {'name': oname, 'storage_name': sname, 'ext': ext,
+                                'mime': mime, 'size': up.size, 'kind': kind_for(mime, oname)}
         from audit.tracking import log_event
         log_event('download', model_name='VoucherList', model_label='Voucher',
+                  object_id=pl.id, object_repr=pl.name, changes=changes, user=request.user)
+        return Response({'ok': True})
+
+    @action(detail=True, methods=['post'], url_path='mark_labels_downloaded')
+    def mark_labels_downloaded(self, request, pk=None):
+        """Registra o download das ETIQUETAS de passageiros (folha adesiva) — extração
+        em massa de PII gerada no cliente. Body opcional: count, model, modes."""
+        pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        count = request.data.get('count')
+        model = str(request.data.get('model') or '').strip()[:120]
+        modes = str(request.data.get('modes') or '').strip()[:120]
+        detalhe = f'{count} etiqueta(s)' if count else 'etiquetas'
+        if model:
+            detalhe += f' · {model}'
+        if modes:
+            detalhe += f' · {modes}'
+        from audit.tracking import log_event
+        log_event('download', model_name='VoucherList', model_label='Etiquetas de passageiros',
                   object_id=pl.id, object_repr=pl.name,
-                  changes={'Voucher baixado': {'antes': '—', 'depois': depois[:480]}}, user=request.user)
+                  changes={'Etiquetas baixadas': {'antes': '—', 'depois': detalhe[:480]}}, user=request.user)
         return Response({'ok': True})
 
     @action(detail=True, methods=['post', 'delete', 'patch'], url_path='flight_confirmation')
@@ -252,12 +316,17 @@ class VoucherViewSet(viewsets.ViewSet):
         next_order = (VoucherFlightConfirmation.objects.filter(voucher=voucher, entry_key=entry_key)
                       .aggregate(m=Max('order'))['m'])
         next_order = 0 if next_order is None else next_order + 1
-        VoucherFlightConfirmation.objects.create(
+        fc = VoucherFlightConfirmation.objects.create(
             voucher=voucher, entry_key=entry_key, image=image,
             title=(request.data.get('title') or '').strip()[:200], order=next_order)
+        from audit.files import meta_from_fieldfile
+        changes = {'Comprovante de voo': {'antes': '—', 'depois': 'imagem enviada'}}
+        _m = meta_from_fieldfile(fc.image)
+        if _m:
+            changes['_file'] = _m
+        # object_id aponta para o próprio comprovante (a imagem), para o preview no log.
         log_event('upload', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',
-                  object_id=pl.id, object_repr=f'{who} — {pl.name}',
-                  changes={'Comprovante de voo': {'antes': '—', 'depois': 'imagem enviada'}}, user=request.user)
+                  object_id=fc.id, object_repr=f'{who} — {pl.name}', changes=changes, user=request.user)
         return self.retrieve(request, pk=pk)
 
     @action(detail=True, methods=['post'], url_path='flight_confirmation_reorder')
@@ -289,8 +358,19 @@ class VoucherViewSet(viewsets.ViewSet):
         raw = request.data.get('blocks', ...)
         if raw is ...:
             return Response({'error': 'Faltou blocks.'}, status=status.HTTP_400_BAD_REQUEST)
-        voucher.blocks = None if raw is None else _sanitize_blocks(raw)
+        old_blocks = voucher.blocks
+        new_blocks = None if raw is None else _sanitize_blocks(raw)
+        voucher.blocks = new_blocks
         voucher.save(update_fields=['blocks', 'updated_at'])
+        # VoucherList não é rastreado por signal — loga a edição do conteúdo (ordem,
+        # nomes, blocos adicionados/removidos) com o antes/depois, p/ aparecer no log.
+        if old_blocks != new_blocks:
+            from audit.tracking import log_event
+            log_event('update', model_name='VoucherList', model_label='Voucher',
+                      object_id=voucher.id, object_repr=f'Voucher: {pl.name}',
+                      changes={'Conteúdo do voucher': {
+                          'antes': _voucher_blocks_summary(old_blocks),
+                          'depois': _voucher_blocks_summary(new_blocks)}})
         return self.retrieve(request, pk=pk)
 
 
