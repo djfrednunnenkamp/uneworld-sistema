@@ -116,6 +116,11 @@ class UserPermissions(models.Model):
     contracts_invoice_view = models.BooleanField(default=False)   # ver as abas "A faturar" e "Faturado"
     contracts_invoice = models.BooleanField(default=False)        # faturar (mover A faturar → Faturado)
 
+    # Comissões dos vendedores (análise de vendas a partir dos contratos)
+    commissions_view = models.BooleanField(default=False)         # acessar o módulo (por padrão vê só as PRÓPRIAS vendas)
+    commissions_view_all = models.BooleanField(default=False)     # ver as vendas de TODOS os vendedores (ranking/equipe)
+    commissions_export = models.BooleanField(default=False)       # exportar o relatório de comissões
+
     # Roteiros — Ver a lista → Abrir (só leitura) → Editar → Criar
     roteiros_view      = models.BooleanField(default=False)   # ver a LISTA de roteiros
     roteiros_open      = models.BooleanField(default=False)   # abrir o roteiro (só leitura)

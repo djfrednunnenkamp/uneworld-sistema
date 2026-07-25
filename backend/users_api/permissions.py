@@ -41,6 +41,10 @@ PERMISSION_FIELDS = [
     'contracts_review',
     'contracts_invoice_view',
     'contracts_invoice',
+    # Comissões dos vendedores
+    'commissions_view',
+    'commissions_view_all',
+    'commissions_export',
     # Roteiros
     'roteiros_view',
     'roteiros_open',
