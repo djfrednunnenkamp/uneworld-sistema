@@ -64,9 +64,9 @@ def commissions_by_seller(request):
 @permission_classes([IsAuthenticated, RequirePermission('commissions_view')])
 def commissions_timeseries(request):
     """Série mensal da métrica escolhida (?metric=)."""
-    metric = request.query_params.get('metric') or 'sold_brl'
-    if metric not in ('sold_brl', 'net_brl', 'agency_commission_brl', 'contracts', 'passengers'):
-        metric = 'sold_brl'
+    metric = request.query_params.get('metric') or 'final_brl'
+    if metric not in ('net_brl', 'sale_brl', 'final_brl', 'agency_commission_brl', 'contracts', 'passengers'):
+        metric = 'final_brl'
     return Response({'metric': metric, 'series': C.timeseries(_filtered(request), metric)})
 
 
@@ -114,10 +114,15 @@ def commissions_seller_contracts(request, seller_id):
             'main_passenger': (str(main.passenger) if main and main.passenger_id else None),
             'agency_name': fin['agency_name'],
             'currency': fin['currency'], 'exchange_rate': str(fin['exchange_rate']) if fin['exchange_rate'] else None,
-            'sold_brl': str(fin['sold_brl']) if fin['sold_brl'] is not None else None,
             'net_brl': str(fin['net_brl']) if fin['net_brl'] is not None else None,
+            'net_usd': str(fin['net_usd']) if fin['net_usd'] is not None else None,
+            'sale_brl': str(fin['sale_brl']) if fin['sale_brl'] is not None else None,
+            'sale_usd': str(fin['sale_usd']) if fin['sale_usd'] is not None else None,
+            'final_brl': str(fin['final_brl']) if fin['final_brl'] is not None else None,
+            'final_usd': str(fin['final_usd']) if fin['final_usd'] is not None else None,
             'agency_commission_brl': str(fin['agency_commission_brl']),
-            'has_value': fin['has_value'],
+            'agency_commission_usd': str(fin['agency_commission_usd']),
+            'has_value': fin['has_value'], 'has_margin': fin['has_margin'],
         })
     return Response({'seller_id': seller_id, 'contracts': rows})
 
@@ -131,11 +136,17 @@ def commissions_export(request):
     rows = C.by_seller(C.apply_filters(C.base_queryset(request.user), **f))
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';')
-    w.writerow(['Vendedor', 'Contratos', 'Passageiros', 'Valor NET (BRL)', 'Valor vendido (BRL)',
-                'Comissão da agência (BRL)', 'Ticket médio (BRL)', 'Participação (%)'])
+    w.writerow(['Vendedor', 'Contratos', 'Passageiros',
+                'Valor NET (BRL)', 'Valor NET (USD)',
+                'Valor de venda (BRL)', 'Valor de venda (USD)',
+                'Preço final c/ comissão da agência (BRL)', 'Preço final (USD)',
+                'Nossa comissão (BRL)', 'Comissão da agência (BRL)',
+                'Ticket médio (BRL)', 'Participação (%)'])
     for r in rows:
-        w.writerow([r['seller_name'], r['contracts'], r['passengers'], r['net_brl'],
-                    r['sold_brl'], r['agency_commission_brl'], r['avg_ticket_brl'], r['share_pct']])
+        w.writerow([r['seller_name'], r['contracts'], r['passengers'],
+                    r['net_brl'], r['net_usd'], r['sale_brl'], r['sale_usd'],
+                    r['final_brl'], r['final_usd'], r['operator_commission_brl'],
+                    r['agency_commission_brl'], r['avg_ticket_brl'], r['share_pct']])
     content = buf.getvalue().encode('utf-8-sig')   # BOM p/ acentos no Excel
 
     lo = (f['date_from'].isoformat() if f['date_from'] else (str(f['year']) if f['year'] else 'tudo'))

@@ -42,20 +42,38 @@ class FinancialsTest(APITestCase):
         self.ag = Agency.objects.create(name='Ag10', commission_rate=Decimal('10'))
         self.seller = make_user('vend')
 
-    def test_net_sold_commission_formula(self):
-        # subtotal=1000 → comissão 10% = 100 USD × câmbio 5 = 500 BRL; vendido 5000 → NET 4500.
+    def test_three_values_formula(self):
+        # subtotal=1000 → comissão agência 10% = 100 USD × câmbio 5 = 500 BRL.
+        # Preço final 5000; venda = 5000−500 = 4500; sem margem cadastrada → NET = venda.
         c = make_contract(seller=self.seller, agency=self.ag)
         fin = C.contract_financials(c)
-        self.assertEqual(fin['sold_brl'], Decimal('5000'))
+        self.assertEqual(fin['final_brl'], Decimal('5000'))              # preço final (cliente paga)
         self.assertEqual(fin['agency_commission_brl'], Decimal('500.00'))
-        self.assertEqual(fin['net_brl'], Decimal('4500.00'))
+        self.assertEqual(fin['sale_brl'], Decimal('4500.00'))           # valor de venda (sem agência)
+        self.assertEqual(fin['net_brl'], Decimal('4500.00'))           # NET (sem margem → = venda)
+        self.assertFalse(fin['has_margin'])
         self.assertEqual(fin['seller_id'], self.seller.id)
+
+    def test_operator_margin_splits_net(self):
+        # Roteiro com markup 80 (fator 0,80): NET = venda × 0,80 = 3600; nossa comissão = 900.
+        from itineraries.models import Itinerary, ItineraryPricingConfig
+        it = Itinerary.objects.create(name='R', base_currency='USD')
+        ItineraryPricingConfig.objects.create(itinerary=it, margin_percent=Decimal('80'), margin_mode='percent')
+        c = make_contract(seller=self.seller, agency=self.ag)
+        c.itinerary = it; c.save()
+        fin = C.contract_financials(c)
+        self.assertTrue(fin['has_margin'])
+        self.assertEqual(fin['sale_brl'], Decimal('4500.00'))
+        self.assertEqual(fin['net_brl'], Decimal('3600.00'))
+        self.assertEqual(fin['operator_commission_brl'], Decimal('900.00'))
+        self.assertEqual(fin['final_brl'], Decimal('5000'))
 
     def test_no_agency_no_commission(self):
         c = make_contract(seller=self.seller, agency=None)
         fin = C.contract_financials(c)
         self.assertEqual(fin['agency_commission_brl'], Decimal('0'))
-        self.assertEqual(fin['net_brl'], fin['sold_brl'])   # NET == vendido
+        self.assertEqual(fin['sale_brl'], fin['final_brl'])   # venda == final (sem agência)
+        self.assertEqual(fin['net_brl'], fin['final_brl'])    # NET == final (sem margem)
 
     def test_no_seller_bucket(self):
         c = make_contract(seller=None, created_by=None, agency=self.ag)
@@ -87,9 +105,9 @@ class PolicyAndConsistencyTest(APITestCase):
         summ = C.summarize(qs)
         sellers = C.by_seller(qs)
         self.assertEqual(summ['contracts'], 3)
-        self.assertEqual(Decimal(summ['sold_brl']), Decimal('10000.00'))
+        self.assertEqual(Decimal(summ['final_brl']), Decimal('10000.00'))
         # soma dos vendedores == consolidado (inclui o bucket "sem vendedor")
-        self.assertEqual(sum(Decimal(r['sold_brl']) for r in sellers), Decimal(summ['sold_brl']))
+        self.assertEqual(sum(Decimal(r['final_brl']) for r in sellers), Decimal(summ['final_brl']))
         self.assertEqual(sum(r['contracts'] for r in sellers), summ['contracts'])
 
     def test_confirmed_only_from_payment_onward(self):
@@ -129,13 +147,13 @@ class ApiSecurityTest(APITestCase):
         self.client.force_authenticate(self.alice)
         r = self.client.get('/api/contracts/commissions/summary/')
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Decimal(r.json()['summary']['sold_brl']), Decimal('5000.00'))  # não vê os 3000 do boss
+        self.assertEqual(Decimal(r.json()['summary']['final_brl']), Decimal('5000.00'))  # não vê os 3000 do boss
         self.assertFalse(r.json()['can_view_all'])
 
     def test_view_all_sees_everyone(self):
         self.client.force_authenticate(self.boss)
         r = self.client.get('/api/contracts/commissions/summary/')
-        self.assertEqual(Decimal(r.json()['summary']['sold_brl']), Decimal('8000.00'))
+        self.assertEqual(Decimal(r.json()['summary']['final_brl']), Decimal('8000.00'))
 
     def test_idor_seller_cannot_read_other_seller_contracts(self):
         self.client.force_authenticate(self.alice)

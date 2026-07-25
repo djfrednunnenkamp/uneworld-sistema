@@ -98,9 +98,16 @@ def apply_filters(qs, *, situacao=None, date_from=None, date_to=None, year=None,
     return qs
 
 
-# ── Financeiro por contrato (mesma fórmula do serializer) ───────────────────
+# ── Financeiro por contrato — TRÊS valores (regra do negócio) ───────────────
+# 1) Valor NET   = soma do roteiro SEM a comissão da operadora.
+# 2) Valor de venda = NET + nossa comissão (markup da operadora).      = final − comissão da agência
+# 3) Preço final = NET + nossa comissão + comissão da agência.          = Contract.total (o cliente paga)
+# O markup da operadora é "por divisão" (venda = net / fator) — o fator vem da config
+# de preço do roteiro ligado ao contrato; então NET = venda × fator. Sem essa config,
+# o NET fica = venda (nossa comissão desconhecida = 0) e o contrato é marcado.
+# Tudo em BRL usa o CÂMBIO GRAVADO no contrato (nunca o de hoje). USD é o valor cru.
 def commission_usd(contract):
-    """Comissão bruta da agência em USD — subtotal por pessoa (sem taxas) × %.
+    """Comissão bruta da AGÊNCIA em USD — subtotal por pessoa (sem taxas) × %.
     Espelha ContractSerializer._commission_usd (fonte única da regra)."""
     rate = contract.agency.commission_rate if contract.agency_id else None
     if not rate:
@@ -109,6 +116,18 @@ def commission_usd(contract):
                    for l in contract.accommodation_lines.all())
     comm = Decimal(subtotal) * (rate / Decimal('100'))
     return comm.quantize(CENT) if comm else Decimal('0')
+
+
+def operator_factor(contract):
+    """Fator do markup da OPERADORA (venda = net / fator ⇒ net = venda × fator).
+    Vem da config de preço do roteiro ligado ao contrato. None quando indisponível
+    (roteiro/config ausente) ou fator fora de (0, 1]."""
+    cfg = getattr(contract.itinerary, 'pricing', None) if contract.itinerary_id else None
+    if not cfg or cfg.margin_percent is None:
+        return None
+    m = Decimal(cfg.margin_percent)
+    f = m if cfg.margin_mode == 'decimal' else (m / Decimal('100'))
+    return f if (Decimal('0') < f <= Decimal('1')) else None
 
 
 def effective_seller(contract):
@@ -123,20 +142,35 @@ def effective_seller(contract):
 
 
 def contract_financials(contract):
-    """Dict com os valores da venda em BRL/USD (Decimal). `has_value` marca contratos
-    sem total calculado (aparecem como 'requer revisão', nunca somem)."""
+    """Os três valores em BRL e USD (Decimal). `has_value` = contrato tem total
+    calculado; `has_margin` = deu pra achar o markup da operadora (senão NET=venda)."""
     rate = contract.exchange_rate or Decimal('0')
     comm_usd = commission_usd(contract)
     comm_brl = (comm_usd * rate).quantize(CENT) if rate else Decimal('0')
-    sold_brl = contract.total_brl
-    sold_usd = contract.total_usd
-    net_brl = (sold_brl - comm_brl) if sold_brl is not None else None
+    final_usd = contract.total_usd
+    final_brl = contract.total_brl
+    has_value = final_brl is not None
+    # Venda (nossa venda, sem a comissão da agência) = final − comissão da agência.
+    sale_usd = (final_usd - comm_usd) if final_usd is not None else None
+    sale_brl = (final_brl - comm_brl) if final_brl is not None else None
+    # NET = venda × fator (markup da operadora). Sem fator → NET = venda.
+    factor = operator_factor(contract)
+    has_margin = factor is not None and sale_brl is not None
+    if has_margin:
+        net_brl = (sale_brl * factor).quantize(CENT)
+        net_usd = (sale_usd * factor).quantize(CENT) if sale_usd is not None else None
+    else:
+        net_brl, net_usd = sale_brl, sale_usd
+    op_brl = (sale_brl - net_brl) if (sale_brl is not None and net_brl is not None) else Decimal('0')
+    op_usd = (sale_usd - net_usd) if (sale_usd is not None and net_usd is not None) else Decimal('0')
     sid, sname, savatar = effective_seller(contract)
     return {
-        'sold_brl': sold_brl, 'sold_usd': sold_usd,
+        'net_brl': net_brl, 'net_usd': net_usd,
+        'sale_brl': sale_brl, 'sale_usd': sale_usd,
+        'final_brl': final_brl, 'final_usd': final_usd,
+        'operator_commission_brl': op_brl, 'operator_commission_usd': op_usd,
         'agency_commission_brl': comm_brl, 'agency_commission_usd': comm_usd,
-        'net_brl': net_brl,
-        'has_value': sold_brl is not None,
+        'has_value': has_value, 'has_margin': has_margin,
         'currency': contract.base_currency or 'USD',
         'exchange_rate': rate or None,
         'passengers': getattr(contract, '_pax', None) if getattr(contract, '_pax', None) is not None else contract.guests.count(),
@@ -146,24 +180,41 @@ def contract_financials(contract):
     }
 
 
+# Chaves de dinheiro somadas (cada uma em BRL e USD).
+_MONEY_KEYS = ['net', 'sale', 'final', 'operator_commission', 'agency_commission']
+
+
 def _blank_agg():
-    return {'contracts': 0, 'passengers': 0,
-            'sold_brl': Decimal('0'), 'net_brl': Decimal('0'),
-            'agency_commission_brl': Decimal('0'), 'missing_value': 0}
+    a = {'contracts': 0, 'passengers': 0, 'missing_value': 0, 'missing_margin': 0}
+    for k in _MONEY_KEYS:
+        a[f'{k}_brl'] = Decimal('0')
+        a[f'{k}_usd'] = Decimal('0')
+    return a
 
 
 def _add(agg, fin):
     agg['contracts'] += 1
     agg['passengers'] += int(fin['passengers'] or 0)
-    agg['sold_brl'] += fin['sold_brl'] or Decimal('0')
-    agg['net_brl'] += fin['net_brl'] or Decimal('0')
-    agg['agency_commission_brl'] += fin['agency_commission_brl'] or Decimal('0')
+    for k in _MONEY_KEYS:
+        agg[f'{k}_brl'] += fin.get(f'{k}_brl') or Decimal('0')
+        agg[f'{k}_usd'] += fin.get(f'{k}_usd') or Decimal('0')
     if not fin['has_value']:
         agg['missing_value'] += 1
+    if fin['has_value'] and not fin['has_margin']:
+        agg['missing_margin'] += 1
 
 
 def _money(d):
     return str((d or Decimal('0')).quantize(CENT))
+
+
+def _money_out(agg):
+    """Serializa as chaves de dinheiro (brl+usd) do agregado para string."""
+    out = {}
+    for k in _MONEY_KEYS:
+        out[f'{k}_brl'] = _money(agg[f'{k}_brl'])
+        out[f'{k}_usd'] = _money(agg[f'{k}_usd'])
+    return out
 
 
 def summarize(qs):
@@ -172,20 +223,20 @@ def summarize(qs):
     for c in qs:
         _add(agg, contract_financials(c))
     contracts = agg['contracts']
-    avg_contract = (agg['sold_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')
-    avg_pax = (agg['sold_brl'] / agg['passengers']).quantize(CENT) if agg['passengers'] else Decimal('0')
+    avg_c = (agg['final_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')
+    avg_p = (agg['final_brl'] / agg['passengers']).quantize(CENT) if agg['passengers'] else Decimal('0')
     return {
         'contracts': contracts, 'passengers': agg['passengers'],
-        'sold_brl': _money(agg['sold_brl']), 'net_brl': _money(agg['net_brl']),
-        'agency_commission_brl': _money(agg['agency_commission_brl']),
-        'avg_ticket_contract_brl': _money(avg_contract),
-        'avg_ticket_passenger_brl': _money(avg_pax),
-        'missing_value': agg['missing_value'],
+        **_money_out(agg),
+        'avg_ticket_contract_brl': _money(avg_c),
+        'avg_ticket_passenger_brl': _money(avg_p),
+        'missing_value': agg['missing_value'], 'missing_margin': agg['missing_margin'],
     }
 
 
 def by_seller(qs):
-    """Agregado por vendedor (ranking). Contratos sem vendedor caem em id=None."""
+    """Agregado por vendedor (ranking). Contratos sem vendedor caem em id=None.
+    Participação (%) é sobre o PREÇO FINAL."""
     groups = {}
     for c in qs:
         fin = contract_financials(c)
@@ -193,26 +244,25 @@ def by_seller(qs):
         g = groups.setdefault(key, {'seller_id': key, 'seller_name': fin['seller_name'],
                                     'seller_avatar': fin['seller_avatar'], **_blank_agg()})
         _add(g, fin)
-    total_sold = sum((g['sold_brl'] for g in groups.values()), Decimal('0'))
+    total_final = sum((g['final_brl'] for g in groups.values()), Decimal('0'))
     rows = []
     for g in groups.values():
         contracts = g['contracts']
-        share = (g['sold_brl'] / total_sold * 100).quantize(CENT) if total_sold else Decimal('0')
+        share = (g['final_brl'] / total_final * 100).quantize(CENT) if total_final else Decimal('0')
         rows.append({
             'seller_id': g['seller_id'], 'seller_name': g['seller_name'], 'seller_avatar': g.get('seller_avatar'),
             'contracts': contracts, 'passengers': g['passengers'],
-            'sold_brl': _money(g['sold_brl']), 'net_brl': _money(g['net_brl']),
-            'agency_commission_brl': _money(g['agency_commission_brl']),
-            'avg_ticket_brl': _money((g['sold_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')),
-            'share_pct': str(share), 'missing_value': g['missing_value'],
+            **_money_out(g),
+            'avg_ticket_brl': _money((g['final_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')),
+            'share_pct': str(share), 'missing_value': g['missing_value'], 'missing_margin': g['missing_margin'],
         })
-    rows.sort(key=lambda r: Decimal(r['sold_brl']), reverse=True)
+    rows.sort(key=lambda r: Decimal(r['final_brl']), reverse=True)
     return rows
 
 
-def timeseries(qs, metric='sold_brl'):
+def timeseries(qs, metric='final_brl'):
     """Série mensal (YYYY-MM) da métrica escolhida — para o gráfico de evolução.
-    metric ∈ sold_brl|net_brl|agency_commission_brl|contracts|passengers."""
+    metric ∈ net_brl|sale_brl|final_brl|agency_commission_brl|contracts|passengers."""
     buckets = {}
     for c in qs:
         fin = contract_financials(c)
@@ -225,14 +275,8 @@ def timeseries(qs, metric='sold_brl'):
     out = []
     for key in sorted(buckets):
         b = buckets[key]
-        if metric in ('contracts', 'passengers'):
-            val = b[metric]
-        else:
-            val = str(b.get(metric, Decimal('0')).quantize(CENT))
-        out.append({'period': key, 'value': val,
-                    'contracts': b['contracts'], 'passengers': b['passengers'],
-                    'sold_brl': _money(b['sold_brl']), 'net_brl': _money(b['net_brl']),
-                    'agency_commission_brl': _money(b['agency_commission_brl'])})
+        val = b[metric] if metric in ('contracts', 'passengers') else _money(b.get(metric, Decimal('0')))
+        out.append({'period': key, 'value': val, 'contracts': b['contracts'], 'passengers': b['passengers'], **_money_out(b)})
     return out
 
 
