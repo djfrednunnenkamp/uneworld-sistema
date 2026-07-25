@@ -32,7 +32,7 @@ def _filtered(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, RequirePermission('commissions_view')])
+@permission_classes([IsAuthenticated, RequirePermission('commissions_view', 'panels_view')])
 def commissions_summary(request):
     """Cards: totais do período + comparação com o período anterior de mesmo tamanho."""
     f = _filters(request)
@@ -61,7 +61,7 @@ def commissions_by_seller(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, RequirePermission('commissions_view')])
+@permission_classes([IsAuthenticated, RequirePermission('commissions_view', 'panels_view')])
 def commissions_timeseries(request):
     """Série mensal da métrica escolhida (?metric=)."""
     metric = request.query_params.get('metric') or 'final_brl'
@@ -71,7 +71,7 @@ def commissions_timeseries(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, RequirePermission('commissions_view')])
+@permission_classes([IsAuthenticated, RequirePermission('commissions_view', 'panels_view')])
 def commissions_meta(request):
     """Opções dos filtros: anos disponíveis (não fixos) e se pode ver todos."""
     return Response({

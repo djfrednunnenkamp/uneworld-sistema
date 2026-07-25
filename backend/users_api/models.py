@@ -120,6 +120,7 @@ class UserPermissions(models.Model):
     commissions_view = models.BooleanField(default=False)         # acessar o módulo (por padrão vê só as PRÓPRIAS vendas)
     commissions_view_all = models.BooleanField(default=False)     # ver as vendas de TODOS os vendedores (ranking/equipe)
     commissions_export = models.BooleanField(default=False)       # exportar o relatório de comissões
+    panels_view = models.BooleanField(default=False)             # ver os Painéis de Visualização (cards/gráficos de vendas)
 
     # Roteiros — Ver a lista → Abrir (só leitura) → Editar → Criar
     roteiros_view      = models.BooleanField(default=False)   # ver a LISTA de roteiros

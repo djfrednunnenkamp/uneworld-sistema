@@ -45,6 +45,7 @@ PERMISSION_FIELDS = [
     'commissions_view',
     'commissions_view_all',
     'commissions_export',
+    'panels_view',
     # Roteiros
     'roteiros_view',
     'roteiros_open',
