@@ -148,6 +148,43 @@ class VoucherContentAuditTest(APITestCase):
         self.assertIn('Voucher de Viagem', str(log.changes['Conteúdo do voucher']['depois']))
 
 
+class DriveAuditTest(APITestCase):
+    """Meus Documentos: renomear, compartilhar e transferir a posse deixam rastro
+    no log (aparecem no botão "Log" da página de documentos)."""
+
+    def setUp(self):
+        from drive.models import DriveNode
+        self.owner = make_user('downer', superuser=True)
+        # Alvos precisam poder RECEBER (share) e USAR o Drive (transfer).
+        self.mate = make_user('dmate', documentos_view=True, documentos_receive=True)
+        self.client.force_authenticate(self.owner)
+        self.node = DriveNode.objects.create(owner=self.owner, kind='file', name='Contrato.docx')
+
+    def test_rename_logs_event(self):
+        r = self.client.patch(f'/api/drive/{self.node.id}/', {'name': 'Contrato final.docx'}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        log = _logs('DriveNode', 'rename', self.node.id).order_by('-id').first()
+        self.assertIsNotNone(log, 'renomear não gerou log')
+        self.assertEqual(log.changes['Nome']['antes'], 'Contrato.docx')
+        self.assertEqual(log.changes['Nome']['depois'], 'Contrato final.docx')
+
+    def test_share_logs_event(self):
+        r = self.client.post(f'/api/drive/{self.node.id}/share/',
+                             {'shares': [{'user': self.mate.id, 'level': 'edit'}]}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        log = _logs('DriveNode', 'share', self.node.id).order_by('-id').first()
+        self.assertIsNotNone(log, 'compartilhar não gerou log')
+        self.assertIn('Compartilhado com', log.changes)
+
+    def test_transfer_logs_event(self):
+        r = self.client.post(f'/api/drive/{self.node.id}/transfer/',
+                             {'user_id': self.mate.id}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        log = _logs('DriveNode', 'transfer', self.node.id).order_by('-id').first()
+        self.assertIsNotNone(log, 'transferir a posse não gerou log')
+        self.assertIn('Novo dono', log.changes)
+
+
 class AuditSafetyTest(TestCase):
     """Uma falha ao gravar o log NUNCA pode derrubar a operação real do usuário."""
 

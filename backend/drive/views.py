@@ -256,8 +256,13 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         """Renomear ({name}) e/ou mover ({parent})."""
         node = self.get_object()   # só do dono (get_queryset)
+        old_name = node.name
+        renamed = moved = False
         if 'name' in request.data:
-            node.name = (request.data.get('name') or node.name).strip()[:255] or node.name
+            new_name = (request.data.get('name') or node.name).strip()[:255] or node.name
+            if new_name != node.name:
+                renamed = True
+            node.name = new_name
         if 'parent' in request.data:
             new_parent = self._accessible_folder(request.data.get('parent'))
             if new_parent is False:
@@ -269,8 +274,23 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
                     return Response({'error': 'Não é possível mover para dentro da própria pasta.'},
                                     status=status.HTTP_400_BAD_REQUEST)
                 p = p.parent; seen += 1
+            if (node.parent_id or None) != ((new_parent.id if new_parent else None)):
+                moved = True
             node.parent = new_parent or None
         node.save()
+        # Rastro no log: renomear e mover são ações distintas que o usuário espera ver.
+        if renamed or moved:
+            from audit.tracking import log_event
+            label = 'Pasta' if node.kind == 'folder' else 'Documento'
+            if renamed:
+                log_event('rename', model_name='DriveNode', model_label=label,
+                          object_id=node.id, object_repr=node.name, user=request.user,
+                          changes={'Nome': {'antes': old_name, 'depois': node.name}})
+            if moved:
+                dest = node.parent.name if node.parent else 'Meus arquivos (raiz)'
+                log_event('update', model_name='DriveNode', model_label=label,
+                          object_id=node.id, object_repr=f'{node.name} → {dest}', user=request.user,
+                          changes={'Movido para': dest})
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
     def destroy(self, request, *args, **kwargs):
@@ -373,9 +393,21 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             names = ', '.join(_user_label(u) for u in blocked)
             return Response({'error': f'Sem permissão para receber documentos compartilhados: {names}.'},
                             status=status.HTTP_400_BAD_REQUEST)
+        before = set(node.shared_with.values_list('id', flat=True))
         node.shared_with.set(users)
         node.share_levels = {str(u.id): wanted[u.id] for u in users}
         node.save(update_fields=['share_levels'])
+        # Rastro no log: com quem passou a ser compartilhado (mostra a lista atual).
+        after = {u.id: u for u in users}
+        if before != set(after.keys()):
+            from audit.tracking import log_event
+            LVL = {'view': 'ver', 'comment': 'comentar', 'edit': 'editar'}
+            shared_desc = ', '.join(f'{_user_label(u)} ({LVL.get(wanted[uid], wanted[uid])})'
+                                    for uid, u in after.items()) or 'ninguém'
+            log_event('share', model_name='DriveNode',
+                      model_label='Pasta' if node.kind == 'folder' else 'Documento',
+                      object_id=node.id, object_repr=node.name, user=request.user,
+                      changes={'Compartilhado com': shared_desc})
         return Response(DriveNodeSerializer(node, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
@@ -413,9 +445,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         node.save(update_fields=['parent', 'share_levels'])
         broadcast_drive()   # bulk_update não dispara signal
         from audit.tracking import log_event
-        log_event('update', model_name='DriveNode',
+        log_event('transfer', model_name='DriveNode',
                   model_label='Pasta' if node.kind == 'folder' else 'Documento',
-                  object_id=node.id, object_repr=f'{node.name} → {_user_label(target)}', user=request.user)
+                  object_id=node.id, object_repr=f'{node.name} → {_user_label(target)}', user=request.user,
+                  changes={'Novo dono': _user_label(target), 'Dono anterior': _user_label(old_owner)})
         return Response({'ok': True, 'new_owner': _user_label(target)})
 
     @action(detail=True, methods=['get'])
