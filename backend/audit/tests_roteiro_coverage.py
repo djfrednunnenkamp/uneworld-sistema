@@ -127,6 +127,27 @@ class WhitelistCollisionGuardTest(TestCase):
                          msg='dois modelos de apps diferentes com o mesmo nome estão rastreados')
 
 
+class VoucherContentAuditTest(APITestCase):
+    """Editar o CONTEÚDO do voucher (blocos) da lista deixa rastro no log (P-vouchers)."""
+
+    def setUp(self):
+        self.user = make_user('vroot', superuser=True)
+        self.client.force_authenticate(self.user)
+        from trips.models import PassengerList
+        self.pl = PassengerList.objects.create(name='Lista Voucher')
+
+    def test_editing_blocks_logs_with_diff(self):
+        r = self.client.patch(f'/api/vouchers/{self.pl.id}/',
+                              {'blocks': [{'type': 'title', 'heading': 'Voucher de Viagem'}]}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        from vouchers.models import VoucherList
+        vl = VoucherList.objects.get(passenger_list=self.pl)
+        log = _logs('VoucherList', 'update', vl.id).order_by('-id').first()
+        self.assertIsNotNone(log, 'edição do conteúdo do voucher não gerou log')
+        self.assertIn('Conteúdo do voucher', log.changes)
+        self.assertIn('Voucher de Viagem', str(log.changes['Conteúdo do voucher']['depois']))
+
+
 class AuditSafetyTest(TestCase):
     """Uma falha ao gravar o log NUNCA pode derrubar a operação real do usuário."""
 

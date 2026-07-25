@@ -36,6 +36,26 @@ def _sanitize_blocks(blocks):
     return out
 
 
+_BLOCK_TYPE_LABEL = {'title': 'Título', 'text': 'Texto', 'day_by_day': 'Dia a dia',
+                     'inclusions': 'O que inclui', 'image': 'Imagem'}
+
+
+def _voucher_blocks_summary(blocks):
+    """Resumo legível dos blocos do voucher p/ o log — mostra ordem, tipo e o
+    conteúdo/nome de cada bloco, então reordenar/renomear/adicionar/remover aparece
+    no antes/depois."""
+    if blocks is None:
+        return 'Template padrão global'
+    if not blocks:
+        return '(sem blocos)'
+    lines = []
+    for i, b in enumerate(blocks, 1):
+        t = _BLOCK_TYPE_LABEL.get(b.get('type'), b.get('type') or '?')
+        val = (b.get('heading') or b.get('text') or b.get('content') or b.get('url') or '').strip()
+        lines.append(f'{i}. {t}' + (f' — {val[:80]}' if val else ''))
+    return '\n'.join(lines)
+
+
 class VoucherViewSet(viewsets.ViewSet):
     """Vouchers das listas de passageiros. `pk` = id da Lista de Passageiros
     (cada lista tem exatamente um voucher).
@@ -310,8 +330,19 @@ class VoucherViewSet(viewsets.ViewSet):
         raw = request.data.get('blocks', ...)
         if raw is ...:
             return Response({'error': 'Faltou blocks.'}, status=status.HTTP_400_BAD_REQUEST)
-        voucher.blocks = None if raw is None else _sanitize_blocks(raw)
+        old_blocks = voucher.blocks
+        new_blocks = None if raw is None else _sanitize_blocks(raw)
+        voucher.blocks = new_blocks
         voucher.save(update_fields=['blocks', 'updated_at'])
+        # VoucherList não é rastreado por signal — loga a edição do conteúdo (ordem,
+        # nomes, blocos adicionados/removidos) com o antes/depois, p/ aparecer no log.
+        if old_blocks != new_blocks:
+            from audit.tracking import log_event
+            log_event('update', model_name='VoucherList', model_label='Voucher',
+                      object_id=voucher.id, object_repr=f'Voucher: {pl.name}',
+                      changes={'Conteúdo do voucher': {
+                          'antes': _voucher_blocks_summary(old_blocks),
+                          'depois': _voucher_blocks_summary(new_blocks)}})
         return self.retrieve(request, pk=pk)
 
 
