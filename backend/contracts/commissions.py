@@ -58,7 +58,8 @@ def base_queryset(user):
     (usuário de agência só vê a própria) e, sem `commissions_view_all`, limita às
     vendas do próprio usuário (seller OU created_by) — proteção contra IDOR."""
     qs = (Contract.objects.filter(is_deleted=False)
-          .select_related('agency', 'seller', 'created_by', 'itinerary')
+          .select_related('agency', 'seller', 'seller__permissions',
+                          'created_by', 'created_by__permissions', 'itinerary')
           .prefetch_related('accommodation_lines')
           .annotate(_pax=Count('guests', distinct=True),
                     sale_date=Coalesce('contract_date', TruncDate('created_at'))))
@@ -106,12 +107,14 @@ def commission_usd(contract):
 
 
 def effective_seller(contract):
-    """Vendedor da operadora efetivo: seller, senão o criador. (id, nome) ou (None,'')."""
+    """Vendedor da operadora efetivo: seller, senão o criador. (id, nome, avatar_url)."""
     u = contract.seller or contract.created_by
     if not u:
-        return (None, '')
+        return (None, '', None)
     name = f'{u.first_name} {u.last_name}'.strip() or u.email or u.username
-    return (u.id, name)
+    perms = getattr(u, 'permissions', None)
+    avatar = perms.avatar.url if (perms and perms.avatar) else None
+    return (u.id, name, avatar)
 
 
 def contract_financials(contract):
@@ -123,7 +126,7 @@ def contract_financials(contract):
     sold_brl = contract.total_brl
     sold_usd = contract.total_usd
     net_brl = (sold_brl - comm_brl) if sold_brl is not None else None
-    sid, sname = effective_seller(contract)
+    sid, sname, savatar = effective_seller(contract)
     return {
         'sold_brl': sold_brl, 'sold_usd': sold_usd,
         'agency_commission_brl': comm_brl, 'agency_commission_usd': comm_usd,
@@ -133,7 +136,7 @@ def contract_financials(contract):
         'exchange_rate': rate or None,
         'passengers': getattr(contract, '_pax', None) if getattr(contract, '_pax', None) is not None else contract.guests.count(),
         'sale_date': getattr(contract, 'sale_date', None) or contract.contract_date or (contract.created_at.date() if contract.created_at else None),
-        'seller_id': sid, 'seller_name': sname or 'Sem vendedor atribuído',
+        'seller_id': sid, 'seller_name': sname or 'Sem vendedor atribuído', 'seller_avatar': savatar,
         'agency_id': contract.agency_id, 'agency_name': (contract.agency.name if contract.agency_id else None),
     }
 
@@ -182,7 +185,8 @@ def by_seller(qs):
     for c in qs:
         fin = contract_financials(c)
         key = fin['seller_id']
-        g = groups.setdefault(key, {'seller_id': key, 'seller_name': fin['seller_name'], **_blank_agg()})
+        g = groups.setdefault(key, {'seller_id': key, 'seller_name': fin['seller_name'],
+                                    'seller_avatar': fin['seller_avatar'], **_blank_agg()})
         _add(g, fin)
     total_sold = sum((g['sold_brl'] for g in groups.values()), Decimal('0'))
     rows = []
@@ -190,7 +194,7 @@ def by_seller(qs):
         contracts = g['contracts']
         share = (g['sold_brl'] / total_sold * 100).quantize(CENT) if total_sold else Decimal('0')
         rows.append({
-            'seller_id': g['seller_id'], 'seller_name': g['seller_name'],
+            'seller_id': g['seller_id'], 'seller_name': g['seller_name'], 'seller_avatar': g.get('seller_avatar'),
             'contracts': contracts, 'passengers': g['passengers'],
             'sold_brl': _money(g['sold_brl']), 'net_brl': _money(g['net_brl']),
             'agency_commission_brl': _money(g['agency_commission_brl']),
