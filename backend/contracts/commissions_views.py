@@ -21,6 +21,7 @@ def _filters(request):
         date_from=parse_date(q.get('from') or '') or None,
         date_to=parse_date(q.get('to') or '') or None,
         year=q.get('year') or None,
+        month=q.get('month') or None,
         seller_id=q.get('seller') or None,
         agency_id=q.get('agency') or None,
         itinerary_id=q.get('itinerary') or None,

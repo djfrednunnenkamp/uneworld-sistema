@@ -76,14 +76,17 @@ def base_queryset(user):
     return qs
 
 
-def apply_filters(qs, *, situacao=None, date_from=None, date_to=None, year=None,
+def apply_filters(qs, *, situacao=None, date_from=None, date_to=None, year=None, month=None,
                   seller_id=None, agency_id=None, itinerary_id=None):
     """Filtros comuns. A data usada é a DATA DA VENDA = contract_date (senão a data
-    de criação) — anotada como `sale_date`."""
+    de criação) — anotada como `sale_date`. Ano/mês filtram por essa data; para o dia
+    exato use date_from/date_to."""
     fn = SITUACAO_FILTERS.get(situacao or DEFAULT_SITUACAO, SITUACAO_FILTERS[DEFAULT_SITUACAO])
     qs = fn(qs)
     if year:
         qs = qs.filter(sale_date__year=int(year))
+    if month:
+        qs = qs.filter(sale_date__month=int(month))
     if date_from:
         qs = qs.filter(sale_date__gte=date_from)
     if date_to:
