@@ -223,17 +223,34 @@ def _stored_meta(log):
     return m if isinstance(m, dict) else None
 
 
+def _candidate_storages():
+    """Storages onde um arquivo de log pode estar. Mídia PÚBLICA (logos, imagens de
+    roteiro, avatares, vouchers) vive no storage `public_media` (S3 em prod); docs
+    sensíveis e os artefatos de auditoria ficam no `default` (local). A mesma chave
+    relativa é usada nos dois — então tentamos ambos, sem depender do backend."""
+    from django.core.files.storage import default_storage, storages
+    out = [default_storage]
+    try:
+        pub = storages['public_media']
+        if pub is not default_storage:
+            out.append(pub)
+    except Exception:
+        pass
+    return out
+
+
 def _open_by_storage_name(storage_name):
-    """Abre um arquivo pela chave de storage (identificador permanente). Protege
-    contra path traversal — a chave tem que ser relativa e sem '..'."""
+    """Abre um arquivo pela chave de storage (identificador permanente), procurando
+    no storage certo (local OU S3). Protege contra path traversal — a chave tem que
+    ser relativa e sem '..'."""
     if not storage_name or storage_name.startswith('/') or '..' in storage_name.split('/'):
         return None
-    from django.core.files.storage import default_storage
-    try:
-        if default_storage.exists(storage_name):
-            return default_storage.open(storage_name, 'rb')
-    except Exception:
-        return None
+    for st in _candidate_storages():
+        try:
+            if st.exists(storage_name):
+                return st.open(storage_name, 'rb')
+        except Exception:
+            continue
     return None
 
 
