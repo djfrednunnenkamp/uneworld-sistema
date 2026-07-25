@@ -528,7 +528,10 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
         from audit.models import AuditLog
         from audit.middleware import get_current_user, get_current_ip
         from audit.tracking import user_display
+        from audit.files import meta_from_fieldfile
         user = get_current_user()
+        _m = meta_from_fieldfile(doc.file, original_name=getattr(doc, 'original_name', None) or None,
+                                 mime=getattr(doc, 'mime_type', None) or '', size=getattr(doc, 'file_size', None) or None)
         AuditLog.objects.create(
             user=user,
             user_display=user_display(user),
@@ -537,6 +540,7 @@ class PassengerDocumentViewSet(viewsets.GenericViewSet):
             model_label='Documento',
             object_id=str(doc.pk),
             object_repr=str(doc)[:500],
+            changes=({'_file': _m} if _m else {}),
             ip_address=get_current_ip(),
         )
         return response

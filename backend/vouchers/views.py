@@ -293,12 +293,17 @@ class VoucherViewSet(viewsets.ViewSet):
         next_order = (VoucherFlightConfirmation.objects.filter(voucher=voucher, entry_key=entry_key)
                       .aggregate(m=Max('order'))['m'])
         next_order = 0 if next_order is None else next_order + 1
-        VoucherFlightConfirmation.objects.create(
+        fc = VoucherFlightConfirmation.objects.create(
             voucher=voucher, entry_key=entry_key, image=image,
             title=(request.data.get('title') or '').strip()[:200], order=next_order)
+        from audit.files import meta_from_fieldfile
+        changes = {'Comprovante de voo': {'antes': '—', 'depois': 'imagem enviada'}}
+        _m = meta_from_fieldfile(fc.image)
+        if _m:
+            changes['_file'] = _m
+        # object_id aponta para o próprio comprovante (a imagem), para o preview no log.
         log_event('upload', model_name='VoucherFlightConfirmation', model_label='Comprovante de voo (imagem)',
-                  object_id=pl.id, object_repr=f'{who} — {pl.name}',
-                  changes={'Comprovante de voo': {'antes': '—', 'depois': 'imagem enviada'}}, user=request.user)
+                  object_id=fc.id, object_repr=f'{who} — {pl.name}', changes=changes, user=request.user)
         return self.retrieve(request, pk=pk)
 
     @action(detail=True, methods=['post'], url_path='flight_confirmation_reorder')

@@ -184,9 +184,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
             node.save()
             if onlyoffice.office_document_type(node.name or ''):
                 snapshot_version(node, user=request.user, note='Enviado')
-            from audit.tracking import log_event
-            log_event('upload', model_name='DriveNode', model_label='Documento',
-                      object_id=node.id, object_repr=node.name, user=request.user)
+            from audit.files import log_file_event
+            log_file_event('upload', file=node.file, model_name='DriveNode', model_label='Documento',
+                           object_id=node.id, object_repr=node.name, user=request.user,
+                           original_name=node.original_name, mime=node.mime_type, size=node.file_size)
             created.append(node)
         return Response(DriveNodeSerializer(created, many=True, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
@@ -218,9 +219,10 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         node.file.save(f'novo.{ext}', ContentFile(content), save=False)
         node.save()
         snapshot_version(node, user=request.user, note='Criado')
-        from audit.tracking import log_event
-        log_event('create', model_name='DriveNode', model_label='Documento',
-                  object_id=node.id, object_repr=node.name, user=request.user)
+        from audit.files import log_file_event
+        log_file_event('create', file=node.file, model_name='DriveNode', model_label='Documento',
+                       object_id=node.id, object_repr=node.name, user=request.user,
+                       original_name=node.original_name, mime=node.mime_type, size=node.file_size)
         return Response(DriveNodeSerializer(node, context={'request': request}).data,
                         status=status.HTTP_201_CREATED)
 
@@ -697,9 +699,11 @@ class DriveNodeViewSet(viewsets.ModelViewSet):
         # Leitura de arquivo do Drive: download explícito ('download') ou visualização
         # inline ('view'). Antes, uploads/exclusões eram logados mas as LEITURAS não —
         # deixava o vazamento de um arquivo sem rastro.
-        from audit.tracking import log_event
-        log_event('view' if inline else 'download', model_name='DriveNode', model_label='Documento',
-                  object_id=node.id, object_repr=node.name, user=request.user)
+        from audit.files import log_file_event
+        log_file_event('view' if inline else 'download', file=node.file, model_name='DriveNode',
+                       model_label='Documento', object_id=node.id, object_repr=node.name,
+                       user=request.user, original_name=node.original_name,
+                       mime=node.mime_type, size=node.file_size)
         return resp
 
 
@@ -766,6 +770,16 @@ def drive_document_callback(request, pk):
                         except Exception:
                             pass
                     v.save(update_fields=['server_version', 'changes_json', 'changes_file'])
+                # Substituição do arquivo (salvamento do editor) deixa rastro no log,
+                # apontando para a VERSÃO exata gerada (não a "mais recente" genérica).
+                from audit.files import log_file_event
+                log_file_event('update',
+                               file=(v.file if v else node.file),
+                               model_name='DriveNode', model_label='Documento',
+                               object_id=node.id, object_repr=node.name, user=editor,
+                               original_name=node.original_name, mime=node.mime_type,
+                               size=node.file_size, version_id=(v.id if v else None),
+                               changes={'Arquivo substituído (edição no navegador)': node.name})
             except Exception:
                 return Response({'error': 1})
     return Response({'error': 0})

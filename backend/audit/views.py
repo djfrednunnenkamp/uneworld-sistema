@@ -6,34 +6,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from users_api.permissions import RequirePermission, has_any_perm
 from .models import AuditLog
+from . import files as audit_files
 from core.search import AccentInsensitiveSearchFilter
-
-
-# Modelos cujo log de upload/download aponta para um arquivo servível:
-# model_name -> ('app_label.Model', 'campo_do_arquivo')
-# O 2º item é o nome do campo de arquivo OU um callable(obj, log) -> FieldFile
-# (usado no Contrato, que tem 2 arquivos — o log diz qual em changes['_file_field']).
-FILE_MODELS = {
-    'ItineraryImage':    ('itineraries.ItineraryImage', 'image'),
-    'ItineraryDocument': ('itineraries.ItineraryDocument', 'file'),
-    'ConfigHotelMedia':  ('config_api.ConfigHotelMedia', 'file'),
-    'ConfigBoatMedia':   ('config_api.ConfigBoatMedia', 'file'),
-    'PassengerDocument': ('passengers.PassengerDocument', 'file'),
-    'Airline':           ('config_api.Airline', 'logo'),
-    'OperatingCompany':  ('config_api.OperatingCompany', 'ceo_signature'),
-    # Contrato: só serve o arquivo ARMAZENADO (assinado/comprovante, marcados com
-    # _file_field). O "Baixou o PDF" gerado no navegador não fica salvo → devolve
-    # None (404) e o front regenera o PDF na hora.
-    'Contract':          ('contracts.Contract',
-                          lambda obj, log: getattr(obj, (log.changes or {}).get('_file_field'), None)
-                          if (log.changes or {}).get('_file_field') else None),
-}
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
     action_label = serializers.CharField(source='get_action_display', read_only=True)
     timestamp_br = serializers.SerializerMethodField()
     has_file     = serializers.SerializerMethodField()
+    file_kind    = serializers.SerializerMethodField()
     user_avatar  = serializers.SerializerMethodField()
     source       = serializers.SerializerMethodField()
 
@@ -47,20 +28,17 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'id', 'timestamp', 'timestamp_br', 'source',
             'user_display', 'user_avatar', 'action', 'action_label',
             'model_name', 'model_label', 'object_id', 'object_repr',
-            'changes', 'ip_address', 'has_file',
+            'changes', 'ip_address', 'has_file', 'file_kind',
             'geo_city', 'geo_country', 'latitude', 'longitude', 'geo_precise', 'geo_address',
         ]
 
     def get_has_file(self, obj):
-        # O log aponta para um arquivo servível (imagem/doc/mídia/PDF)?
-        spec = FILE_MODELS.get(obj.model_name)
-        if not spec or not obj.object_id:
-            return False
-        # Campo dinâmico (ex: Contrato tem 2 arquivos) → nos eventos de download
-        # (o resolver escolhe pelo _file_field; sem ele, cai no arquivo padrão).
-        if callable(spec[1]):
-            return obj.action == 'download'
-        return True
+        # O log aponta para um arquivo servível (imagem/doc/mídia/PDF)? (barato)
+        return audit_files.has_servable_file(obj)
+
+    def get_file_kind(self, obj):
+        # Kind p/ o indicador discreto na lista (ícone de imagem/vídeo/pdf/arquivo).
+        return audit_files.file_kind_of(obj) if audit_files.has_servable_file(obj) else None
 
     def get_user_avatar(self, obj):
         u = obj.user
@@ -134,31 +112,50 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['user_display', 'object_repr', 'model_label']
     ordering = ['-timestamp']
 
+    @action(detail=True, methods=['get'], url_path='file/info')
+    def file_info(self, request, pk=None):
+        """Metadados + disponibilidade do arquivo do log, SEM baixar o conteúdo.
+        get_object respeita o escopo/permissão — só quem pode ver o log consulta.
+        Consultar os metadados NÃO gera log de download (é só inspeção)."""
+        log = self.get_object()
+        return Response(audit_files.file_info_for_log(log))
+
     @action(detail=True, methods=['get'])
     def file(self, request, pk=None):
-        """Serve o arquivo apontado por um log de upload/download (imagem, vídeo,
-        PDF…). ?download=1 força baixar; senão, inline (visualizar). get_object
-        respeita o escopo/permissão — só serve arquivo de log que a pessoa pode ver."""
+        """Serve o arquivo apontado pelo log (imagem, vídeo, PDF, texto…).
+        ?download=1 força baixar (e é AUDITADO como um download do usuário); sem
+        isso é inline/preview e NÃO gera log (evita ruído por thumbnail/iframe).
+        get_object respeita o escopo/permissão — só serve arquivo de log visível.
+        Conteúdo perigoso (HTML/SVG/XML) é servido como texto puro, sem execução."""
         log = self.get_object()
-        spec = FILE_MODELS.get(log.model_name)
-        if not spec or not log.object_id:
-            return Response({'detail': 'Este registro não tem arquivo.'}, status=404)
-        from django.apps import apps
-        try:
-            Model = apps.get_model(spec[0])
-        except Exception:
-            return Response({'detail': 'Modelo indisponível.'}, status=404)
-        obj = Model.objects.filter(pk=log.object_id).first()
-        if not obj:
-            return Response({'detail': 'Arquivo indisponível (o registro pode ter sido removido).'}, status=404)
-        f = spec[1](obj, log) if callable(spec[1]) else getattr(obj, spec[1], None)
-        if not f:
-            return Response({'detail': 'Arquivo indisponível (o registro pode ter sido removido).'}, status=404)
+        fh, meta, status = audit_files.resolve_log_file(log)
+        if status == 'no_file':
+            return Response({'status': status, 'detail': 'Este registro não tem arquivo.'}, status=404)
+        if status in ('removed', 'model_gone', 'legacy') or not fh:
+            return Response({'status': status,
+                             'detail': 'O conteúdo do arquivo não está mais disponível.'}, status=404)
+
+        meta = meta or {}
+        name = meta.get('name') or (log.object_repr or 'arquivo')
         as_attachment = request.query_params.get('download') == '1'
-        try:
-            return FileResponse(f.open('rb'), as_attachment=as_attachment, filename=f.name.split('/')[-1])
-        except FileNotFoundError:
-            return Response({'detail': 'Arquivo não encontrado no servidor.'}, status=404)
+        content_type = meta.get('mime') or None
+        if not as_attachment:
+            # Preview inline: neutraliza formatos executáveis (HTML/SVG/XML).
+            content_type = audit_files.safe_inline_content_type(content_type or '', name)
+
+        resp = FileResponse(fh, as_attachment=as_attachment, filename=name)
+        if content_type:
+            resp['Content-Type'] = content_type
+        resp['X-Content-Type-Options'] = 'nosniff'
+
+        # Só o DOWNLOAD real do usuário é auditado (o preview inline, não).
+        if as_attachment:
+            from .files import log_file_event
+            log_file_event('download', meta=meta, model_name=log.model_name,
+                           model_label=log.model_label, object_id=log.object_id,
+                           object_repr=name, changes={'Baixado do histórico de logs': name},
+                           user=request.user)
+        return resp
 
     def get_queryset(self):
         qs = AuditLog.objects.select_related('user', 'user__permissions').all()

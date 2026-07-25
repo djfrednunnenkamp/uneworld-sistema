@@ -193,6 +193,14 @@ def _log_contract_event(request, contract, action, label, file_field=None):
     changes = {'Ação': label} if label else {}
     if file_field:
         changes['_file_field'] = file_field   # chave interna: o front esconde as que começam com '_'
+        # Referência estruturada do arquivo → sobrevive a remoção e não depende do
+        # objeto vivo (visualização pelo histórico de logs).
+        ff = getattr(contract, file_field, None)
+        if ff:
+            from audit.files import meta_from_fieldfile
+            m = meta_from_fieldfile(ff)
+            if m:
+                changes['_file'] = m
     AuditLog.objects.create(
         user=user, user_display=user_display(user), action=action,
         model_name='Contract', model_label='Contrato',

@@ -389,6 +389,13 @@ def log_save(sender, instance, created, **kwargs):
         # Registro com arquivo (imagem/documento/mídia) → é um UPLOAD, não "criação".
         action  = 'upload' if instance_has_file(instance) else 'create'
         changes = obj_to_dict(instance)
+        # Referência estruturada do arquivo (nome/tipo/tamanho/chave de storage) —
+        # centraliza a captura para todo modelo com FileField rastreado.
+        if action == 'upload':
+            from .files import capture_instance_file
+            m = capture_instance_file(instance)
+            if m:
+                changes['_file'] = m
     else:
         old = getattr(instance, '_audit_old', None) or {}
         new = obj_to_dict(instance)
@@ -452,6 +459,13 @@ def log_delete(sender, instance, **kwargs):
     # ação "purge" (exclusão definitiva) — destroy() normal vira save(), não
     # delete(). Pra esses, marca como "purge" em vez de "delete" no log.
     action = 'purge' if hasattr(instance, 'is_deleted') else 'delete'
+    changes = obj_to_dict(instance)
+    # Guarda os metadados históricos do arquivo excluído — o modal ainda mostra
+    # nome/tipo/tamanho e deixa claro que o conteúdo não está mais disponível.
+    from .files import capture_instance_file
+    m = capture_instance_file(instance)
+    if m:
+        changes['_file'] = m
     _safe_create(
         user=user,
         user_display=user_display(user),
@@ -461,6 +475,6 @@ def log_delete(sender, instance, **kwargs):
         model_label=TRACKED_MODELS[sender.__name__],
         object_id=str(instance.pk),
         object_repr=repr_str,
-        changes=obj_to_dict(instance),
+        changes=changes,
         ip_address=get_current_ip(),
     )

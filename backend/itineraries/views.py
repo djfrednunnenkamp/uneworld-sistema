@@ -557,7 +557,10 @@ class ItineraryDocumentViewSet(viewsets.ModelViewSet):
         doc = self.get_object()
         if not doc.file:
             return Response({'detail': 'Este item é um link, não um arquivo.'}, status=status.HTTP_400_BAD_REQUEST)
-        _audit(request, 'download', doc, model_name='ItineraryDocument', model_label='Documento do roteiro')
+        from audit.files import meta_from_fieldfile
+        _m = meta_from_fieldfile(doc.file, original_name=getattr(doc, 'name', None) or None)
+        _audit(request, 'download', doc, model_name='ItineraryDocument', model_label='Documento do roteiro',
+               changes=({'_file': _m} if _m else None))
         return FileResponse(doc.file.open('rb'), as_attachment=True, filename=doc.name or doc.file.name.split('/')[-1])
 
     @action(detail=True, methods=['get'], url_path='config')
@@ -1982,9 +1985,14 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Não foi possível ler o arquivo.'}, status=status.HTTP_404_NOT_FOUND)
         try:
             from audit.tracking import log_event
+            from audit.files import meta_from_fieldfile
+            _ch = {'Download': fname}
+            _m = meta_from_fieldfile(img.image, original_name=(img.orig_name or fname))
+            if _m:
+                _ch['_file'] = _m
             log_event('download', model_name='ItineraryImage', model_label='Galeria de mídia',
                       object_id=str(img.pk), object_repr=(img.orig_name or fname),
-                      changes={'Download': fname}, user=getattr(request, 'user', None))
+                      changes=_ch, user=getattr(request, 'user', None))
         except Exception:
             pass
         return resp
@@ -2078,9 +2086,14 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         VideoExport.objects.filter(pk=exp.pk).update(last_downloaded_at=_tz.now())
         try:
             from audit.tracking import log_event
+            from audit.files import meta_from_fieldfile
+            _ch = {'Download (exportação)': fname}
+            _m = meta_from_fieldfile(exp.file, original_name=fname)
+            if _m:
+                _ch['_file'] = _m
             log_event('download', model_name='VideoExport', model_label='Exportação de vídeo',
                       object_id=str(exp.pk), object_repr=fname,
-                      changes={'Download (exportação)': fname}, user=getattr(request, 'user', None))
+                      changes=_ch, user=getattr(request, 'user', None))
         except Exception:
             pass
         return resp
