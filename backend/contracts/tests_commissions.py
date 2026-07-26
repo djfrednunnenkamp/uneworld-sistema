@@ -149,6 +149,51 @@ class PolicyAndConsistencyTest(APITestCase):
         self.assertEqual(C.summarize(qs)['contracts'], 1)
 
 
+class AnalyticsTest(APITestCase):
+    def setUp(self):
+        self.ag = Agency.objects.create(name='Ag10', commission_rate=Decimal('10'))
+        self.root = make_user('root', superuser=True)
+        self.a = make_user('alice'); self.b = make_user('bob')
+
+    def test_by_dimension_seller_and_currency(self):
+        make_contract(seller=self.a, agency=self.ag, total_brl='5000')
+        make_contract(seller=self.b, agency=self.ag, total_brl='3000')
+        qs = C.apply_filters(C.base_queryset(self.root))
+        rows = C.by_dimension(qs, 'seller', 'final_brl')
+        self.assertEqual(rows[0]['label'], 'Alice')                 # ordenado por final desc
+        self.assertEqual(Decimal(rows[0]['final_brl']), Decimal('5000.00'))
+        cur = C.by_dimension(qs, 'currency', 'final_brl')
+        self.assertEqual(cur[0]['label'], 'USD')
+        self.assertEqual(Decimal(cur[0]['final_brl']), Decimal('8000.00'))   # soma consolidada
+
+    def test_year_comparison(self):
+        make_contract(seller=self.a, agency=self.ag, total_brl='5000', contract_date=date(2025, 3, 1))
+        make_contract(seller=self.a, agency=self.ag, total_brl='7000', contract_date=date(2026, 3, 1))
+        base = C.apply_filters(C.base_queryset(self.root), situacao='confirmadas')
+        yc = C.year_comparison(base, [2025, 2026], 'final_brl')
+        self.assertEqual(yc['years'], [2025, 2026])
+        self.assertEqual(Decimal(str(yc['totals'][2025])), Decimal('5000.00'))
+        self.assertEqual(Decimal(str(yc['totals'][2026])), Decimal('7000.00'))
+        self.assertEqual(Decimal(str(yc['yoy'][2026])), Decimal('40.00'))     # +40%
+        self.assertEqual(yc['series'][2026][2]['value'], '7000.00')           # março (index 2)
+
+    def test_projection_needs_min_points(self):
+        self.assertIsNone(C.linear_projection([100.0, 200.0]))               # <3 pontos
+        proj = C.linear_projection([100.0, 200.0, 300.0], horizon=2)
+        self.assertEqual(len(proj['forecast']), 2)
+        self.assertGreater(proj['forecast'][0]['value'], 300.0)              # tendência de alta
+
+    def test_ai_context_endpoint_audited_no_pii(self):
+        make_contract(seller=self.a, agency=self.ag, total_brl='5000')
+        self.client.force_authenticate(make_user('an', commissions_view=True, commissions_view_all=True))
+        before = AuditLog.objects.filter(model_name='Contract').count()
+        r = self.client.get('/api/contracts/commissions/ai-context/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('Você é um analista comercial', r.json()['text'])
+        self.assertGreater(r.json()['chars'], 100)
+        self.assertEqual(AuditLog.objects.filter(model_name='Contract').count(), before + 1)  # gerou log
+
+
 class ApiSecurityTest(APITestCase):
     def setUp(self):
         self.ag = Agency.objects.create(name='Ag10', commission_rate=Decimal('10'))

@@ -64,7 +64,7 @@ def base_queryset(user):
     vendas do próprio usuário (seller OU created_by) — proteção contra IDOR."""
     qs = (Contract.objects.filter(is_deleted=False)
           .select_related('agency', 'seller', 'seller__permissions',
-                          'created_by', 'created_by__permissions', 'itinerary')
+                          'created_by', 'created_by__permissions', 'itinerary', 'itinerary__category')
           .prefetch_related('accommodation_lines')
           .annotate(_pax=Count('guests', distinct=True),
                     sale_date=Coalesce('contract_date', TruncDate('created_at'))))
@@ -312,3 +312,148 @@ def available_years(user):
     ys = qs.dates('contract_date', 'year')
     years = sorted({d.year for d in ys} | {c.year for c in qs.dates('created_at', 'year')}, reverse=True)
     return years or [date.today().year]
+
+
+# ── Métricas / dimensões (construtor de análises) ───────────────────────────
+STAGE_LABEL_BR = {
+    'em_edicao': 'Rascunho', 'enviado': 'Enviado', 'assinado': 'Assinado',
+    'revisao': 'Em revisão', 'aprovado': 'Aprovado', 'a_faturar': 'A faturar',
+    'em_pagamento': 'Em pagamento', 'faturado': 'Pago',
+}
+# Métricas numéricas que os gráficos/rankings podem usar.
+METRICS = ['net_brl', 'sale_brl', 'final_brl', 'agency_commission_brl',
+           'seller_commission_brl', 'operator_commission_brl', 'contracts', 'passengers']
+
+
+def metric_value(agg, metric):
+    """Valor numérico (Decimal) de uma métrica a partir de um agregado."""
+    if metric in ('contracts', 'passengers'):
+        return Decimal(agg.get(metric, 0))
+    return agg.get(metric, Decimal('0'))
+
+
+def _dim_key_label(dimension, contract, fin):
+    """(chave, rótulo) de um contrato para a dimensão escolhida."""
+    if dimension == 'seller':
+        return (fin['seller_id'], fin['seller_name'])
+    if dimension == 'agency':
+        return (contract.agency_id, contract.agency.name if contract.agency_id else 'Sem agência')
+    if dimension == 'itinerary':
+        return (contract.itinerary_id, contract.itinerary.name if contract.itinerary_id else 'Sem roteiro')
+    if dimension == 'category':
+        cat = contract.itinerary.category if contract.itinerary_id else None
+        return ((cat.id if cat else None), cat.name if cat else 'Sem categoria')
+    if dimension == 'currency':
+        c = (contract.base_currency or 'USD'); return (c, c)
+    if dimension == 'stage':
+        return (contract.stage, STAGE_LABEL_BR.get(contract.stage, contract.stage))
+    return (fin['seller_id'], fin['seller_name'])
+
+
+def by_dimension(qs, dimension='seller', metric='final_brl'):
+    """Ranking agregando por uma DIMENSÃO (vendedor/agência/roteiro/categoria/moeda/
+    etapa). Ordena pela métrica escolhida. Participação (%) sobre o preço final."""
+    groups = {}
+    for c in qs:
+        fin = contract_financials(c)
+        key, label = _dim_key_label(dimension, c, fin)
+        g = groups.setdefault(key, {'key': key, 'label': label, **_blank_agg()})
+        _add(g, fin)
+    total_final = sum((g['final_brl'] for g in groups.values()), Decimal('0'))
+    rows = []
+    for g in groups.values():
+        contracts = g['contracts']
+        share = (g['final_brl'] / total_final * 100).quantize(CENT) if total_final else Decimal('0')
+        rows.append({'key': g['key'], 'label': g['label'], 'contracts': contracts, 'passengers': g['passengers'],
+                     **_money_out(g),
+                     'avg_ticket_brl': _money((g['final_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')),
+                     'share_pct': str(share)})
+    m = metric if metric in METRICS else 'final_brl'
+    rows.sort(key=lambda r: (Decimal(r[m]) if m in ('contracts', 'passengers') else Decimal(r[m])), reverse=True)
+    return rows
+
+
+def year_comparison(qs_base, years, metric='final_brl'):
+    """Série mensal (12 meses) da métrica para CADA ano — comparação ano×ano.
+    `qs_base` já vem com os filtros de negócio (situação/vendedor/etc.), SEM ano/mês.
+    Retorna séries por ano + totais + crescimento YoY."""
+    m = metric if metric in METRICS else 'final_brl'
+    yset = set(int(y) for y in years)
+    buckets = {y: {mo: _blank_agg() for mo in range(1, 13)} for y in yset}
+    for c in qs_base:
+        fin = contract_financials(c)
+        d = fin['sale_date']
+        if not d or d.year not in yset:
+            continue
+        _add(buckets[d.year][d.month], fin)
+    def val(agg):
+        v = metric_value(agg, m)
+        return v if m in ('contracts', 'passengers') else v.quantize(CENT)
+    series = {}
+    totals = {}
+    for y in sorted(yset):
+        series[y] = [{'month': mo, 'value': (str(val(buckets[y][mo])) if m not in ('contracts', 'passengers') else int(val(buckets[y][mo])))} for mo in range(1, 13)]
+        tot = sum((metric_value(buckets[y][mo], m) for mo in range(1, 13)), Decimal('0'))
+        totals[y] = str(tot.quantize(CENT)) if m not in ('contracts', 'passengers') else int(tot)
+    # Crescimento YoY dos totais (cada ano vs. o ano anterior presente na lista).
+    yoy = {}
+    ordered = sorted(yset)
+    for i, y in enumerate(ordered):
+        if i == 0:
+            yoy[y] = None; continue
+        prev = Decimal(str(totals[ordered[i - 1]])); cur = Decimal(str(totals[y]))
+        yoy[y] = str(((cur - prev) / prev * 100).quantize(CENT)) if prev else None
+    return {'metric': m, 'years': ordered, 'series': series, 'totals': totals, 'yoy': yoy}
+
+
+def linear_projection(values, horizon=3):
+    """Projeção simples por REGRESSÃO LINEAR sobre os meses com histórico. Retorna
+    None se houver menos de 3 pontos. Intervalo = ± desvio-padrão dos resíduos.
+    Método explicável; NÃO é garantia (só tendência)."""
+    ys = [float(v) for v in values]
+    n = len(ys)
+    if n < 3:
+        return None
+    xs = list(range(n))
+    mx = sum(xs) / n; my = sum(ys) / n
+    den = sum((x - mx) ** 2 for x in xs) or 1.0
+    slope = sum((xs[i] - mx) * (ys[i] - my) for i in range(n)) / den
+    intercept = my - slope * mx
+    resid = [ys[i] - (intercept + slope * xs[i]) for i in range(n)]
+    var = sum(r ** 2 for r in resid) / max(1, n - 2)
+    sd = var ** 0.5
+    out = []
+    for i in range(horizon):
+        x = n + i
+        yhat = intercept + slope * x
+        out.append({'index': x, 'value': round(max(0.0, yhat), 2),
+                    'low': round(max(0.0, yhat - 1.96 * sd), 2), 'high': round(max(0.0, yhat + 1.96 * sd), 2)})
+    return {'method': 'Regressão linear simples (mínimos quadrados)',
+            'history_points': n, 'slope_per_month': round(slope, 2),
+            'note': 'Tendência estatística sobre o histórico do período — não é garantia; '
+                    'sazonalidade não é modelada. Intervalo ≈ 95% (±1,96·desvio dos resíduos).',
+            'forecast': out}
+
+
+def build_insights(summary, previous, series):
+    """Insights DETERMINÍSTICOS a partir dos números reais (fato/comparação/tendência).
+    Nada de causalidade — só o que os dados mostram."""
+    out = []
+    D = lambda v: Decimal(str(v or 0))
+    if previous and D(previous.get('final_brl')) > 0:
+        cur, prev = D(summary['final_brl']), D(previous['final_brl'])
+        pct = ((cur - prev) / prev * 100).quantize(CENT)
+        verb = 'cresceu' if pct >= 0 else 'caiu'
+        out.append({'type': 'comparação', 'text': f'O preço final vendido {verb} {abs(pct)}% vs. o período anterior.'})
+    if series:
+        best = max(series, key=lambda s: Decimal(str(s.get('final_brl', 0))))
+        out.append({'type': 'fato', 'text': f'{best["period"]} foi o mês de maior valor vendido no período ('
+                                            f'R$ {best.get("final_brl")}).'})
+        # Tendência: 3 quedas seguidas no final.
+        vals = [Decimal(str(s.get('final_brl', 0))) for s in series]
+        if len(vals) >= 4 and vals[-1] < vals[-2] < vals[-3]:
+            out.append({'type': 'tendência', 'text': 'Há queda no valor vendido nos últimos 3 meses do período — investigar.'})
+    if D(summary.get('missing_margin')) > 0:
+        out.append({'type': 'hipótese', 'text': f'{summary["missing_margin"]} contrato(s) sem markup do roteiro — '
+                                                'o Valor NET desses está igual ao Valor de venda.'})
+    return out
