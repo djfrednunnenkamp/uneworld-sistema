@@ -889,6 +889,13 @@ class ItineraryPricingConfig(models.Model):
     # { "<chave da combinação>": <valor por pessoa>, ... }. Substitui o valor
     # calculado pelo sistema na aba "Preços finais".
     price_overrides = models.JSONField('Valores finais sobrescritos', default=dict, blank=True)
+    # Seleção das acomodações (hotel) que aparecem na aba "Acomodações (contrato)".
+    # Lista ordenada de { type, capacity, label, source_capacity } — cada tipo pode
+    # PUXAR valor+taxas de uma capacidade com preço diferente da sua (ex.: Triplo que
+    # usa o valor do Duplo). Vazio/ausente = comportamento automático (todos os tipos
+    # cuja capacidade tem preço, cada um usando a própria). As cabines de navio seguem
+    # automáticas. Fonte de verdade da lista que vai para o contrato.
+    contract_accommodations = models.JSONField('Acomodações do contrato', default=list, blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 

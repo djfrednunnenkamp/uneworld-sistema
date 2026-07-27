@@ -1165,6 +1165,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 'margin_percent': 'Margem (%)', 'final_fee_percent': 'Taxa final (%)',
                 'min_margin_percent': 'Margem mínima (%)', 'notes': 'Observações',
                 'price_overrides': 'Preços manuais',
+                'contract_accommodations': 'Acomodações do contrato',
             }
             changes = {
                 _LBL.get(k, k): {'antes': before.get(k), 'depois': after.get(k)}
