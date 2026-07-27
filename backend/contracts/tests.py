@@ -432,3 +432,56 @@ class UploadSignedOverrideTest(_APITestCase):
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.data.get('code'), 'other_contract')
         self.assertFalse(r.data.get('can_override'))
+
+
+class OccupiedAccommodationPermissionTest(DjTestCase):
+    """Acomodação marcada como OCUPADA/oculta no roteiro (contract_accommodations com
+    hidden=True) só pode ser reservada por quem tem contracts_book_occupied — rede de
+    segurança no serializer contra chamada direta à API."""
+    def _mk(self):
+        from itineraries.models import Itinerary, ItineraryPricingConfig
+        from config_api.models import ConfigAccommodation
+        itin = Itinerary.objects.create(name='R', visibility='public')
+        acc = ConfigAccommodation.objects.create(name='Single', capacity=1)
+        ItineraryPricingConfig.objects.create(
+            itinerary=itin,
+            contract_accommodations=[{'type': acc.id, 'capacity': 1, 'label': 'Single',
+                                      'source_capacity': 1, 'hidden': True}])
+        return itin, acc
+
+    def _payload(self, itin, acc):
+        return {'itinerary': itin.id, 'status': 'rascunho',
+                'accommodation_lines': [{'accommodation_type': acc.id, 'value_per_person_usd': '100',
+                                         'taxes_usd': '0', 'quantity': 1, 'order': 0}]}
+
+    def _req(self, user):
+        from rest_framework.test import APIRequestFactory
+        r = APIRequestFactory().post('/api/contracts/')
+        r.user = user
+        return r
+
+    def test_agency_user_without_permission_is_blocked(self):
+        from contracts.serializers import ContractSerializer
+        itin, acc = self._mk()
+        ag = Agency.objects.create(name='Ag', person_type='juridica')
+        user = _mkuser('agocc', contracts_edit=True)   # não-staff, escopado; sem book_occupied
+        AgencyMember.objects.create(agency=ag, user=user)
+        s = ContractSerializer(data=self._payload(itin, acc), context={'request': self._req(user)})
+        self.assertFalse(s.is_valid())
+        self.assertIn('accommodation_lines', s.errors)
+
+    def test_user_with_permission_can_book_occupied(self):
+        from contracts.serializers import ContractSerializer
+        itin, acc = self._mk()
+        user = _mkuser('occperm', contracts_edit=True, contracts_book_occupied=True)
+        s = ContractSerializer(data=self._payload(itin, acc), context={'request': self._req(user)})
+        s.is_valid()
+        self.assertNotIn('accommodation_lines', s.errors)
+
+    def test_superuser_can_book_occupied(self):
+        from contracts.serializers import ContractSerializer
+        itin, acc = self._mk()
+        user = _mkuser('rootocc', superuser=True)
+        s = ContractSerializer(data=self._payload(itin, acc), context={'request': self._req(user)})
+        s.is_valid()
+        self.assertNotIn('accommodation_lines', s.errors)

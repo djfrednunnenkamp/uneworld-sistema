@@ -117,6 +117,7 @@ class UserPermissions(models.Model):
     contracts_review = models.BooleanField(default=False)         # revisar (aprovar/reprovar) contratos assinados — operadora
     contracts_invoice_view = models.BooleanField(default=False)   # ver as abas "A faturar" e "Faturado"
     contracts_invoice = models.BooleanField(default=False)        # faturar (mover A faturar → Faturado)
+    contracts_book_occupied = models.BooleanField(default=False)  # reservar acomodação marcada como ocupada/oculta no roteiro
 
     # Comissões dos vendedores (análise de vendas a partir dos contratos)
     commissions_view = models.BooleanField(default=False)         # acessar o módulo (por padrão vê só as PRÓPRIAS vendas)

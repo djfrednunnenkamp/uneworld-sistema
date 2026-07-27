@@ -303,6 +303,24 @@ class ContractSerializer(serializers.ModelSerializer):
                 if not ok:
                     raise serializers.ValidationError(
                         {'itinerary': 'Este roteiro não está disponível para a sua agência.'})
+            # Segurança: acomodações marcadas como OCUPADAS/ocultas no roteiro só podem
+            # ser reservadas por quem tem a permissão contracts_book_occupied (a UI já
+            # bloqueia; aqui é a rede de segurança contra chamada direta à API).
+            lines = attrs.get('accommodation_lines')
+            if lines:
+                from users_api.permissions import has_any_perm
+                cfg = getattr(itinerary, 'pricing', None)
+                sel = (getattr(cfg, 'contract_accommodations', None) or []) if cfg else []
+                hidden_ids = {int(e['type']) for e in sel
+                              if isinstance(e, dict) and e.get('hidden') and e.get('type') is not None}
+                if hidden_ids and not (req and has_any_perm(req.user, 'contracts_book_occupied')):
+                    for line in lines:
+                        at = line.get('accommodation_type')
+                        at_id = getattr(at, 'id', at)
+                        if at_id is not None and int(at_id) in hidden_ids:
+                            raise serializers.ValidationError({'accommodation_lines':
+                                'Uma das acomodações selecionadas está marcada como ocupada e '
+                                'você não tem permissão para reservá-la.'})
         # Só exige obrigatórios quando o contrato é EXPLICITAMENTE finalizado
         # (status='ativo' vindo no payload). Autosave/rascunho/prévia — que não
         # mandam status='ativo' — podem ser salvos incompletos.
