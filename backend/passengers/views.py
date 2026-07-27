@@ -98,7 +98,10 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         if self.action in ('guides', 'guide_trips'):
             return [RequirePermission('guides_view')()]
         if self.action in ('list', 'retrieve', 'agencies'):
-            return [RequirePermission(*VIEW_PERMS)()]
+            # Quem faz contratos também precisa LER/buscar passageiros (seletor de
+            # hóspedes do contrato). Sem passengers_view_full os campos sensíveis
+            # (CPF, RG, nascimento…) continuam mascarados pelo SensitiveFieldsMixin.
+            return [RequirePermission(*VIEW_PERMS, 'contracts_view', 'contracts_edit')()]
         return super().get_permissions()
 
     @action(detail=True, methods=['get'], url_path='guide-trips')

@@ -84,7 +84,9 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             # Endpoint utilitário usado durante o fluxo de criação/edição
             return [RequirePermission(*VIEW_PERMS, 'agencies_edit')()]
         if self.action in ('list', 'retrieve'):
-            return [RequirePermission(*VIEW_PERMS)()]
+            # Quem faz contratos também precisa LER/buscar agências (o seletor de
+            # agência do contrato). O get_queryset já limita o que cada um enxerga.
+            return [RequirePermission(*VIEW_PERMS, 'contracts_view', 'contracts_edit')()]
         if self.action == 'members':
             if self.request.method == 'POST':
                 return [RequirePermission('agencies_edit')()]
