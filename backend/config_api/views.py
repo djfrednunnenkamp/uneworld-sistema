@@ -24,7 +24,7 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      ConfigFlightSegment, ConfigFlightClass,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
                      ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
-                     ConfigTerrestreCompany)
+                     ConfigTerrestreCompany, DocumentTemplateConfig)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -2561,3 +2561,204 @@ class PermissionProfileViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'destroy':
             return [RequirePermission('manage_settings', 'settings_user_profiles', 'settings_user_profiles_delete')()]
         return [RequirePermission('manage_settings', 'settings_user_profiles', 'settings_user_profiles_edit')()]
+
+
+# ── Modelos de documentos (calibração de gabaritos de etiqueta/PDF) ──────────────
+# Whitelist dos campos numéricos sobrescrevíveis por modelo, com faixa segura. NADA
+# fora disto é aceito (sem código/HTML/URL/caminho; só número dentro do limite).
+LABEL_OVERRIDE_LIMITS = {
+    'marginLeftMm': (0, 120), 'marginTopMm': (0, 160),
+    'horizontalGapMm': (-10, 40), 'verticalGapMm': (-10, 40),
+    'labelWidthMm': (5, 400), 'labelHeightMm': (5, 400),
+    'paddingLeftMm': (0, 30), 'paddingRightMm': (0, 30),
+    'paddingTopMm': (0, 30), 'paddingBottomMm': (0, 30),
+    'printerOffsetXMm': (-10, 10), 'printerOffsetYMm': (-10, 10),
+}
+
+
+def _clean_overrides(data):
+    """Valida o JSON de overrides: só chaves conhecidas, numéricas e dentro do limite.
+    Levanta ValidationError com mensagem clara. Retorna dict limpo (arredondado 0,01)."""
+    if not isinstance(data, dict):
+        raise serializers.ValidationError('Configuração inválida.')
+    out = {}
+    for k, v in data.items():
+        if k not in LABEL_OVERRIDE_LIMITS:
+            raise serializers.ValidationError(f'Campo não permitido: {k}')
+        try:
+            n = float(v)
+        except (TypeError, ValueError):
+            raise serializers.ValidationError(f'{k}: valor não numérico.')
+        lo, hi = LABEL_OVERRIDE_LIMITS[k]
+        if n < lo or n > hi:
+            raise serializers.ValidationError(f'{k}: fora do limite ({lo} a {hi} mm).')
+        out[k] = round(n, 2)
+    return out
+
+
+class DocumentTemplateConfigSerializer(serializers.ModelSerializer):
+    updated_by_name = serializers.SerializerMethodField()
+    published_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DocumentTemplateConfig
+        fields = ['document_type', 'model_code', 'draft_json', 'published_json', 'version',
+                  'history', 'updated_at', 'published_at', 'updated_by_name', 'published_by_name']
+
+    def get_updated_by_name(self, obj):
+        return getattr(obj.updated_by, 'first_name', '') or getattr(obj.updated_by, 'username', '') if obj.updated_by else ''
+
+    def get_published_by_name(self, obj):
+        u = obj.published_by
+        return (getattr(u, 'first_name', '') or getattr(u, 'username', '')) if u else ''
+
+
+def _doc_row(model_code, document_type='label'):
+    row, _ = DocumentTemplateConfig.objects.get_or_create(document_type=document_type, model_code=model_code)
+    return row
+
+
+@api_view(['GET'])
+def doc_models_list(request):
+    """Lista todas as configurações (rascunho + publicado) para a tela admin."""
+    if not (request.user.is_superuser or _has(request.user, 'manage_settings', 'settings_doc_models_view')):
+        return Response({'detail': 'Sem permissão.'}, status=403)
+    dt = request.query_params.get('document_type', 'label')
+    rows = DocumentTemplateConfig.objects.filter(document_type=dt)
+    return Response(DocumentTemplateConfigSerializer(rows, many=True).data)
+
+
+@api_view(['GET'])
+def doc_models_published(request):
+    """PUBLICADO por modelo — lido pelo GERADOR (qualquer usuário autenticado). Só os
+    números publicados; é o que os PDFs reais aplicam."""
+    dt = request.query_params.get('document_type', 'label')
+    out = {}
+    for row in DocumentTemplateConfig.objects.filter(document_type=dt):
+        if row.published_json:
+            out[row.model_code] = row.published_json
+    return Response(out)
+
+
+@api_view(['PATCH'])
+def doc_model_draft(request, model_code):
+    """Salva o RASCUNHO (não afeta produção)."""
+    if not (request.user.is_superuser or _has(request.user, 'manage_settings', 'settings_doc_models_edit')):
+        return Response({'detail': 'Sem permissão.'}, status=403)
+    clean = _clean_overrides(request.data if isinstance(request.data, dict) else {})
+    row = _doc_row(model_code, request.query_params.get('document_type', 'label'))
+    before = dict(row.draft_json or {})
+    row.draft_json = clean
+    row.updated_by = request.user
+    row.save(update_fields=['draft_json', 'updated_by', 'updated_at'])
+    from audit.tracking import log_event
+    log_event('update', model_name='DocumentTemplateConfig', model_label='Modelo de documento',
+              object_id=row.id, object_repr=f'{row.model_code} (rascunho)',
+              changes={'Rascunho': {'antes': before, 'depois': clean}})
+    return Response(DocumentTemplateConfigSerializer(row).data)
+
+
+@api_view(['POST'])
+def doc_model_publish(request, model_code):
+    """PUBLICA o rascunho: vira publicado, versão sobe, versão anterior vai pro histórico."""
+    if not (request.user.is_superuser or _has(request.user, 'manage_settings', 'settings_doc_models_publish')):
+        return Response({'detail': 'Sem permissão.'}, status=403)
+    from django.utils import timezone
+    row = _doc_row(model_code, request.query_params.get('document_type', 'label'))
+    before = dict(row.published_json or {})
+    new_cfg = _clean_overrides(row.draft_json or {})
+    # Snapshot da versão ANTERIOR no histórico (imutável).
+    if row.version or row.published_json:
+        row.history = (row.history or []) + [{
+            'version': row.version, 'config': before,
+            'published_by': (row.published_by.username if row.published_by else ''),
+            'published_at': row.published_at.isoformat() if row.published_at else None,
+            'note': (request.data or {}).get('note', ''),
+        }]
+    row.published_json = new_cfg
+    row.version = (row.version or 0) + 1
+    row.published_by = request.user
+    row.published_at = timezone.now()
+    row.save()
+    from audit.tracking import log_event
+    log_event('update', model_name='DocumentTemplateConfig', model_label='Modelo de documento',
+              object_id=row.id, object_repr=f'{row.model_code} v{row.version}',
+              changes={'Publicação': {'antes': before, 'depois': new_cfg}, 'Versão': row.version})
+    return Response(DocumentTemplateConfigSerializer(row).data)
+
+
+@api_view(['POST'])
+def doc_model_discard(request, model_code):
+    """Descarta o rascunho (volta ao publicado)."""
+    if not (request.user.is_superuser or _has(request.user, 'manage_settings', 'settings_doc_models_edit')):
+        return Response({'detail': 'Sem permissão.'}, status=403)
+    row = _doc_row(model_code, request.query_params.get('document_type', 'label'))
+    row.draft_json = dict(row.published_json or {})
+    row.updated_by = request.user
+    row.save(update_fields=['draft_json', 'updated_by', 'updated_at'])
+    return Response(DocumentTemplateConfigSerializer(row).data)
+
+
+@api_view(['POST'])
+def doc_model_restore_default(request, model_code):
+    """Restaura o PADRÃO do código (publica config vazia = usa o gabarito do código)."""
+    if not (request.user.is_superuser or _has(request.user, 'manage_settings', 'settings_doc_models_publish')):
+        return Response({'detail': 'Sem permissão.'}, status=403)
+    from django.utils import timezone
+    row = _doc_row(model_code, request.query_params.get('document_type', 'label'))
+    before = dict(row.published_json or {})
+    if row.version or row.published_json:
+        row.history = (row.history or []) + [{
+            'version': row.version, 'config': before,
+            'published_by': (row.published_by.username if row.published_by else ''),
+            'published_at': row.published_at.isoformat() if row.published_at else None,
+            'note': 'restaurar padrão',
+        }]
+    row.published_json = {}
+    row.draft_json = {}
+    row.version = (row.version or 0) + 1
+    row.published_by = request.user
+    row.published_at = timezone.now()
+    row.save()
+    from audit.tracking import log_event
+    log_event('update', model_name='DocumentTemplateConfig', model_label='Modelo de documento',
+              object_id=row.id, object_repr=f'{row.model_code} (padrão)',
+              changes={'Restaurar padrão': {'antes': before, 'depois': {}}, 'Versão': row.version})
+    return Response(DocumentTemplateConfigSerializer(row).data)
+
+
+@api_view(['POST'])
+def doc_model_rollback(request, model_code):
+    """Cria uma NOVA versão publicada a partir de uma versão do histórico (não apaga o histórico)."""
+    if not (request.user.is_superuser or _has(request.user, 'manage_settings', 'settings_doc_models_publish')):
+        return Response({'detail': 'Sem permissão.'}, status=403)
+    from django.utils import timezone
+    row = _doc_row(model_code, request.query_params.get('document_type', 'label'))
+    target_v = (request.data or {}).get('version')
+    snap = next((h for h in (row.history or []) if h.get('version') == target_v), None)
+    if snap is None:
+        return Response({'detail': 'Versão não encontrada no histórico.'}, status=404)
+    before = dict(row.published_json or {})
+    new_cfg = _clean_overrides(snap.get('config') or {})
+    row.history = (row.history or []) + [{
+        'version': row.version, 'config': before,
+        'published_by': (row.published_by.username if row.published_by else ''),
+        'published_at': row.published_at.isoformat() if row.published_at else None,
+        'note': f'antes do rollback p/ v{target_v}',
+    }]
+    row.published_json = new_cfg
+    row.draft_json = dict(new_cfg)
+    row.version = (row.version or 0) + 1
+    row.published_by = request.user
+    row.published_at = timezone.now()
+    row.save()
+    from audit.tracking import log_event
+    log_event('update', model_name='DocumentTemplateConfig', model_label='Modelo de documento',
+              object_id=row.id, object_repr=f'{row.model_code} rollback→v{target_v}',
+              changes={'Rollback': {'para_versao': target_v, 'depois': new_cfg}, 'Versão': row.version})
+    return Response(DocumentTemplateConfigSerializer(row).data)
+
+
+def _has(user, *keys):
+    from users_api.permissions import has_any_perm
+    return has_any_perm(user, *keys)

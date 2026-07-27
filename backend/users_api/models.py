@@ -261,6 +261,10 @@ class UserPermissions(models.Model):
     settings_payment_methods_edit    = models.BooleanField(default=False)
     settings_payment_methods_delete  = models.BooleanField(default=False)
     settings_payment_methods_bulk_import = models.BooleanField(default=False)
+    # Modelos de documentos (calibração de gabaritos de etiqueta/PDF)
+    settings_doc_models_view    = models.BooleanField(default=False)
+    settings_doc_models_edit    = models.BooleanField(default=False)   # editar/salvar rascunho
+    settings_doc_models_publish = models.BooleanField(default=False)   # publicar (afeta PDFs reais)
     settings_exchange_rates_view     = models.BooleanField(default=False)
     settings_exchange_rates_edit     = models.BooleanField(default=False)
     settings_exchange_rates_delete   = models.BooleanField(default=False)

@@ -1022,3 +1022,39 @@ class ConfigTerrestreCompany(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class DocumentTemplateConfig(models.Model):
+    """Calibração/configuração de um gabarito de documento gerado pelo sistema
+    (central "Modelos de documentos"). Uma linha por (document_type, model_code).
+
+    Guarda RASCUNHO e PUBLICADO separados: o rascunho só é visto na tela admin e não
+    afeta os PDFs de produção; ao PUBLICAR, o rascunho vira publicado, a versão sobe e
+    a versão anterior entra no histórico (rollback). O JSON só contém números
+    sobrescrevíveis (margens/gaps/dimensões/padding/offset) validados por whitelist —
+    nunca código, HTML, caminho ou URL. Padrão de código = published vazio ({})."""
+    from django.contrib.auth.models import User as _User
+
+    document_type = models.CharField('Tipo de documento', max_length=40, default='label')
+    model_code    = models.CharField('Modelo', max_length=80)   # ex.: 'pimaco-a4356'
+
+    draft_json     = models.JSONField('Rascunho', default=dict, blank=True)
+    published_json = models.JSONField('Publicado', default=dict, blank=True)
+    version        = models.PositiveIntegerField('Versão publicada', default=0)
+    # Histórico imutável (append-only): [{version, config, published_by, published_at, note}]
+    history        = models.JSONField('Histórico', default=list, blank=True)
+
+    updated_by   = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    published_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    updated_at   = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['document_type', 'model_code'], name='uniq_doc_template'),
+        ]
+        verbose_name = 'Configuração de modelo de documento'
+        verbose_name_plural = 'Configurações de modelos de documento'
+
+    def __str__(self):
+        return f'{self.document_type}:{self.model_code} v{self.version}'

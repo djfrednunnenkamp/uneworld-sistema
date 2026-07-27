@@ -60,4 +60,12 @@ urlpatterns = [
     path('terms/',            views.terms_and_conditions, name='terms'),
     path('operating-company/', views.operating_company,  name='operating-company'),
     path('operating-company/ceo-signature/', views.operating_company_ceo_signature, name='operating-company-ceo-signature'),
+    # Modelos de documentos (calibração de gabaritos)
+    path('doc-models/',                     views.doc_models_list,        name='doc-models-list'),
+    path('doc-models/published/',           views.doc_models_published,   name='doc-models-published'),
+    path('doc-models/<str:model_code>/draft/',    views.doc_model_draft,           name='doc-model-draft'),
+    path('doc-models/<str:model_code>/publish/',  views.doc_model_publish,         name='doc-model-publish'),
+    path('doc-models/<str:model_code>/discard/',  views.doc_model_discard,         name='doc-model-discard'),
+    path('doc-models/<str:model_code>/restore/',  views.doc_model_restore_default, name='doc-model-restore'),
+    path('doc-models/<str:model_code>/rollback/', views.doc_model_rollback,        name='doc-model-rollback'),
 ]

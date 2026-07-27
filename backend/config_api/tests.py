@@ -181,3 +181,81 @@ class OperatingCompanyContractAccessTest(APITestCase):
         self.client.force_authenticate(make_user('nobody'))
         r = self.client.get('/api/config/operating-company/')
         self.assertEqual(r.status_code, 403)
+
+
+class DocModelConfigTest(APITestCase):
+    """Central 'Modelos de documentos': rascunho não afeta produção; publicar sobe
+    versão + histórico; validação whitelist; permissões separadas (editar × publicar)."""
+    def setUp(self):
+        from .models import DocumentTemplateConfig
+        self.M = DocumentTemplateConfig
+        self.editor = make_user('editor', settings_doc_models_view=True, settings_doc_models_edit=True)
+        self.publisher = make_user('pub', settings_doc_models_view=True, settings_doc_models_edit=True, settings_doc_models_publish=True)
+        self.viewer = make_user('viewer', settings_doc_models_view=True)
+        self.nobody = make_user('nobody')
+        self.code = 'pimaco-a4356'
+
+    def _draft(self, user, body):
+        self.client.force_authenticate(user)
+        return self.client.patch(f'/api/config/doc-models/{self.code}/draft/', body, format='json')
+
+    def test_save_draft_validates_whitelist_and_range(self):
+        r = self._draft(self.editor, {'horizontalGapMm': 1.0})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.M.objects.get(model_code=self.code).draft_json, {'horizontalGapMm': 1.0})
+        # chave desconhecida → 400
+        self.assertEqual(self._draft(self.editor, {'evil': 1}).status_code, 400)
+        # fora do limite → 400
+        self.assertEqual(self._draft(self.editor, {'horizontalGapMm': 999}).status_code, 400)
+        # não numérico → 400
+        self.assertEqual(self._draft(self.editor, {'marginLeftMm': 'x'}).status_code, 400)
+
+    def test_draft_does_not_affect_published(self):
+        self._draft(self.editor, {'horizontalGapMm': 2.5})
+        # published (o que o gerador lê) continua vazio
+        self.client.force_authenticate(self.viewer)
+        r = self.client.get('/api/config/doc-models/published/')
+        self.assertNotIn(self.code, r.json())
+
+    def test_publish_requires_permission(self):
+        self._draft(self.editor, {'horizontalGapMm': 1.0})
+        self.client.force_authenticate(self.editor)   # tem edit, não tem publish
+        self.assertEqual(self.client.post(f'/api/config/doc-models/{self.code}/publish/').status_code, 403)
+
+    def test_publish_bumps_version_and_feeds_generator(self):
+        self._draft(self.publisher, {'horizontalGapMm': 1.5})
+        self.client.force_authenticate(self.publisher)
+        r = self.client.post(f'/api/config/doc-models/{self.code}/publish/')
+        self.assertEqual(r.status_code, 200)
+        row = self.M.objects.get(model_code=self.code)
+        self.assertEqual(row.version, 1)
+        self.assertEqual(row.published_json, {'horizontalGapMm': 1.5})
+        # agora o endpoint do gerador entrega a calibração publicada
+        pub = self.client.get('/api/config/doc-models/published/').json()
+        self.assertEqual(pub[self.code], {'horizontalGapMm': 1.5})
+
+    def test_publish_history_and_rollback(self):
+        self.client.force_authenticate(self.publisher)
+        self._draft(self.publisher, {'horizontalGapMm': 1.0}); self.client.post(f'/api/config/doc-models/{self.code}/publish/')
+        self._draft(self.publisher, {'horizontalGapMm': 2.0}); self.client.post(f'/api/config/doc-models/{self.code}/publish/')
+        row = self.M.objects.get(model_code=self.code)
+        self.assertEqual(row.version, 2)
+        self.assertEqual(len(row.history), 1)                 # v1 guardada
+        self.assertEqual(row.history[0]['config'], {'horizontalGapMm': 1.0})
+        # rollback para v1 cria NOVA versão (não apaga histórico)
+        r = self.client.post(f'/api/config/doc-models/{self.code}/rollback/', {'version': 1}, format='json')
+        self.assertEqual(r.status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.published_json, {'horizontalGapMm': 1.0})
+        self.assertEqual(row.version, 3)
+        self.assertGreaterEqual(len(row.history), 2)
+
+    def test_restore_default_clears_published(self):
+        self.client.force_authenticate(self.publisher)
+        self._draft(self.publisher, {'horizontalGapMm': 3.0}); self.client.post(f'/api/config/doc-models/{self.code}/publish/')
+        self.client.post(f'/api/config/doc-models/{self.code}/restore/')
+        self.assertEqual(self.M.objects.get(model_code=self.code).published_json, {})
+
+    def test_no_permission_cannot_read_admin_list(self):
+        self.client.force_authenticate(self.nobody)
+        self.assertEqual(self.client.get('/api/config/doc-models/').status_code, 403)
