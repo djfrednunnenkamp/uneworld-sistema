@@ -109,6 +109,17 @@ class PayablesTest(APITestCase):
         member = make_user('payu3', agency=ag, financeiro_view=True, financeiro_payables=True)
         self.assertEqual(S.payables_report(member, {})['count'], 0)
 
+    def test_rate_change_reflects_without_manual_clear(self):
+        """Simula duas requisições no MESMO processo: muda a cotação do euro entre
+        elas e o BRL tem que acompanhar (o cache de taxa nunca pode ficar stale)."""
+        u = make_user('payu4', superuser=True)
+        rep1 = S.payables_report(u, {})
+        self.assertEqual(Decimal(rep1['cards']['hoje']), Decimal('1200.00'))   # 200 EUR × 6
+        rate = ConfigExchangeRate.objects.get(from_currency='EUR')
+        rate.base_rate = Decimal('7'); rate.save()   # taxa efetiva recalcula p/ 7 (markup 0)
+        rep2 = S.payables_report(u, {})                                        # sem clear_rate_cache manual
+        self.assertEqual(Decimal(rep2['cards']['hoje']), Decimal('1400.00'))   # 200 EUR × 7 (novo)
+
 
 class CashflowTest(APITestCase):
     def setUp(self):

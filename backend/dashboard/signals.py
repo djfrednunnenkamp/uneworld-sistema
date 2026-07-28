@@ -191,6 +191,30 @@ def broadcast_drive():
     _broadcast('drive')
 
 
+# ── Financeiro ────────────────────────────────────────────────────────────────
+# A página Financeiro (entradas previstas / contas a pagar / fluxo de caixa) é
+# 100% derivada: recebíveis das parcelas dos contratos, contas a pagar do
+# cronograma dos custos dos roteiros e a conversão em BRL pela cotação atual.
+# Qualquer uma dessas fontes muda → todo mundo com a página aberta recarrega
+# sozinho (scope 'financeiro'). O save do Contract já avisa em 'contracts', que a
+# página também escuta (muda o estágio faturado = recebido).
+
+@receiver([post_save, post_delete], sender='config_api.ConfigExchangeRate')
+def on_exchange_rate(sender, **kwargs):
+    # Mexeu na taxa do euro/dólar → o valor em BRL das contas a pagar muda na hora.
+    _broadcast('financeiro')
+
+
+@receiver([post_save, post_delete], sender='contracts.ContractInstallment')
+def on_contract_installment(sender, **kwargs):
+    _broadcast('financeiro')
+
+
+@receiver([post_save, post_delete], sender='itineraries.ItineraryCostItem')
+def on_itinerary_cost_item(sender, **kwargs):
+    _broadcast('financeiro')
+
+
 # ── Vouchers ──────────────────────────────────────────────────────────────────
 # Salvar blocos, publicar/voltar p/ edição, enviar/remover confirmação de voo e
 # editar templates atualizam ao vivo quem está com o Voucher aberto (scope

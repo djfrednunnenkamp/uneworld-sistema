@@ -32,6 +32,10 @@ def _d(v):
 
 
 # ── Cotação ESTIMADA (config atual) moeda→BRL — só para custos em moeda estrangeira.
+# Cache SÓ dentro de uma requisição (evita consultar a mesma moeda várias vezes ao
+# iterar itens). NUNCA persiste entre requisições: `payables_rows` limpa no início,
+# então a cada carregamento a cotação é lida fresca do banco — é isso que faz o
+# valor em BRL acompanhar, ao vivo, uma mudança da taxa em Configurações › Câmbio.
 _RATE_CACHE = {}
 
 
@@ -180,6 +184,7 @@ def _item_gross(it):
 
 
 def payables_rows(user, f):
+    clear_rate_cache()             # cotação lida fresca a cada requisição (nunca stale)
     scope = agency_scope_ids(user)
     if scope is not None:          # usuário de agência não vê custos internos
         return []
