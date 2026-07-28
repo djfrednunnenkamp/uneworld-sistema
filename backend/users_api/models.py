@@ -125,6 +125,12 @@ class UserPermissions(models.Model):
     commissions_export = models.BooleanField(default=False)       # exportar o relatório de comissões
     panels_view = models.BooleanField(default=False)             # ver os Painéis de Visualização (cards/gráficos de vendas)
 
+    # Financeiro (previsto): entradas de contratos + contas a pagar dos custos + fluxo de caixa
+    financeiro_view        = models.BooleanField(default=False)  # acessar o módulo Financeiro
+    financeiro_receivables = models.BooleanField(default=False)  # aba "Entradas previstas"
+    financeiro_payables    = models.BooleanField(default=False)  # aba "Contas a pagar" (custos internos)
+    financeiro_cashflow    = models.BooleanField(default=False)  # aba "Fluxo de caixa"
+
     # Roteiros — Ver a lista → Abrir (só leitura) → Editar → Criar
     roteiros_view      = models.BooleanField(default=False)   # ver a LISTA de roteiros
     roteiros_open      = models.BooleanField(default=False)   # abrir o roteiro (só leitura)

@@ -47,6 +47,11 @@ PERMISSION_FIELDS = [
     'commissions_view_all',
     'commissions_export',
     'panels_view',
+    # Financeiro
+    'financeiro_view',
+    'financeiro_receivables',
+    'financeiro_payables',
+    'financeiro_cashflow',
     # Roteiros
     'roteiros_view',
     'roteiros_open',
