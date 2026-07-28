@@ -163,3 +163,34 @@ class PricingEngineTest(TestCase):
                                          cost_type='per_person', unit_value=1000)
         res = pricing.compute(it)   # fator 0 → venda = net (sem divisão por zero)
         self.assertEqual(str(res['table'][0]['sale_price']), '1000.00')
+
+
+class PaymentScheduleValidationTest(TestCase):
+    """Cronograma de pagamento do custo: whitelist (data/percentual/nota), faixa 0..100."""
+    def _val(self, sched):
+        from itineraries.serializers import ItineraryCostItemSerializer
+        return ItineraryCostItemSerializer().validate_payment_schedule(sched)
+
+    def test_clean_keeps_only_allowed_keys_and_rounds(self):
+        out = self._val([{'due_date': '2027-11-30', 'percent': 30.5, 'note': 'sinal', 'evil': 'x'}])
+        self.assertEqual(out, [{'due_date': '2027-11-30', 'percent': 30.5, 'note': 'sinal'}])
+
+    def test_empty_and_none(self):
+        self.assertEqual(self._val([]), [])
+        self.assertEqual(self._val(None), [])
+
+    def test_rejects_out_of_range_percent(self):
+        from rest_framework import serializers as drf
+        with self.assertRaises(drf.ValidationError):
+            self._val([{'due_date': '2027-01-01', 'percent': 150}])
+        with self.assertRaises(drf.ValidationError):
+            self._val([{'due_date': '2027-01-01', 'percent': -5}])
+
+    def test_rejects_bad_date(self):
+        from rest_framework import serializers as drf
+        with self.assertRaises(drf.ValidationError):
+            self._val([{'due_date': '31/11/2027', 'percent': 10}])
+
+    def test_allows_empty_date(self):
+        out = self._val([{'due_date': '', 'percent': 100}])
+        self.assertEqual(out, [{'due_date': '', 'percent': 100.0, 'note': ''}])

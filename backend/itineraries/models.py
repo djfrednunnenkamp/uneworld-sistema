@@ -985,6 +985,11 @@ class ItineraryCostItem(models.Model):
 
     payment_method = models.CharField('Forma de pagamento', max_length=100, blank=True, default='')
     due_date     = models.DateField('Vencimento', null=True, blank=True)
+    # Cronograma de pagamento AO FORNECEDOR deste custo: lista de prazos, cada um
+    # com data e percentual (ex.: [{"due_date":"2027-11-30","percent":30,"note":""}]).
+    # Independente do parcelamento do CLIENTE — é quando/quanto a operadora paga o
+    # custo. Os presets do front derivam a data da data de início da viagem.
+    payment_schedule = models.JSONField('Cronograma de pagamento', default=list, blank=True)
 
     included_in_price = models.BooleanField('Incluir no preço de venda', default=True)
     is_active    = models.BooleanField('Ativo', default=True)

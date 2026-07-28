@@ -1,3 +1,4 @@
+import re
 from django.db import transaction
 from rest_framework import serializers
 
@@ -974,7 +975,31 @@ class ItineraryCostItemSerializer(serializers.ModelSerializer):
                   'ship_cabin', 'ship_cabin_name', 'ship_cabin_category', 'ship_cabin_capacity',
                   'flight_segment', 'flight_segment_name', 'flight_class', 'flight_class_name',
                   'tax_kind', 'tax_value',
-                  'payment_method', 'due_date', 'included_in_price', 'is_active', 'order', 'notes']
+                  'payment_method', 'due_date', 'payment_schedule',
+                  'included_in_price', 'is_active', 'order', 'notes']
+
+    def validate_payment_schedule(self, value):
+        """Cronograma = lista de {due_date (YYYY-MM-DD | vazio), percent (0..100), note}.
+        Ignora qualquer outra chave; falha em valor fora do intervalo/mal-formado."""
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Cronograma inválido.')
+        out = []
+        for row in value:
+            if not isinstance(row, dict):
+                raise serializers.ValidationError('Item do cronograma inválido.')
+            try:
+                pct = float(row.get('percent') or 0)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Percentual inválido no cronograma.')
+            if pct < 0 or pct > 100:
+                raise serializers.ValidationError('Percentual do cronograma deve estar entre 0 e 100.')
+            due = row.get('due_date') or ''
+            if due and not re.match(r'^\d{4}-\d{2}-\d{2}$', str(due)):
+                raise serializers.ValidationError('Data do cronograma deve ser YYYY-MM-DD.')
+            out.append({'due_date': str(due), 'percent': round(pct, 2), 'note': str(row.get('note') or '')[:200]})
+        return out
 
 
 class ItineraryInventoryBlockSerializer(serializers.ModelSerializer):
