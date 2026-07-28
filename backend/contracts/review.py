@@ -114,11 +114,10 @@ def build_review_data(contract):
                        f'na ordem certa antes de aprovar.',
         })
 
-    # Comissão da agência: na conferência o valor/pessoa é exibido COMISSIONADO
-    # (base × (1+%)), igual ao resto do sistema; o subtotal soma normal e a comissão
-    # é ABATIDA do total mais abaixo. value_subtotal (base) é o que gera a comissão.
+    # Comissão da agência: NÃO é somada ao valor/pessoa nem ao total (já embutida no
+    # nosso markup). Exibida à parte como fatia informativa. comm_factor = 1.
     comm_rate = _d(contract.agency.commission_rate) if (contract.agency_id and contract.agency.commission_rate) else Decimal('0')
-    comm_factor = Decimal('1') + (comm_rate / Decimal('100'))
+    comm_factor = Decimal('1')
 
     # ── Linhas de acomodação (com comparação vs roteiro) ──
     accom_items = []
@@ -226,20 +225,18 @@ def build_review_data(contract):
     entrada_brl = sum((_d(i.value_brl) or Decimal('0')) for i in installments if i.kind == 'entrada')
     parcelas_brl = sum((_d(i.value_brl) or Decimal('0')) for i in installments if i.kind == 'parcela')
     paid_total = entrada_brl + parcelas_brl
-    # Total exibido na conferência (revisão/fatura): acomodações − comissão da
-    # agência (a comissão é ABATIDA, não somada) + ajustes + dedução de comissão.
-    # Só muda a exibição da conferência; o total armazenado do contrato, as parcelas
-    # e o PDF continuam como estão (comissão embutida/somada).
-    # Desconto à vista (global) — abate do total quando o pagamento é à vista, na
-    # mesma base do _recalc_totals (bruto: acomodações + ajustes + comissão − dedução).
-    avista_disc = avista_discount_usd(contract.payment_type, accom_total + adj_total + commission - comm_disc, rate, contract.itinerary)
+    # Total exibido na conferência = o que o cliente paga = acomodações (venda +
+    # taxas) + ajustes − abatimento − desconto à vista. A comissão da agência NÃO
+    # entra (já embutida no markup); é mostrada à parte só como referência. Bate com
+    # o total armazenado (_recalc_totals) e com o PDF.
+    avista_disc = avista_discount_usd(contract.payment_type, accom_total + adj_total - comm_disc, rate, contract.itinerary)
     if avista_disc > 0:
         flags.append({
             'level': 'good', 'code': 'avista_discount',
             'message': f'Desconto à vista aplicado: US$ {_m(avista_disc)}'
                        f'{f" (≈ R$ {_m(avista_disc * rate)})" if rate is not None else ""}.',
         })
-    review_total_usd = accom_total + adj_total - commission + comm_disc - avista_disc
+    review_total_usd = accom_total + adj_total - comm_disc - avista_disc
     review_total_brl = (review_total_usd * rate) if rate is not None else _d(contract.total_brl)
     # As parcelas representam o que o cliente paga (total REAL do contrato), então a
     # conferência "entrada + parcelas x total" compara com o total armazenado — assim

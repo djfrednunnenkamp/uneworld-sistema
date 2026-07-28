@@ -529,8 +529,10 @@ class ContractSerializer(serializers.ModelSerializer):
                 continue
             amount = a.amount_usd(accom_total, exchange_rate)
             adj_total += amount if a.kind == 'acrescimo' else -amount
-        # Comissão da agência: % cadastrado na agência, incide só sobre o
-        # valor/pessoa (não sobre as taxas) e fica embutida no total.
+        # Comissão da agência: % cadastrado na agência sobre o valor/pessoa (sem
+        # taxas). NÃO é somada ao total — ela JÁ está embutida no nosso markup (sai
+        # da NOSSA margem, não é cobrada por cima do cliente). É calculada aqui só
+        # como referência (informativa) e como TETO do "abater comissão" abaixo.
         commission = Decimal('0')
         if contract.agency_id and contract.agency.commission_rate:
             value_subtotal = sum(
@@ -538,8 +540,8 @@ class ContractSerializer(serializers.ModelSerializer):
                 for line in contract.accommodation_lines.all()
             )
             commission = Decimal(value_subtotal) * (contract.agency.commission_rate / Decimal('100'))
-        # Desconto de comissão: abate da comissão, NUNCA maior que ela. O % é
-        # sobre a comissão (100% = comissão inteira); R$/US$ limitados à comissão.
+        # "Abater comissão": desconto no total do cliente, limitado ao valor da
+        # comissão (100% = valor cheio da comissão; R$/US$ limitados a ela).
         comm_disc = Decimal('0')
         ca = next((a for a in adjustments if a.kind == 'comissao'), None)
         if ca and commission:
@@ -550,7 +552,9 @@ class ContractSerializer(serializers.ModelSerializer):
             else:
                 d = ca.value_usd
             comm_disc = max(Decimal('0'), min(Decimal(d), commission))
-        total_usd = accom_total + adj_total + commission - comm_disc
+        # Total do cliente = acomodações (venda + taxas) + ajustes − abatimento.
+        # SEM somar a comissão da agência (embutida no markup).
+        total_usd = accom_total + adj_total - comm_disc
         # Desconto à vista (global) abate do total quando o pagamento é à vista.
         # Guarda um snapshot (valor + modo + %) para exibir a linha no PDF e na tela.
         avista_disc = avista_discount_usd(contract.payment_type, total_usd, exchange_rate, contract.itinerary)

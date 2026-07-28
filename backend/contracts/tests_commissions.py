@@ -43,19 +43,21 @@ class FinancialsTest(APITestCase):
         self.seller = make_user('vend')
 
     def test_three_values_formula(self):
-        # subtotal=1000 → comissão agência 10% = 100 USD × câmbio 5 = 500 BRL.
-        # Preço final 5000; venda = 5000−500 = 4500; sem margem cadastrada → NET = venda.
+        # Nova regra: a comissão da agência NÃO é somada (embutida no markup). Cliente
+        # paga 5000 (venda+taxas, taxas=0) → venda = 5000 = preço final; NET = venda
+        # (sem margem). A comissão (10% de 1000 USD = 500 BRL) é só uma FATIA da venda.
         c = make_contract(seller=self.seller, agency=self.ag)
         fin = C.contract_financials(c)
-        self.assertEqual(fin['final_brl'], Decimal('5000'))              # preço final (cliente paga)
-        self.assertEqual(fin['agency_commission_brl'], Decimal('500.00'))
-        self.assertEqual(fin['sale_brl'], Decimal('4500.00'))           # valor de venda (sem agência)
-        self.assertEqual(fin['net_brl'], Decimal('4500.00'))           # NET (sem margem → = venda)
+        self.assertEqual(fin['final_brl'], Decimal('5000.00'))          # preço final = valor de venda
+        self.assertEqual(fin['sale_brl'], Decimal('5000.00'))           # venda = cliente paga − taxas (0)
+        self.assertEqual(fin['agency_commission_brl'], Decimal('500.00'))  # fatia informativa
+        self.assertEqual(fin['net_brl'], Decimal('5000.00'))           # NET (sem margem → = venda)
         self.assertFalse(fin['has_margin'])
         self.assertEqual(fin['seller_id'], self.seller.id)
 
     def test_operator_margin_splits_net(self):
-        # Roteiro com markup 80 (fator 0,80): NET = venda × 0,80 = 3600; nossa comissão = 900.
+        # Roteiro com markup 80 (fator 0,80): venda 5000 → NET = 5000×0,80 = 4000;
+        # nossa comissão = 1000. Preço final = venda = 5000 (comissão da agência à parte).
         from itineraries.models import Itinerary, ItineraryPricingConfig
         it = Itinerary.objects.create(name='R', base_currency='USD')
         ItineraryPricingConfig.objects.create(itinerary=it, margin_percent=Decimal('80'), margin_mode='percent')
@@ -63,10 +65,10 @@ class FinancialsTest(APITestCase):
         c.itinerary = it; c.save()
         fin = C.contract_financials(c)
         self.assertTrue(fin['has_margin'])
-        self.assertEqual(fin['sale_brl'], Decimal('4500.00'))
-        self.assertEqual(fin['net_brl'], Decimal('3600.00'))
-        self.assertEqual(fin['operator_commission_brl'], Decimal('900.00'))
-        self.assertEqual(fin['final_brl'], Decimal('5000'))
+        self.assertEqual(fin['sale_brl'], Decimal('5000.00'))
+        self.assertEqual(fin['net_brl'], Decimal('4000.00'))
+        self.assertEqual(fin['operator_commission_brl'], Decimal('1000.00'))
+        self.assertEqual(fin['final_brl'], Decimal('5000.00'))
 
     def test_seller_commission_percent_of_final_minus_taxes(self):
         # Vendedor com 10% de comissão. Preço final 5000, taxas = 100 USD × câmbio 5
@@ -242,3 +244,26 @@ class ApiSecurityTest(APITestCase):
         r = self.client.get('/api/contracts/commissions/meta/')
         self.assertEqual(r.status_code, 200)
         self.assertIn(2026, r.json()['years'])
+
+
+class AgencyCommissionNotAddedTest(APITestCase):
+    """Regra nova: a comissão da agência NÃO é somada ao total do cliente (já
+    embutida no nosso markup); é uma fatia informativa do valor de venda."""
+    def test_recalc_total_excludes_agency_commission(self):
+        from contracts.serializers import ContractSerializer
+        ag = Agency.objects.create(name='Ag12', commission_rate=Decimal('12'))
+        c = Contract.objects.create(base_currency='USD', agency=ag, exchange_rate=Decimal('5'),
+                                    stage='faturado', status='ativo', payment_type='parcelado')
+        ContractAccommodationLine.objects.create(contract=c, value_per_person_usd=Decimal('1000'),
+                                                 taxes_usd=Decimal('100'), quantity=2)
+        ContractSerializer()._recalc_totals(c)
+        c.refresh_from_db()
+        # venda 2000 + taxas 200 = 2200 USD; os 12% (240) NÃO entram no total.
+        self.assertEqual(c.total_usd, Decimal('2200.00'))
+        self.assertEqual(c.total_brl, Decimal('11000.00'))
+        fin = C.contract_financials(c)
+        self.assertEqual(fin['sale_brl'], Decimal('10000.00'))            # 2000 × 5 (venda, sem taxas)
+        self.assertEqual(fin['final_brl'], Decimal('10000.00'))          # preço final = venda
+        self.assertEqual(fin['agency_commission_brl'], Decimal('1200.00'))  # 12% × 2000 × 5 (fatia)
+        self.assertEqual(fin['taxes_brl'], Decimal('1000.00'))
+        self.assertEqual(fin['client_total_brl'], Decimal('11000.00'))   # o que o cliente paga

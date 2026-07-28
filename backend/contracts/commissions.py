@@ -5,12 +5,14 @@ detalhamento e exportação usam ESTAS funções, então "soma dos vendedores ==
 consolidado" por construção.
 
 Definições financeiras (confirmadas no modelo/serializer de contratos):
-  • Valor vendido  = Contract.total_brl  (valor final ao cliente; comissão embutida)
-  • Comissão da agência = comissão bruta = subtotal por pessoa (SEM taxas) ×
-    agency.commission_rate% , convertida a BRL pelo câmbio DO CONTRATO. É a MESMA
-    fórmula de ContractSerializer._commission_usd/_recalc_totals (embutida no total).
-  • Valor NET      = valor vendido − comissão da agência (o que a operadora recebe).
-  Sem agência/sem taxa cadastrada → comissão 0 e NET == vendido.
+  • O cliente paga  = Contract.total_brl = Valor de venda + Taxas (a comissão da
+    agência NÃO é somada — já está embutida no nosso markup).
+  • Valor de venda = Preço final = o que o cliente paga − taxas = NET + nossa comissão.
+  • Valor NET      = Valor de venda × fator (markup). Sem fator → NET == venda.
+  • Comissão da agência = subtotal por pessoa (SEM taxas) × agency.commission_rate% —
+    é uma FATIA do valor de venda (sai da NOSSA margem, informativa; não é cobrada do
+    cliente). Convertida a BRL pelo câmbio DO CONTRATO.
+  Sem agência/sem taxa cadastrada → comissão 0.
 
 Comissão INDIVIDUAL do vendedor: NÃO existe regra no sistema (nem campo, nem base,
 nem percentual). Não é inventada aqui — fica como pendência de configuração.
@@ -155,14 +157,19 @@ def contract_financials(contract):
     """Os três valores em BRL e USD (Decimal). `has_value` = contrato tem total
     calculado; `has_margin` = deu pra achar o markup da operadora (senão NET=venda)."""
     rate = contract.exchange_rate or Decimal('0')
-    comm_usd = commission_usd(contract)
+    comm_usd = commission_usd(contract)                     # comissão da AGÊNCIA (fatia informativa)
     comm_brl = (comm_usd * rate).quantize(CENT) if rate else Decimal('0')
-    final_usd = contract.total_usd
-    final_brl = contract.total_brl
-    has_value = final_brl is not None
-    # Venda (nossa venda, sem a comissão da agência) = final − comissão da agência.
-    sale_usd = (final_usd - comm_usd) if final_usd is not None else None
-    sale_brl = (final_brl - comm_brl) if final_brl is not None else None
+    tx_usd = taxes_usd(contract)
+    tx_brl = (tx_usd * rate).quantize(CENT) if rate else Decimal('0')
+    client_usd = contract.total_usd                         # o que o cliente PAGA = venda + taxas
+    client_brl = contract.total_brl
+    has_value = client_brl is not None
+    # Valor de venda = PREÇO FINAL = o que o cliente paga MENOS as taxas (= NET +
+    # nossa comissão). A comissão da agência NÃO é somada — já está embutida no nosso
+    # markup; ela é uma fatia deste valor de venda (sai da nossa margem).
+    sale_usd = (client_usd - tx_usd) if client_usd is not None else None
+    sale_brl = (client_brl - tx_brl) if client_brl is not None else None
+    final_usd, final_brl = sale_usd, sale_brl               # "Preço final" = só a venda
     # NET = venda × fator (markup da operadora). Sem fator → NET = venda.
     factor = operator_factor(contract)
     has_margin = factor is not None and sale_brl is not None
@@ -173,23 +180,20 @@ def contract_financials(contract):
         net_brl, net_usd = sale_brl, sale_usd
     op_brl = (sale_brl - net_brl) if (sale_brl is not None and net_brl is not None) else Decimal('0')
     op_usd = (sale_usd - net_usd) if (sale_usd is not None and net_usd is not None) else Decimal('0')
-    # Comissão do VENDEDOR = % do vendedor × (preço final − taxas). Base = o que o
-    # cliente paga (net + nossa comissão + comissão da agência) menos as taxas.
-    tx_usd = taxes_usd(contract)
-    tx_brl = (tx_usd * rate).quantize(CENT) if rate else Decimal('0')
+    # Comissão do VENDEDOR = % do vendedor × valor de venda (sem taxas).
     sid, sname, savatar, spct = effective_seller(contract)
-    base_brl = (final_brl - tx_brl) if final_brl is not None else None
-    base_usd = (final_usd - tx_usd) if final_usd is not None else None
-    if spct and base_brl is not None:
+    if spct and sale_brl is not None:
         p = Decimal(spct) / Decimal('100')
-        sc_brl = (base_brl * p).quantize(CENT)
-        sc_usd = (base_usd * p).quantize(CENT) if base_usd is not None else Decimal('0')
+        sc_brl = (sale_brl * p).quantize(CENT)
+        sc_usd = (sale_usd * p).quantize(CENT) if sale_usd is not None else Decimal('0')
     else:
         sc_brl, sc_usd = Decimal('0'), Decimal('0')
     return {
         'net_brl': net_brl, 'net_usd': net_usd,
         'sale_brl': sale_brl, 'sale_usd': sale_usd,
         'final_brl': final_brl, 'final_usd': final_usd,
+        'taxes_brl': tx_brl, 'taxes_usd': tx_usd,
+        'client_total_brl': client_brl, 'client_total_usd': client_usd,
         'operator_commission_brl': op_brl, 'operator_commission_usd': op_usd,
         'agency_commission_brl': comm_brl, 'agency_commission_usd': comm_usd,
         'seller_commission_brl': sc_brl, 'seller_commission_usd': sc_usd,
