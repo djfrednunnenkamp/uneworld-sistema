@@ -20,10 +20,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
     queryset = Reservation.objects.select_related('itinerary', 'agency', 'contract').all()
 
     def get_permissions(self):
-        if self.action in ('create',):
-            return [RequirePermission('reservas_create')()]
-        if self.action in ('update', 'partial_update'):
-            return [RequirePermission('reservas_create')()]
+        if self.action in ('create', 'update', 'partial_update'):
+            return [RequirePermission('reservas_create', 'reservas_create_agency')()]
         if self.action in ('destroy', 'cancel'):
             return [RequirePermission('reservas_cancel')()]
         return [RequirePermission('reservas_view', 'reservas_view_all')()]
@@ -55,6 +53,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
             else:
                 raise PermissionDenied('Você só pode criar reservas para a sua agência.')
         else:
+            # Usuário interno (operadora) criando em nome de uma agência: exige a
+            # permissão específica de criar reserva para agência.
+            if not (user.is_superuser or has_any_perm(user, 'reservas_create_agency')):
+                raise PermissionDenied('Você não tem permissão para criar reservas em nome de uma agência.')
             if agency is None:
                 raise ValidationError({'agency': 'Informe a agência da reserva.'})
             agency_id = agency.id

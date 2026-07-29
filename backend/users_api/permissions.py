@@ -46,6 +46,7 @@ PERMISSION_FIELDS = [
     # Reservas
     'reservas_view',
     'reservas_create',
+    'reservas_create_agency',
     'reservas_cancel',
     'reservas_view_all',
     # Comissões dos vendedores

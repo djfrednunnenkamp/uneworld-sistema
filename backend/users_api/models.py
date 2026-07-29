@@ -128,6 +128,7 @@ class UserPermissions(models.Model):
     # Reservas
     reservas_view       = models.BooleanField(default=False)      # ver as reservas (da própria agência)
     reservas_create     = models.BooleanField(default=False)      # criar reserva
+    reservas_create_agency = models.BooleanField(default=False)   # criar reserva EM NOME de uma agência (operadora)
     reservas_cancel     = models.BooleanField(default=False)      # cancelar reserva
     reservas_view_all   = models.BooleanField(default=False)      # ver as reservas de TODAS as agências (operadora)
 
