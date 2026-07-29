@@ -43,11 +43,13 @@ class KitLabelsTest(APITestCase):
         self.assertEqual(p['mode'], 'agency')                       # padrão
 
     def test_patch_saves_choice(self):
-        r = self.client.patch(self.url, {'addresses': {str(self.pax.id): {'mode': 'custom', 'custom': 'Endereço X'}}}, format='json')
+        custom = {'cep': '90000-000', 'street': 'Rua X', 'number': '9', 'city': 'Canoas', 'state': 'RS'}
+        r = self.client.patch(self.url, {'addresses': {str(self.pax.id): {'mode': 'custom', 'custom': custom}}}, format='json')
         self.assertEqual(r.status_code, 200)
         p = self.client.get(self.url).json()['passengers'][0]
         self.assertEqual(p['mode'], 'custom')
-        self.assertEqual(p['custom'], 'Endereço X')
+        self.assertEqual(p['custom']['street'], 'Rua X')
+        self.assertEqual(p['custom']['city'], 'Canoas')
         # mode inválido cai para 'agency'
         self.client.patch(self.url, {'addresses': {str(self.pax.id): {'mode': 'xxx'}}}, format='json')
         self.assertEqual(self.client.get(self.url).json()['passengers'][0]['mode'], 'agency')

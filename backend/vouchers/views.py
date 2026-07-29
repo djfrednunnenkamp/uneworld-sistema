@@ -194,12 +194,15 @@ class VoucherViewSet(viewsets.ViewSet):
             addrs = request.data.get('addresses')
             if not isinstance(addrs, dict):
                 return Response({'error': 'addresses (objeto) é obrigatório.'}, status=400)
+            KEYS = ('cep', 'street', 'number', 'complement', 'neighborhood', 'city', 'state')
             clean = {}
             for pid, cfg in addrs.items():
                 if not isinstance(cfg, dict):
                     continue
                 mode = cfg.get('mode') if cfg.get('mode') in ('agency', 'home', 'custom') else 'agency'
-                clean[str(pid)] = {'mode': mode, 'custom': str(cfg.get('custom') or '')[:400]}
+                raw = cfg.get('custom')
+                custom = {k: str(raw.get(k) or '')[:120] for k in KEYS} if isinstance(raw, dict) else {}
+                clean[str(pid)] = {'mode': mode, 'custom': custom}
             voucher.kit_addresses = clean
             voucher.save(update_fields=['kit_addresses'])
             return Response({'ok': True})
@@ -227,7 +230,7 @@ class VoucherViewSet(viewsets.ViewSet):
                 'agency': agency,
                 'home_address_lines': _kit_addr_lines(p),
                 'mode': cfg.get('mode') if cfg.get('mode') in ('agency', 'home', 'custom') else 'agency',
-                'custom': cfg.get('custom') or '',
+                'custom': cfg.get('custom') if isinstance(cfg.get('custom'), dict) else {},
             })
         if pl.start_date and pl.end_date:
             period = f'{pl.start_date.strftime("%d/%m/%Y")} a {pl.end_date.strftime("%d/%m/%Y")}'
