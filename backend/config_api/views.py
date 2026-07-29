@@ -2239,7 +2239,7 @@ def system_settings(request):
 class ReservationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ReservationSettings
-        fields = ['reserva_online_percent', 'pagamento_imediato_percent', 'reserva_operadora_percent']
+        fields = ['reserva_online_percent', 'pagamento_imediato_percent', 'reserva_operadora_percent', 'deadline_hours']
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])

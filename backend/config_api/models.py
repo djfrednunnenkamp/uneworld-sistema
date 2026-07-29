@@ -730,6 +730,8 @@ class ReservationSettings(models.Model):
     reserva_online_percent      = models.DecimalField('Reserva online (%)',      max_digits=6, decimal_places=2, default=0)
     pagamento_imediato_percent  = models.DecimalField('Pagamento imediato (%)',  max_digits=6, decimal_places=2, default=0)
     reserva_operadora_percent   = models.DecimalField('Reserva exclusiva da operadora (%)', max_digits=6, decimal_places=2, default=0)
+    # Prazo (em horas) até uma reserva SEM pagamento imediato expirar ("cair").
+    deadline_hours              = models.PositiveIntegerField('Prazo da reserva sem pagamento (horas)', default=48)
 
     class Meta:
         verbose_name = 'Configurações de reserva'

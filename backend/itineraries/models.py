@@ -902,6 +902,7 @@ class ItineraryPricingConfig(models.Model):
     reserva_online_percent     = models.DecimalField('Reserva online (%)',     max_digits=6, decimal_places=2, null=True, blank=True)
     pagamento_imediato_percent = models.DecimalField('Pagamento imediato (%)', max_digits=6, decimal_places=2, null=True, blank=True)
     reserva_operadora_percent  = models.DecimalField('Reserva exclusiva da operadora (%)', max_digits=6, decimal_places=2, null=True, blank=True)
+    reservation_deadline_hours = models.PositiveIntegerField('Prazo da reserva sem pagamento (horas)', null=True, blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 

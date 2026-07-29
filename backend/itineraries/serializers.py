@@ -954,7 +954,7 @@ class ItineraryPricingConfigSerializer(serializers.ModelSerializer):
                   'final_fee_percent', 'min_margin_percent', 'notes', 'price_overrides',
                   'contract_accommodations',
                   'reserva_online_percent', 'pagamento_imediato_percent', 'reserva_operadora_percent',
-                  'reservation_defaults']
+                  'reservation_deadline_hours', 'reservation_defaults']
 
     def get_reservation_defaults(self, obj):
         from config_api.models import ReservationSettings
@@ -963,6 +963,7 @@ class ItineraryPricingConfigSerializer(serializers.ModelSerializer):
             'reserva_online_percent':     s.reserva_online_percent,
             'pagamento_imediato_percent': s.pagamento_imediato_percent,
             'reserva_operadora_percent':  s.reserva_operadora_percent,
+            'reservation_deadline_hours': s.deadline_hours,
         }
 
 
