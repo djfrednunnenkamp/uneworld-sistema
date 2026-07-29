@@ -462,13 +462,12 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             if not child.reservation_number:
                 child.reservation_number = f'{child.id:06d}'
                 child.save(update_fields=['reservation_number'])
-            # Copia as PESSOAS (com a acomodação/quarto) — o usuário pode mover depois.
+            # Copia só as PESSOAS (nome/ordem) — SEM quarto/acomodação. Assim a aba
+            # Valores do adendo nasce VAZIA (as linhas de acomodação são geradas dos
+            # quartos; sem quartos, nada é pré-preenchido). O adendo tem valores
+            # próprios (ex.: upgrade), que o usuário monta do zero.
             for g in parent.guests.all():
-                ContractGuest.objects.create(
-                    contract=child, passenger_id=g.passenger_id,
-                    accommodation_type_id=g.accommodation_type_id, ship_cabin_id=g.ship_cabin_id,
-                    accommodation_label=g.accommodation_label, capacity=g.capacity,
-                    room_group=g.room_group, order=g.order)
+                ContractGuest.objects.create(contract=child, passenger_id=g.passenger_id, order=g.order)
         return Response(ContractSerializer(child, context={'request': request}).data, status=201)
 
     @action(detail=False, methods=['post'], url_path='preview')

@@ -518,6 +518,13 @@ class AddendumTest(_APITestCase):
         self.assertEqual(len(d['guests']), 1)                 # pessoas copiadas
         self.assertEqual(d['accommodation_lines'], [])        # valores vazios
         self.assertEqual(d['installments'], [])               # pagamentos vazios
+        # As pessoas vêm SEM quarto/acomodação — senão o modal geraria linhas de
+        # Valores com os preços do pacote original (que é o que NÃO queremos).
+        from contracts.models import ContractGuest as _CG
+        g = _CG.objects.get(contract_id=d['id'])
+        self.assertIsNone(g.accommodation_type_id)
+        self.assertIsNone(g.ship_cabin_id)
+        self.assertIsNone(g.room_group)
 
     def test_addendum_appears_in_list_with_parent(self):
         cid = self.client.post(f'/api/contracts/{self.parent.id}/create-addendum/', {}, format='json').json()['id']
