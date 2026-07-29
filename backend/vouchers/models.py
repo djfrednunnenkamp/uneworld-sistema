@@ -26,6 +26,10 @@ class VoucherList(models.Model):
                                           related_name='voucher')
     # None = herda o template global; lista = blocos próprios desta lista.
     blocks     = models.JSONField('Blocos do voucher', null=True, blank=True, default=None)
+    # Etiquetas do KIT: escolha do ENDEREÇO por passageiro, salva por lista.
+    # { "<passenger_id>": { "mode": "agency"|"home"|"custom", "custom": "<texto>" } }
+    # mode ausente/'agency' = endereço da agência do passageiro (padrão).
+    kit_addresses = models.JSONField('Endereços das etiquetas do kit', default=dict, blank=True)
     # Começa "em edição"; o usuário publica manualmente quando estiver pronto.
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES,
                                   default='em_edicao', db_index=True)

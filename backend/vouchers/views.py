@@ -57,6 +57,31 @@ def _voucher_blocks_summary(blocks):
     return '\n'.join(lines)
 
 
+def _kit_addr_lines(obj):
+    """Linhas de endereço a partir de um objeto com cep/street/number/etc
+    (Agency ou Passenger). Devolve uma lista de linhas (sem vazias)."""
+    if not obj:
+        return []
+    g = lambda a: (getattr(obj, a, '') or '').strip()
+    street, number, comp = g('street'), g('number'), g('complement')
+    bairro, city, state, cep, country = g('neighborhood'), g('city'), g('state'), g('cep'), g('country')
+    lines = []
+    line1 = street + (f', {number}' if number else '')
+    if comp:
+        line1 += f' — {comp}'
+    if line1.strip():
+        lines.append(line1.strip())
+    if bairro:
+        lines.append(bairro)
+    citystate = ', '.join(p for p in [city, state] if p)
+    if citystate:
+        lines.append(citystate)
+    tail = ' · '.join(p for p in [(f'CEP {cep}' if cep else ''), (country if country and country != 'Brasil' else '')] if p)
+    if tail.strip():
+        lines.append(tail.strip())
+    return lines
+
+
 class VoucherViewSet(viewsets.ViewSet):
     """Vouchers das listas de passageiros. `pk` = id da Lista de Passageiros
     (cada lista tem exatamente um voucher).
@@ -78,6 +103,8 @@ class VoucherViewSet(viewsets.ViewSet):
             return [IsAuthenticated(), RequirePermission('voucher_view', 'voucher_agency')()]
         if self.action in ('partial_update', 'update'):
             return [IsAuthenticated(), RequirePermission('voucher_edit')()]
+        if self.action == 'kit_labels':
+            return [IsAuthenticated(), RequirePermission('voucher_labels')()]
         return [IsAuthenticated(), RequirePermission('voucher_view', 'voucher_agency')()]
 
     def _list_qs(self):
@@ -151,6 +178,67 @@ class VoucherViewSet(viewsets.ViewSet):
             'status': voucher.status,
             'roteiro': build.roteiro_data(pl, request=request),
             'entries': build.build_entries(pl, request=request, voucher=voucher, agency_ids=scope),
+        })
+
+    @action(detail=True, methods=['get', 'patch'], url_path='kit-labels')
+    def kit_labels(self, request, pk=None):
+        """Etiquetas do KIT (A4, recorte manual). GET monta os dados por passageiro
+        (agência do passageiro + endereço + roteiro/período); PATCH salva a escolha
+        de ENDEREÇO por passageiro (agência / casa / digitado), persistida na lista."""
+        pl = PassengerList.objects.filter(pk=pk, is_deleted=False).first()
+        if not pl:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        voucher, _ = VoucherList.objects.get_or_create(passenger_list=pl)
+
+        if request.method == 'PATCH':
+            addrs = request.data.get('addresses')
+            if not isinstance(addrs, dict):
+                return Response({'error': 'addresses (objeto) é obrigatório.'}, status=400)
+            clean = {}
+            for pid, cfg in addrs.items():
+                if not isinstance(cfg, dict):
+                    continue
+                mode = cfg.get('mode') if cfg.get('mode') in ('agency', 'home', 'custom') else 'agency'
+                clean[str(pid)] = {'mode': mode, 'custom': str(cfg.get('custom') or '')[:400]}
+            voucher.kit_addresses = clean
+            voucher.save(update_fields=['kit_addresses'])
+            return Response({'ok': True})
+
+        # GET — dados para renderizar
+        from config_api.models import OperatingCompany
+        oc = OperatingCompany.get()
+        operadora = {'name': oc.company_name or 'Operadora', 'email': oc.email or '',
+                     'address_lines': [oc.address] if (oc.address or '').strip() else []}
+        saved = voucher.kit_addresses or {}
+        scope = agency_scope_ids(request.user)
+        enrolls = (ListEnrollment.objects.filter(passenger_list=pl, passenger__isnull=False)
+                   .select_related('passenger', 'agency').order_by('passenger__full_name'))
+        if scope is not None:
+            enrolls = enrolls.filter(agency_id__in=scope)
+        passengers = []
+        for e in enrolls:
+            p = e.passenger
+            ag = e.agency or p.agencies.first()
+            agency = ({'name': ag.display_name, 'email': ag.email or '', 'address_lines': _kit_addr_lines(ag)}
+                      if ag else None)
+            cfg = saved.get(str(p.id)) or {}
+            passengers.append({
+                'id': p.id, 'name': p.full_name or '—',
+                'agency': agency,
+                'home_address_lines': _kit_addr_lines(p),
+                'mode': cfg.get('mode') if cfg.get('mode') in ('agency', 'home', 'custom') else 'agency',
+                'custom': cfg.get('custom') or '',
+            })
+        if pl.start_date and pl.end_date:
+            period = f'{pl.start_date.strftime("%d/%m/%Y")} a {pl.end_date.strftime("%d/%m/%Y")}'
+        elif pl.start_date:
+            period = pl.start_date.strftime('%d/%m/%Y')
+        else:
+            period = ''
+        roteiro_name = ', '.join(r.name for r in pl.roteiros.all()) or pl.name
+        return Response({
+            'roteiro_name': roteiro_name, 'period': period,
+            'operadora': operadora, 'passengers': passengers,
         })
 
     @action(detail=True, methods=['post'], url_path='set_status')
