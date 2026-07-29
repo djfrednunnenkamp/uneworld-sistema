@@ -7,7 +7,7 @@ from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, Itiner
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
-                     ItineraryInventoryBlock, VideoExport)
+                     ItineraryInventoryBlock, ItineraryCostPayment, VideoExport)
 from . import onlyoffice
 
 TEMP_DAY_BASE = 100000  # base de day_number temporário no upsert (evita colisão da UniqueConstraint)
@@ -1037,3 +1037,10 @@ class ItineraryInventoryBlockSerializer(serializers.ModelSerializer):
 
     def get_accommodations_data(self, obj):
         return [{'id': a.id, 'name': a.name, 'capacity': a.capacity} for a in obj.accommodations.all()]
+
+
+class ItineraryCostPaymentSerializer(serializers.ModelSerializer):
+    """Pagamento real de um item de custo (aba Valores › Custo real)."""
+    class Meta:
+        model = ItineraryCostPayment
+        fields = ['id', 'cost_item', 'paid_on', 'amount', 'currency', 'exchange_rate', 'note', 'order']

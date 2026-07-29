@@ -23,7 +23,7 @@ from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, Itinerar
                      ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
-                     ItineraryInventoryBlock)
+                     ItineraryInventoryBlock, ItineraryCostPayment)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
@@ -31,7 +31,8 @@ from .serializers import (ItinerarySerializer, ItineraryListSerializer,
                           ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer,
                           ItineraryDocumentSerializer, ItineraryDocumentFolderSerializer,
                           ItineraryPricingConfigSerializer, ItineraryCostItemSerializer,
-                          ItineraryCurrencyRateSerializer, ItineraryInventoryBlockSerializer)
+                          ItineraryCurrencyRateSerializer, ItineraryInventoryBlockSerializer,
+                          ItineraryCostPaymentSerializer)
 from core.search import AccentInsensitiveSearchFilter
 
 
@@ -2221,6 +2222,29 @@ class ItineraryInventoryBlockViewSet(viewsets.ModelViewSet):
             it = self.request.query_params.get('itinerary')
             return qs.filter(itinerary_id=it) if it else qs.none()
         return qs
+
+
+class ItineraryCostPaymentViewSet(viewsets.ModelViewSet):
+    """Pagamentos reais dos custos (aba Valores › Custo real).
+    Filtra por ?itinerary=<id> (todos os pagamentos do roteiro) ou ?cost_item=<id>."""
+    serializer_class = ItineraryCostPaymentSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryCostPayment.objects.select_related('cost_item')
+        if self.action == 'list':
+            it = self.request.query_params.get('itinerary')
+            ci = self.request.query_params.get('cost_item')
+            if ci:
+                return qs.filter(cost_item_id=ci)
+            if it:
+                return qs.filter(cost_item__itinerary_id=it)
+            return qs.none()
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
     # Qualquer mexida num bloqueio acende "Público · pendente" (roteiro publicado).
     def perform_create(self, serializer):

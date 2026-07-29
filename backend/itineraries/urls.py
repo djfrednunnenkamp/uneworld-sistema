@@ -7,7 +7,7 @@ from .views import (ItineraryViewSet, ItineraryFieldTemplateViewSet,
                     ItineraryDocumentViewSet, ItineraryDocumentFolderViewSet, GalleryImageViewSet,
                     document_callback, document_oo_download,
                     ItineraryCostItemViewSet, ItineraryCurrencyRateViewSet,
-                    ItineraryInventoryBlockViewSet)
+                    ItineraryInventoryBlockViewSet, ItineraryCostPaymentViewSet)
 
 router = DefaultRouter()
 # Rotas nomeadas ANTES de '' para não serem capturadas pela rota de detalhe do
@@ -24,6 +24,7 @@ router.register('terrestre-legs', ItineraryTerrestreLegViewSet, basename='itiner
 router.register('cost-items', ItineraryCostItemViewSet, basename='itinerary-cost-item')
 router.register('currency-rates', ItineraryCurrencyRateViewSet, basename='itinerary-currency-rate')
 router.register('inventory-blocks', ItineraryInventoryBlockViewSet, basename='itinerary-inventory-block')
+router.register('cost-payments', ItineraryCostPaymentViewSet, basename='itinerary-cost-payment')
 router.register('gallery', GalleryImageViewSet, basename='gallery-image')
 router.register('', ItineraryViewSet, basename='itinerary')
 

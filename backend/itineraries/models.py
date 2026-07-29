@@ -1010,6 +1010,32 @@ class ItineraryCostItem(models.Model):
         return f'{self.description} ({self.get_cost_type_display()})'
 
 
+class ItineraryCostPayment(models.Model):
+    """Pagamento REAL de um item de custo (aba Valores › Custo real).
+
+    Os custos declarados são cotações; aqui registra-se quanto foi de fato pago,
+    por parcela: data, valor, moeda e o câmbio (para reais) daquela parcela. É
+    uma camada de contas-a-pagar por cima da precificação — não altera o preço."""
+    cost_item     = models.ForeignKey(ItineraryCostItem, on_delete=models.CASCADE, related_name='payments')
+    paid_on       = models.DateField('Data do pagamento', null=True, blank=True)
+    amount        = models.DecimalField('Valor pago', max_digits=18, decimal_places=2, default=Decimal('0'))
+    currency      = models.CharField('Moeda', max_length=3, blank=True, default='')   # vazio = moeda base do roteiro
+    exchange_rate = models.DecimalField('Câmbio (1 moeda = X reais)', max_digits=18, decimal_places=6, default=Decimal('1'))
+    note          = models.CharField('Parcela / observação', max_length=200, blank=True, default='')
+    order         = models.PositiveIntegerField('Ordem', default=0)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    updated_at    = models.DateTimeField(auto_now=True)
+    created_by    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='cost_payments_created')
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Pagamento de custo'
+        verbose_name_plural = 'Pagamentos de custo'
+
+    def __str__(self):
+        return f'Pagamento {self.amount} {self.currency or "base"} (custo {self.cost_item_id})'
+
+
 class ItineraryInventoryBlock(models.Model):
     """Bloqueio / disponibilidade do roteiro (aba Valores › Disponibilidade).
 
