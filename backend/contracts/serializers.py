@@ -191,10 +191,15 @@ class ContractListSerializer(serializers.ModelSerializer):
         fields = ['id', 'reservation_number', 'contract_date', 'agency', 'agency_name',
                   'contratante', 'contratante_name', 'guest_names', 'package_name', 'departure_date',
                   'total_brl', 'total_usd', 'status', 'signature_type', 'stage', 'signed_file', 'signed_verification',
-                  'autentique_document_id',
+                  'autentique_document_id', 'parent_contract', 'parent_reservation',
                   'created_at', 'updated_at', 'sent_at', 'signed_at', 'reviewed_at', 'review_note',
                   'invoice_number', 'invoice_date', 'invoiced_at', 'last_due_date',
                   'is_deleted', 'deleted_at']
+
+    parent_reservation = serializers.SerializerMethodField()
+
+    def get_parent_reservation(self, obj):
+        return (obj.parent_contract.reservation_number or f'#{obj.parent_contract_id}') if obj.parent_contract_id else None
 
     def get_last_due_date(self, obj):
         dates = [i.due_date for i in obj.installments.all() if i.due_date]
@@ -271,10 +276,16 @@ class ContractSerializer(serializers.ModelSerializer):
                   'reviewed_at', 'review_note', 'invoice_number', 'invoice_date', 'invoiced_at',
                   'autentique_document_id', 'autentique_data',
                   'accommodation_lines', 'guests', 'installments', 'adjustments', 'clauses', 'clauses_data', 'custom_clauses',
+                  'parent_contract', 'parent_reservation',
                   'status', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
         read_only_fields = ['autentique_document_id', 'autentique_data', 'reviewed_at', 'review_note',
-                            'invoice_number', 'invoice_date', 'invoiced_at',
+                            'invoice_number', 'invoice_date', 'invoiced_at', 'parent_contract', 'parent_reservation',
                             'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value']
+
+    parent_reservation = serializers.SerializerMethodField()
+
+    def get_parent_reservation(self, obj):
+        return (obj.parent_contract.reservation_number or f'#{obj.parent_contract_id}') if obj.parent_contract_id else None
 
     def validate_custom_clauses(self, value):
         # Sanitiza o HTML das cláusulas personalizadas antes de salvar (A-12).

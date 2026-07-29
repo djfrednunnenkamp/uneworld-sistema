@@ -166,6 +166,12 @@ class Contract(models.Model):
     autentique_data        = models.JSONField('Dados da Autentique', null=True, blank=True)
 
     status     = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='ativo')
+    # Contrato de ADENDO: quando preenchido, este contrato é um adendo (aditivo) de
+    # outro contrato — nasce herdando o cabeçalho e as pessoas do original, mas com
+    # valores/pagamentos próprios (ex.: upgrade). É independente (assinatura e
+    # pagamento próprios); o original fica intacto. null = contrato normal.
+    parent_contract = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
+                                        related_name='addenda', verbose_name='Contrato de origem (adendo)')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
                                    related_name='contracts_created')
     # Vendedor da OPERADORA (interno). Por padrão é o próprio criador; só pode ser

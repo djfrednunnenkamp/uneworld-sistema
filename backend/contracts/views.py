@@ -424,9 +424,52 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'invoice_data':
             return [RequirePermission('contracts_invoice_view', 'contracts_invoice')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge', 'discard',
-                           'send_for_signature', 'upload_signed', 'upload_receipt', 'reopen', 'check_signature'):
+                           'send_for_signature', 'upload_signed', 'upload_receipt', 'reopen', 'check_signature',
+                           'create_addendum'):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
+
+    @action(detail=True, methods=['post'], url_path='create-addendum')
+    def create_addendum(self, request, pk=None):
+        """Cria um ADENDO deste contrato: um contrato NOVO (rascunho) que já herda o
+        CABEÇALHO (roteiro, pagante, agência, câmbio, saída, etc.) e as PESSOAS do
+        original — mas nasce SEM valores nem pagamentos (o usuário preenche só o que
+        muda, ex.: upgrade). Fica vinculado ao original (parent_contract) e segue o
+        fluxo normal de contrato. Devolve o contrato novo para abrir no editor."""
+        from django.db import transaction
+        from django.utils import timezone
+        from .models import ContractGuest
+        parent = self.get_object()   # já respeita o escopo de agência (get_queryset)
+        user = request.user
+        COPY = [
+            'agency_id', 'passenger_list_id', 'itinerary_id',
+            'itinerary_flight_departure_id', 'itinerary_terrestre_departure_id',
+            'contratante_id', 'payer_type', 'payer_name', 'payer_document',
+            'payer_birth_date', 'payer_gender', 'payer_email', 'payer_phone', 'payer_address',
+            'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
+            'base_currency', 'payment_type', 'exchange_rate',
+            'round_step', 'round_mode', 'round_currency',
+            'signature_type', 'agency_seller_id',
+        ]
+        with transaction.atomic():
+            child = Contract(created_by=user, parent_contract=parent, seller=user,
+                             status='rascunho', stage='em_edicao',
+                             contract_date=timezone.now().date())
+            for f in COPY:
+                setattr(child, f, getattr(parent, f))
+            child._skip_audit_signal = True
+            child.save()
+            if not child.reservation_number:
+                child.reservation_number = f'{child.id:06d}'
+                child.save(update_fields=['reservation_number'])
+            # Copia as PESSOAS (com a acomodação/quarto) — o usuário pode mover depois.
+            for g in parent.guests.all():
+                ContractGuest.objects.create(
+                    contract=child, passenger_id=g.passenger_id,
+                    accommodation_type_id=g.accommodation_type_id, ship_cabin_id=g.ship_cabin_id,
+                    accommodation_label=g.accommodation_label, capacity=g.capacity,
+                    room_group=g.room_group, order=g.order)
+        return Response(ContractSerializer(child, context={'request': request}).data, status=201)
 
     @action(detail=False, methods=['post'], url_path='preview')
     def preview(self, request):

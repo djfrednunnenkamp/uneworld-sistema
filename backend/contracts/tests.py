@@ -485,3 +485,43 @@ class OccupiedAccommodationPermissionTest(DjTestCase):
         s = ContractSerializer(data=self._payload(itin, acc), context={'request': self._req(user)})
         s.is_valid()
         self.assertNotIn('accommodation_lines', s.errors)
+
+
+class AddendumTest(_APITestCase):
+    """Contrato de adendo: nasce como rascunho vinculado ao original, herdando o
+    cabeçalho e as pessoas, mas SEM valores/pagamentos."""
+    def setUp(self):
+        from passengers.models import Passenger
+        from contracts.models import ContractGuest
+        self.admin = _mkuser('addadmin', superuser=True)
+        self.ag = Agency.objects.create(name='AgAdd', person_type='juridica')
+        self.pax = Passenger.objects.create(full_name='Fulano de Tal')
+        self.parent = Contract.objects.create(agency=self.ag, status='ativo', stage='em_pagamento',
+                                              package_name='Pacote X', base_currency='EUR',
+                                              exchange_rate=Decimal('6'), total_brl=Decimal('1000'),
+                                              reservation_number='000042')
+        ContractGuest.objects.create(contract=self.parent, passenger=self.pax, order=0, room_group=1)
+        self.client.force_authenticate(self.admin)
+
+    def test_create_addendum(self):
+        r = self.client.post(f'/api/contracts/{self.parent.id}/create-addendum/', {}, format='json')
+        self.assertEqual(r.status_code, 201)
+        d = r.json()
+        self.assertNotEqual(d['id'], self.parent.id)
+        self.assertEqual(d['parent_contract'], self.parent.id)
+        self.assertEqual(d['parent_reservation'], '000042')
+        self.assertEqual(d['agency'], self.ag.id)
+        self.assertEqual(d['package_name'], 'Pacote X')
+        self.assertEqual(d['base_currency'], 'EUR')
+        self.assertEqual(d['status'], 'rascunho')
+        self.assertEqual(d['stage'], 'em_edicao')
+        self.assertEqual(len(d['guests']), 1)                 # pessoas copiadas
+        self.assertEqual(d['accommodation_lines'], [])        # valores vazios
+        self.assertEqual(d['installments'], [])               # pagamentos vazios
+
+    def test_addendum_appears_in_list_with_parent(self):
+        cid = self.client.post(f'/api/contracts/{self.parent.id}/create-addendum/', {}, format='json').json()['id']
+        # o rascunho aparece na listagem de rascunhos com o vínculo
+        row = next(c for c in self.client.get('/api/contracts/?status=rascunho').json()['results'] if c['id'] == cid)
+        self.assertEqual(row['parent_contract'], self.parent.id)
+        self.assertEqual(row['parent_reservation'], '000042')
