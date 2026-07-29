@@ -896,6 +896,12 @@ class ItineraryPricingConfig(models.Model):
     # cuja capacidade tem preço, cada um usando a própria). As cabines de navio seguem
     # automáticas. Fonte de verdade da lista que vai para o contrato.
     contract_accommodations = models.JSONField('Acomodações do contrato', default=list, blank=True)
+    # Percentuais de reserva por roteiro. null = herda o padrão global
+    # (config_api.ReservationSettings). São editados no pop-up de Configuração da
+    # aba Valores; o que for definido aqui vale SÓ para este roteiro.
+    reserva_online_percent     = models.DecimalField('Reserva online (%)',     max_digits=6, decimal_places=2, null=True, blank=True)
+    pagamento_imediato_percent = models.DecimalField('Pagamento imediato (%)', max_digits=6, decimal_places=2, null=True, blank=True)
+    reserva_operadora_percent  = models.DecimalField('Reserva exclusiva da operadora (%)', max_digits=6, decimal_places=2, null=True, blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 

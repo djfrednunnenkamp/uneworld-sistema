@@ -943,12 +943,27 @@ class ItineraryListSerializer(serializers.ModelSerializer):
 
 # ═══════ Precificação (aba Valores) ═══════
 class ItineraryPricingConfigSerializer(serializers.ModelSerializer):
+    # Padrão global (config_api.ReservationSettings) para o pop-up pré-preencher os
+    # percentuais de reserva quando o roteiro ainda não tem override (campo null).
+    reservation_defaults = serializers.SerializerMethodField()
+
     class Meta:
         model = ItineraryPricingConfig
         fields = ['base_pax', 'min_pax', 'max_pax', 'free_pax', 'free_mode',
                   'rounding_mode', 'rounding_value', 'margin_mode', 'margin_percent',
                   'final_fee_percent', 'min_margin_percent', 'notes', 'price_overrides',
-                  'contract_accommodations']
+                  'contract_accommodations',
+                  'reserva_online_percent', 'pagamento_imediato_percent', 'reserva_operadora_percent',
+                  'reservation_defaults']
+
+    def get_reservation_defaults(self, obj):
+        from config_api.models import ReservationSettings
+        s = ReservationSettings.get()
+        return {
+            'reserva_online_percent':     s.reserva_online_percent,
+            'pagamento_imediato_percent': s.pagamento_imediato_percent,
+            'reserva_operadora_percent':  s.reserva_operadora_percent,
+        }
 
 
 class ItineraryCurrencyRateSerializer(serializers.ModelSerializer):
