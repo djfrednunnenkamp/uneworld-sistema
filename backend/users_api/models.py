@@ -123,6 +123,13 @@ class UserPermissions(models.Model):
     contracts_invoice_view = models.BooleanField(default=False)   # ver as abas "A faturar" e "Faturado"
     contracts_invoice = models.BooleanField(default=False)        # faturar (mover A faturar → Faturado)
     contracts_book_occupied = models.BooleanField(default=False)  # reservar acomodação marcada como ocupada/oculta no roteiro
+    contratos_sign = models.BooleanField(default=False)           # enviar contrato para assinatura (agência não tem)
+
+    # Reservas
+    reservas_view       = models.BooleanField(default=False)      # ver as reservas (da própria agência)
+    reservas_create     = models.BooleanField(default=False)      # criar reserva
+    reservas_cancel     = models.BooleanField(default=False)      # cancelar reserva
+    reservas_view_all   = models.BooleanField(default=False)      # ver as reservas de TODAS as agências (operadora)
 
     # Comissões dos vendedores (análise de vendas a partir dos contratos)
     commissions_view = models.BooleanField(default=False)         # acessar o módulo (por padrão vê só as PRÓPRIAS vendas)

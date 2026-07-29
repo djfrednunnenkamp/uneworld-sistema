@@ -105,6 +105,7 @@ urlpatterns = [
     path('api/audit/',    include('audit.urls')),
     path('api/agenda/',   include('agenda.urls')),
     path('api/contracts/', include('contracts.urls')),
+    path('api/reservations/', include('reservations.urls')),
     path('api/itineraries/', include('itineraries.urls')),
     path('api/financeiro/', include('financeiro.urls')),
     path('api/laminas/', include('laminas.urls')),

@@ -42,6 +42,12 @@ PERMISSION_FIELDS = [
     'contracts_invoice_view',
     'contracts_invoice',
     'contracts_book_occupied',
+    'contratos_sign',
+    # Reservas
+    'reservas_view',
+    'reservas_create',
+    'reservas_cancel',
+    'reservas_view_all',
     # Comissões dos vendedores
     'commissions_view',
     'commissions_view_all',

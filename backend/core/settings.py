@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'vouchers',
     'channels',
     'financeiro',
+    'reservations',
 ]
 
 # Drive (documentos na nuvem): por padrão os arquivos são PRIVADOS (só o dono vê).
