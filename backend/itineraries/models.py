@@ -1017,6 +1017,9 @@ class ItineraryCostPayment(models.Model):
     por parcela: data, valor, moeda e o câmbio (para reais) daquela parcela. É
     uma camada de contas-a-pagar por cima da precificação — não altera o preço."""
     cost_item     = models.ForeignKey(ItineraryCostItem, on_delete=models.CASCADE, related_name='payments')
+    # Índice da parcela do cronograma (payment_schedule) que este pagamento quita.
+    # null = pagamento avulso (custo sem cronograma).
+    installment_index = models.PositiveIntegerField('Parcela (índice)', null=True, blank=True)
     paid_on       = models.DateField('Data do pagamento', null=True, blank=True)
     amount        = models.DecimalField('Valor pago', max_digits=18, decimal_places=2, default=Decimal('0'))
     currency      = models.CharField('Moeda', max_length=3, blank=True, default='')   # vazio = moeda base do roteiro
