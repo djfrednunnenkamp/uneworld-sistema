@@ -501,6 +501,11 @@ class AddendumTest(_APITestCase):
                                               exchange_rate=Decimal('6'), total_brl=Decimal('1000'),
                                               reservation_number='000042')
         ContractGuest.objects.create(contract=self.parent, passenger=self.pax, order=0, room_group=1)
+        from config_api.models import ContractClause
+        self.clause = ContractClause.objects.create(name='Cláusula 1', content='<p>texto</p>')
+        self.parent.clauses.set([self.clause])
+        self.parent.custom_clauses = [{'name': 'Extra', 'content': '<p>x</p>'}]
+        self.parent.save(update_fields=['custom_clauses'])
         self.client.force_authenticate(self.admin)
 
     def test_create_addendum(self):
@@ -518,6 +523,8 @@ class AddendumTest(_APITestCase):
         self.assertEqual(len(d['guests']), 1)                 # pessoas copiadas
         self.assertEqual(d['accommodation_lines'], [])        # valores vazios
         self.assertEqual(d['installments'], [])               # pagamentos vazios
+        self.assertIn(self.clause.id, d['clauses'])           # cláusulas herdadas do original
+        self.assertEqual(d['custom_clauses'], [{'name': 'Extra', 'content': '<p>x</p>'}])
         # As pessoas vêm SEM quarto/acomodação — senão o modal geraria linhas de
         # Valores com os preços do pacote original (que é o que NÃO queremos).
         from contracts.models import ContractGuest as _CG

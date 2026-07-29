@@ -457,8 +457,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                              contract_date=timezone.now().date())
             for f in COPY:
                 setattr(child, f, getattr(parent, f))
+            child.custom_clauses = list(parent.custom_clauses or [])   # cláusulas herdadas do original
             child._skip_audit_signal = True
             child.save()
+            child.clauses.set(parent.clauses.all())                    # mesmas cláusulas (M2M) do contrato de origem
             if not child.reservation_number:
                 child.reservation_number = f'{child.id:06d}'
                 child.save(update_fields=['reservation_number'])
