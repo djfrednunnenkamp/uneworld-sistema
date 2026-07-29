@@ -207,6 +207,10 @@ class ContractAccommodationLine(models.Model):
                                              null=True, blank=True, related_name='+')
     accommodation_label  = models.CharField('Rótulo da acomodação', max_length=200, blank=True, default='')
     capacity             = models.PositiveIntegerField('Capacidade', null=True, blank=True)
+    # Moeda de EXIBIÇÃO/edição desta linha: '' = moeda base do contrato; 'BRL' = a
+    # linha foi digitada em reais. Os valores abaixo continuam SEMPRE na moeda base
+    # (canônico p/ o total); 'BRL' só faz o front mostrar/editar convertido (× câmbio).
+    currency             = models.CharField('Moeda da linha', max_length=3, blank=True, default='')
     value_per_person_usd = models.DecimalField('Valor por pessoa (USD)', max_digits=10, decimal_places=2, default=0)
     taxes_usd            = models.DecimalField('Taxas (USD)', max_digits=10, decimal_places=2, default=0)
     quantity              = models.PositiveIntegerField('Quantidade', default=1)

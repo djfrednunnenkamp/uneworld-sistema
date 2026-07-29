@@ -122,7 +122,7 @@ class ContractAccommodationLineSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ContractAccommodationLine
         fields = ['id', 'accommodation_type', 'accommodation_type_name',
-                  'ship_cabin', 'accommodation_label', 'capacity',
+                  'ship_cabin', 'accommodation_label', 'capacity', 'currency',
                   'value_per_person_usd', 'taxes_usd', 'quantity', 'order', 'total_usd']
 
     def get_accommodation_type_name(self, obj):
