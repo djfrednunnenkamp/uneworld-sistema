@@ -33,6 +33,7 @@ class KitLabelsTest(APITestCase):
         d = self.client.get(self.url).json()
         self.assertEqual(d['roteiro_name'], 'CHINA')                 # sem roteiro vinculado, cai no nome da lista
         self.assertEqual(d['period'], '21/03/2027 a 10/04/2027')
+        self.assertEqual(d['duration'], '21 dias / 20 noites')       # 21/03→10/04 = 20 noites
         self.assertEqual(len(d['passengers']), 1)
         p = d['passengers'][0]
         self.assertEqual(p['name'], 'Carla Beatriz')
@@ -44,12 +45,13 @@ class KitLabelsTest(APITestCase):
 
     def test_patch_saves_choice(self):
         custom = {'cep': '90000-000', 'street': 'Rua X', 'number': '9', 'city': 'Canoas', 'state': 'RS'}
-        r = self.client.patch(self.url, {'addresses': {str(self.pax.id): {'mode': 'custom', 'custom': custom}}}, format='json')
+        r = self.client.patch(self.url, {'addresses': {str(self.pax.id): {'mode': 'custom', 'custom': custom, 'recipient': 'Portaria Bloco B'}}}, format='json')
         self.assertEqual(r.status_code, 200)
         p = self.client.get(self.url).json()['passengers'][0]
         self.assertEqual(p['mode'], 'custom')
         self.assertEqual(p['custom']['street'], 'Rua X')
         self.assertEqual(p['custom']['city'], 'Canoas')
+        self.assertEqual(p['recipient'], 'Portaria Bloco B')         # nome de quem recebe (endereço digitado)
         # mode inválido cai para 'agency'
         self.client.patch(self.url, {'addresses': {str(self.pax.id): {'mode': 'xxx'}}}, format='json')
         self.assertEqual(self.client.get(self.url).json()['passengers'][0]['mode'], 'agency')

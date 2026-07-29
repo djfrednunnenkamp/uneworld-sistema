@@ -202,7 +202,8 @@ class VoucherViewSet(viewsets.ViewSet):
                 mode = cfg.get('mode') if cfg.get('mode') in ('agency', 'home', 'custom') else 'agency'
                 raw = cfg.get('custom')
                 custom = {k: str(raw.get(k) or '')[:120] for k in KEYS} if isinstance(raw, dict) else {}
-                clean[str(pid)] = {'mode': mode, 'custom': custom}
+                recipient = str(cfg.get('recipient') or '')[:120]   # nome de quem recebe (endereço digitado)
+                clean[str(pid)] = {'mode': mode, 'custom': custom, 'recipient': recipient}
             voucher.kit_addresses = clean
             voucher.save(update_fields=['kit_addresses'])
             return Response({'ok': True})
@@ -231,16 +232,22 @@ class VoucherViewSet(viewsets.ViewSet):
                 'home_address_lines': _kit_addr_lines(p),
                 'mode': cfg.get('mode') if cfg.get('mode') in ('agency', 'home', 'custom') else 'agency',
                 'custom': cfg.get('custom') if isinstance(cfg.get('custom'), dict) else {},
+                'recipient': cfg.get('recipient') or '',
             })
+        duration = ''
         if pl.start_date and pl.end_date:
             period = f'{pl.start_date.strftime("%d/%m/%Y")} a {pl.end_date.strftime("%d/%m/%Y")}'
+            nights = (pl.end_date - pl.start_date).days
+            if nights >= 0:
+                days = nights + 1
+                duration = f'{days} dias' + (f' / {nights} noites' if nights > 0 else '')
         elif pl.start_date:
             period = pl.start_date.strftime('%d/%m/%Y')
         else:
             period = ''
         roteiro_name = ', '.join(r.name for r in pl.roteiros.all()) or pl.name
         return Response({
-            'roteiro_name': roteiro_name, 'period': period,
+            'roteiro_name': roteiro_name, 'period': period, 'duration': duration,
             'operadora': operadora, 'passengers': passengers,
         })
 
