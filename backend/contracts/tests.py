@@ -539,3 +539,19 @@ class AddendumTest(_APITestCase):
         row = next(c for c in self.client.get('/api/contracts/?status=rascunho').json()['results'] if c['id'] == cid)
         self.assertEqual(row['parent_contract'], self.parent.id)
         self.assertEqual(row['parent_reservation'], '000042')
+
+    def test_blocked_when_trip_already_started(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        self.parent.departure_date = timezone.localdate() - timedelta(days=1)   # viagem começou ontem
+        self.parent.save(update_fields=['departure_date'])
+        r = self.client.post(f'/api/contracts/{self.parent.id}/create-addendum/', {}, format='json')
+        self.assertEqual(r.status_code, 400)
+        # começando HOJE também bloqueia (do dia de início em diante)
+        self.parent.departure_date = timezone.localdate()
+        self.parent.save(update_fields=['departure_date'])
+        self.assertEqual(self.client.post(f'/api/contracts/{self.parent.id}/create-addendum/', {}, format='json').status_code, 400)
+        # viagem no futuro: permite
+        self.parent.departure_date = timezone.localdate() + timedelta(days=5)
+        self.parent.save(update_fields=['departure_date'])
+        self.assertEqual(self.client.post(f'/api/contracts/{self.parent.id}/create-addendum/', {}, format='json').status_code, 201)

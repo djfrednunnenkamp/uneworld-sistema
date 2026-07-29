@@ -440,6 +440,10 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         from django.utils import timezone
         from .models import ContractGuest
         parent = self.get_object()   # já respeita o escopo de agência (get_queryset)
+        # Só dá pra aditar enquanto a VIAGEM não começou — do dia de início em diante,
+        # não. (Trava também no back, não só no botão do front.)
+        if parent.departure_date and parent.departure_date <= timezone.localdate():
+            return Response({'detail': 'Não é possível criar adendo: a viagem deste contrato já começou.'}, status=400)
         user = request.user
         COPY = [
             'agency_id', 'passenger_list_id', 'itinerary_id',
