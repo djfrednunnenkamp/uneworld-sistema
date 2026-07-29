@@ -319,9 +319,13 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     passenger_status      = serializers.SerializerMethodField()
     passenger_is_verified = serializers.SerializerMethodField()
     contract              = serializers.SerializerMethodField()
-    # Voucher: chave da entry e URL da confirmação de voo (mapa montado na view).
-    voucher_entry_key     = serializers.SerializerMethodField()
-    flight_confirmation   = serializers.SerializerMethodField()
+    # Voucher: chave da entry + confirmações de voo (mapa montado na view). O
+    # popup usa a lista completa (flight_confirmations) — igual ao dos vouchers;
+    # flight_confirmation (singular) fica por compatibilidade (URL da primeira).
+    voucher_entry_key      = serializers.SerializerMethodField()
+    flight_confirmation    = serializers.SerializerMethodField()
+    flight_confirmations   = serializers.SerializerMethodField()
+    voucher_passengers     = serializers.SerializerMethodField()
 
     def get_voucher_entry_key(self, obj):
         m = self.context.get('voucher_by_passenger') or {}
@@ -330,6 +334,14 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
     def get_flight_confirmation(self, obj):
         m = self.context.get('voucher_by_passenger') or {}
         return m.get(obj.passenger_id, {}).get('flight_confirmation') if obj.passenger_id else None
+
+    def get_flight_confirmations(self, obj):
+        m = self.context.get('voucher_by_passenger') or {}
+        return m.get(obj.passenger_id, {}).get('flight_confirmations', []) if obj.passenger_id else []
+
+    def get_voucher_passengers(self, obj):
+        m = self.context.get('voucher_by_passenger') or {}
+        return m.get(obj.passenger_id, {}).get('passengers', []) if obj.passenger_id else []
 
     def _p(self, obj): return obj.passenger  # helper
 
@@ -592,7 +604,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'origin_airport', 'origin_airport_data',
             'ticket_status', 'connection_ticket_status',
             'selected_passport', 'selected_passport_data',
-            'voucher_entry_key', 'flight_confirmation',
+            'voucher_entry_key', 'flight_confirmation', 'flight_confirmations', 'voucher_passengers',
             'passenger_special_needs',
             'order_in_list', 'enrolled_at', 'notes',
         ]

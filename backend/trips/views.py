@@ -474,6 +474,8 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                         voucher_by_passenger[pid] = {
                             'entry_key': en['key'],
                             'flight_confirmation': en.get('flight_confirmation'),
+                            'flight_confirmations': en.get('flight_confirmations', []),
+                            'passengers': en.get('passengers', []),
                         }
             except Exception:
                 voucher_by_passenger = {}
