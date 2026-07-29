@@ -11,6 +11,43 @@ from .middleware import get_current_user, get_current_ip, get_current_source
 _log = logging.getLogger('audit')
 
 
+def _snapshot_actor_avatar(user):
+    """Congela a foto atual do autor numa cópia compartilhada (AuditActorAvatar),
+    deduplicada pelo caminho do arquivo original. Copia a imagem só na PRIMEIRA vez
+    que aquela foto aparece; depois só reaproveita a linha. Retorna a instância (ou
+    None se não há foto / falha). Best-effort: nunca derruba a gravação do log."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    try:
+        perms = getattr(user, 'permissions', None)
+        av = getattr(perms, 'avatar', None) if perms else None
+        name = getattr(av, 'name', '') if av else ''
+        if not name:
+            return None
+        from .models import AuditActorAvatar
+        existing = AuditActorAvatar.objects.filter(source_name=name).first()
+        if existing:
+            return existing
+        import os
+        from django.db import IntegrityError
+        from django.core.files.base import ContentFile
+        av.open('rb')
+        try:
+            data = av.read()
+        finally:
+            av.close()
+        snap = AuditActorAvatar(source_name=name)
+        try:
+            snap.image.save(os.path.basename(name), ContentFile(data), save=True)
+        except IntegrityError:
+            # Corrida: outro log criou a mesma foto ao mesmo tempo — reaproveita.
+            return AuditActorAvatar.objects.filter(source_name=name).first()
+        return snap
+    except Exception:
+        _log.exception('Falha ao congelar avatar de auditoria')
+        return None
+
+
 def _safe_create(**kwargs):
     """Grava um AuditLog isolando a escrita num savepoint próprio.
 
@@ -21,6 +58,10 @@ def _safe_create(**kwargs):
     O registro confiável continua no back-end; só deixamos de matar o pedido
     legítimo por causa de um erro de logging."""
     from .models import AuditLog
+    # Congela a foto do autor no momento do log (fora do savepoint do log: se falhar,
+    # não rola atrás nada; o log ainda é gravado, só sem a foto congelada).
+    if 'actor_avatar' not in kwargs:
+        kwargs['actor_avatar'] = _snapshot_actor_avatar(kwargs.get('user'))
     try:
         with transaction.atomic():
             AuditLog.objects.create(**kwargs)

@@ -41,6 +41,10 @@ class AuditLogSerializer(serializers.ModelSerializer):
         return audit_files.file_kind_of(obj) if audit_files.has_servable_file(obj) else None
 
     def get_user_avatar(self, obj):
+        # Foto CONGELADA no momento do log (não muda se o autor trocar a foto depois).
+        if obj.actor_avatar_id and obj.actor_avatar.image:
+            return obj.actor_avatar.image.url
+        # Legado (logs criados antes do snapshot): cai na foto atual do usuário.
         u = obj.user
         perms = getattr(u, 'permissions', None) if u else None
         return perms.avatar.url if (perms and perms.avatar) else None
@@ -160,7 +164,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return resp
 
     def get_queryset(self):
-        qs = AuditLog.objects.select_related('user', 'user__permissions').all()
+        qs = AuditLog.objects.select_related('user', 'user__permissions', 'actor_avatar').all()
         action = self.request.query_params.get('action')
         model  = self.request.query_params.get('model')
         user_search = self.request.query_params.get('user')
@@ -411,7 +415,7 @@ from rest_framework.decorators import api_view, permission_classes as drf_permis
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from audit.middleware import get_current_ip
-from audit.tracking import user_display
+from audit.tracking import user_display, _snapshot_actor_avatar
 
 
 # Modelos que os logs disparados pelo cliente podem referenciar além dos rastreados
@@ -457,7 +461,7 @@ def _log_client_event(request, action, default_model_name, default_model_label):
         model_name=model_name, model_label=model_label,
         object_id=object_id, object_repr=label,
         changes=summary if isinstance(summary, dict) else {},
-        ip_address=get_current_ip(),
+        ip_address=get_current_ip(), actor_avatar=_snapshot_actor_avatar(user),
     )
     return Response({'ok': True}, status=201)
 
@@ -553,7 +557,7 @@ def log_page_view(request):
         model_name='PageView', model_label='Navegação',
         object_id=str(request.data.get('object_id') or ''), object_repr=label or path,
         changes={'Caminho': path} if label else {},
-        ip_address=get_current_ip(),
+        ip_address=get_current_ip(), actor_avatar=_snapshot_actor_avatar(user),
     )
     return Response({'ok': True}, status=201)
 
@@ -571,6 +575,7 @@ def log_actions(request):
     user = request.user
     ud = user_display(user)
     ip = get_current_ip()
+    snap = _snapshot_actor_avatar(user)   # foto congelada — a mesma p/ todos os eventos deste lote
     rows = []
     for e in events[:200]:   # trava de segurança
         label = (str(e.get('label') or '')).strip()[:200]
@@ -582,6 +587,7 @@ def log_actions(request):
             model_name='PageView', model_label='Navegação',
             object_id=str(e.get('object_id') or ''), object_repr=label,
             changes={'Caminho': path} if path else {}, ip_address=ip,
+            actor_avatar=snap,
         ))
     if rows:
         AuditLog.objects.bulk_create(rows)

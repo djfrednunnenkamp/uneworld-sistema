@@ -44,4 +44,26 @@ def prune_audit_logs():
         if n:
             logger.info('[AUDIT RETENÇÃO] %s log(s) de mudança apagado(s) (>%s dias).', n, chg_days)
 
+    if total:
+        prune_orphan_avatars()
     return total
+
+
+def prune_orphan_avatars():
+    """Remove as fotos congeladas (AuditActorAvatar) que não são mais referenciadas
+    por NENHUM log — ou seja, quando o último log que mostrava aquela foto foi
+    apagado. Apaga também o arquivo da imagem do storage. Devolve quantas removeu."""
+    from .models import AuditActorAvatar
+    orphans = AuditActorAvatar.objects.filter(logs__isnull=True)
+    count = 0
+    for a in orphans.iterator():
+        try:
+            if a.image:
+                a.image.delete(save=False)   # remove o arquivo do storage
+        except Exception:
+            logger.exception('[AUDIT RETENÇÃO] falha ao apagar arquivo de foto congelada %s', a.source_name)
+        a.delete()
+        count += 1
+    if count:
+        logger.info('[AUDIT RETENÇÃO] %s foto(s) congelada(s) órfã(s) removida(s).', count)
+    return count

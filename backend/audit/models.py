@@ -2,6 +2,21 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+class AuditActorAvatar(models.Model):
+    """Cópia CONGELADA da foto do autor no momento do log. Assim, se a pessoa
+    trocar (ou remover) a foto depois, os logs ANTIGOS continuam mostrando a foto
+    que ela tinha na época. É COMPARTILHADA por todos os logs feitos com aquela
+    mesma foto (dedupe por `source_name` = caminho do arquivo original), então a
+    imagem é copiada uma única vez por foto. É removida do banco (com o arquivo)
+    quando o ÚLTIMO log que a referencia é apagado — ver audit/retention.py."""
+    source_name = models.CharField('Arquivo de origem', max_length=500, unique=True, db_index=True)
+    image       = models.ImageField('Foto congelada', upload_to='audit_avatars/')
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'AuditActorAvatar<{self.source_name}>'
+
+
 class AuditLog(models.Model):
     ACTION_CHOICES = [
         ('create', 'Criado'),
@@ -31,6 +46,9 @@ class AuditLog(models.Model):
     user         = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
                                      verbose_name='Usuário', related_name='audit_logs')
     user_display = models.CharField('Usuário', max_length=200, blank=True)
+    # Foto do autor CONGELADA no momento do log (não muda se ele trocar a foto depois).
+    actor_avatar = models.ForeignKey('AuditActorAvatar', null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name='logs')
     # Origem da ação: 'system' (automática, sem usuário), 'user' (pessoa direto na
     # tela) ou 'csv' (pessoa via importação de planilha). Vazio nos registros
     # antigos — o serializer deriva system/user pela presença de usuário.
