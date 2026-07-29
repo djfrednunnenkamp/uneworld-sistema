@@ -24,7 +24,7 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      ConfigFlightSegment, ConfigFlightClass,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
                      ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
-                     ConfigTerrestreCompany, DocumentTemplateConfig)
+                     ConfigTerrestreCompany, DocumentTemplateConfig, ConfigJobRole)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -940,6 +940,24 @@ class CostCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigCostCategory
         fields = ['id', 'name']
+
+
+class JobRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigJobRole
+        fields = ['id', 'name']
+
+
+class JobRoleViewSet(viewsets.ModelViewSet):
+    """Cargos (CEO, Gerência, Vendas…) escolhidos no perfil do usuário."""
+    serializer_class = JobRoleSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_job_roles')
+
+    def get_queryset(self):
+        qs = ConfigJobRole.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        return qs.filter(name__icontains=q) if q else qs
 
 
 class CostCategoryViewSet(viewsets.ModelViewSet):

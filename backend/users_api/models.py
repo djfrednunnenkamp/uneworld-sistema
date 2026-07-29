@@ -54,6 +54,9 @@ class UserPermissions(models.Model):
     is_seller  = models.BooleanField('Vendedor', default=False)
     # Comissão do vendedor em % (aplicável quando is_seller). Null = sem comissão definida.
     seller_commission_percent = models.DecimalField('Comissão do vendedor (%)', max_digits=6, decimal_places=2, null=True, blank=True)
+    # Cargo/função na operadora (CEO, Gerência, Vendas…) — catálogo em Configurações › Cargos.
+    job_role = models.ForeignKey('config_api.ConfigJobRole', on_delete=models.SET_NULL,
+                                 null=True, blank=True, related_name='users', verbose_name='Cargo')
     # Foto de perfil. Sempre revalidada e re-encodada como JPEG no upload (seguro).
     # `avatar` = recorte exibido; `avatar_original` = imagem completa enviada;
     # `avatar_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.
@@ -303,6 +306,9 @@ class UserPermissions(models.Model):
     settings_user_profiles_edit      = models.BooleanField(default=False)
     settings_user_profiles_delete    = models.BooleanField(default=False)
     settings_user_profiles_bulk_import = models.BooleanField(default=False)
+    settings_job_roles_view          = models.BooleanField(default=False)
+    settings_job_roles_edit          = models.BooleanField(default=False)
+    settings_job_roles_delete        = models.BooleanField(default=False)
     settings_list_additionals_view         = models.BooleanField(default=False)
     settings_list_additionals_edit         = models.BooleanField(default=False)
     settings_list_additionals_delete       = models.BooleanField(default=False)

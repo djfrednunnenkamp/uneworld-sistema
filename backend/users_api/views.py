@@ -46,6 +46,15 @@ def _needs_terms_acceptance(perms):
     return perms.terms_accepted_at < terms.updated_at
 
 
+def _valid_job_role_id(v):
+    """Normaliza o cargo recebido: só aceita um id de ConfigJobRole existente; senão
+    None (limpa o cargo). Import local para evitar ciclo config_api ↔ users_api."""
+    if not v:
+        return None
+    from config_api.models import ConfigJobRole
+    return v if ConfigJobRole.objects.filter(id=v).exists() else None
+
+
 def serialize_user(u, perms=None):
     perms = perms or get_user_permissions(u)
     scope = agency_scope_ids(u)   # None p/ interno/superusuário; lista de ids p/ usuário de agência
@@ -74,6 +83,8 @@ def serialize_user(u, perms=None):
         'phone':        perms.phone,
         'is_seller':    perms.is_seller,
         'seller_commission_percent': perms.seller_commission_percent,
+        'job_role':      perms.job_role_id,
+        'job_role_name': perms.job_role.name if perms.job_role_id else None,
         'avatar_url':   perms.avatar.url if perms.avatar else None,
         'avatar_original_url': perms.avatar_original.url if perms.avatar_original else None,
         'avatar_crop':  perms.avatar_crop or {},
@@ -435,7 +446,7 @@ def user_create(request):
         target_agency = req_ag if req_ag in actor_admin_ids else actor_admin_ids[0]
         AgencyMember.objects.get_or_create(agency_id=target_agency, user=user, defaults={'role': 'operator'})
 
-    if 'phone' in data or 'is_seller' in data or 'seller_commission_percent' in data:
+    if 'phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data:
         perms = get_user_permissions(user)
         fields = []
         if 'phone' in data:
@@ -446,6 +457,8 @@ def user_create(request):
             v = data.get('seller_commission_percent')
             perms.seller_commission_percent = None if v in (None, '') else v
             fields.append('seller_commission_percent')
+        if 'job_role' in data:
+            perms.job_role_id = _valid_job_role_id(data.get('job_role')); fields.append('job_role')
         perms.save(update_fields=fields)
 
     # Sempre envia convite por e-mail para o novo usuário definir a própria senha
@@ -539,7 +552,7 @@ def user_update(request, pk):
                     perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
-    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data)
+    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data)
             and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit)):
         perms = get_user_permissions(user)
         fields = []
@@ -551,6 +564,8 @@ def user_update(request, pk):
             v = data.get('seller_commission_percent')
             perms.seller_commission_percent = None if v in (None, '') else v
             fields.append('seller_commission_percent')
+        if 'job_role' in data:
+            perms.job_role_id = _valid_job_role_id(data.get('job_role')); fields.append('job_role')
         perms.save(update_fields=fields)
     # Se virou conta interna (staff/superusuário), deixa de ser usuário de agência →
     # remove os vínculos de agência (senão continuava aparecendo na agência).

@@ -29,6 +29,20 @@ class ConfigProfession(models.Model):
         return self.name
 
 
+class ConfigJobRole(models.Model):
+    """Cargo/função da pessoa na operadora (ex.: CEO, Gerência, Vendas). Cadastrado
+    nas Configurações e escolhido no perfil de cada usuário."""
+    name = models.CharField('Nome', max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Cargo'
+        verbose_name_plural = 'Cargos'
+
+    def __str__(self):
+        return self.name
+
+
 class ConfigSpecialNeed(models.Model):
     """Catálogo de necessidades especiais dos passageiros (ex.: Cadeirante, Cego,
     Autista). O passageiro referencia N destes (M2M)."""

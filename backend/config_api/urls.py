@@ -32,6 +32,7 @@ router.register('maritime-companies',   views.MaritimeCompanyViewSet,    basenam
 router.register('currencies',           views.CurrencyViewSet,           basename='currency')
 router.register('keywords',              views.KeywordViewSet,            basename='keyword')
 router.register('cost-categories',       views.CostCategoryViewSet,       basename='cost-category')
+router.register('job-roles',             views.JobRoleViewSet,            basename='job-role')
 router.register('flight-segments',       views.FlightSegmentViewSet,      basename='flight-segment')
 router.register('flight-classes',        views.FlightClassViewSet,        basename='flight-class')
 router.register('inclusions',            views.InclusionViewSet,          basename='inclusion')

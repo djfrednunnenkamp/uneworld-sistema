@@ -469,3 +469,28 @@ class InternalDropsAgencyMembershipTest(APITestCase):
         r = self.client.patch(f'/api/users/{self.u.id}/', {'is_superuser': True}, format='json')
         self.assertEqual(r.status_code, 200, r.data)
         self.assertFalse(AgencyMember.objects.filter(user=self.u).exists())  # vínculo removido
+
+
+class JobRoleAssignmentTest(APITestCase):
+    """Cargo (ConfigJobRole) escolhido no perfil do usuário: persiste em
+    UserPermissions.job_role e volta serializado; id inválido vira None."""
+    def setUp(self):
+        from config_api.models import ConfigJobRole
+        self.admin = make_user('roleadmin', superuser=True)
+        self.target = make_user('roletarget')
+        self.ceo = ConfigJobRole.objects.create(name='CEO')
+        self.client.force_authenticate(self.admin)
+
+    def test_set_and_clear_job_role(self):
+        r = self.client.patch(f'/api/users/{self.target.id}/', {'job_role': self.ceo.id}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['job_role'], self.ceo.id)
+        self.assertEqual(r.json()['job_role_name'], 'CEO')
+        # limpar
+        r = self.client.patch(f'/api/users/{self.target.id}/', {'job_role': None}, format='json')
+        self.assertIsNone(r.json()['job_role'])
+
+    def test_invalid_job_role_becomes_none(self):
+        r = self.client.patch(f'/api/users/{self.target.id}/', {'job_role': 999999}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(r.json()['job_role'])
