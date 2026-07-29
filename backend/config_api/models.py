@@ -721,6 +721,29 @@ class SystemSettings(models.Model):
         return obj
 
 
+class ReservationSettings(models.Model):
+    """Singleton de configurações de reserva.
+
+    Guarda os percentuais usados ao criar uma reserva. São três tipos, cada um
+    com o seu percentual: reserva online, pagamento imediato e a reserva
+    exclusiva — este último só a operadora pode marcar."""
+    reserva_online_percent      = models.DecimalField('Reserva online (%)',      max_digits=6, decimal_places=2, default=0)
+    pagamento_imediato_percent  = models.DecimalField('Pagamento imediato (%)',  max_digits=6, decimal_places=2, default=0)
+    reserva_operadora_percent   = models.DecimalField('Reserva exclusiva da operadora (%)', max_digits=6, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = 'Configurações de reserva'
+        verbose_name_plural = 'Configurações de reserva'
+
+    def __str__(self):
+        return 'Configurações de reserva'
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class ConfigItineraryCategory(models.Model):
     """Categoria de roteiro (ex: Grupos Internacionais, Grupos Nacionais)."""
     name = models.CharField('Nome', max_length=200, unique=True)

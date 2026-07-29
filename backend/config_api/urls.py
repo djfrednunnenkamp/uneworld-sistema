@@ -54,6 +54,7 @@ urlpatterns = [
     path('geo/analyze/',      views.geo_analyze,        name='geo-analyze'),
     path('geo/action/',       views.geo_import_action,  name='geo-action'),
     path('system-settings/',  views.system_settings,    name='system-settings'),
+    path('reservation-settings/', views.reservation_settings, name='reservation-settings'),
     path('branding/',            views.branding_logos,      name='branding-logos'),
     path('branding-title/',      views.branding_title_set,  name='branding-title-set'),
     path('branding-colors/',     views.branding_colors_set, name='branding-colors-set'),

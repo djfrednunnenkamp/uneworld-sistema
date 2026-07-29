@@ -24,7 +24,7 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      ConfigFlightSegment, ConfigFlightClass,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
                      ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
-                     ConfigTerrestreCompany, DocumentTemplateConfig, ConfigJobRole)
+                     ConfigTerrestreCompany, DocumentTemplateConfig, ConfigJobRole, ReservationSettings)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -2232,6 +2232,30 @@ def system_settings(request):
     if not is_admin:
         data = {k: data.get(k) for k in ('a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method')}
     return Response(data)
+
+
+# ── Configurações de reserva (percentuais) ──────────────────────────────────
+
+class ReservationSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = ReservationSettings
+        fields = ['reserva_online_percent', 'pagamento_imediato_percent', 'reserva_operadora_percent']
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def reservation_settings(request):
+    u = request.user
+    is_admin = bool(u and (u.is_staff or u.is_superuser))
+    obj = ReservationSettings.get()
+    if request.method == 'PATCH':
+        # Só a operadora (admin) pode marcar/editar esses percentuais.
+        if not is_admin:
+            return Response({'detail': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        ser = ReservationSettingsSerializer(obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+    return Response(ReservationSettingsSerializer(obj).data)
 
 
 # ── Logos configuráveis por lugar (branding) ────────────────────────────────
