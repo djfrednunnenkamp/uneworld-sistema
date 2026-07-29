@@ -78,6 +78,18 @@ def _in_range(d, f):
     return True
 
 
+def _clamp_past(f, can_past):
+    """Sem a permissão de ver o passado, empurra o início do período para HOJE —
+    o usuário só enxerga de hoje em diante (nada vencido/histórico). Devolve uma
+    CÓPIA do filtro (não muta o original)."""
+    f = dict(f or {})
+    if not can_past:
+        t = str(today())
+        if not f.get('from') or f['from'] < t:
+            f['from'] = t
+    return f
+
+
 # ── ENTRADAS PREVISTAS (recebíveis) ─────────────────────────────────────────
 def receivables_qs(user, f):
     qs = (ContractInstallment.objects
@@ -112,7 +124,8 @@ def _rec_status(inst, t):
     return 'previsto'
 
 
-def receivables_report(user, f, limit=300):
+def receivables_report(user, f, limit=300, can_past=True):
+    f = _clamp_past(f, can_past)
     t = today()
     rows = list(receivables_qs(user, f))
     method_of = lambda i: (i.payment_method or i.contract.payment_type or '—')
@@ -225,7 +238,8 @@ def payables_rows(user, f):
     return out
 
 
-def payables_report(user, f, limit=400):
+def payables_report(user, f, limit=400, can_past=True):
+    f = _clamp_past(f, can_past)
     t = today()
     rows = payables_rows(user, f)
     cards = {k: Decimal('0') for k in ('hoje', 'amanha', 'd7', 'mes', 'prox_mes', 'ano', 'vencido', 'sem_data', 'sem_cotacao')}
@@ -289,8 +303,8 @@ def payables_report(user, f, limit=400):
 
 
 # ── FLUXO DE CAIXA (previsto): entradas − saídas por mês, em BRL ────────────
-def cashflow_report(user, f, opening=Decimal('0')):
-    rec = receivables_report(user, f, limit=0) if False else None
+def cashflow_report(user, f, opening=Decimal('0'), can_past=True):
+    f = _clamp_past(f, can_past)
     # Reusa os agregados mensais dos dois lados.
     t = today()
     rec_rows = list(receivables_qs(user, f))

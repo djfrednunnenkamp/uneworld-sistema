@@ -126,10 +126,11 @@ class UserPermissions(models.Model):
     panels_view = models.BooleanField(default=False)             # ver os Painéis de Visualização (cards/gráficos de vendas)
 
     # Financeiro (previsto): entradas de contratos + contas a pagar dos custos + fluxo de caixa
-    financeiro_view        = models.BooleanField(default=False)  # acessar o módulo Financeiro
-    financeiro_receivables = models.BooleanField(default=False)  # aba "Entradas previstas"
-    financeiro_payables    = models.BooleanField(default=False)  # aba "Contas a pagar" (custos internos)
-    financeiro_cashflow    = models.BooleanField(default=False)  # aba "Fluxo de caixa"
+    financeiro_view        = models.BooleanField(default=False)  # acessar o módulo Financeiro (pré-requisito)
+    financeiro_receivables = models.BooleanField(default=False)  # aba "Entradas previstas" (exige view)
+    financeiro_payables    = models.BooleanField(default=False)  # aba "Contas a pagar" (custos internos; exige view)
+    financeiro_cashflow    = models.BooleanField(default=False)  # aba "Fluxo de caixa" (exige view)
+    financeiro_past        = models.BooleanField(default=False)  # ver datas passadas (vencidos/histórico); senão só de hoje em diante
 
     # Roteiros — Ver a lista → Abrir (só leitura) → Editar → Criar
     roteiros_view      = models.BooleanField(default=False)   # ver a LISTA de roteiros

@@ -52,6 +52,7 @@ PERMISSION_FIELDS = [
     'financeiro_receivables',
     'financeiro_payables',
     'financeiro_cashflow',
+    'financeiro_past',
     # Roteiros
     'roteiros_view',
     'roteiros_open',

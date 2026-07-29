@@ -148,14 +148,69 @@ class CashflowTest(APITestCase):
 
 
 class PermissionGateTest(APITestCase):
-    def test_endpoints_require_permission(self):
+    def test_no_permission_denied(self):
         u = make_user('noperm')
         self.client.force_authenticate(u)
         for path in ('/api/financeiro/receivables/', '/api/financeiro/payables/',
                      '/api/financeiro/cashflow/', '/api/financeiro/meta/'):
             self.assertEqual(self.client.get(path).status_code, 403, path)
 
-    def test_view_perm_allows(self):
-        u = make_user('okperm', financeiro_view=True)
+    def test_view_alone_cannot_see_tabs(self):
+        # financeiro_view abre o módulo (meta ok) mas NÃO libera aba nenhuma (E, não OU).
+        u = make_user('viewonly', financeiro_view=True)
+        self.client.force_authenticate(u)
+        self.assertEqual(self.client.get('/api/financeiro/meta/').status_code, 200)
+        self.assertEqual(self.client.get('/api/financeiro/receivables/').status_code, 403)
+        self.assertEqual(self.client.get('/api/financeiro/payables/').status_code, 403)
+        self.assertEqual(self.client.get('/api/financeiro/cashflow/').status_code, 403)
+
+    def test_tab_perm_without_view_denied(self):
+        # Ter a permissão da aba sem acessar o módulo não basta.
+        u = make_user('tabonly', financeiro_receivables=True)
+        self.client.force_authenticate(u)
+        self.assertEqual(self.client.get('/api/financeiro/receivables/').status_code, 403)
+
+    def test_view_plus_tab_allows_only_that_tab(self):
+        u = make_user('recv', financeiro_view=True, financeiro_receivables=True)
         self.client.force_authenticate(u)
         self.assertEqual(self.client.get('/api/financeiro/receivables/').status_code, 200)
+        self.assertEqual(self.client.get('/api/financeiro/payables/').status_code, 403)
+        self.assertEqual(self.client.get('/api/financeiro/cashflow/').status_code, 403)
+
+    def test_meta_reports_capabilities(self):
+        u = make_user('caps', financeiro_view=True, financeiro_cashflow=True, financeiro_past=True)
+        self.client.force_authenticate(u)
+        can = self.client.get('/api/financeiro/meta/').json()['can']
+        self.assertFalse(can['receivables'])
+        self.assertFalse(can['payables'])
+        self.assertTrue(can['cashflow'])
+        self.assertTrue(can['past'])
+
+
+class PastPermissionTest(APITestCase):
+    def setUp(self):
+        S.clear_rate_cache()
+        self.today = S.today()
+        self.ag = Agency.objects.create(name='AgPast')
+        c = Contract.objects.create(base_currency='USD', agency=self.ag, exchange_rate=Decimal('5'),
+                                    stage='em_edicao', status='ativo', payment_type='parcelado')
+        # uma parcela VENCIDA (passado) e uma FUTURA
+        ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=1,
+                                            due_date=self.today - timedelta(days=30),
+                                            value_brl=Decimal('300'), payment_method='Pix')
+        ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=2,
+                                            due_date=self.today + timedelta(days=30),
+                                            value_brl=Decimal('700'), payment_method='Pix')
+
+    def test_without_past_hides_overdue(self):
+        u = make_user('nopast', superuser=True)
+        # can_past=False → só a parcela futura (700); a vencida (300) fica de fora
+        rep = S.receivables_report(u, {}, can_past=False)
+        self.assertEqual(rep['count'], 1)
+        self.assertEqual(Decimal(rep['cards']['vencido']), Decimal('0.00'))
+
+    def test_with_past_shows_everything(self):
+        u = make_user('withpast', superuser=True)
+        rep = S.receivables_report(u, {}, can_past=True)
+        self.assertEqual(rep['count'], 2)
+        self.assertEqual(Decimal(rep['cards']['vencido']), Decimal('300.00'))
