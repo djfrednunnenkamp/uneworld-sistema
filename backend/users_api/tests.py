@@ -494,3 +494,18 @@ class JobRoleAssignmentTest(APITestCase):
         r = self.client.patch(f'/api/users/{self.target.id}/', {'job_role': 999999}, format='json')
         self.assertEqual(r.status_code, 200)
         self.assertIsNone(r.json()['job_role'])
+
+
+class ShowOnSiteFlagTest(APITestCase):
+    """Flag 'Mostrar no site' persiste em UserPermissions.show_on_site."""
+    def setUp(self):
+        self.admin = make_user('siteadmin', superuser=True)
+        self.target = make_user('sitetarget')
+        self.client.force_authenticate(self.admin)
+
+    def test_toggle_show_on_site(self):
+        r = self.client.patch(f'/api/users/{self.target.id}/', {'show_on_site': True}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()['show_on_site'])
+        r = self.client.patch(f'/api/users/{self.target.id}/', {'show_on_site': False}, format='json')
+        self.assertFalse(r.json()['show_on_site'])

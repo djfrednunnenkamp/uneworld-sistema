@@ -57,6 +57,8 @@ class UserPermissions(models.Model):
     # Cargo/função na operadora (CEO, Gerência, Vendas…) — catálogo em Configurações › Cargos.
     job_role = models.ForeignKey('config_api.ConfigJobRole', on_delete=models.SET_NULL,
                                  null=True, blank=True, related_name='users', verbose_name='Cargo')
+    # Exibir esta pessoa na página pública "equipe" do site (flag; o resto vem depois).
+    show_on_site = models.BooleanField('Mostrar no site', default=False)
     # Foto de perfil. Sempre revalidada e re-encodada como JPEG no upload (seguro).
     # `avatar` = recorte exibido; `avatar_original` = imagem completa enviada;
     # `avatar_crop` = enquadramento (u,v,du,dv,fw,fh) → dá para reabrir e desfazer.

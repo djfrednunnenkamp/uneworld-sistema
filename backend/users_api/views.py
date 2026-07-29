@@ -85,6 +85,7 @@ def serialize_user(u, perms=None):
         'seller_commission_percent': perms.seller_commission_percent,
         'job_role':      perms.job_role_id,
         'job_role_name': perms.job_role.name if perms.job_role_id else None,
+        'show_on_site':  perms.show_on_site,
         'avatar_url':   perms.avatar.url if perms.avatar else None,
         'avatar_original_url': perms.avatar_original.url if perms.avatar_original else None,
         'avatar_crop':  perms.avatar_crop or {},
@@ -446,7 +447,7 @@ def user_create(request):
         target_agency = req_ag if req_ag in actor_admin_ids else actor_admin_ids[0]
         AgencyMember.objects.get_or_create(agency_id=target_agency, user=user, defaults={'role': 'operator'})
 
-    if 'phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data:
+    if 'phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data or 'show_on_site' in data:
         perms = get_user_permissions(user)
         fields = []
         if 'phone' in data:
@@ -459,6 +460,8 @@ def user_create(request):
             fields.append('seller_commission_percent')
         if 'job_role' in data:
             perms.job_role_id = _valid_job_role_id(data.get('job_role')); fields.append('job_role')
+        if 'show_on_site' in data:
+            perms.show_on_site = bool(data.get('show_on_site')); fields.append('show_on_site')
         perms.save(update_fields=fields)
 
     # Sempre envia convite por e-mail para o novo usuário definir a própria senha
@@ -552,7 +555,7 @@ def user_update(request, pk):
                     perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
-    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data)
+    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data or 'show_on_site' in data)
             and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit)):
         perms = get_user_permissions(user)
         fields = []
@@ -566,6 +569,8 @@ def user_update(request, pk):
             fields.append('seller_commission_percent')
         if 'job_role' in data:
             perms.job_role_id = _valid_job_role_id(data.get('job_role')); fields.append('job_role')
+        if 'show_on_site' in data:
+            perms.show_on_site = bool(data.get('show_on_site')); fields.append('show_on_site')
         perms.save(update_fields=fields)
     # Se virou conta interna (staff/superusuário), deixa de ser usuário de agência →
     # remove os vínculos de agência (senão continuava aparecendo na agência).
