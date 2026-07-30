@@ -1022,7 +1022,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
-                           'pricing_config', 'import_kml_preview', 'set_pending'):
+                           'pricing_config', 'import_kml_preview', 'set_pending', 'markup_summary'):
             return [RequirePermission('roteiros_edit')()]
         if self.action == 'list':
             # Também quem faz contratos: o seletor de roteiro do contrato lista os
@@ -1214,6 +1214,31 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         obj = self.get_object()
         pax = request.query_params.get('pax')
         return Response(pricing_engine.compute(obj, pax=int(pax) if pax else None))
+
+    @action(detail=True, methods=['get'], url_path='markup-summary')
+    def markup_summary(self, request, pk=None):
+        """Lucro/perda do MARKUP a partir dos contratos ATIVOS do roteiro: a nossa
+        comissão (venda − net) MENOS a comissão da agência. Visão da operadora (sem
+        escopo de vendedor). Reusa contracts.commissions (fonte única)."""
+        from decimal import Decimal
+        from contracts.models import Contract
+        from contracts.commissions import summarize
+        qs = (Contract.objects.filter(itinerary_id=pk, is_deleted=False, status='ativo')
+              .select_related('agency', 'itinerary', 'itinerary__pricing',
+                              'seller', 'seller__permissions', 'created_by', 'created_by__permissions')
+              .prefetch_related('accommodation_lines', 'guests'))
+        s = summarize(qs)
+        op_brl, ag_brl = Decimal(s['operator_commission_brl']), Decimal(s['agency_commission_brl'])
+        op_usd, ag_usd = Decimal(s['operator_commission_usd']), Decimal(s['agency_commission_usd'])
+        return Response({
+            'contracts': s['contracts'],
+            'operator_commission_brl': s['operator_commission_brl'],
+            'agency_commission_brl': s['agency_commission_brl'],
+            'operator_commission_usd': s['operator_commission_usd'],
+            'agency_commission_usd': s['agency_commission_usd'],
+            'markup_profit_brl': str(op_brl - ag_brl),
+            'markup_profit_usd': str(op_usd - ag_usd),
+        })
 
     @action(detail=True, methods=['get'], url_path='pricing-simulate')
     def pricing_simulate(self, request, pk=None):
