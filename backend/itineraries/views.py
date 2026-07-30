@@ -2223,29 +2223,6 @@ class ItineraryInventoryBlockViewSet(viewsets.ModelViewSet):
             return qs.filter(itinerary_id=it) if it else qs.none()
         return qs
 
-
-class ItineraryCostPaymentViewSet(viewsets.ModelViewSet):
-    """Pagamentos reais dos custos (aba Valores › Custo real).
-    Filtra por ?itinerary=<id> (todos os pagamentos do roteiro) ou ?cost_item=<id>."""
-    serializer_class = ItineraryCostPaymentSerializer
-    pagination_class = None
-    get_permissions  = _roteiro_edit_permissions
-
-    def get_queryset(self):
-        qs = ItineraryCostPayment.objects.select_related('cost_item')
-        if self.action == 'list':
-            it = self.request.query_params.get('itinerary')
-            ci = self.request.query_params.get('cost_item')
-            if ci:
-                return qs.filter(cost_item_id=ci)
-            if it:
-                return qs.filter(cost_item__itinerary_id=it)
-            return qs.none()
-        return qs
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-
     # Qualquer mexida num bloqueio acende "Público · pendente" (roteiro publicado).
     def perform_create(self, serializer):
         obj = serializer.save()
@@ -2270,3 +2247,26 @@ class ItineraryCostPaymentViewSet(viewsets.ModelViewSet):
         if first:
             _touch_unpublished(first.itinerary)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ItineraryCostPaymentViewSet(viewsets.ModelViewSet):
+    """Pagamentos reais dos custos (aba Valores › Custo real).
+    Filtra por ?itinerary=<id> (todos os pagamentos do roteiro) ou ?cost_item=<id>."""
+    serializer_class = ItineraryCostPaymentSerializer
+    pagination_class = None
+    get_permissions  = _roteiro_edit_permissions
+
+    def get_queryset(self):
+        qs = ItineraryCostPayment.objects.select_related('cost_item')
+        if self.action == 'list':
+            it = self.request.query_params.get('itinerary')
+            ci = self.request.query_params.get('cost_item')
+            if ci:
+                return qs.filter(cost_item_id=ci)
+            if it:
+                return qs.filter(cost_item__itinerary_id=it)
+            return qs.none()
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
