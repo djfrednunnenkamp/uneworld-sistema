@@ -66,11 +66,19 @@ class AgencyListSerializer(serializers.ModelSerializer):
     logo_url = serializers.SerializerMethodField()
     # Nome de exibição pronto (nunca vazio) — usado em pickers/listas.
     display_name = serializers.ReadOnlyField()
+    promoter_name = serializers.SerializerMethodField()
 
     class Meta:
         model  = Agency
         fields = ['id', 'name', 'last_name', 'company_name', 'display_name', 'email', 'cnpj', 'cpf', 'person_type',
-                  'phone', 'mobile', 'city', 'status', 'commission_rate', 'logo_url', 'is_deleted', 'deleted_at']
+                  'phone', 'mobile', 'city', 'status', 'commission_rate', 'logo_url',
+                  'promoter', 'promoter_name', 'is_deleted', 'deleted_at']
 
     def get_logo_url(self, obj):
         return obj.logo.url if obj.logo else None
+
+    def get_promoter_name(self, obj):
+        u = obj.promoter
+        if not u:
+            return None
+        return f'{u.first_name} {u.last_name}'.strip() or u.username

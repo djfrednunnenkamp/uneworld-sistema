@@ -42,7 +42,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
     def get_queryset(self):
         from django.db.models import Q
         from users_api.permissions import agency_scope_ids
-        qs = super().get_queryset()   # aplica o filtro de soft-delete (is_deleted)
+        qs = super().get_queryset().select_related('promoter')   # aplica o filtro de soft-delete (is_deleted)
         # Usuário de agência só enxerga a(s) própria(s) agência(s).
         scope = agency_scope_ids(self.request.user)
         if scope is not None:
