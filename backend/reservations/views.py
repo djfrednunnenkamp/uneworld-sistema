@@ -116,24 +116,29 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 it[r.status] += 1
 
         # 2) Roteiros à venda que ainda não começaram (públicos = visíveis no site).
+        #    EXCLUI os excluídos (soft-delete) — não podem ser oferecidos.
         today = timezone.localdate()
         elegiveis = (Itinerary.objects
-                     .filter(visibility='public')
+                     .filter(is_deleted=False, visibility='public')
                      .filter(Q(start_date__isnull=True) | Q(start_date__gte=today)))
         for itin_id in elegiveis.values_list('id', flat=True):
             rows.setdefault(itin_id, blank(itin_id))
 
-        # 3) Preenche metadados (nome/capa/datas) de todos os roteiros na lista.
-        itins = (Itinerary.objects.filter(id__in=list(rows.keys()))
+        # 3) Metadados só dos roteiros NÃO excluídos. Roteiro excluído (mesmo que
+        #    tivesse reserva antiga) sai do hub — Itinerary.objects não filtra
+        #    soft-delete, então é obrigatório o is_deleted=False aqui.
+        itins = (Itinerary.objects.filter(id__in=list(rows.keys()), is_deleted=False)
                  .prefetch_related('images'))
+        vivos = set()
         for itin in itins:
             row = rows[itin.id]
             row['itinerary_name'] = itin.name
             row['start_date'] = itin.start_date
             row['end_date'] = itin.end_date
             row['cover'] = self._cover_url(itin, request)
+            vivos.add(itin.id)
 
-        data = sorted(rows.values(), key=lambda x: (
+        data = sorted((r for k, r in rows.items() if k in vivos), key=lambda x: (
             x['start_date'] is None, str(x['start_date'] or ''), (x['itinerary_name'] or '').lower()))
         return Response(data)
 
