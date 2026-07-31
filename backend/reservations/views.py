@@ -22,7 +22,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 .prefetch_related('itinerary__images').all())
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update'):
+        if self.action in ('create', 'update', 'partial_update', 'link_contract'):
             return [RequirePermission('reservas_create', 'reservas_create_agency')()]
         if self.action == 'destroy':
             return [RequirePermission('reservas_delete')()]
@@ -116,6 +116,23 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
         serializer.save(created_by=user, agency_id=agency_id,
                         deadline_hours=hours, expires_at=expires, status=status_val)
+
+    @action(detail=True, methods=['post'], url_path='link-contract')
+    def link_contract(self, request, pk=None):
+        """Vincula a reserva a um contrato (criado a partir dela). A reserva passa
+        para a sub-aba "Contratadas"; some do hub quando o contrato entra em
+        pagamento (ver reservations/signals.py). status vira 'convertida'."""
+        res = self.get_object()
+        cid = request.data.get('contract')
+        if not cid:
+            return Response({'error': 'Informe o contrato.'}, status=status.HTTP_400_BAD_REQUEST)
+        from contracts.models import Contract
+        if not Contract.objects.filter(id=cid, is_deleted=False).exists():
+            return Response({'error': 'Contrato não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        res.contract_id = cid
+        res.status = 'convertida'
+        res.save(update_fields=['contract', 'status', 'updated_at'])
+        return Response(self.get_serializer(res).data)
 
     def perform_destroy(self, instance):
         instance.is_deleted = True
