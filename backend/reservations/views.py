@@ -142,11 +142,25 @@ class ReservationViewSet(viewsets.ModelViewSet):
             row['start_date'] = itin.start_date
             row['end_date'] = itin.end_date
             row['cover'] = self._cover_url(itin, request)
-            pricing = getattr(itin, 'pricing', None)
-            row['seats_for_sale'] = pricing.seats_for_sale if pricing else None
-            # Percentuais efetivos: override do roteiro (pricing) ou padrão global.
-            on = pricing.reserva_online_percent if (pricing and pricing.reserva_online_percent is not None) else rsettings.reserva_online_percent
-            im = pricing.pagamento_imediato_percent if (pricing and pricing.pagamento_imediato_percent is not None) else rsettings.pagamento_imediato_percent
+            # Capacidade/percentuais de reserva vêm da FOTO PUBLICADA (published_data),
+            # não do vivo — alterações só valem no hub após republicar. O snapshot
+            # congela o ItineraryPricingConfigSerializer (inclui seats_for_sale, os
+            # percentuais e o reservation_defaults do momento da publicação).
+            psnap = ((itin.published_data or {}).get('pricing_snapshot') or {}).get('config') or {}
+            if psnap:
+                pdefs = psnap.get('reservation_defaults') or {}
+                seats = psnap.get('seats_for_sale')
+                on = psnap.get('reserva_online_percent')
+                on = on if on is not None else pdefs.get('reserva_online_percent')
+                im = psnap.get('pagamento_imediato_percent')
+                im = im if im is not None else pdefs.get('pagamento_imediato_percent')
+            else:
+                # Fallback: roteiro ainda sem foto publicada de valores — usa o vivo.
+                pricing = getattr(itin, 'pricing', None)
+                seats = pricing.seats_for_sale if pricing else None
+                on = pricing.reserva_online_percent if (pricing and pricing.reserva_online_percent is not None) else rsettings.reserva_online_percent
+                im = pricing.pagamento_imediato_percent if (pricing and pricing.pagamento_imediato_percent is not None) else rsettings.pagamento_imediato_percent
+            row['seats_for_sale'] = seats
             row['online_percent'] = float(on or 0)
             row['imediato_percent'] = float(im or 0)
             vivos.add(itin.id)
