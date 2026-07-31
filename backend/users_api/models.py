@@ -138,6 +138,7 @@ class UserPermissions(models.Model):
     reservas_cancel     = models.BooleanField(default=False)      # cancelar reserva
     reservas_view_all   = models.BooleanField(default=False)      # ver as reservas de TODAS as agências (operadora)
     reservas_overbook   = models.BooleanField(default=False)      # reservar ACIMA da capacidade/vagas do tipo
+    reservas_delete     = models.BooleanField(default=False)      # remover/excluir uma reserva
 
     # Comissões dos vendedores (análise de vendas a partir dos contratos)
     commissions_view = models.BooleanField(default=False)         # acessar o módulo (por padrão vê só as PRÓPRIAS vendas)

@@ -22,7 +22,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update'):
             return [RequirePermission('reservas_create', 'reservas_create_agency')()]
-        if self.action in ('destroy', 'cancel'):
+        if self.action == 'destroy':
+            return [RequirePermission('reservas_delete')()]
+        if self.action == 'cancel':
             return [RequirePermission('reservas_cancel')()]
         return [RequirePermission('reservas_view', 'reservas_view_all')()]
 
