@@ -82,6 +82,7 @@ def serialize_user(u, perms=None):
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
         'phone':        perms.phone,
         'is_seller':    perms.is_seller,
+        'is_promoter':  perms.is_promoter,
         'seller_commission_percent': perms.seller_commission_percent,
         'job_role':      perms.job_role_id,
         'job_role_name': perms.job_role.name if perms.job_role_id else None,
@@ -475,13 +476,15 @@ def user_create(request):
         target_agency = req_ag if req_ag in actor_admin_ids else actor_admin_ids[0]
         AgencyMember.objects.get_or_create(agency_id=target_agency, user=user, defaults={'role': 'operator'})
 
-    if 'phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data or 'show_on_site' in data:
+    if 'phone' in data or 'is_seller' in data or 'is_promoter' in data or 'seller_commission_percent' in data or 'job_role' in data or 'show_on_site' in data:
         perms = get_user_permissions(user)
         fields = []
         if 'phone' in data:
             perms.phone = (data.get('phone') or '').strip(); fields.append('phone')
         if 'is_seller' in data:
             perms.is_seller = bool(data.get('is_seller')); fields.append('is_seller')
+        if 'is_promoter' in data:
+            perms.is_promoter = bool(data.get('is_promoter')); fields.append('is_promoter')
         if 'seller_commission_percent' in data:
             v = data.get('seller_commission_percent')
             perms.seller_commission_percent = None if v in (None, '') else v
@@ -583,7 +586,7 @@ def user_update(request, pk):
                     perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
-    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data
+    if (('phone' in data or 'is_seller' in data or 'is_promoter' in data or 'seller_commission_percent' in data or 'job_role' in data
             or 'show_on_site' in data or 'lock_photo' in data or 'lock_profile' in data)
             and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit)):
         perms = get_user_permissions(user)
@@ -592,6 +595,8 @@ def user_update(request, pk):
             perms.phone = (data.get('phone') or '').strip(); fields.append('phone')
         if 'is_seller' in data:
             perms.is_seller = bool(data.get('is_seller')); fields.append('is_seller')
+        if 'is_promoter' in data:
+            perms.is_promoter = bool(data.get('is_promoter')); fields.append('is_promoter')
         if 'seller_commission_percent' in data:
             v = data.get('seller_commission_percent')
             perms.seller_commission_percent = None if v in (None, '') else v

@@ -52,6 +52,7 @@ class UserPermissions(models.Model):
     # Marca se o usuário é VENDEDOR (aparece como tag na lista e pode ser usado
     # como vendedor de contratos). Definido por quem gerencia usuários.
     is_seller  = models.BooleanField('Vendedor', default=False)
+    is_promoter = models.BooleanField('Promotor(a)', default=False)
     # Comissão do vendedor em % (aplicável quando is_seller). Null = sem comissão definida.
     seller_commission_percent = models.DecimalField('Comissão do vendedor (%)', max_digits=6, decimal_places=2, null=True, blank=True)
     # Cargo/função na operadora (CEO, Gerência, Vendas…) — catálogo em Configurações › Cargos.
