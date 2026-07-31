@@ -114,18 +114,35 @@ class ReservationViewSet(viewsets.ModelViewSet):
         expires = timezone.now() + timedelta(hours=hours) if hours else None
         status_val = 'paga' if rtype == 'pagamento_imediato' else 'pendente'
 
-        serializer.save(created_by=user, agency_id=agency_id,
+        serializer.save(created_by=user, agency_id=agency_id, original_pax=pax,
                         deadline_hours=hours, expires_at=expires, status=status_val)
+
+    @staticmethod
+    def _reconcile(res):
+        """Recalcula a reserva pela SOMA real de passageiros dos contratos gerados
+        dela (idempotente): pax = reservado − soma; quando a soma ≥ reservado, a
+        reserva é CONSUMIDA (vincula ao contrato mais recente, 'convertida' →
+        "Contratadas"); senão fica ativa com o restante em "Reservas"."""
+        original = res.original_pax if res.original_pax is not None else res.pax
+        cts = list(res.contracts_from.filter(is_deleted=False).order_by('id'))
+        consumed = sum(ct.guests.count() for ct in cts)
+        remaining = max(0, original - consumed)
+        res.pax = remaining
+        if consumed >= original and cts:
+            res.contract = cts[-1]
+            res.status = 'convertida'
+        else:
+            res.contract = None
+            if res.status == 'convertida':
+                res.status = 'paga' if res.reservation_type == 'pagamento_imediato' else 'pendente'
+        res.save(update_fields=['pax', 'contract', 'status', 'updated_at'])
 
     @action(detail=True, methods=['post'], url_path='link-contract')
     def link_contract(self, request, pk=None):
-        """Consome a reserva ao criar um contrato a partir dela. `used_pax` = nº de
-        passageiros do contrato:
-        - usados < reservados → a reserva FICA com o restante (segue ativa em "Reservas");
-        - usados >= reservados → a reserva é CONSUMIDA: vincula ao contrato, status
-          'convertida' → sub-aba "Contratadas" (some do hub quando o contrato entra
-          em pagamento, ver signals.py).
-        Exceder o reservado exige `reservas_over_reserved` (ou superuser)."""
+        """Registra o contrato como gerado DESTA reserva e recalcula (ver _reconcile):
+        a reserva fica com o restante ou, quando a SOMA de passageiros dos contratos
+        ≥ reservado, é consumida → "Contratadas" (some no pagamento, ver signals.py).
+        O bloqueio de exceder o reservado é feito no front (com reservas_over_reserved)."""
         res = self.get_object()
         cid = request.data.get('contract')
         if not cid:
@@ -134,31 +151,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
         contract = Contract.objects.filter(id=cid, is_deleted=False).first()
         if not contract:
             return Response({'error': 'Contrato não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-        # Registra a reserva de origem no contrato (1 reserva → N contratos).
         if contract.source_reservation_id != res.id:
             contract.source_reservation = res
             contract.save(update_fields=['source_reservation'])
-        raw = request.data.get('used_pax')
-        try:
-            used = int(raw) if raw not in (None, '') else res.pax
-        except (TypeError, ValueError):
-            used = res.pax
-        used = max(1, used)
-        if used > res.pax and not (request.user.is_superuser or has_any_perm(request.user, 'reservas_over_reserved')):
-            return Response({'error': f'O contrato tem {used} passageiro(s), mais que os {res.pax} reservados. '
-                                      f'Sem permissão para exceder o reservado.'},
-                            status=status.HTTP_400_BAD_REQUEST)
-        remaining = res.pax - used
-        if remaining > 0:
-            # Consumo parcial: a reserva continua ativa com o restante.
-            res.pax = remaining
-            res.save(update_fields=['pax', 'updated_at'])
-        else:
-            # Consumo total (igual ou acima): zera e vira contrato ("Contratadas").
-            res.pax = 0
-            res.contract_id = cid
-            res.status = 'convertida'
-            res.save(update_fields=['pax', 'contract', 'status', 'updated_at'])
+        self._reconcile(res)
         return Response(self.get_serializer(res).data)
 
     @action(detail=False, methods=['post'], url_path='record-contract')
@@ -185,7 +181,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
             raise PermissionDenied('Você só pode registrar para a sua agência.')
         res = Reservation.objects.create(
             itinerary_id=itin, agency_id=ag, reservation_type='pagamento_imediato',
-            pax=pax, status='convertida', contract_id=cid, created_by=user)
+            pax=pax, original_pax=pax, status='convertida', contract_id=cid, created_by=user)
         Contract.objects.filter(id=cid).update(source_reservation=res)
         return Response(self.get_serializer(res).data, status=status.HTTP_201_CREATED)
 

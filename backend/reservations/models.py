@@ -29,6 +29,9 @@ class Reservation(models.Model):
     reservation_type = models.CharField('Tipo', max_length=20, choices=TYPE_CHOICES, default='sem_pagamento', db_index=True)
     status    = models.CharField('Status', max_length=12, choices=STATUS_CHOICES, default='pendente', db_index=True)
     pax       = models.PositiveIntegerField('Passageiros', default=1)
+    # Nº reservado originalmente. `pax` vira o RESTANTE conforme contratos são
+    # gerados; original_pax mantém o total pra recalcular (idempotente).
+    original_pax = models.PositiveIntegerField('Passageiros reservados', null=True, blank=True)
 
     # Prazo (snapshot no momento da criação, vindo da config do roteiro/global) e
     # o instante em que a reserva sem pagamento expira.
