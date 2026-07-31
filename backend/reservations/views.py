@@ -94,13 +94,15 @@ class ReservationViewSet(viewsets.ModelViewSet):
         cada card mostra a capa, as datas e a contagem por tipo/status. Roteiros
         que já têm reserva no escopo do usuário entram sempre (ainda que já tenham
         começado / saído do ar), pra não sumir com reserva ativa."""
-        from django.db.models import Q
+        from django.db.models import Q, Count
         from itineraries.models import Itinerary
+        from trips.models import ListEnrollment
 
         def blank(itin_id):
             return {
                 'itinerary': itin_id, 'itinerary_name': None,
                 'cover': None, 'start_date': None, 'end_date': None,
+                'seats_for_sale': None, 'passengers': 0, 'available': None,
                 'total': 0, 'sem_pagamento': 0, 'pagamento_imediato': 0, 'operadora': 0,
                 'pendente': 0, 'paga': 0, 'convertida': 0, 'expirada': 0, 'cancelada': 0,
             }
@@ -128,7 +130,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         #    tivesse reserva antiga) sai do hub — Itinerary.objects não filtra
         #    soft-delete, então é obrigatório o is_deleted=False aqui.
         itins = (Itinerary.objects.filter(id__in=list(rows.keys()), is_deleted=False)
-                 .prefetch_related('images'))
+                 .select_related('pricing').prefetch_related('images'))
         vivos = set()
         for itin in itins:
             row = rows[itin.id]
@@ -136,7 +138,25 @@ class ReservationViewSet(viewsets.ModelViewSet):
             row['start_date'] = itin.start_date
             row['end_date'] = itin.end_date
             row['cover'] = self._cover_url(itin, request)
+            pricing = getattr(itin, 'pricing', None)
+            row['seats_for_sale'] = pricing.seats_for_sale if pricing else None
             vivos.add(itin.id)
+
+        # Passageiros já nas listas do roteiro (passageiro real, não bloqueio; lista e
+        # passageiro não excluídos). Disponível = à venda − passageiros, nunca < 0.
+        pax_rows = (ListEnrollment.objects
+                    .filter(passenger_list__roteiros__in=vivos,
+                            passenger_list__is_deleted=False,
+                            passenger__isnull=False, passenger__is_deleted=False)
+                    .values('passenger_list__roteiros')
+                    .annotate(n=Count('id', distinct=True)))
+        pax_by_itin = {r['passenger_list__roteiros']: r['n'] for r in pax_rows}
+        for itin_id in vivos:
+            row = rows[itin_id]
+            pax = pax_by_itin.get(itin_id, 0)
+            row['passengers'] = pax
+            seats = row['seats_for_sale']
+            row['available'] = None if seats is None else max(0, seats - pax)
 
         data = sorted((r for k, r in rows.items() if k in vivos), key=lambda x: (
             x['start_date'] is None, str(x['start_date'] or ''), (x['itinerary_name'] or '').lower()))
