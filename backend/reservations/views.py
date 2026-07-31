@@ -32,6 +32,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
         # Usuário de agência só vê as próprias reservas, a menos que possa ver todas.
         if scope is not None and not has_any_perm(self.request.user, 'reservas_view_all'):
             qs = qs.filter(agency_id__in=scope)
+        # Filtro por roteiro (pop-up "reservas deste roteiro").
+        itin = self.request.query_params.get('itinerary')
+        if itin:
+            qs = qs.filter(itinerary_id=itin)
         return qs
 
     def perform_create(self, serializer):
