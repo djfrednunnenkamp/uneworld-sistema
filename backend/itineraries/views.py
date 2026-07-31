@@ -709,7 +709,7 @@ def _payment_plan_snapshot(p):
 
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = Itinerary.objects.select_related(
-        'category', 'continent', 'itinerary_type', 'maritime_company',
+        'category', 'continent', 'itinerary_type', 'maritime_company', 'pricing',
     ).prefetch_related(
         'accommodation_lines__accommodation_type',
         'cities__state__country__continent', 'countries__continent', 'airports', 'keywords', 'inclusions', 'highlights',
@@ -1030,6 +1030,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'custo_real_context':
             return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete',
                                       'financeiro_view', 'financeiro_payables')()]
+        if self.action == 'custo_real_done':
+            return [RequirePermission('roteiros_edit', 'financeiro_payables')()]
         if self.action == 'list':
             # Também quem faz contratos (seletor de roteiro) e quem cuida do Financeiro
             # (aba Custo real lista os roteiros). O get_queryset limita a agência a
@@ -1237,9 +1239,21 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         return Response({
             'base_currency': obj.base_currency or 'USD',
             'base_pax': cfg.base_pax if cfg else 15,
+            'custo_real_done': bool(cfg.custo_real_done) if cfg else False,
             'items':  ItineraryCostItemSerializer(items, many=True).data,
             'blocks': ItineraryInventoryBlockSerializer(blocks, many=True).data,
         })
+
+    @action(detail=True, methods=['post'], url_path='custo-real-done')
+    def custo_real_done(self, request, pk=None):
+        """Marca/desmarca o Custo real (financeiro) do roteiro como concluído.
+        Body: { done: true|false }. Visão da operadora/Financeiro."""
+        from .models import ItineraryPricingConfig
+        obj = self.get_object()
+        cfg, _ = ItineraryPricingConfig.objects.get_or_create(itinerary=obj)
+        cfg.custo_real_done = bool(request.data.get('done'))
+        cfg.save(update_fields=['custo_real_done', 'updated_at'])
+        return Response({'custo_real_done': cfg.custo_real_done})
 
     @action(detail=True, methods=['get'], url_path='markup-summary')
     def markup_summary(self, request, pk=None):

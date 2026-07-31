@@ -864,6 +864,7 @@ class ItineraryListSerializer(serializers.ModelSerializer):
     itinerary_type_name   = serializers.CharField(source='itinerary_type.name', read_only=True, default=None)
     maritime_company_name = serializers.CharField(source='maritime_company.name', read_only=True, default=None)
     cover                 = serializers.SerializerMethodField()   # miniatura da capa
+    custo_real_done       = serializers.SerializerMethodField()   # financeiro (custo real) concluído
     # Nome/datas da FOTO publicada — pro seletor de roteiros do contrato mostrar o
     # que a agência realmente vê (alterações não publicadas não aparecem).
     pub_name       = serializers.SerializerMethodField()
@@ -875,7 +876,7 @@ class ItineraryListSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'start_date', 'end_date', 'trip_type', 'base_currency', 'capacity',
                   'badge_text', 'badge_color',
                   'category_name', 'continent_name', 'continent_names', 'countries_data',
-                  'itinerary_type_name', 'maritime_company_name', 'cover',
+                  'itinerary_type_name', 'maritime_company_name', 'cover', 'custo_real_done',
                   'status', 'is_published', 'has_unpublished_changes', 'order',
                   'visibility', 'shared_agencies_count', 'shared_agencies_data',
                   'pub_name', 'pub_start_date', 'pub_end_date',
@@ -927,6 +928,10 @@ class ItineraryListSerializer(serializers.ModelSerializer):
     def get_pub_name(self, obj):       return self._pub(obj, 'name') or obj.name
     def get_pub_start_date(self, obj): return self._pub(obj, 'start_date') or obj.start_date
     def get_pub_end_date(self, obj):   return self._pub(obj, 'end_date') or obj.end_date
+
+    def get_custo_real_done(self, obj):
+        cfg = getattr(obj, 'pricing', None)
+        return bool(cfg.custo_real_done) if cfg else False
 
     def get_cover(self, obj):
         # Capa: imagem kind='cover'; senão a 1ª imagem da galeria (day nulo). NUNCA um
