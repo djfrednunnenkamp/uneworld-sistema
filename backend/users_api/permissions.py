@@ -51,6 +51,8 @@ PERMISSION_FIELDS = [
     'reservas_view_all',
     'reservas_overbook',
     'reservas_delete',
+    'reservas_over_reserved',
+    'reservas_over_capacity',
     # Comissões dos vendedores
     'commissions_view',
     'commissions_view_all',

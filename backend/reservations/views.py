@@ -119,9 +119,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='link-contract')
     def link_contract(self, request, pk=None):
-        """Vincula a reserva a um contrato (criado a partir dela). A reserva passa
-        para a sub-aba "Contratadas"; some do hub quando o contrato entra em
-        pagamento (ver reservations/signals.py). status vira 'convertida'."""
+        """Consome a reserva ao criar um contrato a partir dela. `used_pax` = nº de
+        passageiros do contrato:
+        - usados < reservados → a reserva FICA com o restante (segue ativa em "Reservas");
+        - usados >= reservados → a reserva é CONSUMIDA: vincula ao contrato, status
+          'convertida' → sub-aba "Contratadas" (some do hub quando o contrato entra
+          em pagamento, ver signals.py).
+        Exceder o reservado exige `reservas_over_reserved` (ou superuser)."""
         res = self.get_object()
         cid = request.data.get('contract')
         if not cid:
@@ -129,9 +133,27 @@ class ReservationViewSet(viewsets.ModelViewSet):
         from contracts.models import Contract
         if not Contract.objects.filter(id=cid, is_deleted=False).exists():
             return Response({'error': 'Contrato não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-        res.contract_id = cid
-        res.status = 'convertida'
-        res.save(update_fields=['contract', 'status', 'updated_at'])
+        raw = request.data.get('used_pax')
+        try:
+            used = int(raw) if raw not in (None, '') else res.pax
+        except (TypeError, ValueError):
+            used = res.pax
+        used = max(1, used)
+        if used > res.pax and not (request.user.is_superuser or has_any_perm(request.user, 'reservas_over_reserved')):
+            return Response({'error': f'O contrato tem {used} passageiro(s), mais que os {res.pax} reservados. '
+                                      f'Sem permissão para exceder o reservado.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        remaining = res.pax - used
+        if remaining > 0:
+            # Consumo parcial: a reserva continua ativa com o restante.
+            res.pax = remaining
+            res.save(update_fields=['pax', 'updated_at'])
+        else:
+            # Consumo total (igual ou acima): zera e vira contrato ("Contratadas").
+            res.pax = 0
+            res.contract_id = cid
+            res.status = 'convertida'
+            res.save(update_fields=['pax', 'contract', 'status', 'updated_at'])
         return Response(self.get_serializer(res).data)
 
     def perform_destroy(self, instance):
