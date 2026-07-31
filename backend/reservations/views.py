@@ -22,7 +22,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 .prefetch_related('itinerary__images', 'contracts_from').all())
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'link_contract'):
+        if self.action in ('create', 'update', 'partial_update', 'link_contract', 'record_contract'):
             return [RequirePermission('reservas_create', 'reservas_create_agency')()]
         if self.action == 'destroy':
             return [RequirePermission('reservas_delete')()]
@@ -160,6 +160,34 @@ class ReservationViewSet(viewsets.ModelViewSet):
             res.status = 'convertida'
             res.save(update_fields=['pax', 'contract', 'status', 'updated_at'])
         return Response(self.get_serializer(res).data)
+
+    @action(detail=False, methods=['post'], url_path='record-contract')
+    def record_contract(self, request):
+        """Cria um registro de reserva JÁ CONTRATADA (pagamento imediato — vai direto
+        ao contrato, sem segurar reserva) para acompanhar em "Contratadas" até o
+        contrato ser pago. Sem checagem de capacidade (o contrato já existe). Some do
+        hub quando o contrato entra em pagamento (signals.py)."""
+        from contracts.models import Contract
+        user = request.user
+        itin = request.data.get('itinerary')
+        ag = request.data.get('agency')
+        cid = request.data.get('contract')
+        try:
+            pax = max(1, int(request.data.get('pax') or 1))
+        except (TypeError, ValueError):
+            pax = 1
+        if not (itin and ag and cid):
+            return Response({'error': 'Dados incompletos (roteiro, agência e contrato).'}, status=status.HTTP_400_BAD_REQUEST)
+        if not Contract.objects.filter(id=cid, is_deleted=False).exists():
+            return Response({'error': 'Contrato não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        scope = agency_scope_ids(user)
+        if scope is not None and int(ag) not in scope:
+            raise PermissionDenied('Você só pode registrar para a sua agência.')
+        res = Reservation.objects.create(
+            itinerary_id=itin, agency_id=ag, reservation_type='pagamento_imediato',
+            pax=pax, status='convertida', contract_id=cid, created_by=user)
+        Contract.objects.filter(id=cid).update(source_reservation=res)
+        return Response(self.get_serializer(res).data, status=status.HTTP_201_CREATED)
 
     def perform_destroy(self, instance):
         instance.is_deleted = True
