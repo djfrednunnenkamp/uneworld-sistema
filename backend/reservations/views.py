@@ -89,21 +89,61 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """Resumo por roteiro (nome + contagem por tipo/status), respeitando o
-        escopo do usuário. Alimenta o hub de Reservas."""
-        rows = {}
-        for r in self.get_queryset():
-            key = r.itinerary_id
-            it = rows.setdefault(key, {
-                'itinerary': r.itinerary_id,
-                'itinerary_name': r.itinerary.name if r.itinerary else None,
+        """Resumo por roteiro para o hub de Reservas. Inclui TODOS os roteiros à
+        venda (visibilidade pública) que ainda não começaram, mesmo sem reserva —
+        cada card mostra a capa, as datas e a contagem por tipo/status. Roteiros
+        que já têm reserva no escopo do usuário entram sempre (ainda que já tenham
+        começado / saído do ar), pra não sumir com reserva ativa."""
+        from django.db.models import Q
+        from itineraries.models import Itinerary
+
+        def blank(itin_id):
+            return {
+                'itinerary': itin_id, 'itinerary_name': None,
+                'cover': None, 'start_date': None, 'end_date': None,
                 'total': 0, 'sem_pagamento': 0, 'pagamento_imediato': 0, 'operadora': 0,
                 'pendente': 0, 'paga': 0, 'convertida': 0, 'expirada': 0, 'cancelada': 0,
-            })
+            }
+
+        rows = {}
+        # 1) Contagens a partir das reservas no escopo do usuário.
+        for r in self.get_queryset():
+            it = rows.setdefault(r.itinerary_id, blank(r.itinerary_id))
             it['total'] += 1
             if r.reservation_type in it:
                 it[r.reservation_type] += 1
             if r.status in it:
                 it[r.status] += 1
-        data = sorted(rows.values(), key=lambda x: (x['itinerary_name'] or '').lower())
+
+        # 2) Roteiros à venda que ainda não começaram (públicos = visíveis no site).
+        today = timezone.localdate()
+        elegiveis = (Itinerary.objects
+                     .filter(visibility='public')
+                     .filter(Q(start_date__isnull=True) | Q(start_date__gte=today)))
+        for itin_id in elegiveis.values_list('id', flat=True):
+            rows.setdefault(itin_id, blank(itin_id))
+
+        # 3) Preenche metadados (nome/capa/datas) de todos os roteiros na lista.
+        itins = (Itinerary.objects.filter(id__in=list(rows.keys()))
+                 .prefetch_related('images'))
+        for itin in itins:
+            row = rows[itin.id]
+            row['itinerary_name'] = itin.name
+            row['start_date'] = itin.start_date
+            row['end_date'] = itin.end_date
+            row['cover'] = self._cover_url(itin, request)
+
+        data = sorted(rows.values(), key=lambda x: (
+            x['start_date'] is None, str(x['start_date'] or ''), (x['itinerary_name'] or '').lower()))
         return Response(data)
+
+    @staticmethod
+    def _cover_url(itin, request):
+        """Capa do roteiro (imagem kind='cover'; senão 1ª imagem da galeria, nunca
+        vídeo) — mesma regra do ItineraryListSerializer.get_cover."""
+        imgs = list(itin.images.all())
+        cover = next((i for i in imgs if i.kind == 'cover' and not i.is_video), None) \
+            or next((i for i in imgs if i.day_id is None and not i.is_video), None)
+        if not cover or not cover.image:
+            return None
+        return request.build_absolute_uri(cover.image.url) if request else cover.image.url
