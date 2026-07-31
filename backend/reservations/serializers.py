@@ -13,6 +13,20 @@ class ReservationSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
     created_by_avatar = serializers.SerializerMethodField()
     created_by_by_agency = serializers.SerializerMethodField()
+    itinerary_cover = serializers.SerializerMethodField()
+
+    def get_itinerary_cover(self, obj):
+        # Capa do roteiro (kind='cover'; senão 1ª imagem, nunca vídeo) — absoluta.
+        it = obj.itinerary
+        if not it:
+            return None
+        imgs = list(it.images.all())
+        cover = next((i for i in imgs if i.kind == 'cover' and not i.is_video), None) \
+            or next((i for i in imgs if i.day_id is None and not i.is_video), None)
+        if not cover or not cover.image:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(cover.image.url) if request else cover.image.url
 
     def get_agency_logo_url(self, obj):
         # Absoluto (build_absolute_uri) — carregado no front pelo MediaImg/CoverThumb.
@@ -50,7 +64,7 @@ class ReservationSerializer(serializers.ModelSerializer):
                   'reservation_type', 'type_display', 'status', 'status_display', 'pax',
                   'deadline_hours', 'expires_at', 'amount_due', 'amount_paid',
                   'contract', 'contract_id', 'notes', 'created_at', 'updated_at',
-                  'created_by_name', 'created_by_avatar', 'created_by_by_agency']
+                  'created_by_name', 'created_by_avatar', 'created_by_by_agency', 'itinerary_cover']
         # status/prazo/valores/contrato são definidos pelo servidor (fluxo da reserva).
         read_only_fields = ['status', 'deadline_hours', 'expires_at',
                             'amount_due', 'amount_paid', 'contract']

@@ -17,7 +17,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
     Agência vê só as próprias reservas; quem tem `reservas_view_all` (operadora)
     vê as de todas as agências."""
     serializer_class = ReservationSerializer
-    queryset = Reservation.objects.select_related('itinerary', 'agency', 'contract').all()
+    queryset = (Reservation.objects
+                .select_related('itinerary', 'agency', 'contract', 'created_by__permissions')
+                .prefetch_related('itinerary__images').all())
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update'):
