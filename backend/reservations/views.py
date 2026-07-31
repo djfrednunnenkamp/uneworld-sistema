@@ -38,6 +38,36 @@ class ReservationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(itinerary_id=itin)
         return qs
 
+    @staticmethod
+    def _type_capacity(itinerary, rtype):
+        """Vagas para uma reserva do tipo `rtype`, mesma conta do hub (à venda −
+        passageiros reais nas listas, × percentual do tipo), a partir da FOTO
+        PUBLICADA. Retorna None quando não há capacidade definida (sem limite)."""
+        from trips.models import ListEnrollment
+        from config_api.models import ReservationSettings
+        psnap = ((itinerary.published_data or {}).get('pricing_snapshot') or {}).get('config') or {}
+        if psnap:
+            pdefs = psnap.get('reservation_defaults') or {}
+            seats = psnap.get('seats_for_sale')
+            on = psnap.get('reserva_online_percent'); on = on if on is not None else pdefs.get('reserva_online_percent')
+            im = psnap.get('pagamento_imediato_percent'); im = im if im is not None else pdefs.get('pagamento_imediato_percent')
+        else:
+            pricing = getattr(itinerary, 'pricing', None)
+            rs = ReservationSettings.get()
+            seats = pricing.seats_for_sale if pricing else None
+            on = pricing.reserva_online_percent if (pricing and pricing.reserva_online_percent is not None) else rs.reserva_online_percent
+            im = pricing.pagamento_imediato_percent if (pricing and pricing.pagamento_imediato_percent is not None) else rs.pagamento_imediato_percent
+        if seats is None:
+            return None
+        on = float(on or 0); im = float(im or 0)
+        pax = (ListEnrollment.objects
+               .filter(passenger_list__roteiros=itinerary, passenger_list__is_deleted=False,
+                       passenger__isnull=False, passenger__is_deleted=False)
+               .count())
+        avail = max(0, int(seats) - pax)
+        pct = min(100.0, on + im) if rtype == 'pagamento_imediato' else on
+        return min(avail, round(avail * pct / 100.0))
+
     def perform_create(self, serializer):
         from config_api.models import ReservationSettings
 
@@ -45,6 +75,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
         itin = serializer.validated_data.get('itinerary')
         agency = serializer.validated_data.get('agency')
         rtype = serializer.validated_data.get('reservation_type', 'sem_pagamento')
+
+        # Capacidade do tipo: bloqueia passar das vagas, salvo permissão de overbook.
+        pax = serializer.validated_data.get('pax') or 1
+        cap = self._type_capacity(itin, rtype) if itin else None
+        if cap is not None and pax > cap and not (user.is_superuser or has_any_perm(user, 'reservas_overbook')):
+            raise ValidationError({'pax': f'Só há {cap} vaga(s) para este tipo de reserva neste roteiro.'})
 
         # Agência só reserva para a própria agência; se tiver uma só, assume-a.
         scope = agency_scope_ids(user)
