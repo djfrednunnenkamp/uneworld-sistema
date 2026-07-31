@@ -56,10 +56,16 @@ class AgencySerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def get_logo_url(self, obj):
-        return obj.logo.url if obj.logo else None
+        if not obj.logo:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.logo.url) if request else obj.logo.url
 
     def get_logo_original_url(self, obj):
-        return obj.logo_original.url if obj.logo_original else None
+        if not obj.logo_original:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.logo_original.url) if request else obj.logo_original.url
 
 
 class AgencyListSerializer(serializers.ModelSerializer):
@@ -75,7 +81,10 @@ class AgencyListSerializer(serializers.ModelSerializer):
                   'promoter', 'promoter_name', 'is_deleted', 'deleted_at']
 
     def get_logo_url(self, obj):
-        return obj.logo.url if obj.logo else None
+        if not obj.logo:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.logo.url) if request else obj.logo.url
 
     def get_promoter_name(self, obj):
         u = obj.promoter
