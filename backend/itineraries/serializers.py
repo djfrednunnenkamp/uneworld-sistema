@@ -1048,4 +1048,5 @@ class ItineraryCostPaymentSerializer(serializers.ModelSerializer):
     """Pagamento real de um item de custo (aba Valores › Custo real)."""
     class Meta:
         model = ItineraryCostPayment
-        fields = ['id', 'cost_item', 'installment_index', 'paid_on', 'amount', 'currency', 'exchange_rate', 'note', 'order']
+        fields = ['id', 'cost_item', 'installment_index', 'paid_on', 'amount', 'currency', 'exchange_rate',
+                  'tax_kind', 'tax_value', 'note', 'order']

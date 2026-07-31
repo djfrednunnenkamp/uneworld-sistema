@@ -1027,6 +1027,10 @@ class ItineraryCostPayment(models.Model):
     amount        = models.DecimalField('Valor pago', max_digits=18, decimal_places=2, default=Decimal('0'))
     currency      = models.CharField('Moeda', max_length=3, blank=True, default='')   # vazio = moeda base do roteiro
     exchange_rate = models.DecimalField('Câmbio (1 moeda = X reais)', max_digits=18, decimal_places=6, default=Decimal('1'))
+    # Taxa opcional sobre o pagamento (banco/IOF/etc.), na MOEDA do pagamento.
+    TAX_KIND_CHOICES = [('percent', 'Percentual'), ('fixed', 'Valor fixo')]
+    tax_kind      = models.CharField('Tipo da taxa', max_length=8, choices=TAX_KIND_CHOICES, default='percent')
+    tax_value     = models.DecimalField('Taxa (% ou valor)', max_digits=18, decimal_places=6, default=Decimal('0'))
     note          = models.CharField('Parcela / observação', max_length=200, blank=True, default='')
     order         = models.PositiveIntegerField('Ordem', default=0)
     created_at    = models.DateTimeField(auto_now_add=True)
