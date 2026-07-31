@@ -293,6 +293,18 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             })
         return Response(out)
 
+    @action(detail=False, methods=['get'], url_path='promoters')
+    def promoters(self, request):
+        """Usuários marcados como PROMOTOR (UserPermissions.is_promoter) — para o
+        combobox "Promotor" no cadastro da agência (controle da operadora). Dados
+        mínimos (id/nome); liberado pela permissão do próprio viewset de agências."""
+        out = [
+            {'id': u.id, 'full_name': f'{u.first_name} {u.last_name}'.strip() or u.username}
+            for u in User.objects.filter(is_active=True, permissions__is_promoter=True)
+                                 .order_by('first_name', 'username')
+        ]
+        return Response(out)
+
     @action(detail=True, methods=['get', 'post'], url_path='members')
     def members(self, request, pk=None):
         """GET: lista membros. POST: adiciona membro."""

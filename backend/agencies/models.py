@@ -61,6 +61,11 @@ class Agency(models.Model):
     # Financeiro
     commission_rate = models.DecimalField('Comissão %', max_digits=5, decimal_places=2, null=True, blank=True)
 
+    # Comercial — promotor da operadora que apresenta/representa esta agência.
+    # Controle interno da operadora (não editável pela agência no selfMode).
+    promoter = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='promoted_agencies', verbose_name='Promotor')
+
     # Endereço
     cep           = models.CharField('CEP',          max_length=10,  blank=True)
     street        = models.CharField('Endereço',     max_length=200, blank=True)

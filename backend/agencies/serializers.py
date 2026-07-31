@@ -9,9 +9,16 @@ class AgencySerializer(serializers.ModelSerializer):
     # Só informa SE o token está configurado — o segredo nunca volta pro front (nem
     # pra operadora). O token é gravado só pelo endpoint autentique-config (agência).
     has_autentique_token = serializers.SerializerMethodField()
+    promoter_name = serializers.SerializerMethodField()
 
     def get_has_autentique_token(self, obj):
         return bool((obj.autentique_token or '').strip())
+
+    def get_promoter_name(self, obj):
+        u = obj.promoter
+        if not u:
+            return None
+        return f'{u.first_name} {u.last_name}'.strip() or u.username
 
     class Meta:
         model  = Agency
@@ -25,6 +32,7 @@ class AgencySerializer(serializers.ModelSerializer):
             'neighborhood', 'city', 'state', 'country', 'receives_mail',
             'pix_key_type', 'pix_key', 'use_agency_pix',
             'auto_sign_allowed', 'auto_sign', 'autentique_email', 'has_autentique_token',
+            'promoter', 'promoter_name',
             'notes', 'logo_url',
             'logo_original_url', 'logo_crop',
             'created_by', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
