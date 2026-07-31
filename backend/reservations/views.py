@@ -97,12 +97,16 @@ class ReservationViewSet(viewsets.ModelViewSet):
         from django.db.models import Q, Count
         from itineraries.models import Itinerary
         from trips.models import ListEnrollment
+        from config_api.models import ReservationSettings
+        rsettings = ReservationSettings.get()
 
         def blank(itin_id):
             return {
                 'itinerary': itin_id, 'itinerary_name': None,
                 'cover': None, 'start_date': None, 'end_date': None,
                 'seats_for_sale': None, 'passengers': 0, 'available': None,
+                'online_percent': 0.0, 'imediato_percent': 0.0,
+                'available_online': None, 'available_imediato': None,
                 'total': 0, 'sem_pagamento': 0, 'pagamento_imediato': 0, 'operadora': 0,
                 'pendente': 0, 'paga': 0, 'convertida': 0, 'expirada': 0, 'cancelada': 0,
             }
@@ -140,6 +144,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
             row['cover'] = self._cover_url(itin, request)
             pricing = getattr(itin, 'pricing', None)
             row['seats_for_sale'] = pricing.seats_for_sale if pricing else None
+            # Percentuais efetivos: override do roteiro (pricing) ou padrão global.
+            on = pricing.reserva_online_percent if (pricing and pricing.reserva_online_percent is not None) else rsettings.reserva_online_percent
+            im = pricing.pagamento_imediato_percent if (pricing and pricing.pagamento_imediato_percent is not None) else rsettings.pagamento_imediato_percent
+            row['online_percent'] = float(on or 0)
+            row['imediato_percent'] = float(im or 0)
             vivos.add(itin.id)
 
         # Passageiros já nas listas do roteiro (passageiro real, não bloqueio; lista e
@@ -156,7 +165,20 @@ class ReservationViewSet(viewsets.ModelViewSet):
             pax = pax_by_itin.get(itin_id, 0)
             row['passengers'] = pax
             seats = row['seats_for_sale']
-            row['available'] = None if seats is None else max(0, seats - pax)
+            avail = None if seats is None else max(0, seats - pax)
+            row['available'] = avail
+            if avail is None:
+                row['available_online'] = None
+                row['available_imediato'] = None
+            else:
+                on = row['online_percent']
+                im = row['imediato_percent']
+                # Reserva normal = disponível × online%. Pagamento agora inclui o
+                # bloco normal + o imediato (online% + imediato%), teto em 100%.
+                # Arredonda (não trunca) e limita ao disponível — assim 1 vaga não
+                # vira 0 por causa do 60%/80%.
+                row['available_online'] = min(avail, round(avail * on / 100.0))
+                row['available_imediato'] = min(avail, round(avail * min(100.0, on + im) / 100.0))
 
         data = sorted((r for k, r in rows.items() if k in vivos), key=lambda x: (
             x['start_date'] is None, str(x['start_date'] or ''), (x['itinerary_name'] or '').lower()))
