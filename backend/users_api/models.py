@@ -65,6 +65,11 @@ class UserPermissions(models.Model):
     avatar          = models.ImageField('Foto de perfil', upload_to=avatar_upload_path, storage=public_media_storage, null=True, blank=True)
     avatar_original = models.ImageField('Foto de perfil (original)', upload_to=avatar_upload_path, storage=public_media_storage, null=True, blank=True)
     avatar_crop     = models.JSONField('Recorte da foto', default=dict, blank=True)
+    # Travas de edição do PRÓPRIO usuário (definidas pelo admin). Ligadas, o usuário
+    # não pode mudar a própria foto (lock_photo) / o próprio perfil (lock_profile).
+    # O admin (com permissão) continua podendo alterar.
+    lock_photo   = models.BooleanField('Travar foto do usuário', default=False)
+    lock_profile = models.BooleanField('Travar perfil do usuário', default=False)
 
     # Visão Geral (Dashboard)
     dashboard_view_passengers  = models.BooleanField(default=False)

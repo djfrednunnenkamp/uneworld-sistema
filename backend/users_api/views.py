@@ -89,6 +89,8 @@ def serialize_user(u, perms=None):
         'avatar_url':   perms.avatar.url if perms.avatar else None,
         'avatar_original_url': perms.avatar_original.url if perms.avatar_original else None,
         'avatar_crop':  perms.avatar_crop or {},
+        'lock_photo':   perms.lock_photo,
+        'lock_profile': perms.lock_profile,
         'storage_limit_bytes': perms.storage_limit_bytes,
         'is_staff':     u.is_staff,
         'is_superuser': u.is_superuser,
@@ -206,6 +208,9 @@ def me_view(request):
     # (ex.: criar documento no Drive) falham com 403 CSRF enquanto os GET funcionam.
     user = request.user
     if request.method == 'PATCH':
+        # Trava do admin: usuário não altera o próprio perfil.
+        if get_user_permissions(user).lock_profile:
+            return Response({'error': 'Seu perfil foi travado pelo administrador.'}, status=status.HTTP_403_FORBIDDEN)
         data = request.data
         if 'first_name' in data:
             user.first_name = (data['first_name'] or '').strip() if isinstance(data['first_name'], str) else ''
@@ -238,11 +243,34 @@ _AVATAR_ALLOWED   = {'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'}
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def me_avatar(request):
-    """Upload/remoção da foto de perfil do próprio usuário. SEGURO: valida tamanho,
-    abre e VERIFICA a imagem com Pillow, e a re-encoda como JPEG (descarta qualquer
-    payload/EXIF embutido). Nunca serve o arquivo enviado como veio."""
-    from audit.tracking import log_event, user_display
+    """Upload/remoção da foto de perfil do PRÓPRIO usuário."""
     perms = get_user_permissions(request.user)
+    if perms.lock_photo or perms.lock_profile:
+        return Response({'error': 'Sua foto foi travada pelo administrador.'}, status=status.HTTP_403_FORBIDDEN)
+    return _avatar_op(request, perms, request.user)
+
+
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def user_avatar(request, pk):
+    """Upload/remoção da foto de OUTRO usuário, feita pelo admin (com permissão)."""
+    try:
+        target = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+    if not _can_target_user(request.user, target):
+        return Response({'error': 'Você não tem permissão para editar esta conta.'}, status=status.HTTP_403_FORBIDDEN)
+    if not (has_any_perm(request.user, 'manage_users', 'users_edit') or can_manage_agency_user(request.user, target)):
+        return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+    return _avatar_op(request, get_user_permissions(target), target)
+
+
+def _avatar_op(request, perms, target):
+    """Corpo compartilhado de upload/remoção de foto (self e admin). SEGURO: valida
+    tamanho, VERIFICA a imagem com Pillow e a re-encoda como JPEG (descarta qualquer
+    payload/EXIF). `target` = dono da foto; `request.user` = quem executou (log)."""
+    from audit.tracking import log_event, user_display
 
     if request.method == 'DELETE':
         if perms.avatar or perms.avatar_original:
@@ -253,8 +281,8 @@ def me_avatar(request):
             perms.avatar = None; perms.avatar_original = None; perms.avatar_crop = {}
             perms.save(update_fields=['avatar', 'avatar_original', 'avatar_crop'])
             log_event('delete', model_name='UserPermissions', model_label='Foto de perfil',
-                      object_id=request.user.id, object_repr=f'Foto de perfil — {user_display(request.user)}', user=request.user)
-        return Response(serialize_user(request.user))
+                      object_id=target.id, object_repr=f'Foto de perfil — {user_display(target)}', user=request.user)
+        return Response(serialize_user(target))
 
     f = request.FILES.get('avatar') or request.FILES.get('file')
     if not f:
@@ -294,7 +322,7 @@ def me_avatar(request):
     from django.core.files.base import ContentFile
     if perms.avatar:
         delete_fieldfile(perms.avatar, 'avatar do usuário')
-    perms.avatar.save(f'{request.user.id}.jpg', ContentFile(buf.read()), save=False)
+    perms.avatar.save(f'{target.id}.jpg', ContentFile(buf.read()), save=False)
     update_fields = ['avatar']
 
     # Não-destrutivo: guarda a imagem ORIGINAL (para reabrir/desfazer) + o recorte.
@@ -309,7 +337,7 @@ def me_avatar(request):
         if cf is not None:
             if perms.avatar_original:
                 delete_fieldfile(perms.avatar_original, 'avatar original do usuário')
-            perms.avatar_original.save(f'{request.user.id}_orig.jpg', cf, save=False)
+            perms.avatar_original.save(f'{target.id}_orig.jpg', cf, save=False)
             update_fields.append('avatar_original')
     crop = parse_crop(request.data.get('crop'))
     if crop:
@@ -318,8 +346,8 @@ def me_avatar(request):
 
     perms.save(update_fields=update_fields)
     log_event('upload', model_name='UserPermissions', model_label='Foto de perfil',
-              object_id=request.user.id, object_repr=f'Foto de perfil — {user_display(request.user)}', user=request.user)
-    return Response(serialize_user(request.user))
+              object_id=target.id, object_repr=f'Foto de perfil — {user_display(target)}', user=request.user)
+    return Response(serialize_user(target))
 
 
 @api_view(['POST'])
@@ -555,7 +583,8 @@ def user_update(request, pk):
                     perms.save(update_fields=['profile'])
     else:
         get_user_permissions(user).save()
-    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data or 'show_on_site' in data)
+    if (('phone' in data or 'is_seller' in data or 'seller_commission_percent' in data or 'job_role' in data
+            or 'show_on_site' in data or 'lock_photo' in data or 'lock_profile' in data)
             and (has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit)):
         perms = get_user_permissions(user)
         fields = []
@@ -571,6 +600,10 @@ def user_update(request, pk):
             perms.job_role_id = _valid_job_role_id(data.get('job_role')); fields.append('job_role')
         if 'show_on_site' in data:
             perms.show_on_site = bool(data.get('show_on_site')); fields.append('show_on_site')
+        if 'lock_photo' in data:
+            perms.lock_photo = bool(data.get('lock_photo')); fields.append('lock_photo')
+        if 'lock_profile' in data:
+            perms.lock_profile = bool(data.get('lock_profile')); fields.append('lock_profile')
         perms.save(update_fields=fields)
     # Se virou conta interna (staff/superusuário), deixa de ser usuário de agência →
     # remove os vínculos de agência (senão continuava aparecendo na agência).
