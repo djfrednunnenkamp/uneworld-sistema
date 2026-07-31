@@ -140,6 +140,7 @@ TRACKED_MODELS = {
     'ItineraryTerrestreDeparture': 'Cidade de partida (terrestre)',
     'ItineraryTerrestreLeg':    'Trecho terrestre',
     'ItineraryCostItem':        'Item de custo do roteiro',
+    'ItineraryCostPayment':     'Custo real (pagamento)',
     'ItineraryInventoryBlock':  'Bloqueio de disponibilidade',
     'ItineraryCurrencyRate':    'Câmbio travado do roteiro',
     'Contract':                 'Contrato',

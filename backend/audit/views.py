@@ -100,7 +100,7 @@ SCOPE_MODELS = {
     'itineraries': ['Itinerary', 'ItineraryDocument', 'ItineraryImage', 'ItineraryDeparture',
                     'ItineraryFlight', 'ItineraryHotel', 'ItineraryBoat',
                     'ItineraryTerrestreDeparture', 'ItineraryTerrestreLeg',
-                    'ItineraryCostItem', 'ItineraryInventoryBlock', 'ItineraryCurrencyRate',
+                    'ItineraryCostItem', 'ItineraryCostPayment', 'ItineraryInventoryBlock', 'ItineraryCurrencyRate',
                     'ConfigShipCabin', 'ConfigFlightClass'],
 }
 
@@ -383,7 +383,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             from itineraries.models import (
                 ItineraryDocument, ItineraryImage, ItineraryDeparture, ItineraryFlight,
                 ItineraryHotel, ItineraryBoat, ItineraryTerrestreDeparture, ItineraryTerrestreLeg,
-                ItineraryCostItem, ItineraryInventoryBlock, ItineraryCurrencyRate,
+                ItineraryCostItem, ItineraryCostPayment, ItineraryInventoryBlock, ItineraryCurrencyRate,
             )
             from config_api.models import ConfigShipCabin, ConfigFlightClass
             from django.db.models import Q
@@ -405,6 +405,10 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 ids = list(model_cls.objects.filter(departure__itinerary_id=itinerary_id).values_list('id', flat=True))
                 if ids:
                     iq |= Q(model_name=name, object_id__in=[str(i) for i in ids])
+            # Custo real: pagamento → custo → roteiro (sem FK direto de itinerary)
+            pay_ids = list(ItineraryCostPayment.objects.filter(cost_item__itinerary_id=itinerary_id).values_list('id', flat=True))
+            if pay_ids:
+                iq |= Q(model_name='ItineraryCostPayment', object_id__in=[str(i) for i in pay_ids])
             if show_nav and has_page_view_access:
                 iq |= Q(model_name='PageView', object_id=str(itinerary_id))
             qs = qs.filter(iq)
