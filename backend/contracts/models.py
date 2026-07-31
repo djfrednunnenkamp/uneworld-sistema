@@ -172,6 +172,11 @@ class Contract(models.Model):
     # pagamento próprios); o original fica intacto. null = contrato normal.
     parent_contract = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
                                         related_name='addenda', verbose_name='Contrato de origem (adendo)')
+    # Reserva de origem: quando o contrato nasce de uma reserva do hub de Reservas.
+    # Uma reserva pode gerar VÁRIOS contratos (consumo parcial dos passageiros).
+    source_reservation = models.ForeignKey('reservations.Reservation', null=True, blank=True,
+                                           on_delete=models.SET_NULL, related_name='contracts_from',
+                                           verbose_name='Reserva de origem')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
                                    related_name='contracts_created')
     # Vendedor da OPERADORA (interno). Por padrão é o próprio criador; só pode ser

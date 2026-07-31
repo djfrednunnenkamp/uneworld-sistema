@@ -14,6 +14,23 @@ class ReservationSerializer(serializers.ModelSerializer):
     created_by_avatar = serializers.SerializerMethodField()
     created_by_by_agency = serializers.SerializerMethodField()
     itinerary_cover = serializers.SerializerMethodField()
+    contracts_from = serializers.SerializerMethodField()
+
+    def get_contracts_from(self, obj):
+        # Todos os contratos gerados a partir desta reserva + etapa/status de cada.
+        out = []
+        for ct in obj.contracts_from.all():
+            if getattr(ct, 'is_deleted', False):
+                continue
+            out.append({
+                'id': ct.id,
+                'reservation_number': ct.reservation_number or f'#{ct.id}',
+                'stage': ct.stage,
+                'stage_display': ct.get_stage_display(),
+                'status': ct.status,
+                'created_at': ct.created_at,
+            })
+        return sorted(out, key=lambda x: x['id'])
 
     def get_itinerary_cover(self, obj):
         # Capa do roteiro (kind='cover'; senão 1ª imagem, nunca vídeo) — absoluta.
@@ -64,7 +81,8 @@ class ReservationSerializer(serializers.ModelSerializer):
                   'reservation_type', 'type_display', 'status', 'status_display', 'pax',
                   'deadline_hours', 'expires_at', 'amount_due', 'amount_paid',
                   'contract', 'contract_id', 'notes', 'created_at', 'updated_at',
-                  'created_by_name', 'created_by_avatar', 'created_by_by_agency', 'itinerary_cover']
+                  'created_by_name', 'created_by_avatar', 'created_by_by_agency', 'itinerary_cover',
+                  'contracts_from']
         # status/prazo/valores/contrato são definidos pelo servidor (fluxo da reserva).
         read_only_fields = ['status', 'deadline_hours', 'expires_at',
                             'amount_due', 'amount_paid', 'contract']

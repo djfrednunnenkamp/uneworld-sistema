@@ -19,7 +19,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
     serializer_class = ReservationSerializer
     queryset = (Reservation.objects
                 .select_related('itinerary', 'agency', 'contract', 'created_by__permissions')
-                .prefetch_related('itinerary__images').all())
+                .prefetch_related('itinerary__images', 'contracts_from').all())
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'link_contract'):
@@ -131,8 +131,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if not cid:
             return Response({'error': 'Informe o contrato.'}, status=status.HTTP_400_BAD_REQUEST)
         from contracts.models import Contract
-        if not Contract.objects.filter(id=cid, is_deleted=False).exists():
+        contract = Contract.objects.filter(id=cid, is_deleted=False).first()
+        if not contract:
             return Response({'error': 'Contrato não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        # Registra a reserva de origem no contrato (1 reserva → N contratos).
+        if contract.source_reservation_id != res.id:
+            contract.source_reservation = res
+            contract.save(update_fields=['source_reservation'])
         raw = request.data.get('used_pax')
         try:
             used = int(raw) if raw not in (None, '') else res.pax
