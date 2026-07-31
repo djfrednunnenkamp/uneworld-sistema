@@ -1022,13 +1022,21 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
-                           'pricing_config', 'import_kml_preview', 'set_pending', 'markup_summary'):
+                           'pricing_config', 'import_kml_preview', 'set_pending'):
             return [RequirePermission('roteiros_edit')()]
+        # Custo real / markup: também para quem cuida do Financeiro.
+        if self.action == 'markup_summary':
+            return [RequirePermission('roteiros_edit', 'financeiro_view', 'financeiro_payables')()]
+        if self.action == 'custo_real_context':
+            return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete',
+                                      'financeiro_view', 'financeiro_payables')()]
         if self.action == 'list':
-            # Também quem faz contratos: o seletor de roteiro do contrato lista os
-            # roteiros. O get_queryset limita a agência a público/compartilhado.
+            # Também quem faz contratos (seletor de roteiro) e quem cuida do Financeiro
+            # (aba Custo real lista os roteiros). O get_queryset limita a agência a
+            # público/compartilhado.
             return [RequirePermission('roteiros_view', 'roteiros_laminas_edit',
-                                      'contracts_view', 'contracts_edit')()]
+                                      'contracts_view', 'contracts_edit',
+                                      'financeiro_view', 'financeiro_payables')()]
         # retrieve/config/published/demais leituras de UM roteiro = abrir (só leitura),
         # ou quem faz contratos (precisa ler a foto pública p/ travar os valores).
         return [RequirePermission('roteiros_open', 'roteiros_edit', 'roteiros_create',
@@ -1214,6 +1222,24 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         obj = self.get_object()
         pax = request.query_params.get('pax')
         return Response(pricing_engine.compute(obj, pax=int(pax) if pax else None))
+
+    @action(detail=True, methods=['get'], url_path='custo-real-context')
+    def custo_real_context(self, request, pk=None):
+        """Contexto para o painel Custo real (usado no Financeiro): moeda base,
+        quantidade-base, custos e bloqueios do roteiro — num só request."""
+        obj = self.get_object()
+        cfg = getattr(obj, 'pricing', None)
+        items = (ItineraryCostItem.objects.filter(itinerary_id=obj.id)
+                 .select_related('accommodation_type'))
+        blocks = (ItineraryInventoryBlock.objects.filter(itinerary_id=obj.id)
+                  .select_related('ship_cabin', 'airline', 'flight_class')
+                  .prefetch_related('accommodations'))
+        return Response({
+            'base_currency': obj.base_currency or 'USD',
+            'base_pax': cfg.base_pax if cfg else 15,
+            'items':  ItineraryCostItemSerializer(items, many=True).data,
+            'blocks': ItineraryInventoryBlockSerializer(blocks, many=True).data,
+        })
 
     @action(detail=True, methods=['get'], url_path='markup-summary')
     def markup_summary(self, request, pk=None):
@@ -2275,11 +2301,17 @@ class ItineraryInventoryBlockViewSet(viewsets.ModelViewSet):
 
 
 class ItineraryCostPaymentViewSet(viewsets.ModelViewSet):
-    """Pagamentos reais dos custos (aba Valores › Custo real).
+    """Pagamentos reais dos custos (aba Valores › Custo real e Financeiro › Custo real).
     Filtra por ?itinerary=<id> (todos os pagamentos do roteiro) ou ?cost_item=<id>."""
     serializer_class = ItineraryCostPaymentSerializer
     pagination_class = None
-    get_permissions  = _roteiro_edit_permissions
+
+    def get_permissions(self):
+        # Ler: quem vê roteiros OU o Financeiro. Escrever: quem edita roteiros OU
+        # cuida das contas a pagar do Financeiro (a aba Custo real vive nos dois lugares).
+        if self.action in ('list', 'retrieve'):
+            return [RequirePermission('roteiros_view', 'roteiros_edit', 'roteiros_delete', 'financeiro_view')()]
+        return [RequirePermission('roteiros_edit', 'financeiro_payables')()]
 
     def get_queryset(self):
         qs = ItineraryCostPayment.objects.select_related('cost_item')
