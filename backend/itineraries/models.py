@@ -903,6 +903,9 @@ class ItineraryPricingConfig(models.Model):
     pagamento_imediato_percent = models.DecimalField('Pagamento imediato (%)', max_digits=6, decimal_places=2, null=True, blank=True)
     reserva_operadora_percent  = models.DecimalField('Reserva exclusiva da operadora (%)', max_digits=6, decimal_places=2, null=True, blank=True)
     reservation_deadline_hours = models.PositiveIntegerField('Prazo da reserva sem pagamento (horas)', null=True, blank=True)
+    # Capacidade à venda: quantos passageiros cabem/estão à venda neste roteiro.
+    # null = sem limite definido. Editado no pop-up de Configuração da aba Valores.
+    seats_for_sale = models.PositiveIntegerField('Passageiros à venda', null=True, blank=True)
     # Financeiro (Custo real): marca que a parte financeira do roteiro está
     # concluída (tudo pago). Usado no Financeiro › Custo real (abas + coluna).
     custo_real_done = models.BooleanField('Custo real concluído', default=False)
