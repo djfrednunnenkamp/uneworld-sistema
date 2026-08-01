@@ -329,6 +329,16 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
         data = sorted((r for k, r in rows.items() if k in vivos), key=lambda x: (
             x['start_date'] is None, str(x['start_date'] or ''), (x['itinerary_name'] or '').lower()))
+
+        # Permissão de ver a disponibilidade: sem ela, zeramos os números de
+        # disponibilidade/capacidade na resposta (o front esconde as colunas).
+        perms = getattr(request.user, 'permissions', None)
+        show_avail = request.user.is_superuser or getattr(perms, 'reservas_view_availability', True)
+        if not show_avail:
+            for row in data:
+                for f in ('seats_for_sale', 'passengers', 'available', 'available_online',
+                          'available_imediato', 'reserved_active', 'online_percent', 'imediato_percent'):
+                    row[f] = None
         return Response(data)
 
     @staticmethod

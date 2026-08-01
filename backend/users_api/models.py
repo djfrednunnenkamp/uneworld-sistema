@@ -141,6 +141,7 @@ class UserPermissions(models.Model):
     reservas_delete     = models.BooleanField(default=False)      # remover/excluir uma reserva
     reservas_over_reserved = models.BooleanField(default=False)   # contrato com mais pessoas que o reservado
     reservas_over_capacity = models.BooleanField(default=False)   # seguir ao atingir o limite total do roteiro
+    reservas_view_availability = models.BooleanField(default=True) # ver as colunas de disponibilidade (Disponível/Reservas online/Pagamento imediato)
 
     # Comissões dos vendedores (análise de vendas a partir dos contratos)
     commissions_view = models.BooleanField(default=False)         # acessar o módulo (por padrão vê só as PRÓPRIAS vendas)
