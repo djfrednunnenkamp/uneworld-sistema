@@ -206,7 +206,6 @@ PERMISSION_FIELDS = [
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete', 'settings_terrestre_companies_bulk_import', 'settings_terrestre_companies_export',
     # Operadora — por aba
     'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
-    'settings_operating_company_contatos_view', 'settings_operating_company_contatos_edit',
     'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',
     'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit',
     'settings_operating_company_logos_view', 'settings_operating_company_logos_edit',
@@ -290,7 +289,6 @@ STAFF_PERMISSION_FIELDS = [
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete', 'settings_terrestre_companies_bulk_import', 'settings_terrestre_companies_export',
     # Operadora — por aba
     'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
-    'settings_operating_company_contatos_view', 'settings_operating_company_contatos_edit',
     'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',
     'settings_operating_company_assinatura_view', 'settings_operating_company_assinatura_edit',
     'settings_operating_company_logos_view', 'settings_operating_company_logos_edit',

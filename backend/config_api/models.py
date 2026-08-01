@@ -928,22 +928,6 @@ class ConfigCurrency(models.Model):
         return f'{self.code} — {self.name}'
 
 
-class OperatingCompanyContact(models.Model):
-    """Pessoa/contato da operadora (equipe): nome, função, e-mail e telefone/WhatsApp.
-    Lista simples exibida na aba 'Contatos' da Operadora nas Configurações."""
-    name  = models.CharField('Nome', max_length=200)
-    role  = models.CharField('Função', max_length=200, blank=True)
-    email = models.EmailField('E-mail', blank=True)
-    phone = models.CharField('Telefone/WhatsApp', max_length=30, blank=True)
-    order = models.PositiveIntegerField('Ordem', default=0)
-
-    class Meta:
-        ordering = ['order', 'name']
-        verbose_name = 'Contato da operadora'
-        verbose_name_plural = 'Contatos da operadora'
-
-    def __str__(self):
-        return self.name
 
 
 class ConfigHotelCategory(models.Model):

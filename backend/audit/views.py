@@ -73,7 +73,7 @@ SETTINGS_MODELS = [
     'ConfigCurrency', 'ConfigKeyword', 'ConfigInclusion', 'ConfigHighlight', 'ConfigSpecialDate',
     'ConfigContinent', 'ConfigPaymentMethod', 'ConfigPaymentPlan', 'ConfigExchangeRate', 'ConfigExchangeSettings',
     'ConfigHotelCategory', 'ConfigHotel', 'ConfigHotelMedia', 'ConfigBoat', 'ConfigBoatMedia',
-    'OperatingCompany', 'OperatingCompanyContact', 'TermsAndConditions', 'SystemSettings',
+    'OperatingCompany', 'TermsAndConditions', 'SystemSettings',
     'ContractClause',
 ]
 

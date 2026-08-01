@@ -459,8 +459,6 @@ class UserPermissions(models.Model):
     # ── Operadora: permissão por aba (ver/editar) ──
     settings_operating_company_dados_view        = models.BooleanField(default=False)
     settings_operating_company_dados_edit        = models.BooleanField(default=False)
-    settings_operating_company_contatos_view     = models.BooleanField(default=False)
-    settings_operating_company_contatos_edit     = models.BooleanField(default=False)
     settings_operating_company_pix_view          = models.BooleanField(default=False)
     settings_operating_company_pix_edit          = models.BooleanField(default=False)
     settings_operating_company_assinatura_view   = models.BooleanField(default=False)
