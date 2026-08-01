@@ -605,6 +605,11 @@ class OperatingCompany(models.Model):
     email          = models.EmailField('E-mail', blank=True)
     website        = models.CharField('Site', max_length=300, blank=True)
     address        = models.CharField('Endereço', max_length=300, blank=True)
+    # Convite automático ao criar agência: quando LIGADO, o usuário admin criado
+    # junto com a agência recebe o e-mail de convite para definir a própria senha.
+    # DESLIGADO (padrão), a conta é criada sem enviar e-mail — o convite pode ser
+    # enviado depois manualmente pela tela de Usuários. Ver agencies/provisioning.py.
+    agency_invite_email = models.BooleanField('Enviar convite por e-mail ao criar agência', default=False)
     # PIX da UneWorld — usado no contrato quando a agência marca "usar PIX da UneWorld".
     pix_key_type   = models.CharField('Tipo de chave PIX', max_length=20, blank=True)
     pix_key        = models.CharField('Chave PIX', max_length=200, blank=True)
