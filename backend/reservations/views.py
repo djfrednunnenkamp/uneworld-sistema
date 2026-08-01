@@ -33,8 +33,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset().filter(is_deleted=False)
         scope = agency_scope_ids(self.request.user)
-        # Usuário de agência só vê as próprias reservas, a menos que possa ver todas.
-        if scope is not None and not has_any_perm(self.request.user, 'reservas_view_all'):
+        # Usuário de agência SÓ vê as reservas da própria agência — barreira dura.
+        # `reservas_view_all` só amplia a visão de quem é equipe interna (scope None),
+        # nunca deixa uma agência ver as reservas de outra.
+        if scope is not None:
             qs = qs.filter(agency_id__in=scope)
         # Filtro por roteiro (pop-up "reservas deste roteiro").
         itin = self.request.query_params.get('itinerary')
