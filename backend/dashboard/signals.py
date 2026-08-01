@@ -41,6 +41,15 @@ def on_contract(sender, **kwargs):
     _broadcast('contracts')
 
 
+# ── Reservas ──────────────────────────────────────────────────────────────────
+# Qualquer alteração numa reserva (criada, paga, convertida em contrato, expirada
+# ou removida) avisa quem está no hub de Reservas pra recarregar sozinho.
+
+@receiver([post_save, post_delete], sender='reservations.Reservation')
+def on_reservation(sender, **kwargs):
+    _broadcast('reservas')
+
+
 @receiver(post_save, sender='agenda.EmailLog')
 def on_email_log(sender, **kwargs):
     _broadcast('emails')
