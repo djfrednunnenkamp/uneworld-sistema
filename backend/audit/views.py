@@ -179,6 +179,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         agency_id    = self.request.query_params.get('agency_id')
         contract_id  = self.request.query_params.get('contract_id')
         itinerary_id = self.request.query_params.get('itinerary_id')
+        cost_item    = self.request.query_params.get('cost_item')   # logs dos pagamentos de UM custo (Custo real)
         target_user_id = self.request.query_params.get('target_user_id')   # mudanças feitas AO usuário
         scope        = self.request.query_params.get('scope')
         source       = self.request.query_params.get('source')
@@ -420,6 +421,12 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             if show_nav and has_page_view_access:
                 iq |= Q(model_name='PageView', object_id=str(itinerary_id))
             qs = qs.filter(iq)
+        if cost_item:
+            # Logs dos pagamentos (Custo real) de UM custo específico.
+            from itineraries.models import ItineraryCostPayment
+            pay_ids = list(ItineraryCostPayment.objects.filter(cost_item_id=cost_item).values_list('id', flat=True))
+            qs = qs.filter(model_name='ItineraryCostPayment',
+                           object_id__in=[str(i) for i in pay_ids]) if pay_ids else qs.none()
         return qs
 
 

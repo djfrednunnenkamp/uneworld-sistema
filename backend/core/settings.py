@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'users_api',
     'passengers',
     'agencies',
+    'fornecedores',
     'trips',
     'dashboard',
     'config_api',

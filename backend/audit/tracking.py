@@ -75,6 +75,7 @@ TRACKED_MODELS = {
     'Passenger':          'Passageiro',
     'PassengerDocument':  'Documento',
     'Agency':             'Agência',
+    'Fornecedor':         'Fornecedor',
     'Trip':               'Viagem',
     'PassengerList':      'Lista de Passageiros',
     'ListEnrollment':     'Passageiro na lista',

@@ -99,6 +99,7 @@ urlpatterns = [
     path('api/users/',     include('users_api.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/agencies/',  include('agencies.urls')),
+    path('api/fornecedores/', include('fornecedores.urls')),
     path('api/passengers/', include('passengers.urls')),
     path('api/trips/', include('trips.urls')),
     path('api/config/',   include('config_api.urls')),

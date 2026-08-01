@@ -116,6 +116,16 @@ class UserPermissions(models.Model):
     agencies_delete    = models.BooleanField(default=False)
     agencies_view_logs = models.BooleanField(default=False)
 
+    # Fornecedores
+    fornecedores_view      = models.BooleanField(default=False)
+    fornecedores_create    = models.BooleanField(default=False)
+    fornecedores_edit      = models.BooleanField(default=False)
+    fornecedores_status    = models.BooleanField(default=False)   # ativar/inativar
+    fornecedores_delete    = models.BooleanField(default=False)
+    fornecedores_import    = models.BooleanField(default=False)
+    fornecedores_export    = models.BooleanField(default=False)
+    fornecedores_view_logs = models.BooleanField(default=False)
+
     # Contratos
     contracts_view   = models.BooleanField(default=False)
     contracts_edit   = models.BooleanField(default=False)
