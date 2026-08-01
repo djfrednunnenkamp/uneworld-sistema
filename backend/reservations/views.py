@@ -206,7 +206,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         cada card mostra a capa, as datas e a contagem por tipo/status. Roteiros
         que já têm reserva no escopo do usuário entram sempre (ainda que já tenham
         começado / saído do ar), pra não sumir com reserva ativa."""
-        from django.db.models import Q, Count
+        from django.db.models import Q, Count, Sum
         from itineraries.models import Itinerary
         from trips.models import ListEnrollment
         from config_api.models import ReservationSettings
@@ -218,7 +218,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 'cover': None, 'start_date': None, 'end_date': None,
                 'seats_for_sale': None, 'passengers': 0, 'available': None,
                 'online_percent': 0.0, 'imediato_percent': 0.0,
-                'available_online': None, 'available_imediato': None,
+                'available_online': None, 'available_imediato': None, 'reserved_active': 0,
                 'total': 0, 'sem_pagamento': 0, 'pagamento_imediato': 0, 'operadora': 0,
                 'pendente': 0, 'paga': 0, 'convertida': 0, 'expirada': 0, 'cancelada': 0,
             }
@@ -286,6 +286,19 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     .values('passenger_list__roteiros')
                     .annotate(n=Count('id', distinct=True)))
         pax_by_itin = {r['passenger_list__roteiros']: r['n'] for r in pax_rows}
+
+        # Reservas ATIVAS (seguram vaga mas ainda não viraram passageiro na lista):
+        # pendente dentro do prazo + paga; convertida/expirada NÃO seguram. Soma o
+        # `pax` (restante) por roteiro — é o que já foi reservado e ainda não pago/contratado.
+        now = timezone.now()
+        held_rows = (Reservation.objects
+                     .filter(itinerary_id__in=vivos, is_deleted=False,
+                             status__in=('pendente', 'paga'))
+                     .exclude(status='pendente', expires_at__isnull=False, expires_at__lte=now)
+                     .values('itinerary_id')
+                     .annotate(n=Sum('pax')))
+        held_by_itin = {r['itinerary_id']: int(r['n'] or 0) for r in held_rows}
+
         for itin_id in vivos:
             row = rows[itin_id]
             pax = pax_by_itin.get(itin_id, 0)
@@ -299,12 +312,18 @@ class ReservationViewSet(viewsets.ModelViewSet):
             else:
                 on = row['online_percent']
                 im = row['imediato_percent']
-                # Reserva normal = disponível × online%. Pagamento agora inclui o
-                # bloco normal + o imediato (online% + imediato%), teto em 100%.
-                # Arredonda (não trunca) e limita ao disponível — assim 1 vaga não
-                # vira 0 por causa do 60%/80%.
-                row['available_online'] = min(avail, round(avail * on / 100.0))
-                row['available_imediato'] = min(avail, round(avail * min(100.0, on + im) / 100.0))
+                held = held_by_itin.get(itin_id, 0)   # reservas já ativas
+                row['reserved_active'] = held
+                # Vagas físicas realmente livres: disponível − reservas ativas.
+                phys = max(0, avail - held)
+                # Cota por tipo (disponível × %) MENOS as reservas já feitas, com teto
+                # nas vagas físicas livres. Reserva normal = online%; pagamento agora
+                # inclui o bloco normal + imediato (online% + imediato%), teto 100%.
+                # Arredonda (não trunca) — assim 1 vaga não vira 0 por causa do 60%/80%.
+                quota_online   = round(avail * on / 100.0)
+                quota_imediato = round(avail * min(100.0, on + im) / 100.0)
+                row['available_online']   = min(phys, max(0, quota_online - held))
+                row['available_imediato'] = min(phys, max(0, quota_imediato - held))
 
         data = sorted((r for k, r in rows.items() if k in vivos), key=lambda x: (
             x['start_date'] is None, str(x['start_date'] or ''), (x['itinerary_name'] or '').lower()))
