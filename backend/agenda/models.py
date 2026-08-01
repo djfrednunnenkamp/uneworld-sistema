@@ -77,6 +77,9 @@ class CalendarPreference(models.Model):
     # Nº de colunas da grade da Galeria escolhido pelo usuário. 0 = automático
     # (responsivo, padrão); 1..N = quantidade fixa de colunas.
     gallery_columns      = models.PositiveSmallIntegerField('Colunas da galeria', default=0)
+    # Cores das abas dos Vouchers, por status: {"geral":"#RRGGBB","em_edicao":..,
+    # "publicado":..,"finalizado":..}. Chave ausente/vazia = cor padrão do tema.
+    voucher_tab_colors   = models.JSONField('Cores das abas dos vouchers', default=dict, blank=True)
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)

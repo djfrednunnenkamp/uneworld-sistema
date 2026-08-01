@@ -15,7 +15,8 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'lamina_favorite_patterns', 'lamina_recent_patterns', 'lamina_favorite_recommended',
                   'lamina_favorite_themes',
                   'itinerary_tab_order', 'contract_tab_order', 'drive_columns',
-                  'nav_order', 'nav_hidden', 'table_columns', 'gallery_columns']
+                  'nav_order', 'nav_hidden', 'table_columns', 'gallery_columns',
+                  'voucher_tab_colors']
 
     def validate_gallery_columns(self, value):
         # Nº de colunas fixas da grade da Galeria. 0 = legado (o front cai no
@@ -25,6 +26,20 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
         except (TypeError, ValueError):
             return 0
         return max(0, min(60, n))
+
+    def validate_voucher_tab_colors(self, value):
+        # Dict {status: '#RRGGBB'} para as abas dos vouchers. Só chaves conhecidas
+        # e hex válido; chave ausente = cor padrão do tema no front.
+        import re
+        allowed = {'geral', 'em_edicao', 'publicado', 'finalizado'}
+        hexre = re.compile(r'^#?([0-9a-fA-F]{6})$')
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('Formato inválido.')
+        out = {}
+        for k, c in value.items():
+            if k in allowed and isinstance(c, str) and hexre.match(c.strip()):
+                out[k] = '#' + c.strip().lstrip('#').upper()
+        return out
 
     def validate_lamina_recent_colors(self, value):
         # Lista de '#RRGGBB' (máx. 16, sem repetição, mais recente primeiro).
