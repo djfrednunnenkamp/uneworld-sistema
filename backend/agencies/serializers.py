@@ -73,12 +73,13 @@ class AgencyListSerializer(serializers.ModelSerializer):
     # Nome de exibição pronto (nunca vazio) — usado em pickers/listas.
     display_name = serializers.ReadOnlyField()
     promoter_name = serializers.SerializerMethodField()
+    promoter_avatar = serializers.SerializerMethodField()
 
     class Meta:
         model  = Agency
         fields = ['id', 'name', 'last_name', 'company_name', 'display_name', 'email', 'cnpj', 'cpf', 'person_type',
                   'phone', 'mobile', 'city', 'status', 'commission_rate', 'logo_url',
-                  'promoter', 'promoter_name', 'is_deleted', 'deleted_at']
+                  'promoter', 'promoter_name', 'promoter_avatar', 'is_deleted', 'deleted_at']
 
     def get_logo_url(self, obj):
         if not obj.logo:
@@ -91,3 +92,13 @@ class AgencyListSerializer(serializers.ModelSerializer):
         if not u:
             return None
         return f'{u.first_name} {u.last_name}'.strip() or u.username
+
+    def get_promoter_avatar(self, obj):
+        # Foto de perfil do promotor (UserPermissions.avatar) — o front carrega pela
+        # função central de mídia (media.js). None quando não há foto.
+        u = obj.promoter
+        perms = getattr(u, 'permissions', None) if u else None
+        if not perms or not perms.avatar:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(perms.avatar.url) if request else perms.avatar.url
