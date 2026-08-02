@@ -348,10 +348,21 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         """Usuários marcados como PROMOTOR (UserPermissions.is_promoter) — para o
         combobox "Promotor" no cadastro da agência (controle da operadora). Dados
         mínimos (id/nome); liberado pela permissão do próprio viewset de agências."""
+        qs = (User.objects.filter(is_active=True, permissions__is_promoter=True)
+                          .select_related('permissions')
+                          .order_by('first_name', 'username'))
+
+        def _avatar(u):
+            perms = getattr(u, 'permissions', None)
+            if not perms or not perms.avatar:
+                return None
+            return request.build_absolute_uri(perms.avatar.url)
+
         out = [
-            {'id': u.id, 'full_name': f'{u.first_name} {u.last_name}'.strip() or u.username}
-            for u in User.objects.filter(is_active=True, permissions__is_promoter=True)
-                                 .order_by('first_name', 'username')
+            {'id': u.id,
+             'full_name': f'{u.first_name} {u.last_name}'.strip() or u.username,
+             'avatar': _avatar(u)}
+            for u in qs
         ]
         return Response(out)
 
