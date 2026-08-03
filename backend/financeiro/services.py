@@ -168,6 +168,7 @@ def receivables_report(user, f, limit=300, can_past=True):
                 'due_date': str(inst.due_date), 'kind': inst.kind, 'number': inst.installment_number,
                 'status': st, 'value_brl': str(v.quantize(CENT)), 'method': method_of(inst),
                 'agency': c.agency.name if c.agency_id else None, 'agency_id': c.agency_id,
+                'agency_logo': (c.agency.logo.url if (c.agency_id and c.agency.logo) else None),
                 'seller': (c.seller.first_name or c.seller.username) if c.seller_id else None,
                 'itinerary': c.itinerary.name if c.itinerary_id else None, 'itinerary_id': c.itinerary_id,
                 'passengers': c.guests.count(), 'stage': c.stage,
