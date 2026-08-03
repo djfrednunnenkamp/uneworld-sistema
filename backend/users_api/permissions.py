@@ -68,6 +68,7 @@ PERMISSION_FIELDS = [
     'commissions_view_all',
     'commissions_export',
     'panels_view',
+    'panels_view_values',
     # Financeiro
     'financeiro_view',
     'financeiro_receivables',

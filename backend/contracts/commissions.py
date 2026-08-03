@@ -354,9 +354,11 @@ def _dim_key_label(dimension, contract, fin):
     return (fin['seller_id'], fin['seller_name'])
 
 
-def by_dimension(qs, dimension='seller', metric='final_brl'):
+def by_dimension(qs, dimension='seller', metric='final_brl', can_view_values=True):
     """Ranking agregando por uma DIMENSÃO (vendedor/agência/roteiro/categoria/moeda/
-    etapa). Ordena pela métrica escolhida. Participação (%) sobre o preço final."""
+    etapa). Ordena pela métrica escolhida. `pct` = participação de cada linha NA
+    métrica escolhida. Sem `can_view_values`, os valores em R$/US$ são OMITIDOS
+    (só rótulo, contagens e percentual) — controle por permissão panels_view_values."""
     groups = {}
     for c in qs:
         fin = contract_financials(c)
@@ -380,6 +382,14 @@ def by_dimension(qs, dimension='seller', metric='final_brl'):
         rows.append(row)
     m = metric if metric in METRICS else 'final_brl'
     rows.sort(key=lambda r: (Decimal(r[m]) if m in ('contracts', 'passengers') else Decimal(r[m])), reverse=True)
+    # Participação (%) de cada linha NA métrica escolhida — sempre disponível.
+    total_m = sum((Decimal(r[m]) for r in rows), Decimal('0'))
+    for r in rows:
+        r['pct'] = str((Decimal(r[m]) / total_m * 100).quantize(CENT)) if total_m else '0'
+    # Sem permissão de valores: remove os campos em dinheiro (mantém rótulo, contagens e %).
+    if not can_view_values:
+        money_fields = {f'{k}_brl' for k in _MONEY_KEYS} | {f'{k}_usd' for k in _MONEY_KEYS} | {'avg_ticket_brl'}
+        rows = [{k: v for k, v in r.items() if k not in money_fields} for r in rows]
     return rows
 
 
