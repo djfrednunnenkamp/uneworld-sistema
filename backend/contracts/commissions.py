@@ -362,16 +362,22 @@ def by_dimension(qs, dimension='seller', metric='final_brl'):
         fin = contract_financials(c)
         key, label = _dim_key_label(dimension, c, fin)
         g = groups.setdefault(key, {'key': key, 'label': label, **_blank_agg()})
+        # Logo da agência (ranking por agência) — para o front exibir via media.js.
+        if dimension == 'agency' and 'logo' not in g:
+            g['logo'] = (c.agency.logo.url if (c.agency_id and c.agency.logo) else None)
         _add(g, fin)
     total_final = sum((g['final_brl'] for g in groups.values()), Decimal('0'))
     rows = []
     for g in groups.values():
         contracts = g['contracts']
         share = (g['final_brl'] / total_final * 100).quantize(CENT) if total_final else Decimal('0')
-        rows.append({'key': g['key'], 'label': g['label'], 'contracts': contracts, 'passengers': g['passengers'],
-                     **_money_out(g),
-                     'avg_ticket_brl': _money((g['final_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')),
-                     'share_pct': str(share)})
+        row = {'key': g['key'], 'label': g['label'], 'contracts': contracts, 'passengers': g['passengers'],
+               **_money_out(g),
+               'avg_ticket_brl': _money((g['final_brl'] / contracts).quantize(CENT) if contracts else Decimal('0')),
+               'share_pct': str(share)}
+        if dimension == 'agency':
+            row['logo'] = g.get('logo')
+        rows.append(row)
     m = metric if metric in METRICS else 'final_brl'
     rows.sort(key=lambda r: (Decimal(r[m]) if m in ('contracts', 'passengers') else Decimal(r[m])), reverse=True)
     return rows
