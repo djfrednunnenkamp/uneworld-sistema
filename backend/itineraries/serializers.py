@@ -877,7 +877,7 @@ class ItineraryListSerializer(serializers.ModelSerializer):
                   'badge_text', 'badge_color',
                   'category_name', 'continent_name', 'continent_names', 'countries_data',
                   'itinerary_type_name', 'maritime_company_name', 'cover', 'custo_real_done',
-                  'status', 'is_published', 'has_unpublished_changes', 'order',
+                  'status', 'is_published', 'has_unpublished_changes', 'order', 'is_own_product', 'pinned_position',
                   'visibility', 'shared_agencies_count', 'shared_agencies_data',
                   'pub_name', 'pub_start_date', 'pub_end_date',
                   'created_at', 'updated_at',

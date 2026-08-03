@@ -168,3 +168,46 @@ class MembersExcludeSoftDeletedTest(APITestCase):
         self.member.permissions.is_deleted = True; self.member.permissions.save()
         emails2 = [m['email'] for m in self.client.get(f'/api/agencies/{self.agency.id}/members/').data]
         self.assertNotIn(self.member.email, emails2)
+
+
+class PromoterTransferTest(APITestCase):
+    """Transferência de agências entre promotores (pop-up na página de Usuários)."""
+    def setUp(self):
+        self.editor = _make_user('opeditor', agencies_edit=True)
+        self.p_out = _make_user('promoter_out', is_promoter=True)
+        self.p_in  = _make_user('promoter_in',  is_promoter=True)
+        self.not_promoter = _make_user('regular2')
+        self.a_rj = Agency.objects.create(name='Ag RJ', person_type='juridica',
+                                          promoter=self.p_out, state='RJ', city='Rio de Janeiro')
+        self.a_sp = Agency.objects.create(name='Ag SP', person_type='juridica',
+                                          promoter=self.p_out, state='SP', city='São Paulo')
+
+    def test_by_promoter_lists_source_agencies(self):
+        self.client.force_authenticate(self.editor)
+        r = self.client.get('/api/agencies/by-promoter/', {'promoters': str(self.p_out.id)})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.data), 2)
+
+    def test_transfer_moves_only_selected_agencies(self):
+        self.client.force_authenticate(self.editor)
+        r = self.client.post('/api/agencies/transfer-promoter/',
+                             {'target_id': self.p_in.id, 'agency_ids': [self.a_rj.id]}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['moved'], 1)
+        self.a_rj.refresh_from_db(); self.a_sp.refresh_from_db()
+        self.assertEqual(self.a_rj.promoter_id, self.p_in.id)     # movida
+        self.assertEqual(self.a_sp.promoter_id, self.p_out.id)    # intacta
+
+    def test_target_must_be_promoter(self):
+        self.client.force_authenticate(self.editor)
+        r = self.client.post('/api/agencies/transfer-promoter/',
+                             {'target_id': self.not_promoter.id, 'agency_ids': [self.a_rj.id]}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.a_rj.refresh_from_db()
+        self.assertEqual(self.a_rj.promoter_id, self.p_out.id)    # nada mudou
+
+    def test_requires_agencies_edit_permission(self):
+        self.client.force_authenticate(self.not_promoter)
+        r = self.client.post('/api/agencies/transfer-promoter/',
+                             {'target_id': self.p_in.id, 'agency_ids': [self.a_rj.id]}, format='json')
+        self.assertEqual(r.status_code, 403)

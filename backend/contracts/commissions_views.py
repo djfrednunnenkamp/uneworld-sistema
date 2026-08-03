@@ -85,7 +85,9 @@ def commissions_by_dimension(request):
     if dim not in ('seller', 'agency', 'itinerary', 'category', 'currency', 'stage'):
         dim = 'seller'
     metric = request.query_params.get('metric') or 'final_brl'
-    return Response({'dimension': dim, 'metric': metric, 'rows': C.by_dimension(_filtered(request), dim, metric)})
+    can_values = has_any_perm(request.user, 'panels_view_values')
+    return Response({'dimension': dim, 'metric': metric, 'can_view_values': can_values,
+                     'rows': C.by_dimension(_filtered(request), dim, metric, can_view_values=can_values)})
 
 
 @api_view(['GET'])
@@ -191,6 +193,7 @@ def commissions_meta(request):
         'years': C.available_years(request.user),
         'can_view_all': C.can_view_all(request.user),
         'can_export': has_any_perm(request.user, 'commissions_export'),
+        'can_view_values': has_any_perm(request.user, 'panels_view_values'),
         'situacoes': [
             {'value': 'confirmadas', 'label': 'Vendas confirmadas (em pagamento em diante)'},
             {'value': 'pendentes', 'label': 'Em andamento (antes do pagamento)'},

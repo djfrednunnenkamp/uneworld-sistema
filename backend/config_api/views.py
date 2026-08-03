@@ -18,7 +18,7 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      CustomDocType, CustomDocField, CustomDocFieldOption,
                      ConfigAccommodation, ConfigShipCabin, ConfigListCategory, Airport, Airline,
                      BusMap, BusMapRow, SystemSettings, PermissionProfile, ContractClause, TermsAndConditions,
-                     OperatingCompany, OperatingCompanyContact, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
+                     OperatingCompany, ConfigPaymentMethod, ConfigPaymentPlan, ConfigExchangeRate,
                      ConfigItineraryCategory, ConfigContinent,
                      ConfigItineraryType, ConfigMaritimeCompany, ConfigCurrency, ConfigKeyword, ConfigCostCategory,
                      ConfigFlightSegment, ConfigFlightClass,
@@ -2409,6 +2409,7 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model  = OperatingCompany
         fields = ['company_name', 'cnpj', 'seller', 'phone', 'mobile', 'email', 'website', 'address',
+                  'agency_invite_email',
                   'pix_key_type', 'pix_key',
                   'default_signature_type', 'sms_verification',
                   'ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign', 'ceo_signature',
@@ -2419,31 +2420,6 @@ class OperatingCompanySerializer(serializers.ModelSerializer):
             return None
         ts = int(obj.updated_at.timestamp()) if obj.updated_at else 0
         return f'/api/config/operating-company/ceo-signature/?v={ts}'
-
-
-class OperatingCompanyContactSerializer(serializers.ModelSerializer):
-    class Meta:
-        model  = OperatingCompanyContact
-        fields = ['id', 'name', 'role', 'email', 'phone', 'order']
-
-
-class OperatingCompanyContactViewSet(viewsets.ModelViewSet):
-    """CRUD dos contatos (equipe) da operadora — aba 'Contatos'."""
-    serializer_class = OperatingCompanyContactSerializer
-    pagination_class = None
-
-    def get_permissions(self):
-        # Aba "Contatos" da operadora — view/edit próprios (base como fallback).
-        from users_api.permissions import RequirePermission as RP
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [RP('manage_settings', 'settings_operating_company_edit', 'settings_operating_company_contatos_edit')()]
-        return [RP('manage_settings', 'settings_operating_company_view', 'settings_operating_company_edit',
-                   'settings_operating_company_contatos_view', 'settings_operating_company_contatos_edit')()]
-
-    def get_queryset(self):
-        qs = OperatingCompanyContact.objects.all()
-        q = self.request.query_params.get('q', '').strip()
-        return qs.filter(name__icontains=q) if q else qs
 
 
 CEO_SENSITIVE_FIELDS = ['ceo_name', 'ceo_email', 'ceo_autentique_token', 'ceo_auto_sign']

@@ -158,6 +158,7 @@ class UserPermissions(models.Model):
     commissions_view_all = models.BooleanField(default=False)     # ver as vendas de TODOS os vendedores (ranking/equipe)
     commissions_export = models.BooleanField(default=False)       # exportar o relatório de comissões
     panels_view = models.BooleanField(default=False)             # ver os Painéis de Visualização (cards/gráficos de vendas)
+    panels_view_values = models.BooleanField(default=False)      # ver os VALORES em R$ nos painéis (sem isso, só percentual)
 
     # Financeiro (previsto): entradas de contratos + contas a pagar dos custos + fluxo de caixa
     financeiro_view        = models.BooleanField(default=False)  # acessar o módulo Financeiro (pré-requisito)
@@ -459,8 +460,6 @@ class UserPermissions(models.Model):
     # ── Operadora: permissão por aba (ver/editar) ──
     settings_operating_company_dados_view        = models.BooleanField(default=False)
     settings_operating_company_dados_edit        = models.BooleanField(default=False)
-    settings_operating_company_contatos_view     = models.BooleanField(default=False)
-    settings_operating_company_contatos_edit     = models.BooleanField(default=False)
     settings_operating_company_pix_view          = models.BooleanField(default=False)
     settings_operating_company_pix_edit          = models.BooleanField(default=False)
     settings_operating_company_assinatura_view   = models.BooleanField(default=False)

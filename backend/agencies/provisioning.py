@@ -56,19 +56,24 @@ def ensure_agency_admin_user(agency, actor=None):
 
     AgencyMember.objects.create(agency=agency, user=user, role='admin')
 
-    # Convite por e-mail para o admin definir a própria senha. Falha no envio
-    # não cancela a criação.
-    try:
-        from users_api.models import InviteToken
-        from users_api.email_service import send_invite
-        invite = InviteToken.objects.create(
-            email=user.email, first_name=user.first_name, last_name=user.last_name,
-            is_staff=False, created_by=actor,
-        )
-        url = f"{settings.FRONTEND_URL}/aceitar-convite?token={invite.token}"
-        invited_by = (actor.get_full_name() or actor.username) if actor else ''
-        send_invite(user.email, user.first_name, url, invited_by)
-    except Exception:
-        pass
+    # Convite por e-mail para o admin definir a própria senha — SÓ quando a
+    # operadora ligou "Enviar convite por e-mail ao criar agência" (padrão:
+    # desligado). Desligado, a conta é criada sem e-mail; o convite pode ser
+    # enviado depois manualmente pela tela de Usuários. Falha no envio não
+    # cancela a criação.
+    from config_api.models import OperatingCompany
+    if OperatingCompany.get().agency_invite_email:
+        try:
+            from users_api.models import InviteToken
+            from users_api.email_service import send_invite
+            invite = InviteToken.objects.create(
+                email=user.email, first_name=user.first_name, last_name=user.last_name,
+                is_staff=False, created_by=actor,
+            )
+            url = f"{settings.FRONTEND_URL}/aceitar-convite?token={invite.token}"
+            invited_by = (actor.get_full_name() or actor.username) if actor else ''
+            send_invite(user.email, user.first_name, url, invited_by)
+        except Exception:
+            pass
 
     return user

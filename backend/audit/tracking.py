@@ -124,7 +124,6 @@ TRACKED_MODELS = {
     'PermissionProfile':    'Perfil de permissão',
     'UserPermissions':      'Permissões de usuário',
     'OperatingCompany':     'Empresa operadora',
-    'OperatingCompanyContact': 'Contato da operadora',
     'TermsAndConditions':   'Termos e condições',
     'SystemSettings':       'Configuração do sistema',
     'AgencyMember':         'Membro de agência',

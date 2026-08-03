@@ -605,6 +605,11 @@ class OperatingCompany(models.Model):
     email          = models.EmailField('E-mail', blank=True)
     website        = models.CharField('Site', max_length=300, blank=True)
     address        = models.CharField('Endereço', max_length=300, blank=True)
+    # Convite automático ao criar agência: quando LIGADO, o usuário admin criado
+    # junto com a agência recebe o e-mail de convite para definir a própria senha.
+    # DESLIGADO (padrão), a conta é criada sem enviar e-mail — o convite pode ser
+    # enviado depois manualmente pela tela de Usuários. Ver agencies/provisioning.py.
+    agency_invite_email = models.BooleanField('Enviar convite por e-mail ao criar agência', default=False)
     # PIX da UneWorld — usado no contrato quando a agência marca "usar PIX da UneWorld".
     pix_key_type   = models.CharField('Tipo de chave PIX', max_length=20, blank=True)
     pix_key        = models.CharField('Chave PIX', max_length=200, blank=True)
@@ -674,6 +679,15 @@ class SystemSettings(models.Model):
     a_vista_discount_mode  = models.CharField('Tipo do desconto à vista', max_length=10, choices=A_VISTA_DISCOUNT_MODE_CHOICES, default='percent')
     a_vista_discount_value = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, default=0)
     a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
+
+    # Ordem do SITE (vitrine pública) — regras automáticas da lista de roteiros.
+    # A ordem é COMPUTADA (não fixa): próprios primeiro (opcional) → data de início.
+    # Roteiros com pinned_position fixam a posição e sobrepõem a regra.
+    site_order_own_first = models.BooleanField('Produtos próprios primeiro', default=True)
+    SITE_ORDER_BY_CHOICES = [('start_date', 'Data de início'), ('name', 'Nome'), ('created_at', 'Cadastro')]
+    site_order_by = models.CharField('Ordenar por', max_length=12, choices=SITE_ORDER_BY_CHOICES, default='start_date')
+    SITE_ORDER_DIR_CHOICES = [('asc', 'Crescente'), ('desc', 'Decrescente')]
+    site_order_dir = models.CharField('Direção', max_length=4, choices=SITE_ORDER_DIR_CHOICES, default='asc')
 
     # Logos configuráveis por lugar (branding). Vazio = usa o /logo.png padrão.
     logo_system   = models.ImageField('Logo do tema (sistema)', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)  # legado
@@ -923,22 +937,6 @@ class ConfigCurrency(models.Model):
         return f'{self.code} — {self.name}'
 
 
-class OperatingCompanyContact(models.Model):
-    """Pessoa/contato da operadora (equipe): nome, função, e-mail e telefone/WhatsApp.
-    Lista simples exibida na aba 'Contatos' da Operadora nas Configurações."""
-    name  = models.CharField('Nome', max_length=200)
-    role  = models.CharField('Função', max_length=200, blank=True)
-    email = models.EmailField('E-mail', blank=True)
-    phone = models.CharField('Telefone/WhatsApp', max_length=30, blank=True)
-    order = models.PositiveIntegerField('Ordem', default=0)
-
-    class Meta:
-        ordering = ['order', 'name']
-        verbose_name = 'Contato da operadora'
-        verbose_name_plural = 'Contatos da operadora'
-
-    def __str__(self):
-        return self.name
 
 
 class ConfigHotelCategory(models.Model):

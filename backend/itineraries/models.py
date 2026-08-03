@@ -247,6 +247,11 @@ class Itinerary(models.Model):
     deleted_at  = models.DateTimeField('Excluído em', null=True, blank=True)
     # Ordem manual (arrastar na listagem) — vai alimentar a ordem do site público.
     order       = models.PositiveIntegerField('Ordem', default=0, db_index=True)
+    # Ordem do SITE (vitrine): computada por regras (próprios primeiro → data de
+    # início) em SystemSettings; `pinned_position` FIXA um roteiro numa posição
+    # (1-based) que sobrepõe a regra. null = automático (flui pelas regras). Ver
+    # itineraries/views.py::compute_site_order + a página "Reordenar roteiros".
+    pinned_position = models.PositiveIntegerField('Posição fixada (ordem do site)', null=True, blank=True, db_index=True)
 
     class Meta:
         verbose_name = 'Roteiro'

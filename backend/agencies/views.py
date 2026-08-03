@@ -42,7 +42,7 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
     def get_queryset(self):
         from django.db.models import Q
         from users_api.permissions import agency_scope_ids
-        qs = super().get_queryset().select_related('promoter')   # aplica o filtro de soft-delete (is_deleted)
+        qs = super().get_queryset().select_related('promoter', 'promoter__permissions')   # aplica o filtro de soft-delete (is_deleted)
         # Usuário de agência só enxerga a(s) própria(s) agência(s).
         scope = agency_scope_ids(self.request.user)
         if scope is not None:
@@ -92,6 +92,8 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
                 return [RequirePermission('agencies_edit')()]
             return [RequirePermission(*VIEW_PERMS)()]
         if self.action == 'attachable_users':
+            return [RequirePermission('agencies_edit')()]
+        if self.action in ('by_promoter', 'transfer_promoter'):
             return [RequirePermission('agencies_edit')()]
         if self.action in ('autentique_config', 'self_update', 'logo'):
             # Admin da agência OU operadora — o gate fino é feito dentro da action.
@@ -155,6 +157,54 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(ser.data)
+
+    @action(detail=False, methods=['get'], url_path='by-promoter')
+    def by_promoter(self, request):
+        """Agências (não-rascunho) de um ou mais promotores — alimenta o pop-up de
+        transferência de agências entre promotores. Query: ?promoters=1,2,3"""
+        raw = request.query_params.get('promoters', '')
+        ids = [int(x) for x in raw.split(',') if x.strip().lstrip('-').isdigit()]
+        if not ids:
+            return Response([])
+        qs = (self.get_queryset().exclude(status='rascunho')
+              .filter(promoter_id__in=ids)
+              .order_by('state', 'city', 'name'))
+        out = [{
+            'id': a.id,
+            'name': a.name or a.company_name or '—',
+            'city': a.city or '',
+            'state': a.state or '',
+            'promoter_id': a.promoter_id,
+        } for a in qs]
+        return Response(out)
+
+    @action(detail=False, methods=['post'], url_path='transfer-promoter')
+    def transfer_promoter(self, request):
+        """Move as agências informadas para o promotor de destino. Usado quando um
+        promotor sai (repassa a carteira) ou entra (recebe agências de outros). O
+        front resolve o filtro por região/cidade e envia os IDs exatos a mover."""
+        data = request.data
+        target_id = data.get('target_id')
+        agency_ids = data.get('agency_ids') or []
+        try:
+            target = User.objects.get(pk=target_id)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'Promotor de destino inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not getattr(getattr(target, 'permissions', None), 'is_promoter', False):
+            return Response({'error': 'O destino precisa ser um promotor.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(agency_ids, list) or not agency_ids:
+            return Response({'error': 'Selecione ao menos uma agência para transferir.'}, status=status.HTTP_400_BAD_REQUEST)
+        # get_queryset aplica soft-delete + escopo; exclui rascunhos. Salva 1 a 1
+        # (update_fields) para acionar a auditoria por signals de cada agência.
+        qs = self.get_queryset().exclude(status='rascunho').filter(id__in=agency_ids)
+        moved = 0
+        for a in qs:
+            if a.promoter_id == target.id:
+                continue
+            a.promoter = target
+            a.save(update_fields=['promoter', 'updated_at'])
+            moved += 1
+        return Response({'moved': moved, 'target': target.get_full_name() or target.username})
 
     @action(detail=True, methods=['post', 'delete'], parser_classes=[MultiPartParser, FormParser])
     def logo(self, request, pk=None):
@@ -298,10 +348,21 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         """Usuários marcados como PROMOTOR (UserPermissions.is_promoter) — para o
         combobox "Promotor" no cadastro da agência (controle da operadora). Dados
         mínimos (id/nome); liberado pela permissão do próprio viewset de agências."""
+        qs = (User.objects.filter(is_active=True, permissions__is_promoter=True)
+                          .select_related('permissions')
+                          .order_by('first_name', 'username'))
+
+        def _avatar(u):
+            perms = getattr(u, 'permissions', None)
+            if not perms or not perms.avatar:
+                return None
+            return request.build_absolute_uri(perms.avatar.url)
+
         out = [
-            {'id': u.id, 'full_name': f'{u.first_name} {u.last_name}'.strip() or u.username}
-            for u in User.objects.filter(is_active=True, permissions__is_promoter=True)
-                                 .order_by('first_name', 'username')
+            {'id': u.id,
+             'full_name': f'{u.first_name} {u.last_name}'.strip() or u.username,
+             'avatar': _avatar(u)}
+            for u in qs
         ]
         return Response(out)
 

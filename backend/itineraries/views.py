@@ -707,6 +707,57 @@ def _payment_plan_snapshot(p):
     }
 
 
+def compute_site_order(pool=None):
+    """Ordem da vitrine pública: SÓ roteiros publicados, COMPUTADA por regras
+    (próprios primeiro, opcional → data de início asc/desc). `pinned_position` fixa
+    a posição (1-based) e sobrepõe a regra. Novos roteiros entram sozinhos na
+    posição certa (nada precisa ser reordenado à mão). Retorna a lista ordenada."""
+    from config_api.models import SystemSettings
+    ss = SystemSettings.get()
+    own_first = ss.site_order_own_first
+    desc = (ss.site_order_dir == 'desc')
+    order_by = getattr(ss, 'site_order_by', 'start_date') or 'start_date'
+    items = list(pool if pool is not None
+                 else Itinerary.objects.filter(is_published=True, is_deleted=False))
+    # Só roteiros AINDA POR ACONTECER: os em andamento (já começaram) ou concluídos
+    # saem da vitrine — não são mais vendáveis no site. Sem data = mantém.
+    from django.utils import timezone
+    today = timezone.localdate()
+    items = [r for r in items if r.start_date is None or r.start_date > today]
+    n = len(items)
+
+    # 1) ordena pelo CAMPO escolhido (data de início / nome / cadastro).
+    if order_by == 'name':
+        auto = sorted(items, key=lambda r: ((r.name or '').lower(), r.id), reverse=desc)
+    elif order_by == 'created_at':
+        auto = sorted(items, key=lambda r: (r.created_at, r.id), reverse=desc)
+    else:  # start_date — SEM data sempre por último, independente da direção
+        dated   = sorted([r for r in items if r.start_date], key=lambda r: (r.start_date, r.id), reverse=desc)
+        undated = sorted([r for r in items if not r.start_date], key=lambda r: r.id)
+        auto = dated + undated
+    # 2) próprios primeiro (sort ESTÁVEL preserva a ordem do campo dentro do grupo).
+    if own_first:
+        auto = sorted(auto, key=lambda r: 0 if r.is_own_product else 1)
+
+    pinned = {}
+    for r in items:
+        p = r.pinned_position
+        if p and 1 <= p <= n and p not in pinned:
+            pinned[p] = r
+    pinned_ids = {r.id for r in pinned.values()}
+    unpinned = [r for r in auto if r.id not in pinned_ids]
+
+    result, ui = [], 0
+    for pos in range(1, n + 1):
+        if pos in pinned:
+            result.append(pinned[pos])
+        elif ui < len(unpinned):
+            result.append(unpinned[ui]); ui += 1
+    while ui < len(unpinned):
+        result.append(unpinned[ui]); ui += 1
+    return result
+
+
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = Itinerary.objects.select_related(
         'category', 'continent', 'itinerary_type', 'maritime_company', 'pricing',
@@ -1106,6 +1157,44 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             ip_address=get_current_ip(),
         )
         return Response({'ok': True, 'count': len(ids)})
+
+    # ── Ordem do SITE (vitrine): lista computada dos PUBLICADOS + config + pins. ──
+    @action(detail=False, methods=['get', 'post'], url_path='site-order')
+    def site_order(self, request):
+        from config_api.models import SystemSettings
+        from django.utils import timezone
+        from django.db.models import Q
+        ss = SystemSettings.get()
+        today = timezone.localdate()
+        # Só publicados AINDA POR ACONTECER (em andamento/concluídos não vão pro site).
+        base = self.queryset.filter(is_published=True, is_deleted=False).filter(
+            Q(start_date__isnull=True) | Q(start_date__gt=today))
+        pub_ids = set(base.values_list('id', flat=True))
+        if request.method == 'POST':
+            cfg = request.data.get('config') or {}
+            fields = []
+            if 'own_first' in cfg:
+                ss.site_order_own_first = bool(cfg['own_first']); fields.append('site_order_own_first')
+            if cfg.get('by') in ('start_date', 'name', 'created_at'):
+                ss.site_order_by = cfg['by']; fields.append('site_order_by')
+            if cfg.get('dir') in ('asc', 'desc'):
+                ss.site_order_dir = cfg['dir']; fields.append('site_order_dir')
+            if fields:
+                ss.save(update_fields=fields)
+            # Pins: zera todos os do pool e aplica os enviados ({id, position}).
+            Itinerary.objects.filter(id__in=pub_ids).update(pinned_position=None)
+            n = len(pub_ids)
+            for p in (request.data.get('pins') or []):
+                pid, pos = p.get('id'), p.get('position')
+                if pid in pub_ids and isinstance(pos, int) and 1 <= pos <= n:
+                    Itinerary.objects.filter(id=pid).update(pinned_position=pos)
+            from audit.tracking import log_event
+            log_event('update', model_name='Itinerary', model_label='Roteiro',
+                      object_repr='Ordem do site (vitrine)',
+                      changes={'Ordem do site': {'antes': '—', 'depois': 'config/fixados atualizados'}}, user=request.user)
+        ordered = compute_site_order(list(base))
+        data = ItineraryListSerializer(ordered, many=True, context={'request': request}).data
+        return Response({'config': {'own_first': ss.site_order_own_first, 'by': ss.site_order_by, 'dir': ss.site_order_dir}, 'items': data})
 
     # ── Publicação: tira a FOTO do estado atual (published_data) e liga is_published.
     # É o que o site público mostra; editar depois não muda a foto até republicar. ──
