@@ -707,6 +707,46 @@ def _payment_plan_snapshot(p):
     }
 
 
+def compute_site_order(pool=None):
+    """Ordem da vitrine pública: SÓ roteiros publicados, COMPUTADA por regras
+    (próprios primeiro, opcional → data de início asc/desc). `pinned_position` fixa
+    a posição (1-based) e sobrepõe a regra. Novos roteiros entram sozinhos na
+    posição certa (nada precisa ser reordenado à mão). Retorna a lista ordenada."""
+    from config_api.models import SystemSettings
+    ss = SystemSettings.get()
+    own_first = ss.site_order_own_first
+    desc = (ss.site_order_dir == 'desc')
+    items = list(pool if pool is not None
+                 else Itinerary.objects.filter(is_published=True, is_deleted=False))
+    n = len(items)
+
+    def keyf(r):
+        own = (0 if r.is_own_product else 1) if own_first else 0
+        if r.start_date:
+            d = r.start_date.toordinal()
+            return (own, 0, -d if desc else d, r.id)
+        return (own, 1, 0, r.id)   # sem data → por último
+    auto = sorted(items, key=keyf)
+
+    pinned = {}
+    for r in items:
+        p = r.pinned_position
+        if p and 1 <= p <= n and p not in pinned:
+            pinned[p] = r
+    pinned_ids = {r.id for r in pinned.values()}
+    unpinned = [r for r in auto if r.id not in pinned_ids]
+
+    result, ui = [], 0
+    for pos in range(1, n + 1):
+        if pos in pinned:
+            result.append(pinned[pos])
+        elif ui < len(unpinned):
+            result.append(unpinned[ui]); ui += 1
+    while ui < len(unpinned):
+        result.append(unpinned[ui]); ui += 1
+    return result
+
+
 class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     queryset         = Itinerary.objects.select_related(
         'category', 'continent', 'itinerary_type', 'maritime_company', 'pricing',
@@ -1106,6 +1146,37 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             ip_address=get_current_ip(),
         )
         return Response({'ok': True, 'count': len(ids)})
+
+    # ── Ordem do SITE (vitrine): lista computada dos PUBLICADOS + config + pins. ──
+    @action(detail=False, methods=['get', 'post'], url_path='site-order')
+    def site_order(self, request):
+        from config_api.models import SystemSettings
+        ss = SystemSettings.get()
+        base = self.queryset.filter(is_published=True, is_deleted=False)
+        pub_ids = set(base.values_list('id', flat=True))
+        if request.method == 'POST':
+            cfg = request.data.get('config') or {}
+            fields = []
+            if 'own_first' in cfg:
+                ss.site_order_own_first = bool(cfg['own_first']); fields.append('site_order_own_first')
+            if cfg.get('dir') in ('asc', 'desc'):
+                ss.site_order_dir = cfg['dir']; fields.append('site_order_dir')
+            if fields:
+                ss.save(update_fields=fields)
+            # Pins: zera todos os do pool e aplica os enviados ({id, position}).
+            Itinerary.objects.filter(id__in=pub_ids).update(pinned_position=None)
+            n = len(pub_ids)
+            for p in (request.data.get('pins') or []):
+                pid, pos = p.get('id'), p.get('position')
+                if pid in pub_ids and isinstance(pos, int) and 1 <= pos <= n:
+                    Itinerary.objects.filter(id=pid).update(pinned_position=pos)
+            from audit.tracking import log_event
+            log_event('update', model_name='Itinerary', model_label='Roteiro',
+                      object_repr='Ordem do site (vitrine)',
+                      changes={'Ordem do site': {'antes': '—', 'depois': 'config/fixados atualizados'}}, user=request.user)
+        ordered = compute_site_order(list(base))
+        data = ItineraryListSerializer(ordered, many=True, context={'request': request}).data
+        return Response({'config': {'own_first': ss.site_order_own_first, 'dir': ss.site_order_dir}, 'items': data})
 
     # ── Publicação: tira a FOTO do estado atual (published_data) e liga is_published.
     # É o que o site público mostra; editar depois não muda a foto até republicar. ──

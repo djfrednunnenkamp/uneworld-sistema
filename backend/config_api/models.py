@@ -680,6 +680,13 @@ class SystemSettings(models.Model):
     a_vista_discount_value = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, default=0)
     a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
 
+    # Ordem do SITE (vitrine pública) — regras automáticas da lista de roteiros.
+    # A ordem é COMPUTADA (não fixa): próprios primeiro (opcional) → data de início.
+    # Roteiros com pinned_position fixam a posição e sobrepõem a regra.
+    site_order_own_first = models.BooleanField('Produtos próprios primeiro', default=True)
+    SITE_ORDER_DIR_CHOICES = [('asc', 'Mais cedo primeiro'), ('desc', 'Mais tarde primeiro')]
+    site_order_dir = models.CharField('Ordem por data de início', max_length=4, choices=SITE_ORDER_DIR_CHOICES, default='asc')
+
     # Logos configuráveis por lugar (branding). Vazio = usa o /logo.png padrão.
     logo_system   = models.ImageField('Logo do tema (sistema)', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)  # legado
     logo_sidebar  = models.ImageField('Logo da sidebar', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)
