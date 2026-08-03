@@ -719,6 +719,11 @@ def compute_site_order(pool=None):
     order_by = getattr(ss, 'site_order_by', 'start_date') or 'start_date'
     items = list(pool if pool is not None
                  else Itinerary.objects.filter(is_published=True, is_deleted=False))
+    # Só roteiros AINDA POR ACONTECER: os em andamento (já começaram) ou concluídos
+    # saem da vitrine — não são mais vendáveis no site. Sem data = mantém.
+    from django.utils import timezone
+    today = timezone.localdate()
+    items = [r for r in items if r.start_date is None or r.start_date > today]
     n = len(items)
 
     # 1) ordena pelo CAMPO escolhido (data de início / nome / cadastro).
@@ -1157,8 +1162,13 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get', 'post'], url_path='site-order')
     def site_order(self, request):
         from config_api.models import SystemSettings
+        from django.utils import timezone
+        from django.db.models import Q
         ss = SystemSettings.get()
-        base = self.queryset.filter(is_published=True, is_deleted=False)
+        today = timezone.localdate()
+        # Só publicados AINDA POR ACONTECER (em andamento/concluídos não vão pro site).
+        base = self.queryset.filter(is_published=True, is_deleted=False).filter(
+            Q(start_date__isnull=True) | Q(start_date__gt=today))
         pub_ids = set(base.values_list('id', flat=True))
         if request.method == 'POST':
             cfg = request.data.get('config') or {}
