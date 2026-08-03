@@ -40,7 +40,7 @@ CENT = Decimal('0.01')
 # (em_pagamento e faturado). Antes disso (enviado/assinado/revisão/a faturar) é
 # venda em andamento (pendente), ainda não confirmada.
 CONFIRMED_STAGES = {'em_pagamento', 'faturado'}
-PENDING_STAGES   = {'enviado', 'assinado', 'revisao', 'aprovado', 'a_faturar'}
+PENDING_STAGES   = {'enviado', 'assinado', 'revisao', 'aprovado', 'a_faturar', 'conf_pagamento'}
 PAID_STAGES      = {'faturado'}         # pagos (financeiro concluiu)
 
 # Grupos que a UI pode pedir via ?situacao=
@@ -322,6 +322,7 @@ def available_years(user):
 STAGE_LABEL_BR = {
     'em_edicao': 'Rascunho', 'enviado': 'Enviado', 'assinado': 'Assinado',
     'revisao': 'Em revisão', 'aprovado': 'Aprovado', 'a_faturar': 'A faturar',
+    'conf_pagamento': 'Conferência do pagamento',
     'em_pagamento': 'Em pagamento', 'faturado': 'Pago',
 }
 # Métricas numéricas que os gráficos/rankings podem usar.

@@ -145,14 +145,15 @@ def _apply_autentique_state(contract, doc, save=True, metas=None):
     contract.autentique_data = {'document_id': doc.get('id'), 'signers': new}
     became_signed = False
     fields = ['autentique_data']
-    if autentique.is_fully_signed(doc) and contract.stage not in ('revisao', 'aprovado'):
+    if autentique.is_fully_signed(doc) and contract.stage not in ('conf_pagamento', 'em_pagamento', 'faturado'):
         url = autentique.signed_file_url(doc)
         if url:
             pdf = autentique.download(url)
             fname = f'contrato_{contract.reservation_number or contract.id}_assinado.pdf'
             contract.signed_file.save(fname, ContentFile(pdf), save=False)
-            # Assinatura completa → vai direto para a revisão da operadora.
-            contract.stage = 'revisao'
+            # Assinatura completa → conferência do pagamento (o financeiro confere
+            # se o pagamento entrou antes de liberar para 'em pagamento').
+            contract.stage = 'conf_pagamento'
             contract.signed_at = timezone.now()
             fields += ['signed_file', 'stage', 'signed_at']
             became_signed = True
@@ -424,8 +425,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'invoice_data':
             return [RequirePermission('contracts_invoice_view', 'contracts_invoice')()]
         if self.action in ('create', 'update', 'partial_update', 'restore', 'purge', 'discard',
-                           'send_for_signature', 'upload_signed', 'upload_receipt', 'reopen', 'check_signature',
-                           'create_addendum'):
+                           'submit_review', 'send_for_signature', 'upload_signed', 'upload_receipt',
+                           'reopen', 'check_signature', 'create_addendum'):
             return [RequirePermission('contracts_edit')()]
         return [RequirePermission('contracts_view', 'contracts_edit', 'contracts_delete')()]
 
@@ -517,18 +518,37 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         qs = qs.select_related('permissions').order_by('first_name', 'last_name', 'username')
         return Response([_seller_brief(u) for u in qs])
 
+    @action(detail=True, methods=['post'], url_path='submit-review')
+    def submit_review(self, request, pk=None):
+        """Em edição → Em revisão. É o 'Enviar' do fluxo novo: NÃO abre assinatura;
+        manda o contrato para a operadora conferir os dados. A assinatura só vem
+        depois (após a verificação do financeiro)."""
+        contract = self.get_object()
+        if contract.stage != 'em_edicao':
+            return Response({'error': 'Só é possível enviar para revisão um contrato em edição.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        contract.stage = 'revisao'
+        contract.review_note = ''
+        contract.save(update_fields=['stage', 'review_note'])
+        return Response(ContractSerializer(contract, context={'request': request}).data)
+
     @action(detail=True, methods=['post'], url_path='send-for-signature',
             parser_classes=[MultiPartParser, FormParser])
     def send_for_signature(self, request, pk=None):
-        """Em edição → Enviado para assinatura.
+        """Verificação do financeiro → Para assinatura (etapa "Assinatura"). Só
+        acontece DEPOIS da revisão + verificação do financeiro.
 
         Física: só muda a etapa (o PDF é impresso e assinado à mão).
         Digital: cria o documento na Autentique com o PDF gerado (enviado pelo
         front em `file`) e dispara os pedidos de assinatura para o cliente e a
-        agência. O contrato vira 'Assinado' quando a Autentique avisar (webhook)
-        ou na verificação manual."""
+        agência. Ao completar a assinatura o contrato vai para 'Conferência do
+        pagamento' (webhook / verificação manual)."""
         from django.utils import timezone
         contract = self.get_object()
+        # Guard: só do financeiro liberado (a_faturar) ou reenvio (enviado).
+        if contract.stage not in ('a_faturar', 'enviado'):
+            return Response({'error': 'A assinatura só pode ser enviada após a verificação do financeiro.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
 
         if contract.signature_type == 'digital':
             if not autentique.is_configured():
@@ -665,7 +685,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         digital e ainda pendente na Autentique, o documento é apagado lá antes —
         assim ninguém assina uma versão que foi descartada para reedição."""
         contract = self.get_object()
-        if contract.stage == 'assinado':
+        if contract.stage in ('assinado', 'conf_pagamento'):
             return Response(
                 {'error': 'Contrato já assinado não pode voltar para edição.'},
                 status=http_status.HTTP_400_BAD_REQUEST)
@@ -803,13 +823,13 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='invoice')
     def invoice(self, request, pk=None):
-        """Verificação do financeiro → Em pagamento. O financeiro confere que está
-        tudo certo e libera; a passagem para 'Pagos' (faturado) é AUTOMÁTICA depois
-        que a última parcela vence (ver _promote_paid_contracts)."""
+        """Conferência do pagamento → Em pagamento. O financeiro confere que o
+        pagamento entrou e libera; a passagem para 'Pagos' (faturado) é AUTOMÁTICA
+        depois que a última parcela vence (ver _promote_paid_contracts)."""
         from django.utils import timezone
         contract = self.get_object()
-        if contract.stage != 'a_faturar':
-            return Response({'error': 'Só é possível verificar um contrato na Verificação do financeiro.'},
+        if contract.stage != 'conf_pagamento':
+            return Response({'error': 'Só é possível confirmar o pagamento de um contrato na Conferência do pagamento.'},
                             status=http_status.HTTP_400_BAD_REQUEST)
         contract.stage = 'em_pagamento'
         contract.invoiced_at = timezone.now()   # verificado/liberado para pagamento em
@@ -937,8 +957,8 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if receipt:
             contract.payment_receipt = receipt
             fields.append('payment_receipt')
-        # Assinado (física) → vai direto para a revisão da operadora.
-        contract.stage = 'revisao'
+        # Assinado (física) → conferência do pagamento (financeiro confere).
+        contract.stage = 'conf_pagamento'
         contract.signed_at = timezone.now()
         contract.signed_verification = verification
         contract.save(update_fields=fields)

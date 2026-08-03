@@ -115,24 +115,28 @@ class Contract(models.Model):
     SIGNATURE_CHOICES = [('fisica', 'Física (imprimir e assinar)'), ('digital', 'Digital')]
     signature_type = models.CharField('Forma de assinatura', max_length=10, choices=SIGNATURE_CHOICES, default='fisica')
 
-    # Etapa do ciclo de vida: em edição → enviado para assinatura → (assinado) →
-    # em revisão (operadora confere) → aprovado. 'assinado' fica como estado
-    # legado; ao completar a assinatura o contrato vai direto para 'revisao'.
-    # Fluxo: em edição → enviado → (assinado) → revisão → aprovar → verificação do
-    # financeiro (a_faturar) → em pagamento → pagos (faturado). A passagem de
-    # 'em_pagamento' para 'faturado' (Pagos) é AUTOMÁTICA: acontece depois que a
-    # última parcela (maior due_date) vence.
+    # Ciclo de vida (NOVO fluxo): a assinatura acontece DEPOIS das conferências.
+    #   em edição
+    #     →(enviar p/ revisão) em revisão (operadora confere os dados)
+    #     →(aprovar) verificação do financeiro (a_faturar)
+    #     →(enviar p/ assinatura) enviado → (assinado)  ← etapa "Assinatura"
+    #     →(assinatura completa) conferência do pagamento (conf_pagamento; o
+    #        financeiro confere se o pagamento entrou)
+    #     →(confirmar pagamento) em pagamento
+    #     →(automático, após a última parcela vencer) pagos (faturado)
+    # 'assinado' e 'aprovado' ficam como estados legados/intermediários.
     STAGE_CHOICES = [
         ('em_edicao', 'Em edição'),
-        ('enviado', 'Enviado para assinatura'),
-        ('assinado', 'Assinado'),
         ('revisao', 'Em revisão'),
-        ('aprovado', 'Aprovado'),        # legado — hoje aprovar já manda para 'a_faturar'
         ('a_faturar', 'Verificação do financeiro'),
+        ('enviado', 'Para assinatura'),
+        ('assinado', 'Assinado'),
+        ('conf_pagamento', 'Conferência do pagamento'),
         ('em_pagamento', 'Em pagamento'),
         ('faturado', 'Pagos'),
+        ('aprovado', 'Aprovado'),        # legado — aprovar já manda para 'a_faturar'
     ]
-    stage       = models.CharField('Etapa', max_length=12, choices=STAGE_CHOICES, default='em_edicao', db_index=True)
+    stage       = models.CharField('Etapa', max_length=16, choices=STAGE_CHOICES, default='em_edicao', db_index=True)
     # Revisão da operadora (após a assinatura completa).
     review_note = models.TextField('Observação/motivo da revisão', blank=True, default='')
     reviewed_at = models.DateTimeField('Revisado em', null=True, blank=True)
