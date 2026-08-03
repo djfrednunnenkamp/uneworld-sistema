@@ -420,7 +420,7 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         # Recusar pode partir da revisão (quem revisa) OU do faturamento (quem fatura).
         if self.action == 'reject':
             return [RequirePermission('contracts_review', 'contracts_invoice')()]
-        if self.action == 'invoice':
+        if self.action in ('invoice', 'finance_approve'):
             return [RequirePermission('contracts_invoice')()]
         if self.action == 'invoice_data':
             return [RequirePermission('contracts_invoice_view', 'contracts_invoice')()]
@@ -835,6 +835,25 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         contract.invoiced_at = timezone.now()   # verificado/liberado para pagamento em
         contract.invoiced_by = request.user
         contract.save(update_fields=['invoiced_at', 'invoiced_by', 'stage'])
+        return Response(ContractSerializer(contract, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='finance-approve')
+    def finance_approve(self, request, pk=None):
+        """Verificação do financeiro → Assinatura. O financeiro confere os dados e
+        escolhe o PAGANTE (rota do pagamento). A forma de assinatura (física/digital)
+        é escolhida DEPOIS, na etapa de Assinatura (não aqui)."""
+        contract = self.get_object()
+        if contract.stage != 'a_faturar':
+            return Response({'error': 'Só é possível liberar para assinatura um contrato na Verificação do financeiro.'},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        payer = (request.data.get('receipt_payer') or '').strip().lower()
+        if payer and payer not in ('cliente', 'agencia'):
+            return Response({'error': 'Pagante inválido.'}, status=http_status.HTTP_400_BAD_REQUEST)
+        if payer:
+            contract.receipt_payer = payer
+        contract.stage = 'enviado'
+        contract.review_note = ''
+        contract.save(update_fields=['stage', 'receipt_payer', 'review_note'])
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='reject')

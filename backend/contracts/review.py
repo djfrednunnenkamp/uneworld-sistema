@@ -339,7 +339,7 @@ def build_review_data(contract):
         # Comprovante de pagamento + quem pagou a UneWorld (config da agência: PIX
         # da agência → agência → Une; senão cliente → Une).
         'payment_receipt': f'/api/contracts/{contract.id}/receipt/' if contract.payment_receipt else None,
-        'receipt_payer': 'agencia' if (contract.agency_id and getattr(contract.agency, 'use_agency_pix', False)) else 'cliente',
+        'receipt_payer': contract.receipt_payer or ('agencia' if (contract.agency_id and getattr(contract.agency, 'use_agency_pix', False)) else 'cliente'),
         'agency_name': str(contract.agency) if contract.agency_id else None,
         'payer_name': payer_name,
         'package_name': contract.package_name or None,

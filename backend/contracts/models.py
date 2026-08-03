@@ -142,6 +142,11 @@ class Contract(models.Model):
     reviewed_at = models.DateTimeField('Revisado em', null=True, blank=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='contracts_reviewed', verbose_name='Revisado por')
+    # Pagante / rota do pagamento — escolhido na Verificação do financeiro. Vazio =
+    # usa o padrão da agência (use_agency_pix). 'agencia' = a agência repassa; 'cliente'
+    # = o cliente paga direto na UneWorld.
+    RECEIPT_PAYER_CHOICES = [('cliente', 'Cliente → UneWorld'), ('agencia', 'Agência → UneWorld')]
+    receipt_payer = models.CharField('Pagante', max_length=10, blank=True, default='', choices=RECEIPT_PAYER_CHOICES)
     # Faturamento (após aprovado → a_faturar → faturado).
     invoice_number = models.CharField('Número da fatura', max_length=60, blank=True, default='')
     invoice_date   = models.DateField('Data da fatura', null=True, blank=True)
