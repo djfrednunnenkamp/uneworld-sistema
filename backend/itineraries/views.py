@@ -716,17 +716,23 @@ def compute_site_order(pool=None):
     ss = SystemSettings.get()
     own_first = ss.site_order_own_first
     desc = (ss.site_order_dir == 'desc')
+    order_by = getattr(ss, 'site_order_by', 'start_date') or 'start_date'
     items = list(pool if pool is not None
                  else Itinerary.objects.filter(is_published=True, is_deleted=False))
     n = len(items)
 
-    def keyf(r):
-        own = (0 if r.is_own_product else 1) if own_first else 0
-        if r.start_date:
-            d = r.start_date.toordinal()
-            return (own, 0, -d if desc else d, r.id)
-        return (own, 1, 0, r.id)   # sem data → por último
-    auto = sorted(items, key=keyf)
+    # 1) ordena pelo CAMPO escolhido (data de início / nome / cadastro).
+    if order_by == 'name':
+        auto = sorted(items, key=lambda r: ((r.name or '').lower(), r.id), reverse=desc)
+    elif order_by == 'created_at':
+        auto = sorted(items, key=lambda r: (r.created_at, r.id), reverse=desc)
+    else:  # start_date — SEM data sempre por último, independente da direção
+        dated   = sorted([r for r in items if r.start_date], key=lambda r: (r.start_date, r.id), reverse=desc)
+        undated = sorted([r for r in items if not r.start_date], key=lambda r: r.id)
+        auto = dated + undated
+    # 2) próprios primeiro (sort ESTÁVEL preserva a ordem do campo dentro do grupo).
+    if own_first:
+        auto = sorted(auto, key=lambda r: 0 if r.is_own_product else 1)
 
     pinned = {}
     for r in items:
@@ -1159,6 +1165,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             fields = []
             if 'own_first' in cfg:
                 ss.site_order_own_first = bool(cfg['own_first']); fields.append('site_order_own_first')
+            if cfg.get('by') in ('start_date', 'name', 'created_at'):
+                ss.site_order_by = cfg['by']; fields.append('site_order_by')
             if cfg.get('dir') in ('asc', 'desc'):
                 ss.site_order_dir = cfg['dir']; fields.append('site_order_dir')
             if fields:
@@ -1176,7 +1184,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                       changes={'Ordem do site': {'antes': '—', 'depois': 'config/fixados atualizados'}}, user=request.user)
         ordered = compute_site_order(list(base))
         data = ItineraryListSerializer(ordered, many=True, context={'request': request}).data
-        return Response({'config': {'own_first': ss.site_order_own_first, 'dir': ss.site_order_dir}, 'items': data})
+        return Response({'config': {'own_first': ss.site_order_own_first, 'by': ss.site_order_by, 'dir': ss.site_order_dir}, 'items': data})
 
     # ── Publicação: tira a FOTO do estado atual (published_data) e liga is_published.
     # É o que o site público mostra; editar depois não muda a foto até republicar. ──

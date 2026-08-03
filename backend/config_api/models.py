@@ -684,8 +684,10 @@ class SystemSettings(models.Model):
     # A ordem é COMPUTADA (não fixa): próprios primeiro (opcional) → data de início.
     # Roteiros com pinned_position fixam a posição e sobrepõem a regra.
     site_order_own_first = models.BooleanField('Produtos próprios primeiro', default=True)
-    SITE_ORDER_DIR_CHOICES = [('asc', 'Mais cedo primeiro'), ('desc', 'Mais tarde primeiro')]
-    site_order_dir = models.CharField('Ordem por data de início', max_length=4, choices=SITE_ORDER_DIR_CHOICES, default='asc')
+    SITE_ORDER_BY_CHOICES = [('start_date', 'Data de início'), ('name', 'Nome'), ('created_at', 'Cadastro')]
+    site_order_by = models.CharField('Ordenar por', max_length=12, choices=SITE_ORDER_BY_CHOICES, default='start_date')
+    SITE_ORDER_DIR_CHOICES = [('asc', 'Crescente'), ('desc', 'Decrescente')]
+    site_order_dir = models.CharField('Direção', max_length=4, choices=SITE_ORDER_DIR_CHOICES, default='asc')
 
     # Logos configuráveis por lugar (branding). Vazio = usa o /logo.png padrão.
     logo_system   = models.ImageField('Logo do tema (sistema)', upload_to=branding_logo_path, storage=public_media_storage, null=True, blank=True)  # legado
