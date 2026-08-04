@@ -1632,6 +1632,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             description=request.data.get('description') or '',
             latitude=lat, longitude=lng,
             color=(request.data.get('color') or '').strip()[:20],
+            icon=(request.data.get('icon') or '').strip()[:32],
             order=nxt,
         )
         _touch_unpublished(itinerary)
@@ -1663,6 +1664,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             pt.description = data.get('description') or ''
         if 'color' in data:
             pt.color = (data.get('color') or '').strip()[:20]
+        if 'icon' in data:
+            pt.icon = (data.get('icon') or '').strip()[:32]
         if 'latitude' in data or 'longitude' in data:
             try:
                 pt.latitude, pt.longitude = self._parse_latlng(data)

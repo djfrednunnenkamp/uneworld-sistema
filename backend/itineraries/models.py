@@ -443,6 +443,9 @@ class ItineraryMapPoint(models.Model):
                                    storage=public_media_storage, blank=True, null=True)
     # Cor opcional do marcador (hex) — deixa o mapa organizado por região/tema.
     color       = models.CharField('Cor do marcador', max_length=20, blank=True, default='')
+    # Ícone do pino (chave do catálogo de ícones do front — `Ic`/mapTiles). Vazio
+    # = mostra o NÚMERO da ordem do ponto (padrão).
+    icon        = models.CharField('Ícone do marcador', max_length=32, blank=True, default='')
     order       = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:

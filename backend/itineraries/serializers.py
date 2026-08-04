@@ -526,7 +526,7 @@ class ItineraryMapPointSerializer(serializers.ModelSerializer):
     no roteiro (e no published_data); a escrita é por ações imediatas na view."""
     class Meta:
         model  = ItineraryMapPoint
-        fields = ['id', 'title', 'description', 'latitude', 'longitude', 'image', 'color', 'order']
+        fields = ['id', 'title', 'description', 'latitude', 'longitude', 'image', 'color', 'icon', 'order']
 
 
 class ItinerarySerializer(serializers.ModelSerializer):

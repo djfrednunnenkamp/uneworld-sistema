@@ -75,6 +75,21 @@ class MapPointsTest(APITestCase):
         self.assertEqual(pt.color, '#16a34a')
         self.assertAlmostEqual(pt.latitude, 20.2)
 
+    def test_icon_is_stored_and_returned(self):
+        # O pino mostra o NÚMERO da ordem por padrão; com `icon`, mostra o ícone
+        # escolhido (chave do catálogo de ícones do front).
+        r = self.client.post(self.url(), {'latitude': 1, 'longitude': 1, 'icon': 'anchor'}, format='json')
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json()['icon'], 'anchor')
+        pt_id = r.json()['id']
+
+        r = self.client.patch(self.url(f'{pt_id}/'), {'icon': 'plane'}, format='json')
+        self.assertEqual(r.json()['icon'], 'plane')
+
+        # Voltar pro número = ícone vazio.
+        r = self.client.patch(self.url(f'{pt_id}/'), {'icon': ''}, format='json')
+        self.assertEqual(r.json()['icon'], '')
+
     def test_update_rejects_invalid_coordinates(self):
         pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
         r = self.client.patch(self.url(f'{pt.id}/'), {'latitude': 999, 'longitude': 0}, format='json')
