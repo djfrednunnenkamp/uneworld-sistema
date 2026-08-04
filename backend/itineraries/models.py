@@ -188,6 +188,10 @@ class Itinerary(models.Model):
     map_land_color      = models.CharField('Cor dos países', max_length=20, blank=True, default='')
     map_water_color     = models.CharField('Cor do mar', max_length=20, blank=True, default='')
     map_highlight_color = models.CharField('Cor dos países do roteiro', max_length=20, blank=True, default='')
+    # O que desenhar no mapa ilustrado (o usuário liga/desliga).
+    map_show_borders     = models.BooleanField('Mostrar o contorno dos países', default=True)
+    map_show_states      = models.BooleanField('Mostrar a divisão dos estados', default=False)
+    map_show_state_names = models.BooleanField('Mostrar o nome dos estados', default=False)
 
     # Vínculo vivo com templates (por campo): _template = template de origem;
     # _template_linked = se True, editar o template nas Configurações reaplica o
