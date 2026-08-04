@@ -173,6 +173,22 @@ class Itinerary(models.Model):
     # ou só a URL) — a URL do src é extraída na exibição.
     map_embed_url      = models.TextField('Mapa (link/embed do Google My Maps)', blank=True, default='')
 
+    # ── Aparência do MAPA NATIVO (vale para a prévia e para o site) ──────────
+    # Antes o estilo era só uma preferência local de quem editava; agora é do
+    # ROTEIRO, senão o site não teria como saber com que cara publicar o mapa.
+    MAP_STYLE_CHOICES = [
+        ('claro',     'Claro'),
+        ('colorido',  'Colorido'),
+        ('satelite',  'Satélite'),
+        ('ilustrado', 'Ilustrado (países pintados)'),
+    ]
+    map_style           = models.CharField('Estilo do mapa', max_length=20, choices=MAP_STYLE_CHOICES,
+                                            blank=True, default='')          # vazio = claro
+    # Cores do estilo ILUSTRADO (vazias = padrão do estilo).
+    map_land_color      = models.CharField('Cor dos países', max_length=20, blank=True, default='')
+    map_water_color     = models.CharField('Cor do mar', max_length=20, blank=True, default='')
+    map_highlight_color = models.CharField('Cor dos países do roteiro', max_length=20, blank=True, default='')
+
     # Vínculo vivo com templates (por campo): _template = template de origem;
     # _template_linked = se True, editar o template nas Configurações reaplica o
     # texto aqui. Editar o texto à mão desliga o vínculo (feito no frontend).

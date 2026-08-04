@@ -679,6 +679,8 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'info_values', 'info_extras', 'info_lamina',
                   'info_required_docs', 'info_weather', 'info_what_to_bring',
                   'notes', 'map_embed_url',
+                  # Aparência do mapa nativo (estilo + cores do modo ilustrado).
+                  'map_style', 'map_land_color', 'map_water_color', 'map_highlight_color',
                   # Vínculo vivo com templates (por campo): FK + toggle.
                   'info_general_template', 'info_general_template_linked',
                   'info_included_template', 'info_included_template_linked',
