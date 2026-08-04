@@ -1073,7 +1073,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
-                           'pricing_config', 'import_kml_preview', 'set_pending',
+                           'pricing_config', 'set_pending',
                            'add_map_point', 'map_point_detail', 'map_point_image', 'reorder_map_points'):
             return [RequirePermission('roteiros_edit')()]
         # Custo real / markup: também para quem cuida do Financeiro.
@@ -1106,34 +1106,6 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return False
         return has_any_perm(u, 'roteiros_laminas_edit') and not has_any_perm(u, 'roteiros_edit')
 
-    @action(detail=True, methods=['post'], url_path='import-kml/preview')
-    def import_kml_preview(self, request, pk=None):
-        """POST /api/itineraries/{id}/import-kml/preview/ — analisa um KML/KMZ do
-        Google My Maps (multipart, campo `file`) e devolve a PRÉVIA dos destinos
-        (cidades) encontrados, casados com o catálogo. NÃO grava nada: a confirmação
-        acontece no formulário do roteiro (as cidades selecionadas entram no M2M
-        `cities` e são salvas junto com o roteiro, com a auditoria já existente)."""
-        from .services.kml_import_service import (
-            build_kml_preview, KmlImportError, MAX_UPLOAD_BYTES, ALLOWED_EXTS)
-        it = self.get_object()   # 404 + escopo/permissão (roteiros_edit)
-        f = request.FILES.get('file')
-        if not f:
-            return Response({'error': 'Envie um arquivo KML ou KMZ.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not (f.name or '').lower().endswith(ALLOWED_EXTS):
-            return Response({'error': 'O arquivo enviado não é um KML ou KMZ válido.'},
-                            status=status.HTTP_400_BAD_REQUEST)
-        if f.size and f.size > MAX_UPLOAD_BYTES:
-            return Response({'error': 'O arquivo ultrapassa o tamanho máximo permitido.'},
-                            status=status.HTTP_400_BAD_REQUEST)
-        prefer = list(it.countries.values_list('id', flat=True))
-        try:
-            preview = build_kml_preview(f.read(), f.name, prefer_country_ids=prefer)
-        except KmlImportError as e:
-            return Response({'error': str(e), 'code': e.code}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(preview)
-
-
-    # ── Ordem manual da listagem (arrastar) — alimenta a ordem do site público ──
     @action(detail=False, methods=['post'])
     def reorder(self, request):
         ids = request.data.get('order') or []
