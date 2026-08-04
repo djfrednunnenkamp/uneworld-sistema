@@ -765,7 +765,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         'accommodation_lines__accommodation_type',
         'cities__state__country__continent', 'countries__continent', 'airports', 'keywords', 'inclusions', 'highlights',
         'itinerary_types', 'special_dates', 'continents',
-        'days__city', 'days__images', 'images', 'shared_agencies', 'map_points',
+        'days__city', 'days__images', 'images', 'shared_agencies', 'map_points__photos',
     )
     pagination_class = StandardResultsPagination
     filter_backends  = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
@@ -1418,11 +1418,19 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             day = itinerary.days.filter(pk=day_id).first()
             if day is None:
                 return Response({'detail': 'Dia inválido para este roteiro.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Foto de um PONTO DO MAPA: mesma rota de upload das demais imagens (o que
+        # dá ao ponto o fluxo padrão — catalogar, lightbox, exclusão).
+        map_point = None
+        mp_id = request.data.get('map_point')
+        if mp_id:
+            map_point = itinerary.map_points.filter(pk=mp_id).first()
+            if map_point is None:
+                return Response({'detail': 'Ponto do mapa inválido para este roteiro.'}, status=status.HTTP_400_BAD_REQUEST)
         ser = ItineraryImageSerializer(data=request.data, context=self.get_serializer_context())
         ser.is_valid(raise_exception=True)
         upload = ser.validated_data['image']
         kind = ser.validated_data.get('kind') or 'gallery'
-        if day is not None:
+        if day is not None or map_point is not None:
             kind = 'gallery'
         # Permissão restrita de lâminas: só pode enviar imagem de LÂMINA (blocking).
         if self._laminas_only() and kind != 'blocking':
@@ -1449,7 +1457,15 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
-        save_kwargs = {'itinerary': itinerary, 'day': day, 'kind': kind}
+        # Foto de ponto do mapa é sempre imagem (nunca vídeo) — o pino mostra foto.
+        if map_point is not None and is_video:
+            return Response({'image': ['A foto do ponto do mapa precisa ser uma imagem.']},
+                            status=status.HTTP_400_BAD_REQUEST)
+        save_kwargs = {'itinerary': itinerary, 'day': day, 'map_point': map_point, 'kind': kind}
+        # Uma foto por ponto: a nova substitui a anterior (não acumula lixo).
+        if map_point is not None:
+            for old in list(map_point.photos.all()):
+                old.delete()
         # Imagem de lâmina (bloqueio) já é classificada como "lâmina" — não precisa
         # do pop-up de classificação.
         if kind == 'blocking':
@@ -1459,6 +1475,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             _start_video_processing(img, upload, request)
         else:
             _apply_dominant_color(img)
+        if map_point is not None:
+            _touch_unpublished(itinerary)   # a foto do ponto entra no mapa publicado
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_201_CREATED)
 
@@ -1483,15 +1501,27 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='images/adopt')
     def adopt_image(self, request, pk=None):
-        """POST /api/itineraries/{id}/images/adopt/  body: {source_id, kind}.
+        """POST /api/itineraries/{id}/images/adopt/  body: {source_id, kind, map_point?}.
         Copia uma imagem/vídeo da galeria (banco ou outro roteiro) para ESTE roteiro
-        — novo arquivo + novo registro, preservando descrição/tipo/cidade/país/cor."""
+        — novo arquivo + novo registro, preservando descrição/tipo/cidade/país/cor.
+        Com `map_point`, a cópia vira a FOTO daquele ponto do mapa (e substitui a
+        anterior), em vez de entrar nas seções de imagem do roteiro."""
         import os as _os
         from django.core.files.base import ContentFile
         itinerary = self.get_object()
         src = ItineraryImage.objects.filter(pk=request.data.get('source_id')).first()
         if src is None:
             return Response({'detail': 'Imagem de origem não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        map_point = None
+        mp_id = request.data.get('map_point')
+        if mp_id:
+            map_point = itinerary.map_points.filter(pk=mp_id).first()
+            if map_point is None:
+                return Response({'detail': 'Ponto do mapa inválido para este roteiro.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if src.is_video:
+                return Response({'detail': 'A foto do ponto do mapa precisa ser uma imagem.'},
+                                status=status.HTTP_400_BAD_REQUEST)
         kind = request.data.get('kind') or 'gallery'
         if kind not in {c[0] for c in ItineraryImage.KIND_CHOICES}:
             kind = 'gallery'
@@ -1511,11 +1541,17 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             except Exception:
                 pass
         ext = _os.path.splitext(src.image.name or '')[1] or '.jpg'
-        new = ItineraryImage(itinerary=itinerary, kind=kind, caption=src.caption,
+        if map_point is not None:
+            kind = 'gallery'   # foto de ponto não entra em capa/galeria/lâmina (é filtrada)
+            for old in list(map_point.photos.all()):
+                old.delete()   # uma foto por ponto
+        new = ItineraryImage(itinerary=itinerary, kind=kind, map_point=map_point, caption=src.caption,
                              subject_type=src.subject_type, city_id=src.city_id, country_id=src.country_id,
                              dominant_color=src.dominant_color, color_bucket=src.color_bucket)
         new.image.save(f'copy{ext}', ContentFile(data), save=False)
         new.save()
+        if map_point is not None:
+            _touch_unpublished(itinerary)
         # Vídeo: a cópia precisa da própria versão normalizada + thumbnail — reprocessa
         # (idempotente). Herda os metadados do original enquanto processa.
         if new.is_video:

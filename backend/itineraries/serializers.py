@@ -521,12 +521,39 @@ class ItineraryDaySerializer(serializers.ModelSerializer):
 
 
 class ItineraryMapPointSerializer(serializers.ModelSerializer):
-    """Ponto do mapa nativo do roteiro (marcador com foto + descrição). A foto é
-    o FileField `image` (URL resolvida pelo media.js no front). Leitura aninhada
-    no roteiro (e no published_data); a escrita é por ações imediatas na view."""
+    """Ponto do mapa nativo do roteiro (marcador com foto + descrição). Leitura
+    aninhada no roteiro (e no published_data); a escrita é por ações imediatas.
+
+    FOTO: hoje é uma `ItineraryImage` ligada ao ponto (`map_point`) — assim ela
+    passa pelo MESMO fluxo das outras imagens do sistema (seletor da galeria,
+    pop-up de catalogar, lightbox, exclusão). `photo` traz a imagem inteira e
+    `image` continua sendo só a URL pra exibir (o `image` antigo, FileField do
+    próprio ponto, ainda é aceito como fallback dos pontos criados antes)."""
+    image = serializers.SerializerMethodField()
+    photo = serializers.SerializerMethodField()
+
+    def _photo(self, obj):
+        # `photos` costuma vir do prefetch — ordena em Python pra não gerar query.
+        photos = sorted(obj.photos.all(), key=lambda p: (p.order, p.id))
+        return photos[0] if photos else None
+
+    def get_photo(self, obj):
+        p = self._photo(obj)
+        return ItineraryImageSerializer(p, context=self.context).data if p else None
+
+    def get_image(self, obj):
+        p = self._photo(obj)
+        f = p.image if p else obj.image
+        if not f:
+            return None
+        try:
+            return f.url
+        except Exception:
+            return None
+
     class Meta:
         model  = ItineraryMapPoint
-        fields = ['id', 'title', 'description', 'latitude', 'longitude', 'image', 'color', 'icon', 'order']
+        fields = ['id', 'title', 'description', 'latitude', 'longitude', 'image', 'photo', 'color', 'icon', 'order']
 
 
 class ItinerarySerializer(serializers.ModelSerializer):
@@ -564,8 +591,9 @@ class ItinerarySerializer(serializers.ModelSerializer):
 
     def get_images(self, obj):
         # Só as imagens da GALERIA do roteiro (day nulo). As de cada dia vão aninhadas
-        # em days[].images. Filtra em Python sobre o prefetch (sem query extra).
-        gallery = [im for im in obj.images.all() if im.day_id is None]
+        # em days[].images e as dos PONTOS DO MAPA em map_points[].photo — nenhuma
+        # das duas entra aqui. Filtra em Python sobre o prefetch (sem query extra).
+        gallery = [im for im in obj.images.all() if im.day_id is None and im.map_point_id is None]
         return ItineraryImageSerializer(gallery, many=True, context=self.context).data
 
     def validate_custom_clauses(self, value):

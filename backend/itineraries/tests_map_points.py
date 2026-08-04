@@ -9,7 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 
 from users_api.models import UserPermissions
-from itineraries.models import Itinerary, ItineraryMapPoint
+from itineraries.models import Itinerary, ItineraryImage, ItineraryMapPoint
 
 
 def make_user(username, **perms):
@@ -31,7 +31,9 @@ PNG_1PX = (
 
 class MapPointsTest(APITestCase):
     def setUp(self):
-        self.editor = make_user('map_editor', roteiros_edit=True)
+        # Pegar imagem da galeria (adotar) tem permissão própria — a foto do ponto
+        # usa o mesmo seletor das outras imagens, então segue a mesma regra.
+        self.editor = make_user('map_editor', roteiros_edit=True, roteiros_images_from_gallery=True)
         self.client.force_authenticate(self.editor)
         self.it = Itinerary.objects.create(name='Cancún', base_currency='USD', is_published=True)
 
@@ -136,6 +138,66 @@ class MapPointsTest(APITestCase):
         pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
         r = self.client.post(self.url(f'{pt.id}/image/'), {}, format='multipart')
         self.assertEqual(r.status_code, 400)
+
+    # ── Foto pelo fluxo PADRÃO de imagem (ItineraryImage ligada ao ponto) ────
+    def test_photo_via_standard_image_upload(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        up = SimpleUploadedFile('lugar.png', PNG_1PX, content_type='image/png')
+        r = self.client.post(f'/api/itineraries/{self.it.id}/images/',
+                             {'image': up, 'map_point': pt.id}, format='multipart')
+        self.assertEqual(r.status_code, 201)
+        img_id = r.json()['id']
+        self.assertEqual(pt.photos.count(), 1)
+
+        # A foto do ponto NÃO aparece nas seções de imagem do roteiro…
+        det = self.client.get(f'/api/itineraries/{self.it.id}/').json()
+        self.assertNotIn(img_id, [im['id'] for im in det['images']])
+        # …e vem no próprio ponto (com a imagem inteira em `photo`).
+        ponto = det['map_points'][0]
+        self.assertEqual(ponto['photo']['id'], img_id)
+        self.assertTrue(ponto['image'])
+
+    def test_second_photo_replaces_the_first(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        for _ in range(2):
+            up = SimpleUploadedFile('lugar.png', PNG_1PX, content_type='image/png')
+            r = self.client.post(f'/api/itineraries/{self.it.id}/images/',
+                                 {'image': up, 'map_point': pt.id}, format='multipart')
+            self.assertEqual(r.status_code, 201)
+        self.assertEqual(pt.photos.count(), 1)   # uma foto por ponto
+
+    def test_photo_adopted_from_gallery(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        # Imagem "do banco" (sem roteiro), como as da aba Galeria.
+        up = SimpleUploadedFile('banco.png', PNG_1PX, content_type='image/png')
+        src = ItineraryImage.objects.create(image=up, caption='Praia', subject_type='landscape')
+        r = self.client.post(f'/api/itineraries/{self.it.id}/images/adopt/',
+                             {'source_id': src.id, 'kind': 'map_point', 'map_point': pt.id}, format='json')
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(pt.photos.count(), 1)
+        copia = pt.photos.first()
+        self.assertEqual(copia.caption, 'Praia')          # metadados preservados
+        self.assertNotEqual(copia.pk, src.pk)             # é uma CÓPIA (o original fica)
+        self.assertTrue(ItineraryImage.objects.filter(pk=src.pk).exists())
+
+    def test_adopt_rejects_point_of_other_itinerary(self):
+        other = Itinerary.objects.create(name='Outro', base_currency='USD')
+        pt = ItineraryMapPoint.objects.create(itinerary=other, latitude=0, longitude=0)
+        up = SimpleUploadedFile('banco.png', PNG_1PX, content_type='image/png')
+        src = ItineraryImage.objects.create(image=up)
+        r = self.client.post(f'/api/itineraries/{self.it.id}/images/adopt/',
+                             {'source_id': src.id, 'map_point': pt.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_deleting_point_removes_its_photo(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        up = SimpleUploadedFile('lugar.png', PNG_1PX, content_type='image/png')
+        self.client.post(f'/api/itineraries/{self.it.id}/images/',
+                         {'image': up, 'map_point': pt.id}, format='multipart')
+        self.assertEqual(ItineraryImage.objects.filter(map_point=pt).count(), 1)
+        r = self.client.delete(self.url(f'{pt.id}/'))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(ItineraryImage.objects.filter(map_point_id=pt.id).count(), 0)
 
     # ── Leitura / permissão ──────────────────────────────────────────────────
     def test_points_come_nested_in_the_itinerary(self):

@@ -480,6 +480,11 @@ class ItineraryImage(models.Model):
     # Imagem da GALERIA do roteiro (day nulo) OU de um DIA específico do dia-a-dia
     # (day preenchido). Reusa a mesma tabela/upload, sem child table extra.
     day       = models.ForeignKey('ItineraryDay', null=True, blank=True, on_delete=models.CASCADE, related_name='images')
+    # Foto de um PONTO DO MAPA (mesma ideia do `day`): reusa a tabela/upload e todo
+    # o fluxo padrão de imagem (seletor da galeria, catalogar, lightbox). Imagem com
+    # `map_point` NÃO aparece nas seções de imagem do roteiro (capa/galeria/lâmina).
+    map_point = models.ForeignKey('ItineraryMapPoint', null=True, blank=True, on_delete=models.CASCADE,
+                                  related_name='photos', verbose_name='Ponto do mapa')
     # FileField (não ImageField) pra aceitar também VÍDEO na galeria. O tipo é
     # validado na action de upload (imagem: jpg/png; vídeo: mp4/webm/mov/…).
     image     = models.FileField('Arquivo (imagem/vídeo)', upload_to=secure_itinerary_image_path, storage=public_media_storage)
