@@ -1661,11 +1661,12 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             lat, lng = self._parse_latlng(request.data)
         except (TypeError, ValueError):
             return Response({'detail': 'Coordenadas inválidas.'}, status=status.HTTP_400_BAD_REQUEST)
+        from core.sanitize import sanitize_html   # descrição é texto rico → anti-XSS
         nxt = (itinerary.map_points.aggregate(m=Max('order'))['m'] or 0) + 1
         pt = ItineraryMapPoint.objects.create(
             itinerary=itinerary,
             title=(request.data.get('title') or '').strip()[:200],
-            description=request.data.get('description') or '',
+            description=sanitize_html(request.data.get('description') or ''),
             latitude=lat, longitude=lng,
             color=(request.data.get('color') or '').strip()[:20],
             icon=(request.data.get('icon') or '').strip()[:32],
@@ -1697,7 +1698,10 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if 'title' in data:
             pt.title = (data.get('title') or '').strip()[:200]
         if 'description' in data:
-            pt.description = data.get('description') or ''
+            # A descrição do ponto é texto RICO (editor grande do sistema) e vai
+            # parar no card do mapa — sanitiza como os demais campos ricos (A-12).
+            from core.sanitize import sanitize_html
+            pt.description = sanitize_html(data.get('description') or '')
         if 'color' in data:
             pt.color = (data.get('color') or '').strip()[:20]
         if 'icon' in data:
