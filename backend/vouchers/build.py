@@ -74,6 +74,21 @@ def _map_url(raw):
     return m.group(1) if m else raw.strip()
 
 
+def _points_map_url(itin):
+    """Link do mapa a partir dos PONTOS NATIVOS do roteiro (ItineraryMapPoint) —
+    o mapa agora é montado dentro do sistema, não no Google My Maps. Gera uma rota
+    do Google Maps na ordem dos pontos (ou um pino, se houver só um), para o
+    viajante abrir no celular a partir do voucher."""
+    pts = [p for p in itin.map_points.all()
+           if p.latitude is not None and p.longitude is not None]
+    if not pts:
+        return ''
+    coords = [f'{p.latitude},{p.longitude}' for p in pts[:25]]   # limite prático da URL
+    if len(coords) == 1:
+        return f'https://www.google.com/maps?q={coords[0]}'
+    return 'https://www.google.com/maps/dir/' + '/'.join(coords)
+
+
 def roteiro_data(passenger_list, request=None):
     """Dados do PRIMEIRO roteiro da lista para alimentar os blocos do voucher:
     dia a dia, voos, terrestre, hotéis, barco, destinos, campos de informações,
@@ -134,7 +149,13 @@ def roteiro_data(passenger_list, request=None):
         'boats': boats,
         'cities': cities,
         'info': {k: (getattr(itin, k, '') or '') for k, _ in INFO_FIELDS},
-        'map_url': _map_url(getattr(itin, 'map_embed_url', '') or ''),
+        # Mapa: os pontos nativos mandam; o embed antigo do Google só entra em
+        # roteiros legados que ainda não foram remontados aqui dentro.
+        'map_url': _points_map_url(itin) or _map_url(getattr(itin, 'map_embed_url', '') or ''),
+        'map_points': [{'title': p.title or '', 'description': p.description or '',
+                        'lat': p.latitude, 'lng': p.longitude, 'image': abs_url(p.image)}
+                       for p in itin.map_points.all()
+                       if p.latitude is not None and p.longitude is not None],
         'images': images,
     }
 

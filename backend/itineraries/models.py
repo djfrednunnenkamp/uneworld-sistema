@@ -4,7 +4,7 @@ import uuid
 from decimal import Decimal
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.text import slugify
 
@@ -423,6 +423,38 @@ class ItineraryDay(models.Model):
 
     def __str__(self):
         return f'{self.itinerary_id} · Dia {self.day_number}'
+
+
+class ItineraryMapPoint(models.Model):
+    """Ponto do MAPA NATIVO do roteiro. Substitui o embed do Google My Maps: o
+    usuário marca os lugares aqui dentro (clicando no mapa Leaflet), com título,
+    descrição e uma foto. Cada ponto vira um marcador; no site/prévia, passar o
+    mouse mostra um card com a foto e a descrição. Gerenciado por ações imediatas
+    (criar/editar/excluir/reordenar/foto), igual às imagens — assim o ponto já
+    nasce com id e a foto sobe na hora. Entra no published_data via serializer."""
+    itinerary   = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='map_points')
+    title       = models.CharField('Título', max_length=200, blank=True, default='')
+    description = models.TextField('Descrição', blank=True, default='')
+    latitude    = models.FloatField('Latitude', validators=[MinValueValidator(-90), MaxValueValidator(90)])
+    longitude   = models.FloatField('Longitude', validators=[MinValueValidator(-180), MaxValueValidator(180)])
+    # Foto do lugar (opcional). FileField no mesmo storage/pasta das imagens do
+    # roteiro — carregada no front pela função central de mídia (media.js).
+    image       = models.FileField('Foto', upload_to=secure_itinerary_image_path,
+                                   storage=public_media_storage, blank=True, null=True)
+    # Cor opcional do marcador (hex) — deixa o mapa organizado por região/tema.
+    color       = models.CharField('Cor do marcador', max_length=20, blank=True, default='')
+    order       = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Ponto do mapa'
+        verbose_name_plural = 'Pontos do mapa'
+        indexes = [
+            models.Index(fields=['itinerary', 'order'], name='idx_itinmap_itin_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.itinerary_id} · {self.title or "ponto"}'
 
 
 class ItineraryImage(models.Model):

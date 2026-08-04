@@ -23,9 +23,9 @@ from .models import (Itinerary, ItineraryImage, ItineraryFieldTemplate, Itinerar
                      ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
-                     ItineraryInventoryBlock, ItineraryCostPayment)
+                     ItineraryInventoryBlock, ItineraryCostPayment, ItineraryMapPoint)
 from .serializers import (ItinerarySerializer, ItineraryListSerializer,
-                          ItineraryImageSerializer, ItineraryFieldTemplateSerializer,
+                          ItineraryImageSerializer, ItineraryMapPointSerializer, ItineraryFieldTemplateSerializer,
                           ItineraryDepartureSerializer, ItineraryFlightSerializer,
                           ItineraryHotelSerializer, ItineraryBoatSerializer,
                           ItineraryTerrestreDepartureSerializer, ItineraryTerrestreLegSerializer,
@@ -765,7 +765,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         'accommodation_lines__accommodation_type',
         'cities__state__country__continent', 'countries__continent', 'airports', 'keywords', 'inclusions', 'highlights',
         'itinerary_types', 'special_dates', 'continents',
-        'days__city', 'days__images', 'images', 'shared_agencies',
+        'days__city', 'days__images', 'images', 'shared_agencies', 'map_points',
     )
     pagination_class = StandardResultsPagination
     filter_backends  = [AccentInsensitiveSearchFilter, filters.OrderingFilter]
@@ -1073,7 +1073,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                            'set_image_kind', 'update_image_meta'):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
-                           'pricing_config', 'import_kml_preview', 'set_pending'):
+                           'pricing_config', 'import_kml_preview', 'set_pending',
+                           'add_map_point', 'map_point_detail', 'map_point_image', 'reorder_map_points'):
             return [RequirePermission('roteiros_edit')()]
         # Custo real / markup: também para quem cuida do Financeiro.
         if self.action == 'markup_summary':
@@ -1600,6 +1601,119 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 if img_id in valid:
                     itinerary.images.filter(pk=img_id).update(order=pos)
         _audit(request, 'update', itinerary, changes={'Imagens': {'antes': '—', 'depois': 'reordenadas'}})
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ── Mapa nativo do roteiro (pontos com foto/descrição) ────────────────────
+    # Substitui o embed do Google My Maps. Gerenciado por ações imediatas (como as
+    # imagens): o ponto já nasce com id e a foto sobe na hora, sem depender do PUT.
+    # A leitura aninhada (map_points) e o published_data vêm do serializer.
+    @staticmethod
+    def _parse_latlng(data):
+        """Valida latitude/longitude do corpo → (lat, lng) ou levanta ValueError."""
+        lat = float(data.get('latitude'))
+        lng = float(data.get('longitude'))
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            raise ValueError('range')
+        return lat, lng
+
+    @action(detail=True, methods=['post'], url_path='map-points')
+    def add_map_point(self, request, pk=None):
+        """POST /api/itineraries/{id}/map-points/ body: {latitude, longitude, title?, description?, color?}."""
+        from django.db.models import Max
+        itinerary = self.get_object()
+        try:
+            lat, lng = self._parse_latlng(request.data)
+        except (TypeError, ValueError):
+            return Response({'detail': 'Coordenadas inválidas.'}, status=status.HTTP_400_BAD_REQUEST)
+        nxt = (itinerary.map_points.aggregate(m=Max('order'))['m'] or 0) + 1
+        pt = ItineraryMapPoint.objects.create(
+            itinerary=itinerary,
+            title=(request.data.get('title') or '').strip()[:200],
+            description=request.data.get('description') or '',
+            latitude=lat, longitude=lng,
+            color=(request.data.get('color') or '').strip()[:20],
+            order=nxt,
+        )
+        _touch_unpublished(itinerary)
+        _audit(request, 'create', itinerary,
+               changes={'Ponto do mapa': {'antes': '—', 'depois': pt.title or f'{lat:.4f}, {lng:.4f}'}})
+        return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data,
+                        status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'map-points/(?P<pt_id>[0-9]+)')
+    def map_point_detail(self, request, pk=None, pt_id=None):
+        """PATCH (título/descrição/cor/coords) ou DELETE de um ponto do mapa."""
+        itinerary = self.get_object()
+        pt = itinerary.map_points.filter(pk=pt_id).first()
+        if pt is None:
+            return Response({'detail': 'Ponto não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'DELETE':
+            title = pt.title
+            if pt.image:
+                pt.image.delete(save=False)
+            pt.delete()
+            _touch_unpublished(itinerary)
+            _audit(request, 'delete', itinerary,
+                   changes={'Ponto do mapa': {'antes': title or '—', 'depois': '—'}})
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        data = request.data
+        if 'title' in data:
+            pt.title = (data.get('title') or '').strip()[:200]
+        if 'description' in data:
+            pt.description = data.get('description') or ''
+        if 'color' in data:
+            pt.color = (data.get('color') or '').strip()[:20]
+        if 'latitude' in data or 'longitude' in data:
+            try:
+                pt.latitude, pt.longitude = self._parse_latlng(data)
+            except (TypeError, ValueError):
+                return Response({'detail': 'Coordenadas inválidas.'}, status=status.HTTP_400_BAD_REQUEST)
+        pt.save()
+        _touch_unpublished(itinerary)
+        return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post', 'delete'], url_path=r'map-points/(?P<pt_id>[0-9]+)/image')
+    def map_point_image(self, request, pk=None, pt_id=None):
+        """POST (multipart: image) define a foto do ponto; DELETE remove a foto."""
+        itinerary = self.get_object()
+        pt = itinerary.map_points.filter(pk=pt_id).first()
+        if pt is None:
+            return Response({'detail': 'Ponto não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'DELETE':
+            if pt.image:
+                pt.image.delete(save=False)
+            pt.image = None
+            pt.save(update_fields=['image'])
+            _touch_unpublished(itinerary)
+            return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data)
+        upload = request.FILES.get('image')
+        if not upload:
+            return Response({'image': ['Arquivo obrigatório.']}, status=status.HTTP_400_BAD_REQUEST)
+        from passengers.validators import validate_document_file
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+        except DjangoValidationError as e:
+            return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+        if pt.image:
+            pt.image.delete(save=False)
+        pt.image = upload
+        pt.save(update_fields=['image'])
+        _touch_unpublished(itinerary)
+        return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data,
+                        status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='map-points/reorder')
+    def reorder_map_points(self, request, pk=None):
+        """POST /api/itineraries/{id}/map-points/reorder/ body: {"order": [id1, id2, ...]}."""
+        itinerary = self.get_object()
+        order = request.data.get('order') or []
+        valid = set(itinerary.map_points.values_list('id', flat=True))
+        with transaction.atomic():
+            for pos, pid in enumerate(order):
+                if pid in valid:
+                    itinerary.map_points.filter(pk=pid).update(order=pos)
+        _touch_unpublished(itinerary)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

@@ -3,7 +3,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from config_api.models import ConfigCity, ConfigCountry, Airport, Airline, ConfigKeyword, ConfigInclusion, ConfigHighlight, ConfigItineraryType, ConfigSpecialDate, ConfigContinent, ConfigHotel, ConfigBoat, ConfigTerrestreCompany
-from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage,
+from .models import (Itinerary, ItineraryAccommodationLine, ItineraryDay, ItineraryImage, ItineraryMapPoint,
                      ItineraryFieldTemplate, ItineraryDeparture, ItineraryFlight, ItineraryHotel, ItineraryBoat,
                      ItineraryTerrestreDeparture, ItineraryTerrestreLeg, ItineraryDocument, ItineraryDocumentFolder,
                      ItineraryPricingConfig, ItineraryCostItem, ItineraryCurrencyRate,
@@ -520,6 +520,15 @@ class ItineraryDaySerializer(serializers.ModelSerializer):
         return sanitize_html(v)
 
 
+class ItineraryMapPointSerializer(serializers.ModelSerializer):
+    """Ponto do mapa nativo do roteiro (marcador com foto + descrição). A foto é
+    o FileField `image` (URL resolvida pelo media.js no front). Leitura aninhada
+    no roteiro (e no published_data); a escrita é por ações imediatas na view."""
+    class Meta:
+        model  = ItineraryMapPoint
+        fields = ['id', 'title', 'description', 'latitude', 'longitude', 'image', 'color', 'order']
+
+
 class ItinerarySerializer(serializers.ModelSerializer):
     category_name  = serializers.CharField(source='category.name', read_only=True, default=None)
     continent_name = serializers.CharField(source='continent.name', read_only=True, default=None)
@@ -551,6 +560,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
     special_dates_data   = SpecialDateMiniSerializer(source='special_dates', many=True, read_only=True)
     days          = ItineraryDaySerializer(many=True, required=False)      # gravável (upsert)
     images        = serializers.SerializerMethodField()                    # só galeria (dia nulo)
+    map_points    = ItineraryMapPointSerializer(many=True, read_only=True)  # mapa nativo; escrita por actions
 
     def get_images(self, obj):
         # Só as imagens da GALERIA do roteiro (day nulo). As de cada dia vão aninhadas
@@ -669,7 +679,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'highlights', 'highlights_data',
                   'itinerary_types', 'itinerary_types_data',
                   'special_dates', 'special_dates_data',
-                  'days', 'images',
+                  'days', 'images', 'map_points',
                   'status', 'is_published', 'has_unpublished_changes', 'published_at',
                   'visibility', 'shared_agencies', 'shared_agencies_data',
                   'created_at', 'updated_at', 'is_deleted', 'deleted_at']
