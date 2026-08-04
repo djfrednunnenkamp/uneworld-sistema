@@ -195,6 +195,10 @@ class Itinerary(models.Model):
     map_highlight_color_dark = models.CharField('Cor dos países destacados (tema escuro)', max_length=20, blank=True, default='')
     # Controle fino de quem aparece destacado / com estados, ALÉM dos países do
     # roteiro: listas de ISO alfa-2 (ex.: ['FR', 'PT']).
+    # Opacidade do destaque (0–100). Vazio = padrão do estilo: 100% no ilustrado
+    # (o país é pintado) e 30% sobre os mapas de imagem (véu, deixando ver o mapa).
+    map_highlight_opacity = models.PositiveSmallIntegerField('Opacidade do destaque (%)',
+                                                             null=True, blank=True)
     map_extra_countries = models.JSONField('Países destacados a mais', blank=True, default=list)
     # Vazio = usa os países destacados (roteiro + extras).
     map_state_countries = models.JSONField('Países com estados desenhados', blank=True, default=list)
