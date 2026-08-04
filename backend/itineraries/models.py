@@ -190,6 +190,7 @@ class Itinerary(models.Model):
     map_highlight_color = models.CharField('Cor dos países do roteiro', max_length=20, blank=True, default='')
     # O que desenhar no mapa ilustrado (o usuário liga/desliga).
     map_show_borders     = models.BooleanField('Mostrar o contorno dos países', default=True)
+    map_show_country_names = models.BooleanField('Mostrar o nome dos países', default=False)
     map_show_states      = models.BooleanField('Mostrar a divisão dos estados', default=False)
     map_show_state_names = models.BooleanField('Mostrar o nome dos estados', default=False)
 
