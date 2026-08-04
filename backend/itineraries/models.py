@@ -200,6 +200,10 @@ class Itinerary(models.Model):
     map_state_countries = models.JSONField('Países com estados desenhados', blank=True, default=list)
     # O que desenhar no mapa ilustrado (o usuário liga/desliga).
     map_show_borders     = models.BooleanField('Mostrar o contorno dos países', default=True)
+    # Rótulos/limites que vêm PRONTOS nos mapas de tile (Claro/Colorido/Satélite):
+    # nomes de país, cidade, estado etc. Desligado, o mapa fica limpo e valem só
+    # os nomes que o sistema desenha.
+    map_show_tile_labels = models.BooleanField('Mostrar os nomes do provedor do mapa', default=True)
     map_show_country_names = models.BooleanField('Mostrar o nome dos países', default=False)
     map_show_states      = models.BooleanField('Mostrar a divisão dos estados', default=False)
     map_show_state_names = models.BooleanField('Mostrar o nome dos estados', default=False)

@@ -684,6 +684,7 @@ class ItinerarySerializer(serializers.ModelSerializer):
                   'map_land_color_dark', 'map_water_color_dark', 'map_highlight_color_dark',
                   'map_extra_countries', 'map_state_countries',
                   'map_show_borders', 'map_show_country_names', 'map_show_states', 'map_show_state_names',
+                  'map_show_tile_labels',
                   # Vínculo vivo com templates (por campo): FK + toggle.
                   'info_general_template', 'info_general_template_linked',
                   'info_included_template', 'info_included_template_linked',
