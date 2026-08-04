@@ -553,7 +553,8 @@ class ItineraryMapPointSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ItineraryMapPoint
-        fields = ['id', 'title', 'description', 'latitude', 'longitude', 'image', 'photo', 'color', 'icon', 'order']
+        fields = ['id', 'title', 'description', 'latitude', 'longitude', 'image', 'photo',
+                  'color', 'icon', 'leg_style', 'leg_color', 'leg_icon', 'leg_label', 'order']
 
 
 class ItinerarySerializer(serializers.ModelSerializer):

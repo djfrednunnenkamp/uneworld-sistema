@@ -443,9 +443,25 @@ class ItineraryMapPoint(models.Model):
                                    storage=public_media_storage, blank=True, null=True)
     # Cor opcional do marcador (hex) — deixa o mapa organizado por região/tema.
     color       = models.CharField('Cor do marcador', max_length=20, blank=True, default='')
-    # Ícone do pino (chave do catálogo de ícones do front — `Ic`/mapTiles). Vazio
-    # = mostra o NÚMERO da ordem do ponto (padrão).
-    icon        = models.CharField('Ícone do marcador', max_length=32, blank=True, default='')
+    # Ícone do pino (nome na biblioteca de ícones do front). Vazio = mostra o
+    # NÚMERO da ordem do ponto (padrão).
+    icon        = models.CharField('Ícone do marcador', max_length=64, blank=True, default='')
+    # ── TRECHO até o PRÓXIMO ponto (a linha que sai daqui) ───────────────────
+    # Ficam no ponto de PARTIDA (e não numa tabela de ligação) porque o percurso é
+    # a própria ordem dos pontos: reordenar leva o trecho junto, sem órfãos. No
+    # último ponto estes campos são ignorados.
+    LEG_STYLE_CHOICES = [
+        ('dashed', 'Tracejada'),
+        ('solid',  'Contínua'),
+        ('dotted', 'Pontilhada'),
+    ]
+    leg_style   = models.CharField('Estilo da linha', max_length=10, choices=LEG_STYLE_CHOICES,
+                                    blank=True, default='')      # vazio = tracejada (padrão)
+    leg_color   = models.CharField('Cor da linha', max_length=20, blank=True, default='')
+    # Ícone no meio da linha (ex.: avião/ônibus/navio). Vazio = só a linha.
+    leg_icon    = models.CharField('Ícone do trecho', max_length=64, blank=True, default='')
+    # Texto que aparece ao passar o mouse no ícone (ex.: "Deslocamento de barco").
+    leg_label   = models.CharField('Descrição do trecho', max_length=120, blank=True, default='')
     order       = models.PositiveIntegerField('Ordem', default=0)
 
     class Meta:

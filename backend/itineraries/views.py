@@ -1669,7 +1669,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             description=sanitize_html(request.data.get('description') or ''),
             latitude=lat, longitude=lng,
             color=(request.data.get('color') or '').strip()[:20],
-            icon=(request.data.get('icon') or '').strip()[:32],
+            icon=(request.data.get('icon') or '').strip()[:64],
             order=nxt,
         )
         _touch_unpublished(itinerary)
@@ -1705,7 +1705,18 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if 'color' in data:
             pt.color = (data.get('color') or '').strip()[:20]
         if 'icon' in data:
-            pt.icon = (data.get('icon') or '').strip()[:32]
+            pt.icon = (data.get('icon') or '').strip()[:64]
+        # Trecho até o próximo ponto (linha do percurso).
+        if 'leg_style' in data:
+            style = (data.get('leg_style') or '').strip()
+            valid = {c[0] for c in ItineraryMapPoint.LEG_STYLE_CHOICES}
+            pt.leg_style = style if style in valid else ''
+        if 'leg_color' in data:
+            pt.leg_color = (data.get('leg_color') or '').strip()[:20]
+        if 'leg_icon' in data:
+            pt.leg_icon = (data.get('leg_icon') or '').strip()[:64]
+        if 'leg_label' in data:
+            pt.leg_label = (data.get('leg_label') or '').strip()[:120]
         if 'latitude' in data or 'longitude' in data:
             try:
                 pt.latitude, pt.longitude = self._parse_latlng(data)

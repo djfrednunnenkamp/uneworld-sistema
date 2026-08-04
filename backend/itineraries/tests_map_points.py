@@ -139,6 +139,35 @@ class MapPointsTest(APITestCase):
         r = self.client.post(self.url(f'{pt.id}/image/'), {}, format='multipart')
         self.assertEqual(r.status_code, 400)
 
+    # ── Trecho até o próximo ponto (a linha do percurso) ─────────────────────
+    def test_leg_fields_are_stored(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        r = self.client.patch(self.url(f'{pt.id}/'), {
+            'leg_style': 'solid', 'leg_color': '#16a34a',
+            'leg_icon': 'Ship', 'leg_label': 'Deslocamento de barco',
+        }, format='json')
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body['leg_style'], 'solid')
+        self.assertEqual(body['leg_icon'], 'Ship')
+        self.assertEqual(body['leg_label'], 'Deslocamento de barco')
+        pt.refresh_from_db()
+        self.assertEqual(pt.leg_color, '#16a34a')
+
+    def test_leg_style_invalid_falls_back_to_default(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0, leg_style='solid')
+        r = self.client.patch(self.url(f'{pt.id}/'), {'leg_style': 'zigzag'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        # Estilo desconhecido vira vazio = tracejada (padrão), nunca quebra o mapa.
+        self.assertEqual(r.json()['leg_style'], '')
+
+    def test_leg_can_be_cleared_to_line_only(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0,
+                                              leg_icon='Plane', leg_label='Voo')
+        r = self.client.patch(self.url(f'{pt.id}/'), {'leg_icon': '', 'leg_label': ''}, format='json')
+        self.assertEqual(r.json()['leg_icon'], '')
+        self.assertEqual(r.json()['leg_label'], '')
+
     # ── Foto pelo fluxo PADRÃO de imagem (ItineraryImage ligada ao ponto) ────
     def test_photo_via_standard_image_upload(self):
         pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
