@@ -184,10 +184,20 @@ class Itinerary(models.Model):
     ]
     map_style           = models.CharField('Estilo do mapa', max_length=20, choices=MAP_STYLE_CHOICES,
                                             blank=True, default='')          # vazio = claro
-    # Cores do estilo ILUSTRADO (vazias = padrão do estilo).
-    map_land_color      = models.CharField('Cor dos países', max_length=20, blank=True, default='')
-    map_water_color     = models.CharField('Cor do mar', max_length=20, blank=True, default='')
-    map_highlight_color = models.CharField('Cor dos países do roteiro', max_length=20, blank=True, default='')
+    # Cores do estilo ILUSTRADO (vazias = padrão do estilo). São DUAS paletas: o
+    # sistema tem tema claro e escuro, e a mesma cor não serve para os dois — quem
+    # monta o roteiro escolhe como o mapa fica em cada tema.
+    map_land_color      = models.CharField('Cor dos países (tema claro)', max_length=20, blank=True, default='')
+    map_water_color     = models.CharField('Cor do mar (tema claro)', max_length=20, blank=True, default='')
+    map_highlight_color = models.CharField('Cor dos países destacados (tema claro)', max_length=20, blank=True, default='')
+    map_land_color_dark      = models.CharField('Cor dos países (tema escuro)', max_length=20, blank=True, default='')
+    map_water_color_dark     = models.CharField('Cor do mar (tema escuro)', max_length=20, blank=True, default='')
+    map_highlight_color_dark = models.CharField('Cor dos países destacados (tema escuro)', max_length=20, blank=True, default='')
+    # Controle fino de quem aparece destacado / com estados, ALÉM dos países do
+    # roteiro: listas de ISO alfa-2 (ex.: ['FR', 'PT']).
+    map_extra_countries = models.JSONField('Países destacados a mais', blank=True, default=list)
+    # Vazio = usa os países destacados (roteiro + extras).
+    map_state_countries = models.JSONField('Países com estados desenhados', blank=True, default=list)
     # O que desenhar no mapa ilustrado (o usuário liga/desliga).
     map_show_borders     = models.BooleanField('Mostrar o contorno dos países', default=True)
     map_show_country_names = models.BooleanField('Mostrar o nome dos países', default=False)
