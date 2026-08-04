@@ -339,6 +339,13 @@ CORS_ALLOWED_ORIGINS = config(
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Headers customizados que o front envia (além dos padrão do corsheaders). Sem isto,
+# uma requisição cross-origim com 'X-Audit-Source' é bloqueada no preflight CORS — o
+# que fazia a listagem/import falhar no deploy em domínio separado (localmente, via
+# proxy same-origin, não passa por CORS, então funcionava).
+from corsheaders.defaults import default_headers   # noqa: E402
+CORS_ALLOW_HEADERS = (*default_headers, 'x-audit-source')
+
 RESEND_API_KEY  = config('RESEND_API_KEY', default='')
 RESEND_WEBHOOK_SECRET = config('RESEND_WEBHOOK_SECRET', default='')
 RESEND_FROM     = config('RESEND_FROM_EMAIL', default='UneWorld Turismo <noreply@uneworld.com.br>')
