@@ -67,6 +67,16 @@ def on_agency_member(sender, **kwargs):
     _broadcast('agencies')
 
 
+# ── Fornecedores ──────────────────────────────────────────────────────────────
+# Criar / editar / mudar status / excluir / importar CSV de fornecedores avisa
+# quem está com a página de Fornecedores aberta para recarregar sozinho
+# (silentReload no scope 'fornecedores').
+
+@receiver([post_save, post_delete], sender='fornecedores.Fornecedor')
+def on_fornecedor(sender, **kwargs):
+    _broadcast('fornecedores')
+
+
 # ── Usuários ──────────────────────────────────────────────────────────────────
 
 @receiver([post_save, post_delete], sender='auth.User')
