@@ -493,6 +493,7 @@ class ItineraryMapPoint(models.Model):
         ('dashed', 'Tracejada'),
         ('solid',  'Contínua'),
         ('dotted', 'Pontilhada'),
+        ('none',   'Sem linha'),     # os pontos ficam soltos, sem ligação desenhada
     ]
     leg_style   = models.CharField('Estilo da linha', max_length=10, choices=LEG_STYLE_CHOICES,
                                     blank=True, default='')      # vazio = tracejada (padrão)

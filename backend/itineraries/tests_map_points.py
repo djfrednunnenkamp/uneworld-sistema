@@ -161,6 +161,13 @@ class MapPointsTest(APITestCase):
         # Estilo desconhecido vira vazio = tracejada (padrão), nunca quebra o mapa.
         self.assertEqual(r.json()['leg_style'], '')
 
+    def test_leg_sem_linha(self):
+        # "Sem linha": o trecho existe (pode ter ícone), mas nada é desenhado.
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        r = self.client.patch(self.url(f'{pt.id}/'), {'leg_style': 'none'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['leg_style'], 'none')
+
     def test_leg_can_be_cleared_to_line_only(self):
         pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0,
                                               leg_icon='Plane', leg_label='Voo')
