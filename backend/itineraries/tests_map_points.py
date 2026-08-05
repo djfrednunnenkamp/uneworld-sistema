@@ -228,6 +228,68 @@ class MapPointsTest(APITestCase):
         self.assertEqual(r.status_code, 204)
         self.assertEqual(ItineraryImage.objects.filter(map_point_id=pt.id).count(), 0)
 
+    # ── Foto automática (a regra de negócio da escolha) ──────────────────────
+    def _img(self, **kw):
+        up = SimpleUploadedFile('g.png', PNG_1PX, content_type='image/png')
+        return ItineraryImage.objects.create(image=up, **kw)
+
+    def _cidade(self, nome='Pequim', pais_nome='China'):
+        from config_api.models import ConfigCity, ConfigState, ConfigCountry
+        pais = ConfigCountry.objects.create(name=pais_nome, code='CN')
+        estado = ConfigState.objects.create(country=pais, name='Hebei')
+        return ConfigCity.objects.create(state=estado, name=nome), pais
+
+    def test_auto_photo_escolhe_a_mais_usada_da_cidade(self):
+        cidade, _ = self._cidade()
+        pouco = self._img(city=cidade, caption='pouco usada')
+        muito = self._img(city=cidade, caption='muito usada')
+        # "usos" = cópias que vivem em roteiros.
+        outro = Itinerary.objects.create(name='Outro', base_currency='USD')
+        for _ in range(2):
+            self._img(city=cidade, source=muito, itinerary=outro)
+
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0, title='Pequim')
+        r = self.client.post(self.url(f'{pt.id}/auto-photo/'), {'city': cidade.id}, format='json')
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(pt.photos.count(), 1)
+        self.assertEqual(pt.photos.first().source_id, muito.id)
+        self.assertNotEqual(pt.photos.first().source_id, pouco.id)
+
+    def test_auto_photo_empate_fica_com_a_mais_recente(self):
+        cidade, _ = self._cidade()
+        antiga = self._img(city=cidade, caption='antiga')
+        nova = self._img(city=cidade, caption='nova')     # criada depois
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        r = self.client.post(self.url(f'{pt.id}/auto-photo/'), {'city': cidade.id}, format='json')
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(pt.photos.first().source_id, nova.id)
+        self.assertNotEqual(pt.photos.first().source_id, antiga.id)
+
+    def test_auto_photo_cai_para_foto_do_pais(self):
+        cidade, pais = self._cidade()
+        do_pais = self._img(country=pais, caption='paisagem do país')
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        r = self.client.post(self.url(f'{pt.id}/auto-photo/'), {'city': cidade.id}, format='json')
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(pt.photos.first().source_id, do_pais.id)
+
+    def test_auto_photo_sem_candidata_nao_faz_nada(self):
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0, title='Lugar Nenhum')
+        r = self.client.post(self.url(f'{pt.id}/auto-photo/'), {}, format='json')
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(pt.photos.count(), 0)
+
+    def test_auto_photo_nao_troca_foto_existente(self):
+        cidade, _ = self._cidade()
+        self._img(city=cidade)
+        pt = ItineraryMapPoint.objects.create(itinerary=self.it, latitude=0, longitude=0)
+        up = SimpleUploadedFile('minha.png', PNG_1PX, content_type='image/png')
+        ItineraryImage.objects.create(image=up, itinerary=self.it, map_point=pt, caption='escolhida à mão')
+        r = self.client.post(self.url(f'{pt.id}/auto-photo/'), {'city': cidade.id}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(pt.photos.count(), 1)
+        self.assertEqual(pt.photos.first().caption, 'escolhida à mão')
+
     # ── Leitura / permissão ──────────────────────────────────────────────────
     def test_points_come_nested_in_the_itinerary(self):
         ItineraryMapPoint.objects.create(itinerary=self.it, latitude=1, longitude=2, title='Isla Mujeres')

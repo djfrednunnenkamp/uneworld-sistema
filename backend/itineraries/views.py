@@ -1074,7 +1074,8 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('roteiros_edit', 'roteiros_laminas_edit')()]
         if self.action in ('update', 'partial_update', 'restore', 'purge', 'reorder', 'draft',
                            'pricing_config', 'set_pending',
-                           'add_map_point', 'map_point_detail', 'map_point_image', 'reorder_map_points'):
+                           'add_map_point', 'map_point_detail', 'map_point_image', 'reorder_map_points',
+                           'map_point_auto_photo'):
             return [RequirePermission('roteiros_edit')()]
         # Custo real / markup: também para quem cuida do Financeiro.
         if self.action == 'markup_summary':
@@ -1518,6 +1519,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             for old in list(map_point.photos.all()):
                 old.delete()   # uma foto por ponto
         new = ItineraryImage(itinerary=itinerary, kind=kind, map_point=map_point, caption=src.caption,
+                             source=src.source or src,
                              subject_type=src.subject_type, city_id=src.city_id, country_id=src.country_id,
                              dominant_color=src.dominant_color, color_bucket=src.color_bucket)
         new.image.save(f'copy{ext}', ContentFile(data), save=False)
@@ -1725,6 +1727,86 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             pt.image.delete(save=False)
         pt.image = upload
         pt.save(update_fields=['image'])
+        _touch_unpublished(itinerary)
+        return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data,
+                        status=status.HTTP_201_CREATED)
+
+
+    @action(detail=True, methods=['post'], url_path=r'map-points/(?P<pt_id>[0-9]+)/auto-photo')
+    def map_point_auto_photo(self, request, pk=None, pt_id=None):
+        """POST /api/itineraries/{id}/map-points/{pt_id}/auto-photo/
+        body: {city?: id, country?: id, name?: 'Beijing'}
+
+        Escolhe sozinha a melhor foto da galeria para o ponto e anexa (uma CÓPIA,
+        como no seletor manual). A regra é a do negócio:
+          1) fotos DA CIDADE do ponto;
+          2) entre elas, a MAIS USADA (quantos roteiros já usaram aquela foto);
+          3) empate, a usada mais RECENTEMENTE;
+          4) sem foto da cidade, cai para uma foto DO PAÍS, na mesma ordem.
+        Não mexe se o ponto já tiver foto. Sem candidata, responde 204."""
+        import os as _os
+        from django.core.files.base import ContentFile
+        from config_api.models import ConfigCity, ConfigCountry
+        from config_api.textsearch import normalize_text
+
+        itinerary = self.get_object()
+        pt = itinerary.map_points.filter(pk=pt_id).first()
+        if pt is None:
+            return Response({'detail': 'Ponto não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        if pt.photos.exists():
+            return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data)
+
+        # ── Cidade e país do ponto ──
+        city = ConfigCity.objects.filter(pk=request.data.get('city')).first() if request.data.get('city') else None
+        nome = (request.data.get('name') or pt.title or '').strip()
+        if city is None and nome:
+            # Sem id, tenta pelo nome (sem acento) — é o caso do ponto criado à mão.
+            city = (ConfigCity.objects.filter(name_ascii=normalize_text(nome))
+                    .select_related('state__country').first())
+        country = ConfigCountry.objects.filter(pk=request.data.get('country')).first() if request.data.get('country') else None
+        if country is None and city is not None:
+            country = getattr(getattr(city, 'state', None), 'country', None)
+
+        def melhor(qs):
+            """A mais usada; empate, a mais recente. `usos` = cópias + o próprio
+            uso quando a imagem já pertence a um roteiro."""
+            candidatas = [im for im in qs if im.image and not im.is_video]
+            if not candidatas:
+                return None
+            def chave(im):
+                usos = im.copies.filter(itinerary__isnull=False).count() + (1 if im.itinerary_id else 0)
+                return (usos, im.created_at or im.id)
+            return max(candidatas, key=chave)
+
+        base = (ItineraryImage.objects
+                .filter(map_point__isnull=True, day__isnull=True)
+                .exclude(itinerary_id=itinerary.id)      # já é deste roteiro: não é "da galeria"
+                .select_related('city', 'country'))
+        escolhida = melhor(base.filter(city=city)) if city else None
+        if escolhida is None and country is not None:
+            escolhida = melhor(base.filter(country=country))
+        if escolhida is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        try:
+            escolhida.image.open('rb')
+            data = escolhida.image.read()
+        except Exception:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        finally:
+            try:
+                escolhida.image.close()
+            except Exception:
+                pass
+
+        ext = _os.path.splitext(escolhida.image.name or '')[1] or '.jpg'
+        nova = ItineraryImage(itinerary=itinerary, map_point=pt, kind='gallery',
+                              source=escolhida.source or escolhida,
+                              caption=escolhida.caption, subject_type=escolhida.subject_type,
+                              city_id=escolhida.city_id, country_id=escolhida.country_id,
+                              dominant_color=escolhida.dominant_color, color_bucket=escolhida.color_bucket)
+        nova.image.save(f'auto{ext}', ContentFile(data), save=False)
+        nova.save()
         _touch_unpublished(itinerary)
         return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data,
                         status=status.HTTP_201_CREATED)

@@ -540,6 +540,11 @@ class ItineraryImage(models.Model):
     # `map_point` NÃO aparece nas seções de imagem do roteiro (capa/galeria/lâmina).
     map_point = models.ForeignKey('ItineraryMapPoint', null=True, blank=True, on_delete=models.CASCADE,
                                   related_name='photos', verbose_name='Ponto do mapa')
+    # De qual imagem da galeria esta aqui foi copiada. É o que permite saber
+    # QUANTOS roteiros já usaram uma foto — critério de escolha da foto
+    # automática do ponto do mapa. Cópia de cópia aponta para a raiz.
+    source    = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name='copies', verbose_name='Copiada de')
     # FileField (não ImageField) pra aceitar também VÍDEO na galeria. O tipo é
     # validado na action de upload (imagem: jpg/png; vídeo: mp4/webm/mov/…).
     image     = models.FileField('Arquivo (imagem/vídeo)', upload_to=secure_itinerary_image_path, storage=public_media_storage)
