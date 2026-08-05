@@ -51,16 +51,18 @@ class ReservationViewSet(viewsets.ModelViewSet):
         PUBLICADA. Retorna None quando não há capacidade definida (sem limite)."""
         from trips.models import ListEnrollment
         from config_api.models import ReservationSettings
+        from itineraries.capacity import seats_published
         psnap = ((itinerary.published_data or {}).get('pricing_snapshot') or {}).get('config') or {}
+        # Capacidade = assentos dos BLOQUEIOS (Valores › Disponibilidade), nunca
+        # mais um número digitado. None = sem bloqueio de assento = sem limite.
+        seats = seats_published(itinerary)
         if psnap:
             pdefs = psnap.get('reservation_defaults') or {}
-            seats = psnap.get('seats_for_sale')
             on = psnap.get('reserva_online_percent'); on = on if on is not None else pdefs.get('reserva_online_percent')
             im = psnap.get('pagamento_imediato_percent'); im = im if im is not None else pdefs.get('pagamento_imediato_percent')
         else:
             pricing = getattr(itinerary, 'pricing', None)
             rs = ReservationSettings.get()
-            seats = pricing.seats_for_sale if pricing else None
             on = pricing.reserva_online_percent if (pricing and pricing.reserva_online_percent is not None) else rs.reserva_online_percent
             im = pricing.pagamento_imediato_percent if (pricing and pricing.pagamento_imediato_percent is not None) else rs.pagamento_imediato_percent
         if seats is None:
@@ -212,6 +214,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         from itineraries.models import Itinerary
         from trips.models import ListEnrollment
         from config_api.models import ReservationSettings
+        from itineraries.capacity import seats_published
         rsettings = ReservationSettings.get()
 
         def blank(itin_id):
@@ -248,7 +251,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         #    tivesse reserva antiga) sai do hub — Itinerary.objects não filtra
         #    soft-delete, então é obrigatório o is_deleted=False aqui.
         itins = (Itinerary.objects.filter(id__in=list(rows.keys()), is_deleted=False)
-                 .select_related('pricing').prefetch_related('images'))
+                 .select_related('pricing').prefetch_related('images', 'inventory_blocks'))
         vivos = set()
         for itin in itins:
             row = rows[itin.id]
@@ -258,12 +261,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
             row['cover'] = self._cover_url(itin, request)
             # Capacidade/percentuais de reserva vêm da FOTO PUBLICADA (published_data),
             # não do vivo — alterações só valem no hub após republicar. O snapshot
-            # congela o ItineraryPricingConfigSerializer (inclui seats_for_sale, os
-            # percentuais e o reservation_defaults do momento da publicação).
+            # congela os BLOQUEIOS (de onde saem os assentos) e o
+            # ItineraryPricingConfigSerializer (percentuais + reservation_defaults).
             psnap = ((itin.published_data or {}).get('pricing_snapshot') or {}).get('config') or {}
+            seats = seats_published(itin)
             if psnap:
                 pdefs = psnap.get('reservation_defaults') or {}
-                seats = psnap.get('seats_for_sale')
                 on = psnap.get('reserva_online_percent')
                 on = on if on is not None else pdefs.get('reserva_online_percent')
                 im = psnap.get('pagamento_imediato_percent')
@@ -271,7 +274,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
             else:
                 # Fallback: roteiro ainda sem foto publicada de valores — usa o vivo.
                 pricing = getattr(itin, 'pricing', None)
-                seats = pricing.seats_for_sale if pricing else None
                 on = pricing.reserva_online_percent if (pricing and pricing.reserva_online_percent is not None) else rsettings.reserva_online_percent
                 im = pricing.pagamento_imediato_percent if (pricing and pricing.pagamento_imediato_percent is not None) else rsettings.pagamento_imediato_percent
             row['seats_for_sale'] = seats
