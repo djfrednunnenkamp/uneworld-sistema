@@ -194,3 +194,21 @@ class PaymentScheduleValidationTest(TestCase):
     def test_allows_empty_date(self):
         out = self._val([{'due_date': '', 'percent': 100}])
         self.assertEqual(out, [{'due_date': '', 'percent': 100.0, 'note': ''}])
+
+
+class RoadCostTest(TestCase):
+    """Custo RODOVIÁRIO (o ônibus). O eixo é marcado pela categoria 'Rodoviário'
+    (mesma convenção do aéreo/marítimo); sendo custo do GRUPO, o valor cheio é
+    rateado pela quantidade-base."""
+
+    def test_onibus_rateado_pela_base(self):
+        it = Itinerary.objects.create(name='Roteiro rodoviário', base_currency='BRL', has_terrestre=True)
+        # fator 1,00 (100%) = sem markup: venda = net
+        ItineraryPricingConfig.objects.create(itinerary=it, base_pax=20, margin_mode='percent', margin_percent=100)
+        ItineraryCostItem.objects.create(itinerary=it, description='Fretamento do ônibus',
+                                         category='Rodoviário', cost_type='group',
+                                         unit_value=8000, quantity=1, rateio_rule='base')
+        res = pricing.compute(it)
+        # 8000 ÷ 20 = 400 por pessoa
+        self.assertEqual(str(res['summary']['common_per_person']), '400.00')
+        self.assertEqual(str(res['table'][0]['sale_price']), '400.00')
