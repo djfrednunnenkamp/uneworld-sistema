@@ -63,3 +63,58 @@ class LaminaFavoritePrefsTest(APITestCase):
         # b não enxerga os favoritos de a
         self.client.force_authenticate(self.b)
         self.assertIsNone(self.client.get(self.URL).data['lamina_favorite_patterns'])
+
+
+class LaminaPromptPrefsTest(APITestCase):
+    """Escolhas do pop-up "Prompt da lâmina com IA": ficam na conta do USUÁRIO
+    (valem em qualquer roteiro), com lista fechada de chaves/valores."""
+    URL = '/api/agenda/preferences/'
+
+    def setUp(self):
+        self.a = User.objects.create_user('lp-a', password='x')
+        self.b = User.objects.create_user('lp-b', password='x')
+
+    def test_default_is_empty(self):
+        self.client.force_authenticate(self.a)
+        self.assertEqual(self.client.get(self.URL).data['lamina_prompt'], {})
+
+    def test_roundtrip(self):
+        self.client.force_authenticate(self.a)
+        cfg = {'formato': 'a4', 'direcao': 'colagem', 'composicao': 'mosaico',
+               'densidade': 'detalhada', 'chamada': 'preco', 'paleta': 'personalizada',
+               'cor1': '1a2d4f', 'cor2': '#2E6DB4', 'incModo': 'todas',
+               'precoModo': 'brl', 'taxaTipo': 'parcelado',
+               'conteudo': {'datas': False, 'saidas': True}}
+        r = self.client.patch(self.URL, {'lamina_prompt': cfg}, format='json')
+        self.assertEqual(r.status_code, 200)
+        salvo = r.data['lamina_prompt']
+        self.assertEqual(salvo['formato'], 'a4')
+        self.assertEqual(salvo['direcao'], 'colagem')
+        self.assertEqual(salvo['precoModo'], 'brl')
+        self.assertEqual(salvo['cor1'], '#1A2D4F')      # normaliza o hex
+        self.assertEqual(salvo['cor2'], '#2E6DB4')
+        self.assertEqual(salvo['conteudo'], {'datas': False, 'saidas': True})
+        # persistiu de verdade (novo GET)
+        self.assertEqual(self.client.get(self.URL).data['lamina_prompt']['direcao'], 'colagem')
+
+    def test_rejects_unknown_keys_and_values(self):
+        self.client.force_authenticate(self.a)
+        r = self.client.patch(self.URL, {'lamina_prompt': {
+            'formato': 'poster-gigante',           # valor fora da lista
+            'direcao': 'editorial',                # válido
+            'hackzinho': {'x': 1},                 # chave desconhecida
+            'cor1': 'não é hex',
+            'conteudo': {'nome': True, 'custo_net': True},   # campo não publicável
+        }}, format='json')
+        salvo = r.data['lamina_prompt']
+        self.assertNotIn('formato', salvo)
+        self.assertNotIn('hackzinho', salvo)
+        self.assertNotIn('cor1', salvo)
+        self.assertEqual(salvo['direcao'], 'editorial')
+        self.assertEqual(salvo['conteudo'], {'nome': True})
+
+    def test_isolation_between_users(self):
+        self.client.force_authenticate(self.a)
+        self.client.patch(self.URL, {'lamina_prompt': {'formato': 'story'}}, format='json')
+        self.client.force_authenticate(self.b)
+        self.assertEqual(self.client.get(self.URL).data['lamina_prompt'], {})

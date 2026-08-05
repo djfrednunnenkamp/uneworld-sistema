@@ -16,7 +16,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'lamina_favorite_themes',
                   'itinerary_tab_order', 'contract_tab_order', 'drive_columns',
                   'nav_order', 'nav_hidden', 'table_columns', 'gallery_columns',
-                  'voucher_tab_colors']
+                  'voucher_tab_colors', 'lamina_prompt']
 
     def validate_gallery_columns(self, value):
         # Nº de colunas fixas da grade da Galeria. 0 = legado (o front cai no
@@ -39,6 +39,45 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
         for k, c in value.items():
             if k in allowed and isinstance(c, str) and hexre.match(c.strip()):
                 out[k] = '#' + c.strip().lstrip('#').upper()
+        return out
+
+    # Chaves aceitas do pop-up "Prompt da lâmina com IA" e os valores válidos de
+    # cada uma. É uma LISTA FECHADA de propósito: a preferência é de interface, não
+    # um saco de JSON livre — chave desconhecida é descartada em silêncio (o front
+    # pode ganhar opções novas sem quebrar o que já está salvo).
+    LAMINA_PROMPT_OPCOES = {
+        'formato':    {'a4', 'retrato', 'quadrado', 'story'},
+        'direcao':    {'editorial', 'premium', 'promocional', 'imersivo', 'colagem',
+                       'cultural', 'minimalista', 'vibrante'},
+        'composicao': {'unica', 'principal_secundarias', 'mosaico', 'auto'},
+        'densidade':  {'essencial', 'equilibrada', 'detalhada'},
+        'chamada':    {'destino', 'data', 'preco', 'diferencial', 'auto'},
+        'paleta':     {'institucional', 'institucional_destino', 'foto', 'personalizada'},
+        'incModo':    {'auto', 'manual', 'todas'},
+        'precoModo':  {'nenhum', 'original', 'brl'},
+        'taxaTipo':   {'avista', 'parcelado'},
+    }
+    LAMINA_PROMPT_CONTEUDO = {'nome', 'datas', 'destinos', 'saidas', 'tipo', 'destaques',
+                              'inclusoes', 'hospedagem', 'transporte', 'campanha',
+                              'preco', 'taxas', 'condicoes', 'logo', 'rodape'}
+
+    def validate_lamina_prompt(self, value):
+        import re
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('Formato inválido.')
+        hexre = re.compile(r'^#?([0-9a-fA-F]{6})$')
+        out = {}
+        for chave, aceitos in self.LAMINA_PROMPT_OPCOES.items():
+            v = value.get(chave)
+            if isinstance(v, str) and v in aceitos:
+                out[chave] = v
+        for chave in ('cor1', 'cor2'):
+            c = value.get(chave)
+            if isinstance(c, str) and hexre.match(c.strip()):
+                out[chave] = '#' + c.strip().lstrip('#').upper()
+        conteudo = value.get('conteudo')
+        if isinstance(conteudo, dict):
+            out['conteudo'] = {k: bool(v) for k, v in conteudo.items() if k in self.LAMINA_PROMPT_CONTEUDO}
         return out
 
     def validate_lamina_recent_colors(self, value):

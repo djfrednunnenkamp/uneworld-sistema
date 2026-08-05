@@ -80,6 +80,13 @@ class CalendarPreference(models.Model):
     # Cores das abas dos Vouchers, por status: {"geral":"#RRGGBB","em_edicao":..,
     # "publicado":..,"finalizado":..}. Chave ausente/vazia = cor padrão do tema.
     voucher_tab_colors   = models.JSONField('Cores das abas dos vouchers', default=dict, blank=True)
+    # Escolhas do pop-up "Prompt da lâmina com IA" (roteiro › Imagens e vídeos):
+    # formato, direção de arte, composição, densidade, chamada, paleta/cores,
+    # blocos de conteúdo, modo das inclusões e modo de preço. São do USUÁRIO, não
+    # do roteiro — quem configurou uma vez abre qualquer roteiro já do seu jeito.
+    # Vazio = padrões do sistema. O que depende do roteiro (cidades em destaque,
+    # inclusões escolhidas, oferta) e os textos livres NÃO ficam aqui.
+    lamina_prompt        = models.JSONField('Configurações do prompt da lâmina', default=dict, blank=True)
     digest_send_hour     = models.IntegerField('Horário de envio do resumo do calendário', default=8)
     send_hour            = models.IntegerField('Horário de envio das notificações diárias', default=8)
     last_digest_sent     = models.DateField('Último resumo enviado em', null=True, blank=True)
