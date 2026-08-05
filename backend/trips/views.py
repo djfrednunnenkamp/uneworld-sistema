@@ -286,6 +286,8 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return [RequirePermission('lists_passengers_edit')()]
         if self.action == 'manage_room':
             return [RequirePermission('lists_edit')()]
+        if self.action == 'notify_reservation':
+            return [RequirePermission('lists_passengers_add')()]
         if self.action == 'import_csv':
             return [RequirePermission('lists_csv_upload')()]
         if self.action == 'log_download':
@@ -579,11 +581,84 @@ class PassengerListViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             passenger_list=pl, passenger=p,
             agency=agency_obj, responsible_user=resp_user,
             accommodation=accommodation, enrollment_status=estatus, notes=notes,
+            # O "Prazo" do pop-up vale para passageiro individual também — sem
+            # gravá-lo, o lembrete de prazo do agendador nunca via essas linhas.
+            pending_until=pending_until,
+            pending_until_created_by=(request.user if pending_until else None),
+            pending_reason=pending_reason,
             # Embarque padrão = aeroporto preferido da lista (pré-preenche o EMB).
             departure_airport=pl.default_airport,
         )
         _autocheck_guia(e)   # guia de cadastro já entra com a função "Guia" marcada
         return Response(ListEnrollmentSerializer(e).data, status=201)
+
+    # ── Aviso de reserva ao responsável ──────────────────────────────────────
+
+    @action(detail=True, methods=['post'], url_path='notify-reservation')
+    def notify_reservation(self, request, pk=None):
+        """Avisa por e-mail o RESPONSÁVEL de cada assento recém-reservado.
+
+        O pop-up "Adicionar acomodação e passageiros" cria um passageiro por
+        requisição; se o e-mail saísse de dentro do POST, um responsável com 4
+        assentos receberia 4 e-mails. Por isso o front manda aqui, ao final do
+        lote, os ids criados — e aqui eles são AGRUPADOS por responsável: um
+        e-mail por pessoa, dizendo quantos assentos foram reservados e em que
+        roteiro. Falha de envio nunca derruba a reserva (já está gravada)."""
+        from agenda.email_service import send_reservation_notice
+
+        pl  = self.get_object()
+        ids = request.data.get('enrollment_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return Response({'error': 'enrollment_ids é obrigatório.'}, status=400)
+
+        entries = list(
+            pl.list_enrollments.filter(pk__in=[_as_int(i) for i in ids if _as_int(i)])
+              .exclude(responsible_user__isnull=True)
+              .exclude(enrollment_status='cancelado')
+              .select_related('passenger', 'agency', 'responsible_user')
+        )
+        if not entries:
+            return Response({'sent': 0, 'recipients': []})
+
+        itinerary = ', '.join(pl.roteiros.filter(is_deleted=False).values_list('name', flat=True))
+        period    = ' a '.join(d.strftime('%d/%m/%Y') for d in (pl.start_date, pl.end_date) if d)
+        created_by = (request.user.get_full_name() or request.user.username or '').strip()
+
+        # Agrupa por responsável (o e-mail é o destino real; sem e-mail, não há aviso).
+        by_user = {}
+        for e in entries:
+            email = (e.responsible_user.email or '').strip()
+            if not email:
+                continue
+            by_user.setdefault(email, {'user': e.responsible_user, 'items': []})['items'].append(e)
+
+        sent = []
+        for email, grp in by_user.items():
+            items = grp['items']
+            # Bloqueio/provisório ocupa 1 assento por linha (é assim que são criados).
+            rows = [{
+                'name': (e.passenger.full_name if e.passenger
+                         else (e.block_agency or 'Assento sem passageiro')),
+                'status': e.enrollment_status,
+                'prazo': e.pending_until,
+                'accommodation': e.accommodation,
+                'notes': e.pending_reason or e.notes,
+            } for e in items]
+            accoms = {e.accommodation for e in items if e.accommodation}
+            agencies = {(e.agency.name if e.agency else e.block_agency) for e in items}
+            agencies.discard('')
+            ok = send_reservation_notice(
+                email, rows,
+                responsible_name=(grp['user'].get_full_name() or '').strip(),
+                list_name=pl.name, itinerary=itinerary, period=period,
+                agency=', '.join(sorted(a for a in agencies if a)),
+                accommodation=(accoms.pop() if len(accoms) == 1 else ''),
+                seats=len(items), created_by=created_by,
+            )
+            if ok:
+                sent.append(email)
+
+        return Response({'sent': len(sent), 'recipients': sent})
 
     @action(detail=True, methods=['post'], url_path='import-csv',
             parser_classes=[MultiPartParser, FormParser])

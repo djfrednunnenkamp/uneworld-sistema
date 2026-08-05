@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand
 from agenda.email_service import (
     send_calendar_summary,
     send_daily_digest,
+    send_reservation_notice,
 )
 from users_api.email_service import send_invite, send_reset_password
 
@@ -29,6 +30,12 @@ SAMPLE_BIRTHDAYS = [
     {'name': 'Luiz Antonio Pereira', 'birth_date': '17/06/1985', 'age': 41},
     {'name': 'Sandra Oliveira',      'birth_date': '17/06/1990', 'age': 36},
     {'name': 'Marcio Gomes',         'birth_date': '17/06/2001', 'age': 25},
+]
+SAMPLE_RESERVATION = [
+    {'name': 'Analice Carrer',       'status': 'reservado',  'prazo': '2026-08-20', 'accommodation': 'Duplo 12', 'notes': 'Aguardando pagamento da entrada'},
+    {'name': 'José Carlos Carrer',   'status': 'reservado',  'prazo': '2026-08-20', 'accommodation': 'Duplo 12', 'notes': ''},
+    {'name': 'Marta Regina Bendin',  'status': 'pendente',   'prazo': '2026-08-15', 'accommodation': 'Single 4', 'notes': 'Falta documento'},
+    {'name': 'Ana Maria Frapporti',  'status': 'confirmado', 'prazo': '',           'accommodation': 'Triplo 7', 'notes': ''},
 ]
 SAMPLE_CALENDAR_EVENTS = [
     {'type': 'trip',     'title': 'Cancún — Grupo Sol & Mar',  'subtitle': '42 passageiros', 'start': '2026-06-15', 'end': '2026-06-22'},
@@ -65,6 +72,14 @@ class Command(BaseCommand):
 
             ('Resumo do calendário (digest semanal)',
              lambda: send_calendar_summary(to, 'Frederico', SAMPLE_CALENDAR_EVENTS, 'Seu resumo semanal', 'Confira os próximos eventos, prazos e aniversários dos seus passageiros.')),
+
+            ('Reserva de assentos (aviso ao responsável)',
+             lambda: send_reservation_notice(
+                 to, SAMPLE_RESERVATION,
+                 responsible_name='Comercial Você Viagens', list_name='China Extraordinária — Grupo Ago/2026',
+                 itinerary='CHINA EXTRAORDINÁRIA: ENTRE IMPÉRIOS E CIDADES DO FUTURO',
+                 period='15/08/2026 a 29/08/2026', agency='VOCE VIAGENS E EXPERIENCIAS LTDA',
+                 seats=4, created_by='Frederico Nunnenkamp')),
 
             ('Redefinição de senha',
              lambda: send_reset_password(to, 'Frederico', 'https://uneworld.com.br/reset?token=exemplo123')),

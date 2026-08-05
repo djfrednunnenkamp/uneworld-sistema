@@ -448,3 +448,125 @@ def send_birthday_reminder(emails: list, today_date, entries: list) -> bool:
         {_birthday_cards(entries)}
       </td></tr>"""
     return _send(emails, f'{subject} — UneWorld Turismo', _wrap(body, '#7c3aed'), 'birthday')
+
+
+# ── Reserva de assentos (Listas de Passageiros) ───────────────────────────────
+# Disparado quando um responsável recebe passageiros numa lista (pop-up
+# "Adicionar acomodação e passageiros"). Um e-mail por responsável, com TODOS os
+# assentos daquela reserva — nunca um e-mail por passageiro.
+
+_RES_STATUS_CFG = {
+    'reservado':  ('Reservado',  '#dbeafe', '#1d4ed8'),
+    'pendente':   ('Pendente',   '#fef3c7', '#b45309'),
+    'confirmado': ('Confirmado', '#dcfce7', '#15803d'),
+    'cancelado':  ('Cancelado',  '#fee2e2', '#b91c1c'),
+}
+
+
+def _info_row(label: str, value: str) -> str:
+    if not value:
+        return ''
+    return f"""
+        <tr>
+          <td style="padding:7px 0;font-size:12px;color:#94a3b8;white-space:nowrap;vertical-align:top;width:110px">{_esc(label)}</td>
+          <td style="padding:7px 0;font-size:13px;color:#0f172a;font-weight:600">{_esc(value)}</td>
+        </tr>"""
+
+
+def _seats_banner(seats: int, itinerary: str) -> str:
+    plural = 'assentos reservados' if seats != 1 else 'assento reservado'
+    sub = f'no roteiro <strong style="color:#0f172a">{_esc(itinerary)}</strong>' if itinerary else 'nesta lista'
+    return f"""
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+             style="border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;margin:0 0 18px">
+        <tr>
+          <td style="padding:18px 20px;text-align:center">
+            <p style="margin:0;font-size:34px;font-weight:800;color:#1d4ed8;line-height:1">{seats}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:#1e40af;font-weight:700;letter-spacing:.02em">{plural}</p>
+            <p style="margin:6px 0 0;font-size:13px;color:#475569">{sub}</p>
+          </td>
+        </tr>
+      </table>"""
+
+
+def _reservation_cards(entries: list) -> str:
+    cards = ''
+    for e in entries:
+        label, bg, fg = _RES_STATUS_CFG.get(e.get('status'), _RES_STATUS_CFG['reservado'])
+        meta = []
+        if e.get('accommodation'):
+            meta.append(f'Acomodação: <strong style="color:#334155">{_esc(e["accommodation"])}</strong>')
+        if e.get('prazo'):
+            meta.append(f'Prazo: <strong style="color:#334155">{_fmt(e["prazo"])}</strong>')
+        meta_html = (f'<p style="margin:4px 0 0;font-size:12px;color:#64748b">{" &middot; ".join(meta)}</p>'
+                     if meta else '')
+        notes = (f'<p style="margin:6px 0 0;font-size:12px;color:#64748b;font-style:italic">{_esc(e["notes"])}</p>'
+                 if e.get('notes') else '')
+        cards += f"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;border:1px solid #e2e8f0;border-left:4px solid {fg};border-radius:10px;overflow:hidden">
+          <tr>
+            <td style="padding:14px 16px">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:top">
+                    <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a">{_esc(e.get('name') or 'Assento sem passageiro')}</p>
+                    {meta_html}
+                    {notes}
+                  </td>
+                  <td style="vertical-align:top;text-align:right;padding-left:12px;white-space:nowrap">
+                    <span style="display:inline-block;padding:4px 12px;border-radius:999px;background:{bg};color:{fg};font-size:11px;font-weight:700">{label}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>"""
+    return cards
+
+
+def send_reservation_notice(email: str, entries: list, *, responsible_name: str = '',
+                            list_name: str = '', itinerary: str = '', period: str = '',
+                            agency: str = '', accommodation: str = '', seats: int = 0,
+                            created_by: str = '') -> bool:
+    """Avisa o RESPONSÁVEL de que assentos foram reservados no nome dele."""
+    if not email or not entries:
+        return False
+
+    seats = seats or len(entries)
+    first_name = _esc((responsible_name or '').split(' ')[0])
+    subject = (f'{seats} assento{"s" if seats != 1 else ""} reservado'
+               f'{"s" if seats != 1 else ""} — {itinerary or list_name}')
+
+    # O roteiro já aparece no cabeçalho e no destaque de assentos — não repete aqui.
+    info = (
+        _info_row('Lista', list_name)
+        + _info_row('Período', period)
+        + _info_row('Agência', agency)
+        + _info_row('Acomodação', accommodation)
+    )
+    info_html = f"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+               style="border:1px solid #e2e8f0;border-radius:12px;margin:0 0 18px">
+          <tr><td style="padding:6px 18px 10px">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{info}</table>
+          </td></tr>
+        </table>""" if info else ''
+
+    by = (f'<p style="margin:16px 0 0;font-size:11px;color:#94a3b8;text-align:center">'
+          f'Reserva registrada por {_esc(created_by)}.</p>') if created_by else ''
+
+    body = f"""
+      {_section_header('🎫', 'Reserva registrada', itinerary or list_name, '#1d4ed8')}
+      <tr><td style="padding:20px 32px 28px">
+        <p style="margin:0 0 16px;font-size:14px;color:#64748b;line-height:1.65">
+          Olá{f', {first_name}' if first_name else ''}! Registramos uma reserva com você como
+          <strong style="color:#0f172a">responsável</strong>.
+        </p>
+        {_seats_banner(seats, itinerary)}
+        {info_html}
+        {_subsection('👥', 'Assentos desta reserva', '#1d4ed8')}
+        {_reservation_cards(entries)}
+        {by}
+      </td></tr>"""
+
+    return _send(email, f'{subject} — UneWorld Turismo', _wrap(body, '#1d4ed8'), 'reservation')

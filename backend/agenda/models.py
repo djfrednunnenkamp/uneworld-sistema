@@ -109,6 +109,7 @@ class EmailLog(models.Model):
         ('deadline',       'Prazo de confirmação'),
         ('task',           'Pendência'),
         ('birthday',       'Aniversário de passageiro'),
+        ('reservation',    'Reserva de assentos'),
         ('reset_password', 'Redefinição de senha'),
         ('invite',         'Convite'),
         ('other',          'Outro'),
