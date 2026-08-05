@@ -4,13 +4,13 @@ Quantos passageiros o roteiro comporta NÃO é mais um número digitado à mão:
 dos BLOQUEIOS (aba Valores › Disponibilidade). Bloqueio é o que a operadora
 realmente segurou com o fornecedor, então é ele que manda nas vagas.
 
-Hoje só o bloqueio AÉREO conta assentos (`quantity` = nº de assentos). Os outros
-tipos contam OUTRA coisa e por isso ficam de fora:
+Contam assento os bloqueios AÉREO (assentos do voo) e RODOVIÁRIO (assentos do
+ônibus) — `quantity` é gente nos dois. Vários bloqueios do mesmo tipo SOMAM. Os
+outros tipos contam OUTRA coisa e por isso ficam de fora:
   - terrestre: unidades de QUARTO (as classes vêm no M2M `accommodations`);
   - navio: CABINES (quantidade de cabines do grupo categoria+capacidade).
 Somar quarto/cabine com gente daria um número errado — 10 duplos são 20 pessoas,
-não 10. Quando o roteiro é de ônibus, o assento do ônibus ainda não é cadastrado
-em lugar nenhum do roteiro (ver SYSTEM_DESIGN_GUIDE).
+não 10.
 
 Sem bloqueio de assento: devolve None = SEM LIMITE (mesmo significado que o campo
 manual em branco tinha antes). É o que mantém o comportamento de quem ainda não
@@ -18,7 +18,7 @@ cadastrou bloqueio.
 """
 
 # Tipos de bloqueio cuja `quantity` é ASSENTO (pessoa), não quarto/cabine.
-SEAT_KINDS = ('aereo',)
+SEAT_KINDS = ('aereo', 'rodoviario')
 
 
 def seats_from_blocks(blocks):

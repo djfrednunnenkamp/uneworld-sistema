@@ -1165,10 +1165,17 @@ class ItineraryInventoryBlock(models.Model):
       podem virar single OU duplo — se 1 vira single, sobram 9 pro duplo).
     - Aéreo: `airline` (companhia, opcional) + `flight_class` (classe);
       `quantity` = nº de assentos bloqueados.
+    - Rodoviário: `terrestre_company` (empresa do ônibus, opcional);
+      `quantity` = nº de ASSENTOS do ônibus bloqueados.
     - Navio: `ship_cabin` (cabine representante do grupo categoria+capacidade, ex.:
       'Janela · Duplo'); `quantity` = nº de cabines.
+
+    ATENÇÃO: 'terrestre' e 'rodoviario' são coisas diferentes. 'terrestre' é
+    HOSPEDAGEM (quartos) de um roteiro rodoviário; 'rodoviario' é o ÔNIBUS
+    (assentos). Só assento vira capacidade de venda — ver itineraries/capacity.py.
     """
-    KIND_CHOICES = [('terrestre', 'Terrestre'), ('aereo', 'Aéreo'), ('navio', 'Navio')]
+    KIND_CHOICES = [('terrestre', 'Terrestre (quartos)'), ('rodoviario', 'Rodoviário (assentos)'),
+                    ('aereo', 'Aéreo'), ('navio', 'Navio')]
 
     itinerary    = models.ForeignKey(Itinerary, on_delete=models.CASCADE, related_name='inventory_blocks')
     kind         = models.CharField('Tipo', max_length=10, choices=KIND_CHOICES)
@@ -1181,6 +1188,8 @@ class ItineraryInventoryBlock(models.Model):
     # Aéreo — companhia (opcional) + classe.
     airline      = models.ForeignKey('config_api.Airline', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     flight_class = models.ForeignKey('config_api.ConfigFlightClass', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    # Rodoviário — empresa do ônibus (opcional); `quantity` = assentos.
+    terrestre_company = models.ForeignKey('config_api.ConfigTerrestreCompany', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Empresa do ônibus')
 
     notes        = models.CharField('Observação', max_length=200, blank=True, default='')
     order        = models.PositiveIntegerField('Ordem', default=0)

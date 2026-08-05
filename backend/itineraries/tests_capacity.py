@@ -1,8 +1,8 @@
 """Capacidade à venda derivada dos BLOQUEIOS (itineraries/capacity.py).
 
-Regra: só bloqueio AÉREO conta assento; terrestre (quartos) e navio (cabines)
-contam outra coisa e ficam de fora. Sem bloqueio de assento = sem limite (None),
-que é o que libera as reservas."""
+Regra: contam assento os bloqueios AÉREO e RODOVIÁRIO (ônibus); hospedagem
+(quartos) e navio (cabines) contam outra coisa e ficam de fora. Sem bloqueio de
+assento = sem limite (None), que é o que libera as reservas."""
 from django.test import TestCase
 
 from itineraries.models import Itinerary, ItineraryInventoryBlock
@@ -17,8 +17,21 @@ class SeatsFromBlocksTest(TestCase):
             {'kind': 'aereo', 'quantity': 10, 'is_active': True},
         ]), 25)
 
+    def test_soma_os_bloqueios_rodoviarios(self):
+        # Roteiro de ônibus: os assentos vêm dos bloqueios rodoviários (dois
+        # ônibus somam) e convivem com o aéreo num roteiro misto.
+        self.assertEqual(seats_from_blocks([
+            {'kind': 'rodoviario', 'quantity': 46, 'is_active': True},
+            {'kind': 'rodoviario', 'quantity': 20, 'is_active': True},
+        ]), 66)
+        self.assertEqual(seats_from_blocks([
+            {'kind': 'rodoviario', 'quantity': 46, 'is_active': True},
+            {'kind': 'aereo', 'quantity': 10, 'is_active': True},
+            {'kind': 'terrestre', 'quantity': 30, 'is_active': True},
+        ]), 56)
+
     def test_ignora_quarto_e_cabine(self):
-        # Terrestre = quartos, navio = cabines: 10 duplos são 20 pessoas, não 10.
+        # Hospedagem = quartos, navio = cabines: 10 duplos são 20 pessoas, não 10.
         self.assertIsNone(seats_from_blocks([
             {'kind': 'terrestre', 'quantity': 12, 'is_active': True},
             {'kind': 'navio', 'quantity': 27, 'is_active': True},
@@ -56,12 +69,14 @@ class SeatsForItineraryTest(TestCase):
         return ItineraryInventoryBlock.objects.create(
             itinerary=self.it, kind=kind, quantity=qtd, is_active=ativo)
 
-    def test_ao_vivo_soma_os_aereos(self):
+    def test_ao_vivo_soma_os_assentos(self):
         self.assertIsNone(seats_for_itinerary(self.it))
         self._bloco('aereo', 15)
         self._bloco('aereo', 10)
-        self._bloco('terrestre', 30)
+        self._bloco('terrestre', 30)          # quartos: não conta
         self.assertEqual(seats_for_itinerary(self.it), 25)
+        self._bloco('rodoviario', 46)         # ônibus: conta
+        self.assertEqual(seats_for_itinerary(self.it), 71)
 
     def test_publicado_usa_a_foto_e_nao_o_vivo(self):
         self._bloco('aereo', 40)                      # mudou depois de publicar

@@ -1076,10 +1076,12 @@ class ItineraryInventoryBlockSerializer(serializers.ModelSerializer):
     ship_cabin_capacity = serializers.IntegerField(source='ship_cabin.capacity', read_only=True, default=None)
     airline_name = serializers.CharField(source='airline.name', read_only=True, default=None)
     flight_class_name = serializers.CharField(source='flight_class.name', read_only=True, default=None)
+    terrestre_company_name = serializers.CharField(source='terrestre_company.name', read_only=True, default=None)
 
     class Meta:
         model = ItineraryInventoryBlock
         fields = ['id', 'itinerary', 'kind', 'quantity',
+                  'terrestre_company', 'terrestre_company_name',
                   'accommodations', 'accommodations_data',
                   'ship_cabin', 'ship_cabin_name', 'ship_cabin_category', 'ship_cabin_capacity',
                   'airline', 'airline_name', 'flight_class', 'flight_class_name',
