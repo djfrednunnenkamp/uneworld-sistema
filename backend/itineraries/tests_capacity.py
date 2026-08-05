@@ -78,15 +78,41 @@ class SeatsForItineraryTest(TestCase):
         self._bloco('rodoviario', 46)         # ônibus: conta
         self.assertEqual(seats_for_itinerary(self.it), 71)
 
+    def _publicar(self):
+        """Publica os valores como o sistema publica de verdade — usando o MESMO
+        montador da foto (`_pricing_snapshot`). É o que impede o teste de passar
+        com uma chave inventada: se o nome do campo mudar, isto quebra."""
+        from itineraries.views import _pricing_snapshot
+        self.it.published_data = {'pricing_snapshot': _pricing_snapshot(self.it)}
+        self.it.is_published = True
+        self.it.save(update_fields=['published_data', 'is_published'])
+
     def test_publicado_usa_a_foto_e_nao_o_vivo(self):
-        self._bloco('aereo', 40)                      # mudou depois de publicar
-        self.it.published_data = {'pricing_snapshot': {'blocks': [
-            {'kind': 'aereo', 'quantity': 12, 'is_active': True},
-        ]}}
-        self.it.save(update_fields=['published_data'])
-        self.assertEqual(seats_for_itinerary(self.it), 40)   # vivo
+        # Publica com 12 assentos e DEPOIS acrescenta um bloqueio de 40.
+        self._bloco('aereo', 12)
+        self._publicar()
+        self._bloco('aereo', 40)
+        self.assertEqual(seats_for_itinerary(self.it), 52)   # vivo (a tela de Valores)
         self.assertEqual(seats_published(self.it), 12)       # o que vale para as reservas
 
+    def test_bloqueio_novo_so_conta_depois_de_republicar(self):
+        # Bug real: bloqueio acrescentado sem republicar aparecia no hub.
+        self._bloco('rodoviario', 15)
+        self._publicar()
+        self._bloco('rodoviario', 5)
+        self.assertEqual(seats_published(self.it), 15)
+        self._publicar()                                     # republicou
+        self.assertEqual(seats_published(self.it), 20)
+
+    def test_foto_publicada_sem_bloqueio_nao_cai_no_vivo(self):
+        # Publicou quando não havia bloqueio nenhum e cadastrou depois: o hub
+        # continua sem limite até republicar (o rascunho não vale como publicado).
+        self._publicar()
+        self._bloco('aereo', 30)
+        self.assertEqual(seats_for_itinerary(self.it), 30)
+        self.assertIsNone(seats_published(self.it))
+
     def test_sem_foto_publicada_cai_no_vivo(self):
+        # Nunca publicou os valores: não há foto para comparar — usa o vivo.
         self._bloco('aereo', 7)
         self.assertEqual(seats_published(self.it), 7)

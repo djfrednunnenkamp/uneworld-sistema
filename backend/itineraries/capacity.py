@@ -54,11 +54,21 @@ def seats_for_itinerary(itinerary):
     return seats_from_blocks(itinerary.inventory_blocks.all())
 
 
+# Chave dos bloqueios dentro do pricing_snapshot (ver itineraries/views.py::
+# _pricing_snapshot). Fica nomeada aqui porque errar este nome faz a capacidade
+# cair silenciosamente no valor AO VIVO — ou seja, vaza mudança não publicada.
+SNAPSHOT_BLOCKS_KEY = 'inventory_blocks'
+
+
 def seats_published(itinerary):
     """Capacidade que vale para as RESERVAS: a da foto publicada (published_data),
-    porque é ela que o site e o hub enxergam. Sem foto publicada dos valores, cai
-    no vivo — mesmo critério que os percentuais de reserva já usavam."""
-    snap = (getattr(itinerary, 'published_data', None) or {}).get('pricing_snapshot') or {}
-    if 'blocks' in snap:
-        return seats_from_blocks(snap.get('blocks'))
-    return seats_for_itinerary(itinerary)
+    porque é ela que o site e o hub enxergam. Mudou o bloqueio e ainda não
+    republicou? O hub continua com o número antigo — de propósito.
+
+    Só cai no vivo quem NUNCA publicou os valores (não existe foto). Se a foto
+    existe mas não tem bloqueio nenhum, a resposta é "sem bloqueio publicado" —
+    nunca o valor ao vivo, senão o rascunho valeria como publicado."""
+    snap = (getattr(itinerary, 'published_data', None) or {}).get('pricing_snapshot')
+    if snap is None:
+        return seats_for_itinerary(itinerary)
+    return seats_from_blocks(snap.get(SNAPSHOT_BLOCKS_KEY))
