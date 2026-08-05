@@ -61,7 +61,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
     }
     LAMINA_PROMPT_CONTEUDO = {'nome', 'datas', 'destinos', 'saidas', 'tipo', 'destaques',
                               'inclusoes', 'hospedagem', 'transporte', 'campanha',
-                              'preco', 'taxas', 'condicoes', 'logo', 'rodape'}
+                              'preco', 'taxas', 'condicoes', 'logo', 'agencia', 'rodape'}
 
     def validate_lamina_prompt(self, value):
         import re
@@ -77,6 +77,12 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
             c = value.get(chave)
             if isinstance(c, str) and hexre.match(c.strip()):
                 out[chave] = '#' + c.strip().lstrip('#').upper()
+        # Agência para quem a lâmina é personalizada (id do cadastro). Guardamos
+        # só o id — nome, contatos e logo vêm do cadastro na hora de montar o texto,
+        # então uma agência editada/apagada nunca deixa dado velho no prompt.
+        ag = value.get('agencia')
+        if isinstance(ag, int) and not isinstance(ag, bool) and ag > 0:
+            out['agencia'] = ag
         conteudo = value.get('conteudo')
         if isinstance(conteudo, dict):
             out['conteudo'] = {k: bool(v) for k, v in conteudo.items() if k in self.LAMINA_PROMPT_CONTEUDO}

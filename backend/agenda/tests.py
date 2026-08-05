@@ -139,6 +139,15 @@ class LaminaPromptPrefsTest(APITestCase):
             r = self.client.patch(self.URL, {'lamina_prompt': {'tamanho': tam}}, format='json')
             self.assertNotIn('tamanho', r.data['lamina_prompt'], tam)
 
+    def test_agency_is_stored_by_id_only(self):
+        self.client.force_authenticate(self.a)
+        r = self.client.patch(self.URL, {'lamina_prompt': {'agencia': 42}}, format='json')
+        self.assertEqual(r.data['lamina_prompt']['agencia'], 42)
+        # Lixo (bool, texto, id inválido) não passa.
+        for valor in (True, 'quarenta e dois', 0, -3, {'id': 42}):
+            r = self.client.patch(self.URL, {'lamina_prompt': {'agencia': valor}}, format='json')
+            self.assertNotIn('agencia', r.data['lamina_prompt'], valor)
+
     def test_new_instagram_format_accepted(self):
         self.client.force_authenticate(self.a)
         r = self.client.patch(self.URL, {'lamina_prompt': {'formato': 'feed34'}}, format='json')
