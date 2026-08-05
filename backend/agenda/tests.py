@@ -118,3 +118,28 @@ class LaminaPromptPrefsTest(APITestCase):
         self.client.patch(self.URL, {'lamina_prompt': {'formato': 'story'}}, format='json')
         self.client.force_authenticate(self.b)
         self.assertEqual(self.client.get(self.URL).data['lamina_prompt'], {})
+
+    def test_custom_size_roundtrip(self):
+        self.client.force_authenticate(self.a)
+        r = self.client.patch(self.URL, {'lamina_prompt': {
+            'formato': 'personalizado',
+            'tamanho': {'unidade': 'cm', 'larg': 21, 'alt': 29.7, 'w': 2480, 'h': 3508, 'dpi': 300},
+        }}, format='json')
+        salvo = r.data['lamina_prompt']
+        self.assertEqual(salvo['formato'], 'personalizado')
+        self.assertEqual(salvo['tamanho'], {'unidade': 'cm', 'larg': 21.0, 'alt': 29.7,
+                                            'w': 2480, 'h': 3508, 'dpi': 300})
+
+    def test_custom_size_rejects_garbage(self):
+        self.client.force_authenticate(self.a)
+        for tam in ({'unidade': 'braça', 'larg': 10, 'alt': 10, 'w': 10, 'h': 10},   # unidade inexistente
+                    {'unidade': 'cm', 'larg': 'dez', 'alt': 10, 'w': 10, 'h': 10},   # não numérico
+                    {'unidade': 'px', 'larg': 0, 'alt': 0, 'w': 0, 'h': 0},          # sem medida
+                    {'unidade': 'px', 'larg': 1, 'alt': 1, 'w': 999999, 'h': 10}):   # fora de faixa
+            r = self.client.patch(self.URL, {'lamina_prompt': {'tamanho': tam}}, format='json')
+            self.assertNotIn('tamanho', r.data['lamina_prompt'], tam)
+
+    def test_new_instagram_format_accepted(self):
+        self.client.force_authenticate(self.a)
+        r = self.client.patch(self.URL, {'lamina_prompt': {'formato': 'feed34'}}, format='json')
+        self.assertEqual(r.data['lamina_prompt']['formato'], 'feed34')

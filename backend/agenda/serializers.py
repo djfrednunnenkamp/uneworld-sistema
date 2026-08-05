@@ -46,7 +46,9 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
     # um saco de JSON livre — chave desconhecida é descartada em silêncio (o front
     # pode ganhar opções novas sem quebrar o que já está salvo).
     LAMINA_PROMPT_OPCOES = {
-        'formato':    {'a4', 'retrato', 'quadrado', 'story'},
+        # 'retrato' = feed 4:5 e 'story' = reels/stories 9:16 (nomes de origem,
+        # mantidos para não invalidar o que os usuários já têm salvo).
+        'formato':    {'a4', 'retrato', 'feed34', 'quadrado', 'story', 'personalizado'},
         'direcao':    {'editorial', 'premium', 'promocional', 'imersivo', 'colagem',
                        'cultural', 'minimalista', 'vibrante'},
         'composicao': {'unica', 'principal_secundarias', 'mosaico', 'auto'},
@@ -78,6 +80,21 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
         conteudo = value.get('conteudo')
         if isinstance(conteudo, dict):
             out['conteudo'] = {k: bool(v) for k, v in conteudo.items() if k in self.LAMINA_PROMPT_CONTEUDO}
+        # Medida do formato "Personalizado": largura/altura na unidade escolhida
+        # (px, mm, cm ou polegada) + DPI + o resultado em pixels que o pop-up de
+        # tamanho já calculou. Medida incompleta ou fora de faixa é descartada.
+        tam = value.get('tamanho')
+        if isinstance(tam, dict) and tam.get('unidade') in {'px', 'mm', 'cm', 'in'}:
+            try:
+                larg, alt = float(tam.get('larg')), float(tam.get('alt'))
+                w, h = int(tam.get('w')), int(tam.get('h'))
+                dpi = int(tam.get('dpi') or 300)
+            except (TypeError, ValueError):
+                pass
+            else:
+                if larg > 0 and alt > 0 and 1 <= w <= 60000 and 1 <= h <= 60000 and 1 <= dpi <= 2400:
+                    out['tamanho'] = {'unidade': tam['unidade'], 'larg': round(larg, 3),
+                                      'alt': round(alt, 3), 'w': w, 'h': h, 'dpi': dpi}
         return out
 
     def validate_lamina_recent_colors(self, value):
