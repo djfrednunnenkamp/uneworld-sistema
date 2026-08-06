@@ -2278,10 +2278,18 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
     list_notification_users_data = serializers.SerializerMethodField()
 
     def get_list_notification_users_data(self, obj):
-        return [
-            {'id': u.id, 'name': (u.get_full_name() or u.username), 'email': u.email}
-            for u in obj.list_notification_users.all()
-        ]
+        saida = []
+        for u in obj.list_notification_users.all():
+            perms = getattr(u, 'permissions', None)
+            saida.append({
+                'id': u.id,
+                'name': (u.get_full_name() or u.username),
+                'email': u.email,
+                # A tela mostra a foto do usuário na pílula — vai junto para não
+                # precisar de uma segunda requisição só por causa do avatar.
+                'avatar_url': (perms.avatar.url if perms and perms.avatar else None),
+            })
+        return saida
 
     class Meta:
         model  = SystemSettings
