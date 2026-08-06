@@ -63,10 +63,33 @@ def delete_fieldfile(fieldfile, context=''):
                        f' ({context})' if context else '', exc_info=True)
 
 
+def _ainda_referenciado(sender, field, fieldfile, pk):
+    """Outro registro ainda aponta para ESTE mesmo arquivo?
+
+    Normalmente não: cada upload grava o seu próprio arquivo, e copiar uma
+    imagem copia os bytes. Mas basta um caminho repetido — uma cópia de
+    registro feita sem copiar o arquivo — para que apagar um deles leve junto
+    a mídia do outro, que continua no ar apontando para o vazio. Perguntar
+    antes custa uma consulta e evita uma perda que não tem volta.
+    """
+    name = getattr(fieldfile, 'name', None)
+    if not name:
+        return False
+    try:
+        return sender.objects.filter(**{field: name}).exclude(pk=pk).exists()
+    except Exception:
+        # Na dúvida, NÃO apaga: um arquivo órfão é limpável, um arquivo perdido não.
+        logger.warning('Falha ao checar referências ao arquivo %s.', name, exc_info=True)
+        return True
+
+
 def _make_post_delete(fields):
     def handler(sender, instance, **kwargs):
         for f in fields:
-            _delete_file(getattr(instance, f, None))
+            ff = getattr(instance, f, None)
+            if _ainda_referenciado(sender, f, ff, instance.pk):
+                continue
+            _delete_file(ff)
     return handler
 
 
@@ -82,7 +105,7 @@ def _make_pre_save(fields):
             old_ff = getattr(old, f, None)
             old_name = getattr(old_ff, 'name', None)
             new_name = getattr(getattr(instance, f, None), 'name', None)
-            if old_name and old_name != new_name:
+            if old_name and old_name != new_name and not _ainda_referenciado(sender, f, old_ff, instance.pk):
                 _delete_file(old_ff)
     return handler
 

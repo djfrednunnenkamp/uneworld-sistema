@@ -1437,6 +1437,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'image': ['A foto do ponto do mapa precisa ser uma imagem.']},
                             status=status.HTTP_400_BAD_REQUEST)
         save_kwargs = {'itinerary': itinerary, 'day': day, 'map_point': map_point, 'kind': kind}
+        # Sem posição explícita, a imagem entra NO FIM da seção (ver _next_image_order).
+        if 'order' not in ser.validated_data:
+            save_kwargs['order'] = _next_image_order(itinerary, kind, day, map_point)
         # Uma foto por ponto: a nova substitui a anterior (não acumula lixo).
         if map_point is not None:
             for old in list(map_point.photos.all()):
@@ -1522,6 +1525,7 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 old.delete()   # uma foto por ponto
         new = ItineraryImage(itinerary=itinerary, kind=kind, map_point=map_point, caption=src.caption,
                              source=src.source or src,
+                             order=_next_image_order(itinerary, kind, None, map_point),
                              subject_type=src.subject_type, city_id=src.city_id, country_id=src.country_id,
                              dominant_color=src.dominant_color, color_bucket=src.color_bucket)
         new.image.save(f'copy{ext}', ContentFile(data), save=False)
@@ -1830,6 +1834,21 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                     itinerary.map_points.filter(pk=pid).update(order=pos)
         _touch_unpublished(itinerary)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _next_image_order(itinerary, kind, day=None, map_point=None):
+    """Próxima posição LIVRE no fim da seção (capa, galeria, vídeos, lâminas).
+
+    `order` tem default 0. Enquanto ninguém reordena isso não incomoda — tudo é
+    zero e vale a ordem de criação. Mas depois da primeira reordenação as
+    posições viram 0,1,2… e a imagem nova, com order=0, empata com a PRIMEIRA e
+    aparece lá no começo em vez de no fim, onde acabou de ser colocada.
+    """
+    from django.db.models import Max
+    ultimo = (ItineraryImage.objects
+              .filter(itinerary=itinerary, kind=kind, day=day, map_point=map_point)
+              .aggregate(m=Max('order'))['m'])
+    return 0 if ultimo is None else ultimo + 1
 
 
 def _apply_dominant_color(img):
