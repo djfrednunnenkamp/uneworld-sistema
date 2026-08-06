@@ -1188,7 +1188,9 @@ class ItineraryInventoryBlock(models.Model):
     # Aéreo — companhia (opcional) + classe.
     airline      = models.ForeignKey('config_api.Airline', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     flight_class = models.ForeignKey('config_api.ConfigFlightClass', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    # Rodoviário — empresa do ônibus (opcional); `quantity` = assentos.
+    # Rodoviário — MAPA de ônibus do bloqueio; `quantity` = assentos (vem do mapa).
+    # A empresa continua aqui por compatibilidade com bloqueios antigos.
+    bus_map      = models.ForeignKey('config_api.BusMap', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Mapa de ônibus')
     terrestre_company = models.ForeignKey('config_api.ConfigTerrestreCompany', null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='Empresa do ônibus')
 
     notes        = models.CharField('Observação', max_length=200, blank=True, default='')
