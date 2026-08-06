@@ -143,7 +143,21 @@ def _collect_deadline_entries(today, days_ahead):
         for email in (en.passenger_list.notification_emails or []):
             if email and '@' in email:
                 list_emails.add(email)
+    # Destinatários FIXOS das listas (Listas de Passageiros › engrenagem):
+    # recebem sempre que houver algo, sem depender do cadastro de cada lista.
+    if entries:
+        list_emails |= _fixed_list_emails()
     return entries, list_emails
+
+
+def _fixed_list_emails():
+    """E-mails dos usuários marcados como destinatários fixos das listas."""
+    from config_api.models import SystemSettings
+    try:
+        users = SystemSettings.get().list_notification_users.all()
+    except Exception:
+        return set()
+    return {u.email for u in users if u.email and '@' in u.email}
 
 
 def _collect_task_entries(today):

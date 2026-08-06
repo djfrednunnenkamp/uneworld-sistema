@@ -2273,9 +2273,19 @@ class BusMapViewSet(viewsets.ModelViewSet):
 # ── Configurações globais do sistema ─────────────────────────────────────────
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
+    # Quem sempre recebe os avisos das listas. Grava por id; devolve também os
+    # dados (nome/e-mail) para a tela não precisar de uma segunda requisição.
+    list_notification_users_data = serializers.SerializerMethodField()
+
+    def get_list_notification_users_data(self, obj):
+        return [
+            {'id': u.id, 'name': (u.get_full_name() or u.username), 'email': u.email}
+            for u in obj.list_notification_users.all()
+        ]
+
     class Meta:
         model  = SystemSettings
-        fields = ['deadline_notification_emails',
+        fields = ['deadline_notification_emails', 'list_notification_users', 'list_notification_users_data',
                   'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method']
 
 @api_view(['GET', 'PATCH'])

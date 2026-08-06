@@ -704,6 +704,13 @@ class TermsAndConditions(models.Model):
 class SystemSettings(models.Model):
     """Singleton de configurações globais do sistema."""
     deadline_notification_emails = models.JSONField('E-mails de notificação de prazos', default=list, blank=True)
+    # Usuários que recebem SEMPRE os avisos das listas de passageiros (prazos),
+    # independentemente dos e-mails cadastrados em cada lista. É o "padrão do
+    # grupo": entra em todo aviso, sem precisar repetir lista por lista.
+    # Configurado pela engrenagem em Listas de Passageiros.
+    list_notification_users = models.ManyToManyField(
+        'auth.User', blank=True, related_name='+',
+        verbose_name='Usuários que sempre recebem avisos das listas')
 
     # Opções globais de pagamento à vista (desconto único + forma sugerida). Usadas
     # quando o pagamento é à vista, independentemente do modelo de pagamento.
