@@ -169,6 +169,18 @@ class AirportBriefSerializer(serializers.Serializer):
 
 
 class PassengerListSerializer(serializers.ModelSerializer):
+    # Usuários desta lista com nome/e-mail/foto — a tela mostra a pílula com a
+    # foto e não precisa cruzar com o cadastro de usuários.
+    notification_users_data = serializers.SerializerMethodField()
+
+    def get_notification_users_data(self, obj):
+        saida = []
+        for u in obj.notification_users.all():
+            perms = getattr(u, 'permissions', None)
+            saida.append({'id': u.id, 'name': (u.get_full_name() or u.username), 'email': u.email,
+                          'avatar_url': (perms.avatar.url if perms and perms.avatar else None)})
+        return saida
+
     suppliers_data      = SupplierSerializer(source='suppliers',         many=True, read_only=True)
     additionals_data    = ListAdditionalSerializer(source='additionals', many=True, read_only=True)
     roteiros_data       = RoteiroSerializer(source='roteiros',           many=True, read_only=True)
@@ -207,7 +219,8 @@ class PassengerListSerializer(serializers.ModelSerializer):
             'departure_city',    'departure_city_data',
             'bus_map', 'bus_map_data',
             'status', 'notes',
-            'enrolled_count', 'notification_emails', 'revision', 'created_at', 'updated_at',
+            'enrolled_count', 'notification_emails', 'notification_users', 'notification_excluded_users',
+            'notification_users_data', 'revision', 'created_at', 'updated_at',
             'is_deleted', 'deleted_at',
         ]
 

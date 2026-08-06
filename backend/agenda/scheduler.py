@@ -119,7 +119,16 @@ def _prune_audit_logs():
 # ── Coletores de dados ────────────────────────────────────────────────────────
 
 def _collect_deadline_entries(today, days_ahead):
-    """Retorna (entries_list, set_of_list_level_emails)."""
+    """Retorna (entries_list, {email: [entries]}).
+
+    O segundo valor é o que cada destinatário de LISTA deve receber — e só isso.
+    Antes era um conjunto plano de e-mails e todo mundo levava o digest INTEIRO:
+    quem estava cadastrado só na lista A recebia também os prazos das listas B e
+    C. Agora o mapa amarra cada e-mail aos avisos das listas dele.
+
+    Destinatários de uma lista = usuários marcados nela + e-mails legados dela +
+    os destinatários FIXOS globais, menos quem foi desmarcado naquela lista.
+    """
     from trips.models import ListEnrollment
 
     target_date = today + timedelta(days=days_ahead)
@@ -129,35 +138,51 @@ def _collect_deadline_entries(today, days_ahead):
         .exclude(enrollment_status='confirmado')
         .exclude(passenger__is_deleted=True)  # ignora passageiros na lixeira (mantém bloqueios, sem passageiro)
         .select_related('passenger', 'passenger_list', 'pending_until_created_by')
+        .prefetch_related('passenger_list__notification_users',
+                          'passenger_list__notification_excluded_users')
     )
     entries    = []
-    list_emails = set()
+    por_email  = {}
+    fixos      = _fixed_list_recipients()      # {email: user_id}
     for en in enrollments:
         creator = en.pending_until_created_by
-        entries.append({
+        entry = {
             'passenger_name': en.passenger.full_name if en.passenger else (en.block_agency or 'Bloqueio'),
             'list_name':      en.passenger_list.name,
             'pending_reason': en.pending_reason or '',
             'created_by':     (creator.get_full_name() or creator.username) if creator else '—',
-        })
-        for email in (en.passenger_list.notification_emails or []):
-            if email and '@' in email:
-                list_emails.add(email)
-    # Destinatários FIXOS das listas (Listas de Passageiros › engrenagem):
-    # recebem sempre que houver algo, sem depender do cadastro de cada lista.
-    if entries:
-        list_emails |= _fixed_list_emails()
-    return entries, list_emails
+        }
+        entries.append(entry)
+        for email in _recipients_of_list(en.passenger_list, fixos):
+            por_email.setdefault(email, []).append(entry)
+    return entries, por_email
 
 
-def _fixed_list_emails():
-    """E-mails dos usuários marcados como destinatários fixos das listas."""
+def _fixed_list_recipients():
+    """{e-mail: id do usuário} dos destinatários FIXOS (todas as listas)."""
     from config_api.models import SystemSettings
     try:
         users = SystemSettings.get().list_notification_users.all()
     except Exception:
-        return set()
-    return {u.email for u in users if u.email and '@' in u.email}
+        return {}
+    return {u.email: u.id for u in users if u.email and '@' in u.email}
+
+
+def _recipients_of_list(pl, fixos):
+    """E-mails que devem receber os avisos DESTA lista."""
+    destinos = set()
+    for u in pl.notification_users.all():
+        if u.email and '@' in u.email:
+            destinos.add(u.email)
+    for email in (pl.notification_emails or []):      # legado (e-mail solto)
+        if email and '@' in email:
+            destinos.add(email)
+    # Fixos globais, tirando quem foi desmarcado nesta lista.
+    excluidos = {u.id for u in pl.notification_excluded_users.all()}
+    for email, uid in fixos.items():
+        if uid not in excluidos:
+            destinos.add(email)
+    return destinos
 
 
 def _collect_task_entries(today):
@@ -206,8 +231,8 @@ def _send_daily_notifications(today, current_hour):
     from .models import CalendarPreference
     from .email_service import send_daily_digest
 
-    deadline_today, list_emails_today = _collect_deadline_entries(today, days_ahead=0)
-    deadline_2d,    list_emails_2d    = _collect_deadline_entries(today, days_ahead=2)
+    deadline_today, por_email_today = _collect_deadline_entries(today, days_ahead=0)
+    deadline_2d,    por_email_2d    = _collect_deadline_entries(today, days_ahead=2)
     tasks     = _collect_task_entries(today)
     birthdays = _collect_birthday_entries(today)
 
@@ -246,8 +271,10 @@ def _send_daily_notifications(today, current_hour):
                 pref.last_daily_sent = today
                 pref.save(update_fields=['last_daily_sent'])
 
-    # E-mails de lista (externos, sem controle de horário por usuário)
-    extra_emails = (list_emails_today | list_emails_2d) - user_emails
-    if extra_emails and (deadline_today or deadline_2d):
-        for email in extra_emails:
-            send_daily_digest(email, today, deadline_today, deadline_2d, [], [])
+    # Destinatários de LISTA (sem controle de horário por usuário). Cada um
+    # recebe SÓ os avisos das listas em que está — não o digest inteiro.
+    for email in (set(por_email_today) | set(por_email_2d)) - user_emails:
+        d_today = por_email_today.get(email, [])
+        d_2d    = por_email_2d.get(email, [])
+        if d_today or d_2d:
+            send_daily_digest(email, today, d_today, d_2d, [], [])

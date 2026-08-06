@@ -150,7 +150,19 @@ class PassengerList(models.Model):
     bus_map              = models.ForeignKey('config_api.BusMap',        null=True, blank=True, on_delete=models.SET_NULL, related_name='passenger_lists', verbose_name='Mapa de assentos de ônibus')
     status                    = models.CharField('Status', max_length=20, choices=STATUS_CHOICES, default='aberta', db_index=True)
     notes                     = models.TextField('Observações', blank=True)
-    notification_emails       = models.JSONField('E-mails de notificação', default=list, blank=True)
+    # LEGADO: e-mails soltos. A tela agora escolhe USUÁRIOS (notification_users);
+    # o campo continua sendo respeitado pelo agendador para não perder o que já
+    # estava cadastrado (ex.: alguém sem conta no sistema).
+    notification_emails       = models.JSONField('E-mails de notificação (legado)', default=list, blank=True)
+    # Quem recebe os avisos DESTA lista, além dos destinatários fixos globais.
+    notification_users        = models.ManyToManyField(
+        'auth.User', blank=True, related_name='+',
+        verbose_name='Usuários que recebem os avisos desta lista')
+    # Destinatário FIXO (global) que NÃO deve receber os avisos desta lista.
+    # É o "desmarcar" da tela: a pessoa recebe de todas as listas, menos desta.
+    notification_excluded_users = models.ManyToManyField(
+        'auth.User', blank=True, related_name='+',
+        verbose_name='Fixos que não recebem os avisos desta lista')
     revision                  = models.PositiveIntegerField('Revisão', default=1)
     created_at           = models.DateTimeField('Criado em', auto_now_add=True)
     updated_at           = models.DateTimeField('Atualizado em', auto_now=True)
