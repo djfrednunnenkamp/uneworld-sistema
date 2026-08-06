@@ -1570,8 +1570,13 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         if self._laminas_only() and (kind != 'blocking' or img.kind != 'blocking'):
             return Response({'detail': 'Sem permissão: só é permitido gerenciar imagens das lâminas.'},
                             status=status.HTTP_403_FORBIDDEN)
+        if kind != img.kind:
+            # A posição que ela tinha na seção antiga não quer dizer nada na nova
+            # (as duas contam do zero). Entra no fim; quem arrastou para um lugar
+            # específico manda o reorder logo em seguida.
+            img.order = _next_image_order(itinerary, kind, img.day, img.map_point)
         img.kind = kind
-        img.save(update_fields=['kind'])
+        img.save(update_fields=['kind', 'order'])
         out = ItineraryImageSerializer(img, context=self.get_serializer_context())
         return Response(out.data, status=status.HTTP_200_OK)
 

@@ -78,6 +78,26 @@ class ImageOrderTest(APITestCase):
         self.assertEqual(r.status_code, 201, r.content)
         self.assertEqual(self.ordem('gallery'), [b, a, r.json()['id']])
 
+    # ── Mudar de seção ───────────────────────────────────────────────────────
+    def test_mudar_de_secao_entra_no_fim_da_nova(self):
+        """A posição na seção antiga não vale na nova — as duas contam do zero."""
+        galeria = [self.enviar('gallery')['id'] for _ in range(2)]
+        capa = self.enviar('cover')['id']            # order 0 entre as capas
+        r = self.client.post(f'/api/itineraries/{self.it.id}/images/{capa}/kind/',
+                             {'kind': 'gallery'}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.ordem('gallery'), galeria + [capa])
+
+    def test_mudar_de_secao_e_posicionar_no_comeco(self):
+        """O gesto do usuário: arrastar de um campo para o COMEÇO do outro."""
+        galeria = [self.enviar('gallery')['id'] for _ in range(2)]
+        capa = self.enviar('cover')['id']
+        self.client.post(f'/api/itineraries/{self.it.id}/images/{capa}/kind/',
+                         {'kind': 'gallery'}, format='json')
+        self.client.post(f'/api/itineraries/{self.it.id}/images/reorder/',
+                         {'order': [capa] + galeria}, format='json')
+        self.assertEqual(self.ordem('gallery'), [capa] + galeria)
+
     # ── Reordenar ────────────────────────────────────────────────────────────
     def test_reorder_grava_a_sequencia_pedida(self):
         a, b, c = [self.enviar()['id'] for _ in range(3)]
