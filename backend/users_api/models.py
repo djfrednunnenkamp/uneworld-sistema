@@ -8,8 +8,10 @@ from core.storages import public_media_storage
 
 
 def avatar_upload_path(instance, filename):
-    # Sempre .jpg (o upload é revalidado e re-encodado como JPEG no backend).
-    return f'avatars/{instance.user_id}/{uuid.uuid4().hex}.jpg'
+    # Sempre .webp: todo upload passa pelo pipeline central (core.images), que
+    # revalida o conteúdo e re-encoda em WebP. Arquivos antigos (.jpg) seguem
+    # servidos normalmente — a padronização vale para os novos.
+    return f'avatars/{instance.user_id}/{uuid.uuid4().hex}.webp'
 
 
 class PasswordResetToken(models.Model):

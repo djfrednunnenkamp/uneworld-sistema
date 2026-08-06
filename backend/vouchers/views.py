@@ -407,7 +407,7 @@ class VoucherViewSet(viewsets.ViewSet):
         from django.core.exceptions import ValidationError as DjangoValidationError
         from django.db.models import Max
         try:
-            image = validate_document_file(image, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+            image = validate_document_file(image, allow_images=True)
         except DjangoValidationError as e:
             return Response({'error': (e.messages[0] if getattr(e, 'messages', None) else 'Imagem inválida.')},
                             status=status.HTTP_400_BAD_REQUEST)

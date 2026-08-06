@@ -369,6 +369,20 @@ EMAIL_TIMEOUT       = config('EMAIL_TIMEOUT', default=15, cast=int)
 # por isso NÃO cai no RESEND_FROM (que é @uneworld.com.br) — usa o próprio usuário SMTP.
 EMAIL_FROM          = config('EMAIL_FROM', default='') or EMAIL_HOST_USER
 
+# ── Pipeline central de IMAGEM (core/images.py) ──────────────────────────────
+# Todo upload de imagem do sistema (avatar, logos, fotos, galeria, lâminas,
+# mídia de hotel/barco, voucher…) é validado pelo CONTEÚDO real, tem os
+# metadados removidos e é convertido para WebP. Estes limites são globais.
+IMAGE_UPLOAD_MAX_BYTES = config('IMAGE_UPLOAD_MAX_BYTES', default=25 * 1024 * 1024, cast=int)
+IMAGE_MAX_PIXELS       = config('IMAGE_MAX_PIXELS',       default=50_000_000, cast=int)
+IMAGE_MAX_INPUT_SIDE   = config('IMAGE_MAX_INPUT_SIDE',   default=20_000, cast=int)
+# Qualidade do WebP: 88 preserva bem fotografia de destino (o material da
+# operadora) sem inflar o arquivo. Sobe para 92+ se quiser ainda mais fidelidade.
+IMAGE_WEBP_QUALITY     = config('IMAGE_WEBP_QUALITY',     default=88, cast=int)
+IMAGE_WEBP_METHOD      = config('IMAGE_WEBP_METHOD',      default=6, cast=int)
+# Lado maior da imagem final no preset 'photo' (galeria/roteiro/destino).
+IMAGE_MAX_DIMENSION    = config('IMAGE_MAX_DIMENSION',    default=4000, cast=int)
+
 MAXMIND_ACCOUNT_ID  = config('MAXMIND_ACCOUNT_ID', default='')
 MAXMIND_LICENSE_KEY = config('MAXMIND_LICENSE_KEY', default='')
 

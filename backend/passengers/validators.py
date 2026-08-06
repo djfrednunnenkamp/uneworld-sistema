@@ -1,78 +1,73 @@
 """
 Validação segura de uploads de documentos.
-Estratégia em 4 camadas para prevenir ataques via arquivos maliciosos.
+Estratégia em camadas para prevenir ataques via arquivos maliciosos.
+
+IMAGENS: este módulo NÃO reimplementa processamento de imagem — ele é o funil
+histórico que as views/serializers já chamam e delega tudo para o serviço
+central `core.images` (validação real do conteúdo, normalização, remoção de
+metadados e conversão para WebP). Ver core/images.py.
 """
 import io
 import os
 from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
-MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
+from core import images as imgsvc
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.pdf'}
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB (documentos; imagem usa o limite do core)
 
-# Magic bytes das extensões permitidas
-MAGIC_SIGNATURES = {
-    b'\xff\xd8\xff':       'image',  # JPEG
-    b'\x89PNG\r\n\x1a\n': 'image',  # PNG
-    b'%PDF':               'pdf',    # PDF
-}
+#: Extensões de IMAGEM aceitas em qualquer campo de imagem do sistema.
+IMAGE_EXTENSIONS = set(imgsvc.INPUT_EXTENSIONS)
 
-MAX_IMAGE_PIXELS = 50_000_000  # 50 MP — proteção contra image bombs
+ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | {'.pdf'}
+
+MAX_IMAGE_PIXELS = imgsvc.MAX_PIXELS  # compat: proteção contra image bombs
 
 
 def _detect_type(header: bytes) -> str | None:
-    # WEBP: contêiner RIFF ('RIFF' + 4 bytes de tamanho + 'WEBP').
-    if header[:4] == b'RIFF' and header[8:12] == b'WEBP':
-        return 'image'
-    for sig, kind in MAGIC_SIGNATURES.items():
-        if header.startswith(sig):
-            return kind
-    return None
+    """'image' (qualquer formato raster suportado) | 'pdf' | None."""
+    if header.startswith(b'%PDF'):
+        return 'pdf'
+    return 'image' if imgsvc.sniff_image_kind(header) else None
 
 
 def _kinds_label(allowed_exts, allow_images=True):
-    """Rótulo legível com os formatos realmente aceitos (ex.: 'JPEG, PNG, WEBP
-    ou PDF') — deixa as mensagens de erro específicas."""
-    exts = allowed_exts if allow_images else {'.pdf'}
+    """Rótulo legível com os formatos realmente aceitos — deixa as mensagens de
+    erro específicas."""
+    exts = set(allowed_exts) if allow_images else {'.pdf'}
     names = []
-    if exts & {'.jpg', '.jpeg'}: names.append('JPEG')
-    if '.png' in exts:  names.append('PNG')
-    if '.webp' in exts: names.append('WEBP')
-    if '.pdf' in exts:  names.append('PDF')
-    if not names: return 'arquivo'
-    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} ou {names[-1]}"
+    if exts & IMAGE_EXTENSIONS:
+        names.append(imgsvc.INPUT_LABEL)
+    if '.pdf' in exts:
+        names.append('PDF')
+    if not names:
+        return 'arquivo'
+    return names[0] if len(names) == 1 else ' ou '.join(names)
 
 
-def validate_document_file(file, allowed_exts=None, allow_images=True):
+def validate_document_file(file, allowed_exts=None, allow_images=True, *,
+                           preset='photo', flatten_bg=None):
     """
-    Valida e (para imagens) re-processa um arquivo uploaded.
-    Retorna o InMemoryUploadedFile limpo ou levanta ValidationError.
+    Valida um upload e, quando for IMAGEM, devolve a versão processada em WebP
+    (conteúdo re-encodado, sem EXIF/GPS/ICC). PDF passa validado, sem conversão.
 
     allowed_exts/allow_images restringem os tipos aceitos (ex.: só PDF no
     contrato assinado: allowed_exts={'.pdf'}, allow_images=False).
     """
     allowed_exts = set(allowed_exts) if allowed_exts else set(ALLOWED_EXTENSIONS)
+    # Quem passa a lista antiga {'.jpg','.jpeg','.png','.webp'} continua valendo,
+    # mas agora significa "aceita imagem" — os formatos novos (HEIC/AVIF/GIF)
+    # entram junto. A autoridade é a assinatura do conteúdo, não a extensão.
+    if allow_images and allowed_exts & IMAGE_EXTENSIONS:
+        allowed_exts |= IMAGE_EXTENSIONS
     kinds_label = _kinds_label(allowed_exts, allow_images)
 
-    # Camada 1 — tamanho
-    if file.size > MAX_FILE_SIZE:
-        raise ValidationError(
-            f'Arquivo muito grande ({file.size // 1024 // 1024} MB). Máximo: 15 MB.'
-        )
-
-    # Camada 1 — extensão
     ext = os.path.splitext(file.name or '')[1].lower()
-    if ext not in allowed_exts:
-        raise ValidationError(
-            f'Extensão "{ext}" não permitida. Use: {kinds_label}.'
-        )
 
-    # Camada 2 — magic bytes
+    # Camada 1 — assinatura do conteúdo (é ela que manda, não a extensão)
     file.seek(0)
-    header = file.read(16)
+    header = file.read(32)
     file.seek(0)
-
     detected = _detect_type(header)
     if detected is None:
         raise ValidationError(
@@ -80,62 +75,44 @@ def validate_document_file(file, allowed_exts=None, allow_images=True):
         )
     if detected == 'image' and not allow_images:
         raise ValidationError('Apenas arquivos PDF são aceitos aqui.')
-
-    # Extensão × magic bytes devem ser compatíveis
-    if detected == 'pdf' and ext not in ('.pdf',):
+    if detected == 'pdf' and '.pdf' not in allowed_exts:
+        raise ValidationError('PDF não é aceito neste campo.')
+    if detected == 'image' and not (allowed_exts & IMAGE_EXTENSIONS):
+        raise ValidationError('Imagem não é aceita neste campo.')
+    # Extensão mentindo sobre o conteúdo: rejeita explicitamente (o inverso —
+    # conteúdo de imagem com extensão de imagem diferente — é tolerado, porque a
+    # saída é sempre re-encodada em WebP mesmo).
+    if detected == 'pdf' and ext != '.pdf':
         raise ValidationError('Conteúdo PDF com extensão de imagem. Arquivo rejeitado.')
     if detected == 'image' and ext == '.pdf':
         raise ValidationError('Conteúdo de imagem com extensão .pdf. Arquivo rejeitado.')
 
-    # Camada 3 — re-processamento via Pillow (apenas para imagens)
-    if detected == 'image':
-        file.seek(0)
-        raw = file.read()
-        file.seek(0)
-        try:
-            img = Image.open(io.BytesIO(raw))
-            img.verify()                         # valida estrutura sem decodificar pixels
-        except (UnidentifiedImageError, Exception):
-            raise ValidationError('Imagem inválida ou corrompida.')
-
-        # Re-abre após verify() (que fecha o stream)
-        img = Image.open(io.BytesIO(raw))
-
-        # Proteção contra image bomb
-        w, h = img.size
-        if w * h > MAX_IMAGE_PIXELS:
+    if detected == 'pdf':
+        # Camada 2 (PDF) — tamanho. Sem re-encode: PDF não passa pelo pipeline
+        # de imagem (nem por nenhum outro; ele é servido por view autenticada).
+        if file.size > MAX_FILE_SIZE:
             raise ValidationError(
-                f'Imagem muito grande ({w}×{h} px). Máximo: 50 megapixels.'
+                f'Arquivo muito grande ({file.size // 1024 // 1024} MB). Máximo: 15 MB.'
             )
+        return file
 
-        # Converte para RGB/RGBA limpo (remove EXIF, metadados e payloads).
-        # Salva no formato da extensão: JPEG (sem alfa), PNG ou WEBP (com alfa).
-        clean_format = 'JPEG' if ext in ('.jpg', '.jpeg') else 'WEBP' if ext == '.webp' else 'PNG'
-        if clean_format == 'JPEG':
-            # JPEG não suporta canal alfa — qualquer modo com transparência
-            # (RGBA, LA, P-com-transparência) precisa virar RGB antes de salvar,
-            # senão o Pillow levanta OSError ("cannot write mode RGBA as JPEG")
-            if img.mode not in ('RGB', 'L'):
-                img = img.convert('RGB')
-        elif img.mode not in ('RGB', 'RGBA', 'L'):
-            img = img.convert('RGB')
+    # Camada 2 (imagem) — pipeline central: decodifica, normaliza, limpa e
+    # converte para WebP. Devolve um arquivo NOVO (nunca os bytes originais).
+    processed = imgsvc.process_image(file, preset=preset, flatten_bg=flatten_bg)
+    return _as_uploaded(processed, file)
 
-        out = io.BytesIO()
-        if clean_format == 'JPEG':
-            img.save(out, format='JPEG', optimize=True, quality=90)
-        elif clean_format == 'WEBP':
-            img.save(out, format='WEBP', quality=90)
-        else:
-            img.save(out, format='PNG', optimize=True)
-        out.seek(0)
 
-        # Substitui o conteúdo do arquivo pelo limpo
-        file.seek(0)
-        file.truncate(0)
-        file.write(out.read())
-        file.seek(0)
-
-    return file
+def _as_uploaded(processed, origem):
+    """Embrulha a imagem processada num arquivo com cara de upload (`.name`,
+    `.size`, `.content_type`), para os call sites que só repassam adiante."""
+    from django.core.files.uploadedfile import InMemoryUploadedFile
+    buf = io.BytesIO(processed.content.read())
+    processed.content.seek(0)
+    buf.seek(0)
+    field_name = getattr(origem, 'field_name', None) or 'file'
+    return InMemoryUploadedFile(
+        buf, field_name, processed.name, imgsvc.CONTENT_TYPE, processed.size, None
+    )
 
 
 # ── Vídeo ────────────────────────────────────────────────────────────────────
@@ -225,15 +202,15 @@ def validate_any_upload_file(file):
 
 
 def validate_media_file(file):
-    """Valida IMAGEM (jpg/png, reprocessada) OU VÍDEO (mp4/webm/…) para galerias
-    (hotel/barco/roteiro). Determina o tipo pela EXTENSÃO real — nunca confia no
-    content-type enviado pelo cliente. Retorna 'image' ou 'video'."""
+    """Valida IMAGEM (convertida para WebP) OU VÍDEO (mp4/webm/…) para galerias
+    (hotel/barco). Nunca confia no content-type do cliente. Retorna
+    ('image'|'video', arquivo) — a imagem volta JÁ PROCESSADA, o vídeo volta como
+    veio (o pipeline de vídeo é outro e não é tocado aqui)."""
     ext = os.path.splitext(file.name or '')[1].lower()
     if ext in VIDEO_EXTENSIONS:
         validate_video_file(file)
-        return 'video'
-    validate_document_file(file, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
-    return 'image'
+        return 'video', file
+    return 'image', validate_document_file(file, allowed_exts=IMAGE_EXTENSIONS, allow_images=True)
 
 
 def validate_video_file(file, allowed_exts=None):
@@ -283,40 +260,20 @@ def _looks_like_video(header: bytes) -> bool:
 # helpers abrem/verificam/re-encodam a imagem enviada, descartando payload/EXIF.
 
 def sanitize_image(f, *, fmt='PNG', max_dim=2000, bg=(255, 255, 255), max_bytes=8 * 1024 * 1024):
-    """Abre, VERIFICA e re-encoda uma imagem (descarta qualquer payload/EXIF),
-    limitando a maior dimensão a `max_dim`. fmt='PNG' preserva transparência;
-    'JPEG' achata sobre `bg`. Devolve um ContentFile pronto para .save().
-    Levanta ValidationError se o arquivo não for uma imagem válida."""
-    from PIL import ImageOps
-    from django.core.files.base import ContentFile
-    if getattr(f, 'size', 0) and f.size > max_bytes:
-        raise ValidationError('Imagem muito grande.')
-    try:
-        probe = Image.open(f)
-        probe.verify()                       # detecta arquivo corrompido/falsificado
-        f.seek(0)
-        img = ImageOps.exif_transpose(Image.open(f))
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
-        raise ValidationError('Arquivo de imagem inválido.')
-    if fmt == 'JPEG':
-        if img.mode in ('RGBA', 'LA', 'P'):
-            img = img.convert('RGBA')
-            base = Image.new('RGB', img.size, tuple(bg))
-            base.paste(img, mask=img.split()[-1])
-            img = base
-        else:
-            img = img.convert('RGB')
-    else:
-        img = img.convert('RGBA')
-    if max(img.size) > max_dim:
-        img.thumbnail((max_dim, max_dim))
-    buf = io.BytesIO()
-    if fmt == 'JPEG':
-        img.save(buf, format='JPEG', quality=90, optimize=True)
-    else:
-        img.save(buf, format='PNG', optimize=True)
-    buf.seek(0)
-    return ContentFile(buf.read())
+    """Abre, VALIDA e re-encoda uma imagem em WebP (descarta payload/EXIF/GPS/ICC),
+    limitando a maior dimensão a `max_dim`. Devolve um ContentFile pronto para
+    `.save()`. Levanta ValidationError se o arquivo não for uma imagem válida.
+
+    `fmt` é histórico e hoje só decide a TRANSPARÊNCIA: 'JPEG' achata sobre `bg`
+    (campos que não podem ter alfa, como a foto de perfil); qualquer outro valor
+    preserva o alfa. O formato gravado é sempre WebP — ver core/images.py."""
+    processed = imgsvc.process_image(
+        f,
+        max_dim=max_dim,
+        max_bytes=max_bytes,
+        flatten_bg=tuple(bg) if fmt == 'JPEG' else None,
+    )
+    return processed.content
 
 
 def parse_crop(raw):

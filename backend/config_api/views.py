@@ -1235,11 +1235,12 @@ class HotelMediaViewSet(viewsets.ModelViewSet):
         if not f:
             raise DRFValidationError({'file': ['Envie um arquivo de imagem ou vídeo.']})
         try:
-            kind_str = validate_media_file(f)   # valida e define o tipo pela extensão real
+            # Imagem volta convertida em WebP (core.images); vídeo segue no fluxo próprio.
+            kind_str, processed = validate_media_file(f)
         except DjangoValidationError as e:
             raise DRFValidationError({'file': e.messages})
         kind = ConfigHotelMedia.VIDEO if kind_str == 'video' else ConfigHotelMedia.IMAGE
-        serializer.save(kind=kind)
+        serializer.save(kind=kind, file=processed)
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
@@ -1347,11 +1348,12 @@ class BoatMediaViewSet(viewsets.ModelViewSet):
         if not f:
             raise DRFValidationError({'file': ['Envie um arquivo de imagem ou vídeo.']})
         try:
-            kind_str = validate_media_file(f)   # valida e define o tipo pela extensão real
+            # Imagem volta convertida em WebP (core.images); vídeo segue no fluxo próprio.
+            kind_str, processed = validate_media_file(f)
         except DjangoValidationError as e:
             raise DRFValidationError({'file': e.messages})
         kind = ConfigBoatMedia.VIDEO if kind_str == 'video' else ConfigBoatMedia.IMAGE
-        serializer.save(kind=kind)
+        serializer.save(kind=kind, file=processed)
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
@@ -2368,27 +2370,29 @@ def branding_logo_set(request, slot):
     from passengers.validators import validate_document_file, sanitize_image, parse_crop
     from django.core.exceptions import ValidationError as DjangoValidationError
     try:
-        validate_document_file(up, allowed_exts={'.png', '.jpg', '.jpeg', '.webp'}, allow_images=True)
+        # Pipeline central: valida o conteúdo real e devolve WebP sem metadados.
+        up = validate_document_file(up, allow_images=True, preset='logo')
     except DjangoValidationError as e:
         return Response({'error': (e.messages[0] if e.messages else 'Imagem inválida.')}, status=status.HTTP_400_BAD_REQUEST)
-    old = getattr(obj, field)
-    if old:
-        old.delete(save=False)
+    # SUBSTITUIÇÃO SEGURA: guarda a referência antiga e só apaga o arquivo depois
+    # que o novo estiver gravado (ver o obj.save() no fim desta função).
+    antiga = getattr(obj, field) or None
+    antiga_nome = antiga.name if antiga else ''
     setattr(obj, field, up)
     update_fields = [field]
 
     # Não-destrutivo: guarda a ORIGINAL (para reabrir/desfazer) + o recorte.
     orig = request.FILES.get('original')
+    antiga_orig_nome = ''
     if orig:
         try:
-            cf = sanitize_image(orig, fmt='PNG', max_dim=1600)
+            cf = sanitize_image(orig, max_dim=1600)
         except DjangoValidationError:
             cf = None
         if cf is not None:
             oldo = getattr(obj, ofield, None)
-            if oldo:
-                oldo.delete(save=False)
-            getattr(obj, ofield).save('logo_orig.png', cf, save=False)
+            antiga_orig_nome = oldo.name if oldo else ''
+            getattr(obj, ofield).save('logo_orig.webp', cf, save=False)
             update_fields.append(ofield)
     crop = parse_crop(request.data.get('crop'))
     if crop:
@@ -2396,7 +2400,27 @@ def branding_logo_set(request, slot):
         update_fields.append('branding_crops')
 
     obj.save(update_fields=update_fields)
+    # Referência nova já persistida → agora sim é seguro descartar os arquivos
+    # antigos do storage (evita órfão no S3 sem arriscar perder a logo).
+    _descartar_arquivo(obj, field, antiga_nome)
+    _descartar_arquivo(obj, ofield, antiga_orig_nome)
     return Response({'url': request.build_absolute_uri(getattr(obj, field).url)})
+
+
+def _descartar_arquivo(obj, field, nome_antigo):
+    """Apaga do storage um arquivo que acabou de ser SUBSTITUÍDO. Só roda depois
+    que a referência nova já está no banco; falha aqui não é fatal (um órfão é
+    melhor do que uma imagem perdida)."""
+    if not nome_antigo:
+        return
+    atual = getattr(obj, field, None)
+    if atual and atual.name == nome_antigo:
+        return                      # não trocou de arquivo: não apaga nada
+    try:
+        obj._meta.get_field(field).storage.delete(nome_antigo)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning('Não foi possível remover %s', nome_antigo, exc_info=True)
 
 
 # ── Dados da operadora (UneWorld) — pré-preenche contratos ──────────────────
@@ -2462,7 +2486,8 @@ def operating_company(request):
             from django.core.exceptions import ValidationError as DjangoValidationError
             from passengers.validators import validate_document_file
             try:
-                sig = validate_document_file(sig, allowed_exts={'.png', '.jpg', '.jpeg', '.webp'}, allow_images=True)
+                # Pipeline central: assinatura vira WebP com transparência.
+                sig = validate_document_file(sig, allow_images=True, preset='logo')
             except DjangoValidationError as e:
                 return Response({'error': 'Assinatura inválida: ' + ' '.join(e.messages)}, status=400)
             obj.ceo_signature = sig

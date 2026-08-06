@@ -3,6 +3,10 @@ Django==6.0.6
 django-cors-headers==4.9.0
 djangorestframework==3.17.1
 pillow==12.2.0
+# HEIC/HEIF (fotos de iPhone/iPad) no pipeline central de imagem (core/images.py).
+# Wheel manylinux com libheif embutida — não precisa de pacote apt. AVIF já vem
+# no próprio Pillow (>= 11.3), por isso não há dependência extra para ele.
+pillow-heif==1.5.0
 python-decouple==3.8
 sqlparse==0.5.5
 resend==2.30.1

@@ -10,13 +10,13 @@ class DestinationSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'country', 'description', 'image']
 
     def validate_image(self, value):
-        # Mesma validação segura dos demais uploads (tamanho, magic bytes,
-        # anti image-bomb, re-processamento que remove metadados/payloads).
+        # Pipeline central de imagem (core.images): valida o conteúdo real,
+        # remove metadados e devolve a imagem convertida em WebP.
         if value:
             from passengers.validators import validate_document_file
             from django.core.exceptions import ValidationError as DjangoValidationError
             try:
-                validate_document_file(value, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+                return validate_document_file(value, allow_images=True)
             except DjangoValidationError as e:
                 raise serializers.ValidationError(e.messages)
         return value

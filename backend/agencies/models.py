@@ -6,8 +6,9 @@ from core.storages import public_media_storage
 
 
 def agency_logo_path(instance, filename):
-    # Sempre .png (o upload é revalidado e re-encodado como PNG no backend).
-    return f'agencies/logos/{instance.id or "new"}/{uuid.uuid4().hex}.png'
+    # Sempre .webp: o upload passa pelo pipeline central (core.images), que
+    # revalida o conteúdo e re-encoda. Logos antigas (.png) seguem funcionando.
+    return f'agencies/logos/{instance.id or "new"}/{uuid.uuid4().hex}.webp'
 
 
 class Agency(models.Model):

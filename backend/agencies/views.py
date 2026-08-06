@@ -235,47 +235,36 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
         f = request.FILES.get('logo') or request.FILES.get('file')
         if not f:
             return Response({'error': 'Nenhuma imagem enviada.'}, status=status.HTTP_400_BAD_REQUEST)
-        if f.size > 5 * 1024 * 1024:
-            return Response({'error': 'Imagem muito grande (máximo 5 MB).'}, status=status.HTTP_400_BAD_REQUEST)
 
-        import io
-        from PIL import Image, ImageOps, UnidentifiedImageError
+        # Pipeline CENTRAL de imagem (core.images): conteúdo real, orientação do
+        # EXIF, metadados fora e saída em WebP — preservando a transparência da
+        # logo (sem flatten_bg).
+        from core import images as imgsvc
+        from django.core.exceptions import ValidationError as DjangoValidationError
         try:
-            probe = Image.open(f)
-            if (probe.format or '').upper() not in {'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP'}:
-                return Response({'error': 'Formato não suportado. Use PNG, JPG, WEBP ou GIF.'}, status=status.HTTP_400_BAD_REQUEST)
-            probe.verify()
-            f.seek(0)
-            img = Image.open(f)
-            img = ImageOps.exif_transpose(img)
-            img = img.convert('RGBA')          # mantém transparência do logo
-        except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
-            return Response({'error': 'Arquivo de imagem inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+            processed = imgsvc.process_image(f, preset='logo', max_dim=512,
+                                             max_bytes=5 * 1024 * 1024)
+        except DjangoValidationError as e:
+            return Response({'error': (e.messages[0] if e.messages else 'Arquivo de imagem inválido.')},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        img.thumbnail((512, 512))
-        buf = io.BytesIO()
-        img.save(buf, format='PNG', optimize=True)
-        buf.seek(0)
-
-        from django.core.files.base import ContentFile
-        if agency.logo:
-            delete_fieldfile(agency.logo, 'logo da agência')
-        agency.logo.save(f'{agency.id}.png', ContentFile(buf.read()), save=False)
+        # SUBSTITUIÇÃO SEGURA: a antiga só sai depois que a nova estiver gravada.
+        logo_antiga = agency.logo if agency.logo else None
+        agency.logo.save(f'{agency.id}.webp', processed.content, save=False)
         update_fields = ['logo']
 
         # Não-destrutivo: guarda a logo ORIGINAL (para reabrir/desfazer) + o recorte.
         from passengers.validators import sanitize_image, parse_crop
-        from django.core.exceptions import ValidationError as DjangoValidationError
         orig = request.FILES.get('original')
+        original_antiga = None
         if orig:
             try:
-                cf = sanitize_image(orig, fmt='PNG', max_dim=1600, max_bytes=5 * 1024 * 1024)
+                cf = sanitize_image(orig, max_dim=1600, max_bytes=5 * 1024 * 1024)
             except DjangoValidationError:
                 cf = None
             if cf is not None:
-                if agency.logo_original:
-                    delete_fieldfile(agency.logo_original, 'logo original da agência')
-                agency.logo_original.save(f'{agency.id}_orig.png', cf, save=False)
+                original_antiga = agency.logo_original if agency.logo_original else None
+                agency.logo_original.save(f'{agency.id}_orig.webp', cf, save=False)
                 update_fields.append('logo_original')
         crop = parse_crop(request.data.get('crop'))
         if crop:
@@ -284,6 +273,10 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
 
         agency._skip_audit_signal = True        # logamos como 'upload' de logo, não 'update'
         agency.save(update_fields=update_fields)
+        if logo_antiga and logo_antiga.name != agency.logo.name:
+            delete_fieldfile(logo_antiga, 'logo da agência')
+        if original_antiga and original_antiga.name != agency.logo_original.name:
+            delete_fieldfile(original_antiga, 'logo original da agência')
         log_event('upload', model_name='Agency', model_label='Logo da agência',
                   object_id=agency.id, object_repr=f'Logo — {agency}', user=request.user)
         return Response(self.get_serializer(agency).data)

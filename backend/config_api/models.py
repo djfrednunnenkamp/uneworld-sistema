@@ -7,15 +7,17 @@ from core.storages import public_media_storage
 
 
 def airline_logo_path(instance, filename):
-    """Nome único (uuid) para a logo da companhia — evita cache velho ao trocar."""
-    return f'airlines/{uuid.uuid4().hex}.png'
+    """Nome único (uuid) para a logo da companhia — evita cache velho ao trocar.
+    .webp: o upload passa pelo pipeline central (core.images)."""
+    return f'airlines/{uuid.uuid4().hex}.webp'
 
 
 def branding_logo_path(instance, filename):
     """Nome único (uuid) para cada logo do branding — evita reusar o mesmo nome
     (o front envia sempre 'logo.png'), o que fazia o navegador mostrar a logo
-    ANTIGA em cache após deletar e reenviar."""
-    return f'branding/{uuid.uuid4().hex}.png'
+    ANTIGA em cache após deletar e reenviar. .webp: o upload passa pelo pipeline
+    central (core.images)."""
+    return f'branding/{uuid.uuid4().hex}.webp'
 
 
 class ConfigProfession(models.Model):

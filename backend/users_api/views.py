@@ -288,57 +288,39 @@ def _avatar_op(request, perms, target):
     f = request.FILES.get('avatar') or request.FILES.get('file')
     if not f:
         return Response({'error': 'Nenhuma imagem enviada.'}, status=status.HTTP_400_BAD_REQUEST)
-    if f.size > _AVATAR_MAX_BYTES:
-        return Response({'error': 'Imagem muito grande (máximo 5 MB).'}, status=status.HTTP_400_BAD_REQUEST)
 
-    import io
-    from PIL import Image, ImageOps, UnidentifiedImageError
+    # Pipeline CENTRAL de imagem (core.images): valida o conteúdo real (não a
+    # extensão), corrige a orientação do EXIF, remove EXIF/GPS/ICC e converte
+    # para WebP. Avatar não tem transparência → achata sobre branco.
+    from core import images as imgsvc
+    from django.core.exceptions import ValidationError as DjangoValidationError
     try:
-        # 1) verifica que é uma imagem íntegra do formato esperado.
-        probe = Image.open(f)
-        fmt = (probe.format or '').upper()
-        if fmt not in _AVATAR_ALLOWED:
-            return Response({'error': 'Formato não suportado. Use JPG, PNG, WEBP ou GIF.'}, status=status.HTTP_400_BAD_REQUEST)
-        probe.verify()                       # detecta arquivo corrompido/falsificado
-        # 2) reabre (verify invalida o objeto), normaliza orientação e fundo.
-        f.seek(0)
-        img = Image.open(f)
-        img = ImageOps.exif_transpose(img)
-        if img.mode in ('RGBA', 'LA', 'P'):
-            img = img.convert('RGBA')
-            bg = Image.new('RGB', img.size, (255, 255, 255))
-            bg.paste(img, mask=img.split()[-1])
-            img = bg
-        else:
-            img = img.convert('RGB')
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
-        return Response({'error': 'Arquivo de imagem inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        processed = imgsvc.process_image(
+            f, preset='avatar', max_dim=512, flatten_bg=(255, 255, 255),
+            max_bytes=_AVATAR_MAX_BYTES,
+        )
+    except DjangoValidationError as e:
+        return Response({'error': (e.messages[0] if e.messages else 'Arquivo de imagem inválido.')},
+                        status=status.HTTP_400_BAD_REQUEST)
 
-    # 3) redimensiona (avatar não precisa ser grande) e re-encoda como JPEG.
-    img.thumbnail((512, 512))
-    buf = io.BytesIO()
-    img.save(buf, format='JPEG', quality=85, optimize=True)
-    buf.seek(0)
-
-    from django.core.files.base import ContentFile
-    if perms.avatar:
-        delete_fieldfile(perms.avatar, 'avatar do usuário')
-    perms.avatar.save(f'{target.id}.jpg', ContentFile(buf.read()), save=False)
+    # SUBSTITUIÇÃO SEGURA: grava a nova, e só depois de o save() do registro
+    # persistir a referência é que o arquivo antigo é apagado (ver abaixo).
+    avatar_antigo = perms.avatar if perms.avatar else None
+    perms.avatar.save(f'{target.id}.webp', processed.content, save=False)
     update_fields = ['avatar']
 
     # Não-destrutivo: guarda a imagem ORIGINAL (para reabrir/desfazer) + o recorte.
     from passengers.validators import sanitize_image, parse_crop
-    from django.core.exceptions import ValidationError as DjangoValidationError
     orig = request.FILES.get('original')
+    original_antigo = None
     if orig:
         try:
             cf = sanitize_image(orig, fmt='JPEG', max_dim=1600, bg=(255, 255, 255), max_bytes=_AVATAR_MAX_BYTES)
         except DjangoValidationError:
             cf = None
         if cf is not None:
-            if perms.avatar_original:
-                delete_fieldfile(perms.avatar_original, 'avatar original do usuário')
-            perms.avatar_original.save(f'{target.id}_orig.jpg', cf, save=False)
+            original_antigo = perms.avatar_original if perms.avatar_original else None
+            perms.avatar_original.save(f'{target.id}_orig.webp', cf, save=False)
             update_fields.append('avatar_original')
     crop = parse_crop(request.data.get('crop'))
     if crop:
@@ -346,6 +328,12 @@ def _avatar_op(request, perms, target):
         update_fields.append('avatar_crop')
 
     perms.save(update_fields=update_fields)
+    # Referências novas já persistidas → só agora os arquivos antigos saem do
+    # storage (nunca antes: uma falha no meio deixaria o usuário sem foto).
+    if avatar_antigo and avatar_antigo.name != perms.avatar.name:
+        delete_fieldfile(avatar_antigo, 'avatar do usuário')
+    if original_antigo and original_antigo.name != perms.avatar_original.name:
+        delete_fieldfile(original_antigo, 'avatar original do usuário')
     log_event('upload', model_name='UserPermissions', model_label='Foto de perfil',
               object_id=target.id, object_repr=f'Foto de perfil — {user_display(target)}', user=request.user)
     return Response(serialize_user(target))

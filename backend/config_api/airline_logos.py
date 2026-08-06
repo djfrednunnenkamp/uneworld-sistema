@@ -1,27 +1,37 @@
-"""Utilitários da logo de companhia aérea — normalização (320×160 PNG) e download
-da Kiwi pelo código IATA. Usado pelo AirlineViewSet e pelo seed (importar da
-internet), sem depender de views (evita import circular)."""
+"""Utilitários da logo de companhia aérea — normalização (320×160 WebP com
+transparência) e download da Kiwi pelo código IATA. Usado pelo AirlineViewSet e
+pelo seed (importar da internet), sem depender de views (evita import circular).
+
+A validação/decodificação do arquivo enviado é do serviço central (core.images);
+aqui só fica o enquadramento no canvas fixo, que é regra deste campo."""
 import io
 
 import requests
 from django.core.files.base import ContentFile
 
-LOGO_SIZE = (320, 160)   # todas as logos ficam neste tamanho (PNG transparente)
+LOGO_SIZE = (320, 160)   # todas as logos ficam neste tamanho (fundo transparente)
 
 
 def normalize_logo_bytes(raw_bytes):
-    """Ajusta qualquer imagem para 320×160 PNG (fundo transparente), centralizada.
-    Levanta ValueError se a imagem for inválida."""
+    """Ajusta qualquer imagem para 320×160 WebP (fundo transparente), centralizada.
+    Levanta ValueError se a imagem for inválida.
+
+    A decodificação passa pelo core.images (magic bytes, anti image-bomb, arquivo
+    truncado), então um `.png` que na verdade é outra coisa não entra aqui."""
+    from django.core.exceptions import ValidationError
     from PIL import Image
+    from core import images as imgsvc
     try:
-        img = Image.open(io.BytesIO(raw_bytes)).convert('RGBA')
+        img = imgsvc.decode_image(raw_bytes).convert('RGBA')
+    except ValidationError as e:
+        raise ValueError(e.messages[0] if e.messages else 'imagem inválida')
     except Exception:
         raise ValueError('imagem inválida')
     img.thumbnail(LOGO_SIZE, Image.LANCZOS)
     canvas = Image.new('RGBA', LOGO_SIZE, (0, 0, 0, 0))
     canvas.paste(img, ((LOGO_SIZE[0] - img.width) // 2, (LOGO_SIZE[1] - img.height) // 2), img)
     out = io.BytesIO()
-    canvas.save(out, format='PNG', optimize=True)
+    out.write(imgsvc.convert_to_webp(canvas))
     return ContentFile(out.getvalue())
 
 
@@ -53,7 +63,14 @@ def normalized_kiwi_logo(iata):
 
 
 def save_airline_logo(airline, content_file):
-    """Grava a logo (removendo a antiga)."""
-    if airline.logo:
-        airline.logo.delete(save=False)
-    airline.logo.save('logo.png', content_file, save=True)
+    """Grava a logo. SUBSTITUIÇÃO SEGURA: a antiga só é removida do storage
+    depois que a nova já está gravada e a referência persistida."""
+    antiga = airline.logo if airline.logo else None
+    nome_antigo = antiga.name if antiga else ''
+    airline.logo.save('logo.webp', content_file, save=True)
+    if nome_antigo and nome_antigo != airline.logo.name:
+        try:
+            antiga.storage.delete(nome_antigo)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning('Logo antiga %s não removida', nome_antigo, exc_info=True)

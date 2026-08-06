@@ -1427,7 +1427,9 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                 if kind == 'video':
                     return Response({'image': ['A seção de vídeos aceita apenas vídeos.']},
                                     status=status.HTTP_400_BAD_REQUEST)
-                validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+                # Pipeline central: devolve a imagem já convertida em WebP.
+                upload = validate_document_file(upload, allow_images=True)
+                ser.validated_data['image'] = upload
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         # Foto de ponto do mapa é sempre imagem (nunca vídeo) — o pino mostra foto.
@@ -1720,13 +1722,18 @@ class ItineraryViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
         from passengers.validators import validate_document_file
         from django.core.exceptions import ValidationError as DjangoValidationError
         try:
-            validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+            # Pipeline central: devolve a imagem já convertida em WebP.
+            upload = validate_document_file(upload, allow_images=True)
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
-        if pt.image:
-            pt.image.delete(save=False)
+        # SUBSTITUIÇÃO SEGURA: grava a nova primeiro; só depois de a referência
+        # nova estar no banco é que a antiga é apagada do storage (se a exclusão
+        # viesse antes, uma falha no meio deixaria o ponto sem foto nenhuma).
+        anterior = pt.image if pt.image else None
         pt.image = upload
         pt.save(update_fields=['image'])
+        if anterior and anterior.name != pt.image.name:
+            anterior.delete(save=False)
         _touch_unpublished(itinerary)
         return Response(ItineraryMapPointSerializer(pt, context=self.get_serializer_context()).data,
                         status=status.HTTP_201_CREATED)
@@ -2134,7 +2141,9 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
             if is_video:
                 validate_video_file(upload, allowed_exts=GALLERY_VIDEO_EXTENSIONS)
             else:
-                validate_document_file(upload, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+                # Pipeline central: devolve a imagem já convertida em WebP.
+                upload = validate_document_file(upload, allow_images=True)
+                ser.validated_data['image'] = upload
         except DjangoValidationError as e:
             return Response({'image': e.messages}, status=status.HTTP_400_BAD_REQUEST)
         img = ser.save(itinerary=None, day=None, kind='gallery')

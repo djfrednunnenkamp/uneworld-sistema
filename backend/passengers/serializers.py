@@ -126,9 +126,10 @@ class PassengerSerializer(SensitiveFieldsMixin, serializers.ModelSerializer):
         return value
 
     def validate_photo(self, value):
-        # Foto é PII: reprocessa (jpg/png) removendo EXIF/GPS e limitando tamanho.
+        # Foto é PII: passa pelo pipeline central (core.images), que valida o
+        # conteúdo real, remove EXIF/GPS e converte para WebP.
         if value:
-            return validate_document_file(value, allowed_exts={'.jpg', '.jpeg', '.png', '.webp'}, allow_images=True)
+            return validate_document_file(value, allow_images=True, preset='avatar')
         return value
 
     def get_agency_names(self, obj):
@@ -229,8 +230,12 @@ class PassengerDocumentSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.FILES.get('file'):
             f = request.FILES['file']
-            validate_document_file(f)
-            attrs['original_name'] = f.name
+            original_name = f.name
+            # Imagem volta convertida em WebP; PDF volta como veio. O arquivo
+            # gravado é o processado — nunca os bytes originais do cliente.
+            f = validate_document_file(f)
+            attrs['file']          = f
+            attrs['original_name'] = original_name
             attrs['file_size']     = f.size
             attrs['mime_type']     = f.content_type or ''
         return attrs

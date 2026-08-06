@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # e geração de thumbnails. Ver itineraries/services/video.py e settings FFMPEG_BIN.
 
 COPY requirements.txt .
+# pillow-heif (HEIC/HEIF do pipeline central de imagem) instala por WHEEL manylinux
+# com a libheif embutida — NÃO precisa de pacote apt. AVIF já vem no próprio Pillow.
+# Se algum dia o `manage.py check` reclamar de core.images.W001/W002, o problema é
+# a versão da wheel/Pillow, não falta de biblioteca do sistema.
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
     && pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt \
