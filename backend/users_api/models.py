@@ -459,6 +459,12 @@ class UserPermissions(models.Model):
     settings_terrestre_companies_delete  = models.BooleanField(default=False)
     settings_terrestre_companies_bulk_import = models.BooleanField(default=False)
     settings_terrestre_companies_export  = models.BooleanField(default=False)
+    # Conectores de IA (catálogo de IAs com logo/link usado pelos pop-ups "… com IA")
+    settings_ai_connectors_view          = models.BooleanField(default=False)
+    settings_ai_connectors_edit          = models.BooleanField(default=False)
+    settings_ai_connectors_delete        = models.BooleanField(default=False)
+    settings_ai_connectors_bulk_import   = models.BooleanField(default=False)
+    settings_ai_connectors_export        = models.BooleanField(default=False)
     # ── Operadora: permissão por aba (ver/editar) ──
     settings_operating_company_dados_view        = models.BooleanField(default=False)
     settings_operating_company_dados_edit        = models.BooleanField(default=False)

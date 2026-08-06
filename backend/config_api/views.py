@@ -24,7 +24,8 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      ConfigFlightSegment, ConfigFlightClass,
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
                      ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
-                     ConfigTerrestreCompany, DocumentTemplateConfig, ConfigJobRole, ReservationSettings)
+                     ConfigTerrestreCompany, DocumentTemplateConfig, ConfigJobRole, ReservationSettings, AIConnector,
+)
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
 from dashboard.jobs import run_job
@@ -2081,6 +2082,68 @@ class AirportViewSet(viewsets.ModelViewSet):
 # ── Companhias Aéreas ────────────────────────────────────────────────────────
 
 from .airline_logos import normalize_logo_bytes, normalized_kiwi_logo, save_airline_logo
+
+
+# ── Conectores de IA (Configurações) ─────────────────────────────────────────
+
+class AIConnectorSerializer(serializers.ModelSerializer):
+    logo = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = AIConnector
+        fields = ['id', 'name', 'url', 'logo', 'is_favorite', 'is_active', 'order']
+
+    def get_logo(self, obj):
+        return obj.logo.url if obj.logo else None
+
+
+class AIConnectorViewSet(viewsets.ModelViewSet):
+    """Catálogo das IAs que a equipe usa (ChatGPT, Claude, Gemini…). Só guarda
+    nome, link e logo — o sistema não conversa com nenhuma delas; os pop-ups de
+    "… com IA" apenas oferecem o atalho para abrir o site."""
+    queryset         = AIConnector.objects.all()
+    serializer_class = AIConnectorSerializer
+    pagination_class = ConfigListPagination
+    get_permissions  = _settings_perm('settings_ai_connectors')
+
+    def get_queryset(self):
+        qs = AIConnector.objects.all()
+        q = self.request.query_params.get('q', '').strip()
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(url__icontains=q))
+        if self.request.query_params.get('active') in ('1', 'true', 'True'):
+            qs = qs.filter(is_active=True)
+        return qs
+
+    @action(detail=True, methods=['post'], url_path='logo', parser_classes=[MultiPartParser, FormParser])
+    def set_logo(self, request, pk=None):
+        """Define/remove a logo. A imagem passa pelo pipeline central
+        (core/images.py): conteúdo validado, metadados removidos e saída WebP."""
+        obj = self.get_object()
+        if str(request.data.get('clear', '')).lower() in ('1', 'true'):
+            if obj.logo:
+                obj.logo.delete(save=True)
+            return Response(AIConnectorSerializer(obj, context=self.get_serializer_context()).data)
+        f = request.FILES.get('logo') or request.FILES.get('file')
+        if not f:
+            return Response({'error': 'Envie a imagem.'}, status=status.HTTP_400_BAD_REQUEST)
+        from core import images as imgsvc
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            processed = imgsvc.process_image(f, preset='logo', max_dim=320)
+        except DjangoValidationError as e:
+            return Response({'error': (e.messages[0] if e.messages else 'Imagem inválida.')},
+                            status=status.HTTP_400_BAD_REQUEST)
+        # Substituição segura: grava a nova e só então descarta a antiga.
+        antiga = obj.logo if obj.logo else None
+        nome_antigo = antiga.name if antiga else ''
+        obj.logo.save('logo.webp', processed.content, save=True)
+        if nome_antigo and nome_antigo != obj.logo.name:
+            try:
+                antiga.storage.delete(nome_antigo)
+            except Exception:
+                logger.warning('Logo antiga %s não removida', nome_antigo, exc_info=True)
+        return Response(AIConnectorSerializer(obj, context=self.get_serializer_context()).data)
 
 
 class AirlineSerializer(serializers.ModelSerializer):

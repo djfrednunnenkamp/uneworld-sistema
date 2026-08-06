@@ -23,6 +23,7 @@ router.register('ship-cabins',     views.ShipCabinViewSet,        basename='ship
 router.register('list-categories', views.ListCategoryViewSet,    basename='listcategory')
 router.register('airports',       views.AirportViewSet,          basename='airport')
 router.register('airlines',       views.AirlineViewSet,          basename='airline')
+router.register('ai-connectors',  views.AIConnectorViewSet,      basename='aiconnector')
 router.register('bus-maps',            views.BusMapViewSet,              basename='busmap')
 router.register('permission-profiles', views.PermissionProfileViewSet,   basename='permission-profile')
 router.register('contract-clauses',    views.ContractClauseViewSet,      basename='contract-clause')

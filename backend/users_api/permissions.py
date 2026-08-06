@@ -205,6 +205,7 @@ PERMISSION_FIELDS = [
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete', 'settings_hotels_bulk_import', 'settings_hotels_export',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete', 'settings_terrestre_companies_bulk_import', 'settings_terrestre_companies_export',
+    'settings_ai_connectors_view', 'settings_ai_connectors_edit', 'settings_ai_connectors_delete', 'settings_ai_connectors_bulk_import', 'settings_ai_connectors_export',
     # Operadora — por aba
     'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
     'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',
@@ -288,6 +289,7 @@ STAFF_PERMISSION_FIELDS = [
     'settings_hotels_view', 'settings_hotels_edit', 'settings_hotels_delete', 'settings_hotels_bulk_import', 'settings_hotels_export',
     'settings_boats_view', 'settings_boats_edit', 'settings_boats_delete', 'settings_boats_bulk_import', 'settings_boats_export',
     'settings_terrestre_companies_view', 'settings_terrestre_companies_edit', 'settings_terrestre_companies_delete', 'settings_terrestre_companies_bulk_import', 'settings_terrestre_companies_export',
+    'settings_ai_connectors_view', 'settings_ai_connectors_edit', 'settings_ai_connectors_delete', 'settings_ai_connectors_bulk_import', 'settings_ai_connectors_export',
     # Operadora — por aba
     'settings_operating_company_dados_view', 'settings_operating_company_dados_edit',
     'settings_operating_company_pix_view', 'settings_operating_company_pix_edit',

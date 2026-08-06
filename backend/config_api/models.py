@@ -12,6 +12,12 @@ def airline_logo_path(instance, filename):
     return f'airlines/{uuid.uuid4().hex}.webp'
 
 
+def ai_logo_path(instance, filename):
+    """Nome único (uuid) para a logo do conector de IA. .webp: o upload passa
+    pelo pipeline central de imagem (core/images.py)."""
+    return f'ai/{uuid.uuid4().hex}.webp'
+
+
 def branding_logo_path(instance, filename):
     """Nome único (uuid) para cada logo do branding — evita reusar o mesmo nome
     (o front envia sempre 'logo.png'), o que fazia o navegador mostrar a logo
@@ -493,6 +499,30 @@ class Airline(models.Model):
     def __str__(self):
         parts = [self.iata_code, self.name]
         return ' — '.join(p for p in parts if p)
+
+
+class AIConnector(models.Model):
+    """Uma IA que a equipe usa junto com o sistema (ChatGPT, Claude, Gemini…).
+
+    Os pop-ups de "… com IA" geram um PROMPT para o usuário colar numa IA de fora
+    — este catálogo é o atalho: mostra as IAs cadastradas com logo e nome e abre o
+    site da escolhida numa aba nova. Nada é enviado para elas pelo sistema; é só
+    um link. Cadastrado em Configurações › Conectores de IA."""
+    name        = models.CharField('Nome', max_length=120, db_index=True)
+    url         = models.URLField('Link do site', max_length=500)
+    logo        = models.ImageField('Logo', upload_to=ai_logo_path, storage=public_media_storage,
+                                    null=True, blank=True)
+    is_favorite = models.BooleanField('Favorito', default=False, db_index=True)
+    is_active   = models.BooleanField('Ativo', default=True, db_index=True)
+    order       = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering            = ['-is_favorite', 'order', 'name']
+        verbose_name        = 'Conector de IA'
+        verbose_name_plural = 'Conectores de IA'
+
+    def __str__(self):
+        return self.name
 
 
 class Airport(models.Model):
