@@ -237,6 +237,16 @@ def enroll_contract_guests(contract, pl):
     with transaction.atomic():
         list(PassengerList.objects.select_for_update().filter(pk=pl.pk))
 
+        # Contrato NASCIDO DE RESERVA: a reserva já pôs essa gente (e os lugares
+        # ainda sem nome) na lista. Antes de inscrever, os lugares passam a
+        # responder pelo contrato e os bloqueios que sobraram somem — senão a
+        # viagem apareceria em dobro na lista. Ver reservations/enrollment.py.
+        try:
+            from reservations.enrollment import soltar_do_contrato
+            soltar_do_contrato(contract, pl)
+        except Exception:
+            logger.exception('Falha ao consumir os lugares da reserva do contrato %s', contract.pk)
+
         by_type = defaultdict(list)
         for g in contract.guests.select_related('passenger', 'accommodation_type').all():
             if g.passenger_id:

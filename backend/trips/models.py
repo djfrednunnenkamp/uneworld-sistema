@@ -222,6 +222,13 @@ class ListEnrollment(models.Model):
     # Bloqueio de agência (sem passageiro definido)
     is_block         = models.BooleanField('É bloqueio', default=False)
     block_agency     = models.CharField('Agência (bloqueio)', max_length=200, blank=True)
+    # Reserva que colocou esta pessoa (ou este lugar guardado) na lista. É o que
+    # permite DESFAZER exatamente o que a reserva fez quando ela cai, sem tocar
+    # em quem entrou por outro caminho — e o que faz o contrato nascido dela
+    # consumir os lugares em vez de duplicá-los.
+    reservation      = models.ForeignKey('reservations.Reservation', null=True, blank=True,
+                                         on_delete=models.SET_NULL, related_name='enrollments',
+                                         verbose_name='Reserva de origem')
     is_provisional   = models.BooleanField('É provisório', default=False)
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
     seat             = models.CharField('Assento', max_length=10, blank=True)

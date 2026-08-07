@@ -130,6 +130,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
         res = serializer.save(created_by=user, agency_id=agency_id, original_pax=pax,
                               deadline_hours=hours, expires_at=expires, status=status_val)
         self._save_rooms(res, linhas)
+        # Quem organiza a viagem trabalha na LISTA de passageiros: a reserva vai
+        # para lá com os quartos montados (e os lugares ainda sem nome como
+        # bloqueio da agência), e quem reservou recebe o comprovante. Nada disso
+        # pode derrubar a reserva, que já está gravada — ver enrollment.py.
+        from .enrollment import sincronizar_e_avisar
+        sincronizar_e_avisar(res)
 
     @staticmethod
     def _save_rooms(res, linhas):
@@ -160,6 +166,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
         res = serializer.save()
         if linhas is not None:
             self._save_rooms(res, linhas)
+            # Mudou a divisão dos quartos → a lista tem de mudar junto (sem
+            # reenviar o comprovante: a reserva é a mesma).
+            from .enrollment import sincronizar_e_avisar
+            sincronizar_e_avisar(res, avisar=False)
 
     @action(detail=False, methods=['get'])
     def availability(self, request):
@@ -254,6 +264,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
+        # A reserva saiu de cena: os lugares que ela pôs na lista saem com ela.
+        from .enrollment import remover_da_lista
+        remover_da_lista(instance)
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -262,6 +275,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Esta reserva não pode ser cancelada.'}, status=status.HTTP_400_BAD_REQUEST)
         obj.status = 'cancelada'
         obj.save(update_fields=['status', 'updated_at'])
+        # Reserva cancelada devolve as unidades ao estoque — e some da lista de
+        # passageiros, senão a lista continuaria dizendo que essa gente viaja.
+        from .enrollment import remover_da_lista
+        remover_da_lista(obj)
         return Response(self.get_serializer(obj).data)
 
     @action(detail=False, methods=['get'])
