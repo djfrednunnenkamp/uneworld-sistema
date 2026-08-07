@@ -1,6 +1,18 @@
 from rest_framework import serializers
 
-from .models import Reservation
+from .models import Reservation, ReservationRoom
+
+
+class ReservationRoomSerializer(serializers.ModelSerializer):
+    """Quarto/cabine da reserva. Só leitura: quem grava é a view, depois de
+    conferir contra o bloqueio (reservations/availability.py) — deixar o cliente
+    gravar direto seria deixá-lo escolher o próprio limite."""
+    people = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ReservationRoom
+        fields = ['id', 'kind', 'block', 'accommodation', 'ship_cabin', 'label', 'capacity', 'quantity', 'people']
+        read_only_fields = fields
 
 
 class ReservationSerializer(serializers.ModelSerializer):
@@ -15,6 +27,9 @@ class ReservationSerializer(serializers.ModelSerializer):
     created_by_by_agency = serializers.SerializerMethodField()
     itinerary_cover = serializers.SerializerMethodField()
     contracts_from = serializers.SerializerMethodField()
+    rooms = ReservationRoomSerializer(many=True, read_only=True)
+    # A escolha de quartos/cabines chega por aqui e é conferida na view.
+    rooms_input = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
 
     def get_contracts_from(self, obj):
         # Todos os contratos gerados a partir desta reserva + etapa/status de cada.
@@ -82,7 +97,7 @@ class ReservationSerializer(serializers.ModelSerializer):
                   'deadline_hours', 'expires_at', 'amount_due', 'amount_paid',
                   'contract', 'contract_id', 'notes', 'created_at', 'updated_at',
                   'created_by_name', 'created_by_avatar', 'created_by_by_agency', 'itinerary_cover',
-                  'contracts_from']
+                  'contracts_from', 'rooms', 'rooms_input']
         # status/prazo/valores/contrato são definidos pelo servidor (fluxo da reserva).
         read_only_fields = ['status', 'deadline_hours', 'expires_at',
                             'amount_due', 'amount_paid', 'contract']

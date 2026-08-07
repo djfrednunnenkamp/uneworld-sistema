@@ -59,3 +59,48 @@ class Reservation(models.Model):
 
     def __str__(self):
         return f'Reserva #{self.pk} · roteiro {self.itinerary_id} · agência {self.agency_id}'
+
+
+class ReservationRoom(models.Model):
+    """Quarto (hotel) ou cabine (navio) que a reserva SEGURA.
+
+    Reservar não é só guardar N assentos: 3 pessoas podem ir num triplo, num
+    duplo + um single, ou em três singles — e o que existe para vender é o que
+    está bloqueado (Valores › Disponibilidade), que conta UNIDADES de quarto e
+    de cabine, não pessoas. Sem esta tabela a operadora só saberia "3 lugares",
+    e descobriria na hora de montar o contrato que não havia duplo nenhum.
+
+    `block` é o bloqueio de onde a unidade sai. Guardá-lo é o que torna a conta
+    de disponibilidade exata quando o mesmo tipo de quarto aparece em blocos
+    diferentes (bloco fixo × pool compartilhado) — sem ele, dar baixa no bloco
+    certo viraria adivinhação.
+
+    `label` e `capacity` ficam denormalizados: se o catálogo do roteiro mudar
+    depois, a reserva continua dizendo o que foi reservado naquele dia.
+    """
+    KIND_CHOICES = [('terrestre', 'Quarto (hotel)'), ('navio', 'Cabine (navio)')]
+
+    reservation   = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='rooms')
+    kind          = models.CharField('Tipo', max_length=10, choices=KIND_CHOICES)
+    block         = models.ForeignKey('itineraries.ItineraryInventoryBlock', null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name='+', verbose_name='Bloqueio')
+    accommodation = models.ForeignKey('config_api.ConfigAccommodation', null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name='+', verbose_name='Acomodação')
+    ship_cabin    = models.ForeignKey('config_api.ConfigShipCabin', null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name='+', verbose_name='Cabine')
+    label         = models.CharField('Rótulo', max_length=200, blank=True, default='')
+    capacity      = models.PositiveIntegerField('Pessoas por unidade', default=1)
+    quantity      = models.PositiveIntegerField('Unidades', default=1)
+
+    class Meta:
+        ordering = ['kind', 'id']
+        verbose_name = 'Quarto/cabine da reserva'
+        verbose_name_plural = 'Quartos/cabines da reserva'
+
+    def __str__(self):
+        return f'{self.quantity}× {self.label or self.kind} (reserva {self.reservation_id})'
+
+    @property
+    def people(self):
+        """Quantas pessoas estas unidades acomodam."""
+        return (self.capacity or 0) * (self.quantity or 0)

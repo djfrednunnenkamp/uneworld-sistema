@@ -19,7 +19,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
     serializer_class = ReservationSerializer
     queryset = (Reservation.objects
                 .select_related('itinerary', 'agency', 'contract', 'created_by__permissions')
-                .prefetch_related('itinerary__images', 'contracts_from').all())
+                .prefetch_related('itinerary__images', 'contracts_from', 'rooms').all())
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'link_contract', 'record_contract'):
@@ -118,8 +118,69 @@ class ReservationViewSet(viewsets.ModelViewSet):
         expires = timezone.now() + timedelta(hours=hours) if hours else None
         status_val = 'paga' if rtype == 'pagamento_imediato' else 'pendente'
 
-        serializer.save(created_by=user, agency_id=agency_id, original_pax=pax,
-                        deadline_hours=hours, expires_at=expires, status=status_val)
+        # Quartos/cabines escolhidos na tela: confere contra o BLOQUEIO antes de
+        # gravar (ver reservations/availability.py). A escolha não pode chegar ao
+        # banco sem passar por aqui — o limite é do servidor, não da tela.
+        from .availability import validate_rooms
+        rooms_in = serializer.validated_data.pop('rooms_input', None) or []
+        linhas, erro = validate_rooms(itin, pax, rooms_in) if itin else ([], None)
+        if erro:
+            raise ValidationError({'rooms': erro})
+
+        res = serializer.save(created_by=user, agency_id=agency_id, original_pax=pax,
+                              deadline_hours=hours, expires_at=expires, status=status_val)
+        self._save_rooms(res, linhas)
+
+    @staticmethod
+    def _save_rooms(res, linhas):
+        """Grava as unidades da reserva (troca tudo: é a foto do que ela segura)."""
+        from .models import ReservationRoom
+        res.rooms.all().delete()
+        ReservationRoom.objects.bulk_create([
+            ReservationRoom(
+                reservation=res, kind=l['kind'], block_id=l['block_id'],
+                accommodation_id=l['option']['id'] if l['kind'] == 'terrestre' else None,
+                ship_cabin_id=l['option']['id'] if l['kind'] == 'navio' else None,
+                label=l['option']['label'] or '', capacity=l['option']['capacity'] or 1,
+                quantity=l['quantity'],
+            ) for l in (linhas or [])
+        ])
+
+    def perform_update(self, serializer):
+        from .availability import validate_rooms
+        rooms_in = serializer.validated_data.pop('rooms_input', None)
+        res = serializer.instance
+        itin = serializer.validated_data.get('itinerary') or res.itinerary
+        pax = serializer.validated_data.get('pax') or res.pax
+        linhas = None
+        if rooms_in is not None:
+            linhas, erro = validate_rooms(itin, pax, rooms_in, ignorar_reserva=res.id)
+            if erro:
+                raise ValidationError({'rooms': erro})
+        res = serializer.save()
+        if linhas is not None:
+            self._save_rooms(res, linhas)
+
+    @action(detail=False, methods=['get'])
+    def availability(self, request):
+        """GET /api/reservations/availability/?itinerary=<id>[&reservation=<id>]
+
+        O que ainda dá para reservar em QUARTOS e CABINES — é com isto que a tela
+        sugere a divisão das pessoas e impede pedir o que não existe."""
+        from itineraries.models import Itinerary
+        from .availability import pools_for
+        itin_id = request.query_params.get('itinerary')
+        itin = Itinerary.objects.filter(pk=itin_id, is_deleted=False).first() if itin_id else None
+        if itin is None:
+            return Response({'error': 'Roteiro não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        ignorar = request.query_params.get('reservation') or None
+        pools = pools_for(itin, ignorar_reserva=ignorar)
+        return Response({
+            'itinerary': itin.id,
+            'pools': pools,
+            'has_terrestre': any(p['kind'] == 'terrestre' for p in pools),
+            'has_navio': any(p['kind'] == 'navio' for p in pools),
+        })
 
     @staticmethod
     def _reconcile(res):
