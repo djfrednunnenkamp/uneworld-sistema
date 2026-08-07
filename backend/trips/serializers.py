@@ -596,7 +596,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'passenger', 'agency', 'agency_name', 'agency_edit_id',
             'responsible_user', 'responsible_user_name',
-            'is_block', 'block_agency', 'is_provisional',
+            'is_block', 'block_agency', 'is_provisional', 'origin',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
@@ -621,6 +621,7 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
             'passenger_special_needs',
             'order_in_list', 'enrolled_at', 'notes',
         ]
-        read_only_fields = ['enrolled_at']
+        # `origin` é história de como a linha chegou aqui — quem edita não a reescreve.
+        read_only_fields = ['enrolled_at', 'origin']
 
 

@@ -325,6 +325,8 @@ def enroll_contract_guests(contract, pl):
                     passenger_list=pl, passenger=g.passenger, accommodation=rname,
                     order_in_list=order, departure_airport=pl.default_airport,
                     agency=contract.agency,
+                    # Veio sozinho, pelo contrato — quem organiza a lista vê a marca.
+                    origin='contrato',
                 )
                 occ[rname] += 1
                 order += 1

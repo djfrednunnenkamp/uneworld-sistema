@@ -229,6 +229,14 @@ class ListEnrollment(models.Model):
     reservation      = models.ForeignKey('reservations.Reservation', null=True, blank=True,
                                          on_delete=models.SET_NULL, related_name='enrollments',
                                          verbose_name='Reserva de origem')
+    # De onde esta linha veio. Vazio = alguém a pôs aqui à mão. Quem organiza a
+    # lista precisa saber o que chegou sozinho: uma linha que veio da reserva
+    # muda quando a reserva/contrato muda, e cobrar o cadastro de quem a criou
+    # não faz sentido. Diferente de `reservation`, esta marca NÃO se perde
+    # quando a reserva vira contrato — é história, não vínculo.
+    ORIGIN_CHOICES = [('', 'Manual'), ('reserva', 'Reserva'), ('contrato', 'Contrato')]
+    origin           = models.CharField('Origem', max_length=10, choices=ORIGIN_CHOICES,
+                                        blank=True, default='', db_index=True)
     is_provisional   = models.BooleanField('É provisório', default=False)
     accommodation    = models.CharField('Acomodação', max_length=200, blank=True)
     seat             = models.CharField('Assento', max_length=10, blank=True)

@@ -681,6 +681,10 @@ class ContractSerializer(serializers.ModelSerializer):
             self._recalc_totals(contract)
             # Loga o create COM os filhos + cláusulas (o signal escalar sozinho não pega).
             self._log_update(contract, {}, self._audit_snapshot(contract), action='create')
+        # Contrato de reserva: os nomes que ele deu aos lugares guardados chegam
+        # à lista de passageiros agora, sem esperar revisão nenhuma.
+        from reservations.enrollment import sincronizar_contrato_seguro
+        sincronizar_contrato_seguro(contract)
         return contract
 
     def update(self, instance, validated_data):
@@ -748,4 +752,8 @@ class ContractSerializer(serializers.ModelSerializer):
             self._save_children(instance, accommodation_lines, guests, installments, clauses, adjustments)
             self._recalc_totals(instance)
             self._log_update(instance, old_snap, self._audit_snapshot(instance))
+        # Mexeu no contrato, mexeu na lista: quem trocou de quarto ou entrou no
+        # lugar de alguém aparece lá do mesmo jeito (ver reservations/enrollment).
+        from reservations.enrollment import sincronizar_contrato_seguro
+        sincronizar_contrato_seguro(instance)
         return instance

@@ -95,6 +95,7 @@ def sincronizar_lista(reservation):
                     passenger_list=pl,
                     passenger_id=pid,
                     reservation=reservation,
+                    origin='reserva',
                     # Sem nome, o lugar guardado é o que a lista já sabe ser:
                     # um bloqueio da agência.
                     is_block=not pid,
@@ -161,6 +162,131 @@ def soltar_do_contrato(contract, passenger_list):
         return 0
     ListEnrollment.objects.filter(id__in=ids).delete()
     return len(ids)
+
+
+def sincronizar_contrato(contract):
+    """Os nomes que o contrato deu aos lugares chegam à lista NA HORA.
+
+    A reserva pôs lugares guardados na lista porque ainda não se sabia quem
+    viajava. No contrato isso deixa de ser verdade: ali as pessoas têm nome. Não
+    havia por que esperar a revisão da operadora para a lista saber disso — quem
+    organiza a viagem ficava olhando três "Agência X" onde já existiam três
+    pessoas, e o cadastro de cada uma ficava fora de alcance.
+
+    Então: cada hóspede do contrato ocupa o lugar que a reserva guardou (mesmo
+    quarto, mesma posição — o bloqueio VIRA a pessoa em vez de ser trocado por
+    uma linha nova), e mexer no contrato depois mexe na lista junto.
+
+    Vale só para contrato nascido de reserva e já finalizado (não-rascunho): o
+    rascunho salva sozinho a cada poucos segundos, e a lista não pode piscar a
+    cada tecla. Devolve (passenger_list, quantos_atualizados)."""
+    from django.db import transaction
+    from trips.models import ListEnrollment, PassengerList, Room
+
+    if getattr(contract, 'is_deleted', False) or contract.status != 'ativo':
+        return None, 0
+    res_id = getattr(contract, 'source_reservation_id', None)
+    if not res_id:
+        return None, 0
+    pl = lista_do_roteiro(contract.itinerary)
+    if pl is None:
+        return None, 0
+
+    guests = [g for g in contract.guests.select_related('passenger', 'accommodation_type')
+              .order_by('order') if g.passenger_id]
+    if not guests:
+        return pl, 0
+
+    with transaction.atomic():
+        list(PassengerList.objects.select_for_update().filter(pk=pl.pk))
+
+        da_reserva = list(ListEnrollment.objects
+                          .filter(passenger_list=pl, reservation_id=res_id)
+                          .order_by('order_in_list'))
+        # Quartos que a reserva montou, na ordem — é neles que a gente do
+        # contrato entra, para o quarto continuar sendo o que foi reservado.
+        quartos_res = []
+        for e in da_reserva:
+            if e.accommodation and e.accommodation not in quartos_res:
+                quartos_res.append(e.accommodation)
+
+        # Cada quarto do CONTRATO (room_group) vira um quarto da lista: o
+        # correspondente da reserva quando existe, senão um nome novo pelo tipo.
+        usados = set(pl.rooms.values_list('name', flat=True))
+        nome_por_grupo, i = {}, 0
+        for g in guests:
+            grupo = g.room_group if g.room_group is not None else f'g{g.id}'
+            if grupo in nome_por_grupo:
+                continue
+            if i < len(quartos_res):
+                nome_por_grupo[grupo] = quartos_res[i]
+            else:
+                base = (g.accommodation_type.name if g.accommodation_type_id
+                        else (g.accommodation_label or 'Acomodação'))
+                nome = _nome_livre(pl, base, usados)
+                usados.add(nome)
+                Room.objects.get_or_create(passenger_list=pl, name=nome)
+                nome_por_grupo[grupo] = nome
+            i += 1
+
+        livres = [e for e in da_reserva if e.is_block]
+        ja = {e.passenger_id: e for e in pl.list_enrollments.filter(passenger__isnull=False)}
+        ultimo = pl.list_enrollments.order_by('-order_in_list').first()
+        ordem = (ultimo.order_in_list + 1) if ultimo else 0
+
+        mudou = 0
+        for g in guests:
+            grupo = g.room_group if g.room_group is not None else f'g{g.id}'
+            quarto = nome_por_grupo.get(grupo) or ''
+            atual = ja.get(g.passenger_id)
+            if atual is not None:
+                # Já está na lista: o contrato manda no quarto dela.
+                if quarto and atual.accommodation != quarto:
+                    atual.accommodation = quarto
+                    atual.save(update_fields=['accommodation'])
+                    mudou += 1
+                continue
+            if livres:
+                # O lugar guardado VIRA a pessoa: mesmo quarto, mesma posição.
+                e = livres.pop(0)
+                e.passenger_id = g.passenger_id
+                e.is_block = False
+                e.block_agency = ''
+                if quarto:
+                    e.accommodation = quarto
+                e.save(update_fields=['passenger', 'is_block', 'block_agency', 'accommodation'])
+            else:
+                e = ListEnrollment.objects.create(
+                    passenger_list=pl, passenger_id=g.passenger_id,
+                    reservation_id=res_id, origin='reserva',
+                    agency=contract.agency, accommodation=quarto,
+                    enrollment_status=STATUS_RESERVADO,
+                    departure_airport=pl.default_airport, order_in_list=ordem)
+                ordem += 1
+            ja[g.passenger_id] = e
+            mudou += 1
+
+        # Lugar guardado que o contrato não usou só continua fazendo sentido se
+        # a reserva ainda tem gente por contratar (ela vira mais de um contrato,
+        # e `pax` é o que sobrou). Consumida a reserva, um bloqueio remanescente
+        # é assento fantasma: a lista contaria a mesma pessoa duas vezes — uma
+        # com nome, outra como vaga da agência.
+        restantes = max(0, getattr(contract.source_reservation, 'pax', 0) or 0)
+        sobrando = [e.id for e in livres[restantes:]]
+        if sobrando:
+            ListEnrollment.objects.filter(id__in=sobrando).delete()
+            mudou += len(sobrando)
+    return pl, mudou
+
+
+def sincronizar_contrato_seguro(contract):
+    """Mesma coisa, à prova de falha: um contrato salvo nunca pode ser perdido
+    porque a lista de passageiros engasgou."""
+    try:
+        return sincronizar_contrato(contract)
+    except Exception:
+        logger.exception('Falha ao levar os nomes do contrato %s para a lista', getattr(contract, 'pk', None))
+        return None, 0
 
 
 def enviar_comprovante(reservation, passenger_list=None):
