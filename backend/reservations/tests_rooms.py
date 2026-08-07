@@ -300,3 +300,22 @@ class CabineUniversalTest(RoomsBaseTest):
             {'pool': bn.id, 'kind': 'navio', 'id': self.cabine.id, 'quantity': 1, 'guests': ['A', 'B', 'C']},
         ])
         self.assertIn('comporta 2 pessoa', erro or '')
+
+    def test_o_teto_vem_da_CATEGORIA_da_cabine(self):
+        """O catálogo guarda a cabine como categoria + ocupação, herança de quando
+        cabine era presa a tipo de quarto. Um bloqueio de cabines "Janela ·
+        Single" são cabines JANELA — e elas recebem um casal, porque a categoria
+        existe no catálogo até 2 pessoas."""
+        ConfigShipCabin.objects.create(name='Single', category='Janela', capacity=1)
+        single_janela = ConfigShipCabin.objects.get(category='Janela', capacity=1)
+        b = ItineraryInventoryBlock.objects.create(itinerary=self.it, kind='navio',
+                                                   quantity=5, ship_cabin=single_janela)
+        pool = next(p for p in pools_for(self.it) if p['id'] == b.id)
+        opcao = pool['options'][0]
+        self.assertEqual(opcao['label'], 'Janela')      # a cabine é a categoria
+        self.assertEqual(opcao['capacity'], 2)          # e comporta o que a categoria comporta
+        # …e por isso um casal entra nela.
+        _, erro = validate_rooms(self.it, 2, [
+            {'pool': b.id, 'kind': 'navio', 'id': single_janela.id, 'quantity': 1, 'guests': ['Ana', 'Bruno']},
+        ])
+        self.assertIsNone(erro)

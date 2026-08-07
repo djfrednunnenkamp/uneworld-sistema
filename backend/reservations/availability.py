@@ -58,16 +58,40 @@ def _pessoa(g):
     return {'name': str(g or '').strip()[:120], 'passenger': None}
 
 
+def _teto_da_categoria(itinerary, categoria, padrao):
+    """Até quantas pessoas cabem numa cabine DESTA categoria.
+
+    O catálogo guarda a cabine como categoria + ocupação ("Balcão Juliet
+    Inferior · Single", "… · Duplo Casal"), herança de quando cabine era presa a
+    tipo de quarto. Não é mais: a categoria é a cabine FÍSICA, e o que ela
+    comporta é a MAIOR ocupação registrada para ela. Um bloqueio de 5 cabines
+    "Balcão Juliet Inferior · Single" são 5 cabines daquela categoria — e elas
+    recebem um casal, porque a categoria existe no catálogo até 2 pessoas.
+
+    Sem categoria (cabine avulsa), vale a capacidade do próprio registro.
+    """
+    if not categoria:
+        return padrao
+    from config_api.models import ConfigShipCabin
+    from django.db.models import Max
+    qs = ConfigShipCabin.objects.filter(category=categoria)
+    doRoteiro = qs.filter(itinerary=itinerary)
+    # O catálogo do ROTEIRO manda; sem ele (roteiro que nunca personalizou), o global.
+    alvo = doRoteiro if doRoteiro.exists() else qs.filter(itinerary__isnull=True)
+    teto = alvo.aggregate(m=Max('capacity'))['m']
+    return max(_int(teto, 0), _int(padrao, 1) or 1)
+
+
 def _bloco_publicado(itinerary):
     """Bloqueios que valem para reservar: os da foto publicada; os ao vivo só
     quando o roteiro nunca publicou valores (mesma regra de capacity.py)."""
     snap = (getattr(itinerary, 'published_data', None) or {}).get('pricing_snapshot')
     if snap is None:
-        return [_do_orm(b) for b in itinerary.inventory_blocks.all()]
-    return [_do_snapshot(b) for b in (snap.get(SNAPSHOT_BLOCKS_KEY) or [])]
+        return [_do_orm(b, itinerary) for b in itinerary.inventory_blocks.all()]
+    return [_do_snapshot(b, itinerary) for b in (snap.get(SNAPSHOT_BLOCKS_KEY) or [])]
 
 
-def _do_orm(b):
+def _do_orm(b, itinerary=None):
     """Bloqueio do banco → dicionário no formato comum."""
     opcoes = []
     if b.kind == 'terrestre':
@@ -76,14 +100,17 @@ def _do_orm(b):
                            'capacity': _int(getattr(a, 'capacity', 1), 1) or 1})
     elif b.kind == 'navio' and b.ship_cabin_id:
         c = b.ship_cabin
-        rotulo = ' · '.join([p for p in [getattr(c, 'category', ''), c.name] if p])
-        opcoes.append({'kind': 'navio', 'id': c.id, 'label': rotulo or c.name,
-                       'capacity': _int(getattr(c, 'capacity', 1), 1) or 1})
+        # A cabine se identifica pela CATEGORIA (a cabine física) e comporta o
+        # que a categoria comporta — não o tipo de quarto do rótulo antigo.
+        categoria = (getattr(c, 'category', '') or '').strip()
+        opcoes.append({'kind': 'navio', 'id': c.id, 'label': categoria or c.name,
+                       'capacity': _teto_da_categoria(itinerary or b.itinerary, categoria,
+                                                      _int(getattr(c, 'capacity', 1), 1) or 1)})
     return {'id': b.id, 'kind': b.kind, 'units': _int(b.quantity), 'is_active': b.is_active,
             'notes': b.notes or '', 'options': opcoes}
 
 
-def _do_snapshot(b):
+def _do_snapshot(b, itinerary=None):
     """Bloqueio da foto publicada → mesmo formato. O snapshot já traz os nomes
     e as capacidades resolvidos (é uma foto: não depende do catálogo de hoje)."""
     opcoes = []
@@ -94,9 +121,11 @@ def _do_snapshot(b):
                                'capacity': _int(a.get('capacity'), 1) or 1})
     elif b.get('kind') == 'navio' and b.get('ship_cabin'):
         # O snapshot guarda a cabine em campos planos (ver ItineraryInventoryBlockSerializer).
-        rotulo = ' · '.join([p for p in [b.get('ship_cabin_category') or '', b.get('ship_cabin_name') or ''] if p])
-        opcoes.append({'kind': 'navio', 'id': b.get('ship_cabin'), 'label': rotulo,
-                       'capacity': _int(b.get('ship_cabin_capacity'), 1) or 1})
+        categoria = (b.get('ship_cabin_category') or '').strip()
+        opcoes.append({'kind': 'navio', 'id': b.get('ship_cabin'),
+                       'label': categoria or b.get('ship_cabin_name') or '',
+                       'capacity': _teto_da_categoria(itinerary, categoria,
+                                                      _int(b.get('ship_cabin_capacity'), 1) or 1)})
     return {'id': b.get('id'), 'kind': b.get('kind'), 'units': _int(b.get('quantity')),
             'is_active': b.get('is_active', True), 'notes': b.get('notes') or '', 'options': opcoes}
 
