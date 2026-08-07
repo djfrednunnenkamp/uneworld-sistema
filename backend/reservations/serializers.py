@@ -11,7 +11,7 @@ class ReservationRoomSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ReservationRoom
-        fields = ['id', 'kind', 'block', 'accommodation', 'ship_cabin', 'label', 'capacity', 'quantity', 'people']
+        fields = ['id', 'kind', 'block', 'accommodation', 'ship_cabin', 'label', 'capacity', 'quantity', 'guests', 'people']
         read_only_fields = fields
 
 

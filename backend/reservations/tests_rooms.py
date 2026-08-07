@@ -138,6 +138,42 @@ class ValidacaoTest(RoomsBaseTest):
         ])
         self.assertIn('cabines', erro2 or '')
 
+    # ── Pessoas dentro do quarto ─────────────────────────────────────────────
+    def test_pessoas_com_nome_em_branco_contam_igual(self):
+        """Reservar sem saber os nomes é o caso NORMAL — o lugar já é da pessoa."""
+        b = self.bloco_hotel(10, [self.single, self.duplo])
+        linhas, erro = validate_rooms(self.it, 3, [
+            {'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': ['Ana', '']},
+            {'pool': b.id, 'kind': 'terrestre', 'id': self.single.id, 'quantity': 1, 'guests': ['']},
+        ])
+        self.assertIsNone(erro)
+        self.assertEqual([l['guests'] for l in linhas], [['Ana', ''], ['']])
+
+    def test_recusa_mais_gente_do_que_o_quarto_comporta(self):
+        b = self.bloco_hotel(10, [self.duplo])
+        _, erro = validate_rooms(self.it, 3, [
+            {'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': ['A', 'B', 'C']},
+        ])
+        self.assertIn('comporta 2 pessoa', erro or '')
+
+    def test_todo_mundo_precisa_estar_em_algum_quarto(self):
+        b = self.bloco_hotel(10, [self.single, self.duplo])
+        _, erro = validate_rooms(self.it, 3, [
+            {'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': ['A', 'B']},
+        ])
+        self.assertIn('3 pessoa(s) e 2', erro or '')
+
+    def test_quarto_reservado_e_ainda_vazio_e_valido(self):
+        """Segurar um quarto a mais é legítimo — ele conta unidade, não gente."""
+        b = self.bloco_hotel(10, [self.duplo])
+        linhas, erro = validate_rooms(self.it, 2, [
+            {'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': ['A', 'B']},
+            {'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': []},
+        ])
+        self.assertIsNone(erro)
+        self.assertEqual(len(linhas), 2)
+        self.assertEqual(sum(l['quantity'] for l in linhas), 2)   # segura as duas unidades
+
     def test_sem_escolha_nenhuma_segue_o_jogo(self):
         """Roteiro sem bloqueio de quarto (ou reserva antiga) continua funcionando."""
         self.assertEqual(validate_rooms(self.it, 3, []), ([], None))
@@ -169,6 +205,22 @@ class ApiTest(RoomsBaseTest):
         self.assertEqual(sum(q['people'] for q in quartos), 3)
         # As unidades saíram da prateleira para a próxima reserva.
         self.assertEqual(pools_for(self.it)[0]['available'], 2)
+
+    def test_cria_reserva_com_as_pessoas_dentro_dos_quartos(self):
+        b = self.bloco_hotel(4, [self.single, self.duplo])
+        r = self.client.post('/api/reservations/', {
+            'itinerary': self.it.id, 'agency': self.ag.id, 'reservation_type': 'sem_pagamento', 'pax': 3,
+            'rooms_input': [
+                {'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': ['Ana', 'Bruno']},
+                {'pool': b.id, 'kind': 'terrestre', 'id': self.single.id, 'quantity': 1, 'guests': ['']},
+            ],
+        }, format='json')
+        self.assertEqual(r.status_code, 201, r.content)
+        quartos = sorted(r.json()['rooms'], key=lambda q: q['label'])
+        self.assertEqual(quartos[0]['guests'], ['Ana', 'Bruno'])
+        self.assertEqual(quartos[0]['people'], 2)
+        self.assertEqual(quartos[1]['guests'], [''])
+        self.assertEqual(quartos[1]['people'], 1)
 
     def test_api_recusa_alem_do_bloqueio(self):
         b = self.bloco_hotel(1, [self.duplo])

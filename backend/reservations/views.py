@@ -142,7 +142,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 accommodation_id=l['option']['id'] if l['kind'] == 'terrestre' else None,
                 ship_cabin_id=l['option']['id'] if l['kind'] == 'navio' else None,
                 label=l['option']['label'] or '', capacity=l['option']['capacity'] or 1,
-                quantity=l['quantity'],
+                quantity=l['quantity'], guests=l.get('guests') or [],
             ) for l in (linhas or [])
         ])
 

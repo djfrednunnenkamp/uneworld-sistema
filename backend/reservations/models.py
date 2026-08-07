@@ -91,6 +91,11 @@ class ReservationRoom(models.Model):
     label         = models.CharField('Rótulo', max_length=200, blank=True, default='')
     capacity      = models.PositiveIntegerField('Pessoas por unidade', default=1)
     quantity      = models.PositiveIntegerField('Unidades', default=1)
+    # QUEM vai nesta unidade, na ordem. Nome VAZIO é normal e esperado: na hora
+    # de reservar quase nunca se sabe o nome de todo mundo — o que importa é que
+    # a pessoa já tem lugar. Quando a reserva vira contrato, é aqui que estão as
+    # pessoas para casar com os passageiros de verdade.
+    guests        = models.JSONField('Pessoas', default=list, blank=True)
 
     class Meta:
         ordering = ['kind', 'id']
@@ -102,5 +107,8 @@ class ReservationRoom(models.Model):
 
     @property
     def people(self):
-        """Quantas pessoas estas unidades acomodam."""
+        """Quantas pessoas estão NESTA unidade. Com a lista de pessoas montada,
+        são elas; sem ela (reserva só por contagem), é a capacidade cheia."""
+        if self.guests:
+            return len(self.guests)
         return (self.capacity or 0) * (self.quantity or 0)

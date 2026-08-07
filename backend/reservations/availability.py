@@ -133,9 +133,10 @@ def validate_rooms(itinerary, pax, rooms, ignorar_reserva=None):
         return [], None
     pools = {p['id']: p for p in pools_for(itinerary, ignorar_reserva)}
     linhas, por_pool, pessoas = [], defaultdict(int), defaultdict(int)
+    com_gente = defaultdict(bool)
 
     for r in rooms:
-        qtd = _int(r.get('quantity'))
+        qtd = _int(r.get('quantity'), 1) or 1
         if qtd <= 0:
             continue
         pool = pools.get(_int(r.get('pool'), -1))
@@ -144,9 +145,22 @@ def validate_rooms(itinerary, pax, rooms, ignorar_reserva=None):
         opcao = next((o for o in pool['options'] if str(o['id']) == str(r.get('id'))), None)
         if opcao is None:
             return None, 'Um dos tipos escolhidos não pertence ao bloqueio. Feche e abra a reserva de novo.'
+        cap = (opcao['capacity'] or 1) * qtd
+        # A LISTA de pessoas manda quando ela vem — inclusive vazia, que é um
+        # quarto reservado e ainda sem ninguém. Nome em branco é gente igual:
+        # quem reserva raramente sabe todos os nomes na hora.
+        tem_lista = 'guests' in r
+        gente = [str(n or '').strip()[:120] for n in (r.get('guests') or [])]
+        if tem_lista:
+            if len(gente) > cap:
+                return None, f'"{opcao["label"]}" comporta {cap} pessoa(s), e foram colocadas {len(gente)}.'
+            com_gente[pool['kind']] = True
+            pessoas[pool['kind']] += len(gente)
+        else:
+            pessoas[pool['kind']] += cap
         por_pool[pool['id']] += qtd
-        pessoas[pool['kind']] += (opcao['capacity'] or 1) * qtd
-        linhas.append({'kind': pool['kind'], 'block_id': pool['id'], 'option': opcao, 'quantity': qtd})
+        linhas.append({'kind': pool['kind'], 'block_id': pool['id'], 'option': opcao,
+                       'quantity': qtd, 'guests': gente})
 
     for pid, qtd in por_pool.items():
         if qtd > pools[pid]['available']:
@@ -154,8 +168,12 @@ def validate_rooms(itinerary, pax, rooms, ignorar_reserva=None):
             return None, f'Só há {disp} unidade(s) disponível(is) nesse bloqueio — você pediu {qtd}.'
 
     for kind, gente in pessoas.items():
-        if gente < pax:
-            qual = 'quartos' if kind == 'terrestre' else 'cabines'
+        qual = 'quartos' if kind == 'terrestre' else 'cabines'
+        # Com as pessoas montadas, cada uma tem de estar em exatamente um lugar:
+        # sobrar ou faltar gente aqui é erro de conta, não escolha.
+        if com_gente[kind] and gente != pax:
+            return None, f'A reserva é para {pax} pessoa(s) e {gente} foram distribuída(s) nos {qual}.'
+        if not com_gente[kind] and gente < pax:
             return None, f'Os {qual} escolhidos acomodam {gente} pessoa(s), e a reserva é para {pax}.'
 
     return linhas, None
