@@ -147,7 +147,7 @@ class ValidacaoTest(RoomsBaseTest):
             {'pool': b.id, 'kind': 'terrestre', 'id': self.single.id, 'quantity': 1, 'guests': ['']},
         ])
         self.assertIsNone(erro)
-        self.assertEqual([l['guests'] for l in linhas], [['Ana', ''], ['']])
+        self.assertEqual([[g['name'] for g in l['guests']] for l in linhas], [['Ana', ''], ['']])
 
     def test_recusa_mais_gente_do_que_o_quarto_comporta(self):
         b = self.bloco_hotel(10, [self.duplo])
@@ -217,9 +217,9 @@ class ApiTest(RoomsBaseTest):
         }, format='json')
         self.assertEqual(r.status_code, 201, r.content)
         quartos = sorted(r.json()['rooms'], key=lambda q: q['label'])
-        self.assertEqual(quartos[0]['guests'], ['Ana', 'Bruno'])
+        self.assertEqual([g['name'] for g in quartos[0]['guests']], ['Ana', 'Bruno'])
         self.assertEqual(quartos[0]['people'], 2)
-        self.assertEqual(quartos[1]['guests'], [''])
+        self.assertEqual([g['name'] for g in quartos[1]['guests']], [''])
         self.assertEqual(quartos[1]['people'], 1)
 
     def test_api_recusa_alem_do_bloqueio(self):
@@ -231,3 +231,32 @@ class ApiTest(RoomsBaseTest):
         self.assertEqual(r.status_code, 400)
         self.assertIn('rooms', r.json())
         self.assertEqual(Reservation.objects.count(), 0)
+
+
+class PessoaDoCadastroTest(RoomsBaseTest):
+    """A pessoa pode vir do cadastro de passageiros (com vínculo) ou ser um nome
+    digitado. Guardar o ID quando ele existe é o que deixa o contrato, depois,
+    casar com a pessoa de verdade em vez de comparar nome escrito à mão."""
+
+    def test_guarda_o_vinculo_com_o_passageiro(self):
+        from passengers.models import Passenger
+        p = Passenger.objects.create(full_name='Ana Souza')
+        b = self.bloco_hotel(4, [self.duplo])
+        r = self.client.post('/api/reservations/', {
+            'itinerary': self.it.id, 'agency': self.ag.id, 'reservation_type': 'sem_pagamento', 'pax': 2,
+            'rooms_input': [{'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1,
+                             'guests': [{'name': 'Ana Souza', 'passenger': p.id}, {'name': 'Agência X - 1'}]}],
+        }, format='json')
+        self.assertEqual(r.status_code, 201, r.content)
+        gente = r.json()['rooms'][0]['guests']
+        self.assertEqual(gente[0], {'name': 'Ana Souza', 'passenger': p.id})
+        self.assertEqual(gente[1], {'name': 'Agência X - 1', 'passenger': None})
+
+    def test_texto_puro_continua_valendo(self):
+        """Formato antigo (só o nome) não pode quebrar."""
+        b = self.bloco_hotel(4, [self.duplo])
+        linhas, erro = validate_rooms(self.it, 2, [
+            {'pool': b.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': ['Ana', 'Bruno']},
+        ])
+        self.assertIsNone(erro)
+        self.assertEqual(linhas[0]['guests'], [{'name': 'Ana', 'passenger': None}, {'name': 'Bruno', 'passenger': None}])

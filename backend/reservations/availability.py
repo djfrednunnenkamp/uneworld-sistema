@@ -34,6 +34,24 @@ def _int(v, padrao=0):
         return padrao
 
 
+def _pessoa(g):
+    """Uma pessoa da reserva, sempre no mesmo formato: {'name', 'passenger'}.
+
+    Aceita texto puro (como era antes, e como chega quem só digitou um nome) e
+    o objeto com o passageiro do cadastro. Guardar o ID quando ele existe é o
+    que permite, na hora do contrato, casar com a pessoa de verdade em vez de
+    comparar nome escrito à mão.
+    """
+    if isinstance(g, dict):
+        nome = str(g.get('name') or '').strip()[:120]
+        try:
+            pid = int(g.get('passenger')) if g.get('passenger') else None
+        except (TypeError, ValueError):
+            pid = None
+        return {'name': nome, 'passenger': pid}
+    return {'name': str(g or '').strip()[:120], 'passenger': None}
+
+
 def _bloco_publicado(itinerary):
     """Bloqueios que valem para reservar: os da foto publicada; os ao vivo só
     quando o roteiro nunca publicou valores (mesma regra de capacity.py)."""
@@ -150,7 +168,7 @@ def validate_rooms(itinerary, pax, rooms, ignorar_reserva=None):
         # quarto reservado e ainda sem ninguém. Nome em branco é gente igual:
         # quem reserva raramente sabe todos os nomes na hora.
         tem_lista = 'guests' in r
-        gente = [str(n or '').strip()[:120] for n in (r.get('guests') or [])]
+        gente = [_pessoa(g) for g in (r.get('guests') or [])]
         if tem_lista:
             if len(gente) > cap:
                 return None, f'"{opcao["label"]}" comporta {cap} pessoa(s), e foram colocadas {len(gente)}.'

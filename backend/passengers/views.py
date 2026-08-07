@@ -72,6 +72,13 @@ class PassengerViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.Model
         scope = agency_scope_ids(self.request.user)
         if scope is not None:
             qs = qs.filter(agencies__in=scope).distinct()
+        # Filtro por agência (?agency=<id>): usado por quem monta uma reserva/
+        # contrato PARA uma agência e precisa ver só as pessoas dela. Para o
+        # usuário de agência isso já é obrigatório acima; aqui é para a operadora
+        # trabalhar dentro do mesmo recorte, por vontade dela.
+        ag = self.request.query_params.get('agency')
+        if ag:
+            qs = qs.filter(agencies__id=ag).distinct()
         # Rascunhos são PRIVADOS de quem criou (listar/abrir/editar/descartar).
         qs = qs.filter(~Q(status='rascunho') | Q(created_by=self.request.user))
         # Na listagem, rascunhos ficam fora por padrão; ?status=rascunho traz só eles.
