@@ -229,6 +229,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if contract.source_reservation_id != res.id:
             contract.source_reservation = res
             contract.save(update_fields=['source_reservation'])
+        # Marca QUEM foi (não só quantos): é o que permite gerar o próximo
+        # contrato da mesma reserva sem oferecer de novo quem já está num.
+        from .contratados import marcar_contratados
+        marcar_contratados(res, contract, slots=request.data.get('slots'))
         self._reconcile(res)
         return Response(self.get_serializer(res).data)
 
