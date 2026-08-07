@@ -11,6 +11,12 @@ virar single OU duplo (pool compartilhado) — se 1 vira single, sobram 9 para o
 duplo. Por isso a conta é feita por BLOCO, não por tipo de quarto: o limite
 mora no bloco, e os tipos são só as formas que aquelas unidades podem assumir.
 
+A CABINE segue a mesma ideia, e vai além: ela não é presa a tipo de quarto
+nenhum. A mesma cabine recebe um single, um duplo ou um duplo casal — a
+capacidade dela é o TETO ("até 2 pessoas"), não uma correspondência. Dez
+cabines bloqueadas são dez cabines; quem dorme dentro é assunto do quarto,
+desde que caiba.
+
 Como nas vagas, vale a FOTO PUBLICADA quando ela existe: o que o site oferece é
 o que foi publicado, não o rascunho em edição.
 """
@@ -163,6 +169,10 @@ def validate_rooms(itinerary, pax, rooms, ignorar_reserva=None):
         opcao = next((o for o in pool['options'] if str(o['id']) == str(r.get('id'))), None)
         if opcao is None:
             return None, 'Um dos tipos escolhidos não pertence ao bloqueio. Feche e abra a reserva de novo.'
+        # A capacidade é TETO, não igualdade — e no navio isso é a regra do
+        # negócio: a cabine não é presa a tipo de quarto. A mesma cabine serve
+        # para single, duplo ou duplo casal; o que ela não aceita é gente além
+        # do que cabe (um triplo numa cabine de dois).
         cap = (opcao['capacity'] or 1) * qtd
         # A LISTA de pessoas manda quando ela vem — inclusive vazia, que é um
         # quarto reservado e ainda sem ninguém. Nome em branco é gente igual:

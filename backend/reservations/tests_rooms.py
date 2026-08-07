@@ -260,3 +260,43 @@ class PessoaDoCadastroTest(RoomsBaseTest):
         ])
         self.assertIsNone(erro)
         self.assertEqual(linhas[0]['guests'], [{'name': 'Ana', 'passenger': None}, {'name': 'Bruno', 'passenger': None}])
+
+
+class CabineUniversalTest(RoomsBaseTest):
+    """A cabine do navio NÃO é presa a tipo de quarto.
+
+    A mesma cabine serve para single, duplo ou duplo casal — a capacidade dela
+    é o TETO, não uma correspondência. Dez cabines são dez cabines: quem vai
+    dentro é problema do quarto, desde que caiba.
+    """
+
+    def test_uma_pessoa_numa_cabine_de_duas_vale(self):
+        bh = self.bloco_hotel(10, [self.single])
+        bn = self.bloco_navio(4)          # cabine de 2 pessoas
+        linhas, erro = validate_rooms(self.it, 1, [
+            {'pool': bh.id, 'kind': 'terrestre', 'id': self.single.id, 'quantity': 1, 'guests': ['Ana']},
+            {'pool': bn.id, 'kind': 'navio', 'id': self.cabine.id, 'quantity': 1, 'guests': ['Ana']},
+        ])
+        self.assertIsNone(erro)
+        self.assertEqual(len(linhas), 2)
+
+    def test_a_mesma_cabine_serve_a_ocupacoes_diferentes(self):
+        """Um single e um duplo saindo do MESMO bloco de cabines."""
+        bh = self.bloco_hotel(10, [self.single, self.duplo])
+        bn = self.bloco_navio(4)
+        linhas, erro = validate_rooms(self.it, 3, [
+            {'pool': bh.id, 'kind': 'terrestre', 'id': self.single.id, 'quantity': 1, 'guests': ['Ana']},
+            {'pool': bn.id, 'kind': 'navio', 'id': self.cabine.id, 'quantity': 1, 'guests': ['Ana']},
+            {'pool': bh.id, 'kind': 'terrestre', 'id': self.duplo.id, 'quantity': 1, 'guests': ['Bia', 'Caio']},
+            {'pool': bn.id, 'kind': 'navio', 'id': self.cabine.id, 'quantity': 1, 'guests': ['Bia', 'Caio']},
+        ])
+        self.assertIsNone(erro)
+        self.assertEqual(sum(l['quantity'] for l in linhas if l['kind'] == 'navio'), 2)   # 2 cabines do mesmo bloco
+
+    def test_o_teto_continua_valendo(self):
+        """Três pessoas não entram numa cabine de duas."""
+        bn = self.bloco_navio(4)
+        _, erro = validate_rooms(self.it, 3, [
+            {'pool': bn.id, 'kind': 'navio', 'id': self.cabine.id, 'quantity': 1, 'guests': ['A', 'B', 'C']},
+        ])
+        self.assertIn('comporta 2 pessoa', erro or '')
