@@ -101,6 +101,36 @@ class SincronizarTest(BaseReservaLista):
         sincronizar_lista(res)
         self.assertEqual(ListEnrollment.objects.filter(passenger_list=self.pl).count(), 1)
 
+    def test_sincronizar_de_novo_nao_deixa_rastro_de_quarto_vazio(self):
+        """Cada rodada reusava o nome anterior com sufixo ("Duplo Twin 2", "3"…)
+        e deixava o quarto antigo vazio — a lista virava uma parede de
+        acomodações sem ninguém dentro."""
+        from trips.models import Room
+        res = self.reserva()
+        self.quarto(res, [{'name': 'Ana Lima', 'passenger': self.ana.id},
+                          {'name': 'X - 1', 'passenger': None}])
+        for _ in range(3):
+            sincronizar_lista(res)
+        self.assertEqual(list(Room.objects.filter(passenger_list=self.pl).values_list('name', flat=True)),
+                         ['Duplo Twin'])
+
+    def test_quarto_sem_ninguem_dentro_some(self):
+        from trips.models import Room
+        Room.objects.create(passenger_list=self.pl, name='Sobrou de antes')
+        res = self.reserva()
+        self.quarto(res, [{'name': 'Ana Lima', 'passenger': self.ana.id}])
+        sincronizar_lista(res)
+        self.assertFalse(Room.objects.filter(passenger_list=self.pl, name='Sobrou de antes').exists())
+
+    def test_cancelar_a_reserva_leva_os_quartos_dela_junto(self):
+        from trips.models import Room
+        res = self.reserva()
+        self.quarto(res, [{'name': 'Ana Lima', 'passenger': self.ana.id}])
+        sincronizar_lista(res)
+        self.assertEqual(Room.objects.filter(passenger_list=self.pl).count(), 1)
+        remover_da_lista(res)
+        self.assertEqual(Room.objects.filter(passenger_list=self.pl).count(), 0)
+
     def test_sem_lista_no_roteiro_nao_inventa_uma(self):
         self.pl.delete()
         res = self.reserva()

@@ -54,6 +54,7 @@ def sincronizar_lista(reservation):
     """
     from django.db import transaction
     from trips.models import ListEnrollment, PassengerList, Room
+    from trips.rooms import cleanup_empty_rooms, nomes_ocupados
     from .rooms import quartos_da_reserva, nome_do_quarto
 
     pl = lista_do_roteiro(reservation.itinerary)
@@ -74,7 +75,11 @@ def sincronizar_lista(reservation):
 
         ListEnrollment.objects.filter(passenger_list=pl, reservation=reservation).delete()
 
-        usados = set(pl.rooms.values_list('name', flat=True))
+        # Nomes de quarto que ainda TÊM gente — não os Rooms existentes. Os que
+        # acabaram de esvaziar (as linhas desta reserva saíram acima) voltam a
+        # ser reusáveis; comparar com os Rooms fazia o mesmo quarto virar
+        # "Duplo Twin 2", "3", "4"… a cada sincronização.
+        usados = nomes_ocupados(pl)
         ja_na_lista = set(pl.list_enrollments.filter(passenger__isnull=False)
                           .values_list('passenger_id', flat=True))
         ultimo = pl.list_enrollments.order_by('-order_in_list').first()
@@ -111,6 +116,8 @@ def sincronizar_lista(reservation):
                     ja_na_lista.add(pid)
                 ordem += 1
                 criadas.append(e)
+        # Quarto sem ninguém dentro não existe (ver trips/rooms.py).
+        cleanup_empty_rooms(pl)
     return pl, criadas
 
 
@@ -119,8 +126,14 @@ def remover_da_lista(reservation):
 
     Só o que ainda é dela — pessoa que já virou contrato foi solta antes e
     continua na lista, porque aí quem segura o lugar é o contrato."""
-    from trips.models import ListEnrollment
+    from trips.models import ListEnrollment, PassengerList
+    from trips.rooms import cleanup_empty_rooms
+    listas = list(PassengerList.objects
+                  .filter(list_enrollments__reservation=reservation).distinct())
     apagadas, _ = ListEnrollment.objects.filter(reservation=reservation).delete()
+    # Os quartos que essa gente ocupava ficaram vazios — e quarto vazio não existe.
+    for pl in listas:
+        cleanup_empty_rooms(pl)
     return apagadas
 
 
@@ -182,6 +195,7 @@ def sincronizar_contrato(contract):
     cada tecla. Devolve (passenger_list, quantos_atualizados)."""
     from django.db import transaction
     from trips.models import ListEnrollment, PassengerList, Room
+    from trips.rooms import cleanup_empty_rooms, nomes_ocupados
 
     if getattr(contract, 'is_deleted', False) or contract.status != 'ativo':
         return None, 0
@@ -212,7 +226,7 @@ def sincronizar_contrato(contract):
 
         # Cada quarto do CONTRATO (room_group) vira um quarto da lista: o
         # correspondente da reserva quando existe, senão um nome novo pelo tipo.
-        usados = set(pl.rooms.values_list('name', flat=True))
+        usados = nomes_ocupados(pl)
         nome_por_grupo, i = {}, 0
         for g in guests:
             grupo = g.room_group if g.room_group is not None else f'g{g.id}'
@@ -276,6 +290,7 @@ def sincronizar_contrato(contract):
         if sobrando:
             ListEnrollment.objects.filter(id__in=sobrando).delete()
             mudou += len(sobrando)
+        cleanup_empty_rooms(pl)
     return pl, mudou
 
 

@@ -43,4 +43,15 @@ class Command(BaseCommand):
             destino = pl.name if pl else '(roteiro sem lista)'
             self.stdout.write(f'contrato {ct.id} → {destino}: {mudou} nome(s)')
 
+        # Faxina final: quarto sem ninguém dentro não existe. Versões anteriores
+        # da sincronização deixavam um rastro deles ("Duplo Twin 2", "3"…) a cada
+        # rodada; aqui a lista inteira fica limpa, não só o que passou por cima.
+        if not seco:
+            from trips.models import PassengerList
+            from trips.rooms import cleanup_empty_rooms
+            total = 0
+            for pl in PassengerList.objects.filter(is_deleted=False):
+                total += cleanup_empty_rooms(pl) or 0
+            self.stdout.write(f'acomodações vazias removidas: {total}')
+
         self.stdout.write(self.style.SUCCESS('Listas em dia.'))

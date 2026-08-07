@@ -146,11 +146,10 @@ def _autocheck_guia(enrollment):
 
 
 def _cleanup_empty_rooms(pl):
-    """Apaga acomodações (Room) que não têm nenhuma inscrição ativa."""
-    occupied = set(
-        pl.list_enrollments.exclude(accommodation='').values_list('accommodation', flat=True)
-    )
-    Room.objects.filter(passenger_list=pl).exclude(name__in=occupied).delete()
+    """Apaga acomodações (Room) sem ninguém dentro. A regra vive em trips/rooms.py
+    (a sincronização das reservas também precisa dela)."""
+    from .rooms import cleanup_empty_rooms
+    cleanup_empty_rooms(pl)
 
 
 def _as_int(value):
