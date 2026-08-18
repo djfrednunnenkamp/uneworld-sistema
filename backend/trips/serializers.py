@@ -591,12 +591,28 @@ class ListEnrollmentSerializer(serializers.ModelSerializer):
                 return self._doc_to_dict(docs[0], auto=True)
         return None
 
+    reserva_de_agencia = serializers.SerializerMethodField()
+
+    def get_reserva_de_agencia(self, obj):
+        """A reserva que trouxe esta linha foi feita por uma AGÊNCIA?
+
+        É o que decide mostrar a etiqueta "Reserva" na lista: quando a própria
+        operadora reservou, ela já sabe de onde a linha veio; quando foi uma
+        agência, a etiqueta avisa que aquele lugar está segurado por alguém de
+        fora — e é isso que se confirma depois. Sem reserva viva (virou contrato
+        ou já caiu), não há o que avisar."""
+        from users_api.permissions import agency_scope_ids
+        res = obj.reservation
+        if res is None or res.created_by_id is None:
+            return False
+        return agency_scope_ids(res.created_by) is not None
+
     class Meta:
         model  = ListEnrollment
         fields = [
             'id', 'passenger', 'agency', 'agency_name', 'agency_edit_id',
             'responsible_user', 'responsible_user_name',
-            'is_block', 'block_agency', 'is_provisional', 'origin',
+            'is_block', 'block_agency', 'is_provisional', 'origin', 'reserva_de_agencia',
             'passenger_name', 'passenger_cpf', 'passenger_email', 'passenger_phone',
             'passenger_birth_date', 'passenger_nationality', 'passenger_gender',
             'passenger_passport', 'passenger_passports', 'passenger_rg', 'passenger_status',
