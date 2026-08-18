@@ -371,9 +371,15 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             members = agency.members.select_related('user', 'user__permissions').exclude(
                 user__permissions__is_deleted=True).exclude(
                 user__is_staff=True).exclude(user__is_superuser=True).all()
+            def _avatar(u):
+                # Mesma foto que o resto do sistema mostra (UserPermissions.avatar),
+                # absoluta para o front carregar pelo MediaImg.
+                av = getattr(getattr(u, 'permissions', None), 'avatar', None)
+                return request.build_absolute_uri(av.url) if av else None
             return Response([{
                 'id':         m.id,
                 'user_id':    m.user.id,
+                'avatar':     _avatar(m.user),
                 'email':      m.user.email,
                 'first_name': m.user.first_name,
                 'last_name':  m.user.last_name,

@@ -49,6 +49,14 @@ class Reservation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations_created')
+    # Quem, NA AGÊNCIA, responde por esta reserva — recebe o comprovante e é o
+    # responsável dos assentos na lista de passageiros. Quando a agência reserva
+    # sozinha é quem fez (e o campo fica vazio, ver `responsavel`); quando a
+    # OPERADORA reserva em nome dela, precisa ser dito: o operador que digitou
+    # não é quem vai acompanhar a viagem.
+    responsible_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                         null=True, blank=True, related_name='reservations_responsible',
+                                         verbose_name='Responsável na agência')
     is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
@@ -59,6 +67,13 @@ class Reservation(models.Model):
 
     def __str__(self):
         return f'Reserva #{self.pk} · roteiro {self.itinerary_id} · agência {self.agency_id}'
+
+    @property
+    def responsavel(self):
+        """Quem responde pela reserva. Sem alguém escolhido, é quem a fez — que é
+        o caso da agência reservando sozinha, e evita um campo obrigatório para
+        dizer o óbvio."""
+        return self.responsible_user or self.created_by
 
 
 class ReservationRoom(models.Model):

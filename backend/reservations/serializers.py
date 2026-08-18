@@ -30,6 +30,14 @@ class ReservationSerializer(serializers.ModelSerializer):
     rooms = ReservationRoomSerializer(many=True, read_only=True)
     # A escolha de quartos/cabines chega por aqui e é conferida na view.
     rooms_input = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
+    responsible_user_name = serializers.SerializerMethodField()
+    responsible_user_avatar = serializers.SerializerMethodField()
+    # O PRAZO quando quem reserva é a operadora: ou um número de horas, ou uma
+    # data e hora exatas. Sem nenhum dos dois, a reserva não vence (ver a view).
+    # Entram como campos de escrita próprios porque `deadline_hours`/`expires_at`
+    # são a FOTO do que ficou valendo — quem os define é o servidor.
+    deadline_hours_input = serializers.IntegerField(write_only=True, required=False, allow_null=True, min_value=1, max_value=8760)
+    expires_at_input     = serializers.DateTimeField(write_only=True, required=False, allow_null=True)
 
     def get_contracts_from(self, obj):
         # Todos os contratos gerados a partir desta reserva + etapa/status de cada.
@@ -68,6 +76,22 @@ class ReservationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         return request.build_absolute_uri(ag.logo.url) if request else ag.logo.url
 
+    def _brief_user(self, u):
+        if not u:
+            return None
+        return f'{u.first_name} {u.last_name}'.strip() or u.username
+
+    def get_responsible_user_name(self, obj):
+        return self._brief_user(obj.responsavel)
+
+    def get_responsible_user_avatar(self, obj):
+        u = obj.responsavel
+        av = getattr(getattr(u, 'permissions', None), 'avatar', None) if u else None
+        if not av:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(av.url) if request else av.url
+
     def get_created_by_name(self, obj):
         u = obj.created_by
         if not u:
@@ -97,7 +121,9 @@ class ReservationSerializer(serializers.ModelSerializer):
                   'deadline_hours', 'expires_at', 'amount_due', 'amount_paid',
                   'contract', 'contract_id', 'notes', 'created_at', 'updated_at',
                   'created_by_name', 'created_by_avatar', 'created_by_by_agency', 'itinerary_cover',
-                  'contracts_from', 'rooms', 'rooms_input']
+                  'contracts_from', 'rooms', 'rooms_input',
+                  'responsible_user', 'responsible_user_name', 'responsible_user_avatar',
+                  'deadline_hours_input', 'expires_at_input']
         # status/prazo/valores/contrato são definidos pelo servidor (fluxo da reserva).
         read_only_fields = ['status', 'deadline_hours', 'expires_at',
                             'amount_due', 'amount_paid', 'contract']

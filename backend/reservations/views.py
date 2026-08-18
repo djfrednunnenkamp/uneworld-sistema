@@ -14,6 +14,13 @@ from .serializers import ReservationSerializer
 logger = logging.getLogger(__name__)
 
 
+def _e_da_agencia(usuario, agency_id):
+    """O responsável tem de ser gente DA agência da reserva — senão a operadora
+    poria como responsável alguém que nem acesso àquela reserva tem."""
+    from agencies.models import AgencyMember
+    return AgencyMember.objects.filter(agency_id=agency_id, user=usuario).exists()
+
+
 class ReservationViewSet(viewsets.ModelViewSet):
     """CRUD de reservas, com escopo por agência.
 
@@ -148,13 +155,40 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 raise ValidationError({'agency': 'Informe a agência da reserva.'})
             agency_id = agency.id
 
-        # Prazo efetivo da reserva sem pagamento: override do roteiro > padrão global.
-        hours = None
-        if rtype == 'sem_pagamento':
-            hours = getattr(getattr(itin, 'pricing', None), 'reservation_deadline_hours', None)
-            if hours is None:
-                hours = ReservationSettings.get().deadline_hours
-        expires = timezone.now() + timedelta(hours=hours) if hours else None
+        """Prazo e responsável — as duas coisas mudam conforme QUEM reserva.
+
+        A AGÊNCIA reservando para si não escolhe nem uma nem outra: o responsável
+        é ela mesma (quem digitou) e o prazo é o do roteiro, que é a regra de
+        venda da operadora; deixá-la esticar o próprio prazo seria deixá-la
+        segurar a vaga para sempre.
+
+        A OPERADORA reservando EM NOME de uma agência escolhe as duas: o
+        operador que digitou não é quem vai acompanhar a viagem (por isso o
+        responsável é dito), e o prazo é combinado caso a caso — por isso o
+        padrão dela é NÃO vencer, e não o prazo do roteiro."""
+        pedido_resp = serializer.validated_data.pop('responsible_user', None)
+        pedido_horas = serializer.validated_data.pop('deadline_hours_input', None)
+        pedido_data = serializer.validated_data.pop('expires_at_input', None)
+
+        if scope is not None:
+            responsavel = user
+            hours = None
+            if rtype == 'sem_pagamento':
+                hours = getattr(getattr(itin, 'pricing', None), 'reservation_deadline_hours', None)
+                if hours is None:
+                    hours = ReservationSettings.get().deadline_hours
+            expires = timezone.now() + timedelta(hours=hours) if hours else None
+        else:
+            responsavel = pedido_resp
+            if responsavel is not None and not _e_da_agencia(responsavel, agency_id):
+                raise ValidationError({'responsible_user': 'Escolha alguém da agência da reserva.'})
+            hours = pedido_horas or None
+            if pedido_data:
+                expires, hours = pedido_data, None
+            elif hours:
+                expires = timezone.now() + timedelta(hours=hours)
+            else:
+                expires = None      # sem prazo: só cai se alguém cancelar
         status_val = 'paga' if rtype == 'pagamento_imediato' else 'pendente'
 
         # Quartos/cabines escolhidos na tela: confere contra o BLOQUEIO antes de
@@ -167,7 +201,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
             raise ValidationError({'rooms': erro})
 
         res = serializer.save(created_by=user, agency_id=agency_id, original_pax=pax,
-                              deadline_hours=hours, expires_at=expires, status=status_val)
+                              deadline_hours=hours, expires_at=expires, status=status_val,
+                              responsible_user=responsavel)
         self._save_rooms(res, linhas)
         # Quem organiza a viagem trabalha na LISTA de passageiros: a reserva vai
         # para lá com os quartos montados (e os lugares ainda sem nome como

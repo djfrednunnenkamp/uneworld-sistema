@@ -106,7 +106,7 @@ def sincronizar_lista(reservation):
                     is_block=not pid,
                     block_agency=('' if pid else (nome_agencia or pessoa.get('name') or 'Reserva')),
                     agency=agencia,
-                    responsible_user=reservation.created_by,
+                    responsible_user=reservation.responsavel,
                     accommodation=nome,
                     enrollment_status=STATUS_RESERVADO,
                     departure_airport=pl.default_airport,
@@ -313,7 +313,10 @@ def enviar_comprovante(reservation, passenger_list=None):
     from agenda.email_service import send_reservation_notice
     from .rooms import quartos_da_reserva, nome_do_quarto
 
-    user = reservation.created_by
+    # O comprovante vai para quem RESPONDE pela reserva: quando a operadora
+    # reserva em nome da agência, quem precisa do papel é a agência, não o
+    # operador que digitou. Sem responsável dito, é quem fez (ver `responsavel`).
+    user = reservation.responsavel
     email = (getattr(user, 'email', '') or '').strip()
     if not email:
         return False
