@@ -331,13 +331,16 @@ class SemUnidadePropriaTest(BaseReservaLista):
         self.assertTrue(criadas[0].is_block)
         self.assertTrue(criadas[0].is_provisional)
 
-    def test_quarto_que_nao_existe_na_lista_e_ignorado(self):
+    def test_quarto_que_ainda_nao_existe_na_lista_e_criado(self):
+        """Acomodação de lista não é estoque, é organização: se a tela pediu
+        aquele nome, ele faz sentido. Antes a linha era ignorada, e bastava a
+        faxina de quartos vazios passar antes para a pessoa ficar sem lugar."""
         res = self.reserva(pax=1)
-        res.list_guests = [{'name': 'Bia', 'passenger': self.bia.id, 'room': 'Quarto inventado'}]
+        res.list_guests = [{'name': 'Bia', 'passenger': self.bia.id, 'room': 'Suíte 9'}]
         res.save(update_fields=['list_guests'])
         _pl, criadas = sincronizar_lista(res)
-        self.assertEqual(criadas[0].accommodation, '')
-        self.assertEqual(self.pl.rooms.count(), 0)
+        self.assertEqual(criadas[0].accommodation, 'Suíte 9')
+        self.assertTrue(self.pl.rooms.filter(name='Suíte 9').exists())
 
     def test_convivem_com_os_quartos_da_reserva(self):
         res = self.reserva(pax=3)

@@ -120,17 +120,21 @@ def sincronizar_lista(reservation):
                 ordem += 1
                 criadas.append(e)
 
-        # As sem unidade entram do mesmo jeito — só que na acomodação que já
-        # existe (quando foi dita) ou em nenhuma. Quarto que não existe na lista
-        # é ignorado no lugar de ser criado: aqui a reserva não segurou unidade
-        # nenhuma, e criar um quarto seria inventar estoque.
+        # As sem unidade entram do mesmo jeito — só que na acomodação dita (ou
+        # em nenhuma). O quarto é CRIADO se não existir: acomodação de lista não
+        # é estoque, é organização, e a tela que pediu esse nome já decidiu que
+        # ele faz sentido. Depender de o quarto já existir tornava a conta
+        # frágil — bastava a faxina de quartos vazios passar antes para a
+        # pessoa acabar sem acomodação nenhuma.
         nomes_de_quarto = set(pl.rooms.values_list('name', flat=True))
         for g in soltas:
             pid = g.get('passenger') or None
             if pid and pid in ja_na_lista:
                 continue
-            quarto = (g.get('room') or '').strip()
-            nome = quarto if quarto in nomes_de_quarto else ''
+            nome = (g.get('room') or '').strip()
+            if nome and nome not in nomes_de_quarto:
+                Room.objects.get_or_create(passenger_list=pl, name=nome)
+                nomes_de_quarto.add(nome)
             e = ListEnrollment.objects.create(
                 passenger_list=pl, passenger_id=pid, reservation=reservation, origin='reserva',
                 is_block=not pid,
