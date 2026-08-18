@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.utils import timezone
@@ -9,6 +10,8 @@ from rest_framework.response import Response
 from users_api.permissions import RequirePermission, agency_scope_ids, has_any_perm
 from .models import Reservation
 from .serializers import ReservationSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class ReservationViewSet(viewsets.ModelViewSet):
@@ -29,6 +32,42 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if self.action == 'cancel':
             return [RequirePermission('reservas_cancel')()]
         return [RequirePermission('reservas_view', 'reservas_view_all')()]
+
+    @staticmethod
+    def expirar_vencidas():
+        """A reserva sem pagamento que passou do prazo CAI — e cair é sumir.
+
+        Ela não vira uma linha vermelha para alguém limpar depois: segurar a
+        vaga era todo o sentido dela, e passado o prazo a vaga volta para o
+        estoque, a gente sai da lista de passageiros e a reserva sai do hub. O
+        registro fica (soft-delete, status 'expirada') porque isso é história —
+        o que não pode é continuar aparecendo como se ainda valesse.
+
+        Verificação preguiçosa, o mesmo padrão dos contratos
+        (`_promote_paid_contracts`): roda ao abrir as telas que mostram ou
+        contam reservas, então não depende de ninguém ter agendado nada. Para
+        soltar o estoque mesmo com o hub fechado, há o comando
+        `manage.py expirar_reservas` (cron).
+        """
+        from .enrollment import remover_da_lista
+        vencidas = list(Reservation.objects.filter(
+            is_deleted=False, status='pendente',
+            expires_at__isnull=False, expires_at__lt=timezone.now()))
+        agora = timezone.now()
+        for res in vencidas:
+            res.status = 'expirada'
+            res.is_deleted = True
+            res.deleted_at = agora
+            res.save(update_fields=['status', 'is_deleted', 'deleted_at', 'updated_at'])
+            try:
+                remover_da_lista(res)
+            except Exception:
+                logger.exception('Falha ao tirar da lista a reserva expirada %s', res.pk)
+        return len(vencidas)
+
+    def list(self, request, *args, **kwargs):
+        self.expirar_vencidas()
+        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         qs = super().get_queryset().filter(is_deleted=False)
@@ -179,6 +218,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
         sugere a divisão das pessoas e impede pedir o que não existe."""
         from itineraries.models import Itinerary
         from .availability import pools_for
+        # Antes de dizer o que há: o que venceu já não segura mais nada.
+        self.expirar_vencidas()
         itin_id = request.query_params.get('itinerary')
         itin = Itinerary.objects.filter(pk=itin_id, is_deleted=False).first() if itin_id else None
         if itin is None:
@@ -297,6 +338,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
         from trips.models import ListEnrollment
         from config_api.models import ReservationSettings
         from itineraries.capacity import seats_published
+        # As contagens do hub não podem incluir o que já venceu.
+        self.expirar_vencidas()
         rsettings = ReservationSettings.get()
 
         def blank(itin_id):
