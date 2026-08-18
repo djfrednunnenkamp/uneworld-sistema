@@ -45,6 +45,14 @@ class Reservation(models.Model):
     # Contrato gerado a partir da reserva (da reserva nasce o contrato).
     contract = models.ForeignKey('contracts.Contract', on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations', verbose_name='Contrato')
 
+    # Pessoas que a reserva leva SEM segurar uma unidade nova de quarto: vão
+    # para uma acomodação que já existe na lista de passageiros, ou para nenhuma.
+    # É o caso de reservar da própria lista — "mais uma pessoa, que dorme com
+    # quem já está lá" não consome outro quarto, e obrigar a criar um quarto só
+    # para poder registrá-la seria inventar estoque. Formato de cada item:
+    # {'name', 'passenger', 'room'} (room = nome da acomodação na lista, ou '').
+    list_guests = models.JSONField('Pessoas sem unidade própria', default=list, blank=True)
+
     notes      = models.TextField('Observações', blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

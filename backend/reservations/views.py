@@ -196,7 +196,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
         # banco sem passar por aqui — o limite é do servidor, não da tela.
         from .availability import validate_rooms
         rooms_in = serializer.validated_data.pop('rooms_input', None) or []
-        linhas, erro = validate_rooms(itin, pax, rooms_in) if itin else ([], None)
+        # Quem vai para uma acomodação que JÁ existe (ou para nenhuma) não entra
+        # na conta dos quartos: a checagem "cada pessoa em exatamente um lugar"
+        # vale para quem ocupa as unidades que esta reserva está segurando.
+        sem_unidade = len(serializer.validated_data.get('list_guests') or [])
+        linhas, erro = validate_rooms(itin, max(0, pax - sem_unidade), rooms_in) if itin else ([], None)
         if erro:
             raise ValidationError({'rooms': erro})
 

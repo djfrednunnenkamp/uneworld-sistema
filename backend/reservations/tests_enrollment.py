@@ -296,3 +296,55 @@ class NomesDoContratoTest(BaseReservaLista):
         _pl, mudou = sincronizar_contrato(ct)
         self.assertEqual(mudou, 0)
         self.assertEqual(ListEnrollment.objects.filter(passenger_list=self.pl).count(), 2)
+
+
+class SemUnidadePropriaTest(BaseReservaLista):
+    """Reservar DA lista: mais uma pessoa que dorme com quem já está lá, ou que
+    ainda nem tem acomodação — sem inventar quarto para poder registrá-la."""
+
+    def test_entra_na_acomodacao_que_ja_existe(self):
+        from trips.models import Room
+        Room.objects.create(passenger_list=self.pl, name='Duplo Twin')
+        ListEnrollment.objects.create(passenger_list=self.pl, passenger=self.ana, accommodation='Duplo Twin')
+        res = self.reserva(pax=1)
+        res.list_guests = [{'name': 'Bia Melo', 'passenger': self.bia.id, 'room': 'Duplo Twin'}]
+        res.save(update_fields=['list_guests'])
+
+        _pl, criadas = sincronizar_lista(res)
+        self.assertEqual(len(criadas), 1)
+        self.assertEqual(criadas[0].accommodation, 'Duplo Twin')
+        self.assertEqual(self.pl.rooms.count(), 1)          # não criou quarto novo
+
+    def test_entra_sem_acomodacao_nenhuma(self):
+        res = self.reserva(pax=1)
+        res.list_guests = [{'name': 'Bia Melo', 'passenger': self.bia.id, 'room': ''}]
+        res.save(update_fields=['list_guests'])
+        _pl, criadas = sincronizar_lista(res)
+        self.assertEqual([e.accommodation for e in criadas], [''])
+        self.assertEqual(self.pl.rooms.count(), 0)
+
+    def test_sem_nome_vira_vaga_provisoria(self):
+        res = self.reserva(pax=1)
+        res.list_guests = [{'name': 'Fulano da agência', 'passenger': None, 'room': ''}]
+        res.save(update_fields=['list_guests'])
+        _pl, criadas = sincronizar_lista(res)
+        self.assertTrue(criadas[0].is_block)
+        self.assertTrue(criadas[0].is_provisional)
+
+    def test_quarto_que_nao_existe_na_lista_e_ignorado(self):
+        res = self.reserva(pax=1)
+        res.list_guests = [{'name': 'Bia', 'passenger': self.bia.id, 'room': 'Quarto inventado'}]
+        res.save(update_fields=['list_guests'])
+        _pl, criadas = sincronizar_lista(res)
+        self.assertEqual(criadas[0].accommodation, '')
+        self.assertEqual(self.pl.rooms.count(), 0)
+
+    def test_convivem_com_os_quartos_da_reserva(self):
+        res = self.reserva(pax=3)
+        self.quarto(res, [{'name': 'Ana Lima', 'passenger': self.ana.id},
+                          {'name': 'X - 1', 'passenger': None}])
+        res.list_guests = [{'name': 'Bia Melo', 'passenger': self.bia.id, 'room': ''}]
+        res.save(update_fields=['list_guests'])
+        _pl, criadas = sincronizar_lista(res)
+        self.assertEqual(len(criadas), 3)
+        self.assertEqual(sorted(e.accommodation for e in criadas), ['', 'Duplo Twin', 'Duplo Twin'])

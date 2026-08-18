@@ -62,7 +62,10 @@ def sincronizar_lista(reservation):
         return None, []
 
     quartos = quartos_da_reserva(reservation)
-    if not quartos:
+    # Pessoas sem unidade própria: vão para uma acomodação que já existe na
+    # lista, ou para nenhuma. Elas contam tanto quanto as outras.
+    soltas = [g for g in (reservation.list_guests or []) if isinstance(g, dict)]
+    if not quartos and not soltas:
         return pl, []
 
     agencia = reservation.agency
@@ -116,6 +119,32 @@ def sincronizar_lista(reservation):
                     ja_na_lista.add(pid)
                 ordem += 1
                 criadas.append(e)
+
+        # As sem unidade entram do mesmo jeito — só que na acomodação que já
+        # existe (quando foi dita) ou em nenhuma. Quarto que não existe na lista
+        # é ignorado no lugar de ser criado: aqui a reserva não segurou unidade
+        # nenhuma, e criar um quarto seria inventar estoque.
+        nomes_de_quarto = set(pl.rooms.values_list('name', flat=True))
+        for g in soltas:
+            pid = g.get('passenger') or None
+            if pid and pid in ja_na_lista:
+                continue
+            quarto = (g.get('room') or '').strip()
+            nome = quarto if quarto in nomes_de_quarto else ''
+            e = ListEnrollment.objects.create(
+                passenger_list=pl, passenger_id=pid, reservation=reservation, origin='reserva',
+                is_block=not pid,
+                block_agency=('' if pid else (nome_agencia or (g.get('name') or '').strip() or 'Reserva')),
+                is_provisional=bool(not pid and (g.get('name') or '').strip()),
+                agency=agencia, responsible_user=reservation.responsavel,
+                accommodation=nome, enrollment_status=STATUS_RESERVADO,
+                departure_airport=pl.default_airport, order_in_list=ordem,
+            )
+            if pid:
+                ja_na_lista.add(pid)
+            ordem += 1
+            criadas.append(e)
+
         # Quarto sem ninguém dentro não existe (ver trips/rooms.py).
         cleanup_empty_rooms(pl)
     return pl, criadas

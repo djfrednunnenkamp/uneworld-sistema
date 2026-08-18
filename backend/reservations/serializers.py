@@ -36,6 +36,8 @@ class ReservationSerializer(serializers.ModelSerializer):
     # data e hora exatas. Sem nenhum dos dois, a reserva não vence (ver a view).
     # Entram como campos de escrita próprios porque `deadline_hours`/`expires_at`
     # são a FOTO do que ficou valendo — quem os define é o servidor.
+    # Pessoas sem unidade própria (acomodação já existente na lista, ou nenhuma).
+    list_guests = serializers.ListField(child=serializers.DictField(), required=False)
     deadline_hours_input = serializers.IntegerField(write_only=True, required=False, allow_null=True, min_value=1, max_value=8760)
     expires_at_input     = serializers.DateTimeField(write_only=True, required=False, allow_null=True)
 
@@ -123,7 +125,7 @@ class ReservationSerializer(serializers.ModelSerializer):
                   'created_by_name', 'created_by_avatar', 'created_by_by_agency', 'itinerary_cover',
                   'contracts_from', 'rooms', 'rooms_input',
                   'responsible_user', 'responsible_user_name', 'responsible_user_avatar',
-                  'deadline_hours_input', 'expires_at_input']
+                  'deadline_hours_input', 'expires_at_input', 'list_guests']
         # status/prazo/valores/contrato são definidos pelo servidor (fluxo da reserva).
         read_only_fields = ['status', 'deadline_hours', 'expires_at',
                             'amount_due', 'amount_paid', 'contract']
