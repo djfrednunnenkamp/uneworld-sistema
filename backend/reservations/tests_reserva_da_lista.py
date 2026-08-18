@@ -103,3 +103,18 @@ class ReservarDaListaTest(TestCase):
         linha = self.linhas()[0]
         self.assertTrue(linha.is_block)          # vaga, não passageiro
         self.assertTrue(linha.is_provisional)    # com nome digitado → provisória
+
+    def test_quarto_montado_do_catalogo_vira_acomodacao_com_nome_completo(self):
+        """A tela monta o quarto pelo catálogo (Single + cabine), cria a
+        acomodação na lista e manda as pessoas apontando para ela. Nada de
+        estoque é consumido: quarto do catálogo é organização, não compra."""
+        r = self.client.post(f'/api/trips/lists/{self.pl.id}/rooms/',
+                             {'name': 'Balcão Juliet Superior — Single'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+
+        r2 = self.reservar(1, [{'name': 'Ana Lima', 'passenger': self.ana.id,
+                                'room': 'Balcão Juliet Superior — Single'}])
+        self.assertEqual(r2.status_code, 201, r2.data)
+        linha = ListEnrollment.objects.get(passenger=self.ana)
+        self.assertEqual(linha.accommodation, 'Balcão Juliet Superior — Single')
+        self.assertEqual(Reservation.objects.get(pk=r2.data['id']).rooms.count(), 0)
