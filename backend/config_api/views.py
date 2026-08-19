@@ -1423,6 +1423,19 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
 
 # ── Cartão: bandeiras, gateways e taxas ─────────────────────────────────────
 
+def _texto_do_csv(request):
+    """(texto, None) ou (None, Response de erro). As planilhas das adquirentes
+    costumam vir em latin-1, não em UTF-8."""
+    arquivo = request.FILES.get('file')
+    if not arquivo:
+        return None, Response({'error': 'Envie o arquivo CSV.'}, status=status.HTTP_400_BAD_REQUEST)
+    bruto = arquivo.read()
+    try:
+        return bruto.decode('utf-8-sig'), None
+    except UnicodeDecodeError:
+        return bruto.decode('latin-1'), None
+
+
 class CardBrandSerializer(serializers.ModelSerializer):
     class Meta:
         model  = CardBrand
@@ -1496,6 +1509,48 @@ class PaymentGatewayViewSet(viewsets.ModelViewSet):
             GatewayFee.objects.bulk_create(objetos)
         return Response(PaymentGatewaySerializer(gw).data)
 
+    @action(detail=True, methods=['post'], url_path='import-csv',
+            parser_classes=[MultiPartParser, FormParser])
+    def import_csv_deste(self, request, pk=None):
+        """Importa a tabela de UM gateway — o arquivo que a adquirente mandou
+        para este contrato.
+
+        O nome dentro do arquivo não precisa bater com o nome daqui: quem
+        escolheu o gateway foi o usuário, ao abrir esta tela. Com uma tabela só,
+        ela é a tabela deste gateway, ponto. Com várias, aí sim é preciso saber
+        qual — e o erro diz quais vieram, em vez de escolher por conta própria.
+        """
+        gw = self.get_object()
+        texto, erro = _texto_do_csv(request)
+        if erro:
+            return erro
+
+        from .card_fees import ler_tabela_de_taxas
+        tabelas, avisos = ler_tabela_de_taxas(texto)
+        if not tabelas:
+            return Response({'error': 'Não encontrei nenhuma tabela de taxas neste arquivo.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if len(tabelas) > 1:
+            escolhida = next((t for t in tabelas
+                              if t['name'].strip().lower() == gw.name.strip().lower()), None)
+            if escolhida is None:
+                nomes = ', '.join(f'"{t["name"]}"' for t in tabelas)
+                return Response({'error': f'O arquivo tem {len(tabelas)} tabelas ({nomes}) e nenhuma '
+                                          f'se chama "{gw.name}". Use o "Importar" da lista de gateways.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            tabelas = [escolhida]
+
+        with transaction.atomic():
+            gw.fees.all().delete()
+            linhas = []
+            for f in tabelas[0]['fees']:
+                brand, _ = CardBrand.objects.get_or_create(name=f['brand'], defaults={'order': 0})
+                linhas.append(GatewayFee(gateway=gw, brand=brand,
+                                         installments=f['installments'], percent=f['percent']))
+            GatewayFee.objects.bulk_create(linhas)
+        return Response({'taxas': len(linhas), 'avisos': avisos,
+                         'gateway': PaymentGatewaySerializer(gw).data})
+
     @action(detail=False, methods=['post'], url_path='import-csv',
             parser_classes=[MultiPartParser, FormParser])
     def import_csv(self, request):
@@ -1505,15 +1560,9 @@ class PaymentGatewayViewSet(viewsets.ModelViewSet):
         importar de novo o mesmo arquivo dá exatamente o mesmo resultado. As
         bandeiras que ainda não existem são criadas: obrigar a cadastrá-las
         antes seria pedir para digitar o que o arquivo já diz."""
-        arquivo = request.FILES.get('file')
-        if not arquivo:
-            return Response({'error': 'Envie o arquivo CSV.'}, status=status.HTTP_400_BAD_REQUEST)
-        bruto = arquivo.read()
-        try:
-            texto = bruto.decode('utf-8-sig')
-        except UnicodeDecodeError:
-            # As planilhas das adquirentes costumam vir em latin-1.
-            texto = bruto.decode('latin-1')
+        texto, erro = _texto_do_csv(request)
+        if erro:
+            return erro
 
         from .card_fees import ler_tabela_de_taxas
         tabelas, avisos = ler_tabela_de_taxas(texto)

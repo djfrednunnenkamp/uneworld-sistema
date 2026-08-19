@@ -6,9 +6,11 @@ o nome da bandeira do seu jeito".
 """
 from decimal import Decimal
 
-from django.test import SimpleTestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import SimpleTestCase, TestCase
 
 from config_api.card_fees import ler_tabela_de_taxas, nome_da_bandeira, nome_do_gateway
+from config_api.models import CardBrand, GatewayFee, PaymentGateway
 
 
 class NomesTest(SimpleTestCase):
@@ -114,3 +116,64 @@ class ArquivoRealTest(SimpleTestCase):
                          ['Stone', 'Getnet', 'Cielo Máquina', 'Cielo Link', 'Safra'])
         self.assertEqual([len(g['fees']) for g in gws], [72, 48, 52, 64, 80])
         self.assertEqual(avisos, [])
+
+
+class ImportarUmGatewayTest(TestCase):
+    """O arquivo que a adquirente manda para UM contrato entra por dentro dele.
+
+    Quem escolheu o gateway foi o usuário, ao abrir a tela — o nome dentro do
+    arquivo não manda nisso. Só quando o arquivo traz várias tabelas é que
+    voltamos a precisar do nome, e aí o erro diz quais vieram.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from django.test import Client
+        self.user = User.objects.create_superuser('op_csv', 'a@a.com', 'pw12345678')
+        self.c = Client()
+        self.c.force_login(self.user)
+        self.gw = PaymentGateway.objects.create(name='Stone')
+        CardBrand.objects.create(name='Visa')
+
+    def enviar(self, texto, gw=None):
+        arquivo = SimpleUploadedFile('taxas.csv', texto.encode('utf-8'), content_type='text/csv')
+        return self.c.post(f'/api/config/gateways/{(gw or self.gw).id}/import-csv/', {'file': arquivo})
+
+    def test_tabela_unica_entra_mesmo_com_outro_nome(self):
+        r = self.enviar('QUALQUER COISA\nParcelas,Visa\n1,3.13\n2,4.11\n')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['taxas'], 2)
+        self.assertEqual(self.gw.fees.count(), 2)
+
+    def test_substitui_a_tabela_que_estava_la(self):
+        brand = CardBrand.objects.get(name='Visa')
+        GatewayFee.objects.create(gateway=self.gw, brand=brand, installments=9, percent=99)
+        self.enviar('Stone\nParcelas,Visa\n1,3.13\n')
+        self.assertEqual([f.installments for f in self.gw.fees.all()], [1])
+
+    def test_varias_tabelas_escolhe_a_do_nome(self):
+        texto = ('Getnet\nParcelas,Visa\n1,2.10\n\n'
+                 'Stone\nParcelas,Visa\n1,3.13\n2,4.11\n')
+        r = self.enviar(texto)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.gw.fees.count(), 2)
+        # A outra tabela do arquivo não vaza para outro gateway.
+        self.assertFalse(PaymentGateway.objects.filter(name='Getnet').exists())
+
+    def test_varias_tabelas_sem_o_nome_recusa_e_diz_quais(self):
+        texto = ('Getnet\nParcelas,Visa\n1,2.10\n\n'
+                 'Safra\nParcelas,Visa\n1,3.13\n')
+        r = self.enviar(texto)
+        self.assertEqual(r.status_code, 400)
+        erro = r.json()['error']
+        self.assertIn('Getnet', erro)
+        self.assertIn('Safra', erro)
+
+    def test_arquivo_sem_tabela_recusa(self):
+        r = self.enviar('bom dia\ntudo bem\n')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.gw.fees.count(), 0)
+
+    def test_bandeira_nova_do_arquivo_e_criada(self):
+        self.enviar('Stone\nParcelas,Cabal\n1,3.13\n')
+        self.assertTrue(CardBrand.objects.filter(name='Cabal').exists())
