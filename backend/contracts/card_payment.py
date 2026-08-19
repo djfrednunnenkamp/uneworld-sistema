@@ -67,3 +67,72 @@ def dados_do_cartao(contract):
         'gateway_id': contract.payment_gateway_id,
         'options': opcoes,
     }
+
+
+def taxas_dos_contratos(contract_ids):
+    """{contract_id: {'gateway', 'installments', 'pct'}} para os contratos pagos
+    no cartão — a taxa que a adquirente desconta de cada parcela deles.
+
+    O que entra em caixa não é o que o cliente paga: a adquirente fica com a
+    taxa. Quem faz o fluxo de caixa precisa ver o líquido, não o bruto.
+
+    A taxa é do CONTRATO, não da parcela: a adquirente cobra pelo plano (12x
+    custa tanto), e desconta isso de cada repasse. Como a bandeira só se sabe
+    quando o cliente passa o cartão, usamos a mais cara daquele gateway naquele
+    plano — errar para menos no caixa é o erro que dói.
+    """
+    from collections import defaultdict
+
+    from config_api.models import GatewayFee
+    from .models import Contract, ContractInstallment
+
+    ids = list(contract_ids)
+    if not ids:
+        return {}
+    cartoes = _metodos_de_cartao()
+    if not cartoes:
+        return {}
+
+    # Quantas parcelas de cartão cada contrato tem — o plano contratado.
+    plano = defaultdict(int)
+    for cid, metodo in ContractInstallment.objects.filter(contract_id__in=ids).values_list(
+            'contract_id', 'payment_method'):
+        if (metodo or '').strip().lower() in cartoes:
+            plano[cid] += 1
+
+    contratos = {c.id: c for c in Contract.objects.filter(id__in=plano.keys())
+                 .select_related('payment_gateway')}
+
+    # Uma consulta só para todas as combinações (gateway, nº de parcelas).
+    pares = set()
+    for cid, n in plano.items():
+        c = contratos.get(cid)
+        if c and c.payment_gateway_id:
+            pares.add((c.payment_gateway_id, n))
+    maior = {}
+    if pares:
+        for gid, parcelas, pct in GatewayFee.objects.filter(
+                gateway_id__in={p[0] for p in pares},
+                installments__in={p[1] for p in pares}).values_list(
+                'gateway_id', 'installments', 'percent'):
+            chave = (gid, parcelas)
+            if pct > maior.get(chave, Decimal('-1')):
+                maior[chave] = pct
+
+    saida = {}
+    for cid, n in plano.items():
+        c = contratos.get(cid)
+        if not c:
+            continue
+        gw = c.payment_gateway
+        saida[cid] = {
+            'gateway': gw.name if gw else None,
+            'installments': n,
+            'pct': maior.get((c.payment_gateway_id, n)) if gw else None,
+        }
+    return saida
+
+
+def e_cartao(payment_method):
+    """A forma de pagamento daquela parcela é cartão?"""
+    return (payment_method or '').strip().lower() in _metodos_de_cartao()

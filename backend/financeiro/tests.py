@@ -6,6 +6,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from agencies.models import Agency
@@ -14,6 +16,7 @@ from contracts.models import Contract, ContractInstallment
 from itineraries.models import Itinerary, ItineraryCostItem
 from config_api.models import ConfigExchangeRate
 from financeiro import services as S
+from financeiro.services import receivables_report
 
 
 def make_user(username, superuser=False, agency=None, **perms):
@@ -214,3 +217,66 @@ class PastPermissionTest(APITestCase):
         rep = S.receivables_report(u, {}, can_past=True)
         self.assertEqual(rep['count'], 2)
         self.assertEqual(Decimal(rep['cards']['vencido']), Decimal('300.00'))
+
+
+class TaxaDoCartaoNosRecebiveisTest(TestCase):
+    """O que entra em caixa não é o que o cliente paga: a adquirente fica com a
+    taxa. Quem faz o fluxo de caixa precisa ver o líquido."""
+
+    def setUp(self):
+        from config_api.models import CardBrand, ConfigPaymentMethod, GatewayFee, PaymentGateway
+        from contracts.models import Contract, ContractInstallment
+        self.user = User.objects.create_superuser('fin_tx', 'f@f.com', 'pw12345678')
+        ConfigPaymentMethod.objects.create(name='Cartão de crédito', kind='cartao_credito')
+        ConfigPaymentMethod.objects.create(name='Boleto', kind='boleto')
+        visa = CardBrand.objects.create(name='Visa')
+        elo  = CardBrand.objects.create(name='Elo')
+        self.gw = PaymentGateway.objects.create(name='Stone')
+        # Em 2x: Visa 3%, Elo 5% — a mais cara é a que vale no caixa.
+        GatewayFee.objects.create(gateway=self.gw, brand=visa, installments=2, percent=Decimal('3'))
+        GatewayFee.objects.create(gateway=self.gw, brand=elo,  installments=2, percent=Decimal('5'))
+        self.ct = Contract.objects.create(status='ativo', stage='enviado', payment_gateway=self.gw)
+        hoje = timezone.localdate()
+        for n in (1, 2):
+            ContractInstallment.objects.create(contract=self.ct, kind='parcela', installment_number=n,
+                                               due_date=hoje, value_brl=Decimal('1000'),
+                                               payment_method='Cartão de crédito', order=n)
+
+    def relatorio(self):
+        return receivables_report(self.user, {}, limit=50)
+
+    def test_cada_parcela_mostra_gateway_taxa_e_liquido(self):
+        linhas = self.relatorio()['detail']
+        self.assertEqual(len(linhas), 2)
+        for l in linhas:
+            self.assertEqual(l['gateway'], 'Stone')
+            self.assertEqual(Decimal(l['fee_pct']), Decimal('5'))   # a bandeira mais cara
+            self.assertEqual(Decimal(l['fee_brl']), Decimal('50'))
+            self.assertEqual(Decimal(l['net_brl']), Decimal('950'))
+
+    def test_o_caixa_mostra_o_liquido_e_o_que_ficou_com_a_adquirente(self):
+        cards = self.relatorio()['cards']
+        self.assertEqual(Decimal(cards['taxas']), Decimal('100'))
+        self.assertEqual(Decimal(cards['liquido']), Decimal('1900'))
+
+    def test_boleto_nao_tem_taxa_nem_gateway(self):
+        from contracts.models import ContractInstallment
+        ContractInstallment.objects.filter(contract=self.ct).update(payment_method='Boleto')
+        l = self.relatorio()['detail'][0]
+        self.assertIsNone(l['gateway'])
+        self.assertIsNone(l['fee_pct'])
+        self.assertEqual(Decimal(l['net_brl']), Decimal('1000'))    # líquido = bruto
+
+    def test_sem_gateway_escolhido_nao_se_inventa_taxa(self):
+        self.ct.payment_gateway = None
+        self.ct.save(update_fields=['payment_gateway'])
+        l = self.relatorio()['detail'][0]
+        self.assertIsNone(l['fee_pct'])
+        self.assertEqual(Decimal(l['net_brl']), Decimal('1000'))
+
+    def test_plano_sem_taxa_cadastrada_nao_inventa(self):
+        """Contrato em 2x num gateway que só tem tabela de 1x."""
+        self.gw.fees.all().delete()
+        l = self.relatorio()['detail'][0]
+        self.assertEqual(l['gateway'], 'Stone')     # o gateway continua sendo dito
+        self.assertIsNone(l['fee_pct'])

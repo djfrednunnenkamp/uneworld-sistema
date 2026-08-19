@@ -129,7 +129,11 @@ def receivables_report(user, f, limit=300, can_past=True):
     t = today()
     rows = list(receivables_qs(user, f))
     method_of = lambda i: (i.payment_method or i.contract.payment_type or '—')
-    cards = {k: Decimal('0') for k in ('hoje', 'd7', 'mes', 'prox_mes', 'ano', 'recebido_mes', 'pendente', 'vencido')}
+    # Cartão: o que entra em caixa é o valor MENOS a taxa da adquirente.
+    from contracts.card_payment import e_cartao, taxas_dos_contratos
+    taxas = taxas_dos_contratos({i.contract_id for i in rows})
+    cards = {k: Decimal('0') for k in ('hoje', 'd7', 'mes', 'prox_mes', 'ano', 'recebido_mes', 'pendente', 'vencido',
+                                      'taxas', 'liquido')}
     by_month = defaultdict(lambda: {'previsto': Decimal('0'), 'recebido': Decimal('0'), 'vencido': Decimal('0')})
     by_method = defaultdict(lambda: {'brl': Decimal('0'), 'count': 0})
     mes_ini = t.replace(day=1)
@@ -140,6 +144,13 @@ def receivables_report(user, f, limit=300, can_past=True):
     for inst in rows:
         v = _d(inst.value_brl)
         st = _rec_status(inst, t)
+        # Taxa da adquirente: só nas parcelas pagas no cartão, e só quando o
+        # financeiro já escolheu por qual gateway a venda passa.
+        taxa = taxas.get(inst.contract_id) if e_cartao(inst.payment_method) else None
+        pct = taxa['pct'] if taxa else None
+        fee = (v * pct / 100).quantize(CENT) if pct is not None else Decimal('0')
+        cards['taxas'] += fee
+        cards['liquido'] += v - fee
         mkey = inst.due_date.strftime('%Y-%m')
         by_month[mkey][st if st != 'recebido' else 'recebido'] += v
         by_method[method_of(inst)]['brl'] += v
@@ -172,6 +183,12 @@ def receivables_report(user, f, limit=300, can_past=True):
                 'seller': (c.seller.first_name or c.seller.username) if c.seller_id else None,
                 'itinerary': c.itinerary.name if c.itinerary_id else None, 'itinerary_id': c.itinerary_id,
                 'passengers': c.guests.count(), 'stage': c.stage,
+                # Por onde a venda passa e o que ela custa. `gateway` é None
+                # quando a forma não é cartão (boleto, Pix: sem taxa aqui).
+                'gateway': (taxa or {}).get('gateway'),
+                'fee_pct': str(pct) if pct is not None else None,
+                'fee_brl': str(fee) if pct is not None else None,
+                'net_brl': str((v - fee).quantize(CENT)),
             })
     timeline = [{'month': m, **{k: str(v.quantize(CENT)) for k, v in by_month[m].items()}}
                 for m in sorted(by_month)]
@@ -182,6 +199,8 @@ def receivables_report(user, f, limit=300, can_past=True):
         'cards': {k: str(v.quantize(CENT)) for k, v in cards.items()},
         'timeline': timeline, 'methods': methods, 'detail': detail,
         'count': len(rows), 'currency': 'BRL',
+        'note_taxas': ('A taxa do cartão é a da bandeira mais cara do gateway naquele plano — '
+                       'a bandeira só se sabe quando o cliente passa o cartão.'),
         'note_realizado': 'Recebido é aproximado pelo estágio "faturado" (não há baixa por parcela).',
     }
 
