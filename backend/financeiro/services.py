@@ -19,6 +19,14 @@ from users_api.permissions import agency_scope_ids, has_any_perm
 
 CENT = Decimal('0.01')
 
+# Só entra no financeiro o que o cliente já se comprometeu a pagar: assinado o
+# contrato, a parcela é dinheiro a receber. Antes disso é intenção — o contrato
+# ainda pode ser recusado, reeditado ou simplesmente não voltar assinado.
+STAGES_FIRMADOS = ('assinado', 'conf_pagamento', 'em_pagamento', 'faturado')
+# As etapas anteriores, na ordem em que o contrato as percorre. Vê-las é útil
+# para saber o que ESTÁ POR VIR — daí a chave ligar/desligar na tela.
+STAGES_A_CAMINHO = ('em_edicao', 'revisao', 'a_faturar', 'aprovado', 'enviado')
+
 
 def today():
     return timezone.localdate()
@@ -64,7 +72,10 @@ def parse_filters(request):
          'method': q.get('method') or None, 'agency': q.get('agency') or None,
          'seller': q.get('seller') or None, 'itinerary': q.get('itinerary') or None,
          'category': q.get('category') or None, 'supplier': q.get('supplier') or None,
-         'currency': q.get('currency') or None}
+         'currency': q.get('currency') or None,
+         # Recebíveis: quais etapas do contrato entram. Vazio = só os firmados.
+         'stages': [e for e in (q.get('stages') or '').split(',') if e] or None,
+         'a_caminho': (q.get('a_caminho') or '').lower() in ('1', 'true', 'sim')}
     return f
 
 
@@ -99,6 +110,11 @@ def receivables_qs(user, f):
     scope = agency_scope_ids(user)
     if scope is not None:
         qs = qs.filter(contract__agency_id__in=scope)
+    # Etapas escolhidas na tela > a chave "o que está por vir" > só os firmados.
+    if f.get('stages'):
+        qs = qs.filter(contract__stage__in=f['stages'])
+    elif not f.get('a_caminho'):
+        qs = qs.filter(contract__stage__in=STAGES_FIRMADOS)
     if f.get('from'):
         qs = qs.filter(due_date__gte=f['from'])
     if f.get('to'):
@@ -190,6 +206,16 @@ def receivables_report(user, f, limit=300, can_past=True):
                 'fee_brl': str(fee) if pct is not None else None,
                 'net_brl': str((v - fee).quantize(CENT)),
             })
+    # Quanto há em cada etapa, ignorando o filtro de etapa — é o que permite à
+    # tela dizer o tamanho do que está de fora antes de a pessoa clicar.
+    from django.db.models import Count, Sum
+    sem_etapa = dict(f); sem_etapa['stages'] = None; sem_etapa['a_caminho'] = True
+    por_etapa = {r['contract__stage']: r for r in receivables_qs(user, sem_etapa)
+                 .values('contract__stage').annotate(brl=Sum('value_brl'), n=Count('id'))}
+    stage_totals = [{'stage': etapa, 'brl': str(_d(dados['brl']).quantize(CENT)), 'count': dados['n'],
+                     'firmado': etapa in STAGES_FIRMADOS}
+                    for etapa, dados in sorted(por_etapa.items(), key=lambda kv: -_d(kv[1]['brl']))]
+
     timeline = [{'month': m, **{k: str(v.quantize(CENT)) for k, v in by_month[m].items()}}
                 for m in sorted(by_month)]
     methods = sorted(({'method': k, 'brl': str(v['brl'].quantize(CENT)), 'count': v['count']}
@@ -199,6 +225,9 @@ def receivables_report(user, f, limit=300, can_past=True):
         'cards': {k: str(v.quantize(CENT)) for k, v in cards.items()},
         'timeline': timeline, 'methods': methods, 'detail': detail,
         'count': len(rows), 'currency': 'BRL',
+        'stage_totals': stage_totals,
+        'note_etapas': ('Por padrão só entram contratos assinados — antes da assinatura a parcela '
+                        'ainda é intenção, não dinheiro a receber.'),
         'note_taxas': ('A taxa do cartão é a da bandeira mais cara do gateway naquele plano — '
                        'a bandeira só se sabe quando o cliente passa o cartão.'),
         'note_realizado': 'Recebido é aproximado pelo estágio "faturado" (não há baixa por parcela).',

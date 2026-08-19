@@ -39,7 +39,7 @@ class ReceivablesTest(APITestCase):
         self.today = S.today()
         self.ag = Agency.objects.create(name='AgRec')
         self.c = Contract.objects.create(base_currency='USD', agency=self.ag, exchange_rate=Decimal('5'),
-                                         stage='em_edicao', status='ativo', payment_type='parcelado')
+                                         stage='assinado', status='ativo', payment_type='parcelado')
         ContractInstallment.objects.create(contract=self.c, kind='entrada', due_date=self.today,
                                             value_brl=Decimal('1000'), payment_method='Pix')
         ContractInstallment.objects.create(contract=self.c, kind='parcela', installment_number=1,
@@ -130,7 +130,7 @@ class CashflowTest(APITestCase):
         self.today = S.today()
         self.ag = Agency.objects.create(name='AgCf')
         c = Contract.objects.create(base_currency='USD', agency=self.ag, exchange_rate=Decimal('5'),
-                                    stage='em_edicao', status='ativo', payment_type='parcelado')
+                                    stage='assinado', status='ativo', payment_type='parcelado')
         ContractInstallment.objects.create(contract=c, kind='entrada', due_date=self.today,
                                             value_brl=Decimal('2000'), payment_method='Pix')
         ConfigExchangeRate.objects.create(from_currency='EUR', to_currency='BRL', rate=Decimal('6'))
@@ -196,7 +196,7 @@ class PastPermissionTest(APITestCase):
         self.today = S.today()
         self.ag = Agency.objects.create(name='AgPast')
         c = Contract.objects.create(base_currency='USD', agency=self.ag, exchange_rate=Decimal('5'),
-                                    stage='em_edicao', status='ativo', payment_type='parcelado')
+                                    stage='assinado', status='ativo', payment_type='parcelado')
         # uma parcela VENCIDA (passado) e uma FUTURA
         ContractInstallment.objects.create(contract=c, kind='parcela', installment_number=1,
                                             due_date=self.today - timedelta(days=30),
@@ -235,7 +235,7 @@ class TaxaDoCartaoNosRecebiveisTest(TestCase):
         # Em 2x: Visa 3%, Elo 5% — a mais cara é a que vale no caixa.
         GatewayFee.objects.create(gateway=self.gw, brand=visa, installments=2, percent=Decimal('3'))
         GatewayFee.objects.create(gateway=self.gw, brand=elo,  installments=2, percent=Decimal('5'))
-        self.ct = Contract.objects.create(status='ativo', stage='enviado', payment_gateway=self.gw)
+        self.ct = Contract.objects.create(status='ativo', stage='assinado', payment_gateway=self.gw)
         hoje = timezone.localdate()
         for n in (1, 2):
             ContractInstallment.objects.create(contract=self.ct, kind='parcela', installment_number=n,
@@ -280,3 +280,43 @@ class TaxaDoCartaoNosRecebiveisTest(TestCase):
         l = self.relatorio()['detail'][0]
         self.assertEqual(l['gateway'], 'Stone')     # o gateway continua sendo dito
         self.assertIsNone(l['fee_pct'])
+
+
+class EtapaDoContratoNosRecebiveisTest(TestCase):
+    """Antes da assinatura a parcela é intenção, não dinheiro a receber — mas
+    quem planeja caixa quer poder ver o que está por vir."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser('fin_st', 'f@f.com', 'pw12345678')
+        hoje = timezone.localdate()
+        self.por_etapa = {}
+        for etapa, valor in (('assinado', 1000), ('faturado', 500), ('enviado', 300), ('a_faturar', 200),
+                             ('em_edicao', 90)):
+            ct = Contract.objects.create(status='ativo', stage=etapa)
+            ContractInstallment.objects.create(contract=ct, kind='parcela', installment_number=1,
+                                               due_date=hoje, value_brl=Decimal(valor), order=1)
+            self.por_etapa[etapa] = ct
+
+    def total(self, f):
+        return sum(Decimal(l['value_brl']) for l in receivables_report(self.user, f, limit=50)['detail'])
+
+    def test_o_padrao_e_so_o_que_foi_assinado(self):
+        self.assertEqual(self.total({}), Decimal('1500'))     # assinado + faturado
+
+    def test_a_chave_traz_o_que_esta_por_vir(self):
+        self.assertEqual(self.total({'a_caminho': True}), Decimal('2090'))   # tudo
+
+    def test_filtro_de_etapas_soma_as_escolhidas(self):
+        """"Quero ver a verificação do financeiro MAIS os que estão para assinar." """
+        self.assertEqual(self.total({'stages': ['a_faturar', 'enviado']}), Decimal('500'))
+
+    def test_o_filtro_de_etapas_manda_mais_que_a_chave(self):
+        self.assertEqual(self.total({'stages': ['em_edicao'], 'a_caminho': False}), Decimal('90'))
+
+    def test_o_resumo_por_etapa_ignora_o_filtro_de_etapa(self):
+        r = receivables_report(self.user, {}, limit=50)
+        etapas = {e['stage']: e for e in r['stage_totals']}
+        self.assertEqual(set(etapas), {'assinado', 'faturado', 'enviado', 'a_faturar', 'em_edicao'})
+        self.assertEqual(Decimal(etapas['enviado']['brl']), Decimal('300'))
+        self.assertTrue(etapas['assinado']['firmado'])
+        self.assertFalse(etapas['enviado']['firmado'])
