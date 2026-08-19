@@ -1188,9 +1188,6 @@ class PaymentGateway(models.Model):
     canal ("Cielo Máquina" e "Cielo Link" são contratos distintos, com tabelas
     distintas): o que identifica aqui é a TABELA de taxas, não a marca."""
     name      = models.CharField('Gateway', max_length=80, unique=True)
-    # Onde o cliente paga: o link de cobrança daquele contrato de adquirência.
-    # É o que o financeiro manda ao cliente quando escolhe este gateway.
-    payment_url = models.URLField('Link de pagamento', max_length=500, blank=True, default='')
     is_active = models.BooleanField('Em uso', default=True)
     notes     = models.TextField('Observações', blank=True, default='')
     order     = models.PositiveIntegerField('Ordem', default=0)

@@ -884,10 +884,19 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
                                 status=http_status.HTTP_400_BAD_REQUEST)
             contract.payment_gateway_id = gid
             campos.append('payment_gateway')
+
+            # O link de cobrança desta venda. Opcional: nem toda venda no cartão
+            # tem link (na maquininha o cliente paga na hora, ali mesmo).
+            url = (request.data.get('payment_url') or '').strip()
+            if url and not url.lower().startswith(('http://', 'https://')):
+                url = f'https://{url}'
+            contract.payment_url = url
+            campos.append('payment_url')
         elif contract.payment_gateway_id and not cartao:
             # Deixou de ser cartão em alguma reedição: a escolha não vale mais.
             contract.payment_gateway = None
-            campos.append('payment_gateway')
+            contract.payment_url = ''
+            campos += ['payment_gateway', 'payment_url']
 
         contract.stage = 'enviado'
         contract.review_note = ''

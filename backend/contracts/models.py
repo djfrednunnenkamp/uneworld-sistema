@@ -84,6 +84,9 @@ class Contract(models.Model):
     payment_gateway           = models.ForeignKey('config_api.PaymentGateway', on_delete=models.SET_NULL,
                                                   null=True, blank=True, related_name='contracts',
                                                   verbose_name='Gateway de pagamento')
+    # O endereço onde ESTE cliente paga. A adquirente gera a cobrança por venda,
+    # com o valor daquela venda — por isso o link é do contrato, não do gateway.
+    payment_url               = models.URLField('Link de pagamento', max_length=500, blank=True, default='')
     total_usd                 = models.DecimalField('Soma total (USD)', max_digits=12, decimal_places=2, null=True, blank=True)
     total_brl                 = models.DecimalField('Total em (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     exchange_rate             = models.DecimalField('Câmbio', max_digits=10, decimal_places=4, null=True, blank=True)

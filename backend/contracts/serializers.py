@@ -266,7 +266,7 @@ class ContractSerializer(serializers.ModelSerializer):
                   'payer_email', 'payer_phone', 'payer_address',
                   'seller', 'seller_data', 'agency_seller', 'agency_seller_data',
                   'package_name', 'departure_date', 'return_date', 'departure_airport', 'observations',
-                  'base_currency', 'payment_type', 'payment_gateway', 'total_usd', 'total_brl', 'exchange_rate',
+                  'base_currency', 'payment_type', 'payment_gateway', 'payment_url', 'total_usd', 'total_brl', 'exchange_rate',
                   'a_vista_discount_usd', 'a_vista_discount_mode', 'a_vista_discount_value',
                   'commission_pct', 'commission_usd', 'commission_brl',
                   'round_step', 'round_mode', 'round_currency', 'signature_type',

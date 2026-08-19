@@ -110,3 +110,33 @@ class CartaoNaConferenciaTest(TestCase):
         self.liberar()
         self.contract.refresh_from_db()
         self.assertIsNone(self.contract.payment_gateway_id)
+
+    # ── o link da cobrança ──
+    def test_link_da_venda_e_gravado_com_https(self):
+        self.parcelas(2)
+        self.liberar(payment_gateway=self.stone.id, payment_url='pagar.stone.com.br/abc')
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.payment_url, 'https://pagar.stone.com.br/abc')
+
+    def test_link_e_opcional(self):
+        """Na maquininha o cliente paga ali mesmo — não há link a informar."""
+        self.parcelas(2)
+        r = self.liberar(payment_gateway=self.stone.id)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.payment_url, '')
+
+    def test_link_volta_na_conferencia(self):
+        self.parcelas(2)
+        self.contract.payment_url = 'https://pagar.stone.com.br/abc'
+        self.contract.save(update_fields=['payment_url'])
+        self.assertEqual(dados_do_cartao(self.contract)['payment_url'], 'https://pagar.stone.com.br/abc')
+
+    def test_deixou_de_ser_cartao_limpa_o_link(self):
+        self.contract.payment_url = 'https://pagar.stone.com.br/abc'
+        self.contract.payment_gateway = self.stone
+        self.contract.save(update_fields=['payment_url', 'payment_gateway'])
+        self.parcelas(2, metodo='Pix')
+        self.liberar()
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.payment_url, '')
