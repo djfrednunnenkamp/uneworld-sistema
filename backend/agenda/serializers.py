@@ -15,7 +15,7 @@ class CalendarPreferenceSerializer(serializers.ModelSerializer):
                   'lamina_favorite_patterns', 'lamina_recent_patterns', 'lamina_favorite_recommended',
                   'lamina_favorite_themes',
                   'itinerary_tab_order', 'contract_tab_order', 'drive_columns',
-                  'nav_order', 'nav_hidden', 'table_columns', 'gallery_columns',
+                  'nav_order', 'nav_hidden', 'nav_groups', 'table_columns', 'gallery_columns',
                   'voucher_tab_colors', 'lamina_prompt']
 
     def validate_gallery_columns(self, value):

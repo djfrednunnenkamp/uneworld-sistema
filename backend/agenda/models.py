@@ -70,6 +70,11 @@ class CalendarPreference(models.Model):
     # Itens da barra lateral que o usuário escondeu (lista de rotas). A permissão
     # ainda manda; isto é uma ocultação puramente pessoal e reversível.
     nav_hidden           = models.JSONField('Itens escondidos da barra lateral', default=list, blank=True)
+    # Mostrar os cabeçalhos de bloco na barra lateral (CADASTROS, PACOTES…).
+    # Ligado por padrão: os blocos ajudam quem está aprendendo o sistema. Quem já
+    # sabe onde tudo fica prefere a lista corrida, que cabe mais itens na tela —
+    # e essa é uma preferência de olho, não de permissão.
+    nav_groups           = models.BooleanField('Mostrar blocos na barra lateral', default=True)
     # Colunas das tabelas de lista (ordem + visibilidade) por tabela:
     # {"contracts":[{"key":"payer","on":true},...], "passengers":[...], ...}.
     # A 1ª coluna de cada tabela é fixa e não entra aqui. Vazio = padrão.
