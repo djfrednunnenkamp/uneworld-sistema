@@ -1411,7 +1411,7 @@ class ContinentViewSet(viewsets.ModelViewSet):
 class PaymentMethodSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigPaymentMethod
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'kind']
 
 
 class PaymentMethodViewSet(viewsets.ModelViewSet):

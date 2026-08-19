@@ -114,8 +114,28 @@ class ConfigGender(models.Model):
         return self.name
 
 
+# Tipos de forma de pagamento. O tipo é o que diz ao sistema QUE configuração
+# aquela forma tem por trás: "Cartão de crédito" abre bandeiras/gateways/taxas.
+# Para dar configuração ao Pix amanhã, basta um painel novo atrelado à chave —
+# a lista de formas em si continua sendo só nome + tipo.
+PAYMENT_KINDS = [
+    ('cartao_credito', 'Cartão de crédito'),
+    ('cartao_debito',  'Cartão de débito'),
+    ('pix',            'Pix'),
+    ('boleto',         'Boleto'),
+    ('transferencia',  'Transferência bancária'),
+    ('dinheiro',       'Dinheiro'),
+    ('cheque',         'Cheque'),
+    ('link',           'Link de pagamento'),
+    ('outro',          'Outro'),
+]
+
+
 class ConfigPaymentMethod(models.Model):
     name = models.CharField('Nome', max_length=100, unique=True)
+    # Em branco = forma antiga, sem tipo declarado: continua funcionando como
+    # sempre, só não abre painel nenhum.
+    kind = models.CharField('Tipo', max_length=30, choices=PAYMENT_KINDS, blank=True, default='')
 
     class Meta:
         ordering = ['name']
