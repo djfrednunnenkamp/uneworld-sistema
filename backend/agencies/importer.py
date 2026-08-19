@@ -158,6 +158,7 @@ def parse_csv_bytes(data):
         raise ImportError_('Coluna "Nome" ou "Razão Social" não encontrada no arquivo.')
 
     rows = []
+    ncols = len(header)
     for values in reader:
         if not any((v or '').strip() for v in values):
             continue  # linha totalmente vazia
@@ -168,6 +169,12 @@ def parse_csv_bytes(data):
             val = values[i] if i < len(values) else ''
             if field not in raw:      # 1ª coluna reconhecida vence
                 raw[field] = val
+        # Linha com número de colunas diferente do cabeçalho: aspas ou
+        # separador sobrando no meio do texto. Os valores estão DESLOCADOS
+        # (nome cai no campo do e-mail etc.) — melhor recusar a linha do que
+        # gravar lixo. `_ncols` vira erro em analyze_rows.
+        if len(values) != ncols:
+            raw['_ncols'] = (len(values), ncols)
         rows.append(raw)
         if len(rows) > MAX_ROWS:
             raise ImportError_(f'Arquivo excede o limite de {MAX_ROWS} linhas.')
@@ -177,6 +184,7 @@ def parse_csv_bytes(data):
 # ── Normalizações específicas de agência ─────────────────────────────────────
 
 _SCI_NOTATION_RE = re.compile(r'^\d+[.,]?\d*e\+?\d+$', re.IGNORECASE)
+SCI_NOTATION_MSG = 'corrompido pelo Excel (notação científica) — campo ignorado.'
 
 
 def _normalize_document(raw, validate):
@@ -187,7 +195,7 @@ def _normalize_document(raw, validate):
     if not txt:
         return '', ''
     if _SCI_NOTATION_RE.match(txt.replace(' ', '')):
-        return '', 'corrompido pelo Excel (notação científica) — campo ignorado.'
+        return '', SCI_NOTATION_MSG
     digits = only_digits(txt)
     if not digits:
         return '', ''
@@ -273,12 +281,15 @@ def normalize_row(raw):
     if not name and not company_name:
         errors.append('Nome e Razão Social em branco.')
 
+    doc_corrupted = False
     cnpj, w = _normalize_document(raw.get('cnpj'), validate_cnpj)
     if w:
         warnings.append(f'CNPJ {w}')
+        doc_corrupted = doc_corrupted or w == SCI_NOTATION_MSG
     cpf, w = _normalize_document(raw.get('cpf'), validate_cpf)
     if w:
         warnings.append(f'CPF {w}')
+        doc_corrupted = doc_corrupted or w == SCI_NOTATION_MSG
 
     # Tipo de pessoa derivado do documento: só CPF → física; senão jurídica.
     person_type = 'fisica' if (cpf and not cnpj) else 'juridica'
@@ -325,8 +336,35 @@ def normalize_row(raw):
         'pix_key_type': pix_key_type,
         'pix_key': _cut(pix_key, 200),
         'notes': clean_text(raw.get('notes')),
+        'doc_corrupted': doc_corrupted,
     }
     return normalized, errors, warnings
+
+
+_LEGAL_SUFFIX_RE = re.compile(
+    r'\b(ltda|limitada|me|epp|eireli|s ?a|s/a|sa|cia|companhia|eppme)\b')
+
+
+def name_key(name, company_name=''):
+    """Nome reduzido à sua essência, para comparar cadastros.
+
+    Tira acento, pontuação e sufixo societário, e colapsa espaços — assim
+    "MECATUR VIAGENS LTDA" e "Mecatur Viagens" viram a mesma chave, mas
+    "KAYSER VIAGENS - UNIDADE FELIZ" e "KAYSER VIAGENS - UNIDADE NOVA
+    PETRÓPOLIS" continuam diferentes (são duas filiais)."""
+    f = _fold(name or company_name)
+    f = re.sub(r'[^a-z0-9 ]', ' ', f)
+    f = _LEGAL_SUFFIX_RE.sub(' ', f)
+    return re.sub(r'\s+', ' ', f).strip()
+
+
+def email_name_key(email, name, company_name=''):
+    """Identificador de fallback quando não há CNPJ/CPF: e-mail + nome.
+
+    Vale '' se faltar um dos dois (aí não dá para identificar nada)."""
+    e = (email or '').strip().lower()
+    n = name_key(name, company_name)
+    return f'{e}|{n}' if e and n else ''
 
 
 def dedup_key_name(name, company_name, city):
@@ -372,7 +410,7 @@ class PromoterIndex:
 class ExistingIndex:
     """Índices em memória das agências atuais, p/ achar duplicidade em O(1)."""
     def __init__(self):
-        self.by_cnpj, self.by_cpf, self.by_email, self.by_name = {}, {}, {}, {}
+        self.by_cnpj, self.by_cpf, self.by_email_name, self.by_name = {}, {}, {}, {}
         qs = (Agency.objects.filter(is_deleted=False).exclude(status='rascunho')
                     .values('id', 'cnpj', 'cpf', 'email', 'name', 'company_name', 'city'))
         for r in qs:
@@ -380,19 +418,25 @@ class ExistingIndex:
                 self.by_cnpj.setdefault(only_digits(r['cnpj']), r['id'])
             if r['cpf']:
                 self.by_cpf.setdefault(only_digits(r['cpf']), r['id'])
-            if r['email']:
-                self.by_email.setdefault(r['email'].strip().lower(), r['id'])
+            key = email_name_key(r['email'], r['name'], r['company_name'])
+            if key:
+                self.by_email_name.setdefault(key, r['id'])
             self.by_name.setdefault(
                 dedup_key_name(r['name'], r['company_name'], r['city']), r['id'])
 
     def find_strong(self, n):
-        """Match forte por identificador (CNPJ > CPF > e-mail)."""
+        """Match forte por identificador (CNPJ > CPF > e-mail+nome).
+
+        E-mail SOZINHO não identifica agência: o mesmo e-mail aparece em
+        filiais da mesma rede e em agências diferentes do mesmo dono. Ver
+        `email_name_key`."""
         if n['cnpj'] and n['cnpj'] in self.by_cnpj:
             return self.by_cnpj[n['cnpj']], 'CNPJ'
         if n['cpf'] and n['cpf'] in self.by_cpf:
             return self.by_cpf[n['cpf']], 'CPF'
-        if n['email'] and n['email'] in self.by_email:
-            return self.by_email[n['email']], 'e-mail'
+        key = email_name_key(n['email'], n['name'], n['company_name'])
+        if key and key in self.by_email_name:
+            return self.by_email_name[key], 'e-mail e nome'
         return None, ''
 
     def find_name(self, n):
@@ -411,12 +455,22 @@ def analyze_rows(raw_rows):
     idx = ExistingIndex()
     promoters = PromoterIndex()
     results = []
-    seen_strong = {}   # duplicidade DENTRO do arquivo (mesmo identificador)
-    counts = {'new': 0, 'update': 0, 'duplicate': 0, 'error': 0, 'total': 0}
+    seen_strong = {}   # identificador → linha (duplicidade DENTRO do arquivo)
+    seen_email  = {}   # e-mail → linha (só aviso: e-mail é compartilhado)
+    seen_target = {}   # id de agência existente → linha (evita sobrescrita)
+    counts = {'new': 0, 'update': 0, 'duplicate': 0, 'error': 0, 'total': 0,
+              'corrupted_docs': 0}
 
     for i, raw in enumerate(raw_rows):
         line = i + 2  # +1 header, +1 base-1
         normalized, errors, warnings = normalize_row(raw)
+
+        if raw.get('_ncols'):
+            got, expected = raw['_ncols']
+            errors.append(
+                f'Linha malformada: {got} colunas, mas o cabeçalho tem {expected} — '
+                f'os campos estão deslocados (aspas ou separador sobrando no meio '
+                f'de um texto). Corrija esta linha no arquivo e importe de novo.')
 
         # Promotor: resolve por nome contra os usuários-promotores.
         promoter_id = None
@@ -429,19 +483,46 @@ def analyze_rows(raw_rows):
 
         existing_id, matched_by = idx.find_strong(normalized)
 
-        # Duplicidade dentro do próprio arquivo: cada identificador forte
-        # (CNPJ, CPF e e-mail) é checado separadamente.
+        # Duplicidade dentro do próprio arquivo. Só bloqueia quando as duas
+        # linhas são MESMO o mesmo cadastro: mesmo CNPJ, mesmo CPF, ou mesmo
+        # e-mail COM o mesmo nome. E-mail sozinho não conta — matriz e filial
+        # compartilham e-mail, e um dono com duas agências também.
         if not errors:
-            for kind in ('cnpj', 'cpf', 'email'):
-                val = normalized[kind]
-                if not val:
+            keys = [('CNPJ', f'cnpj:{normalized["cnpj"]}' if normalized['cnpj'] else ''),
+                    ('CPF', f'cpf:{normalized["cpf"]}' if normalized['cpf'] else ''),
+                    ('e-mail e nome',
+                     f'en:{email_name_key(normalized["email"], normalized["name"], normalized["company_name"])}'
+                     if email_name_key(normalized['email'], normalized['name'],
+                                       normalized['company_name']) else '')]
+            for label, key in keys:
+                if not key:
                     continue
-                key = f'{kind}:{val}'
                 if key in seen_strong:
                     errors.append(
-                        f'Linha duplicada no arquivo (mesmo {kind.upper() if kind != "email" else "e-mail"} da linha {seen_strong[key]}).')
+                        f'Linha duplicada no arquivo (mesmo {label} da linha {seen_strong[key]}).')
                     break
                 seen_strong[key] = line
+
+        # Duas linhas caindo sobre a MESMA agência já cadastrada: a segunda
+        # sobrescreveria a primeira em silêncio.
+        if not errors and existing_id:
+            if existing_id in seen_target:
+                errors.append(
+                    f'Esta linha e a linha {seen_target[existing_id]} atualizariam a mesma '
+                    f'agência já cadastrada (casaram por {matched_by}) — mantenha só uma.')
+            else:
+                seen_target[existing_id] = line
+
+        # E-mail repetido com nome diferente: legítimo (filial, mesmo dono),
+        # mas vale o aviso para o operador conferir.
+        if not errors and normalized['email']:
+            other = seen_email.get(normalized['email'])
+            if other:
+                warnings.append(
+                    f'Mesmo e-mail da linha {other}, com nome diferente — '
+                    f'serão duas agências. Se for a mesma, remova uma.')
+            else:
+                seen_email[normalized['email']] = line
 
         # `matched_by` explica POR QUE a linha casou com um cadastro existente.
         # Fica num campo próprio (não em warnings): o selo da linha já diz
@@ -460,6 +541,8 @@ def analyze_rows(raw_rows):
 
         counts[action] += 1
         counts['total'] += 1
+        if normalized['doc_corrupted']:
+            counts['corrupted_docs'] += 1
         results.append({
             'line': line,
             'raw': raw,

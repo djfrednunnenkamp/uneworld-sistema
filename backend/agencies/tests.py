@@ -327,3 +327,66 @@ class AgencyCsvImportTest(APITestCase):
         r = self.client.get('/api/agencies/template/')
         self.assertEqual(r.status_code, 200)
         self.assertIn('Nome Fantasia', r.content.decode('utf-8-sig'))
+
+    # ── E-mail compartilhado ────────────────────────────────────────────────
+    # Uma pessoa registra várias agências com o mesmo e-mail, e matriz/filial
+    # também dividem o contato. E-mail sozinho, portanto, NÃO identifica
+    # agência: só vale como identificador junto com o nome.
+
+    def test_same_email_different_name_are_two_agencies(self):
+        self.client.force_authenticate(self.importer)
+        rows = ['Kayser Viagens - Unidade Feliz;;kayser@x.com;;;12%;Sim;Feliz;RS;;',
+                'Kayser Viagens - Unidade Nova Petrópolis;;kayser@x.com;;;12%;Sim;'
+                'Nova Petrópolis;RS;;']
+        r = self._analyze(_import_csv(rows))
+        self.assertEqual(r.status_code, 200)
+        out = {x['line']: x for x in r.data['rows']}
+        self.assertEqual(out[2]['action'], 'new')
+        self.assertEqual(out[3]['action'], 'new')          # não bloqueia
+        self.assertTrue(any('Mesmo e-mail da linha 2' in w for w in out[3]['warnings']))
+
+    def test_same_email_same_name_is_duplicate(self):
+        self.client.force_authenticate(self.importer)
+        rows = ['MECATUR VIAGENS LTDA;;rodrigo@x.com;;;12%;Sim;São Paulo;SP;;',
+                'Mecatur Viagens;;rodrigo@x.com;;;12%;Sim;Cotia;SP;;']
+        r = self._analyze(_import_csv(rows))
+        out = {x['line']: x for x in r.data['rows']}
+        self.assertEqual(out[2]['action'], 'new')
+        self.assertEqual(out[3]['action'], 'error')        # "Ltda" não faz diferença
+        self.assertIn('duplicada no arquivo', out[3]['errors'][0])
+
+    def test_email_alone_does_not_match_existing(self):
+        """Cadastro existente só casa por e-mail se o nome também bater."""
+        self.client.force_authenticate(self.importer)
+        Agency.objects.create(name='MAP Turismo', email='adriana@x.com', city='Piraquara')
+        rows = ['Via Map Viagens;;adriana@x.com;;;12%;Sim;Curitiba;PR;;',
+                'Map Turismo Ltda;;adriana@x.com;;;12%;Sim;Piraquara;PR;;']
+        r = self._analyze(_import_csv(rows))
+        out = {x['line']: x for x in r.data['rows']}
+        self.assertEqual(out[2]['action'], 'new')          # outro nome → outra agência
+        self.assertEqual(out[3]['action'], 'update')       # mesmo nome → é ela
+        self.assertEqual(out[3]['matched_by'], 'e-mail e nome')
+
+    def test_two_rows_cannot_overwrite_the_same_agency(self):
+        """Duas linhas que casam com o MESMO cadastro por caminhos diferentes
+        (uma pelo CNPJ, outra por e-mail+nome): a segunda apagaria a primeira."""
+        self.client.force_authenticate(self.importer)
+        Agency.objects.create(name='Ag Um', cnpj=VALID_CNPJ, email='um@x.com')
+        rows = [f'Ag Um;;novo@x.com;{VALID_CNPJ};;12%;Sim;POA;RS;;',
+                'Ag Um;;um@x.com;;;20%;Sim;POA;RS;;']
+        r = self._analyze(_import_csv(rows))
+        out = {x['line']: x for x in r.data['rows']}
+        self.assertEqual(out[2]['action'], 'update')
+        self.assertEqual(out[3]['action'], 'error')
+        self.assertIn('mesma agência', ' '.join(out[3]['errors']))
+
+    def test_misaligned_row_is_rejected(self):
+        """Linha com menos colunas que o cabeçalho tem os campos deslocados."""
+        self.client.force_authenticate(self.importer)
+        rows = ['Ag Boa;Boa Ltda;boa@x.com;;;12%;Sim;POA;RS;;',
+                'Ag Torta;90020-022;Rua X;PORTO ALEGRE;RS']
+        r = self._analyze(_import_csv(rows))
+        out = {x['line']: x for x in r.data['rows']}
+        self.assertEqual(out[2]['action'], 'new')
+        self.assertEqual(out[3]['action'], 'error')
+        self.assertIn('malformada', out[3]['errors'][0])
