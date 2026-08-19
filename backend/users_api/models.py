@@ -170,6 +170,7 @@ class UserPermissions(models.Model):
     financeiro_payables    = models.BooleanField(default=False)  # aba "Contas a pagar" (custos internos; exige view)
     financeiro_cashflow    = models.BooleanField(default=False)  # aba "Fluxo de caixa" (exige view)
     financeiro_past        = models.BooleanField(default=False)  # ver datas passadas (vencidos/histórico); senão só de hoje em diante
+    financeiro_settle      = models.BooleanField(default=False)  # dar BAIXA na parcela (marcar recebido/não recebido) — ver ≠ mexer no dinheiro
 
     # Roteiros — Ver a lista → Abrir (só leitura) → Editar → Criar
     roteiros_view      = models.BooleanField(default=False)   # ver a LISTA de roteiros

@@ -350,3 +350,85 @@ class EtapaDoContratoNosRecebiveisTest(TestCase):
 
     def test_etapas_soltas_ainda_mandam_mais_que_o_corte(self):
         self.assertEqual(self.total({'stages': ['em_edicao'], 'from_stage': 'assinado'}), Decimal('90'))
+
+
+class SettleReceivableTest(APITestCase):
+    """Baixa da parcela: é ela que define 'recebido' de verdade."""
+
+    def setUp(self):
+        S.clear_rate_cache()
+        self.today = S.today()
+        self.ag = Agency.objects.create(name='AgBaixa')
+        self.c = Contract.objects.create(base_currency='USD', agency=self.ag, exchange_rate=Decimal('5'),
+                                         stage='assinado', status='ativo', payment_type='parcelado',
+                                         reservation_number='000900')
+        self.inst = ContractInstallment.objects.create(
+            contract=self.c, kind='entrada', due_date=self.today,
+            value_brl=Decimal('1000'), payment_method='Pix')
+        self.url = f'/api/financeiro/receivables/{self.inst.id}/settle/'
+
+    def _user(self, name, **perms):
+        return make_user(name, financeiro_view=True, financeiro_receivables=True, **perms)
+
+    def test_settle_requires_permission(self):
+        self.client.force_authenticate(self._user('semsettle'))   # vê, mas não baixa
+        r = self.client.post(self.url, {'received': True}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.inst.refresh_from_db()
+        self.assertIsNone(self.inst.received_at)
+
+    def test_settle_marks_received_and_undo(self):
+        u = self._user('baixador', financeiro_settle=True)
+        self.client.force_authenticate(u)
+        r = self.client.post(self.url, {'received': True, 'note': 'Pix caiu'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.inst.refresh_from_db()
+        self.assertEqual(self.inst.received_at, self.today)
+        self.assertEqual(self.inst.received_by_id, u.id)
+        self.assertEqual(self.inst.received_note, 'Pix caiu')
+        # a parcela some do "pendente" e entra no recebido do mês
+        rep = S.receivables_report(make_user('leitor', superuser=True), {})
+        self.assertEqual(Decimal(rep['cards']['pendente']), Decimal('0.00'))
+        self.assertEqual(rep['detail'][0]['received_real'], True)
+        # desfazer volta tudo ao previsto
+        r = self.client.post(self.url, {'received': False}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.inst.refresh_from_db()
+        self.assertIsNone(self.inst.received_at)
+        self.assertEqual(self.inst.received_note, '')
+        rep = S.receivables_report(make_user('leitor2', superuser=True), {})
+        self.assertEqual(Decimal(rep['cards']['pendente']), Decimal('1000.00'))
+
+    def test_settle_with_different_value_counts_what_entered(self):
+        """A adquirente depositou menos do que o previsto: vale o extrato."""
+        self.client.force_authenticate(self._user('baixador2', financeiro_settle=True))
+        r = self.client.post(self.url, {'received': True, 'value': '950,40'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.inst.refresh_from_db()
+        self.assertEqual(self.inst.received_value_brl, Decimal('950.40'))
+        rep = S.receivables_report(make_user('leitor3', superuser=True), {})
+        self.assertEqual(Decimal(rep['cards']['recebido_mes']), Decimal('950.40'))
+
+    def test_settle_rejects_bad_input(self):
+        self.client.force_authenticate(self._user('baixador3', financeiro_settle=True))
+        self.assertEqual(self.client.post(self.url, {'received': True, 'date': '31/02/2026'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(self.url, {'received': True, 'value': 'abc'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(self.url, {'received': True, 'value': '-5'}, format='json').status_code, 400)
+        self.inst.refresh_from_db()
+        self.assertIsNone(self.inst.received_at)
+
+    def test_agency_user_cannot_settle_other_agency(self):
+        outra = Agency.objects.create(name='OutraBaixa')
+        u = make_user('agdeoutra', agency=outra, financeiro_view=True,
+                      financeiro_receivables=True, financeiro_settle=True)
+        self.client.force_authenticate(u)
+        r = self.client.post(self.url, {'received': True}, format='json')
+        self.assertEqual(r.status_code, 404)
+        self.inst.refresh_from_db()
+        self.assertIsNone(self.inst.received_at)
+
+    def test_settle_is_audited(self):
+        from audit.models import AuditLog
+        self.client.force_authenticate(self._user('baixador4', financeiro_settle=True))
+        self.client.post(self.url, {'received': True}, format='json')
+        self.assertTrue(AuditLog.objects.filter(model_name='ContractInstallment').exists())

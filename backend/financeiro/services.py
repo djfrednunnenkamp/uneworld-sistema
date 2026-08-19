@@ -166,13 +166,25 @@ def liquido_das_parcelas(rows):
 
 
 def _rec_status(inst, t):
-    # Aproximação (não há baixa por parcela): contrato faturado = recebido; senão
-    # vencido se passou da data; senão previsto.
+    """'recebido' | 'vencido' | 'previsto'.
+
+    A BAIXA manda: parcela com `received_at` é recebida, ponto. Sem baixa,
+    continua valendo a velha aproximação pelo estágio "faturado" do contrato —
+    ela existe porque a baixa é nova e o histórico não tem carimbo nenhum; o
+    campo `received_real` no detalhe diz qual dos dois respondeu.
+    """
+    if inst.received_at:
+        return 'recebido'
     if inst.contract.stage == 'faturado':
         return 'recebido'
     if inst.due_date and inst.due_date < t:
         return 'vencido'
     return 'previsto'
+
+
+def valor_recebido(inst, liquido_previsto):
+    "O que entrou de fato: o valor da baixa quando informado, senão o previsto."
+    return _d(inst.received_value_brl) if inst.received_value_brl is not None else liquido_previsto
 
 
 def receivables_report(user, f, limit=300, can_past=True):
@@ -202,8 +214,11 @@ def receivables_report(user, f, limit=300, can_past=True):
         by_method[method_of(inst)]['brl'] += v
         by_method[method_of(inst)]['count'] += 1
         if st == 'recebido':
-            if mes_ini <= inst.due_date <= t or inst.due_date.strftime('%Y-%m') == t.strftime('%Y-%m'):
-                cards['recebido_mes'] += v
+            # Com baixa, o mês do dinheiro é o da BAIXA (foi quando entrou), não
+            # o do vencimento; e o valor é o que entrou de fato.
+            quando = inst.received_at or inst.due_date
+            if quando.strftime('%Y-%m') == t.strftime('%Y-%m'):
+                cards['recebido_mes'] += valor_recebido(inst, v)
         else:
             cards['pendente'] += v
             if st == 'vencido':
@@ -235,6 +250,16 @@ def receivables_report(user, f, limit=300, can_past=True):
                 'fee_pct': str(pct) if pct is not None else None,
                 'fee_brl': str(fee) if pct is not None else None,
                 'gross_brl': str(bruto.quantize(CENT)),
+                'detail_text': inst.detail or '',
+                # Baixa: `received_real` separa o carimbo de verdade da
+                # aproximação pelo estágio do contrato.
+                'received_real': bool(inst.received_at),
+                'received_at': str(inst.received_at) if inst.received_at else None,
+                'received_value_brl': (str(_d(inst.received_value_brl).quantize(CENT))
+                                       if inst.received_value_brl is not None else None),
+                'received_note': inst.received_note or '',
+                'received_by': ((inst.received_by.first_name or inst.received_by.username)
+                                if inst.received_by_id else None),
             })
     # Quanto há em cada etapa, ignorando o filtro de etapa — é o que permite à
     # tela dizer o tamanho do que está de fora antes de a pessoa clicar.
@@ -267,7 +292,8 @@ def receivables_report(user, f, limit=300, can_past=True):
                          'que é o que de fato entra na conta.'),
         'note_taxas': ('A taxa do cartão é a da bandeira mais cara do gateway naquele plano — '
                        'a bandeira só se sabe quando o cliente passa o cartão.'),
-        'note_realizado': 'Recebido é aproximado pelo estágio "faturado" (não há baixa por parcela).',
+        'note_realizado': ('Recebido é a parcela com BAIXA (data de recebimento). Sem baixa, ainda vale '
+                           'a aproximação antiga pelo estágio "faturado" do contrato.'),
     }
 
 

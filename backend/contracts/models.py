@@ -279,6 +279,21 @@ class ContractInstallment(models.Model):
     payment_method     = models.CharField('Forma de pagamento', max_length=100, blank=True)
     order              = models.PositiveIntegerField('Ordem', default=0)
 
+    # ── Baixa (recebimento de verdade) ────────────────────────────────────────
+    # Enquanto `received_at` for nulo a parcela é PREVISÃO. Preenchido, ela é
+    # dinheiro que entrou: é o único carimbo que o Financeiro aceita como
+    # "recebido" de fato (antes disso ele só sabia aproximar pelo estágio
+    # "faturado" do contrato, que é o contrato inteiro, não a parcela).
+    received_at        = models.DateField('Recebido em', null=True, blank=True)
+    # Quanto entrou de verdade. Em branco = entrou o valor previsto (líquido).
+    # Existe para o caso comum de a adquirente depositar um valor diferente do
+    # estimado — a taxa real só se conhece no extrato.
+    received_value_brl = models.DecimalField('Valor recebido (BRL)', max_digits=12, decimal_places=2,
+                                             null=True, blank=True)
+    received_note      = models.CharField('Observação da baixa', max_length=300, blank=True)
+    received_by        = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                           related_name='installments_received', verbose_name='Baixado por')
+
     class Meta:
         ordering = ['order']
 
