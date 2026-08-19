@@ -380,6 +380,40 @@ class AgencyCsvImportTest(APITestCase):
         self.assertEqual(out[3]['action'], 'error')
         self.assertIn('mesma agência', ' '.join(out[3]['errors']))
 
+    # ── Modo excluir ────────────────────────────────────────────────────────
+
+    def _apply(self, rows, mode):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('a.csv', _import_csv(rows), content_type='text/csv')
+        return self.client.post('/api/agencies/import/apply/', {'file': f, 'mode': mode},
+                                format='multipart')
+
+    def test_delete_mode_requires_delete_permission(self):
+        Agency.objects.create(name='Ag Um', cnpj=VALID_CNPJ)
+        self.client.force_authenticate(self.importer)      # só agencies_import
+        r = self._apply([f'Ag Um;;;{VALID_CNPJ};;;Sim;POA;RS;;'], 'delete')
+        self.assertEqual(r.status_code, 403)
+        self.assertFalse(Agency.objects.get(name='Ag Um').is_deleted)
+
+    def test_delete_mode_soft_deletes_only_the_matched(self):
+        a = Agency.objects.create(name='Ag Um', cnpj=VALID_CNPJ)
+        outra = Agency.objects.create(name='Ag Dois', cnpj='11444777000161')
+        killer = _make_user('kill', agencies_view=True, agencies_import=True,
+                            agencies_delete=True)
+        self.client.force_authenticate(killer)
+        rows = [f'Ag Um;;;{VALID_CNPJ};;;Sim;POA;RS;;',
+                'Ag Inexistente;;nada@x.com;;;;Sim;POA;RS;;']
+        r = self._apply(rows, 'delete')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['deleted'], 1)
+        self.assertEqual(r.data['skipped'], 1)     # a que não existe é ignorada
+        self.assertEqual(r.data['created'], 0)     # modo excluir NÃO cria nada
+        a.refresh_from_db(); outra.refresh_from_db()
+        self.assertTrue(a.is_deleted)
+        self.assertIsNotNone(a.deleted_at)
+        self.assertFalse(outra.is_deleted)         # quem não está no arquivo não é tocado
+        self.assertEqual(Agency.objects.count(), 2)   # soft-delete: nada some do banco
+
     def test_misaligned_row_is_rejected(self):
         """Linha com menos colunas que o cabeçalho tem os campos deslocados."""
         self.client.force_authenticate(self.importer)

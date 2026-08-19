@@ -12,7 +12,7 @@ from audit.tracking import log_event
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from core.merge import MergeViewSetMixin
-from users_api.permissions import RequirePermission
+from users_api.permissions import RequirePermission, has_any_perm
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
 from .importer import (
@@ -326,10 +326,16 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
 
     @action(detail=False, methods=['post'], url_path='import/apply')
     def import_apply(self, request):
-        """Aplicação transacional da importação (create|upsert)."""
+        """Aplicação transacional da importação (create|upsert|delete)."""
         mode = (request.data.get('mode') or 'upsert').strip()
-        if mode not in ('create', 'upsert'):
+        if mode not in ('create', 'upsert', 'delete'):
             mode = 'upsert'
+        # Excluir pelo CSV é exclusão em massa: além de agencies_import, exige a
+        # MESMA permissão do botão de excluir da lista. Sem isso, quem só pode
+        # importar apagaria a base inteira por um caminho lateral.
+        if mode == 'delete' and not has_any_perm(request.user, 'agencies_delete'):
+            return Response(
+                {'error': 'Você não tem permissão para excluir agências.'}, status=403)
         raw_rows = request.data.get('rows')
         filename = (request.data.get('filename') or '').strip()
         if not isinstance(raw_rows, list) or not raw_rows:
@@ -346,7 +352,8 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
                   changes={'importacao': {
                       'arquivo': filename, 'modo': mode,
                       'total': summary['total'], 'criadas': summary['created'],
-                      'atualizadas': summary['updated'], 'ignoradas': summary['skipped'],
+                      'atualizadas': summary['updated'], 'excluidas': summary['deleted'],
+                      'ignoradas': summary['skipped'],
                       'duplicadas': summary['duplicated'], 'erros': summary['errors'],
                   }},
                   user=request.user)

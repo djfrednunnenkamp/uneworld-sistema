@@ -18,6 +18,7 @@ import re
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
+from django.utils import timezone
 
 # Helpers puros compartilhados com o importador de fornecedores.
 from fornecedores.normalize import (
@@ -572,9 +573,11 @@ EDITABLE = [
 
 @transaction.atomic
 def apply_rows(raw_rows, mode, user):
-    """Aplica a importação. mode ∈ {'create','upsert'}:
+    """Aplica a importação. mode ∈ {'create','upsert','delete'}:
       - create → cria só as novas (ignora existentes)
       - upsert → cria novas e atualiza as que casaram por identificador forte
+      - delete → NÃO cria nada; manda para a lixeira as agências do arquivo que
+                 casaram com um cadastro existente (soft-delete, reversível)
 
     Transacional: erro geral desfaz tudo. Linhas com erro são puladas. Cada
     gravação passa pelo save() normal → auditada automaticamente (origem CSV
@@ -582,7 +585,7 @@ def apply_rows(raw_rows, mode, user):
     agência (isso é só do fluxo de cadastro manual). Retorna o resumo.
     """
     results, _counts = analyze_rows(raw_rows)
-    summary = {'total': len(results), 'created': 0, 'updated': 0,
+    summary = {'total': len(results), 'created': 0, 'updated': 0, 'deleted': 0,
                'skipped': 0, 'duplicated': 0, 'errors': 0, 'error_rows': []}
 
     for r in results:
@@ -594,6 +597,22 @@ def apply_rows(raw_rows, mode, user):
                 'name': n.get('name') or n.get('company_name') or '',
                 'errors': r['errors'],
             })
+            continue
+
+        # Modo excluir: só mexe em quem foi encontrado; o resto é ignorado
+        # (não existe "excluir uma agência que não está cadastrada").
+        if mode == 'delete':
+            if action != 'update':
+                summary['skipped'] += 1
+                continue
+            obj = Agency.objects.filter(pk=r['existing_id'], is_deleted=False).first()
+            if not obj:
+                summary['skipped'] += 1
+                continue
+            obj.is_deleted = True
+            obj.deleted_at = timezone.now()
+            obj.save(update_fields=['is_deleted', 'deleted_at'])
+            summary['deleted'] += 1
             continue
 
         commission = Decimal(n['commission_rate']) if n['commission_rate'] else None
