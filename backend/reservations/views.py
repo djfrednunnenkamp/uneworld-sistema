@@ -119,8 +119,18 @@ class ReservationViewSet(viewsets.ModelViewSet):
                        passenger__isnull=False, passenger__is_deleted=False)
                .count())
         avail = max(0, int(seats) - pax)
+        # O que outras reservas JÁ seguram sai da conta — senão o servidor
+        # aceitaria de novo a mesma vaga que o hub já mostra como tomada (e a
+        # tela ficava mais rígida que a regra, o que é pior do que o contrário:
+        # ninguém confia num limite que muda de lugar).
+        from django.db.models import Sum
+        held = (Reservation.objects
+                .filter(itinerary=itinerary, is_deleted=False, status__in=('pendente', 'paga'))
+                .exclude(status='pendente', expires_at__isnull=False, expires_at__lte=timezone.now())
+                .aggregate(n=Sum('pax'))['n'] or 0)
+        livre = max(0, avail - int(held))
         pct = min(100.0, on + im) if rtype == 'pagamento_imediato' else on
-        return min(avail, round(avail * pct / 100.0))
+        return min(livre, max(0, round(avail * pct / 100.0) - int(held)))
 
     def perform_create(self, serializer):
         from config_api.models import ReservationSettings
