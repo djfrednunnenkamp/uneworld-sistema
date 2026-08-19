@@ -145,6 +145,26 @@ def receivables_qs(user, f):
     return qs
 
 
+def liquido_das_parcelas(rows):
+    """{id da parcela: (bruto, taxa, liquido)} — o financeiro trabalha com o
+    LÍQUIDO.
+
+    O que entra em caixa é o que o cliente paga menos o que a adquirente
+    desconta. Somar o bruto em qualquer lugar (cartão, gráfico, fluxo de caixa)
+    é prometer um dinheiro que não chega.
+    """
+    from contracts.card_payment import e_cartao, taxas_dos_contratos
+    taxas = taxas_dos_contratos({i.contract_id for i in rows})
+    saida = {}
+    for inst in rows:
+        bruto = _d(inst.value_brl)
+        info = taxas.get(inst.contract_id) if e_cartao(inst.payment_method) else None
+        pct = info['pct'] if info else None
+        taxa = (bruto * pct / 100).quantize(CENT) if pct is not None else Decimal('0')
+        saida[inst.id] = (bruto, taxa, bruto - taxa, pct, (info or {}).get('gateway'))
+    return saida
+
+
 def _rec_status(inst, t):
     # Aproximação (não há baixa por parcela): contrato faturado = recebido; senão
     # vencido se passou da data; senão previsto.
@@ -161,10 +181,9 @@ def receivables_report(user, f, limit=300, can_past=True):
     rows = list(receivables_qs(user, f))
     method_of = lambda i: (i.payment_method or i.contract.payment_type or '—')
     # Cartão: o que entra em caixa é o valor MENOS a taxa da adquirente.
-    from contracts.card_payment import e_cartao, taxas_dos_contratos
-    taxas = taxas_dos_contratos({i.contract_id for i in rows})
+    liquidos = liquido_das_parcelas(rows)
     cards = {k: Decimal('0') for k in ('hoje', 'd7', 'mes', 'prox_mes', 'ano', 'recebido_mes', 'pendente', 'vencido',
-                                      'taxas', 'liquido')}
+                                      'taxas', 'bruto')}
     by_month = defaultdict(lambda: {'previsto': Decimal('0'), 'recebido': Decimal('0'), 'vencido': Decimal('0')})
     by_method = defaultdict(lambda: {'brl': Decimal('0'), 'count': 0})
     mes_ini = t.replace(day=1)
@@ -173,15 +192,11 @@ def receivables_report(user, f, limit=300, can_past=True):
     fim_ano = date(t.year, 12, 31)
     detail = []
     for inst in rows:
-        v = _d(inst.value_brl)
+        bruto, fee, v, pct, gateway = liquidos[inst.id]
+        # `v` é o LÍQUIDO: daqui para baixo, todo total do financeiro usa ele.
         st = _rec_status(inst, t)
-        # Taxa da adquirente: só nas parcelas pagas no cartão, e só quando o
-        # financeiro já escolheu por qual gateway a venda passa.
-        taxa = taxas.get(inst.contract_id) if e_cartao(inst.payment_method) else None
-        pct = taxa['pct'] if taxa else None
-        fee = (v * pct / 100).quantize(CENT) if pct is not None else Decimal('0')
         cards['taxas'] += fee
-        cards['liquido'] += v - fee
+        cards['bruto'] += bruto
         mkey = inst.due_date.strftime('%Y-%m')
         by_month[mkey][st if st != 'recebido' else 'recebido'] += v
         by_method[method_of(inst)]['brl'] += v
@@ -216,20 +231,24 @@ def receivables_report(user, f, limit=300, can_past=True):
                 'passengers': c.guests.count(), 'stage': c.stage,
                 # Por onde a venda passa e o que ela custa. `gateway` é None
                 # quando a forma não é cartão (boleto, Pix: sem taxa aqui).
-                'gateway': (taxa or {}).get('gateway'),
+                'gateway': gateway,
                 'fee_pct': str(pct) if pct is not None else None,
                 'fee_brl': str(fee) if pct is not None else None,
-                'net_brl': str((v - fee).quantize(CENT)),
+                'gross_brl': str(bruto.quantize(CENT)),
             })
     # Quanto há em cada etapa, ignorando o filtro de etapa — é o que permite à
     # tela dizer o tamanho do que está de fora antes de a pessoa clicar.
-    from django.db.models import Count, Sum
     sem_etapa = dict(f); sem_etapa['stages'] = None; sem_etapa['from_stage'] = None; sem_etapa['a_caminho'] = True
-    por_etapa = {r['contract__stage']: r for r in receivables_qs(user, sem_etapa)
-                 .values('contract__stage').annotate(brl=Sum('value_brl'), n=Count('id'))}
-    stage_totals = [{'stage': etapa, 'brl': str(_d(dados['brl']).quantize(CENT)), 'count': dados['n'],
+    todas = list(receivables_qs(user, sem_etapa))
+    liq_todas = liquido_das_parcelas(todas)
+    por_etapa = defaultdict(lambda: {'brl': Decimal('0'), 'n': 0})
+    for inst in todas:
+        e = por_etapa[inst.contract.stage]
+        e['brl'] += liq_todas[inst.id][2]      # líquido, como todo o resto
+        e['n'] += 1
+    stage_totals = [{'stage': etapa, 'brl': str(dados['brl'].quantize(CENT)), 'count': dados['n'],
                      'firmado': etapa in STAGES_FIRMADOS}
-                    for etapa, dados in sorted(por_etapa.items(), key=lambda kv: -_d(kv[1]['brl']))]
+                    for etapa, dados in sorted(por_etapa.items(), key=lambda kv: -kv[1]['brl'])]
 
     timeline = [{'month': m, **{k: str(v.quantize(CENT)) for k, v in by_month[m].items()}}
                 for m in sorted(by_month)]
@@ -244,6 +263,8 @@ def receivables_report(user, f, limit=300, can_past=True):
         'stage_order': list(ORDEM_DAS_ETAPAS),
         'note_etapas': ('Por padrão só entram contratos assinados — antes da assinatura a parcela '
                         'ainda é intenção, não dinheiro a receber.'),
+        'note_liquido': ('Todos os totais são LÍQUIDOS: o valor já vem menos a taxa da adquirente, '
+                         'que é o que de fato entra na conta.'),
         'note_taxas': ('A taxa do cartão é a da bandeira mais cara do gateway naquele plano — '
                        'a bandeira só se sabe quando o cliente passa o cartão.'),
         'note_realizado': 'Recebido é aproximado pelo estágio "faturado" (não há baixa por parcela).',
@@ -373,9 +394,12 @@ def cashflow_report(user, f, opening=Decimal('0'), can_past=True):
     # Reusa os agregados mensais dos dois lados.
     t = today()
     rec_rows = list(receivables_qs(user, f))
+    # O que entra é o líquido: o bruto no fluxo de caixa promete um dinheiro
+    # que a adquirente já reteve.
+    liq = liquido_das_parcelas(rec_rows)
     inflow = defaultdict(Decimal)
     for inst in rec_rows:
-        inflow[inst.due_date.strftime('%Y-%m')] += _d(inst.value_brl)
+        inflow[inst.due_date.strftime('%Y-%m')] += liq[inst.id][2]
     pay = payables_rows(user, f)
     outflow = defaultdict(Decimal)
     no_fx = Decimal('0')

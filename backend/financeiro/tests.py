@@ -252,12 +252,24 @@ class TaxaDoCartaoNosRecebiveisTest(TestCase):
             self.assertEqual(l['gateway'], 'Stone')
             self.assertEqual(Decimal(l['fee_pct']), Decimal('5'))   # a bandeira mais cara
             self.assertEqual(Decimal(l['fee_brl']), Decimal('50'))
-            self.assertEqual(Decimal(l['net_brl']), Decimal('950'))
+            self.assertEqual(Decimal(l['gross_brl']), Decimal('1000'))
+            # `value_brl` é o LÍQUIDO: é o número que o financeiro usa em tudo.
+            self.assertEqual(Decimal(l['value_brl']), Decimal('950'))
 
-    def test_o_caixa_mostra_o_liquido_e_o_que_ficou_com_a_adquirente(self):
+    def test_os_totais_sao_liquidos(self):
         cards = self.relatorio()['cards']
+        self.assertEqual(Decimal(cards['bruto']), Decimal('2000'))
         self.assertEqual(Decimal(cards['taxas']), Decimal('100'))
-        self.assertEqual(Decimal(cards['liquido']), Decimal('1900'))
+        self.assertEqual(Decimal(cards['pendente']), Decimal('1900'))   # bruto − taxas
+
+    def test_o_grafico_por_mes_tambem_e_liquido(self):
+        mes = self.relatorio()['timeline'][0]
+        self.assertEqual(Decimal(mes['previsto']) + Decimal(mes['vencido']), Decimal('1900'))
+
+    def test_a_distribuicao_por_forma_tambem_e_liquida(self):
+        forma = self.relatorio()['methods'][0]
+        self.assertEqual(forma['method'], 'Cartão de crédito')
+        self.assertEqual(Decimal(forma['brl']), Decimal('1900'))
 
     def test_boleto_nao_tem_taxa_nem_gateway(self):
         from contracts.models import ContractInstallment
@@ -265,14 +277,14 @@ class TaxaDoCartaoNosRecebiveisTest(TestCase):
         l = self.relatorio()['detail'][0]
         self.assertIsNone(l['gateway'])
         self.assertIsNone(l['fee_pct'])
-        self.assertEqual(Decimal(l['net_brl']), Decimal('1000'))    # líquido = bruto
+        self.assertEqual(Decimal(l['value_brl']), Decimal('1000'))    # líquido = bruto
 
     def test_sem_gateway_escolhido_nao_se_inventa_taxa(self):
         self.ct.payment_gateway = None
         self.ct.save(update_fields=['payment_gateway'])
         l = self.relatorio()['detail'][0]
         self.assertIsNone(l['fee_pct'])
-        self.assertEqual(Decimal(l['net_brl']), Decimal('1000'))
+        self.assertEqual(Decimal(l['value_brl']), Decimal('1000'))
 
     def test_plano_sem_taxa_cadastrada_nao_inventa(self):
         """Contrato em 2x num gateway que só tem tabela de 1x."""
@@ -280,6 +292,11 @@ class TaxaDoCartaoNosRecebiveisTest(TestCase):
         l = self.relatorio()['detail'][0]
         self.assertEqual(l['gateway'], 'Stone')     # o gateway continua sendo dito
         self.assertIsNone(l['fee_pct'])
+
+    def test_o_fluxo_de_caixa_recebe_o_liquido(self):
+        from financeiro.services import cashflow_report
+        entradas = sum(Decimal(m['in']) for m in cashflow_report(self.user, {})['series'])
+        self.assertEqual(entradas, Decimal('1900'))
 
 
 class EtapaDoContratoNosRecebiveisTest(TestCase):
