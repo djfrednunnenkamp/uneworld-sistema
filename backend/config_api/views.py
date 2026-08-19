@@ -2,6 +2,8 @@ import csv
 import io
 import re
 import requests
+from decimal import Decimal, InvalidOperation
+
 from django.db import transaction
 from django.db.models import Q, Count
 from django.http import StreamingHttpResponse, HttpResponse
@@ -25,6 +27,7 @@ from .models import (ConfigProfession, ConfigSpecialNeed, ConfigLanguage, Config
                      ConfigInclusion, ConfigHighlight, ConfigSpecialDate,
                      ConfigHotel, ConfigHotelCategory, ConfigHotelMedia, ConfigBoat, ConfigBoatMedia,
                      ConfigTerrestreCompany, DocumentTemplateConfig, ConfigJobRole, ReservationSettings, AIConnector,
+                     CardBrand, PaymentGateway, GatewayFee,
 )
 from users_api.permissions import RequirePermission
 from core.soft_delete import SoftDeleteViewSetMixin
@@ -1416,6 +1419,130 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentMethodSerializer
     pagination_class = None
     get_permissions = _settings_perm('settings_payment_methods')
+
+
+# ── Cartão: bandeiras, gateways e taxas ─────────────────────────────────────
+
+class CardBrandSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = CardBrand
+        fields = ['id', 'name', 'is_active', 'order']
+
+
+class CardBrandViewSet(viewsets.ModelViewSet):
+    queryset = CardBrand.objects.all()
+    serializer_class = CardBrandSerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_payment_methods')
+
+
+class GatewayFeeSerializer(serializers.ModelSerializer):
+    brand_name = serializers.CharField(source='brand.name', read_only=True)
+
+    class Meta:
+        model  = GatewayFee
+        fields = ['id', 'gateway', 'brand', 'brand_name', 'installments', 'percent']
+
+
+class PaymentGatewaySerializer(serializers.ModelSerializer):
+    """O gateway já vem com as taxas: é a tabela inteira que interessa, e quem
+    lê (a tela de configuração e o site) sempre quer as duas coisas juntas."""
+    fees = GatewayFeeSerializer(many=True, read_only=True)
+    fee_count = serializers.SerializerMethodField()
+
+    def get_fee_count(self, obj):
+        return obj.fees.count()
+
+    class Meta:
+        model  = PaymentGateway
+        fields = ['id', 'name', 'is_active', 'notes', 'order', 'fees', 'fee_count']
+
+
+class PaymentGatewayViewSet(viewsets.ModelViewSet):
+    queryset = PaymentGateway.objects.prefetch_related('fees__brand').all()
+    serializer_class = PaymentGatewaySerializer
+    pagination_class = None
+    get_permissions = _settings_perm('settings_payment_methods')
+
+    @action(detail=True, methods=['put'], url_path='fees')
+    def set_fees(self, request, pk=None):
+        """Troca a tabela inteira de um gateway.
+
+        Substituir tudo (em vez de mexer linha a linha) é o que casa com a
+        origem do dado: a adquirente manda a tabela nova por inteiro quando o
+        contrato muda, e uma tabela meio velha meio nova não existe no mundo
+        real. Corpo: [{'brand': <id|nome>, 'installments': n, 'percent': x}, …]"""
+        gw = self.get_object()
+        linhas = request.data if isinstance(request.data, list) else request.data.get('fees') or []
+        objetos, erros = [], []
+        for i, linha in enumerate(linhas, start=1):
+            marca = linha.get('brand')
+            brand = (CardBrand.objects.filter(pk=marca).first() if str(marca).isdigit()
+                     else CardBrand.objects.filter(name__iexact=str(marca or '').strip()).first())
+            if brand is None:
+                erros.append(f'Linha {i}: bandeira "{marca}" não existe.')
+                continue
+            try:
+                parcelas = int(linha.get('installments'))
+                pct = Decimal(str(linha.get('percent')))
+            except (TypeError, ValueError, InvalidOperation):
+                erros.append(f'Linha {i}: parcelas/percentual inválidos.')
+                continue
+            objetos.append(GatewayFee(gateway=gw, brand=brand, installments=parcelas, percent=pct))
+        if erros:
+            return Response({'error': ' '.join(erros)}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            gw.fees.all().delete()
+            GatewayFee.objects.bulk_create(objetos)
+        return Response(PaymentGatewaySerializer(gw).data)
+
+    @action(detail=False, methods=['post'], url_path='import-csv',
+            parser_classes=[MultiPartParser, FormParser])
+    def import_csv(self, request):
+        """Importa o CSV que as adquirentes mandam (ver config_api/card_fees.py).
+
+        Cada tabela do arquivo vira um gateway e substitui a tabela dele —
+        importar de novo o mesmo arquivo dá exatamente o mesmo resultado. As
+        bandeiras que ainda não existem são criadas: obrigar a cadastrá-las
+        antes seria pedir para digitar o que o arquivo já diz."""
+        arquivo = request.FILES.get('file')
+        if not arquivo:
+            return Response({'error': 'Envie o arquivo CSV.'}, status=status.HTTP_400_BAD_REQUEST)
+        bruto = arquivo.read()
+        try:
+            texto = bruto.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            # As planilhas das adquirentes costumam vir em latin-1.
+            texto = bruto.decode('latin-1')
+
+        from .card_fees import ler_tabela_de_taxas
+        tabelas, avisos = ler_tabela_de_taxas(texto)
+        if not tabelas:
+            return Response({'error': 'Não encontrei nenhuma tabela de taxas neste arquivo.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        criados, atualizados, total = 0, 0, 0
+        with transaction.atomic():
+            for ordem, t in enumerate(tabelas):
+                gw, novo = PaymentGateway.objects.get_or_create(
+                    name=t['name'], defaults={'order': ordem})
+                criados += 1 if novo else 0
+                atualizados += 0 if novo else 1
+                gw.fees.all().delete()
+                linhas = []
+                for f in t['fees']:
+                    brand, _ = CardBrand.objects.get_or_create(
+                        name=f['brand'], defaults={'order': 0})
+                    linhas.append(GatewayFee(gateway=gw, brand=brand,
+                                             installments=f['installments'], percent=f['percent']))
+                GatewayFee.objects.bulk_create(linhas)
+                total += len(linhas)
+        return Response({
+            'gateways_criados': criados, 'gateways_atualizados': atualizados,
+            'taxas': total, 'avisos': avisos,
+            'gateways': PaymentGatewaySerializer(
+                PaymentGateway.objects.prefetch_related('fees__brand').all(), many=True).data,
+        })
 
 
 class PaymentPlanSerializer(serializers.ModelSerializer):

@@ -1139,3 +1139,66 @@ class DocumentTemplateConfig(models.Model):
 
     def __str__(self):
         return f'{self.document_type}:{self.model_code} v{self.version}'
+
+
+# ── Cartão: bandeiras aceitas, gateways e as taxas de cada um ────────────────
+
+class CardBrand(models.Model):
+    """Bandeira de cartão que a operadora aceita (Visa, Mastercard, Elo…).
+
+    É cadastro, e não uma lista fixa no código, porque quem aceita o quê muda de
+    operadora para operadora e de contrato de adquirência para contrato."""
+    name      = models.CharField('Bandeira', max_length=60, unique=True)
+    is_active = models.BooleanField('Aceita', default=True)
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'Bandeira de cartão'
+        verbose_name_plural = 'Bandeiras de cartão'
+
+    def __str__(self):
+        return self.name
+
+
+class PaymentGateway(models.Model):
+    """Quem processa o cartão — a adquirente/gateway (Stone, Cielo, Getnet…).
+
+    A mesma empresa pode aparecer mais de uma vez quando cobra diferente por
+    canal ("Cielo Máquina" e "Cielo Link" são contratos distintos, com tabelas
+    distintas): o que identifica aqui é a TABELA de taxas, não a marca."""
+    name      = models.CharField('Gateway', max_length=80, unique=True)
+    is_active = models.BooleanField('Em uso', default=True)
+    notes     = models.TextField('Observações', blank=True, default='')
+    order     = models.PositiveIntegerField('Ordem', default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'Gateway de pagamento'
+        verbose_name_plural = 'Gateways de pagamento'
+
+    def __str__(self):
+        return self.name
+
+
+class GatewayFee(models.Model):
+    """A taxa que um gateway cobra por bandeira e número de parcelas.
+
+    `installments = 0` é o débito/à vista sem parcelamento — a linha "0" das
+    tabelas das adquirentes, que cobra bem menos que a de 1 parcela e não pode
+    ser confundida com ela."""
+    gateway      = models.ForeignKey(PaymentGateway, on_delete=models.CASCADE, related_name='fees', verbose_name='Gateway')
+    brand        = models.ForeignKey(CardBrand, on_delete=models.CASCADE, related_name='fees', verbose_name='Bandeira')
+    installments = models.PositiveSmallIntegerField('Parcelas')
+    percent      = models.DecimalField('Taxa (%)', max_digits=6, decimal_places=3)
+
+    class Meta:
+        ordering = ['gateway__order', 'gateway__name', 'installments', 'brand__order', 'brand__name']
+        constraints = [
+            models.UniqueConstraint(fields=['gateway', 'brand', 'installments'], name='uniq_gateway_brand_parcela'),
+        ]
+        verbose_name = 'Taxa do gateway'
+        verbose_name_plural = 'Taxas dos gateways'
+
+    def __str__(self):
+        return f'{self.gateway} · {self.brand} · {self.installments}x = {self.percent}%'
