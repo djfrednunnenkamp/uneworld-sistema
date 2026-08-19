@@ -2294,7 +2294,8 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model  = SystemSettings
         fields = ['deadline_notification_emails', 'list_notification_users', 'list_notification_users_data',
-                  'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method']
+                  'a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method',
+                  'passenger_address_required']
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
@@ -2313,7 +2314,11 @@ def system_settings(request):
     # padrões de desconto à vista, que o formulário de contrato precisa ler.
     data = SystemSettingsSerializer(obj).data
     if not is_admin:
-        data = {k: data.get(k) for k in ('a_vista_discount_mode', 'a_vista_discount_value', 'a_vista_payment_method')}
+        # `passenger_address_required` entra aqui porque QUEM CADASTRA passageiro
+        # precisa dela para saber se cobra o endereço — e cadastrar passageiro
+        # não é privilégio de admin.
+        data = {k: data.get(k) for k in ('a_vista_discount_mode', 'a_vista_discount_value',
+                                         'a_vista_payment_method', 'passenger_address_required')}
     return Response(data)
 
 

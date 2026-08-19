@@ -715,6 +715,11 @@ class SystemSettings(models.Model):
     # Opções globais de pagamento à vista (desconto único + forma sugerida). Usadas
     # quando o pagamento é à vista, independentemente do modelo de pagamento.
     A_VISTA_DISCOUNT_MODE_CHOICES = [('percent', '% do total'), ('valor', 'Valor em R$')]
+    # Exigir o endereço no cadastro do passageiro. Ligado por padrão: contrato e
+    # voucher costumam pedir endereço, e cobrar depois é pior do que na hora.
+    # Desligado, o endereço vira opcional — serve para quem cadastra em massa,
+    # ou para o grupo que chega com nome e documento e o resto vem depois.
+    passenger_address_required = models.BooleanField('Endereço obrigatório no passageiro', default=True)
     a_vista_discount_mode  = models.CharField('Tipo do desconto à vista', max_length=10, choices=A_VISTA_DISCOUNT_MODE_CHOICES, default='percent')
     a_vista_discount_value = models.DecimalField('Desconto à vista (valor ou %)', max_digits=12, decimal_places=2, default=0)
     a_vista_payment_method = models.CharField('Forma de pagamento à vista', max_length=100, blank=True)
