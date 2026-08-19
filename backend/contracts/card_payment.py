@@ -47,6 +47,9 @@ def dados_do_cartao(contract):
     for gw in PaymentGateway.objects.filter(is_active=True).prefetch_related('fees'):
         taxas = sorted(f.percent for f in gw.fees.all() if f.installments == parcelas)
         opcao = {'id': gw.id, 'name': gw.name,
+                 # O link de cobrança daquele contrato — é o que o financeiro
+                 # manda ao cliente depois de escolher por onde a venda passa.
+                 'payment_url': gw.payment_url or None,
                  'fee_min': str(taxas[0]) if taxas else None,
                  'fee_max': str(taxas[-1]) if taxas else None,
                  'custo_brl': None}

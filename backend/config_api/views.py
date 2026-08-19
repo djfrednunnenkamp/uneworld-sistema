@@ -1468,7 +1468,7 @@ class PaymentGatewaySerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = PaymentGateway
-        fields = ['id', 'name', 'is_active', 'notes', 'order', 'fees', 'fee_count']
+        fields = ['id', 'name', 'payment_url', 'is_active', 'notes', 'order', 'fees', 'fee_count']
 
 
 class PaymentGatewayViewSet(viewsets.ModelViewSet):
