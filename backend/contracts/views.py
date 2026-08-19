@@ -885,10 +885,13 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             contract.payment_gateway_id = gid
             campos.append('payment_gateway')
 
-            # O link de cobrança desta venda. Opcional: nem toda venda no cartão
-            # tem link (na maquininha o cliente paga na hora, ali mesmo).
+            # O link de cobrança desta venda. Sem ele o cliente não tem por
+            # onde pagar — o contrato não segue para assinatura assim.
             url = (request.data.get('payment_url') or '').strip()
-            if url and not url.lower().startswith(('http://', 'https://')):
+            if not url:
+                return Response({'error': 'Informe o link de pagamento deste contrato.'},
+                                status=http_status.HTTP_400_BAD_REQUEST)
+            if not url.lower().startswith(('http://', 'https://')):
                 url = f'https://{url}'
             contract.payment_url = url
             campos.append('payment_url')

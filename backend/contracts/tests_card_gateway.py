@@ -86,7 +86,7 @@ class CartaoNaConferenciaTest(TestCase):
 
     def test_escolha_gravada_e_contrato_segue(self):
         self.parcelas(2)
-        r = self.liberar(payment_gateway=self.stone.id)
+        r = self.liberar(payment_gateway=self.stone.id, payment_url='https://pagar.stone.com.br/abc')
         self.assertEqual(r.status_code, 200, r.content)
         self.contract.refresh_from_db()
         self.assertEqual(self.contract.payment_gateway_id, self.stone.id)
@@ -118,13 +118,17 @@ class CartaoNaConferenciaTest(TestCase):
         self.contract.refresh_from_db()
         self.assertEqual(self.contract.payment_url, 'https://pagar.stone.com.br/abc')
 
-    def test_link_e_opcional(self):
-        """Na maquininha o cliente paga ali mesmo — não há link a informar."""
+    def test_sem_link_nao_passa(self):
+        """Sem link o cliente não tem por onde pagar — o contrato não avança."""
         self.parcelas(2)
         r = self.liberar(payment_gateway=self.stone.id)
-        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.status_code, 400)
         self.contract.refresh_from_db()
-        self.assertEqual(self.contract.payment_url, '')
+        self.assertEqual(self.contract.stage, 'a_faturar')
+
+    def test_link_so_com_espacos_nao_passa(self):
+        self.parcelas(2)
+        self.assertEqual(self.liberar(payment_gateway=self.stone.id, payment_url='   ').status_code, 400)
 
     def test_link_volta_na_conferencia(self):
         self.parcelas(2)
