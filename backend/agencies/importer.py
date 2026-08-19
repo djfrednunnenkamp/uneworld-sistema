@@ -443,14 +443,18 @@ def analyze_rows(raw_rows):
                     break
                 seen_strong[key] = line
 
+        # `matched_by` explica POR QUE a linha casou com um cadastro existente.
+        # Fica num campo próprio (não em warnings): o selo da linha já diz
+        # "Atualizar"/"Duplicada", e assim o filtro "com aviso" continua
+        # apontando só problemas de verdade (documento corrompido, promotor
+        # não encontrado, e-mail inválido…).
         if errors:
             action = 'error'
         elif existing_id:
             action = 'update'
-            warnings.append(f'Agência existente encontrada por {matched_by} — será atualizada.')
         elif idx.find_name(normalized):
             action = 'duplicate'
-            warnings.append('Já existe uma agência com nome e cidade iguais — confira se não é duplicada.')
+            matched_by = 'nome e cidade'
         else:
             action = 'new'
 
@@ -467,6 +471,7 @@ def analyze_rows(raw_rows):
                            'cpf_display': format_cpf(normalized['cpf']) if normalized['cpf'] else ''},
             'existing_id': existing_id,
             'action': action,
+            'matched_by': matched_by,
             'errors': errors,
             'warnings': warnings,
         })

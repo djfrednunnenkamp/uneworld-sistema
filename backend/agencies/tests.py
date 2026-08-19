@@ -317,7 +317,10 @@ class AgencyCsvImportTest(APITestCase):
         # o export é reimportável pela análise
         r2 = self._analyze(r.content, name='export.csv')
         self.assertEqual(r2.status_code, 200)
-        self.assertEqual(r2.data['rows'][0]['action'], 'update')   # casa por CNPJ
+        row = r2.data['rows'][0]
+        self.assertEqual(row['action'], 'update')       # casa por CNPJ
+        self.assertEqual(row['matched_by'], 'CNPJ')     # o motivo vai num campo próprio…
+        self.assertEqual(row['warnings'], [])           # …e não polui os avisos da linha
 
     def test_template_available_to_viewer(self):
         self.client.force_authenticate(self.viewer)
